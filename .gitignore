@@ -1,0 +1,78 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.direnv/
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# JavaScript / TypeScript
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+
+# Rust
+target/
+
+# Native builds and compiler outputs
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.class
+
+# CMake and Make build directories
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+compile_commands.json
+
+# Generated parser artifacts
+*.tokens
+*.interp
+parser.out
+parsetab.py
+
+# Temporary and cache directories
+tmp/
+temp/
+.cache/
