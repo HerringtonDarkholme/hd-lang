@@ -297,3 +297,71 @@ They should support:
 4. Durable checkpoint store.
 5. Replay/resume debugger.
 6. Execution history viewer.
+
+## Serializable Closures
+
+### Agent Tooling Fit
+
+Serializable closures should let agent tools package computation safely, not just data.
+
+They should support:
+
+1. Tool callbacks that can be stored, passed, or resumed.
+2. Client/server or agent/runtime function references.
+3. Cache keys derived from code identity, arguments, and captured values.
+4. Interactive resumption where captured state is preserved intentionally.
+5. Safe movement across runtime boundaries without ambient authority.
+
+### Engineering/Infra Fit
+
+Serializable closures should support durable workflows, remote execution, and caching.
+
+They should support:
+
+1. Capturing code identity and closed-over values.
+2. Validating that captured values are serializable.
+3. Preserving effect and capability requirements across serialization.
+4. Persisting continuations at resumable points.
+5. Replaying deterministic workflow steps.
+
+### Tooling Needs
+
+1. Closure capture analyzer.
+2. Serializable-value checker.
+3. Code identity/hash generator.
+4. Effect/capability capture report.
+5. Runtime boundary checker.
+6. Closure resume/replay debugger.
+
+## Incremental Computation
+
+### Agent Tooling Fit
+
+Incremental computation should help agent tools avoid repeating expensive work when only part of the input or environment changed.
+
+It should support:
+
+1. Dependency-aware caching for tool calls.
+2. Reuse of intermediate results in interactive sessions.
+3. Clear invalidation when inputs, captured values, or dependencies change.
+4. Explainable cache hits and misses for AI agents and human reviewers.
+
+### Engineering/Infra Fit
+
+Incremental computation should make distributed systems more efficient and easier to reason about.
+
+It should support:
+
+1. Tracking dependencies between computations and data.
+2. Recomputing only affected outputs.
+3. Integrating with serializable closures for cache keys.
+4. Integrating with workflows for resumable and deterministic execution.
+5. Integrating with observability so invalidation and recomputation are visible.
+
+### Tooling Needs
+
+1. Dependency graph builder.
+2. Cache key generator.
+3. Invalidation checker.
+4. Incremental recomputation planner.
+5. Cache/recompute trace viewer.

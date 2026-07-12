@@ -46,16 +46,20 @@ Requirements:
 @tool
 @description "Fetch a user by ID."
 @context AuthContext, TenantContext
-fn get_user(id: UserId) -> User !db !not_found !access
-    access
+fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
+    access:
         require auth.can("user:read")
     example
         input
-            id: UserId("user_123")
+            id: UserId { value: "user_123" }
         output
-            User(id: UserId("user_123"), name: "Ada")
-    user := perform db.get_user(id)
-    user?
+            User {
+                id: UserId { value: "user_123" },
+                name: "Ada"
+            }
+    db := use(Database)
+    user := db.get_user!(id)?
+    user
 ```
 
 Open design areas:
@@ -139,6 +143,24 @@ Requirements:
 5. Clear boundaries between replayed steps and newly executed steps.
 6. Diagnostics that help AI agents understand what can be resumed safely.
 
+### Serializable Closures And Incremental Computation
+
+The runtime should support serializable closures and incremental computation as runtime features.
+
+Serializable closures package a function reference with its captured environment so computation can be stored, moved across runtime boundaries, cached, or resumed. Captured values must be checked for serializability, effects, and capabilities.
+
+Incremental computation tracks dependencies between inputs, captured values, data reads, code identity, and outputs so the runtime can reuse cached results and recompute only affected work.
+
+Requirements:
+
+1. Code identity for serializable functions and closures.
+2. Capture analysis for closed-over values.
+3. Capability and effect preservation across serialization.
+4. Dependency-aware cache keys.
+5. Cache invalidation when inputs, captures, dependencies, or code change.
+6. Integration with interactive sessions and durable workflows.
+7. Observable cache/recompute traces for AI agents and human reviewers.
+
 ### Infrastructure Awareness
 
 Infrastructure awareness should be built into the language so AI agents can use code inspection and operational context to understand behavior. The language should not provide raw production data access. Observability signals such as logs, traces, and metrics should be available through controlled runtime/language features.
@@ -158,27 +180,33 @@ Struct data should be able to express retention, deletion, and cascade requireme
 
 This behavior should not be a hardcoded built-in policy. Instead, the language should provide a way to express domain-specific lifecycle requirements.
 
-Example requirement:
+Retention should use the general annotation model, not a standalone `retention` syntax.
+
+Open sketch:
 
 ```text
-struct User
+struct User:
     id: UserId
 
-struct Post
+struct Post:
     id: PostId
-    author: UserId
+    userId: UserId
 
-retention
-    when User deleted
-        delete Post where author == User.id
+annotate Retention for Post:
+    userId: ownerId
+    policy: deleteWhen(User.deleted)
 ```
+
+Here, `ownerId` alone is not enough. It can identify ownership or grouping, while policy terms such as `deleteWhen` express actual retention behavior. These are annotation terms defined by the `Retention` facet, similar to validation annotation terms.
 
 Open design areas:
 
-1. Whether retention rules live inside structs, near relationships, or in separate policy blocks.
-2. How retention rules are checked against storage backends.
-3. How deletion cascades interact with workflows, effects, audit logs, and access control.
-4. Whether retention rules generate tests and operational checks.
+1. Exact `annotate Retention for ...` syntax.
+2. Whether facet annotation terms like `ownerId` and `deleteWhen` must be declared by the facet.
+3. Which retention policy terms are needed, such as `deleteWhen`, `retainFor`, `archiveWhen`, or `anonymizeWhen`.
+4. How retention rules are checked against storage backends.
+5. How deletion cascades interact with workflows, effects, audit logs, and access control.
+6. Whether retention rules generate tests and operational checks.
 
 Infrastructure open design areas:
 
