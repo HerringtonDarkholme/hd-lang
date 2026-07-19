@@ -25,7 +25,7 @@ Design priorities:
 There should be only two local binding forms:
 
 1. `:=` for short bindings.
-2. `let` for mutated variables.
+2. `let`, with optional `mut`, for named local declarations.
 
 `:=` introduces an inferred, non-reassignable reference:
 
@@ -48,20 +48,28 @@ name := "Ada"
 name = "Grace"   # invalid: `name` was introduced with `:=`
 ```
 
-`let` introduces a variable that can be reassigned. Type annotation is optional:
+Plain `let` introduces an immutable local when an explicit declaration or type annotation is useful:
 
 ```text
-let attempts: i32 = 0
+let display_name: string = "Ada"
+let nickname: string? = nil
 let inferred = 1
+```
+
+`let mut` introduces a variable that can be reassigned or mutated in place. Type annotation is optional:
+
+```text
+let mut attempts: i32 = 0
+let mut counter = 1
 
 attempts = attempts + 1
-inferred = inferred + 1
+counter = counter + 1
 ```
 
 Reasoning:
 
 1. Most local code stays concise with `:=`.
-2. Mutation is review-relevant, so it should be visually explicit.
+2. Mutation is review-relevant, so it should be visually explicit with `mut`.
 3. Type annotations remain available for important mutable state, but inference is allowed when the type is obvious.
 
 ## Type System Direction
@@ -176,6 +184,17 @@ fn first[T](items: list[T]) -> T?:
     else:
         items[0]
 ```
+
+Generic arguments are inferred at call sites when the type is unambiguous. Callers can also provide the full generic argument list explicitly:
+
+```text
+names := ["Ada", "Grace"]
+
+a := first(names)          # T inferred as string
+b := first[string](names)  # explicit generic argument
+```
+
+v1 does not support partial explicit generic arguments or placeholder generic arguments.
 
 Variadic generics use type packs. Minimal v1 supports packs only in function types, vararg parameters, and spread calls:
 
@@ -496,6 +515,31 @@ user := User {
 
 This keeps construction visually distinct from function calls.
 
+Struct fields do not carry their own mutability marker. Mutation is controlled by the binding or parameter that owns the value:
+
+```text
+let mut editable = User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+editable.display_name = "Ada Lovelace"
+
+fn normalize_user(mut user: User) -> User:
+    user.email = user.email.trim().lower()
+    user
+```
+
+Use copy-update syntax when creating a modified value from an existing struct:
+
+```text
+renamed := User {
+    ...user,
+    display_name: "Ada Lovelace"
+}
+```
+
 ## Struct Embedding
 
 Struct embedding uses a bare type-name line inside the struct body. There is no `embed` keyword.
@@ -547,6 +591,117 @@ record.id                    # invalid: ambiguous promoted field
 record.CreatedByUser.id      # ok
 ```
 
+## Enums
+
+Enums model sum types. Simple variants have no payload:
+
+```text
+enum JobStatus:
+    Queued
+    Running
+    Succeeded
+    Failed
+```
+
+Payload variants use compact `Variant(field: type)` declarations. Use a separate struct payload when the data is large enough to need a full field block:
+
+```text
+enum ToolError:
+    NotFound(resource: string)
+    Unauthorized(reason: string)
+    RateLimited(retry_after_ms: i32)
+    Internal(message: string)
+```
+
+Payload variants are constructed with enum-qualified names and brace literals:
+
+```text
+error := ToolError.NotFound {
+    resource: "user_123"
+}
+```
+
+Match arms use `pattern => expression`. Enum variant patterns must be qualified with the enum name, and payload patterns use call-style parentheses:
+
+```text
+fn error_message(error: ToolError) -> string:
+    match error:
+        ToolError.NotFound(resource) => "not found: " + resource
+        ToolError.Unauthorized(reason) => "unauthorized: " + reason
+        ToolError.RateLimited(retry_after_ms) => "rate limited, retry after " + retry_after_ms.to_string() + "ms"
+        ToolError.Internal(message) => message
+        _ => "unknown"
+```
+
+Enums can declare constructor parameters shared by every variant. Enum constructor definitions and calls follow the same parameter conventions as functions: unnamed positional parameters/arguments first, then named parameters/arguments.
+
+```text
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+    NotFound -> HttpStatus(404, phrase="Not Found")
+```
+
+Enums support generic ADTs, recursive enums, and GADT-style variants with explicit result types:
+
+```text
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+```
+
+A GADT-style variant can also refine the enum type while passing data to an enum-level constructor:
+
+```text
+enum Box[T](contents: T):
+    IntBox(n: i64) -> Box[i64](n)
+    BoolBox(b: bool) -> Box[bool](b)
+```
+
+Pattern matching on a GADT-style variant refines the enum type parameter inside that arm:
+
+```text
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value
+        Expr.Add(left, right) => eval(left) + eval(right)
+        Expr.Sub(left, right) => eval(left) - eval(right)
+        Expr.Scale(value, factor) => eval(value) * factor
+        Expr.If(cond, then_value, else_value) =>
+            if eval(cond):
+                eval(then_value)
+            else:
+                eval(else_value)
+```
+
+Enum payload patterns follow the same positional/named convention as function calls and enum constructor calls. Positional patterns come first. Only `field=pattern` counts as a named pattern, and named patterns come after positional patterns. Bare identifiers bind new names, while literals match exact values:
+
+```text
+fn eval_i64(expr: Expr[i64]) -> i64:
+    match expr:
+        Expr.Add(l, r) => eval_i64(l) + eval_i64(r)
+        Expr.Sub(left=l, right=r) => eval_i64(l) - eval_i64(r)
+        Expr.Scale(value, factor=2) => eval_i64(value) * 2
+        Expr.IntLit(value) => value
+```
+
+In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; they do not need to match the payload field names `left` and `right`. In `Expr.Sub(left=l, right=r)`, `left=` and `right=` select payload fields by name, while `l` and `r` are still new binding patterns. `Expr.Scale(value, factor=2)` matches only a scale expression whose `factor` payload equals `2`. A positional pattern cannot appear after a named pattern. If the payload itself is an expression, match the nested variant explicitly, such as `right=Expr.IntLit(2)`.
+
+`Result` values use capitalized helper constructors:
+
+```text
+return Ok(user)
+return Err(db_error)
+```
+
 ## Absence
 
 Follow Swift's design:
@@ -589,21 +744,38 @@ scores := {"Ada": 10, "Grace": 12}       # map[string, i32]
 List comprehensions produce `list[T]` values:
 
 ```text
-long_names := [name for name in names if name.len() > 3]
-name_lengths := [name.len() for name in names]
+long_names := [for name in names if name.len() > 3 => name]
+name_lengths := [for name in names => name.len()]
+pairs := [for x in xs for y in ys => (x, y)]
+labels := [for user in users if (label := user.name.trim().lower()) != "" => label]
 ```
+
+Comprehensions put generator and filter clauses before `=>`, and the produced value after `=>`. Multiple `for` clauses run left to right. Use the `:=` binding expression to name intermediate values inside guards or result expressions; there is no separate `let` clause in comprehensions.
+
+A later clause can use names introduced by earlier clauses. An `if` filters at the point where it appears:
+
+```text
+early_filter := [for x in xs if x.active for item in x.items => item]
+pair_filter := [for x in xs for y in ys if x.id == y.owner_id => (x, y)]
+```
+
+The first form filters `x` before entering the inner `item` loop. The second form filters after both `x` and `y` exist. Later clauses are not visible to earlier clauses.
 
 Map comprehensions produce `map[K, V]` values:
 
 ```text
-scores_by_name := {user.name: user.score for user in users}
-active_by_id := {user.id: user for user in users if user.active}
+scores_by_name := {for user in users => user.name: user.score}
+active_by_id := {for user in users if user.active => user.id: user}
 ```
 
-Explicit mutable collection variables use `let`, like any other mutable binding:
+If a map comprehension produces the same key more than once, the later value wins.
+
+Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
+
+Explicit mutable collection variables use `let mut`, like any other mutable binding:
 
 ```text
-let attempts: list[i32] = []
+let mut attempts: list[i32] = []
 
 attempts.append(1)
 attempts.append(2)
@@ -612,8 +784,6 @@ attempts.append(2)
 Open syntax issues:
 
 1. Which collection operations are methods, functions, or trait-provided behavior.
-2. Whether comprehensions support multiple `for` clauses.
-3. Whether comprehensions support local bindings inside the comprehension.
 
 ## Function Shape
 
@@ -650,11 +820,24 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
     ...
 ```
 
+Default values can use pure expressions and pure function calls. They cannot require effects, dependencies, or suspension:
+
+```text
+fn default_port() -> i32:
+    443
+
+fn connect(host: string, port: i32 = default_port()) -> Connection:
+    ...
+
+fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connection:
+    ...      # invalid: default value suspends and requires a capability
+```
+
 Varargs accept zero or more positional arguments:
 
 ```text
 fn sum(values: i32...) -> i32:
-    let total: i32 = 0
+    let mut total: i32 = 0
     for value in values:
         total = total + value
     total
@@ -694,6 +877,14 @@ slugify := fn(text: string) -> string:
     text.trim().lower().replace(" ", "-")
 ```
 
+There is no separate short closure syntax in v1. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
+
+```text
+inc := fn(x: i32) -> i32: x + 1
+add := fn(x: i32, y: i32) -> i32: x + y
+make_id := fn() -> string: "id_123"
+```
+
 Closure parameter and return types can be inferred when there is an expected function type:
 
 ```text
@@ -705,7 +896,37 @@ lower_names := map_names(names, fn(name):
 )
 ```
 
-Closures capture values from lexical scope. Exact capture rules for mutable locals, serializable closures, and capability-carrying closures are still open.
+The same call can use a same-line closure:
+
+```text
+lower_names := map_names(names, fn(name): name.lower())
+```
+
+Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named parameters in the closure parameter list.
+
+Closures capture values from lexical scope. Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
+
+```text
+let mut count: i32 = 0
+
+let mut next = mut fn() -> i32:
+    count = count + 1
+    count
+
+next()
+```
+
+Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
+
+```text
+fn repeat(times: i32, mut f: mut fn() -> void) -> void:
+    let mut i: i32 = 0
+    while i < times:
+        f()
+        i = i + 1
+```
+
+Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are stricter: they can only capture serializable values, and cannot capture live handles or capabilities unless a runtime feature explicitly supports that capture.
 
 Overloads are not supported. Each function name resolves to one declaration in a scope.
 
@@ -722,10 +943,6 @@ Open questions:
 
 1. Should effect names be plain identifiers, trait/capability names, or typed values?
 2. Exact precedence and formatting rules for effect expressions using `+`, `-`, and parentheses.
-3. Whether default values must be compile-time constants.
-4. Whether generic arguments are inferred at call sites, explicit at call sites, or both.
-5. Whether a shorter one-line closure form is needed.
-6. Exact closure capture rules.
 
 Examples:
 
@@ -786,6 +1003,23 @@ Trait implementation is explicit. A type does not implement a trait just because
 
 Struct embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
 
+When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
+
+```text
+C does not satisfy Display
+
+required method:
+  fn display(self) -> string
+
+ambiguous promoted methods:
+  A.display(self) -> string
+  B.display(self) -> string
+
+fix:
+  implement Display for C explicitly
+  or call the embedded method through c.A.display() / c.B.display()
+```
+
 Dynamic dispatch follows the Go interface style: use the trait name as a value type, and method calls through that trait value dispatch to the concrete implementation at runtime.
 
 ```text
@@ -799,10 +1033,6 @@ This is different from generic static dispatch, where the compiler specializes t
 fn show_static[T: Display](value: T) -> string:
     value.display()
 ```
-
-Open syntax issues:
-
-1. Exact diagnostics when embedded methods conflict while checking trait satisfaction.
 
 ## Contract Syntax Direction
 
@@ -896,6 +1126,9 @@ Reasons:
 Loops should also support invariants:
 
 ```text
+let mut low: i32 = 0
+let mut high: i32 = items.len()
+
 while low < high:
     invariant:
         if key in items:
@@ -945,13 +1178,13 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database
 But the distinction should be expressed in the body, not by writing `use` or `raise` as kinds inside the function signature.
 
 ```text
-db := use(Database)
+db := $.use(Database)
 user := db.get_user!(id)?
 ```
 
 Body-level intent:
 
-1. `use(Database)` resolves or injects the `Database` dependency from the current handler/context.
+1. `$.use(Database)` retrieves the `Database` provider from the current context.
 2. `db.get_user!(id)` is the suspension point where control can enter the handler.
 3. Normal errors are returned as `Result[T, E]`, not receiverless control effects.
 
@@ -972,26 +1205,49 @@ Candidate:
 trait Database:
     fn get_user!(id: UserId) -> Result[User?, DbError]
 
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database:
-    require:
-        id.value != ""
-    db := use(Database)
+trait Cache:
+    fn get_user(id: UserId) -> User?
+
+fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
+    db, cache := $.use(Database, Cache)
+    cached := cache.get_user(id)
+    if cached != nil:
+        return Ok(cached)
     user := db.get_user!(id)?
     user
 
 handler mock_db for Database:
     fn get_user!(id: UserId) -> Result[User?, DbError]:
-        ok(User {
+        Ok(User {
             id: id,
             name: "Test User"
         })
+
+$.with(Database=mock_db, Cache=memory_cache):
+    user := load_user!(UserId { value: "user_123" })
 ```
+
+Reusable contexts are provider-map values typed by a requirement row:
+
+```text
+fn prod_context() -> $.Context[Metrics + Cache]:
+    $.context(Metrics=metrics, Cache=cache)
+
+$.with(Database=mock_db, Logger=console_logger, ...prod_context()):
+    db, logger, cache := $.use(Database, Logger, Cache)
+    user := load_user!(UserId { value: "user_123" })
+```
+
+`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `$.with(Database=mock_db, ...prod_context())` opens a lexical provider scope and spreads reusable providers, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order.
+
+Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels.
+
+Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
 
 Open syntax issues:
 
-1. How operations inside an effect are called.
-2. How handlers are selected in tests, production, and nested scopes.
-3. `Result[T, E]` ergonomics beyond `?` propagation, including construction and pattern matching.
+1. Exact provider declaration syntax for production, tests, and package/app boundaries.
+2. `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction, including pattern matching.
 
 ## Effect Polymorphism
 
@@ -1016,18 +1272,18 @@ Explicit effect variables become more useful if handlers can remove effects from
 Candidate:
 
 ```text
-fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - log):
-    with logger:
+fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - Logger):
+    $.with(Logger=logger):
         callback("str")
 ```
 
 Meaning:
 
 1. `callback` may require any effects in `e`.
-2. `handle_log` installs a handler for `log`.
-3. The remaining requirement row is `e - log`.
-4. If `callback` only requires `log`, the result is pure after `log` is handled.
-5. If `callback` requires `log` and `Database`, the result effect is `Database`.
+2. `handle_log` installs a provider/handler for `Logger`.
+3. The remaining requirement row is `e - Logger`.
+4. If `callback` only requires `Logger`, the result is pure after `Logger` is handled.
+5. If `callback` requires `Logger` and `Database`, the result effect is `Database`.
 
 The important idea is effect-variable transformation: a function can propagate "all callback effects except the ones I handle." This is useful even if the language does not expose full row polymorphism in v1.
 
@@ -1053,7 +1309,7 @@ Unhandled requirements of function-typed parameters propagate automatically; the
 
 ### Open questions regardless of candidate
 
-1. Effect subtraction/removal syntax: should handled effects be written explicitly as `$ (e - log)` or inferred from `with logger`?
+1. Effect subtraction/removal syntax: should handled effects be written explicitly as `$ (e - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
 2. Function-typed struct fields and returned closures: row variables, monomorphization, or disallowed in v1?
 3. Do polymorphic rows range over contract effects (`require`, `ensure`) as well as user effects?
 4. How do handlers installed at a call site interact with a polymorphic row?
@@ -1091,10 +1347,315 @@ Open questions:
 
 Validation should not create distinct static subtypes by default. A field like `string.max_len(50)` and `string.max_len(100)` should still have the same base static type, `string`; validation metadata is used for runtime checks, generated schemas, generated data, docs, and tooling.
 
+## Generic Representation And Annotation Derivation
+
+Annotation design should be split into four separate concerns before finalizing syntax.
+
+### Common Representation
+
+The compiler should expose a typed common representation for declarations. This is similar in spirit to Python's runtime introspection model (`__annotations__`, docstrings, signatures, defaults) and Scala's compile-time generic representation, but hd-lang should make it compile-time-first, typed, and compiler-verifiable.
+
+The common representation should cover at least:
+
+1. Structs: name, fields, embedded structs, field types, field defaults, docs, visibility, and attached metadata.
+2. Enums: name, variants, constructor arguments, GADT result types, docs, and attached metadata.
+3. Functions: name, parameters, return type, dependency requirements, suspension marker, docs, defaults, and attached metadata.
+
+Provisional shape vocabulary:
+
+```text
+shape(User)       # StructShape
+shape(JobStatus)  # EnumShape
+shape(get_user)   # FnShape
+```
+
+This representation is the foundation for AI tooling: the compiler and tools can inspect source-level intent without falling back to string parsing or ad hoc reflection.
+
+### Generic Derivation
+
+The common path should be structural derivation from a shape. A facet such as JSON, UI, Tool, DatabaseSchema, Retention, or Observability defines how to derive an artifact from an appropriate shape.
+
+Conceptually:
+
+```text
+Json.derive(shape(User))
+UI.derive(shape(User))
+Tool.derive(shape(get_user))
+Retention.derive(shape(Post))
+```
+
+The exact user-facing spelling is still open. Candidate directions include `derive Facet for Target`, facet-led blocks, or another syntax that keeps the derived facet and target obvious.
+
+### Overriding Derivation
+
+Derived behavior needs local specialization. There should be several override paths:
+
+1. Override annotation: patch only specific fields, variants, parameters, or function-level settings while keeping the generic derivation.
+2. Reusable override profile: name a set of overrides so the same derivation policy can be reused.
+3. Whole derivation rewrite: replace the generic derivation with custom code when a facet cannot be derived structurally.
+
+The design goal is Serde-like local override ergonomics without making each ecosystem invent unrelated attribute syntax.
+
+Provisional examples, not settled syntax:
+
+```text
+derive UI for User:
+    avatar_url = AvatarImage(size=48)
+    display_name = TextInput(label="Display name")
+
+derive Json for User:
+    rename_all = camelCase
+    avatar_url = omitWhenNil()
+```
+
+### Runtime Use
+
+Compile-time derivation and runtime metadata export should be separate. Some derivations only need generated code; others need runtime values for tool registries, UI renderers, schemas, workflow engines, or observability systems.
+
+Runtime export should be explicit when requested:
+
+```text
+derive Json for User
+derive UI for User export UserView
+derive Tool for get_user export GetUserTool
+```
+
+The exact syntax is open, but the principle is settled: runtime metadata should be produced deliberately, not as an accidental consequence of attaching metadata to a declaration.
+
+### Provisional Annotation Protocol
+
+A promising direction is to model annotations as uniformly typed derivation protocols implemented by ordinary types. This is not final syntax; it records the current idea for further design.
+
+Shape values should be usable as runtime values:
+
+```text
+shape(User)        # StructShape
+shape(User.id)     # FieldShape
+shape(JobStatus)   # EnumShape
+shape(get_user)    # FnShape
+```
+
+An annotation facet for structs can implement a protocol similar to:
+
+```text
+trait StructAnnotation:
+    type FieldTarget
+    type Target
+
+    fn map_field(field: FieldShape) -> Self::FieldTarget
+
+    fn finish(
+        shape: StructShape,
+        fields: Dict[string, Self::FieldTarget],
+    ) -> Self::Target
+```
+
+`map_field` derives one field-level artifact at a time. It receives `FieldShape`, so the derivation can inspect the source field's runtime type metadata. The field result type is uniform for the annotation facet. `finish` combines the field artifacts into one ordinary target value. Struct field artifacts are passed as `Dict[string, FieldTarget]`, keyed by field name.
+
+For UI, every field maps to a `ReactComponent`:
+
+```text
+impl StructAnnotation for UI:
+    type FieldTarget = ReactComponent
+    type Target = list[ReactComponent]
+
+    fn map_field(field: FieldShape) -> ReactComponent:
+        if field.type == string:
+            TextInput(field.name)
+        else if field.type == bool:
+            Checkbox(field.name)
+        else:
+            DefaultInput(field.name)
+
+    fn finish(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+        shape.fields.map(fn(field): fields[field.name])
+```
+
+`annotate` is the chosen special syntax for customizing a facet for a target:
+
+```text
+annotate UI for User:
+    userId = ReactUserId
+
+    fn finish(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+        [
+            fields["userId"],
+            fields["displayName"],
+            fields["avatar"],
+        ]
+```
+
+Inside `annotate UI for User`, assignments such as `userId = ...` may only target existing fields of `User`. They do not create new fields. The right-hand side replaces the mapped field result for that field while keeping the generic derivation for all other fields. The block may also override the whole-generation hook, `finish`.
+
+For one facet/target pair, only one `annotate` block is allowed in a package:
+
+```text
+annotate DatabaseSchema for User:
+    email = DatabaseColumn.TextColumn(name="email", max_len=320)
+```
+
+A second `annotate DatabaseSchema for User` block in the same package is a compile-time error. Therefore field-level merge rules and duplicate `finish` rules are not needed for same-package annotations.
+
+Annotation blocks are global within a package. Any module in the package can request the materialized annotation value:
+
+```text
+schema := DatabaseSchema::annotation(User)
+```
+
+An application package can override annotation defaults supplied by a library dependency. This is a package-level override of the library-provided annotation for that application, not an implicit merge of multiple local blocks.
+
+The right-hand side of a field override must typecheck as that annotation's uniform field target:
+
+```text
+ReactUserId: UI::FieldTarget
+```
+
+For UI, that means `ReactComponent`.
+
+For database schema, the field type is still available to `map_field`, but the result is uniformly typed:
+
+```text
+enum DatabaseColumn:
+    I32Column(name: string)
+    I64Column(name: string)
+    TextColumn(name: string, max_len: i32?)
+    BoolColumn(name: string)
+    JsonColumn(name: string)
+
+struct TableSchema:
+    name: string
+    columns: list[DatabaseColumn]
+
+impl StructAnnotation for DatabaseSchema:
+    type FieldTarget = DatabaseColumn
+    type Target = TableSchema
+
+    fn map_field(field: FieldShape) -> DatabaseColumn:
+        max_len := field.annotation(MaxLen)?.value
+
+        if field.type == i32:
+            DatabaseColumn.I32Column(field.name)
+        else if field.type == i64:
+            DatabaseColumn.I64Column(field.name)
+        else if field.type == string:
+            DatabaseColumn.TextColumn(field.name, max_len=max_len)
+        else if field.type == bool:
+            DatabaseColumn.BoolColumn(field.name)
+        else:
+            DatabaseColumn.JsonColumn(field.name)
+
+    fn finish(shape: StructShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
+        TableSchema {
+            name: shape.name,
+            columns: shape.fields.map(fn(field): fields[field.name]),
+        }
+```
+
+Overrides typecheck against the uniform target:
+
+```text
+struct User:
+    id: UserId
+    @max_len(320)
+    email: string
+    @max_len(80)
+    display_name: string
+    active: bool
+
+annotate DatabaseSchema for User:
+    # Optional override. Without this, `map_field` reads @max_len(320).
+    email = DatabaseColumn.TextColumn(name="email", max_len=320)
+    active = DatabaseColumn.BoolColumn(name="is_active")
+```
+
+The compiler checks only that each right-hand side is a `DatabaseColumn`. It does not statically prove that a `string` field received a text column or that an `i32` field received an integer column. Annotation facets can still enforce stricter domain rules in their own constructors, `map_field`, validation hooks, or generated diagnostics, but the core annotation protocol stays uniform.
+
+This is an intentional simplification. TypeScript mapped types can model shape-preserving field transforms, but in a stricter nominal language that likely requires HKT-like type functions, dependent record construction, or special compiler-generated HList/labelled-record machinery. hd-lang should avoid that in the initial annotation design.
+
+Enums need the same idea for variants:
+
+```text
+trait EnumAnnotation:
+    type VariantTarget
+    type Target
+
+    fn map_variant(variant: VariantShape) -> Self::VariantTarget
+
+    fn finish(
+        shape: EnumShape,
+        variants: Dict[string, Self::VariantTarget],
+    ) -> Self::Target
+```
+
+Runtime use should be explicit. Applying an annotation facet can produce a runtime value that tools, registries, UI renderers, schema generators, or deployment systems can consume:
+
+```text
+UserTable := DatabaseSchema::annotation(User)     # TableSchema
+UserForm := UI::annotation(User)                  # list[ReactComponent]
+ToolSpec := Tool::annotation(get_user)            # ToolSpec
+ErrorSchema := ErrorDoc::annotation(ToolError)    # ErrorSchema
+```
+
+The spelling `Facet::annotation(Target)` is the current preferred provisional syntax. Semantically, it means:
+
+```text
+shape_value := shape(Target)
+fields := Dict.from_entries(
+    shape_value.fields.map(fn(field): (field.name, Facet.map_field(field)))
+)
+result := Facet.finish(shape_value, fields)
+```
+
+For functions and enums, the same pattern applies with parameters or variants:
+
+```text
+fn_shape := shape(get_user)
+param_map := Dict.from_entries(
+    fn_shape.params.map(fn(param): (param.name, Tool.map_param(param)))
+)
+tool_spec := Tool.finish(fn_shape, param_map)
+
+enum_shape := shape(ToolError)
+variant_map := Dict.from_entries(
+    enum_shape.variants.map(fn(variant): (variant.name, ErrorDoc.map_variant(variant)))
+)
+error_schema := ErrorDoc.finish(enum_shape, variant_map)
+```
+
+If a package-level override block exists, the compiler/runtime applies overrides between generic mapping and whole-generation construction:
+
+```text
+user_shape := shape(User)
+default_fields := Dict.from_entries(
+    user_shape.fields.map(fn(field): (field.name, DatabaseSchema.map_field(field)))
+)
+overridden_fields := apply_overrides(DatabaseSchema, User, default_fields)
+table := DatabaseSchema.finish(user_shape, overridden_fields)
+```
+
+Runtime annotation values should be ordinary typed values. They can be assigned, exported, registered, passed to functions, or generated into external artifacts:
+
+```text
+tool_registry.register(Tool::annotation(get_user))
+db.sync(DatabaseSchema::annotation(User))
+render_form(UI::annotation(User), user)
+openapi.add_tool(Tool::annotation(get_user))
+```
+
+Whether annotation values are computed at compile time, generated into code, cached by the runtime, or materialized lazily is a compiler/runtime decision. The source-level model should be that annotations are requested explicitly and produce ordinary values.
+
+Open concerns:
+
+1. The exact protocol names are not settled: `StructAnnotation`, `EnumAnnotation`, `FuncAnnotation`, `map_field`, `map_variant`, and `finish` all need naming review.
+2. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
+3. `finish` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `finish` should use the original `shape` ordering.
+4. Exact rules for application packages overriding annotation defaults from library dependencies still need detail.
+5. Runtime annotation materialization syntax is provisional. The current preferred sketch uses `Facet::annotation(Target)`, but the exact spelling is still open.
+
 Support two styles:
 
 1. Lightweight annotations for minimal inline constraints.
-2. General external `annotate <Facet> for <Target>` blocks for richer or extendable metadata.
+2. External derivation/override blocks for richer or extendable metadata. The exact block syntax is unresolved.
 
 Candidate annotation style:
 
@@ -1122,28 +1683,29 @@ struct Employee:
     email: string
 ```
 
-Candidate external validation annotation block:
+Conceptual external validation override, not final syntax:
 
 ```text
-annotate Validation for Employee:
-    email:
-        string.email().max_len(320).refine(company_email)
-    age:
-        i32.range(18..150)
+Validation.derive(shape(Employee), overrides={
+    email: string.email().max_len(320).refine(company_email),
+    age: i32.range(18..150),
+})
 ```
 
 The same mechanism should work for other tooling facets:
 
 ```text
-annotate DatabaseSchema for User:
-    userId: varchar(36).primary_key()
-    email: varchar(320).unique()
-    createdAt: timestamp()
+DatabaseSchema.derive(shape(User), overrides={
+    userId: varchar(36).primary_key(),
+    email: varchar(320).unique(),
+    createdAt: timestamp(),
+})
 
-annotate UI for User:
-    userId: text
-    avatar: ProfileImage.rounded(size=40)
-    email: link.mailto()
+UI.derive(shape(User), overrides={
+    userId: text,
+    avatar: ProfileImage.rounded(size=40),
+    email: link.mailto(),
+})
 ```
 
 Reusable validation pieces can be ordinary values/functions, not new type-level entities:
@@ -1151,8 +1713,9 @@ Reusable validation pieces can be ordinary values/functions, not new type-level 
 ```text
 CompanyEmail := string.email().max_len(320).refine(company_email)
 
-annotate Validation for Employee:
-    email: CompanyEmail
+Validation.derive(shape(Employee), overrides={
+    email: CompanyEmail,
+})
 ```
 
 Tooling should generate runtime validators, JSON Schema, TypeScript types, valid test data generators, serializers/deserializers, and documentation from validated data types. Invalid data generation is not needed initially.
@@ -1160,7 +1723,7 @@ Tooling should generate runtime validators, JSON Schema, TypeScript types, valid
 Open syntax issues:
 
 1. Standard inline validation annotation set.
-2. Exact `annotate <Facet> for <Target>` syntax.
+2. Exact external derivation/override block syntax.
 3. Whether validator composition uses method chaining, pipes, nested calls, or blocks.
 4. How annotation facets import and reuse validators from other files.
 5. How generators handle custom validators.
@@ -1179,7 +1742,7 @@ Candidate:
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
     access:
         require auth.can("user:read")
-    db := use(Database)
+    db := $.use(Database)
     user := db.get_user!(id)?
     user
 ```
@@ -1194,7 +1757,7 @@ Metadata-heavy registrations can use an indented annotation block:
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
     access:
         require auth.can("user:read")
-    db := use(Database)
+    db := $.use(Database)
     user := db.get_user!(id)?
     user
 ```
@@ -1216,9 +1779,9 @@ Open syntax issues:
 
 Struct data should be able to express retention, deletion, and cascade requirements declaratively. The behavior should not be hardcoded into the language as a specific policy; the language should provide syntax for expressing the requirement.
 
-Retention should use the general `annotate <Facet> for <Target>` model. Its payload should look like facet-specific field annotations, similar to validation annotations.
+Retention should use the general derivation/override facet model, not a standalone retention syntax. Its payload should look like facet-specific field annotations, similar to validation annotations.
 
-Candidate:
+Conceptual model, not final syntax:
 
 ```text
 struct User:
@@ -1228,25 +1791,28 @@ struct Post:
     id: PostId
     userId: UserId
 
-annotate Retention for Post:
-    userId: ownerId
-    policy: deleteWhen(User.deleted)
+Retention.derive(shape(Post), overrides={
+    userId: ownerId,
+    policy: deleteWhen(User.deleted),
+})
 ```
 
 Here, `ownerId` and `deleteWhen` are not new language keywords. They are annotation terms provided by the `Retention` facet, similar to how validation might provide `email`, `max_len`, or `range`.
 
 ```text
-annotate Validation for User:
-    email: email.max_len(320)
+Validation.derive(shape(User), overrides={
+    email: email.max_len(320),
+})
 
-annotate Retention for Post:
-    userId: ownerId
-    policy: deleteWhen(User.deleted)
+Retention.derive(shape(Post), overrides={
+    userId: ownerId,
+    policy: deleteWhen(User.deleted),
+})
 ```
 
 Open syntax issues:
 
-1. Exact `annotate Retention for ...` syntax.
+1. Exact retention facet derivation/override syntax.
 2. Whether facet annotation terms like `ownerId` and `deleteWhen` must be declared by the facet.
 3. Which retention policy terms are needed, such as `deleteWhen`, `retainFor`, `archiveWhen`, or `anonymizeWhen`.
 4. Exact policy expression syntax, such as `deleteWhen(User.deleted)`.
@@ -1309,7 +1875,7 @@ Open syntax issues:
 3. What should the failed `require` and failed `ensure` effects be named?
 4. Should every function with `require` or `ensure` explicitly list the contract effects, or should the effects be inferred from the sections?
 5. What should user-defined effect and handler syntax look like?
-6. What should inline validation annotation and external `annotate <Facet> for <Target>` syntax look like?
+6. What should inline validation annotation and external derivation/override syntax look like?
 7. What should declarative data-retention and cascade syntax look like?
 8. What should registration annotation/decorator syntax look like?
 9. Which effect-polymorphism candidate should higher-order functions use, and what is deferred to later versions?

@@ -26,12 +26,33 @@ Remaining questions:
 
 ## Language And Tooling Fit
 
-1. How should inline validation annotations and external `annotate <Facet> for <Target>` blocks attach to fields, aliases, and function parameters?
-2. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
-3. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
-4. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration?
-5. For each property test failure, what structured output should be produced for AI repair?
-6. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
+Annotation decisions:
+
+1. `annotate Facet for Target` is the chosen special syntax for annotation overrides.
+2. Only one annotation block is allowed for a given facet/target pair in a package.
+3. Annotation blocks are global within a package.
+4. Application packages can override annotation defaults supplied by library dependencies.
+5. Annotation field/variant/parameter assignments can only target existing target members; they cannot create new members.
+6. The whole-generation hook is named `finish`.
+7. Struct annotation `finish` receives `Dict[string, FieldTarget]` keyed by field name.
+
+Remaining questions:
+
+1. What common runtime shape representation should the compiler expose for structs, enums, functions, fields, variants, and parameters?
+2. How should generic derivation consume that representation for facets such as validation, JSON, UI, tools, database schema, retention, observability, and workflows?
+3. What override paths besides one package-global `annotate Facet for Target` block should exist later, such as reusable override profiles or full derivation rewrites?
+4. How should derived metadata/artifacts be explicitly exported for runtime use?
+5. Should annotation facets be ordinary trait implementations such as `StructAnnotation`, `EnumAnnotation`, and `FuncAnnotation`?
+6. Is the uniformly typed annotation protocol enough for v1: one `FieldTarget`, one `VariantTarget`, and one `Target` per annotation facet?
+7. If a facet needs stricter field-type-specific correctness, should that be enforced through smart constructors, validation hooks, generated diagnostics, or a later advanced type feature?
+8. How should generic annotation handlers read attached metadata from shapes, such as `field.annotation(MaxLen)`?
+9. What syntax should materialize annotation-derived runtime values, currently sketched as `DatabaseSchema::annotation(User)`?
+10. What are the exact rules for application packages overriding annotation defaults from library dependencies?
+11. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
+12. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
+13. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration?
+14. For each property test failure, what structured output should be produced for AI repair?
+15. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
 
 ## Agent Tooling Scenario
 
@@ -46,7 +67,7 @@ Remaining questions:
 
 ## Engineering And Infrastructure Scenario
 
-1. What should `Result[T, E]` ergonomics look like for compiler-verifiable error handling: constructors, matching, diagnostics, and interaction with `?` propagation?
+1. What should `Result[T, E]` ergonomics look like for compiler-verifiable error handling beyond `Ok(value)` / `Err(error)` construction: matching, diagnostics, and interaction with `?` propagation?
 2. Which infrastructure concepts should be first-class: databases, queues, cron jobs, object storage, secrets, deployments, regions, feature flags, or workflows?
 3. Should observability be automatic for every function, or explicit through effects and annotations?
 4. Should logs, traces, and metrics be queryable from language tooling?
@@ -88,6 +109,7 @@ Decisions:
 10. Constructor-style casting is enough for newtype unwrapping; no `.value` or pattern matching access is needed for now.
 11. Variance is skipped for v1; generic types are invariant unless a concrete need appears later.
 12. If multiple embedded structs promote conflicting methods, the outer type does not satisfy the trait automatically.
+13. When promoted methods conflict during trait checking, diagnostics show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl or qualified embedded-method call.
 13. Integer literals always default to `i32` when there is no expected type.
 14. Integer literals are range checked when there is an expected numeric type.
 15. Varargs must be the final positional parameter.
@@ -105,6 +127,43 @@ Decisions:
 27. `void` remains the no-useful-value return type spelling.
 28. Integer literal range diagnostics include the invalid literal, target type range, and a suggested wider type.
 29. Numeric narrowing diagnostics suggest explicit constructor-style casts, such as `i16(value)`.
+30. Comprehensions use clause-first syntax with `=>`, such as `[for user in users if (label := user.name.trim().lower()) != "" => label]`.
+31. Multiple `for` clauses are allowed in comprehensions and run left to right.
+32. Comprehensions do not have a separate `let` clause; local names use `:=` binding expressions.
+33. In comprehensions, later clauses can use earlier names, `if` filters at the point where it appears, and later clauses are not visible to earlier clauses.
+34. If a map comprehension produces the same key more than once, the later value wins.
+35. Comprehensions cannot contain suspension points.
+36. `break value` is only valid in value-producing loops with `else`; statement-only loops use plain `break`.
+37. `match` arms use `pattern => expression`, and `_ => expression` is the fallback arm spelling.
+38. `else if` is one direct conditional-chain syntax form, not a nested `else` block containing a separate `if`.
+39. Struct fields do not have field-level mutability markers.
+40. Struct mutation is controlled by `let mut` bindings, `mut` function parameters, and `mut self` receivers.
+41. Struct copy-update uses spread syntax in a typed literal, such as `User { ...user, display_name: "Ada" }`.
+42. Enum payload variant declarations use compact `Variant(field: type)` syntax in v1. Large payloads should use a separate struct.
+43. Enum variant patterns in `match` arms must be qualified with the enum name, such as `JobStatus.Queued`, even when the matched value's type is known.
+44. Enum payload patterns use call-style parentheses, such as `Expr.IntLit(value) => value`, not brace destructuring.
+45. Enums support generic algebraic data types, recursive enum definitions, and GADT-style variants with explicit result types, such as `IntLit(value: i64) -> Expr[i64]`.
+46. Pattern matching on a GADT-style variant refines the enum type parameter inside that arm, so `Expr.IntLit` can refine `Expr[T]` to `Expr[i64]` for arm-local type checking.
+47. A GADT-style variant can refine the enum type while passing data to an enum-level constructor, such as `IntBox(n: i64) -> Box[i64](n)`.
+48. `Result` values are constructed with capitalized helper constructors: `Ok(value)` and `Err(error)`.
+49. Enums can declare constructor parameters for data shared by every variant, including unnamed parameters such as `enum StatusCode(i32):`.
+50. Variants can call the enum constructor in their result expression, such as `NotFound -> StatusCode(404)`.
+51. Enum constructor definitions and calls follow the same parameter conventions as functions: unnamed positional parameters/arguments first, then named parameters/arguments.
+52. Enum payload patterns follow the same positional/named convention as calls: positional patterns first, then named patterns. Only `field=pattern` counts as a named pattern.
+53. In enum payload patterns, bare identifiers bind new names, and positional binding names do not need to match payload field names, such as `Expr.Add(l, r)` for fields named `left` and `right`.
+54. In enum payload patterns, literals match exact values, such as `Expr.Scale(value, factor=2)`.
+55. Function parameter defaults may use pure expressions and pure function calls, but cannot require effects, dependencies, or suspension.
+56. Generic arguments are inferred at call sites when unambiguous, and callers can provide the full generic argument list explicitly. v1 has no partial explicit generic arguments or placeholder generic arguments.
+57. There is no separate short closure syntax in v1; same-line `fn(...) -> ...:` closure bodies are allowed for single-expression closures, such as `fn(x: i32) -> i32: x + 1`.
+58. Shorthand argument closures using `$0`, `$1`, etc. are deferred; v1 requires named parameters in the closure parameter list.
+59. Closures that mutate captured locals have mutable function type `mut fn(...) -> ...`, and calling one requires the closure value to be mutable.
+60. Plain `fn(...) -> T` closures cannot mutate captured locals.
+61. Closures that capture dependencies or capabilities carry those requirements in their function type.
+62. Serializable closures can only capture serializable values, and cannot capture live handles or capabilities unless a runtime feature explicitly supports that capture.
+63. Context access uses `$` operations with requirement keys as arguments. `$.use(Database, Cache)` retrieves providers by requirement key in argument order.
+64. Provider scopes use named requirement bindings, such as `$.with(Database=mock_db, Cache=memory_cache):`.
+65. Reusable contexts use row-indexed provider-map types, such as `$.Context[Metrics + Cache]`, with builders like `$.context(Metrics=metrics, Cache=cache)` and lexical reuse through spread syntax, such as `$.with(Database=db, ...prod_context()):`.
+66. Context rows are unordered and unique by requirement key. Duplicate providers cannot coexist; construction/spread collapses duplicates by lexical order, with later bindings winning, and missing providers are compile-time errors.
 
 ## Modules, Packages, And Imports
 
@@ -137,15 +196,15 @@ Decisions:
 
 1. Should effects mainly describe external dependencies, capabilities, suspension points, contracts, or all side-effectful behavior excluding normal errors?
 2. Should user-defined effects be lightweight enough to use for small mocks?
-3. Should dependency handlers be selected explicitly at call sites, by lexical scope, by test configuration, or by runtime environment?
+3. How should package/app boundaries declare default providers for production and tests?
 4. Should effects be part of public API compatibility?
 5. Should an AI agent be able to replace real dependencies with mock handlers automatically?
 6. Should effect polymorphism use explicit row variables, parameter-linked effects, or inferred propagation?
-7. Should handled effects be removed explicitly from effect variables, such as `e - log`, or inferred from the handler body?
+7. Should handled effects be removed explicitly from effect variables, such as `e - Logger`, or inferred from the handler body?
 8. Is full row polymorphism needed, or is a smaller effect-variable model with union and removal enough?
-9. What are the exact handler selection rules for dependencies resolved with `use(Database)`?
+9. What are the exact provider shadowing and lookup rules for `$.with(...)`, context spread, and `$.use(...)` context syntax?
 10. Should all functions whose own body contains suspension points require both bang-suffixed declarations and bang-call syntax?
-11. Should `use(Database)` be cached per lexical scope, per function invocation, or resolved at every call?
+11. Should `$.use(...)` provider lookup be cached per lexical scope, per function invocation, or resolved at every use site?
 
 ## Sandbox, Capabilities, And Resumption
 

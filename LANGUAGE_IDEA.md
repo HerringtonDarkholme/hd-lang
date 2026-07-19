@@ -63,7 +63,7 @@ The language exists to provide the integrated solution: one semantic model where
 13. Failed `require` and failed `ensure` should be distinct effects, because they represent caller obligation failures and callee obligation failures.
 14. Contract checks should run in test/debug builds by default, and should be configurable to run in production.
 15. Dependencies should be modeled as signature requirements, not as special declarations. A dependency can be an ordinary trait or capability, such as `Database`, that appears in a function's `$` requirement row and is implemented by handlers.
-16. Validation should use two styles: lightweight annotations for minimal inline constraints, and general external `annotate <Facet> for <Target>` blocks for richer or extendable metadata.
+16. Validation should use two styles: lightweight annotations for minimal inline constraints, and external derivation/override blocks for richer or extendable metadata. The exact block syntax remains open.
 17. Property tests should automatically generate test data from schema information.
 18. Property-test syntax should be designed separately from the core language syntax.
 19. The language should support AI-agent tool definitions with typed inputs, validation, descriptions, examples, auth/context/access-control metadata, and references between tools.
@@ -73,7 +73,7 @@ The language exists to provide the integrated solution: one semantic model where
 23. Tool definitions should replace JSON schema/OpenAPI-style specs when using this language's infrastructure, and generate those specs when interoperating with existing tooling.
 24. Infrastructure awareness should lean toward built-in code inspection: resource definitions can be derived from code, then deployed or synced to cloud infrastructure.
 25. Raw production data should not be accessible through the language. Observability signals such as logs and traces should be accessible through controlled language/runtime features.
-26. Struct data should be able to express declarative data-retention and cascade behavior, such as deleting posts when a user is deleted. This should use the general `annotate Retention for ...` model, not a standalone retention syntax.
+26. Struct data should be able to express declarative data-retention and cascade behavior, such as deleting posts when a user is deleted. This should use the general annotation/derivation facet model, not a standalone retention syntax.
 27. The language should be function-first. Normal structs, functions, and tools are primary; system-level registration should be expressed through annotations or decorator-like metadata.
 28. Registration annotations should support compact one-line forms and indented metadata blocks for heavier cases.
 29. The primary reader is a human reviewing AI-generated code.
@@ -85,41 +85,47 @@ The language exists to provide the integrated solution: one semantic model where
 35. Code should run in a sandbox by default, with capabilities explicitly declared, granted, or handled.
 36. The language/runtime should support execution resumption in two modes: interactive session resumption, similar to IPython/notebook workflows, and durable workflow resumption, similar to Vercel workflows or Temporal.
 37. Validated newtypes are supported through explicit branding: a `brand` type is a distinct static type whose values are constructed through validation ("parse, don't validate"). Unbranded annotated types keep base type identity and never refine.
-38. Effect polymorphism should support propagating callback effects and removing effects handled internally, such as `e - log`, without necessarily committing yet to full row polymorphism.
+38. Effect polymorphism should support propagating callback effects and removing effects handled internally, such as `e - Logger`, without necessarily committing yet to full row polymorphism.
 39. Annotation facets should be able to define their own annotation terms. For example, `Retention` might define terms such as `ownerId` and `deleteWhen`, similar to validation facets defining terms such as `email` or `max_len`.
-40. The runtime should support serializable closures: functions whose code reference and captured environment can be safely stored, moved across runtime boundaries, used for cache keys, or resumed later. Serializable closures must interact with sandboxing, capabilities, effects, and deterministic replay.
-41. The runtime should support incremental computation: dependencies of computations should be tracked so cached results can be reused and only affected computations are recomputed when inputs, captured values, data dependencies, or code change.
-42. The language has only two local binding forms: `:=` for short immutable-reference bindings with type inference, and `let` for mutable variables with optional type annotations. `:=` is also an expression: it evaluates to the bound value and introduces the immutable name in the nearest enclosing block.
-43. Built-in `list` and `map` collections should be part of the core language surface, with typed values, literals, and compiler/tooling awareness for validation, testing, serialization, and interop. A built-in set literal is not needed for now.
-44. Built-in type names should be lowercase. Primitive scalar/data types should include `bool`, signed integers `i8`/`i16`/`i32`/`i64`, unsigned integers `u8`/`u16`/`u32`/`u64`, floats `f32`/`f64`, `string`, and `char`. There is no separate byte or bytes literal syntax for now.
-45. Tuples are built into the language for lightweight grouped values. Tuple types and literals use `(T, U)`, one-element tuples use a trailing comma like `(T,)` and `(value,)`, the empty tuple is `()`, indexing uses numeric field access such as `point.0`, destructuring supports `x, y := point` and `let x, y = point`, and named tuples are omitted in v1 in favor of structs.
-46. Struct literals should use type-name-plus-braces syntax, such as `User { id: "user_123" }`, to keep data construction visually distinct from function calls.
-47. Struct embedding should use a bare type-name line inside the struct body, such as `Timestamps`, without an `embed` keyword. When initializing a struct with embedded fields, use the embedded type name as the literal key, such as `Timestamps: Timestamps { ... }`. Embedded-field name conflicts should follow Go-style promotion rules: direct promoted access is valid only when unambiguous, and conflicts require qualification through the embedded field.
-48. Inline validation annotations should use functional call style, such as `@email()` and `@max_len(80)`.
-49. Explicit `return` exists for functions, especially for early exits.
-50. Function calls support named arguments using `name=value` syntax. Calls may mix positional and named arguments, but positional arguments must come before named arguments; no positional argument may appear after a named argument.
-51. Function parameters can have default values.
-52. Function overloading is not supported; each function name resolves to one declaration in a scope.
-53. Generic function syntax should put generic arguments after the function name, such as `fn first[T](items: list[T]) -> T?`.
-54. Traits describe shared behavior without classes. Trait implementations use `impl Trait for Type`, inherent methods use `impl Type`, trait methods use `self` or `mut self`, and generic constraints can use forms like `fn show[T: Display](value: T) -> string`.
-55. Semantically, primitive types are passed by value and composite types are passed by reference. Structs, tuples, lists, and maps are composite types.
-56. Trait implementation is explicit, not structural. A type does not implement a trait just because it has matching methods.
-57. Trait bounds compose like Rust, such as `T: Display + Named`.
-58. Traits can provide default method implementations.
-59. Struct embedding promotes methods in the same spirit as fields. Promoted methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Conflicts require qualification through the embedded field or an explicit impl.
-60. Dynamic dispatch follows Go interface style: use the trait name as a value type, such as `value: Display`, and method calls through that trait value dispatch to the concrete implementation at runtime. There is no `dyn` or `any` marker. Generic bounds such as `T: Display` are the static-dispatch form.
-61. Normal error handling is done with `Result[T, E]`, not effects. Function signatures use `$` to summarize required dependency/capability/suspension requirements, such as `$ Database`. The built-in function `use(Database)` resolves or injects a dependency/capability from the current handler/context. A function whose own body contains suspension points has a `!` suffix in its name, such as `fn get_user!(...)`, and a call with `!`, such as `db.get_user!(id)`, marks suspension into a handler. Dependency requirements and suspension are related but distinct; an effect-polymorphic wrapper can expose callback requirements without itself being named with `!`.
-62. Rust-style `?` propagation is supported for both optional values and `Result[T, E]`.
-63. Closures use anonymous `fn(...) -> ...` syntax and capture values from lexical scope. A shorter one-line closure form and exact capture rules are still open.
-64. Numeric expressions support ordinary arithmetic operators (`+`, `-`, `*`, `/`, `%`, `**`, unary `-`) and integer bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`). Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. Shift counts can use any integer type, but must be non-negative and in range at runtime unless statically known. Operator precedence follows a Python-like shape, with primaries highest, then postfix propagation/suspension, exponentiation, unary, arithmetic, shifts, bitwise, comparisons, `and`, `or`, value-producing control flow, closures, and `:=` lowest.
-65. Built-in list and map comprehensions use Python-like expression syntax, such as `[name for name in names if name.len() > 3]` and `{user.id: user for user in users if user.active}`.
-66. The type system is static with local inference and explicit public boundaries. Structs and enums are nominal, tuples are structural, traits require explicit implementation, generic bounds use static dispatch, trait value types use Go-style dynamic dispatch, and nullability is explicit through `T?`.
-67. Type aliases are transparent by default, using a spelling like `type UserName = string`. Nominal single-field newtypes use a distinct spelling, currently sketched as `type Mile(i32)`, construct with `Mile(10)`, and unwrap/cast back with base-type constructor syntax such as `i32(miles)`. No `.value` or pattern matching access is needed for now.
-68. Lower-precision integers can be assigned to higher-precision integer types through implicit widening. Higher-to-lower precision conversion requires an explicit cast using constructor-style syntax such as `i16(value)`.
-69. Variadic functions use vararg parameters such as `values: i32...`. Varargs must be the final positional parameter. Call sites can spread list values positionally with `values...`; spread syntax is positional only. A named vararg accepts a list, such as `values=items`.
-70. Variadic generics use type parameter packs, sketched as `Args...`, so higher-order functions can preserve exact argument lists. Minimal v1 supports packs only in function types, vararg parameters, and spread calls; no pack mapping, filtering, splitting, or arithmetic.
-71. Integer literals always default to `i32` when there is no expected type. When there is an expected numeric type, integer literals are range checked against that type.
-72. Modules are path-inferred from files under the package source root. There is no required `module` or `package` declaration. Packages use `hd.toml`, with `src` as the default source root. Directories define submodule namespaces only when they contain a required `mod.hd` file, which acts as the directory module/public index. Visibility uses `pub`; imports use explicit roots: `pkg` for the current package, `std` for the standard library, `dep.<name>` for dependencies declared in `hd.toml`, plus `self`/`super` for relative imports.
+40. A provisional annotation protocol uses ordinary runtime shape values plus uniformly typed facet protocols: struct annotations define a field mapping step (`map_field`) that accepts non-generic `FieldShape` and returns one uniform `FieldTarget` type, plus a whole-generation construction step named `finish` that accepts non-generic `StructShape` and a `Dict[string, FieldTarget]`, then returns one uniform `Target` type. This avoids HKT-like `FieldTarget[T]`, `StructShape[S]`, and shape-preserving `MappedFields` machinery in the initial design.
+41. `annotate Facet for Target` is the chosen special syntax for annotation overrides. Inside this block, assignments can override only existing fields/variants/parameters of the target; they cannot create new fields. The same block can also override the whole-generation construction step with `fn finish(...)`.
+42. Only one `annotate Facet for Target` block is allowed per package. Annotation blocks are global within a package. Application packages can override annotation defaults supplied by library dependencies; this is a package-level override, not a merge of multiple local blocks.
+43. Annotation derivation should be able to read existing metadata on shapes. For example, `DatabaseSchema.map_field(field)` can read `field.annotation(MaxLen)` from a field annotated with `@max_len(320)` and derive a text column length from it.
+44. Runtime use of annotations should be explicit: requesting an annotation facet for a target, currently sketched as `DatabaseSchema::annotation(User)`, produces an ordinary runtime value like `TableSchema`, `ToolSpec`, `ErrorSchema`, or a UI component list.
+45. The runtime should support serializable closures: functions whose code reference and captured environment can be safely stored, moved across runtime boundaries, used for cache keys, or resumed later. Serializable closures must interact with sandboxing, capabilities, effects, and deterministic replay.
+46. The runtime should support incremental computation: dependencies of computations should be tracked so cached results can be reused and only affected computations are recomputed when inputs, captured values, data dependencies, or code change.
+47. The language has only two local binding forms: `:=` for short immutable-reference bindings with type inference, and `let` for explicit local declarations. Plain `let` is immutable; `let mut` is required for reassignment or in-place mutation. `:=` is also an expression: it evaluates to the bound value and introduces the immutable name in the nearest enclosing block.
+48. Built-in `list` and `map` collections should be part of the core language surface, with typed values, literals, and compiler/tooling awareness for validation, testing, serialization, and interop. A built-in set literal is not needed for now.
+49. Built-in type names should be lowercase. Primitive scalar/data types should include `bool`, signed integers `i8`/`i16`/`i32`/`i64`, unsigned integers `u8`/`u16`/`u32`/`u64`, floats `f32`/`f64`, `string`, and `char`. There is no separate byte or bytes literal syntax for now.
+50. Tuples are built into the language for lightweight grouped values. Tuple types and literals use `(T, U)`, one-element tuples use a trailing comma like `(T,)` and `(value,)`, the empty tuple is `()`, indexing uses numeric field access such as `point.0`, destructuring supports `x, y := point` and `let x, y = point`, and named tuples are omitted in v1 in favor of structs.
+51. Struct literals should use type-name-plus-braces syntax, such as `User { id: "user_123" }`, to keep data construction visually distinct from function calls.
+52. Struct embedding should use a bare type-name line inside the struct body, such as `Timestamps`, without an `embed` keyword. When initializing a struct with embedded fields, use the embedded type name as the literal key, such as `Timestamps: Timestamps { ... }`. Embedded-field name conflicts should follow Go-style promotion rules: direct promoted access is valid only when unambiguous, and conflicts require qualification through the embedded field.
+53. Struct fields do not have field-level mutability markers. Struct mutation is controlled by `let mut` bindings, `mut` function parameters, and `mut self` receivers. Struct copy-update uses spread syntax in a typed literal, such as `User { ...user, display_name: "Ada" }`.
+54. Inline validation annotations should use functional call style, such as `@email()` and `@max_len(80)`.
+55. Explicit `return` exists for functions, especially for early exits.
+56. Function calls support named arguments using `name=value` syntax. Calls may mix positional and named arguments, but positional arguments must come before named arguments; no positional argument may appear after a named argument.
+57. Function parameters can have default values. Defaults may use pure expressions and pure function calls, but cannot require effects, dependencies, or suspension.
+58. Function overloading is not supported; each function name resolves to one declaration in a scope.
+59. Generic function syntax should put generic arguments after the function name, such as `fn first[T](items: list[T]) -> T?`. Generic arguments are inferred at call sites when unambiguous, and callers can provide the full generic argument list explicitly, such as `first[string](names)`. v1 has no partial explicit generic arguments or placeholder generic arguments.
+60. Traits describe shared behavior without classes. Trait implementations use `impl Trait for Type`, inherent methods use `impl Type`, trait methods use `self` or `mut self`, and generic constraints can use forms like `fn show[T: Display](value: T) -> string`.
+61. Semantically, primitive types are passed by value and composite types are passed by reference. Structs, tuples, lists, and maps are composite types.
+62. Trait implementation is explicit, not structural. A type does not implement a trait just because it has matching methods.
+63. Trait bounds compose like Rust, such as `T: Display + Named`.
+64. Traits can provide default method implementations.
+65. Struct embedding promotes methods in the same spirit as fields. Promoted methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Conflicts require qualification through the embedded field or an explicit impl.
+66. Dynamic dispatch follows Go interface style: use the trait name as a value type, such as `value: Display`, and method calls through that trait value dispatch to the concrete implementation at runtime. There is no `dyn` or `any` marker. Generic bounds such as `T: Display` are the static-dispatch form.
+67. Normal error handling is done with `Result[T, E]`, not effects. Function signatures use `$` to summarize required dependency/capability/suspension requirements, such as `$ Database`. Context access uses `$` operations with requirement keys as labels or arguments: `db, cache := $.use(Database, Cache)` retrieves providers, `$.with(Database=mock_db, Cache=memory_cache):` provides scoped requirements, and reusable contexts use row-indexed provider-map types such as `$.Context[Metrics + Cache]` with builders such as `$.context(Metrics=metrics, Cache=cache)` plus spread reuse like `$.with(Database=db, ...prod_context()):`. Context rows are unordered and unique by requirement key; duplicate providers cannot coexist, so construction/spread collapses duplicates with later bindings winning. Missing providers are compile-time errors. A function whose own body contains suspension points has a `!` suffix in its name, such as `fn get_user!(...)`, and a call with `!`, such as `db.get_user!(id)`, marks suspension into a handler. Dependency requirements and suspension are related but distinct; an effect-polymorphic wrapper can expose callback requirements without itself being named with `!`.
+68. Rust-style `?` propagation is supported for both optional values and `Result[T, E]`.
+69. Closures use anonymous `fn(...) -> ...` syntax and capture values from lexical scope. There is no separate short closure syntax in v1; same-line closure bodies are allowed for single-expression closures, such as `fn(x: i32) -> i32: x + 1`. Shorthand argument closures using `$0`, `$1`, etc. are deferred. Closures that mutate captured locals have mutable function type `mut fn(...) -> ...`, and calling one requires the closure value to be mutable. Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures can only capture serializable values unless a runtime feature explicitly supports additional captures.
+70. Numeric expressions support ordinary arithmetic operators (`+`, `-`, `*`, `/`, `%`, `**`, unary `-`) and integer bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`). Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. Shift counts can use any integer type, but must be non-negative and in range at runtime unless statically known. Operator precedence follows a Python-like shape, with primaries highest, then postfix propagation/suspension, exponentiation, unary, arithmetic, shifts, bitwise, comparisons, `and`, `or`, value-producing control flow, closures, and `:=` lowest.
+71. Built-in list and map comprehensions use clause-first syntax with `=>`, such as `[for name in names if name.len() > 3 => name]` and `{for user in users if user.active => user.id: user}`.
+72. The type system is static with local inference and explicit public boundaries. Structs and enums are nominal, tuples are structural, traits require explicit implementation, generic bounds use static dispatch, trait value types use Go-style dynamic dispatch, and nullability is explicit through `T?`.
+73. Type aliases are transparent by default, using a spelling like `type UserName = string`. Nominal single-field newtypes use a distinct spelling, currently sketched as `type Mile(i32)`, construct with `Mile(10)`, and unwrap/cast back with base-type constructor syntax such as `i32(miles)`. No `.value` or pattern matching access is needed for now.
+74. Lower-precision integers can be assigned to higher-precision integer types through implicit widening. Higher-to-lower precision conversion requires an explicit cast using constructor-style syntax such as `i16(value)`.
+75. Variadic functions use vararg parameters such as `values: i32...`. Varargs must be the final positional parameter. Call sites can spread list values positionally with `values...`; spread syntax is positional only. A named vararg accepts a list, such as `values=items`.
+76. Variadic generics use type parameter packs, sketched as `Args...`, so higher-order functions can preserve exact argument lists. Minimal v1 supports packs only in function types, vararg parameters, and spread calls; no pack mapping, filtering, splitting, or arithmetic.
+77. Integer literals always default to `i32` when there is no expected type. When there is an expected numeric type, integer literals are range checked against that type.
+78. Modules are path-inferred from files under the package source root. There is no required `module` or `package` declaration. Packages use `hd.toml`, with `src` as the default source root. Directories define submodule namespaces only when they contain a required `mod.hd` file, which acts as the directory module/public index. Visibility uses `pub`; imports use explicit roots: `pkg` for the current package, `std` for the standard library, `dep.<name>` for dependencies declared in `hd.toml`, plus `self`/`super` for relative imports.
 
 ## Contract Syntax Sketch
 
@@ -136,37 +142,50 @@ fn divide(a: i32, b: i32) -> i32 $ require + ensure:
 
 ## Deferred Design Areas
 
-1. Exact external `annotate <Facet> for <Target>` block syntax and the standard set of inline validation annotations.
-2. Ownership and borrowing model, if any, in a garbage-collected language.
-3. `Result[T, E]` ergonomics, including construction, pattern matching, and interop with contracts/tests.
-4. Effect syntax model: handler selection rules, effect name resolution, and whether any non-error receiverless control effects exist.
-5. Handler syntax and non-trait effect label model.
-6. Validator and annotation-facet composition syntax.
-7. Determinism rules for generated test data.
-8. Property-test syntax and whether it belongs in the language or standard library.
-9. First implementation strategy after syntax design.
-10. Remaining function, struct, trait, and implementation syntax details.
-11. Contract-failure effect names and syntax.
-12. Explicit versus inferred contract effects for functions with `require` or `ensure`.
-13. Tool-call interface syntax, including descriptions, examples, auth, context, and access control.
-14. Cross-tool reference syntax.
-15. Observability model for logs, traces, metrics, and AI operations.
-16. Durable workflow and persistence standard library APIs.
-17. Infrastructure-awareness model based on code inspection and cloud sync.
-18. Declarative data-retention and cascade semantics through annotation facets.
-19. Generated interoperability specs for existing tool ecosystems.
-20. Exact annotation/decorator syntax for registering functions, tools, resources, workflows, and observability.
-21. Tradeoff between explicit code and concise code.
-22. Prototype scope and milestone ordering.
-23. Sandbox and capability model.
-24. Interactive execution resumption model.
-25. Effect polymorphism for higher-order functions: surface syntax, effect-variable removal such as `e - log`, full row polymorphism versus a smaller effect-variable model, and stored/returned function values.
-26. Branded type spelling, coercion rules, and interaction with inline annotations.
-27. Serializable closure model: what can be captured, how captures are validated, how code identity is represented, how effects/capabilities are preserved, and how closures interact with caching, RPC/tool calls, and workflow resumption.
-28. Incremental computation model: dependency tracking, cache invalidation, recomputation granularity, deterministic replay, and interaction with effects, observability, tools, and workflows.
-29. Primitive type v1: no convenience aliases such as `int`, `uint`, or `float`; use explicit-width numeric types. `decimal` is a standard-library type, not a primitive. `void` remains the spelling for functions that return no useful value. Integer literal range diagnostics include the invalid literal, target type range, and a suggested wider type. Narrowing diagnostics suggest explicit constructor-style casts such as `i16(value)`.
-30. Tuple v1 is settled: structural tuples, Rust-style numeric field access, trailing comma for one-element tuples, `()` for empty tuple, destructuring bindings, and no named tuples.
-31. Trait and method details: exact diagnostics when embedded methods conflict while checking trait satisfaction.
+1. Annotation and derivation model:
+   - Common typed representation for structs, enums, and functions.
+   - Generic derivation from that representation.
+   - Override paths for generic derivation, including local override annotations, reusable override profiles, and whole derivation rewrites.
+   - Explicit runtime export/use of derived metadata.
+2. Exact external annotation/derivation block syntax and the standard set of inline validation annotations.
+3. Ownership and borrowing model, if any, in a garbage-collected language.
+4. `Result[T, E]` ergonomics beyond `Ok(value)` / `Err(error)` construction, including pattern matching and interop with contracts/tests.
+5. Effect syntax model: provider declaration rules, provider lookup/shadowing, effect name resolution, and whether any non-error receiverless control effects exist.
+6. Provider syntax and non-trait effect label model.
+7. Validator and annotation-facet composition syntax.
+8. Determinism rules for generated test data.
+9. Property-test syntax and whether it belongs in the language or standard library.
+10. First implementation strategy after syntax design.
+11. Remaining function, struct, trait, and implementation syntax details.
+12. Contract-failure effect names and syntax.
+13. Explicit versus inferred contract effects for functions with `require` or `ensure`.
+14. Tool-call interface syntax, including descriptions, examples, auth, context, and access control.
+15. Cross-tool reference syntax.
+16. Observability model for logs, traces, metrics, and AI operations.
+17. Durable workflow and persistence standard library APIs.
+18. Infrastructure-awareness model based on code inspection and cloud sync.
+19. Declarative data-retention and cascade semantics through annotation facets.
+20. Generated interoperability specs for existing tool ecosystems.
+21. Exact annotation/decorator syntax for registering functions, tools, resources, workflows, and observability.
+22. Tradeoff between explicit code and concise code.
+23. Prototype scope and milestone ordering.
+24. Sandbox and capability model.
+25. Interactive execution resumption model.
+26. Effect polymorphism for higher-order functions: surface syntax, effect-variable removal such as `e - Logger`, full row polymorphism versus a smaller effect-variable model, and stored/returned function values.
+27. Branded type spelling, coercion rules, and interaction with inline annotations.
+28. Serializable closure model: what can be captured, how captures are validated, how code identity is represented, how effects/capabilities are preserved, and how closures interact with caching, RPC/tool calls, and workflow resumption.
+29. Incremental computation model: dependency tracking, cache invalidation, recomputation granularity, deterministic replay, and interaction with effects, observability, tools, and workflows.
+30. Primitive type v1: no convenience aliases such as `int`, `uint`, or `float`; use explicit-width numeric types. `decimal` is a standard-library type, not a primitive. `void` remains the spelling for functions that return no useful value. Integer literal range diagnostics include the invalid literal, target type range, and a suggested wider type. Narrowing diagnostics suggest explicit constructor-style casts such as `i16(value)`.
+31. Tuple v1 is settled: structural tuples, Rust-style numeric field access, trailing comma for one-element tuples, `()` for empty tuple, destructuring bindings, and no named tuples.
+32. Trait conflict diagnostics: when promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl or qualified embedded-method call.
 32. Operator precedence and associativity follow the Python-like table recorded in the tour and syntax notes.
-33. Comprehension details: multiple `for` clauses, local bindings, async/suspending comprehensions, and map key conflict behavior.
+33. Comprehensions use clause-first syntax with `=>`, such as `[for user in users if (label := user.name.trim().lower()) != "" => label]`. Multiple `for` clauses are allowed and run left to right. Later clauses can use earlier names, `if` filters at the point where it appears, and later clauses are not visible to earlier clauses. There is no separate `let` clause; local names come from `:=` binding expressions. If a map comprehension produces the same key more than once, the later value wins. Comprehensions cannot contain suspension points.
 34. Module/package v1: path-inferred modules, `hd.toml`, required directory `mod.hd`, explicit `pkg`/`std`/`dep`/`self`/`super` import roots, no import or re-export cycles, and only module-private plus `pub` visibility.
+35. Loops with `else` can be value-producing expressions: `break value` produces the loop value on early exit, and the `else` value is used when the loop finishes normally. `break value` is only valid in a value-producing loop with `else`; statement-only loops use plain `break`.
+36. `match` arms use `pattern => expression`, and `_ => expression` is the fallback arm spelling. Enum payload patterns use call-style parentheses, such as `Expr.IntLit(value) => value`, not brace destructuring. Payload patterns follow the same positional/named convention as calls: positional patterns first, then named patterns. Only `field=pattern` counts as a named pattern. Bare identifiers bind new names, and positional binding names do not need to match payload field names, such as `Expr.Add(l, r)` for fields named `left` and `right`. Literals match exact values.
+37. `else if` is one direct conditional-chain syntax form, not a nested `else` block containing a separate `if`.
+38. Enum payload variant declarations use compact `Variant(field: type)` syntax in v1. Large payloads should use a separate struct.
+39. Enum variant patterns in `match` arms must be qualified with the enum name, such as `JobStatus.Queued`, even when the matched value's type is known.
+40. Enums support generic algebraic data types, recursive enum definitions, and GADT-style variants with explicit result types, such as `IntLit(value: i64) -> Expr[i64]`. A variant can also refine the enum type while passing data to an enum-level constructor, such as `IntBox(n: i64) -> Box[i64](n)`. Pattern matching on a GADT-style variant refines the enum type parameter inside that arm, so `Expr.IntLit` can refine `Expr[T]` to `Expr[i64]` for arm-local type checking.
+41. `Result` values are constructed with capitalized helper constructors: `Ok(value)` and `Err(error)`.
+42. Enums can declare constructor parameters for data shared by every variant, including unnamed parameters such as `enum StatusCode(i32):`. Enum constructor definitions and calls follow the same parameter conventions as functions: unnamed positional parameters/arguments first, then named parameters/arguments. Variants can call the enum constructor in their result expression, such as `NotFound -> StatusCode(404)`.

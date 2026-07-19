@@ -142,10 +142,11 @@ This tour should introduce hd-lang through small examples first, then explain th
 
 ## 17. Declarative Annotations
 
-- General `annotate Facet for Type` model
-- Database schema annotations
-- UI annotations
-- Retention annotations
+- Common typed representation for structs, enums, and functions
+- Structural generic derivation from declaration shapes
+- Local override annotations, reusable override profiles, and full derivation rewrites
+- Explicit runtime export of generated metadata/artifacts
+- Database schema, UI, tool, retention, observability, and workflow facets
 
 ## 18. Data Retention
 

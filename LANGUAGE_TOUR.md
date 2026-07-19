@@ -65,14 +65,22 @@ if (trimmed := input.trim()) != "":
     println(trimmed)
 ```
 
-Use `let` when the variable will be reassigned. Type annotation is optional:
+Use plain `let` when an immutable local needs an explicit declaration or type annotation:
 
 ```text
-let attempts: i32 = 0
+let display_name: string = "Ada"
+let nickname: string? = nil
 let inferred = 1
+```
+
+Use `let mut` when the variable will be reassigned or the value will be mutated in place. Type annotation is optional:
+
+```text
+let mut attempts: i32 = 0
+let mut counter = 1
 
 attempts = attempts + 1
-inferred = inferred + 1
+counter = counter + 1
 attempts = attempts + 1
 ```
 
@@ -216,22 +224,35 @@ scores := {"Ada": 10, "Grace": 12}       # map[string, i32]
 List comprehensions build lists from iterables:
 
 ```text
-long_names := [name for name in names if name.len() > 3]
-name_lengths := [name.len() for name in names]
+long_names := [for name in names if name.len() > 3 => name]
+name_lengths := [for name in names => name.len()]
+pairs := [for x in xs for y in ys => (x, y)]
+labels := [for user in users if (label := user.name.trim().lower()) != "" => label]
 ```
+
+Comprehensions put generator and filter clauses before `=>`, and the produced value after `=>`. Multiple `for` clauses run left to right. Use the `:=` binding expression to name intermediate values inside guards or result expressions; there is no separate `let` clause in comprehensions.
+
+A later clause can use names introduced by earlier clauses. An `if` filters at the point where it appears:
+
+```text
+early_filter := [for x in xs if x.active for item in x.items => item]
+pair_filter := [for x in xs for y in ys if x.id == y.owner_id => (x, y)]
+```
+
+The first form filters `x` before entering the inner `item` loop. The second form filters after both `x` and `y` exist. Later clauses are not visible to earlier clauses.
 
 Map comprehensions build maps from key/value expressions:
 
 ```text
-scores_by_name := {user.name: user.score for user in users}
-active_by_id := {user.id: user for user in users if user.active}
+scores_by_name := {for user in users => user.name: user.score}
+active_by_id := {for user in users if user.active => user.id: user}
 ```
 
-The tour should prefer `:=` for ordinary local values, `let` only for variables that must change, and explicit types for boundaries that humans, tools, and AI agents need to review.
+If a map comprehension produces the same key more than once, the later value wins.
 
-Open surface choices from this section:
+Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
-1. Whether comprehensions should support multiple `for` clauses and `let` bindings.
+The tour should prefer `:=` for ordinary immutable local values, `let` when an explicit local declaration is useful, `let mut` only for variables that must change, and explicit types for boundaries that humans, tools, and AI agents need to review.
 
 ## Control Flow and Expressions
 
@@ -258,6 +279,8 @@ else:
     "inactive"
 ```
 
+`else if` is one direct conditional-chain form, not a nested `else:` block containing a separate `if`.
+
 Use `return` for early exits:
 
 ```text
@@ -271,7 +294,7 @@ fn find_name(names: list[string], prefix: string) -> string?:
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:
 
 ```text
-let total: i32 = 0
+let mut total: i32 = 0
 
 for value in values:
     if value < 0:
@@ -284,7 +307,7 @@ for value in values:
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text
-let index: i32 = 0
+let mut index: i32 = 0
 
 while index < names.len():
     println(names[index])
@@ -312,27 +335,18 @@ else:
     nil
 ```
 
-Without an `else` block, a loop evaluates to `void`, even if it contains plain `break`.
+Without an `else` block, a loop evaluates to `void`, even if it contains plain `break`. `break value` is only valid in a value-producing loop with an `else`; use plain `break` in statement-only loops.
 
 `match` is also an expression. It should be exhaustive unless an explicit fallback arm is used:
 
 ```text
 message := match status:
-    JobStatus.Queued:
-        "waiting"
-    JobStatus.Running:
-        "working"
-    JobStatus.Succeeded:
-        "done"
-    JobStatus.Failed:
-        "failed"
+    JobStatus.Queued => "waiting"
+    JobStatus.Running => "working"
+    JobStatus.Succeeded => "done"
+    JobStatus.Failed => "failed"
+    _ => "unknown"
 ```
-
-Open surface choices from this section:
-
-1. Whether `break value` should be allowed only when the loop has an `else`, or whether it should be allowed in any loop and ignored for `void` loop contexts.
-2. Exact fallback arm spelling for `match`, such as `_` or `else`.
-3. Whether `else if` is one syntax form or parsed as nested `else` plus `if`.
 
 ## Structs
 
@@ -359,6 +373,31 @@ Field access uses dot syntax:
 
 ```text
 println(user.email)
+```
+
+Struct fields do not carry their own mutability marker. Mutation is controlled by the binding or parameter that owns the value:
+
+```text
+let mut editable = User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+editable.display_name = "Ada Lovelace"
+
+fn normalize_user(mut user: User) -> User:
+    user.email = user.email.trim().lower()
+    user
+```
+
+Use copy-update syntax when creating a modified value from an existing struct:
+
+```text
+renamed := User {
+    ...user,
+    display_name: "Ada Lovelace"
+}
 ```
 
 Structs can contain other structs:
@@ -429,10 +468,6 @@ record.id                    # invalid: ambiguous promoted field
 record.CreatedByUser.id      # ok
 ```
 
-Open surface choices from this section:
-
-1. Whether struct fields are immutable by default, and what update syntax should look like.
-
 ## Enums
 
 Structs model product types: one value contains all listed fields. Enums model sum types: one value is exactly one of several variants.
@@ -463,6 +498,8 @@ enum ToolError:
     Internal(message: string)
 ```
 
+Payload variant declarations use the compact `Variant(field: type)` form in v1. Use a separate struct payload when the data is large enough to need a full field block.
+
 Payload variants use the same brace literal style as structs:
 
 ```text
@@ -476,29 +513,23 @@ Use `match` to inspect an enum. Matches should be exhaustive unless an explicit 
 ```text
 fn status_label(status: JobStatus) -> string:
     match status:
-        JobStatus.Queued:
-            "queued"
-        JobStatus.Running:
-            "running"
-        JobStatus.Succeeded:
-            "succeeded"
-        JobStatus.Failed:
-            "failed"
+        JobStatus.Queued => "queued"
+        JobStatus.Running => "running"
+        JobStatus.Succeeded => "succeeded"
+        JobStatus.Failed => "failed"
 ```
+
+Enum variant patterns must be qualified with the enum name, such as `JobStatus.Queued`, even when the matched value's type is known.
 
 Payload fields can be bound in a match arm:
 
 ```text
 fn error_message(error: ToolError) -> string:
     match error:
-        ToolError.NotFound { resource }:
-            "not found: " + resource
-        ToolError.Unauthorized { reason }:
-            "unauthorized: " + reason
-        ToolError.RateLimited { retry_after_ms }:
-            "rate limited, retry after " + retry_after_ms.to_string() + "ms"
-        ToolError.Internal { message }:
-            message
+        ToolError.NotFound(resource) => "not found: " + resource
+        ToolError.Unauthorized(reason) => "unauthorized: " + reason
+        ToolError.RateLimited(retry_after_ms) => "rate limited, retry after " + retry_after_ms.to_string() + "ms"
+        ToolError.Internal(message) => message
 ```
 
 Enum variants can also be used for domain states that should be impossible to confuse:
@@ -510,6 +541,91 @@ enum PaymentState:
     Captured(id: string, amount: i64)
     Refunded(id: string, amount: i64)
 ```
+
+An enum can declare constructor parameters for data shared by every variant. Variants can call the enum constructor in their result expression:
+
+```text
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+    InternalError -> StatusCode(500)
+```
+
+Enum constructor definitions and calls follow the same parameter conventions as functions. In definitions, unnamed positional parameters come before named parameters. In calls, positional arguments come first, and named arguments must come after positional arguments.
+
+```text
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+    NotFound -> HttpStatus(404, phrase="Not Found")
+```
+
+Enums can be generic algebraic data types:
+
+```text
+enum Maybe[T]:
+    Some(value: T)
+    None
+```
+
+Enums can also be recursive:
+
+```text
+enum Tree[T]:
+    Leaf(value: T)
+    Branch(left: Tree[T], right: Tree[T])
+```
+
+For more precise modeling, a variant can declare an explicit result type. This gives hd-lang a GADT-style enum form where pattern matching can recover more specific type information:
+
+```text
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
+```
+
+A GADT-style variant can also refine the enum type while passing data to an enum-level constructor:
+
+```text
+enum Box[T](contents: T):
+    IntBox(n: i64) -> Box[i64](n)
+    BoolBox(b: bool) -> Box[bool](b)
+```
+
+When a variant omits an explicit result type, it returns the enclosing enum with the enum's type arguments. When matching a GADT-style enum, the matched variant refines the enum type parameter inside that arm:
+
+```text
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value
+        Expr.Add(left, right) => eval(left) + eval(right)
+        Expr.Sub(left, right) => eval(left) - eval(right)
+        Expr.Scale(value, factor) => eval(value) * factor
+        Expr.If(cond, then_value, else_value) =>
+            if eval(cond):
+                eval(then_value)
+            else:
+                eval(else_value)
+```
+
+In the `Expr.IntLit` arm, `T` is known to be `i64`, so returning `value: i64` is valid. In the `Expr.BoolLit` arm, `T` is known to be `bool`. The compiler uses those refinements for arm-local type checking and still checks that the whole `match` returns the function's declared `T`.
+
+Enum payload patterns follow the same positional/named convention as function calls and enum constructor calls. Positional patterns come first. Only `field=pattern` counts as a named pattern, and named patterns come after positional patterns. Bare identifiers bind new names, while literals match exact values:
+
+```text
+fn eval_i64(expr: Expr[i64]) -> i64:
+    match expr:
+        Expr.Add(l, r) => eval_i64(l) + eval_i64(r)
+        Expr.Sub(left=l, right=r) => eval_i64(l) - eval_i64(r)
+        Expr.Scale(value, factor=2) => eval_i64(value) * 2
+        Expr.IntLit(value) => value
+```
+
+In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; they do not need to match the payload field names `left` and `right`. In `Expr.Sub(left=l, right=r)`, `left=` and `right=` select payload fields by name, while `l` and `r` are still new binding patterns. `Expr.Scale(value, factor=2)` matches only a scale expression whose `factor` payload equals `2`. A positional pattern cannot appear after a named pattern. If the payload itself is an expression, match the nested variant explicitly, such as `right=Expr.IntLit(2)`.
 
 Because the compiler knows every variant, it can check that callers handle every state. This matters for AI-generated code: missing cases should become compiler diagnostics instead of latent production behavior.
 
@@ -523,12 +639,12 @@ fn loaded() -> Result[User, DbError]:
 
 `nil` is the empty optional case, and `?` propagates `nil` or `Result` errors from the current function.
 
-Open surface choices from this section:
+Construct `Result` values with capitalized helper constructors:
 
-1. Whether payload variant declarations should use `Variant(field: type)` or an indented field block.
-2. Whether match arms must always qualify variants with the enum name.
-3. Exact fallback spelling, such as `_` or `else`.
-4. Exact construction names for `Result`, such as `ok(value)` and `err(error)` versus `Result.Ok { value }`.
+```text
+return Ok(user)
+return Err(db_error)
+```
 
 ## Functions
 
@@ -594,11 +710,24 @@ secure := connect(host="api.example.com")
 local := connect("localhost", port=8080, tls=false)
 ```
 
+Default values can use pure expressions and pure function calls. They cannot require effects, dependencies, or suspension:
+
+```text
+fn default_port() -> i32:
+    443
+
+fn connect(host: string, port: i32 = default_port()) -> Connection:
+    ...
+
+fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connection:
+    ...      # invalid: default value suspends and requires a capability
+```
+
 Use varargs when a function accepts zero or more positional arguments of the same type:
 
 ```text
 fn sum(values: i32...) -> i32:
-    let total: i32 = 0
+    let mut total: i32 = 0
     for value in values:
         total = total + value
     total
@@ -637,6 +766,14 @@ slugify := fn(text: string) -> string:
 slug := slugify("Hello hd-lang")
 ```
 
+There is no separate short closure syntax in v1. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
+
+```text
+inc := fn(x: i32) -> i32: x + 1
+add := fn(x: i32, y: i32) -> i32: x + y
+make_id := fn() -> string: "id_123"
+```
+
 Closures capture values from the surrounding lexical scope:
 
 ```text
@@ -647,6 +784,30 @@ label_user := fn(id: string) -> string:
 
 label := label_user("123")
 ```
+
+Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
+
+```text
+let mut count: i32 = 0
+
+let mut next = mut fn() -> i32:
+    count = count + 1
+    count
+
+next()
+```
+
+Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
+
+```text
+fn repeat(times: i32, mut f: mut fn() -> void) -> void:
+    let mut i: i32 = 0
+    while i < times:
+        f()
+        i = i + 1
+```
+
+Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are stricter: they can only capture serializable values, and cannot capture live handles or capabilities unless a runtime feature explicitly supports that capture.
 
 When a closure is passed where a function type is already expected, parameter and return types can usually be inferred:
 
@@ -659,6 +820,14 @@ lower_names := map_names(names, fn(name):
 )
 ```
 
+The same call can use a same-line closure:
+
+```text
+lower_names := map_names(names, fn(name): name.lower())
+```
+
+Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named parameters in the closure parameter list.
+
 Generic functions put generic arguments after the function name:
 
 ```text
@@ -669,16 +838,20 @@ fn first[T](items: list[T]) -> T?:
         items[0]
 ```
 
+Generic arguments are inferred at call sites when the type is unambiguous. Callers can also provide the full generic argument list explicitly:
+
+```text
+names := ["Ada", "Grace"]
+
+a := first(names)          # T inferred as string
+b := first[string](names)  # explicit generic argument
+```
+
+v1 does not support partial explicit generic arguments or placeholder generic arguments.
+
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
 
 Functions are the primary unit of behavior. Methods, tools, workflows, tests, and handlers should attach to normal functions instead of requiring a separate object model.
-
-Open surface choices from this section:
-
-1. Whether default values must be compile-time constants.
-2. Whether generic arguments are inferred at call sites, explicit at call sites, or both.
-3. Whether hd-lang also needs a shorter one-line closure form for simple expressions.
-4. Exact capture rules for mutable locals, serializable closures, and capability-carrying closures.
 
 ## Traits and Methods
 
@@ -769,6 +942,23 @@ Trait implementation is explicit. A type does not implement a trait just because
 
 Struct embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
 
+When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
+
+```text
+C does not satisfy Display
+
+required method:
+  fn display(self) -> string
+
+ambiguous promoted methods:
+  A.display(self) -> string
+  B.display(self) -> string
+
+fix:
+  implement Display for C explicitly
+  or call the embedded method through c.A.display() / c.B.display()
+```
+
 Dynamic dispatch follows the Go interface style: use the trait name as a value type, and method calls through that trait value dispatch to the concrete implementation at runtime.
 
 ```text
@@ -784,10 +974,6 @@ This is different from generic static dispatch, where the compiler specializes t
 fn show_static[T: Display](value: T) -> string:
     value.display()
 ```
-
-Open surface choices from this section:
-
-1. Exact diagnostics when embedded methods conflict while checking trait satisfaction.
 
 ## Type System
 
@@ -1098,32 +1284,51 @@ Dependencies are ordinary traits or capabilities that can appear in the `$` requ
 trait Database:
     fn get_user!(id: UserId) -> Result[User?, DbError]
 
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database:
-    db := use(Database)
+trait Cache:
+    fn get_user(id: UserId) -> User?
+
+fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
+    db, cache := $.use(Database, Cache)
+    cached := cache.get_user(id)
+    if cached != nil:
+        return Ok(cached)
     user := db.get_user!(id)?
     user
 ```
 
-Here `use(Database)` resolves the dependency from the current handler/context. The `!` on `db.get_user!(id)` marks the call as a suspension point where execution can enter the handler.
+Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks the call as a suspension point where execution can enter the provider/handler.
 
 Handlers provide implementations for effects:
 
 ```text
 handler mock_db for Database:
     fn get_user!(id: UserId) -> Result[User?, DbError]:
-        ok(User {
+        Ok(User {
             id: id,
             email: "test@example.com",
             display_name: "Test User"
         })
 ```
 
-A call site can run code with a handler:
+Call sites provide requirements through context scopes. `$.with(Requirement=provider)` binds a requirement key to a provider value for the indented body:
 
 ```text
-with mock_db:
+$.with(Database=mock_db, Cache=memory_cache):
     user := load_user!(UserId { value: "user_123" })
 ```
+
+Reusable contexts are provider-map values typed by a requirement row:
+
+```text
+fn prod_context() -> $.Context[Metrics + Cache]:
+    $.context(Metrics=metrics, Cache=cache)
+
+$.with(Database=mock_db, Logger=console_logger, ...prod_context()):
+    db, logger, cache := $.use(Database, Logger, Cache)
+    user := load_user!(UserId { value: "user_123" })
+```
+
+`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `...prod_context()` spreads reusable providers into a lexical context scope, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order. Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels. Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
 
 Higher-order functions need effect polymorphism so callback effects are not erased:
 
@@ -1135,15 +1340,15 @@ fn map[T, U, e](items: list[T], f: fn(T) -> U $ e) -> list[U] $ e:
 Handlers can remove effects from an effect variable. This is useful when a function handles one callback effect but must still expose the remaining effects:
 
 ```text
-fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - log):
-    with logger:
+fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - Logger):
+    $.with(Logger=logger):
         callback("str")
 ```
 
-Here `callback` may require `log` plus other effects. `handle_log` handles `log`, so callers only see the remaining effects. The helper itself is not named `handle_log!` unless its own body contains a suspending call such as `some_call!()`.
+Here `callback` may require `Logger` plus other effects. `handle_log` handles `Logger`, so callers only see the remaining effects. The helper itself is not named `handle_log!` unless its own body contains a suspending call such as `some_call!()`.
 
 Open surface choices from this section:
 
 1. Handler selection rules for tests, production, nested scopes, and defaults.
 2. Whether effect polymorphism uses full row polymorphism or a smaller effect-variable model.
-3. Exact `Result[T, E]` ergonomics beyond `?` propagation.
+3. Exact `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction.
