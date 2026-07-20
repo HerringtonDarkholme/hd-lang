@@ -1444,13 +1444,13 @@ trait StructAnnotation:
 
     fn map_field(field: FieldShape) -> Self::FieldTarget
 
-    fn finish(
+    fn build(
         shape: StructShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Target
 ```
 
-`map_field` derives one field-level artifact at a time. It receives `FieldShape`, so the derivation can inspect the source field's runtime type metadata. The field result type is uniform for the annotation facet. `finish` combines the field artifacts into one ordinary target value. Struct field artifacts are passed as `Dict[string, FieldTarget]`, keyed by field name.
+`map_field` derives one field-level artifact at a time. It receives `FieldShape`, so the derivation can inspect the source field's runtime type metadata. The field result type is uniform for the annotation facet. `build` combines the field artifacts into one ordinary target value. Struct field artifacts are passed as `Dict[string, FieldTarget]`, keyed by field name.
 
 For UI, every field maps to a `ReactComponent`:
 
@@ -1467,7 +1467,7 @@ impl StructAnnotation for UI:
         else:
             DefaultInput(field.name)
 
-    fn finish(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
         shape.fields.map(fn(field): fields[field.name])
 ```
 
@@ -1477,7 +1477,7 @@ impl StructAnnotation for UI:
 annotate UI for User:
     userId = ReactUserId
 
-    fn finish(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
         [
             fields["userId"],
             fields["displayName"],
@@ -1485,7 +1485,7 @@ annotate UI for User:
         ]
 ```
 
-Inside `annotate UI for User`, assignments such as `userId = ...` may only target existing fields of `User`. They do not create new fields. The right-hand side replaces the mapped field result for that field while keeping the generic derivation for all other fields. The block may also override the whole-generation hook, `finish`.
+Inside `annotate UI for User`, assignments such as `userId = ...` may only target existing fields of `User`. They do not create new fields. The right-hand side replaces the mapped field result for that field while keeping the generic derivation for all other fields. The block may also override the whole-generation hook, `build`.
 
 For one facet/target pair, only one `annotate` block is allowed in a package:
 
@@ -1494,7 +1494,7 @@ annotate DatabaseSchema for User:
     email = DatabaseColumn.TextColumn(name="email", max_len=320)
 ```
 
-A second `annotate DatabaseSchema for User` block in the same package is a compile-time error. Therefore field-level merge rules and duplicate `finish` rules are not needed for same-package annotations.
+A second `annotate DatabaseSchema for User` block in the same package is a compile-time error. Therefore field-level merge rules and duplicate `build` rules are not needed for same-package annotations.
 
 Annotation blocks are global within a package. Any module in the package can request the materialized annotation value:
 
@@ -1502,7 +1502,7 @@ Annotation blocks are global within a package. Any module in the package can req
 schema := DatabaseSchema::annotation(User)
 ```
 
-An application package can override annotation defaults supplied by a library dependency. This is a package-level override of the library-provided annotation for that application, not an implicit merge of multiple local blocks.
+Libraries do not provide implicit default annotation blocks for downstream applications. If a library explicitly provides `annotate Facet for Target`, that annotation is authoritative and cannot be overridden by downstream packages. If the imported target has no library-provided annotation for that facet, an application package can define its own package-local annotation for the imported target. Since only one annotation block can apply for a facet/target pair in a package, no merge rule is needed; attempting to define a downstream annotation where an upstream explicit annotation already exists is a compile-time error.
 
 The right-hand side of a field override must typecheck as that annotation's uniform field target:
 
@@ -1544,7 +1544,7 @@ impl StructAnnotation for DatabaseSchema:
         else:
             DatabaseColumn.JsonColumn(field.name)
 
-    fn finish(shape: StructShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
+    fn build(shape: StructShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
         TableSchema {
             name: shape.name,
             columns: shape.fields.map(fn(field): fields[field.name]),
@@ -1581,10 +1581,80 @@ trait EnumAnnotation:
 
     fn map_variant(variant: VariantShape) -> Self::VariantTarget
 
-    fn finish(
+    fn build(
         shape: EnumShape,
         variants: Dict[string, Self::VariantTarget],
     ) -> Self::Target
+```
+
+Function annotations use the same shape: a parameter mapping step plus `build`. In v1, function parameter assignment overrides inside `annotate` are not supported; parameter customization should come from parameter annotations, parameter docs, or a whole-function `build` override.
+
+```text
+trait FuncAnnotation:
+    type ParamTarget
+    type Target
+
+    fn map_param(param: ParamShape) -> Self::ParamTarget
+
+    fn build(
+        shape: FnShape,
+        params: Dict[string, Self::ParamTarget],
+    ) -> Self::Target
+```
+
+Example tool annotation:
+
+```text
+struct ToolParam:
+    name: string
+    schema: JsonSchema
+    description: string?
+
+struct ToolSpec:
+    name: string
+    description: string
+    params: Dict[string, ToolParam]
+    result: JsonSchema
+    requirements: list[string]
+
+impl FuncAnnotation for Tool:
+    type ParamTarget = ToolParam
+    type Target = ToolSpec
+
+    fn map_param(param: ParamShape) -> ToolParam:
+        ToolParam {
+            name: param.name,
+            schema: JsonSchema::from_type(param.type),
+            description: param.annotation(Description)?.text,
+        }
+
+    fn build(shape: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
+        ToolSpec {
+            name: shape.name,
+            description: shape.doc,
+            params: params,
+            result: JsonSchema::from_type(shape.return_type),
+            requirements: shape.requirements.names(),
+        }
+```
+
+Function annotation overrides can replace the whole build:
+
+```text
+annotate Tool for get_user:
+    fn build(shape: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
+        spec := Tool::build(shape, params)
+        ToolSpec {
+            ...spec,
+            name: "get_user",
+        }
+```
+
+This is not valid in v1:
+
+```text
+annotate Tool for get_user:
+    id = ToolParam { ... }  # invalid: function parameter assignment overrides are deferred
 ```
 
 Runtime use should be explicit. Applying an annotation facet can produce a runtime value that tools, registries, UI renderers, schema generators, or deployment systems can consume:
@@ -1603,7 +1673,7 @@ shape_value := shape(Target)
 fields := Dict.from_entries(
     shape_value.fields.map(fn(field): (field.name, Facet.map_field(field)))
 )
-result := Facet.finish(shape_value, fields)
+result := Facet.build(shape_value, fields)
 ```
 
 For functions and enums, the same pattern applies with parameters or variants:
@@ -1613,16 +1683,16 @@ fn_shape := shape(get_user)
 param_map := Dict.from_entries(
     fn_shape.params.map(fn(param): (param.name, Tool.map_param(param)))
 )
-tool_spec := Tool.finish(fn_shape, param_map)
+tool_spec := Tool.build(fn_shape, param_map)
 
 enum_shape := shape(ToolError)
 variant_map := Dict.from_entries(
     enum_shape.variants.map(fn(variant): (variant.name, ErrorDoc.map_variant(variant)))
 )
-error_schema := ErrorDoc.finish(enum_shape, variant_map)
+error_schema := ErrorDoc.build(enum_shape, variant_map)
 ```
 
-If a package-level override block exists, the compiler/runtime applies overrides between generic mapping and whole-generation construction:
+If a package-local annotation block exists, the compiler/runtime applies its field overrides between generic mapping and whole-generation construction:
 
 ```text
 user_shape := shape(User)
@@ -1630,7 +1700,7 @@ default_fields := Dict.from_entries(
     user_shape.fields.map(fn(field): (field.name, DatabaseSchema.map_field(field)))
 )
 overridden_fields := apply_overrides(DatabaseSchema, User, default_fields)
-table := DatabaseSchema.finish(user_shape, overridden_fields)
+table := DatabaseSchema.build(user_shape, overridden_fields)
 ```
 
 Runtime annotation values should be ordinary typed values. They can be assigned, exported, registered, passed to functions, or generated into external artifacts:
@@ -1646,16 +1716,73 @@ Whether annotation values are computed at compile time, generated into code, cac
 
 Open concerns:
 
-1. The exact protocol names are not settled: `StructAnnotation`, `EnumAnnotation`, `FuncAnnotation`, `map_field`, `map_variant`, and `finish` all need naming review.
+1. The exact protocol names are not settled: `StructAnnotation`, `EnumAnnotation`, `FuncAnnotation`, `map_field`, `map_variant`, `map_param`, and `build` all need naming review.
 2. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
-3. `finish` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `finish` should use the original `shape` ordering.
-4. Exact rules for application packages overriding annotation defaults from library dependencies still need detail.
+3. `build` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `build` should use the original `shape` ordering.
+4. Function parameter assignment overrides are deferred in v1; parameter customization uses parameter annotations/docs or whole-function `build`.
 5. Runtime annotation materialization syntax is provisional. The current preferred sketch uses `Facet::annotation(Target)`, but the exact spelling is still open.
 
 Support two styles:
 
 1. Lightweight annotations for minimal inline constraints.
 2. External derivation/override blocks for richer or extendable metadata. The exact block syntax is unresolved.
+
+### Decorator Metadata
+
+Decorators are distinct from `annotate Facet for Target` blocks.
+
+Decorator principles:
+
+1. A decorator does not alter the behavior or type of the declaration it is attached to.
+2. A decorator cannot change a field name, parameter name, variant name, function name, underlying type, or signature.
+3. A decorator attaches static metadata to the target shape.
+4. Decorator metadata is compile-time computed and exposed through shape values such as `FieldShape`, `ParamShape`, `VariantShape`, `StructShape`, `EnumShape`, and `FnShape`.
+5. Field decorator applicability is checked through trait resolution on the decorated field type.
+
+Example:
+
+```text
+struct MaxLen:
+    value: i32
+
+trait FieldDecorator[T]:
+    fn attach(decorator: Self, field: FieldShape) -> Result[FieldMetadata, DecoratorError]
+
+impl FieldDecorator[string] for MaxLen:
+    fn attach(decorator: Self, field: FieldShape) -> Result[FieldMetadata, DecoratorError]:
+        Ok(FieldMetadata.max_len(decorator.value))
+
+impl[T] FieldDecorator[list[T]] for MaxLen:
+    fn attach(decorator: Self, field: FieldShape) -> Result[FieldMetadata, DecoratorError]:
+        Ok(FieldMetadata.max_len(decorator.value))
+
+struct User:
+    id: UserId
+    @MaxLen(320)
+    email: string
+
+    @MaxLen(5)
+    tags: list[string]
+
+    @MaxLen(12)
+    age: i32       # compile error: MaxLen does not implement FieldDecorator[i32]
+```
+
+When a decorator is attached to a field of type `T`, the compiler checks that the decorator value implements `FieldDecorator[T]`. The `attach` function converts the decorator into static field metadata. This keeps decorators reusable and type-checked without letting them refine or change the field's underlying type.
+
+An annotation facet can read that metadata:
+
+```text
+fn map_field(field: FieldShape) -> DatabaseColumn:
+    max_len := field.annotation(MaxLen)?.value
+    ...
+```
+
+Open decorator questions:
+
+1. What is the exact constructor shorthand for decorators: `@MaxLen(320)`, `@MaxLen(value=320)`, or a lowercase helper such as `@max_len(320)`?
+2. Should equivalent protocols exist for parameter, function, struct, enum, and variant decorators, and what should their trait names be?
+3. How should multiple decorators of the same metadata type compose or conflict?
 
 Candidate annotation style:
 

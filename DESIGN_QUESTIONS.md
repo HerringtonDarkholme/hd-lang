@@ -31,10 +31,15 @@ Annotation decisions:
 1. `annotate Facet for Target` is the chosen special syntax for annotation overrides.
 2. Only one annotation block is allowed for a given facet/target pair in a package.
 3. Annotation blocks are global within a package.
-4. Application packages can override annotation defaults supplied by library dependencies.
-5. Annotation field/variant/parameter assignments can only target existing target members; they cannot create new members.
-6. The whole-generation hook is named `finish`.
-7. Struct annotation `finish` receives `Dict[string, FieldTarget]` keyed by field name.
+4. Libraries do not provide implicit default annotation blocks for downstream applications; if a library explicitly provides an annotation, downstream packages cannot override it.
+5. Applications can define package-local annotations for imported targets only when the imported target has no library-provided annotation for that facet.
+6. Annotation field/variant assignments can only target existing target members; they cannot create new members.
+7. Function parameter assignment overrides are deferred in v1.
+8. Function parameter customization uses parameter annotations/docs or a whole-function `build` override.
+9. The whole-generation hook is named `build`.
+10. Struct annotation `build` receives `Dict[string, FieldTarget]` keyed by field name.
+11. Field decorator applicability is checked through `FieldDecorator[T]` trait resolution.
+12. `FieldDecorator[T]` uses `fn attach(decorator: Self, field: FieldShape) -> Result[FieldMetadata, DecoratorError]`.
 
 Remaining questions:
 
@@ -43,16 +48,15 @@ Remaining questions:
 3. What override paths besides one package-global `annotate Facet for Target` block should exist later, such as reusable override profiles or full derivation rewrites?
 4. How should derived metadata/artifacts be explicitly exported for runtime use?
 5. Should annotation facets be ordinary trait implementations such as `StructAnnotation`, `EnumAnnotation`, and `FuncAnnotation`?
-6. Is the uniformly typed annotation protocol enough for v1: one `FieldTarget`, one `VariantTarget`, and one `Target` per annotation facet?
-7. If a facet needs stricter field-type-specific correctness, should that be enforced through smart constructors, validation hooks, generated diagnostics, or a later advanced type feature?
+6. Is the uniformly typed annotation protocol enough for v1: one `FieldTarget`, one `VariantTarget`, one `ParamTarget`, and one `Target` per annotation facet?
+7. If an annotation facet needs stricter field-type-specific correctness for its override values, should that be enforced through smart constructors, generated diagnostics, or a later advanced type feature?
 8. How should generic annotation handlers read attached metadata from shapes, such as `field.annotation(MaxLen)`?
 9. What syntax should materialize annotation-derived runtime values, currently sketched as `DatabaseSchema::annotation(User)`?
-10. What are the exact rules for application packages overriding annotation defaults from library dependencies?
-11. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
-12. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
-13. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration?
-14. For each property test failure, what structured output should be produced for AI repair?
-15. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
+10. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
+11. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
+12. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration?
+13. For each property test failure, what structured output should be produced for AI repair?
+14. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
 
 ## Agent Tooling Scenario
 
