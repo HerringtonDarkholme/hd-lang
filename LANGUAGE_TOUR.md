@@ -348,6 +348,8 @@ message := match status:
     _ => "unknown"
 ```
 
+`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate Validation for User: pass`, it means default derivation with no overrides.
+
 ## Structs
 
 hd-lang has structs, not classes. Structs describe data with named, typed fields:
@@ -1355,34 +1357,45 @@ Open surface choices from this section:
 
 ## Using Annotations
 
-Annotations attach typed metadata to declarations. They do not change a declaration's type, behavior, name, or visibility.
+Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
 
-An annotation is a prefix line containing an ordinary value expression:
+Use `annotate Target` to attach metadata to existing members:
 
 ```text
-@Validation
 struct User:
-    @min_len(1)
-    @max_len(80)
     display_name: string
-
     active: bool
+
+annotate User:
+    display_name = [min_len(1), max_len(80)]
 ```
 
-`@Validation`, `@min_len(1)`, and `@max_len(80)` are ordinary values that implement the annotator trait required by their target. Constructor calls, helper function calls, named values, and composed values are equivalent:
+For `display_name: string`, the assignment is contextually typed as `list[FieldMetadata[string]]`. `MinLen` and `MaxLen` are different concrete values implementing the same dynamic trait, so the collection is homogeneous.
+
+Metadata values and reusable metadata lists are ordinary values:
 
 ```text
-display_name_rules := Compose(min_len(1), max_len(80))
+let display_name_metadata: list[FieldMetadata[string]] = [
+    min_len(1),
+    max_len(80),
+]
 
-@Validation
 struct User:
-    @display_name_rules
     display_name: string
+
+annotate User:
+    display_name = display_name_metadata
 ```
 
-Annotation values execute in a restricted metadata phase. They must be pure, deterministic, non-suspending, and dependency-free. Multiple instances of the same annotation type on one declaration are rejected.
+Metadata values execute in a restricted metadata phase. They must be pure, deterministic, non-suspending, and dependency-free. Multiple entries with the same concrete metadata type on one member are rejected.
 
-Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation metadata for each field's declared type, applies annotations such as `@max_len(80)` to that field metadata, and then builds validation metadata for the complete struct.
+Use `annotate Annotation for Target` to derive information for a complete target. `pass` requests default derivation with no structural result overrides:
+
+```text
+annotate Validation for User: pass
+```
+
+Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation information for each field's declared type, reads the field's `FieldMetadata[string]` values, and then uses `StructAnnotator` to build validation information for the complete struct.
 
 Generated metadata is retrieved explicitly as an ordinary runtime value:
 
@@ -1393,16 +1406,17 @@ input := read_json()
 user := user_validator.parse(input)?
 ```
 
-The same declaration can carry unrelated metadata facets:
+The same declaration can provide unrelated annotation information:
 
 ```text
-@Validation
-@DatabaseSchema
-@UI
 struct User:
     id: UserId
     display_name: string
     avatar: string?
+
+annotate Validation for User: pass
+annotate DatabaseSchema for User: pass
+annotate UI for User: pass
 ```
 
 Each facet is retrieved independently:
@@ -1413,7 +1427,7 @@ table := DatabaseSchema::annotation(User)
 form := UI::annotation(User)
 ```
 
-Use an external `annotate` block to customize a facet for a particular target without placing facet-specific details in the struct declaration:
+Add structural result overrides when default derivation is insufficient:
 
 ```text
 annotate UI for User:
@@ -1425,13 +1439,14 @@ Assignments in an `annotate` block can override existing fields or variants only
 Function annotations follow the same model:
 
 ```text
-@tool
 fn get_user!(id: UserId) -> Result[User?, ToolError] $ Database:
     db := $.use(Database)
     db.get_user!(id)
+
+annotate Tool for get_user: pass
 ```
 
-`@tool` only attaches tool metadata. It does not discover or register the function, and it does not make the function public. Registration is explicit:
+This produces tool information but does not discover or register the function, and it does not make the function public. Registration is explicit:
 
 ```text
 tool_registry.register(Tool::annotation(get_user))
@@ -1442,3 +1457,199 @@ Open surface choices from this section:
 1. The final spelling of runtime retrieval, currently `Facet::annotation(Target)`.
 2. The missing-child policy when a field or variant type has no metadata for the requested facet.
 3. The detailed syntax for whole-facet overrides in an `annotate` block.
+4. A future version may add `@expr` as optional locality sugar for member metadata, exactly equivalent to `annotate Target`; it is not current syntax.
+
+## Implementing Annotators
+
+Annotators are ordinary types that transform declaration shapes into typed metadata. The compiler exposes shapes for the declarations an annotator can inspect:
+
+```text
+shape(User)          # StructShape
+shape(User.email)    # FieldShape
+shape(JobStatus)     # EnumShape
+shape(get_user)      # FnShape
+```
+
+Every annotation value implements `Annotation` and chooses one uniform information type. `Annotate[A]` records that a concrete target provides information for annotation `A`:
+
+```text
+trait Annotation:
+    type Info
+
+trait Annotate[A: Annotation]:
+    fn info() -> A::Info
+```
+
+Local member metadata uses open traits. A field metadata trait is generic over the field's declared type:
+
+```text
+trait FieldMetadata[T]
+trait VariantMetadata
+trait ParamMetadata[T]
+```
+
+For example, `MaxLen` applies to `string` fields but not `i32` fields:
+
+```text
+struct MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen:
+    MaxLen { value: value }
+
+impl FieldMetadata[string] for MaxLen
+```
+
+The compiler accepts this metadata based on ordinary trait checking:
+
+```text
+struct User:
+    display_name: string
+
+annotate User:
+    display_name = [max_len(80)]
+```
+
+It rejects the same value on an incompatible field because `MaxLen` does not implement `FieldMetadata[i32]`:
+
+```text
+struct Invalid:
+    retry_count: i32
+
+annotate Invalid:
+    retry_count = [max_len(80)]  # compile error
+```
+
+An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and structs:
+
+```text
+struct FieldValidator:
+    name: string
+    target: AnnotationRef[Validator]
+    max_len: i32?
+
+enum Validator:
+    I32
+    String
+    Struct(name: string, fields: Dict[string, FieldValidator])
+
+impl Annotation for Validation:
+    type Info = Validator
+```
+
+Exact `annotate` blocks extend the facet for individual types:
+
+```text
+annotate Validation for i32:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.I32
+
+annotate Validation for string:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.String
+```
+
+There is no wildcard `annotate Validation for type` fallback. Each block contributes one exact target to the open facet.
+
+`annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot.
+
+An annotator for a struct maps each field and then builds one result for the complete struct:
+
+```text
+trait StructAnnotator: Annotation:
+    type FieldTarget
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Self::Info],
+    ) -> Self::FieldTarget
+
+    fn build(
+        self,
+        shape: StructShape,
+        fields: Dict[string, Self::FieldTarget],
+    ) -> Self::Info
+```
+
+`Validation` combines each field's already-derived type validator with metadata attached directly to that field:
+
+```text
+impl StructAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {
+            name: field.name,
+            target: type_metadata,
+            max_len: field.metadata(MaxLen).map(
+                fn(annotation: MaxLen) -> i32: annotation.value
+            ),
+        }
+
+    fn build(
+        self,
+        shape: StructShape,
+        fields: Dict[string, FieldValidator],
+    ) -> Validator:
+        Validator.Struct(name=shape.name, fields=fields)
+```
+
+The compiler supplies `type_metadata`; `map_field` does not restart annotation resolution. This enforces the bottom-up order:
+
+```text
+type metadata -> field metadata -> struct metadata
+```
+
+`AnnotationRef[T]` is provided by the annotation runtime. It can hold an already-built target or a deferred reference to one, allowing the same annotator to support recursive structs and enums without adding a facet-specific `Ref` variant.
+
+Enums and functions follow the same mapping-then-building pattern:
+
+```text
+trait EnumAnnotator: Annotation:
+    type FieldTarget
+    type VariantTarget
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Self::Info],
+    ) -> Self::FieldTarget
+
+    fn map_variant(
+        self,
+        variant: VariantShape,
+        fields: list[Self::FieldTarget],
+    ) -> Self::VariantTarget
+
+    fn build(
+        self,
+        shape: EnumShape,
+        variants: Dict[string, Self::VariantTarget],
+    ) -> Self::Info
+
+trait FuncAnnotator: Annotation:
+    type ParamTarget
+
+    fn map_param(self, param: ParamShape) -> Self::ParamTarget
+
+    fn build(
+        self,
+        shape: FnShape,
+        params: Dict[string, Self::ParamTarget],
+    ) -> Self::Info
+```
+
+`VariantMetadata` and `ParamMetadata[T]` provide the corresponding homogeneous dynamic-trait collections for variants and parameters. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
+
+Open surface choices from this section:
+
+1. The final shape APIs and method names.
+2. Generic exact-target syntax for families such as every `list[T]`.
+3. Whether type information and completed aggregate information always share `Annotation::Info`.
+4. The static missing-annotation policy and its granularity.
+5. Generic constraint syntax for metadata helper functions and generic `Annotate[A]` implementations.

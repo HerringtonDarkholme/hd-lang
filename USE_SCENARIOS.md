@@ -22,7 +22,7 @@ Tool calls should be first-class language artifacts, not loose JSON wrappers.
 
 When using this language's own infrastructure, tool declarations should replace external JSON schema/OpenAPI-style specs. When interoperating with existing tooling, the compiler should generate those specs from source.
 
-The language should stay function-first. Tool registration can be expressed through annotations or decorator-like metadata attached to normal functions, instead of requiring a top-level system declaration.
+The language should stay function-first. `annotate Tool for function` produces tool information for a normal function, and user code registers that information explicitly instead of declaring a separate top-level tool construct.
 
 Agent scripts and tool calls should run in a sandbox by default. Access to filesystem, network, auth context, databases, secrets, clocks, subprocesses, and other external resources should be represented as explicit capabilities.
 
@@ -43,28 +43,18 @@ Requirements:
 ### Possible Tool Shape
 
 ```text
-@tool
-@description "Fetch a user by ID."
-@context AuthContext, TenantContext
-fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
-    access:
-        require auth.can("user:read")
-    example
-        input
-            id: UserId { value: "user_123" }
-        output
-            User {
-                id: UserId { value: "user_123" },
-                name: "Ada"
-            }
-    db := use(Database)
+fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
+    db := $.use(Database)
     user := db.get_user!(id)?
     user
+
+annotate Tool for get_user: pass
+tool_registry.register(Tool::annotation(get_user))
 ```
 
 Open design areas:
 
-1. Exact annotation/decorator syntax for registering tools.
+1. Exact `Tool` information and explicit registry API for registering tools.
 2. Whether tool examples are checked by the compiler/test runner.
 3. Whether access control is modeled as contracts, effects, schemas, or a separate section.
 4. How references between tools should be declared and validated.

@@ -37,17 +37,15 @@ It should support:
 
 ## Language Shape
 
-The language is function-first, not system-first. Normal structs, functions, and tools are primary. System registration is attached through annotations or decorator-like metadata.
+The language is function-first, not system-first. Normal structs and functions are primary. System information is derived through `annotate`, and registration remains explicit.
 
 ```text
-@tool
-    description "Fetch a user by ID."
-    context AuthContext
-fn get_user(id: UserId) -> User !db !not_found !access
-    access
-        require auth.can("user:read")
-    user := perform db.get_user(id)
-    user?
+fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
+    db := $.use(Database)
+    db.get_user!(id)
+
+annotate Tool for get_user: pass
+tool_registry.register(Tool::annotation(get_user))
 ```
 
 Core language traits:
@@ -58,41 +56,42 @@ Core language traits:
 4. Traits for shared behavior.
 5. Struct embedding, similar to Go.
 6. Garbage collection.
-7. Swift-style optionals, such as `String?`.
+7. Swift-style optionals, such as `string?`.
 
 ## Validation And Annotation Model
 
 Validation metadata does not create distinct static subtypes by default. Base type identity remains normal. Validators are used by tooling and runtime checks.
 
-Lightweight inline annotations are used for simple constraints:
+Member metadata is grouped in a declaration-shape annotation block:
 
 ```text
-struct User
+struct User:
     id: UserId
-    @email
-    @max_len 320
-    email: String
+    email: string
+    avatar: string?
+
+annotate User:
+    email = [email(), max_len(320)]
 ```
 
-Richer metadata uses general annotation facets:
+Derived information uses annotation implementations with optional structural overrides:
 
 ```text
-annotate Validation for User
-    email: email.max_len(320)
+annotate Validation for User: pass
 
-annotate DatabaseSchema for User
-    email: varchar(320).unique()
+annotate DatabaseSchema for User:
+    email = varchar(320).unique()
 
-annotate UI for User
-    avatar: ProfileImage.rounded(size: 40)
+annotate UI for User:
+    avatar = ProfileImage.rounded(size=40)
 ```
 
 Retention also uses annotation facets:
 
 ```text
-annotate Retention for Post
-    userId: ownerId
-    policy: deleteWhen(User.deleted)
+annotate Retention for Post:
+    userId = ownerId
+    policy = deleteWhen(User.deleted)
 ```
 
 Facet terms such as `ownerId`, `deleteWhen`, `email`, or `max_len` belong to their facet. They are not global language keywords.

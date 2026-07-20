@@ -1435,11 +1435,14 @@ shape(JobStatus)   # EnumShape
 shape(get_user)    # FnShape
 ```
 
-Every facet first implements the common annotation protocol. The protocol only associates the facet with its uniformly typed output:
+Every annotation kind first implements the common annotation protocol. The protocol associates it with one uniform information type. Targets expose availability through an ordinary generic trait:
 
 ```text
 trait Annotation:
-    type Target
+    type Info
+
+trait Annotate[A: Annotation]:
+    fn info() -> A::Info
 ```
 
 Ready and deferred annotation values use the same compiler/runtime-provided representation:
@@ -1453,19 +1456,14 @@ impl[T] AnnotationRef[T]:
     fn get(self) -> T
 ```
 
-Conceptually, `AnnotationRef[T]` has `Ready(T)` and `Deferred(AnnotationKey, fn() -> T)` states, but those constructors are not part of normal source code. `get()` memoizes deferred resolution through the package annotation registry. Public `Facet::annotation(Target)` returns a completed ordinary `Target`; structural derivation passes `AnnotationRef[Target]` internally so recursive edges can remain deferred.
+Conceptually, `AnnotationRef[T]` has `Ready(T)` and `Deferred(AnnotationKey, fn() -> T)` states, but those constructors are not part of normal source code. `get()` memoizes deferred resolution through the package annotation registry. Public `Facet::annotation(Target)` returns the facet's completed ordinary `Info`; structural derivation passes `AnnotationRef[Info]` internally so recursive edges can remain deferred.
 
-Attachable annotator protocols correspond directly to the declaration carrying `@value`. Non-declaration types are supported by adding exact `annotate Facet for TargetType` cases:
+Local metadata protocols correspond directly to member shapes. They are open traits so unrelated concrete values can coexist in one homogeneous dynamic-trait list:
 
 ```text
-trait FieldAnnotator[T]: Annotation:
-    fn attach(self, field: FieldShape) -> Result[Self::Target, AnnotationError]
-
-trait VariantAnnotator: Annotation:
-    fn attach(self, variant: VariantShape) -> Result[Self::Target, AnnotationError]
-
-trait ParamAnnotator[T]: Annotation:
-    fn attach(self, param: ParamShape) -> Result[Self::Target, AnnotationError]
+trait FieldMetadata[T]
+trait VariantMetadata
+trait ParamMetadata[T]
 
 trait StructAnnotator: Annotation:
     type FieldTarget
@@ -1473,17 +1471,17 @@ trait StructAnnotator: Annotation:
     fn map_field(
         self,
         field: FieldShape,
-        type_metadata: AnnotationRef[Self::Target],
+        type_metadata: AnnotationRef[Self::Info],
     ) -> Self::FieldTarget
 
     fn build(
         self,
         shape: StructShape,
         fields: Dict[string, Self::FieldTarget],
-    ) -> Self::Target
+    ) -> Self::Info
 ```
 
-`FieldAnnotator[T]`, `VariantAnnotator`, and `ParamAnnotator[T]` describe direct annotation targets. For example, a value implementing `FieldAnnotator[string]` may appear above a `string` field. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` describe enclosing declaration annotations and perform their own child mapping before `build`.
+For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` and `ParamMetadata[T]` serve the corresponding declaration shapes. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
 
 The supported type set is open because new exact cases can be added without changing an existing annotator:
 
@@ -1498,6 +1496,53 @@ annotate Validation for string:
 ```
 
 There is no wildcard `annotate Facet for type` fallback. Each block contributes one exact type target. Generic annotation-target syntax such as a reusable case for every `list[T]` remains undesigned; until then, examples can annotate concrete instantiations such as `list[Entry]`.
+
+### Annotation Lowering Model
+
+Annotations do not introduce a separate semantic constraint system. Their semantics reduce to traits, implementations, ordinary values, and declaration shapes.
+
+`annotate A for T` is structural syntax for the same conformance as `impl Annotate[A] for T`. It adds compiler-supported field or variant overrides while deriving all unmentioned members through the applicable struct or enum annotator:
+
+```text
+annotate UI for User:
+    avatar = profile_image(size=40)
+
+# Same coherence slot; full manual implementation:
+impl Annotate[UI] for User:
+    fn info() -> UI::Info:
+        ...
+```
+
+The two forms cannot coexist for the same annotation/target pair. A direct `impl` constructs the complete information value; `annotate` is the ergonomic form for structural derivation with member-level overrides.
+
+`annotate Target` is member-shape metadata sugar. It evaluates ordinary metadata values and attaches them to existing fields, variants, or parameters:
+
+```text
+annotate User:
+    email = [max_len(320), contains('@')]
+
+annotate Entry:
+    File = [variant_doc("A stored file")]
+```
+
+For `User.email: string`, the first right-hand side is contextually typed as `list[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
+
+There is no decorator syntax. `annotate A for T: pass` requests default aggregate derivation with no result overrides; `annotate T` attaches member metadata that any aggregate annotator may inspect.
+
+`pass` is the general no-op expression and evaluates to `void`. Its use in a no-override `annotate` body introduces no special runtime behavior.
+
+Decorator syntax may be added later as optional locality sugar. A future field form such as `@max_len(320)` must lower exactly to the corresponding value in `annotate User`, use the same `FieldMetadata[T]` trait checking, and introduce no new annotation semantics. Decorators are not part of the current language design.
+
+Generic code can use normal trait bounds to require annotation availability:
+
+```text
+# Generic constraint syntax remains provisional.
+fn validate[T: Annotate[Validation]](value: T) -> Result[T, ValidationError]:
+    validator := Validation::annotation(T)
+    validator.validate(value)
+```
+
+A stronger model in which arbitrary traits directly inspect an implementation target's structure remains an exploratory idea only. It is not required by the selected lowering model because `annotate` retains the structural override sugar.
 
 ### Bottom-Up Annotation Composition
 
@@ -1524,27 +1569,32 @@ Evaluation is strictly bottom-up. An enclosing annotator can inspect child metad
 The source relationship is:
 
 ```text
-@StructDec
 struct A:
-    @FieldDec
     field: i32
-
-    @FieldDec
     variant: Enum
 
-@EnumDec
 enum Enum:
-    @VariantDec Foo
+    Foo
     Bar
+
+annotate A:
+    field = [FieldDec]
+    variant = [FieldDec]
+
+annotate Enum:
+    Foo = [VariantDec]
+
+annotate StructDec for A: pass
+annotate EnumDec for Enum: pass
 ```
 
-The compiler requires `StructDec: StructAnnotator`, each field annotation to implement `FieldAnnotator[T]` for that field's declared type, `EnumDec: EnumAnnotator`, and `VariantDec: VariantAnnotator`.
+The compiler requires `StructDec: StructAnnotator`, each field value to implement `FieldMetadata[T]` for that field's declared type, `EnumDec: EnumAnnotator`, and each variant value to implement `VariantMetadata`.
 
 For UI, every field maps to a `ReactComponent`:
 
 ```text
 impl Annotation for UI:
-    type Target = list[ReactComponent]
+    type Info = list[ReactComponent]
 
 impl StructAnnotator for UI:
     type FieldTarget = ReactComponent
@@ -1623,7 +1673,7 @@ struct TableSchema:
     columns: list[DatabaseColumn]
 
 impl Annotation for DatabaseSchema:
-    type Target = TableSchema
+    type Info = TableSchema
 
 impl StructAnnotator for DatabaseSchema:
     type FieldTarget = DatabaseColumn
@@ -1633,7 +1683,7 @@ impl StructAnnotator for DatabaseSchema:
         field: FieldShape,
         type_metadata: AnnotationRef[TableSchema],
     ) -> DatabaseColumn:
-        max_len := field.annotation(MaxLen).map(
+        max_len := field.metadata(MaxLen).map(
             fn(annotation: MaxLen) -> i32: annotation.value
         )
 
@@ -1660,14 +1710,16 @@ Overrides typecheck against the uniform target:
 ```text
 struct User:
     id: UserId
-    @max_len(320)
     email: string
-    @max_len(80)
     display_name: string
     active: bool
 
+annotate User:
+    email = [max_len(320)]
+    display_name = [max_len(80)]
+
 annotate DatabaseSchema for User:
-    # Optional override. Without this, `map_field` reads @max_len(320).
+    # Optional result override. Without it, `map_field` reads MaxLen metadata.
     email = DatabaseColumn.TextColumn(name="email", max_len=320)
     active = DatabaseColumn.BoolColumn(name="is_active")
 ```
@@ -1686,7 +1738,7 @@ trait EnumAnnotator: Annotation:
     fn map_field(
         self,
         field: FieldShape,
-        type_metadata: AnnotationRef[Self::Target],
+        type_metadata: AnnotationRef[Self::Info],
     ) -> Self::FieldTarget
 
     fn map_variant(
@@ -1699,7 +1751,7 @@ trait EnumAnnotator: Annotation:
         self,
         shape: EnumShape,
         variants: Dict[string, Self::VariantTarget],
-    ) -> Self::Target
+    ) -> Self::Info
 ```
 
 Function annotations use the same shape: a parameter mapping step plus `build`. In v1, function parameter assignment overrides inside `annotate` are not supported; parameter customization should come from parameter annotations, parameter docs, or a whole-function `build` override.
@@ -1714,7 +1766,7 @@ trait FuncAnnotator: Annotation:
         self,
         shape: FnShape,
         params: Dict[string, Self::ParamTarget],
-    ) -> Self::Target
+    ) -> Self::Info
 ```
 
 Example tool annotation:
@@ -1733,7 +1785,7 @@ struct ToolSpec:
     requirements: list[string]
 
 impl Annotation for Tool:
-    type Target = ToolSpec
+    type Info = ToolSpec
 
 impl FuncAnnotator for Tool:
     type ParamTarget = ToolParam
@@ -1906,40 +1958,17 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 fn contains(value: string) -> Contains: Contains { value: value }
 fn variant_doc(text: string) -> VariantDoc: VariantDoc { text: text }
 
-impl Annotation for MinLen:
-    type Target = FieldMetadata
-
-impl Annotation for MaxLen:
-    type Target = FieldMetadata
-
-impl Annotation for Contains:
-    type Target = FieldMetadata
-
-impl Annotation for VariantDoc:
-    type Target = VariantMetadata
-
-impl FieldAnnotator[string] for MinLen:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        Ok(FieldMetadata.min_len(self.value))
-
-impl FieldAnnotator[string] for MaxLen:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        Ok(FieldMetadata.max_len(self.value))
-
-impl FieldAnnotator[string] for Contains:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        Ok(FieldMetadata.contains(self.value))
-
-impl VariantAnnotator for VariantDoc:
-    fn attach(self, variant: VariantShape) -> Result[VariantMetadata, AnnotationError]:
-        Ok(VariantMetadata.description(self.text))
+impl FieldMetadata[string] for MinLen
+impl FieldMetadata[string] for MaxLen
+impl FieldMetadata[string] for Contains
+impl VariantMetadata for VariantDoc
 ```
 
 `Validation` is a zero-configuration annotation value. It implements the enclosing annotators for structs and enums, while field and variant annotations are independent ordinary values implementing their corresponding target-specific annotator traits:
 
 ```text
 impl Annotation for Validation:
-    type Target = Validator
+    type Info = Validator
 
 annotate Validation for bool:
     fn build(self, shape: TypeShape) -> Validator:
@@ -1971,13 +2000,13 @@ fn validation_field(
         target: type_metadata,
         rules: FieldRules {
             required: not field.type.is_optional(),
-            min_len: field.annotation(MinLen).map(
+            min_len: field.metadata(MinLen).map(
                 fn(annotation: MinLen) -> i32: annotation.value
             ),
-            max_len: field.annotation(MaxLen).map(
+            max_len: field.metadata(MaxLen).map(
                 fn(annotation: MaxLen) -> i32: annotation.value
             ),
-            contains: field.annotation(Contains).map(
+            contains: field.metadata(Contains).map(
                 fn(annotation: Contains) -> string: annotation.value
             ),
         },
@@ -2018,7 +2047,7 @@ impl EnumAnnotator for Validation:
     ) -> VariantValidator:
         VariantValidator {
             name: variant.name,
-            description: variant.annotation(VariantDoc).map(
+            description: variant.metadata(VariantDoc).map(
                 fn(annotation: VariantDoc) -> string: annotation.text
             ),
             fields: fields,
@@ -2056,7 +2085,7 @@ resolve(Validation, list[Entry])
 
 This resolver is conceptual compiler behavior, not a user-callable overloaded function.
 
-Field and variant annotators run before their enclosing struct or enum annotator. Consequently, `validation_field` can read `MinLen`, `MaxLen`, and `Contains` results from `FieldShape`, and `Validation.map_variant` can inspect variant annotations through `VariantShape` when needed.
+Field and variant metadata is attached to shapes before their enclosing struct or enum annotator runs. Consequently, `validation_field` can read `MinLen`, `MaxLen`, and `Contains` values from `FieldShape`, and `Validation.map_variant` can inspect `VariantMetadata` values through `VariantShape` when needed.
 
 A nominal type can provide a reusable explicit default without placing annotation syntax on a type expression:
 
@@ -2074,30 +2103,29 @@ annotate Validation for Email:
 
 Every `Email` field therefore resolves through `Validation::annotation(Email)` unless the enclosing target's `annotate Validation for ...` block overrides that field result.
 
-The same facet handles recursion across structs and enums:
+The same annotation handles recursion across structs and enums:
 
 ```text
-@Validation
 struct Folder:
-    @min_len(1)
-    @max_len(120)
     name: string
-
-    @contains("/")
     path: string
-
     note: string?
-
     owner: Email
-
     entries: list[Entry]
 
-@Validation
 enum Entry:
-    @variant_doc("A stored file")
     File(name: string, size: i32)
-
     Directory(folder: Folder)
+
+annotate Folder:
+    name = [min_len(1), max_len(120)]
+    path = [contains("/")]
+
+annotate Entry:
+    File = [variant_doc("A stored file")]
+
+annotate Validation for Folder: pass
+annotate Validation for Entry: pass
 
 annotate Validation for list[Entry]:
     fn build(self, shape: TypeShape) -> Validator:
@@ -2106,18 +2134,20 @@ annotate Validation for list[Entry]:
 
 This follows the same target-specific annotation model throughout:
 
-1. `@Validation` is accepted on `Folder` because `Validation: StructAnnotator`.
-2. `@max_len(120)` is accepted on `Folder.name` because its `MaxLen` value implements `FieldAnnotator[string]`.
-3. `@Validation` is accepted on `Entry` because `Validation: EnumAnnotator`.
-4. `@variant_doc("A stored file")` is accepted on `Entry.File` because its `VariantDoc` value implements `VariantAnnotator`.
+1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation: StructAnnotator`.
+2. `Folder.name` expects `list[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
+3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation: EnumAnnotator`.
+4. `Entry.File` expects `list[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
 5. `annotate Validation for list[Entry]` adds the exact collection type needed by `Folder.entries`; it explicitly references the `Entry` validator.
 
-`@Validation` is not placed on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. A field-level use is rejected unless `Validation` independently implements the matching field annotator:
+No `Validation` metadata is placed directly on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. Putting `Validation` into a field metadata list is rejected because it does not implement `FieldMetadata[string]`:
 
 ```text
 struct Invalid:
-    @Validation
-    value: string  # compile error: Validation does not implement FieldAnnotator[string]
+    value: string
+
+annotate Invalid:
+    value = [Validation]  # compile error: Validation does not implement FieldMetadata[string]
 ```
 
 When deriving `Validation::annotation(Folder)`, the resolver marks `(Validation, Folder)` active. It derives `string`, `Email`, and `list[Entry]`, then derives the `Entry` variants. At `Entry.Directory.folder`, resolving `Folder` re-enters the active key, so that field receives a deferred `AnnotationRef[Validator]`. All primitive, nominal, list, and non-recursive edges receive ready references. Once the outer `Folder` validator is built, the deferred reference resolves through the completed registry entry.
@@ -2137,7 +2167,7 @@ This mechanism is universal across annotation facets:
 4. Completed targets are memoized per package.
 5. `Facet::annotation(Target)` returns the completed ordinary target; only the internal structural graph carries `AnnotationRef` values.
 
-There is no `Annotation.reference` hook and no `Validator.Ref` case. A facet opts into recursive structure by placing `AnnotationRef[Target]` wherever its own output graph can contain another target. Struct and enum validation use the same `AnnotationRef[Validator]` representation.
+There is no `Annotation.reference` hook and no `Validator.Ref` case. An annotation opts into recursive structure by placing `AnnotationRef[Info]` wherever its own output graph can contain another information value. Struct and enum validation use the same `AnnotationRef[Validator]` representation.
 
 Annotation resolution otherwise follows this order:
 
@@ -2167,11 +2197,11 @@ trait StructAnnotator: Annotation:
     fn map_field(
         self,
         field: FieldShape,
-        type_metadata: AnnotationRef[Self::Target],
+        type_metadata: AnnotationRef[Self::Info],
     ) -> Self::FieldTarget
 ```
 
-Under this proposal, `Require` makes a missing child type annotation a compiler error. `Ignore` excludes that child before runtime `map_field` and `build` execute. `map_field` therefore keeps a non-optional `AnnotationRef[Target]` and never decides whether compilation succeeds.
+Under this proposal, `Require` makes a missing child type annotation a compiler error. `Ignore` excludes that child before runtime `map_field` and `build` execute. `map_field` therefore keeps a non-optional `AnnotationRef[Info]` and never decides whether compilation succeeds.
 
 One possible way to make the policy selectable is to carry it in the annotator's static type:
 
@@ -2184,48 +2214,50 @@ The names, marker representation, selection syntax, default policy, policy granu
 
 ### Manual Deferral
 
-An optional `@lazy` field annotation remains a candidate for explicit deferral even when no cycle is detected:
+An optional `lazy` field-metadata value remains a candidate for explicit deferral even when no cycle is detected:
 
 ```text
 struct Document:
-    @lazy
     related: list[Document]
+
+annotate Document:
+    related = [lazy]
 ```
 
-`@lazy` would be ordinary field metadata consumed only by facets that support deferred references. It would not make the stored field lazy and would not change normal field access or type semantics. Automatic cycle detection remains the preferred default; the exact scope and facet interaction of manual `@lazy` are not yet settled.
+`lazy` would be an ordinary `FieldMetadata[list[Document]]` value consumed only by annotations that support deferred references. It would not make the stored field lazy and would not change normal field access or type semantics. Automatic cycle detection remains the preferred default; the exact consumer scope remains unsettled.
 
 Open concerns:
 
-1. The exact method names are not settled: `map_field`, `map_variant`, `map_param`, `attach`, and `build` still need naming review.
+1. The exact aggregate method names are not settled: `map_field`, `map_variant`, `map_param`, and `build` still need naming review.
 2. Reusable generic target syntax for cases such as every `list[T]` remains open. The current example uses the exact target `list[Entry]` rather than inventing generic annotation syntax.
 3. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
 4. `build` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `build` should use the original `shape` ordering.
 5. Function parameter assignment overrides are deferred in v1; parameter customization uses parameter annotations/docs or whole-function `build`.
 6. Runtime annotation materialization syntax is provisional. The current preferred sketch uses `Facet::annotation(Target)`, but the exact spelling is still open.
-7. The internal representation and lifecycle of `AnnotationRef[Target]` remain compiler/runtime details.
-8. Whether manual `@lazy` applies to every compatible facet or names a specific facet remains open.
+7. The internal representation and lifecycle of `AnnotationRef[Info]` remain compiler/runtime details.
+8. Which compatible aggregate annotators consume manual `lazy` metadata remains open.
 9. Whether a statically visible `MissingAnnotationPolicy` should select compile-time rejection or omission for missing child type annotations remains open, including its default and granularity. Runtime `map_field` cannot make this choice.
+10. Whether to add future `@expr` locality sugar for member metadata remains deferred. It must be exactly equivalent to `annotate Target` and is not needed for v1.
 
-Support two styles:
+Support two `annotate` forms:
 
-1. Lightweight annotations for minimal inline constraints.
-2. External derivation/override blocks for richer or extendable metadata. The exact block syntax is unresolved.
+1. `annotate Target` attaches metadata values to existing member shapes.
+2. `annotate Annotation for Target` generates `Annotate[Annotation]` with optional structural result overrides.
 
 ### Annotation Metadata
 
-Attached annotation values are distinct from `annotate Facet for Target` blocks.
+`annotate Target` member metadata is distinct from `annotate Annotation for Target` derived information, but both reduce to ordinary values, traits, implementations, and shapes.
 
 Annotation principles:
 
-1. An annotation does not alter the behavior or type of the declaration it is attached to.
-2. An annotation cannot change a field name, parameter name, variant name, function name, underlying type, or signature.
-3. An annotation attaches metadata to the target shape.
-4. An annotation expression creates an ordinary runtime metadata value, evaluated in a restricted metadata phase.
-5. Applicability is checked through the target-specific annotator trait, such as `FieldAnnotator[T]`, `StructAnnotator`, `EnumAnnotator`, or `VariantAnnotator`.
-6. An annotation is an ordinary value. Reusable annotation combinations should be expressible with ordinary structs, functions, and trait implementations instead of a separate bundle syntax.
-7. Annotation syntax is `@expr`: the expression can be a struct constructor, helper function call, named value, or composed value, as long as it is valid in metadata evaluation and implements the required annotator trait for the target.
-8. Field annotations use prefix lines immediately before the field declaration. Inline suffix annotations on fields are not part of the current syntax.
-9. Annotations attach to declarations/shapes, not to type expressions. There is no annotated type syntax in the current design.
+1. Metadata does not alter behavior, declaration names, underlying types, or signatures.
+2. `annotate Target` can assign metadata only to existing fields, variants, or parameters.
+3. A field of type `T` expects `list[FieldMetadata[T]]`; variants expect `list[VariantMetadata]`; parameters of type `T` expect `list[ParamMetadata[T]]`.
+4. These are homogeneous collections of Go-style dynamic trait values. Their concrete elements may have unrelated types.
+5. Metadata expressions create ordinary runtime values evaluated in a restricted metadata phase.
+6. Constructor calls, helper function calls, named values, and reusable lists are equivalent when their values implement the required metadata trait.
+7. Metadata attaches to declaration shapes, not to type expressions. There is no annotated type syntax.
+8. `annotate Annotation for Target` produces the same conformance as `impl Annotate[Annotation] for Target`; `pass` means no structural result overrides.
 
 Annotation values are not normal application side effects and not compiler magic. The language should have a metadata evaluation phase:
 
@@ -2233,7 +2265,7 @@ Annotation values are not normal application side effects and not compiler magic
 source code -> typed shapes -> metadata evaluation -> derived artifacts -> runtime program
 ```
 
-Metadata evaluation can construct ordinary hd-lang values such as `MaxLen { value: 320 }`, `max_len(320)`, `Tool(...)`, named annotation values, or composed annotation values. The phase must be deterministic, sandboxed, and capability-limited so tooling can run it without running the application. Shape values expose both the attached annotation values and the metadata produced by their `attach` implementations.
+Metadata evaluation can construct ordinary hd-lang values such as `MaxLen { value: 320 }`, `max_len(320)`, named metadata values, reusable metadata lists, and annotation information values. The phase must be deterministic, sandboxed, and capability-limited so tooling can run it without running the application. Shape values expose their attached dynamic metadata values directly.
 
 For v1, metadata evaluation is intentionally strict:
 
@@ -2243,32 +2275,29 @@ For v1, metadata evaluation is intentionally strict:
 4. It cannot perform IO, network access, database access, time reads, random generation, or other nondeterministic work.
 5. It cannot rely on mutation that escapes the metadata evaluation.
 
-Annotation constructors and `attach` implementations must therefore be pure, non-suspending, and dependency-free.
+Metadata constructors, helper functions, and aggregate annotator methods must therefore be pure, non-suspending, and dependency-free.
 
 Metadata evaluation follows a strict bottom-up order. Child declarations attach metadata before their enclosing declaration attaches metadata:
 
 ```text
-field annotators -> struct annotators -> facet derivation
-parameter annotators -> function annotators -> facet derivation
-variant-field annotators -> variant annotators -> enum annotators -> facet derivation
+field metadata -> struct annotator -> Annotate information
+parameter metadata -> function annotator -> Annotate information
+variant-field metadata -> variant metadata -> enum annotator -> Annotate information
 ```
 
 For structs:
 
 1. Type-check the struct and field shapes.
-2. Evaluate field annotation values.
-3. Run each field annotator's `attach`, producing field metadata.
-4. Build `FieldShape` values with declared annotations and field metadata.
-5. Evaluate struct annotation values.
-6. Run each struct annotator, receiving a `StructShape` that can inspect field annotation values and field metadata.
-7. Build final struct metadata.
-8. Run facet derivation such as `DatabaseSchema::annotation(User)`.
+2. Contextually type each field's assigned values as `list[FieldMetadata[T]]`.
+3. Evaluate those values and store them on `FieldShape`.
+4. Run the selected `StructAnnotator`, which can inspect field metadata.
+5. Build the annotation's `Info` and expose `Annotate[A]` for the struct.
 
-For functions, parameter annotators attach before function annotators. A function annotation such as `Tool(...)` can inspect parameter annotation values and parameter metadata.
+For functions, parameter metadata is attached before a `FuncAnnotator` maps parameters and builds function information.
 
-For enums, payload-field annotators attach before variant annotators, and variant annotators attach before enum annotators. An enum annotation can inspect variant annotation values and variant metadata.
+For enums, payload-field metadata is attached before variant metadata, and both are available before an `EnumAnnotator` maps variants and builds enum information.
 
-Parent annotators cannot retroactively change child attachment results. If a parent annotator wants defaults or conventions, it should express them in parent metadata or in a derived facet view after child metadata already exists. This keeps evaluation acyclic and predictable.
+Parent annotators cannot retroactively change child metadata values. Defaults and conventions belong in the aggregate mapping/build process after child metadata is available. This keeps evaluation acyclic and predictable.
 
 #### Illustrative Desugaring
 
@@ -2276,26 +2305,21 @@ The compiler does perform annotation lowering/desugaring, but this desugared for
 
 The source-level model remains:
 
-1. `@value` constructs an ordinary metadata value in the restricted metadata phase.
-2. The compiler type-checks that the value implements the correct annotator trait for the target, such as `FieldAnnotator[T]`.
-3. The compiler lowers annotations into bottom-up metadata construction.
-4. `annotate Facet for Target` is type-checked against the target shape, such as field names existing and override values having the facet's expected `FieldTarget` type.
-5. The compiler lowers facet materialization into shape construction, generic mapping, package-local overrides, and `build`.
+1. `annotate Target` evaluates ordinary member metadata values in the restricted metadata phase.
+2. The compiler contextually checks each collection against `FieldMetadata[T]`, `VariantMetadata`, or `ParamMetadata[T]` for the selected member.
+3. The compiler lowers those values into bottom-up shape metadata construction.
+4. `annotate Annotation for Target` is type-checked against the target shape and generates `impl Annotate[Annotation] for Target`.
+5. `pass` means default aggregate derivation with no result overrides.
 
 Source:
 
 ```text
-@Table(name="users")
 struct User:
     id: UserId
-
-    @max_len(320)
-    @description("Company email")
     email: string
 
-    # Not current syntax:
-    # display_name: string @max_len(80)
-    # backup_email: @max_len(320) string
+annotate User:
+    email = [max_len(320), description("Company email")]
 
 annotate DatabaseSchema for User:
     email = DatabaseColumn.Text(name="email", max_len=320)
@@ -2311,11 +2335,7 @@ fn __meta_User_id() -> Result[FieldShape, AnnotationError]:
         type=type(UserId),
     )
 
-    Ok(FieldShape.with_metadata(
-        base,
-        annotations=AnnotationValues.empty(),
-        metadata=FieldMetadata.empty(),
-    ))
+    Ok(FieldShape.with_metadata(base, metadata=[]))
 
 fn __meta_User_email() -> Result[FieldShape, AnnotationError]:
     base := FieldShape.base(
@@ -2324,38 +2344,19 @@ fn __meta_User_email() -> Result[FieldShape, AnnotationError]:
         type=type(string),
     )
 
-    max_len_annotation := max_len(320)
-    description_annotation := description("Company email")
-
-    let mut metadata = FieldMetadata.empty()
-    metadata = metadata.concat(__attach_field_annotator[string](max_len_annotation, base)?)
-    metadata = metadata.concat(__attach_field_annotator[string](description_annotation, base)?)
-
     Ok(FieldShape.with_metadata(
         base,
-        annotations=AnnotationValues.of(max_len_annotation, description_annotation),
-        metadata=metadata,
+        metadata=[max_len(320), description("Company email")],
     ))
 
 fn __meta_User() -> Result[StructShape, AnnotationError]:
     id_field := __meta_User_id()?
     email_field := __meta_User_email()?
 
-    base := StructShape.base(
+    StructShape.base(
         name="User",
         fields=FieldShapes.of(id_field, email_field),
     )
-
-    table := Table(name="users")
-
-    let mut metadata = StructMetadata.empty()
-    metadata = metadata.concat(__attach_struct_annotator(table, base)?)
-
-    Ok(StructShape.with_metadata(
-        base,
-        annotations=AnnotationValues.of(table),
-        metadata=metadata,
-    ))
 ```
 
 Illustrative lowering for facet materialization:
@@ -2381,15 +2382,17 @@ fn __materialize_User_table() -> Result[TableSchema, AnnotationError]:
     __annotation_DatabaseSchema_User()
 ```
 
-Function and enum annotations lower the same way: parameter metadata is built before function metadata, and variant-field metadata is built before variant and enum metadata. The compiler-generated form is equivalent to the source annotation semantics; it does not give user code extra effects or let metadata evaluation escape its restricted phase.
+Function and enum annotations lower the same way: parameter metadata is built before function information, and variant-field metadata is built before variant metadata and enum information. The compiler-generated form is equivalent to the source annotation semantics; it does not give user code extra effects or let metadata evaluation escape its restricted phase.
 
 ```text
 fn load_policy!() -> Policy $ Database:
     ...
 
 struct User:
-    @Policy(load_policy!())
-    email: string     # compile error: metadata evaluation cannot suspend or use Database
+    email: string
+
+annotate User:
+    email = [Policy(load_policy!())]  # compile error: metadata evaluation cannot suspend or use Database
 ```
 
 Example:
@@ -2398,59 +2401,39 @@ Example:
 struct MaxLen:
     value: i32
 
-impl Annotation for MaxLen:
-    type Target = FieldMetadata
-
-impl FieldAnnotator[string] for MaxLen:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        Ok(FieldMetadata.max_len(self.value))
-
-impl[T] FieldAnnotator[list[T]] for MaxLen:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        Ok(FieldMetadata.max_len(self.value))
+impl FieldMetadata[string] for MaxLen
+impl[T] FieldMetadata[list[T]] for MaxLen
 
 struct User:
     id: UserId
-    @max_len(320)
     email: string
-
-    @max_len(5)
     tags: list[string]
+    age: i32
 
-    @max_len(12)
-    age: i32       # compile error: MaxLen does not implement FieldAnnotator[i32]
+annotate User:
+    email = [max_len(320)]
+    tags = [max_len(5)]
+    age = [max_len(12)]  # compile error: MaxLen does not implement FieldMetadata[i32]
 ```
 
-When an annotation is attached to a field of type `T`, the compiler checks that its value implements `FieldAnnotator[T]`. The `attach` function converts the annotation into field metadata during metadata evaluation. This keeps annotations reusable and type-checked without letting them refine or change the field's underlying type.
+When metadata is assigned to a field of type `T`, the compiler expects `list[FieldMetadata[T]]`. This keeps metadata reusable and type-checked without letting it refine or change the field's underlying type.
 
-Reusable composition can be modeled as another annotation value:
+Reusable metadata groups are ordinary homogeneous lists of dynamic trait values:
 
 ```text
-struct Compose[U, V]:
-    first: U
-    second: V
-
-# Constraint syntax is not designed yet.
-# Intended constraints:
-# - U: FieldAnnotator[T]
-# - V: FieldAnnotator[T]
-impl[U, V] Annotation for Compose[U, V]:
-    type Target = FieldMetadata
-
-impl[T, U, V] FieldAnnotator[T] for Compose[U, V]:
-    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
-        first := self.first.attach(field)?
-        second := self.second.attach(field)?
-        FieldMetadata.concat(first, second)
-
-email := Compose(max_len(320), min_len(3))
+let email_metadata: list[FieldMetadata[string]] = [
+    max_len(320),
+    min_len(3),
+]
 
 struct User:
-    @email
     email: string
+
+annotate User:
+    email = email_metadata
 ```
 
-In this model, `Compose[U, V]` implements `FieldAnnotator[T]` only when both `U` and `V` implement `FieldAnnotator[T]`. `T` is selected from the annotated field when `@email` is checked. Multiple instances of the same annotation/metadata type after composition are banned; `FieldMetadata.concat` should report a compile-time error for duplicates.
+`T` is selected from the annotated field and supplies the list's expected dynamic trait type. Multiple entries with the same concrete metadata type remain banned.
 
 An annotation facet can read that metadata:
 
@@ -2459,7 +2442,7 @@ fn map_field(
     field: FieldShape,
     type_metadata: AnnotationRef[TableSchema],
 ) -> DatabaseColumn:
-    max_len := field.annotation(MaxLen).map(
+    max_len := field.metadata(MaxLen).map(
         fn(annotation: MaxLen) -> i32: annotation.value
     )
     ...
@@ -2469,24 +2452,7 @@ Runtime/tooling can also inspect the attached values directly:
 
 ```text
 field := shape(User.email)
-annotations := field.annotations
 metadata := field.metadata
-```
-
-Open annotation questions:
-
-1. What is the final syntax for generic constraints on `impl`, including the `Compose[U, V]` case where `U` and `V` must both implement `FieldAnnotator[T]`?
-
-Candidate annotation style:
-
-```text
-struct User:
-    id: UserId
-    @email()
-    @max_len(320)
-    email: string
-    @range(0..150)
-    age: i32
 ```
 
 Custom validators should be normal functions and can be referenced from annotation metadata:
@@ -2497,10 +2463,10 @@ fn company_email(value: string) -> bool:
 
 struct Employee:
     id: UserId
-    @email()
-    @max_len(320)
-    @refine(company_email)
     email: string
+
+annotate Employee:
+    email = [email(), max_len(320), refine(company_email)]
 ```
 
 Conceptual external validation override, not final syntax:
@@ -2551,53 +2517,39 @@ Open syntax issues:
 
 ## Registration Annotation Direction
 
-The language should be function-first. System registration should be attached to normal declarations through annotations or decorator-like metadata.
+The language should be function-first. System metadata should be attached to normal declarations through `annotate` blocks.
 
 Candidate:
 
 ```text
-@tool
-@description "Fetch a user by ID."
-@context AuthContext, TenantContext
+"""Fetch a user by ID."""
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
     access:
         require auth.can("user:read")
     db := $.use(Database)
     user := db.get_user!(id)?
     user
+
+annotate Tool for get_user: pass
+
+tool_registry.register(Tool::annotation(get_user))
 ```
 
-Metadata-heavy registrations can use an indented annotation block:
+This keeps the implementation as a normal function while giving `FuncAnnotator` enough shape information to produce a `ToolSpec`. Registration remains an explicit user operation; annotation does not discover or register the function.
 
-```text
-@tool
-    description "Fetch a user by ID."
-    context AuthContext, TenantContext
-    generate openapi, json_schema, mcp
-fn get_user!(id: UserId) -> Result[User, ToolError] $ Database + access:
-    access:
-        require auth.can("user:read")
-    db := $.use(Database)
-    user := db.get_user!(id)?
-    user
-```
-
-This keeps the implementation as a normal function while still giving the compiler enough metadata to generate tool specs, runtime registration, observability links, and access-control wiring.
-
-Annotation applicability is independent of declaration visibility. `@tool` may annotate a module-private or `pub` function, `FuncAnnotator` imposes no visibility requirement, and attaching the annotation does not make the function public. Tool discovery and external exposure are separate tooling/registry concerns.
+Annotation applicability is independent of declaration visibility. `annotate Tool for get_user` may target a module-private or `pub` function, `FuncAnnotator` imposes no visibility requirement, and annotation does not make the function public.
 
 Decisions:
 
-1. Compact annotations should use one-line forms like `@tool`.
-2. Metadata-heavy annotations should allow indented blocks.
-3. Registration annotations do not alter or constrain normal declaration visibility.
+1. A no-override function annotation uses a same-line `pass`, such as `annotate Tool for get_user: pass`.
+2. Registration annotations do not alter or constrain normal declaration visibility.
+3. Registration remains explicit after annotation information is retrieved.
 
 Open syntax issues:
 
-1. Which annotations are compile-time only versus runtime-visible.
-2. How annotations compose with contracts, examples, and effects.
-3. How registered functions are discovered across files and packages.
-4. How a discovered tool is selected for external exposure independently of whether its function is module-private or `pub`.
+1. How function member metadata is assigned to parameters through `annotate function`.
+2. How tool information composes with contracts and effects.
+3. How explicit registries select tools for external exposure.
 
 ## Data Retention Direction
 
@@ -2649,28 +2601,31 @@ Open syntax issues:
 
 Serializable closures should package a function reference with its captured environment so computation can be stored, moved, cached, or resumed. Incremental computation should track dependencies so cached results are reused and only affected computations are recomputed.
 
-Possible annotation-style sketches:
+Possible annotation sketches:
 
 ```text
-@serializable
 fn make_followup(query: string) -> fn(Response) -> Prompt:
     prefix := "Answer using these facts:"
     fn(response: Response) -> Prompt:
         Prompt(prefix, query, response)
+
+annotate Serializable for make_followup: pass
 ```
 
 ```text
-@workflow
 fn answer_question!(query: string) -> Answer $ llm + search:
     draft := llm.generate!(query)
     facts := search.web!(draft)
     llm.refine!(draft, facts)
+
+annotate Workflow for answer_question: pass
 ```
 
 ```text
-@cache
 fn expensive_summary!(doc: Document) -> Summary $ model:
     model.summarize!(doc)
+
+annotate Cache for expensive_summary: pass
 ```
 
 Runtime requirements:
@@ -2686,8 +2641,8 @@ Runtime requirements:
 Open syntax issues:
 
 1. Whether serializable closures are inferred, annotated, or a distinct function type.
-2. Whether caching uses `@cache`, an `annotate Cache for ...` facet, or a standard-library wrapper.
-3. Whether workflows use `@workflow`, an annotation facet, or standard-library effects only.
+2. Whether caching uses `annotate Cache for ...` or a standard-library wrapper.
+3. Whether workflows use `annotate Workflow for ...` or standard-library effects only.
 4. How closure capture restrictions are displayed to reviewers.
 5. How incremental dependencies are declared, inferred, or inspected.
 6. How code identity is represented across JS and WASM targets.
@@ -2701,7 +2656,7 @@ Open syntax issues:
 5. What should user-defined effect and handler syntax look like?
 6. What should inline validation annotation and external derivation/override syntax look like?
 7. What should declarative data-retention and cascade syntax look like?
-8. What should registration annotation/decorator syntax look like?
+8. What information should registration annotations produce for explicit registries?
 9. Which effect-polymorphism candidate should higher-order functions use, and what is deferred to later versions?
 10. What is the exact `brand` spelling, and is brand-to-base coercion implicit or explicit?
 11. What should serializable closure syntax and capture restrictions look like?
