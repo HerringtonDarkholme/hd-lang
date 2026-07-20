@@ -1,0 +1,261 @@
+# Full validation and recursive annotation example.
+#
+# The annotation runtime provides AnnotationRef, cycle-aware annotation_ref,
+# shape types, metadata types, AnnotationError, and the stateless Validation
+# facet value.
+
+trait Annotation:
+    type Target
+
+trait FieldAnnotator[T]: Annotation:
+    fn attach(self, field: FieldShape) -> Result[Self::Target, AnnotationError]
+
+trait VariantAnnotator: Annotation:
+    fn attach(self, variant: VariantShape) -> Result[Self::Target, AnnotationError]
+
+trait StructAnnotator: Annotation:
+    type FieldTarget
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Self::Target],
+    ) -> Self::FieldTarget
+
+    fn build(
+        self,
+        shape: StructShape,
+        fields: Dict[string, Self::FieldTarget],
+    ) -> Self::Target
+
+trait EnumAnnotator: Annotation:
+    type FieldTarget
+    type VariantTarget
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Self::Target],
+    ) -> Self::FieldTarget
+
+    fn map_variant(
+        self,
+        variant: VariantShape,
+        fields: list[Self::FieldTarget],
+    ) -> Self::VariantTarget
+
+    fn build(
+        self,
+        shape: EnumShape,
+        variants: Dict[string, Self::VariantTarget],
+    ) -> Self::Target
+
+struct StringRules:
+    min_len: i32?
+    max_len: i32?
+    contains: string?
+
+struct FieldRules:
+    required: bool
+    min_len: i32?
+    max_len: i32?
+    contains: string?
+
+struct FieldValidator:
+    position: i32
+    name: string?
+    target: AnnotationRef[Validator]
+    rules: FieldRules
+
+struct VariantValidator:
+    name: string
+    description: string?
+    fields: list[FieldValidator]
+
+enum Validator:
+    Bool
+    I32
+    String(rules: StringRules)
+    Optional(inner: AnnotationRef[Validator])
+    List(item: AnnotationRef[Validator])
+    Struct(name: string, fields: Dict[string, FieldValidator])
+    Enum(name: string, variants: Dict[string, VariantValidator])
+
+struct MinLen:
+    value: i32
+
+struct MaxLen:
+    value: i32
+
+struct Contains:
+    value: string
+
+struct VariantDoc:
+    text: string
+
+fn min_len(value: i32) -> MinLen: MinLen { value: value }
+fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
+fn contains(value: string) -> Contains: Contains { value: value }
+fn variant_doc(text: string) -> VariantDoc: VariantDoc { text: text }
+
+impl Annotation for MinLen:
+    type Target = FieldMetadata
+
+impl Annotation for MaxLen:
+    type Target = FieldMetadata
+
+impl Annotation for Contains:
+    type Target = FieldMetadata
+
+impl Annotation for VariantDoc:
+    type Target = VariantMetadata
+
+impl FieldAnnotator[string] for MinLen:
+    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
+        Ok(FieldMetadata.min_len(self.value))
+
+impl FieldAnnotator[string] for MaxLen:
+    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
+        Ok(FieldMetadata.max_len(self.value))
+
+impl FieldAnnotator[string] for Contains:
+    fn attach(self, field: FieldShape) -> Result[FieldMetadata, AnnotationError]:
+        Ok(FieldMetadata.contains(self.value))
+
+impl VariantAnnotator for VariantDoc:
+    fn attach(self, variant: VariantShape) -> Result[VariantMetadata, AnnotationError]:
+        Ok(VariantMetadata.description(self.text))
+
+impl Annotation for Validation:
+    type Target = Validator
+
+annotate Validation for bool:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.Bool
+
+annotate Validation for i32:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.I32
+
+annotate Validation for string:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.String(StringRules {
+            min_len: nil,
+            max_len: nil,
+            contains: nil,
+        })
+
+annotate Validation for string?:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.Optional(Validation::annotation_ref(string))
+
+fn validation_field(
+    field: FieldShape,
+    type_metadata: AnnotationRef[Validator],
+) -> FieldValidator:
+    FieldValidator {
+        position: field.position,
+        name: field.name,
+        target: type_metadata,
+        rules: FieldRules {
+            required: not field.type.is_optional(),
+            min_len: field.annotation(MinLen).map(
+                fn(annotation: MinLen) -> i32: annotation.value
+            ),
+            max_len: field.annotation(MaxLen).map(
+                fn(annotation: MaxLen) -> i32: annotation.value
+            ),
+            contains: field.annotation(Contains).map(
+                fn(annotation: Contains) -> string: annotation.value
+            ),
+        },
+    }
+
+impl StructAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        validation_field(field, type_metadata)
+
+    fn build(
+        self,
+        shape: StructShape,
+        fields: Dict[string, FieldValidator],
+    ) -> Validator:
+        Validator.Struct(name=shape.name, fields=fields)
+
+impl EnumAnnotator for Validation:
+    type FieldTarget = FieldValidator
+    type VariantTarget = VariantValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        validation_field(field, type_metadata)
+
+    fn map_variant(
+        self,
+        variant: VariantShape,
+        fields: list[FieldValidator],
+    ) -> VariantValidator:
+        VariantValidator {
+            name: variant.name,
+            description: variant.annotation(VariantDoc).map(
+                fn(annotation: VariantDoc) -> string: annotation.text
+            ),
+            fields: fields,
+        }
+
+    fn build(
+        self,
+        shape: EnumShape,
+        variants: Dict[string, VariantValidator],
+    ) -> Validator:
+        Validator.Enum(name=shape.name, variants=variants)
+
+type Email(string)
+
+annotate Validation for Email:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.String(StringRules {
+            min_len: 3,
+            max_len: 320,
+            contains: "@",
+        })
+
+@Validation
+struct Folder:
+    @min_len(1)
+    @max_len(120)
+    name: string
+
+    @contains("/")
+    path: string
+
+    note: string?
+
+    owner: Email
+
+    entries: list[Entry]
+
+@Validation
+enum Entry:
+    @variant_doc("A stored file")
+    File(name: string, size: i32)
+
+    Directory(folder: Folder)
+
+annotate Validation for list[Entry]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.List(Validation::annotation_ref(Entry))
+
+fn materialize_validators() -> (Validator, Validator):
+    folder_validator := Validation::annotation(Folder)
+    entry_validator := Validation::annotation(Entry)
+    (folder_validator, entry_validator)

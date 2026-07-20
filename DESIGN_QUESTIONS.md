@@ -38,8 +38,29 @@ Annotation decisions:
 8. Function parameter customization uses parameter annotations/docs or a whole-function `build` override.
 9. The whole-generation hook is named `build`.
 10. Struct annotation `build` receives `Dict[string, FieldTarget]` keyed by field name.
-11. Field decorator applicability is checked through `FieldDecorator[T]` trait resolution.
-12. `FieldDecorator[T]` uses `fn attach(decorator: Self, field: FieldShape) -> Result[FieldMetadata, DecoratorError]`.
+11. Field annotation applicability is checked through `FieldAnnotator[T]` trait resolution.
+12. `FieldAnnotator[T]` uses `fn attach(self, field: FieldShape) -> Result[Target, AnnotationError]`.
+13. Annotations are ordinary values. Reusable annotation composition should be expressed with ordinary structs/functions, such as `Compose[U, V]`, not a new bundle syntax.
+14. Multiple instances of the same annotation/metadata type after composition are banned.
+15. Annotation values are runtime metadata values evaluated in a restricted metadata phase, not compile-time-only constants and not normal application side effects.
+16. Metadata evaluation is pure, deterministic, sandboxed, and dependency-free in v1: no `$` context use, no suspending `!` calls, no IO/network/database/time/random work, and no escaping mutation.
+17. Metadata evaluation is strictly bottom-up: type metadata before field metadata, field metadata before struct metadata, parameter metadata before function metadata, payload-field metadata before variant metadata, and variant metadata before enum metadata. Parent annotators can inspect child annotation values and child metadata, but cannot retroactively change child attachment results.
+18. The compiler type-checks annotations and lowers/desugars them into metadata-phase construction and `attach` calls. Desugared examples in the docs are illustrative only; exact generated helpers and storage are not normative.
+19. Field annotations use prefix lines immediately before the field declaration. Inline suffix annotations on fields are not part of the current syntax.
+20. Annotations attach to declarations/shapes, not to type expressions. There is no annotated type syntax in the current design.
+21. Generic field mapping resolves the requested facet for the field's type. An explicit target annotation such as `annotate Validation for Email` becomes the reusable default wherever `Email` appears.
+22. Facet resolution prefers an exact concrete facet/target annotation, then attached struct/enum derivation. Behavior when neither exists remains open.
+23. Recursive annotation derivation is detected automatically using active `(facet, concrete target)` entries. Re-entering an active entry produces a deferred `AnnotationRef[Target]`; completed and non-recursive targets produce ready references.
+24. Completed annotation artifacts are memoized per package by `(facet, concrete target)`.
+25. The common `Annotation` trait only associates a facet with its uniform `Target`; it has no `reference` operation.
+26. `AnnotationRef[T]` is the universal ready/deferred representation. Facet targets such as `Validator` do not need facet-specific recursion cases such as `Validator.Ref`.
+27. Attachable protocols correspond directly to source targets: `FieldAnnotator[T]`, `VariantAnnotator`, `ParamAnnotator[T]`, `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator`.
+28. Applying a facet value such as `@Validation` to a struct or enum requests derivation for that declaration. It is rejected on a field unless the same value independently implements `FieldAnnotator[T]`.
+29. Primitive and nominal targets use exact blocks such as `annotate Validation for i32` and `annotate Validation for string`; there is no `TypeDeriver` protocol or wildcard `annotate Facet for type` fallback.
+30. Annotation facets are open across exact target types. New concrete cases may be added downstream unless that exact facet/target pair is already provided authoritatively by a library.
+31. Manual `@lazy` remains an optional field-metadata candidate, but automatic recursion detection is the preferred default. It must not change field storage, access, or type semantics.
+32. Annotation values compose strictly bottom-up: exact type annotations produce type metadata; field metadata combines type metadata with field annotations; variant metadata combines payload-field metadata with variant annotations; and struct/enum metadata combines child metadata with annotations on the enclosing declaration. The compiler passes already-derived type metadata into `map_field` explicitly.
+33. Annotator applicability and declaration visibility are separate concepts. `FuncAnnotator` does not require an annotated function to be `pub`, and attaching `@tool` does not change that function's language-level visibility.
 
 Remaining questions:
 
@@ -47,16 +68,18 @@ Remaining questions:
 2. How should generic derivation consume that representation for facets such as validation, JSON, UI, tools, database schema, retention, observability, and workflows?
 3. What override paths besides one package-global `annotate Facet for Target` block should exist later, such as reusable override profiles or full derivation rewrites?
 4. How should derived metadata/artifacts be explicitly exported for runtime use?
-5. Should annotation facets be ordinary trait implementations such as `StructAnnotation`, `EnumAnnotation`, and `FuncAnnotation`?
-6. Is the uniformly typed annotation protocol enough for v1: one `FieldTarget`, one `VariantTarget`, one `ParamTarget`, and one `Target` per annotation facet?
-7. If an annotation facet needs stricter field-type-specific correctness for its override values, should that be enforced through smart constructors, generated diagnostics, or a later advanced type feature?
-8. How should generic annotation handlers read attached metadata from shapes, such as `field.annotation(MaxLen)`?
-9. What syntax should materialize annotation-derived runtime values, currently sketched as `DatabaseSchema::annotation(User)`?
-10. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
-11. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
-12. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration?
-13. For each property test failure, what structured output should be produced for AI repair?
-14. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
+5. If an annotation facet needs stricter field-type-specific correctness for its override values, should that be enforced through smart constructors, generated diagnostics, or a later advanced type feature?
+6. What syntax should materialize annotation-derived runtime values, currently sketched as `DatabaseSchema::annotation(User)`?
+7. What is the final syntax for generic constraints on `impl`, including cases like `Compose[U, V]` implementing `FieldAnnotator[T]` only when `U` and `V` both implement `FieldAnnotator[T]`?
+8. What syntax should define reusable generic annotation targets such as every `list[T]`? The current validation example deliberately uses the exact target `list[Entry]`.
+9. Should type metadata and completed struct/enum metadata share `Annotation::Target`, or should the protocol expose separate associated types for these stages?
+10. Should a statically visible `MissingAnnotationPolicy` select compile-time rejection or omission when a child type has no annotation for the requested facet? Its default, granularity, and exact syntax remain undecided; runtime `map_field` cannot make compilation fail.
+11. If manual `@lazy` is retained, does it apply to every compatible facet or explicitly name one facet?
+12. For each effect, what should the compiler/tooling generate: handler requirements, mock handlers, dependency graphs, audit reports, or observability metadata?
+13. For each function, what should tooling show first: signature, effects, contracts, examples, tests, dependencies, or observability behavior?
+14. For each tool function, what should be generated: JSON Schema, OpenAPI, MCP definitions, TypeScript types, docs, examples, or runtime registration? Tool discovery and external exposure must be designed separately from declaration visibility and `FuncAnnotator` applicability.
+15. For each property test failure, what structured output should be produced for AI repair?
+16. For each registered resource or workflow, what should be derived from code versus explicitly annotated?
 
 ## Agent Tooling Scenario
 

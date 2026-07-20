@@ -1352,3 +1352,93 @@ Open surface choices from this section:
 1. Handler selection rules for tests, production, nested scopes, and defaults.
 2. Whether effect polymorphism uses full row polymorphism or a smaller effect-variable model.
 3. Exact `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction.
+
+## Using Annotations
+
+Annotations attach typed metadata to declarations. They do not change a declaration's type, behavior, name, or visibility.
+
+An annotation is a prefix line containing an ordinary value expression:
+
+```text
+@Validation
+struct User:
+    @min_len(1)
+    @max_len(80)
+    display_name: string
+
+    active: bool
+```
+
+`@Validation`, `@min_len(1)`, and `@max_len(80)` are ordinary values that implement the annotator trait required by their target. Constructor calls, helper function calls, named values, and composed values are equivalent:
+
+```text
+display_name_rules := Compose(min_len(1), max_len(80))
+
+@Validation
+struct User:
+    @display_name_rules
+    display_name: string
+```
+
+Annotation values execute in a restricted metadata phase. They must be pure, deterministic, non-suspending, and dependency-free. Multiple instances of the same annotation type on one declaration are rejected.
+
+Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation metadata for each field's declared type, applies annotations such as `@max_len(80)` to that field metadata, and then builds validation metadata for the complete struct.
+
+Generated metadata is retrieved explicitly as an ordinary runtime value:
+
+```text
+user_validator := Validation::annotation(User)
+
+input := read_json()
+user := user_validator.parse(input)?
+```
+
+The same declaration can carry unrelated metadata facets:
+
+```text
+@Validation
+@DatabaseSchema
+@UI
+struct User:
+    id: UserId
+    display_name: string
+    avatar: string?
+```
+
+Each facet is retrieved independently:
+
+```text
+validator := Validation::annotation(User)
+table := DatabaseSchema::annotation(User)
+form := UI::annotation(User)
+```
+
+Use an external `annotate` block to customize a facet for a particular target without placing facet-specific details in the struct declaration:
+
+```text
+annotate UI for User:
+    avatar = profile_image(size=40)
+```
+
+Assignments in an `annotate` block can override existing fields or variants only; they cannot invent members that are absent from the target declaration. A package can have at most one block for an exact facet/target pair.
+
+Function annotations follow the same model:
+
+```text
+@tool
+fn get_user!(id: UserId) -> Result[User?, ToolError] $ Database:
+    db := $.use(Database)
+    db.get_user!(id)
+```
+
+`@tool` only attaches tool metadata. It does not discover or register the function, and it does not make the function public. Registration is explicit:
+
+```text
+tool_registry.register(Tool::annotation(get_user))
+```
+
+Open surface choices from this section:
+
+1. The final spelling of runtime retrieval, currently `Facet::annotation(Target)`.
+2. The missing-child policy when a field or variant type has no metadata for the requested facet.
+3. The detailed syntax for whole-facet overrides in an `annotate` block.
