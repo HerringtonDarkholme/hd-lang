@@ -1653,3 +1653,32 @@ Open surface choices from this section:
 3. Whether type information and completed aggregate information always share `Annotation::Info`.
 4. The static missing-annotation policy and its granularity.
 5. Generic constraint syntax for metadata helper functions and generic `Annotate[A]` implementations.
+
+## Testing
+
+Unit tests use dedicated named blocks:
+
+```text
+import std.testing.{assert, assert_equal}
+
+test "adds two values":
+    result := add(2, 3)
+    assert_equal(
+        result,
+        5,
+        reason="add should return the sum of both values",
+    )
+```
+
+A `test` block is a module-level test entry point discovered by the test runner. Its body uses normal hd-lang bindings, expressions, control flow, and function calls. It is not an annotation and does not need manual registration.
+
+Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:
+
+```text
+assert(condition, reason="the condition should hold")
+assert_equal(actual, expected, reason="both values should be equal")
+```
+
+Specialized functions such as `assert_equal` receive the actual and expected values directly, allowing structured failure diagnostics. The mandatory `reason` is a `string` expression recording the intended behavior.
+
+Property testing also uses `std.testing`; it does not introduce a `property` declaration or other special syntax. Its exact function API, generated inputs, shrinking, dependency requirements, `Result` propagation from a test body, and failure reporting remain to be designed.

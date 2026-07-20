@@ -132,6 +132,9 @@ The language exists to provide the integrated solution: one semantic model where
 81. Integer literals always default to `i32` when there is no expected type. When there is an expected numeric type, integer literals are range checked against that type.
 82. Modules are path-inferred from files under the package source root. There is no required `module` or `package` declaration. Packages use `hd.toml`, with `src` as the default source root. Directories define submodule namespaces only when they contain a required `mod.hd` file, which acts as the directory module/public index. Visibility uses `pub`; imports use explicit roots: `pkg` for the current package, `std` for the standard library, `dep.<name>` for dependencies declared in `hd.toml`, plus `self`/`super` for relative imports.
 83. `pass` is the general no-op expression and evaluates to `void`. In `annotate Annotation for Target: pass`, it means default derivation with no structural result overrides.
+84. Unit tests use dedicated module-level blocks such as `test "parse a user":`. The test runner discovers these blocks directly; they are not annotations and do not require manual registration.
+85. Assertions are ordinary functions in `std.testing`, not language constructs. They require an explicit `reason` string. Specialized functions such as `assert_equal(actual, expected, reason=...)` should preserve actual and expected values for structured diagnostics.
+86. Property testing has no special language syntax. It is exposed through ordinary `std.testing` APIs and used inside normal `test "name":` blocks.
 
 ## Contract Syntax Sketch
 

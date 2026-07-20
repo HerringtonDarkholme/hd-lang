@@ -120,8 +120,10 @@ This tour should introduce hd-lang through small examples first, then explain th
 
 ## 13. Testing
 
-- Unit tests
-- Property tests
+- Dedicated named `test` blocks
+- Unit tests discovered by the test runner
+- `std.testing` assertions with mandatory reasons
+- Property testing through `std.testing`, without special syntax
 - Generated test data
 - Mocking via effects
 
