@@ -194,6 +194,57 @@ a := first(names)          # T inferred as string
 b := first[string](names)  # explicit generic argument
 ```
 
+Function generic parameters are erased at runtime by default:
+
+```text
+fn identity[T](value: T) -> T:
+    value
+```
+
+Use `reified` when a function needs the concrete runtime type:
+
+```text
+fn runtime_shape[reified T]() -> TypeShape:
+    shape(T)
+
+shape := runtime_shape[User]()
+```
+
+The compiler implements a reified parameter by passing hidden runtime type metadata. The hidden descriptor is not part of the source-level argument list:
+
+```text
+# Conceptual lowering only; this is not source syntax.
+fn runtime_shape[T](hidden type: Type[T]) -> TypeShape:
+    shape(type)
+```
+
+Erased parameters cannot be used by runtime type operations or passed to reified parameters:
+
+```text
+fn resolve[reified T]() -> T $ TypeProvider:
+    ...
+
+fn resolved[reified T]() -> T $ TypeProvider:
+    resolve[T]()
+
+fn invalid_resolved[T]() -> T $ TypeProvider:
+    resolve[T]()  # compile error: T is erased
+```
+
+The initial runtime-type operations requiring reification include:
+
+1. `shape(T)` when `T` is a generic parameter.
+2. Runtime annotation lookup for `T`.
+3. Type-directed dependency injection such as `resolve[T]()`.
+4. Runtime serialization or deserialization selected from `T`.
+5. Runtime type tests or casts involving `T`, if those operations are added.
+
+Concrete type expressions always have materializable descriptors, so `resolve[list[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve[list[T]]()` requires `T` to be reified.
+
+Reified functions do not require an `inline` modifier. JavaScript can pass descriptors directly; WebAssembly can use descriptor passing, specialization, or both. Backends may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
+
+In v1, `reified` applies to function generic parameters. Reified parameters on generic struct, enum, trait, and type declarations remain a separate design question.
+
 v1 does not support partial explicit generic arguments or placeholder generic arguments.
 
 Variadic generics use type packs. Minimal v1 supports packs only in function types, vararg parameters, and spread calls:
@@ -1243,6 +1294,28 @@ $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
 Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels.
 
 Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
+
+Capabilities are ordinary dependencies. They use normal traits, `$` requirement rows, and context operations rather than a separate `capability` declaration or signature form:
+
+```text
+trait FileRead:
+    fn read!(path: string) -> Result[string, FileError]
+
+fn load_config!(path: string) -> Result[string, FileError] $ FileRead:
+    files := $.use(FileRead)
+    files.read!(path)
+```
+
+The sandbox supplies no ambient external-resource providers by default. A fake implementation may satisfy `FileRead` using in-memory data, while an implementation that accesses the host filesystem must receive that authority from its own context. Security is enforced at the runtime/provider boundary, not by making capability requirements a distinct type-system concept.
+
+An entry point's transitive `$` requirement row is the authoritative provider list:
+
+```text
+pub fn main!() -> void $ FileRead + Network:
+    ...
+```
+
+The compiler derives and verifies requirements from the call graph. Manifests do not repeat a separate capability list; host configuration only binds concrete, scoped providers to the derived keys. Missing entry-point providers are reported before execution.
 
 Open syntax issues:
 
@@ -2633,10 +2706,15 @@ Runtime requirements:
 1. Captured values must be serializable or rejected by tooling.
 2. Captured effects and capabilities must remain visible.
 3. Code identity and captured values can contribute to cache keys.
-4. Workflow resumption can persist continuations at suspension points.
-5. Non-deterministic effects must be handled for replay.
-6. Incremental computation tracks dependencies between code, inputs, captures, data reads, and outputs.
-7. Cache hits, invalidations, and recomputations should be observable.
+4. Durable workflow resumption initially uses deterministic replay from the entry function over an append-only event history; it does not serialize the machine stack.
+5. A completed event matching the next suspending `!` call returns its recorded result. A new suspension appends a command and pauses execution until a completion event is available.
+6. Code between suspension points must be deterministic. Time, randomness, and external inputs must cross recorded suspending dependencies.
+7. Workflow runs pin compatible code identity, and suspension sites have stable compiler-generated identities for replay checks.
+8. Capability providers and live handles are rebound rather than serialized.
+9. External commands receive idempotency keys because worker execution and completion recording cannot generally be atomic.
+10. There is no `checkpoint` keyword in the language.
+11. Incremental computation tracks dependencies between code, inputs, captures, data reads, and outputs.
+12. Cache hits, invalidations, and recomputations should be observable.
 
 Open syntax issues:
 

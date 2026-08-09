@@ -72,6 +72,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Transparent aliases and nominal newtypes
 - Numeric widening and explicit narrowing casts
 - Generic types and functions
+- Erased function generics and explicit `reified` parameters
 - Variadic generics
 - Explicit trait implementations
 - Trait values versus generic static dispatch
@@ -123,8 +124,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Dedicated named `test` blocks
 - Unit tests discovered by the test runner
 - `std.testing` assertions with mandatory reasons
-- Property testing through `std.testing`, without special syntax
-- Generated test data
+- Property testing as a deferred `std.testing` library design
 - Mocking via effects
 
 ## 14. Capabilities and Sandbox

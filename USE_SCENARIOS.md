@@ -36,7 +36,7 @@ Requirements:
 6. Include access-control rules.
 7. Support examples for tool calls.
 8. Support references between RPC tools.
-9. Declare or infer required capabilities.
+9. Derive required capabilities from each entry point's transitive `$` requirement row.
 10. Support sandboxed execution.
 11. Support interactive execution resumption, similar to IPython or notebook sessions.
 

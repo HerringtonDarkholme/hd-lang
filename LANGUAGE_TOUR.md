@@ -849,6 +849,41 @@ a := first(names)          # T inferred as string
 b := first[string](names)  # explicit generic argument
 ```
 
+Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
+
+```text
+fn runtime_shape[reified T]() -> TypeShape:
+    shape(T)
+```
+
+`reified` is written on the generic parameter, not on the function. The compiler passes a hidden runtime type descriptor at each call:
+
+```text
+string_shape := runtime_shape[string]()
+```
+
+An erased generic parameter cannot be used where runtime type information is required:
+
+```text
+fn invalid_shape[T]() -> TypeShape:
+    shape(T)  # compile error: T is erased
+```
+
+Reification propagates through generic calls. A function passing its own type parameter to a reified parameter must also declare that parameter as reified:
+
+```text
+fn resolve[reified T]() -> T $ TypeProvider:
+    ...
+
+fn resolved[reified T]() -> T $ TypeProvider:
+    resolve[T]()
+
+fn invalid_resolved[T]() -> T $ TypeProvider:
+    resolve[T]()  # compile error: resolve requires runtime type information for T
+```
+
+Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
+
 v1 does not support partial explicit generic arguments or placeholder generic arguments.
 
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
@@ -1097,6 +1132,17 @@ fn first[T](items: list[T]) -> T?:
     else:
         items[0]
 ```
+
+Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, annotation lookup, serialization, or type-directed dependency injection:
+
+```text
+fn resolve[reified T]() -> T $ TypeProvider:
+    ...
+
+items := resolve[list[i32]]()
+```
+
+At the language level, a reified call behaves as if it passes a hidden `Type[T]` descriptor. This descriptor is not an ordinary source-level argument and cannot be supplied with a named argument. Reification is part of a function's public type and ABI.
 
 Variadic generics use type parameter packs. Minimal v1 supports packs only in function types, vararg parameters, and spread calls:
 
@@ -1681,4 +1727,82 @@ assert_equal(actual, expected, reason="both values should be equal")
 
 Specialized functions such as `assert_equal` receive the actual and expected values directly, allowing structured failure diagnostics. The mandatory `reason` is a `string` expression recording the intended behavior.
 
-Property testing also uses `std.testing`; it does not introduce a `property` declaration or other special syntax. Its exact function API, generated inputs, shrinking, dependency requirements, `Result` propagation from a test body, and failure reporting remain to be designed.
+Property testing is intentionally deferred because it has a much larger API and runtime surface than unit assertions. It must be implemented as a library-level facility in `std.testing`, not as dedicated property-test syntax in the language.
+
+No property-testing API has been accepted yet. Strategy representation, generated-value access, type- and annotation-based derivation, dependency injection, shrinking, replay, correlated inputs, stateful testing, and failure artifacts all remain open. General language features such as reified generics, declaration shapes, annotations, and dependency contexts may support that library, but they should be designed independently rather than around one provisional property-testing API.
+
+## Capabilities and Sandbox
+
+Capabilities use the ordinary dependency model. There is no separate capability declaration, type category, or signature syntax:
+
+```text
+trait FileRead:
+    fn read!(path: string) -> Result[string, FileError]
+
+fn load_config!(path: string) -> Result[string, FileError] $ FileRead:
+    files := $.use(FileRead)
+    files.read!(path)
+```
+
+`FileRead` is an ordinary trait used as a requirement key. Production, tests, and interactive sessions can provide different implementations through the same context operations:
+
+```text
+$.with(FileRead=workspace_files):
+    config := load_config!("config/app.json")?
+```
+
+```text
+$.with(FileRead=memory_files):
+    config := load_config!("config/app.json")?
+```
+
+A user-defined in-memory implementation can satisfy `FileRead` without receiving ambient filesystem access. If an implementation needs real filesystem, network, clock, secret, subprocess, or other host access, that access must itself come from the providers available to it.
+
+The runtime starts sandboxed and supplies no ambient external-resource providers by default. Security follows dependency reachability: code can only reach authority exposed by its current provider context. Missing requirements remain compile-time errors at ordinary call sites, and an application or deployment entry point must have its full requirement row satisfied by its host configuration.
+
+An entry point's transitive `$` requirements are the authoritative capability list:
+
+```text
+pub fn main!() -> void $ FileRead + Network:
+    config := load_config!("config/app.json")?
+    sync_config!(config)?
+```
+
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate capability permission list. Host configuration binds concrete providers and their scopes to the derived requirement keys. Running or deploying an entry point fails before execution when any required provider is missing.
+
+This design deliberately gives capabilities no special language semantics. Sandboxing is enforced by the runtime and host-provider boundary, while `$`, `$.use`, `$.with`, and `$.Context[...]` remain the single dependency mechanism.
+
+Open questions from this section:
+
+1. Which standard capability traits ship in v1.
+2. The configuration syntax for binding host providers to derived entry-point requirements.
+3. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
+4. How capability contexts are preserved or rejected during serialization and resumption.
+
+## Persistence and Resumption
+
+A suspending function can be run as a durable workflow without adding checkpoint syntax:
+
+```text
+fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
+    db, remote := $.use(Database, RemoteApi)
+    user := db.load_user!(id)?
+    remote.push_user!(user)?
+    db.mark_synced!(id)?
+```
+
+When a durable runner starts `sync_user!`, it records the entry function's stable identity, code version, arguments, and provider configuration identity. It then runs the function normally until a `!` call suspends.
+
+The runner maintains an append-only event history. On replay:
+
+1. A completed event matching the next `!` call supplies its recorded result, so the external operation is not repeated.
+2. A scheduled event without a completion keeps the workflow suspended.
+3. A new `!` call appends a command event and pauses execution. A worker performs the operation, appends its completion, and schedules another replay.
+
+Code between suspension points must be deterministic. Time, randomness, external reads, and other nondeterministic inputs must go through suspending dependencies so their results enter the history. Runs are pinned to a compatible code version, and suspension sites need stable compiler-generated identities so source edits can be checked during replay.
+
+External operations may run more than once if a worker fails after performing an operation but before recording its completion. The runtime therefore supplies an idempotency key for each scheduled event, and durable providers must either honor it or document weaker delivery guarantees.
+
+There is no `checkpoint` keyword. In v1, the runtime does not serialize the native or JavaScript call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures remain useful for queued callbacks and captured work, but they are not the primary workflow continuation mechanism.
+
+Interactive notebook-style sessions are a separate runtime mode. Their exact balance of a live process, serializable namespace snapshots, and replayed cell history remains open; they do not automatically inherit durable workflow semantics.

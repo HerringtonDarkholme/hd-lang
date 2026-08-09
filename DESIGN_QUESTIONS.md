@@ -218,6 +218,8 @@ Decisions:
 
 ## Testing And Data Generation
 
+Deferred. Property testing must be designed as a `std.testing` library surface rather than dedicated language syntax. The questions below are retained for that later library-design pass.
+
 1. Should every schema automatically define a valid data generator?
 2. Should generated data be deterministic by default?
 3. Should generated data be explainable, with a trace of which schema rule produced each value?
@@ -239,13 +241,16 @@ Decisions:
 
 ## Sandbox, Capabilities, And Resumption
 
-1. Should capabilities be the same thing as effects, or should capabilities be a lower-level runtime permission model underneath effects?
-2. Which capabilities should exist initially: filesystem, network, database, clock, randomness, subprocess, secrets, auth context, logging, tracing, metrics, or cloud resources?
-3. Should capabilities be declared in function signatures, annotations, handlers, package manifests, or inferred by tooling?
-4. What state should interactive resumption preserve: variables, effect handlers, imports, logs, previous outputs, random seeds, or all execution steps?
-5. Should interactive resumption replay prior cells/steps like notebooks, restore snapshots, or use explicit checkpoints?
-6. For durable workflows, where should checkpoints be declared: standard-library calls, annotations, effect handlers, or inferred around external effects?
-7. How should resumed execution prove that its capabilities and handlers are compatible with the original run?
+Settled: capabilities are ordinary dependencies. They use normal traits, `$` requirement rows, and context providers; there is no separate capability language construct.
+
+Settled: durable workflows initially use deterministic replay over an append-only event history. Suspending `!` calls are replay boundaries; recorded completions are reused, new commands suspend execution, and no `checkpoint` keyword or serialized machine stack is required in v1. Runs pin compatible code identity, providers are rebound on resumption, and external commands use idempotency keys.
+
+1. Which capability traits should exist initially: filesystem, network, database, clock, randomness, subprocess, secrets, auth context, logging, tracing, metrics, or cloud resources?
+2. What configuration syntax should bind concrete, scoped host providers to the requirement keys derived from an entry point?
+3. What state should interactive resumption preserve: variables, effect handlers, imports, logs, previous outputs, random seeds, or all execution steps?
+4. Should interactive resumption retain only a live kernel, restore serializable namespace snapshots, replay cells, or combine snapshots with a cell journal?
+5. How should resumed execution prove that its capabilities and providers are compatible with the original run?
+6. What source edits are replay-compatible, and how should incompatible suspension-site or control-flow changes be diagnosed and migrated?
 
 ## Serializable Closures And Incremental Computation
 
