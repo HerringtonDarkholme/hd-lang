@@ -2670,6 +2670,20 @@ Open syntax issues:
 7. How retention rules interact with auth, audit logs, and observability.
 8. Whether retention annotations can reference relationship annotations.
 
+## Observability Runtime Model
+
+Automatic instrumentation is limited to semantic boundaries rather than every function call. Compiler- or library-generated adapters for entry points, tools, RPC, workflows, cells, suspending calls, and host-provider boundaries explicitly require `Observability`. The wrapped business function does not acquire that requirement unless its own body emits telemetry; the generated adapter is the registered/deployed executable, so `Observability` remains visible in the transitive requirement graph.
+
+The runtime keeps execution-local observability context containing the current span, scoped log fields, trace links, and propagated trace context. Child tasks fork this context, lexical scopes restore it, and suspension/resumption preserves it. Boundary lowering follows this conceptual sequence:
+
+1. Resolve the explicit `Observability` provider.
+2. Create a span using the current span as parent plus compiler-generated operation metadata.
+3. Install the new span in the execution-local context.
+4. Execute the wrapped operation and retain its complete exit.
+5. Restore the previous context and end the span from that exit.
+
+Explicit logs are enriched from the execution-local context and are also recorded as events on the current span. Span lifecycle replaces duplicate boundary start/end logs. Unhandled errors, defects, retries, cancellation, and failed suspensions produce automatic runtime events. Exact trait methods, custom-span source syntax, metric instruments, privacy, sampling, replay deduplication, and exporter configuration remain open.
+
 ## Serializable Closures And Incremental Computation
 
 Serializable closures should package a function reference with its captured environment so computation can be stored, moved, cached, or resumed. Incremental computation should track dependencies so cached results are reused and only affected computations are recomputed.
@@ -2715,6 +2729,8 @@ Runtime requirements:
 10. There is no `checkpoint` keyword in the language.
 11. Incremental computation tracks dependencies between code, inputs, captures, data reads, and outputs.
 12. Cache hits, invalidations, and recomputations should be observable.
+
+Interactive execution uses the same recorded-suspension foundation but has notebook semantics. A live kernel retains the current namespace for fast reconnects. Successful cells atomically commit records containing cell/source/code identity, parent state, suspension events, state delta, and output. Recovery restores a serializable namespace snapshot and deterministically replays later committed runs in actual execution order. Rerunning an earlier or edited cell creates a new history branch and marks previous descendants stale.
 
 Open syntax issues:
 

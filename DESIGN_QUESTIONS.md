@@ -245,12 +245,16 @@ Settled: capabilities are ordinary dependencies. They use normal traits, `$` req
 
 Settled: durable workflows initially use deterministic replay over an append-only event history. Suspending `!` calls are replay boundaries; recorded completions are reused, new commands suspend execution, and no `checkpoint` keyword or serialized machine stack is required in v1. Runs pin compatible code identity, providers are rebound on resumption, and external commands use idempotency keys.
 
+Settled: interactive execution uses a live kernel for ordinary continuity plus a deterministic journal of atomically committed cell runs for recovery. Recovery restores a serializable snapshot and replays later runs in actual execution order. Rerunning an earlier or edited cell creates a new branch and makes prior descendants stale.
+
+Settled: observability is automatic at semantic runtime boundaries, including entry points, registered tool/RPC calls, workflows, cells, suspending `!` operations, and runtime provider boundaries. Ordinary functions are not traced automatically. `Observability` is an explicit dependency of generated boundary adapters and of user functions that emit telemetry. Execution-local context propagates current spans and fields; generated scopes close spans from complete exits; logs automatically become current-span events; unhandled errors and runtime lifecycle failures produce automatic events.
+
 1. Which capability traits should exist initially: filesystem, network, database, clock, randomness, subprocess, secrets, auth context, logging, tracing, metrics, or cloud resources?
 2. What configuration syntax should bind concrete, scoped host providers to the requirement keys derived from an entry point?
-3. What state should interactive resumption preserve: variables, effect handlers, imports, logs, previous outputs, random seeds, or all execution steps?
-4. Should interactive resumption retain only a live kernel, restore serializable namespace snapshots, replay cells, or combine snapshots with a cell journal?
-5. How should resumed execution prove that its capabilities and providers are compatible with the original run?
-6. What source edits are replay-compatible, and how should incompatible suspension-site or control-flow changes be diagnosed and migrated?
+3. Which top-level values are serializable into interactive namespace snapshots, and how are live-only values diagnosed and reconstructed?
+4. How should resumed execution prove that its capabilities and providers are compatible with the original run?
+5. What source edits are replay-compatible, and how should incompatible suspension-site or control-flow changes be diagnosed and migrated?
+6. How should users inspect, switch, retain, or discard interactive history branches?
 
 ## Serializable Closures And Incremental Computation
 

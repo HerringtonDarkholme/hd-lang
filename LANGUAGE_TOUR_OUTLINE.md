@@ -146,7 +146,8 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Logging
 - Tracing
 - Metrics
-- Observability as effects or standard library capabilities
+- Automatic telemetry at semantic runtime boundaries
+- Explicit telemetry through standard-library dependencies
 
 ## 17. Incremental Computation
 

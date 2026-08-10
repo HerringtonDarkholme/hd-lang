@@ -1805,4 +1805,41 @@ External operations may run more than once if a worker fails after performing an
 
 There is no `checkpoint` keyword. In v1, the runtime does not serialize the native or JavaScript call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures remain useful for queued callbacks and captured work, but they are not the primary workflow continuation mechanism.
 
-Interactive notebook-style sessions are a separate runtime mode. Their exact balance of a live process, serializable namespace snapshots, and replayed cell history remains open; they do not automatically inherit durable workflow semantics.
+Interactive notebook-style sessions combine a live kernel with a deterministic execution journal. While the kernel remains alive, closing and reconnecting a client reuses its current namespace without replay. Each successful cell atomically commits a run containing its cell and code identity, parent state, suspension events, state delta, and output.
+
+If the kernel is lost, the runtime restores the latest serializable namespace snapshot and replays subsequent committed cell runs in their actual execution order. Recorded `!` results are reused, giving recovery the same deterministic boundary as durable workflows. Editing and rerunning an earlier cell starts a new history branch from that cell's parent state; runs descended from the previous version become stale. Resume reproduces an existing history, while rerun deliberately creates new computation.
+
+## Observability
+
+The runtime automatically observes semantic execution boundaries: application entry points, registered tool and RPC calls, workflow runs, interactive cell runs, suspending `!` operations, and runtime dependency/provider boundaries. It does not automatically create a span for every ordinary function call.
+
+`Observability` is an explicit dependency. Compiler- or library-generated adapters around registered boundaries require it, while the wrapped business function keeps its own requirements:
+
+```text
+fn get_user!(id: UserId) -> Result[User, Error] $ Database:
+    ...
+
+# Illustrative generated adapter, not normative source syntax.
+fn __tool_get_user!(id: UserId) -> Result[User, Error] $
+    Database + Observability:
+    # Open a tool span, run get_user!(id), and close it from the complete exit.
+    ...
+```
+
+The generated adapter is the registered or deployed entry, so its transitive requirement graph exposes `Observability`. A user function that explicitly logs, creates a custom span, or records a metric also lists `Observability` directly and retrieves its provider through the normal context mechanism.
+
+Every execution task carries execution-local observability state:
+
+```text
+ObservabilityContext:
+    current_span
+    log_fields
+    span_links
+    trace_context
+```
+
+Lexical scopes temporarily extend that state and restore the previous value on exit. Child tasks inherit a forked context, and suspension/resumption preserves it. A boundary adapter creates a span from the current parent, installs the new span as current, runs the operation, and ends the span from the operation's complete exit. This guarantees closure on success, failure, defect, cancellation, and interruption.
+
+Explicit log records are automatically enriched with the current fields, operation identity, task identity, and error cause. When a current span exists, the same record is also added as a span event, so callers never pass trace or span IDs manually. A boundary's start and completion are represented by the span itself rather than duplicate start/end logs. Unhandled errors, defects, retries, cancellations, and failed suspensions produce automatic runtime events.
+
+The exact `Observability` trait methods, explicit custom-span API, metric instruments, privacy rules, sampling, replay deduplication, and export configuration remain to be designed.
