@@ -84,6 +84,35 @@ counter = counter + 1
 attempts = attempts + 1
 ```
 
+For composite values, mutation permission is part of the access type. An immutable binding has access as `T`; `let mut` creates a mutable root with access as `mut T`. A const composite reference cannot be upgraded to a mutable one:
+
+```text
+user := User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+let mut alias = user  # error: User cannot become mut User
+```
+
+A mutable reference may be viewed as const, and that const alias can observe later changes made through an existing mutable alias:
+
+```text
+let mut user = User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+readonly := user
+user.display_name = "Ada Lovelace"
+
+println(readonly.display_name)  # "Ada Lovelace"
+```
+
+This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a const reference.
+
 Types appear where they make interfaces between code clear: function parameters, return types, struct fields, and public APIs.
 
 ```text
@@ -377,21 +406,50 @@ Field access uses dot syntax:
 println(user.email)
 ```
 
-Struct fields do not carry their own mutability marker. Mutation is controlled by the binding or parameter that owns the value:
+Composite fields may store either const or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:
 
 ```text
-let mut editable = User {
-    id: "user_123",
-    email: "ada@example.com",
+struct Profile:
+    display_name: string
+
+struct Account:
+    profile: mut Profile
+
+let mut profile = Profile {
     display_name: "Ada"
 }
 
-editable.display_name = "Ada Lovelace"
+account := Account { profile: profile }
+account.profile.display_name = "Ada Lovelace"  # error: const root
 
-fn normalize_user(mut user: User) -> User:
+let mut editable = Account { profile: profile }
+editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
+```
+
+An ordinary composite field is a const edge. A mutable outer object may replace that field, but cannot mutate the referenced child through it.
+
+Mutable parameter permission is written in the type position:
+
+```text
+fn inspect(user: User) -> string:
+    user.display_name
+
+fn invalid(user: User) -> void:
+    user.display_name = "new"  # error: User is const
+
+fn normalize_user(user: mut User) -> User:
     user.email = user.email.trim().lower()
     user
 ```
+
+The same rule composes through containers:
+
+```text
+fn edit_users(users: mut list[mut User]) -> void:
+    users[0].display_name = "new"
+```
+
+Here the list is a mutable root and its element references are mutable edges. `mut list[User]` can replace list elements but cannot mutate the referenced users; `list[mut User]` has mutable element references but lacks the mutable root needed to use them for mutation.
 
 Use copy-update syntax when creating a modified value from an existing struct:
 
@@ -802,7 +860,7 @@ next()
 Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
 
 ```text
-fn repeat(times: i32, mut f: mut fn() -> void) -> void:
+fn repeat(times: i32, f: mut fn() -> void) -> void:
     let mut i: i32 = 0
     while i < times:
         f()
@@ -955,7 +1013,7 @@ fn audit_label[T: Display + Named](value: T) -> string:
     value.display() + " / " + value.name()
 ```
 
-Receivers are either `self` or `mut self`; there is no reference receiver spelling. Semantically, primitive types are passed by value and composite types are passed by reference. Structs, tuples, lists, and maps are composite types.
+Receivers are either `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameters use reference permissions in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is receiver shorthand for `self: mut Self`. Structs, tuples, lists, and maps are composite types.
 
 Structs do not own behavior in the class sense. Behavior lives in `impl Struct` blocks or trait implementations:
 
@@ -1842,4 +1900,161 @@ Lexical scopes temporarily extend that state and restore the previous value on e
 
 Explicit log records are automatically enriched with the current fields, operation identity, task identity, and error cause. When a current span exists, the same record is also added as a span event, so callers never pass trace or span IDs manually. A boundary's start and completion are represented by the span itself rather than duplicate start/end logs. Unhandled errors, defects, retries, cancellations, and failed suspensions produce automatic runtime events.
 
-The exact `Observability` trait methods, explicit custom-span API, metric instruments, privacy rules, sampling, replay deduplication, and export configuration remain to be designed.
+### Initial Provider Draft
+
+The initial provider interface deliberately stays small:
+
+```text
+trait Observability:
+    fn sample(self, candidate: SpanCandidate) -> bool
+    fn emit(self, event: Observation) -> void
+```
+
+The runtime owns span IDs, current-span context, lifecycle, enrichment, and replay suppression. The provider chooses whether a candidate span is sampled and consumes normalized events:
+
+```text
+enum Observation:
+    SpanStarted(event: SpanStarted)
+    SpanEnded(event: SpanEnded)
+    Log(event: LogRecord)
+    Metric(event: MetricPoint)
+    Runtime(event: RuntimeEvent)
+
+enum Outcome:
+    Succeeded
+    Failed(error_type: string)
+    Defect(error_type: string)
+    Cancelled
+    Interrupted
+
+struct SpanContext:
+    trace_id: string
+    span_id: string
+    sampled: bool
+
+struct SpanCandidate:
+    operation: OperationInfo
+    parent: SpanContext?
+
+struct SpanStarted:
+    context: SpanContext
+    parent: SpanContext?
+    operation: OperationInfo
+    timestamp: Timestamp
+
+struct SpanEnded:
+    context: SpanContext
+    outcome: Outcome
+    timestamp: Timestamp
+    duration: Duration
+
+struct LogRecord:
+    level: LogLevel
+    message: string
+    fields: map[string, ObservationValue]
+    span: SpanContext?
+    operation: OperationInfo
+    timestamp: Timestamp
+
+enum ObservationValue:
+    Bool(value: bool)
+    Signed(value: i64)
+    Unsigned(value: u64)
+    Float(value: f64)
+    String(value: string)
+    List(values: list[ObservationValue])
+```
+
+`ObservationValue` is a standard tagged scalar representation. Telemetry does not implicitly serialize arbitrary application objects.
+
+The compiler-generated boundary adapter conceptually performs these steps:
+
+1. Resolve the explicit `Observability` provider.
+2. Read the current parent span and compiler-generated `OperationInfo`.
+3. Ask the provider whether to sample the candidate.
+4. Create and install a runtime-owned `SpanContext`.
+5. Emit `SpanStarted`, execute the wrapped operation, and retain its complete exit.
+6. Restore the previous context and emit `SpanEnded` with the derived `Outcome`.
+7. Return, fail, cancel, or interrupt exactly as the wrapped operation did.
+
+At a declared boundary, returning `Err(error)` maps to `Outcome.Failed` even though `Result` is returned through normal language control flow. Values are not captured by default; only the error type and explicitly supplied safe fields are recorded.
+
+Standard-library logging helpers use the same provider:
+
+```text
+fn info(
+    message: string,
+    fields: map[string, ObservationValue] = {},
+) -> void $ Observability
+
+fn process_user!(id: UserId) -> Result[void, ProcessError] $
+    Database + Observability:
+    log.info(
+        "processing user",
+        fields={
+            "user.id": ObservationValue.String(string(id)),
+        },
+    )
+
+    user := load_user!(id)?
+    process!(user)
+```
+
+`log.info` emits one `Log` observation. The runtime adds scoped fields, operation/task identity, source information, and the current span. If a current span exists, the log is also represented as a span event by the exporter strategy.
+
+### Provider Strategies
+
+A development provider can format every event:
+
+```text
+struct ConsoleObservability:
+    output: TextOutput
+    minimum_level: LogLevel
+
+impl Observability for ConsoleObservability:
+    fn sample(self, candidate: SpanCandidate) -> bool:
+        true
+
+    fn emit(self, event: Observation) -> void:
+        self.output.write_line(format_observation(event))
+```
+
+A production provider can buffer events for OpenTelemetry export:
+
+```text
+struct OTelObservability:
+    queue: TelemetryQueue
+    sampler: Sampler
+
+impl Observability for OTelObservability:
+    fn sample(self, candidate: SpanCandidate) -> bool:
+        self.sampler.should_sample(candidate)
+
+    fn emit(self, event: Observation) -> void:
+        self.queue.try_push(event)
+```
+
+`emit` is non-suspending and best-effort. A runtime-managed worker batches and exports queued events. Export failure cannot alter application results; queue overflow and dropped-event counts are themselves runtime metrics. Reliable audit delivery remains a separate suspending dependency.
+
+Tests can inject an in-memory recorder and assert normalized observations:
+
+```text
+recording := RecordingObservability.new()
+
+$.with(Observability=recording):
+    result := process_user!("user-1")
+
+assert_equal(
+    recording.log_messages(),
+    ["processing user"],
+    reason="processing should emit its structured log",
+)
+```
+
+Fan-out, filtering, redaction, and sampling are provider composition strategies rather than language syntax.
+
+### Replay
+
+Automatic observations receive stable identities derived from execution ID, boundary ID, attempt, and event kind. Deterministic replay does not re-emit observations for already completed history events. New workflow activations use new attempt identities, exporters may deduplicate by observation ID, and replay diagnostics use separate runtime events.
+
+This provider API is an initial draft. Explicit custom-span syntax, metric instruments, privacy/redaction policy, sampling details, and exporter configuration remain open and may be optimized later.

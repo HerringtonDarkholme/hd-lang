@@ -167,8 +167,13 @@ Decisions:
 36. `break value` is only valid in value-producing loops with `else`; statement-only loops use plain `break`.
 37. `match` arms use `pattern => expression`, and `_ => expression` is the fallback arm spelling.
 38. `else if` is one direct conditional-chain syntax form, not a nested `else` block containing a separate `if`.
-39. Struct fields do not have field-level mutability markers.
-40. Struct mutation is controlled by `let mut` bindings, `mut` function parameters, and `mut self` receivers.
+39. Composite struct fields can carry mutable reference permission with `field: mut T`; ordinary `field: T` is a const edge.
+40. Mutation requires a mutable root and `mut` on every composite reference edge crossed by the access path. Local roots use `let mut`, parameters use `value: mut T`, and receivers use `mut self`.
+
+Settled mutability details: `mut T` is a reference-permission type, not ownership or exclusivity. `T` cannot be upgraded to `mut T`; `mut T` may be viewed as `T`. Permission composes through fields, `list`/`map` arguments, function types, and returns. Primitive parameters pass by value. Local declarations retain `let mut value: T`; callable parameters use `value: mut T`; receivers retain `mut self`.
+
+Alternative retained for comparison: shallow const local bindings could be re-aliased through mutable bindings or containers, parameters used implicit C++-style const/non-const references with `mut` before the parameter name, and fields had no `mut T` qualifier. This was simpler but did not represent nested mutation authority uniformly.
+
 41. Struct copy-update uses spread syntax in a typed literal, such as `User { ...user, display_name: "Ada" }`.
 42. Enum payload variant declarations use compact `Variant(field: type)` syntax in v1. Large payloads should use a separate struct.
 43. Enum variant patterns in `match` arms must be qualified with the enum name, such as `JobStatus.Queued`, even when the matched value's type is known.
@@ -249,6 +254,8 @@ Settled: interactive execution uses a live kernel for ordinary continuity plus a
 
 Settled: observability is automatic at semantic runtime boundaries, including entry points, registered tool/RPC calls, workflows, cells, suspending `!` operations, and runtime provider boundaries. Ordinary functions are not traced automatically. `Observability` is an explicit dependency of generated boundary adapters and of user functions that emit telemetry. Execution-local context propagates current spans and fields; generated scopes close spans from complete exits; logs automatically become current-span events; unhandled errors and runtime lifecycle failures produce automatic events.
 
+Provisional v1 draft: `Observability` exposes `sample(candidate) -> bool` and non-suspending `emit(event) -> void`. The runtime owns span/context lifecycle and replay suppression; providers consume normalized span, log, metric, and runtime events. Console, recording, fan-out, and buffered OpenTelemetry implementations are expected. This interface may be optimized later.
+
 1. Which capability traits should exist initially: filesystem, network, database, clock, randomness, subprocess, secrets, auth context, logging, tracing, metrics, or cloud resources?
 2. What configuration syntax should bind concrete, scoped host providers to the requirement keys derived from an entry point?
 3. Which top-level values are serializable into interactive namespace snapshots, and how are live-only values diagnosed and reconstructed?
@@ -258,13 +265,30 @@ Settled: observability is automatic at semantic runtime boundaries, including en
 
 ## Serializable Closures And Incremental Computation
 
+Current incremental-computation findings:
+
+- Incremental queries, cross-run caching, and durable replay solve different problems and must have separate identities and correctness rules.
+- The current direction is a native-feeling `std.incremental` API with runtime dependency tracking, not dedicated language syntax.
+- Inputs and computation regions are explicit, while dependencies are recorded dynamically from the tracked values actually read.
+- Pure incremental callbacks use existing function types: plain `fn`, not `mut fn` or `fn!`, with no `$` requirements, mutable parameters, or mutable captures.
+- External reads need explicit stable version tokens. Neither suspension nor provider injection makes an external operation cacheable.
+- v1 should investigate transactional updates, lazy recomputation, topological stabilization, equality cutoff, cycle diagnostics, and first-class graph inspection.
+
+Incremental computation remains a large deferred surface. The findings above establish boundaries, not a complete API or runtime design.
+
 1. Should serializable closures be inferred by the compiler, explicitly annotated, or represented as a distinct function type?
 2. What values are legal to capture: primitives, structs, branded values, handles, effect handlers, capabilities, or runtime resources?
 3. How should tooling report non-serializable captures?
 4. Should closure code identity be based on source hash, compiler artifact hash, stable symbol ID, or runtime registration?
 5. Should cache keys include code identity, arguments, captured values, effect inputs, or all of these?
-6. Should incremental dependencies be inferred from effects/data reads, declared through annotations, or both?
-7. How should cache invalidation and recomputation be explained to AI agents and human reviewers?
+6. What is the exact `std.incremental` API for inputs, computations, observation, updates, and stabilization?
+7. Which stable identity and version-token protocols should tracked external inputs implement?
+8. Which parts of code identity, arguments, captured values, type arguments, provider identity, target ABI, and dependency versions belong in persistent cache keys?
+9. Should persistent and distributed caching be part of the initial library or a later storage implementation?
+10. What is the initial tracking granularity for structs, lists, and maps?
+11. How long do unobserved computation nodes and cached values remain alive?
+12. How are accidental cycles reported, and should explicit fixed-point computation be deferred to a separate API?
+13. How should cache invalidation and recomputation be explained to AI agents and human reviewers?
 
 ## Adoption And Runtime
 

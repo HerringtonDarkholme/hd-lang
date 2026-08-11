@@ -66,6 +66,35 @@ attempts = attempts + 1
 counter = counter + 1
 ```
 
+For composite values, mutation permission is part of the access type. `:=` and plain `let` introduce const access as `T`; `let mut` creates a mutable root with access as `mut T`. A const composite reference cannot be upgraded:
+
+```text
+user := User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+let mut alias = user  # error: User cannot become mut User
+```
+
+A mutable reference can be downgraded to a const view. The const view may observe changes made through an existing mutable alias:
+
+```text
+let mut user = User {
+    id: "user_123",
+    email: "ada@example.com",
+    display_name: "Ada"
+}
+
+readonly := user
+user.display_name = "Ada Lovelace"
+
+println(readonly.display_name)  # "Ada Lovelace"
+```
+
+This is deliberately different from value semantics, exclusive ownership, and global immutability. Multiple mutable aliases may exist, but mutable authority cannot be manufactured from a const reference.
+
 Reasoning:
 
 1. Most local code stays concise with `:=`.
@@ -566,21 +595,92 @@ user := User {
 
 This keeps construction visually distinct from function calls.
 
-Struct fields do not carry their own mutability marker. Mutation is controlled by the binding or parameter that owns the value:
+Composite fields may carry mutable reference permission in their type:
 
 ```text
-let mut editable = User {
-    id: "user_123",
-    email: "ada@example.com",
+struct Profile:
+    display_name: string
+
+struct Account:
+    profile: mut Profile
+
+let mut profile = Profile {
     display_name: "Ada"
 }
 
-editable.display_name = "Ada Lovelace"
+account := Account { profile: profile }
+account.profile.display_name = "Ada Lovelace"  # error: const root
 
-fn normalize_user(mut user: User) -> User:
+let mut editable = Account { profile: profile }
+editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
+```
+
+Mutation through a composite path requires both:
+
+1. A mutable root from `let mut`, a `mut T` parameter, or `mut self`.
+2. `mut` permission on every composite field, list element, or map value edge crossed by the path.
+
+An ordinary `field: T` is a const edge. A mutable outer root may replace that field slot but cannot mutate the referenced child through it. Initializing `field: mut T` requires a `mut T` value; `T` cannot be upgraded.
+
+Mutable parameter permission is written in the type position:
+
+```text
+fn inspect(user: User) -> string:
+    user.display_name
+
+fn invalid(user: User) -> void:
+    user.display_name = "new"  # error: User is const
+
+fn normalize_user(user: mut User) -> User:
     user.email = user.email.trim().lower()
     user
 ```
+
+The qualifier composes in stored and callable types:
+
+```text
+friend: mut User
+users: list[mut User]
+users_by_id: map[string, mut User]
+fn current_user() -> mut User
+fn apply(user: mut User, operation: fn(mut User) -> void) -> void
+```
+
+`mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Container types are invariant in mutable reference permissions because viewing a mutable container covariantly could allow insertion of a const reference into storage later treated as mutable.
+
+Local declarations retain `let mut name: T` rather than adding the redundant `let name: mut T` spelling. Conceptually, `let mut name: T` gives the local mutable access as `mut T`. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
+
+Lists and maps apply the root-and-edge rule uniformly:
+
+```text
+fn replace_users(users: mut list[User], replacement: User) -> void:
+    users[0] = replacement       # allowed: mutable list slot
+    users[0].display_name = "x"  # error: const User edge
+
+fn edit_users(users: mut list[mut User]) -> void:
+    users[0].display_name = "x"  # allowed: mutable root + mutable edge
+```
+
+Mutable map keys are provisionally disallowed because changing a structurally hashed key could invalidate map invariants. The exact stable-key trait or restriction remains open.
+
+### Alternative: Shallow Const Bindings And Implicit Const Borrows
+
+An earlier, simpler design treated `:=` and plain `let` as shallow const bindings whose reference permission was not preserved when stored elsewhere. A value could be deliberately placed behind a mutable binding or container and then changed through that alias:
+
+```text
+user := User { ... }
+let mut users = [user]
+users[0].display_name = "new"  # allowed in the alternative
+```
+
+Composite function parameters behaved like implicit C++ references, with `user: User` analogous to `const User&` and mutable permission written before the parameter name:
+
+```text
+fn rename(mut user: User, name: string) -> void:
+    user.display_name = name
+```
+
+Fields had no `mut T` reference-permission type. This kept the surface smaller but could not precisely express mutation authority for nested fields, collection elements, map values, function values, or mutable returns. It also made local shallow constness and call-boundary constness follow different propagation rules. This model is retained as an alternative, not the current direction.
 
 Use copy-update syntax when creating a modified value from an existing struct:
 
@@ -970,7 +1070,7 @@ next()
 Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
 
 ```text
-fn repeat(times: i32, mut f: mut fn() -> void) -> void:
+fn repeat(times: i32, f: mut fn() -> void) -> void:
     let mut i: i32 = 0
     while i < times:
         f()
@@ -1048,7 +1148,7 @@ fn audit_label[T: Display + Named](value: T) -> string:
     value.display() + " / " + value.name()
 ```
 
-Receiver spelling is `self` or `mut self`; there is no reference receiver spelling. Semantically, primitive types are passed by value and composite types are passed by reference. Structs, tuples, lists, and maps are composite types.
+Receiver spelling is `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameter permissions appear in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is shorthand for `self: mut Self`. Structs, tuples, lists, and maps are composite types.
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
@@ -2684,9 +2784,95 @@ The runtime keeps execution-local observability context containing the current s
 
 Explicit logs are enriched from the execution-local context and are also recorded as events on the current span. Span lifecycle replaces duplicate boundary start/end logs. Unhandled errors, defects, retries, cancellation, and failed suspensions produce automatic runtime events. Exact trait methods, custom-span source syntax, metric instruments, privacy, sampling, replay deduplication, and exporter configuration remain open.
 
+The provisional v1 provider surface is:
+
+```text
+trait Observability:
+    fn sample(self, candidate: SpanCandidate) -> bool
+    fn emit(self, event: Observation) -> void
+```
+
+`Observation` is a normalized enum with `SpanStarted`, `SpanEnded`, `Log`, `Metric`, and `Runtime` cases. The runtime owns trace/span IDs, parent selection, current-span installation, complete-exit mapping, context restoration, enrichment, and replay suppression. Providers implement policies and sinks such as console formatting, in-memory test recording, fan-out, filtering/redaction, sampling, or buffered OpenTelemetry export.
+
+`emit` is non-suspending and best-effort. Production exporters enqueue locally and export in a runtime-managed background worker; observability failure cannot alter application results. Reliable audit delivery is a separate dependency with normal `Result` and suspension behavior.
+
+Each observation has a stable identity derived from execution ID, boundary ID, attempt, and event kind. Replaying an already completed history event does not emit its observations again. Exact custom-span syntax, metric instruments, observation scalar representation, privacy rules, and exporter configuration remain open. The `sample + emit` interface is an initial draft and may be optimized.
+
 ## Serializable Closures And Incremental Computation
 
-Serializable closures should package a function reference with its captured environment so computation can be stored, moved, cached, or resumed. Incremental computation should track dependencies so cached results are reused and only affected computations are recomputed.
+Serializable closures should package a function reference with its captured environment so computation can be stored, moved, cached, or resumed. Incremental computation should track dependencies so derived results are reused and only affected computations are recomputed.
+
+### Research Findings
+
+Incremental computation has a large enough semantic and runtime surface that it should not be conflated with either durable replay or a generic function cache:
+
+1. An incremental query produces derived data that may be invalidated and recomputed when one of its tracked inputs changes.
+2. A cross-run cache reuses a result only while its complete code, argument, capture, provider, and external-dependency identity remains valid.
+3. Durable replay restores a historical result belonging to one logical execution. That result remains authoritative for the run even if the code or external data has since changed.
+
+A suspending `!` call only means that execution may suspend. It does not say whether the operation is deterministic, read-only, idempotent, or cacheable. Similarly, `$ Database` says that a `Database` provider must be available; it does not identify the provider implementation, authorization scope, database snapshot, or rows read.
+
+The strongest prior-art direction combines Salsa/DICE-style dynamic query dependencies and equality cutoff, Jane Street Incremental-style transactional stabilization, Bazel/Nix-style explicit external action identity, and Shake-style dependency diagnostics. Verse's planned live variables provide another useful lesson: actual reads can determine dynamic dependencies, but automatically repeated computation must be sharply restricted from writes and suspension.
+
+### Provisional Library Boundary
+
+Incremental computation should initially be a native-feeling `std.incremental` library rather than a new language construct or `incremental` keyword. The library owns inputs, computation nodes, observation, update transactions, stabilization, equality policies, storage strategies, and graph queries. Runtime library support maintains the active dependency recorder, while existing function shapes and tooling expose code identity and source metadata.
+
+The computation callback uses ordinary hd-lang write-purity rules. It must be a plain, non-suspending `fn`, not a `mut fn` or `fn!`, and it must have no `$` requirements, mutable parameters, or mutable captures. Calls made by the callback must satisfy the same constraints transitively. This is normal function-type checking rather than an incremental-specific compiler rule. Local mutation of newly created, non-escaping values remains allowed because it has no externally observable effect.
+
+Write purity alone does not make a callback referentially stable. A const reference may observe an object changed through an existing mutable alias between evaluations. Incremental computations must therefore read changing shared state through tracked inputs or require a separately defined stable/immutable input; that exact library constraint remains open.
+
+Illustrative library usage, not accepted final API:
+
+```text
+let mut price = incremental.input(100)
+let mut quantity = incremental.input(2)
+
+total := incremental.compute(fn() -> i32:
+    price.get() * quantity.get()
+)
+
+view := incremental.observe(total)
+
+incremental.update(mut fn() -> void:
+    price.set(120)
+    quantity.set(3)
+)
+
+incremental.stabilize()
+println(view.get())
+```
+
+Inputs and computation regions are explicit. Calls to tracked `get` operations inside a computation record the dependencies actually read, including transitive reads through ordinary pure helper functions. When control flow changes, successful recomputation atomically replaces the node's previous dependency set.
+
+### Provisional Runtime Direction
+
+The initial model should investigate:
+
+1. Transactional source updates so observers never see a mixture of old and new upstream values.
+2. Lazy recomputation of demanded nodes in topological order.
+3. Equality-based propagation cutoff: if recomputation produces an equal value, unaffected downstream nodes remain valid.
+4. A DAG by default, with cycles rejected as soon as graph construction or evaluation discovers them and diagnostics showing the complete cycle path.
+5. Explicit fixed-point or relational computation as a separate future API rather than implicit cyclic evaluation.
+6. Whole-value tracking initially, with keyed list/map granularity considered later.
+7. Observation-driven lifetime so unobserved graph regions can eventually be collected.
+
+External data cannot silently participate in a correct persistent cache. A tracked file, database query, HTTP response, clock, environment value, or other external input must provide a stable revision, content digest, ETag, snapshot, logical timestamp, or equivalent dependency token. An opaque operation is volatile and prevents persistent reuse of the enclosing result. Freshness mechanisms such as TTL, manual invalidation tags, and stale-while-revalidate are policies layered above dependency correctness, not substitutes for it.
+
+Workflow replay remains independent. Replaying a completed `!` event must not consult incremental cache freshness, and invalidating an incremental node must never automatically repeat an external workflow action.
+
+### Inspection Requirements
+
+The runtime should expose a stable machine-readable graph containing node and code identity, source location, value type, observed dependencies and dependents, external input identities and versions, clean/dirty state, revision, cache/storage state, last duration, and invalidation cause. Human and AI tooling should be able to answer:
+
+- Why was this node recomputed?
+- Why was it not recomputed?
+- Which input or code revision invalidated it?
+- Which conditional branch changed its dependency set?
+- What keeps this node alive?
+- What contributes to its cache key?
+
+These findings establish an architectural boundary, not a complete design. Exact API spelling, identity and fingerprint protocols, storage tiers, persistence and distribution, collection granularity, node lifetime, cycle handling, and observability integration remain open.
 
 Possible annotation sketches:
 
@@ -2708,13 +2894,6 @@ fn answer_question!(query: string) -> Answer $ llm + search:
 annotate Workflow for answer_question: pass
 ```
 
-```text
-fn expensive_summary!(doc: Document) -> Summary $ model:
-    model.summarize!(doc)
-
-annotate Cache for expensive_summary: pass
-```
-
 Runtime requirements:
 
 1. Captured values must be serializable or rejected by tooling.
@@ -2727,18 +2906,18 @@ Runtime requirements:
 8. Capability providers and live handles are rebound rather than serialized.
 9. External commands receive idempotency keys because worker execution and completion recording cannot generally be atomic.
 10. There is no `checkpoint` keyword in the language.
-11. Incremental computation tracks dependencies between code, inputs, captures, data reads, and outputs.
-12. Cache hits, invalidations, and recomputations should be observable.
+11. Incremental queries, cross-run caching, and durable replay use separate identities and reuse rules.
+12. Cache hits, invalidations, and recomputations should be observable and distinguishable from history replay.
 
 Interactive execution uses the same recorded-suspension foundation but has notebook semantics. A live kernel retains the current namespace for fast reconnects. Successful cells atomically commit records containing cell/source/code identity, parent state, suspension events, state delta, and output. Recovery restores a serializable namespace snapshot and deterministically replays later committed runs in actual execution order. Rerunning an earlier or edited cell creates a new history branch and marks previous descendants stale.
 
 Open syntax issues:
 
 1. Whether serializable closures are inferred, annotated, or a distinct function type.
-2. Whether caching uses `annotate Cache for ...` or a standard-library wrapper.
+2. The exact `std.incremental` API; no dedicated keyword or `annotate Cache` design is currently proposed.
 3. Whether workflows use `annotate Workflow for ...` or standard-library effects only.
 4. How closure capture restrictions are displayed to reviewers.
-5. How incremental dependencies are declared, inferred, or inspected.
+5. How tracked external inputs expose versions and how incremental dependencies are inspected.
 6. How code identity is represented across JS and WASM targets.
 
 ## Syntax Questions To Decide Next
@@ -2754,4 +2933,4 @@ Open syntax issues:
 9. Which effect-polymorphism candidate should higher-order functions use, and what is deferred to later versions?
 10. What is the exact `brand` spelling, and is brand-to-base coercion implicit or explicit?
 11. What should serializable closure syntax and capture restrictions look like?
-12. What should incremental computation syntax and cache/dependency tooling look like?
+12. What should the `std.incremental` API and cache/dependency tooling look like?
