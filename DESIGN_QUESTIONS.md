@@ -138,7 +138,7 @@ Decisions:
 8. Dynamic dispatch uses plain trait names, such as `value: Display`; there is no `dyn` or `any` marker.
 9. Unambiguous promoted methods from embedded structs can satisfy trait requirements for the outer struct.
 10. Constructor-style casting is enough for newtype unwrapping; no `.value` or pattern matching access is needed for now.
-11. Variance is skipped for v1; generic types are invariant unless a concrete need appears later.
+11. Generic type declarations use explicit `+T` covariance, `-T` contravariance, and unmarked invariant `T`. The compiler verifies the declared polarity against the read-only surface. Variance conversions apply only to read-only outer views; mutable generic views are invariant. The built-in list element parameter is covariant.
 12. If multiple embedded structs promote conflicting methods, the outer type does not satisfy the trait automatically.
 13. When promoted methods conflict during trait checking, diagnostics show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl or qualified embedded-method call.
 13. Integer literals always default to `i32` when there is no expected type.
@@ -168,9 +168,13 @@ Decisions:
 37. `match` arms use `pattern => expression`, and `_ => expression` is the fallback arm spelling.
 38. `else if` is one direct conditional-chain syntax form, not a nested `else` block containing a separate `if`.
 39. Composite struct fields can carry mutable reference permission with `field: mut T`; ordinary `field: T` is a const edge.
-40. Mutation requires a mutable root and `mut` on every composite reference edge crossed by the access path. Local roots use `let mut`, parameters use `value: mut T`, and receivers use `mut self`.
+40. Mutation requires a mutable root and `mut` on every composite reference edge crossed by the access path. Local roots use `let value: mut T`, parameters use `value: mut T`, and receivers use `mut self` as shorthand for `self: mut Self`.
 
-Settled mutability details: `mut T` is a reference-permission type, not ownership or exclusivity. `T` cannot be upgraded to `mut T`; `mut T` may be viewed as `T`. Permission composes through fields, `list`/`map` arguments, function types, and returns. Primitive parameters pass by value. Local declarations retain `let mut value: T`; callable parameters use `value: mut T`; receivers retain `mut self`.
+Settled mutability details: `mut T` is a type modifier expressing reference permission, not ownership or exclusivity. `T` cannot be upgraded to `mut T`; `mut T` may be viewed as `T`. Permission composes through locals, fields, `list`/`map` arguments, function types, and returns. Primitive parameters pass by value. Local declarations use `let value: mut T`; callable parameters use `value: mut T`; receivers retain `mut self` as shorthand.
+
+Generic mutability decision: an ordinary generic `T` denotes the complete type and may be instantiated with `User` or `mut User`. Consequently, an unconstrained generic declaration cannot contain `mut T`; it stores `T` directly and receives mutable permission through an instantiation such as `Box[mut User]`. This prevents `mut mut User` from arising through ordinary substitution.
+
+Open mutability question: define the syntax and checking rules for constraining a generic parameter itself to mutable types. Const-root viewpoint adaptation also remains necessary so a const container root cannot leak mutable access through an element whose stored type is `mut T`.
 
 Alternative retained for comparison: shallow const local bindings could be re-aliased through mutable bindings or containers, parameters used implicit C++-style const/non-const references with `mut` before the parameter name, and fields had no `mut T` qualifier. This was simpler but did not represent nested mutation authority uniformly.
 

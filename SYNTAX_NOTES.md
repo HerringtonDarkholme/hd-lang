@@ -48,25 +48,20 @@ name := "Ada"
 name = "Grace"   # invalid: `name` was introduced with `:=`
 ```
 
-Plain `let` introduces an immutable local when an explicit declaration or type annotation is useful:
+`let` introduces a local variable that may be reassigned. Type annotation is optional:
 
 ```text
 let display_name: string = "Ada"
 let nickname: string? = nil
 let inferred = 1
-```
-
-`let mut` introduces a variable that can be reassigned or mutated in place. Type annotation is optional:
-
-```text
-let mut attempts: i32 = 0
-let mut counter = 1
+let attempts: i32 = 0
+let counter = 1
 
 attempts = attempts + 1
 counter = counter + 1
 ```
 
-For composite values, mutation permission is part of the access type. `:=` and plain `let` introduce const access as `T`; `let mut` creates a mutable root with access as `mut T`. A const composite reference cannot be upgraded:
+For composite values, mutation permission is part of the type. `T` provides const access and `mut T` provides mutable access. `mut` is always written in the type position, including local declarations. A const composite reference cannot be upgraded:
 
 ```text
 user := User {
@@ -75,13 +70,13 @@ user := User {
     display_name: "Ada"
 }
 
-let mut alias = user  # error: User cannot become mut User
+let alias: mut User = user  # error: User cannot become mut User
 ```
 
 A mutable reference can be downgraded to a const view. The const view may observe changes made through an existing mutable alias:
 
 ```text
-let mut user = User {
+let user: mut User = User {
     id: "user_123",
     email: "ada@example.com",
     display_name: "Ada"
@@ -98,8 +93,10 @@ This is deliberately different from value semantics, exclusive ownership, and gl
 Reasoning:
 
 1. Most local code stays concise with `:=`.
-2. Mutation is review-relevant, so it should be visually explicit with `mut`.
-3. Type annotations remain available for important mutable state, but inference is allowed when the type is obvious.
+2. `let` makes rebinding explicit without conflating it with reference permission.
+3. Mutation through a composite value is review-relevant, so `mut` appears uniformly in its type.
+
+An unannotated `let` infers the initializer's access type. A fresh composite initializer may infer `mut T`, but an existing `T` remains `T`; inference never upgrades const access.
 
 ## Type System Direction
 
@@ -604,20 +601,20 @@ struct Profile:
 struct Account:
     profile: mut Profile
 
-let mut profile = Profile {
+let profile: mut Profile = Profile {
     display_name: "Ada"
 }
 
 account := Account { profile: profile }
 account.profile.display_name = "Ada Lovelace"  # error: const root
 
-let mut editable = Account { profile: profile }
+let editable: mut Account = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
 Mutation through a composite path requires both:
 
-1. A mutable root from `let mut`, a `mut T` parameter, or `mut self`.
+1. A mutable root whose type is `mut T`, including a local, parameter, field projection, return value, or `mut self`.
 2. `mut` permission on every composite field, list element, or map value edge crossed by the path.
 
 An ordinary `field: T` is a const edge. A mutable outer root may replace that field slot but cannot mutate the referenced child through it. Initializing `field: mut T` requires a `mut T` value; `T` cannot be upgraded.
@@ -646,9 +643,30 @@ fn current_user() -> mut User
 fn apply(user: mut User, operation: fn(mut User) -> void) -> void
 ```
 
-`mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Container types are invariant in mutable reference permissions because viewing a mutable container covariantly could allow insertion of a const reference into storage later treated as mutable.
+`mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Generic declarations state variance with `+` and `-`: `+T` is covariant, `-T` is contravariant, and an unmarked `T` is invariant. Variance applies to read-only outer views. Every `mut Generic[...]` view is invariant in its generic arguments because mutation could otherwise store a value that violates the original type.
 
-Local declarations retain `let mut name: T` rather than adding the redundant `let name: mut T` spelling. Conceptually, `let mut name: T` gives the local mutable access as `mut T`. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
+```text
+struct Producer[+T]:
+    produce: fn() -> T
+
+struct Consumer[-T]:
+    consume: fn(T) -> void
+
+struct Cell[T]:
+    value: T
+```
+
+Given the permission weakening `mut User` to `User`, the corresponding read-only conversions are:
+
+```text
+Producer[mut User] -> Producer[User]       # covariance
+Consumer[User] -> Consumer[mut User]       # contravariance
+Cell[mut User] -> Cell[User]               # invalid: invariant
+```
+
+The compiler checks declared variance against the read-only fields and methods. Return positions are positive, parameter positions are negative, and entering a function parameter reverses polarity. A parameter used in both directions must be invariant. Members requiring `mut self` do not participate in read-only variance, because mutable outer views never receive variance conversions.
+
+Local declarations use `let name: mut T`; the former `let mut name: T` spelling does not exist. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
 
 Lists and maps apply the root-and-edge rule uniformly:
 
@@ -661,6 +679,42 @@ fn edit_users(users: mut list[mut User]) -> void:
     users[0].display_name = "x"  # allowed: mutable root + mutable edge
 ```
 
+The container root and element edge are independent:
+
+```text
+list[User]           # const container, const elements
+list[mut User]       # const container, latent mutable element edges
+mut list[User]       # mutable container, const elements
+mut list[mut User]   # mutable container, mutable elements
+```
+
+The built-in `list` type declares a covariant element parameter, conceptually `list[+T]`. Therefore a read-only list view may weaken element permission:
+
+```text
+let stored: list[mut User] = ...
+let visible: list[User] = stored            # allowed
+
+let editable: mut list[mut User] = ...
+let invalid: mut list[User] = editable      # invalid: mutable containers are invariant
+```
+
+The covariant conversion creates a read-only view, not an immutable snapshot. Changes made through another mutable alias remain observable. The `list` API must preserve its `+T` declaration; an operation that consumes an element through a read-only list view needs a separately type-safe signature rather than placing `T` directly in a negative position.
+
+An ordinary generic parameter denotes a complete type, including any access modifier. Therefore an unconstrained generic declaration cannot apply `mut` again:
+
+```text
+struct Box[T]:
+    value: T
+
+Box[User]       # value: User
+Box[mut User]   # value: mut User
+
+struct InvalidBox[T]:
+    value: mut T  # invalid: T may already be `mut U`
+```
+
+The spelling for constraining a generic parameter to mutable types remains open. Such a constraint must constrain `T` itself rather than constructing `mut T` inside the generic declaration.
+
 Mutable map keys are provisionally disallowed because changing a structurally hashed key could invalidate map invariants. The exact stable-key trait or restriction remains open.
 
 ### Alternative: Shallow Const Bindings And Implicit Const Borrows
@@ -669,7 +723,7 @@ An earlier, simpler design treated `:=` and plain `let` as shallow const binding
 
 ```text
 user := User { ... }
-let mut users = [user]
+let users: mut list[User] = [user]
 users[0].display_name = "new"  # allowed in the alternative
 ```
 
@@ -923,10 +977,10 @@ If a map comprehension produces the same key more than once, the later value win
 
 Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
-Explicit mutable collection variables use `let mut`, like any other mutable binding:
+Mutable collection access is written in the collection type:
 
 ```text
-let mut attempts: list[i32] = []
+let attempts: mut list[i32] = []
 
 attempts.append(1)
 attempts.append(2)
@@ -988,7 +1042,7 @@ Varargs accept zero or more positional arguments:
 
 ```text
 fn sum(values: i32...) -> i32:
-    let mut total: i32 = 0
+    let total: i32 = 0
     for value in values:
         total = total + value
     total
@@ -1058,9 +1112,9 @@ Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named pa
 Closures capture values from lexical scope. Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
 
 ```text
-let mut count: i32 = 0
+let count: i32 = 0
 
-let mut next = mut fn() -> i32:
+let next: mut fn() -> i32 = mut fn() -> i32:
     count = count + 1
     count
 
@@ -1071,7 +1125,7 @@ Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) ->
 
 ```text
 fn repeat(times: i32, f: mut fn() -> void) -> void:
-    let mut i: i32 = 0
+    let i: i32 = 0
     while i < times:
         f()
         i = i + 1
@@ -1277,8 +1331,8 @@ Reasons:
 Loops should also support invariants:
 
 ```text
-let mut low: i32 = 0
-let mut high: i32 = items.len()
+let low: i32 = 0
+let high: i32 = items.len()
 
 while low < high:
     invariant:
@@ -2538,7 +2592,7 @@ Illustrative lowering for facet materialization:
 fn __annotation_DatabaseSchema_User() -> Result[TableSchema, AnnotationError]:
     shape := __meta_User()?
 
-    let mut fields = Dict[string, DatabaseColumn].empty()
+    let fields: mut Dict[string, DatabaseColumn] = Dict[string, DatabaseColumn].empty()
     for field in shape.fields:
         type_metadata := DatabaseSchema::annotation_ref(field.type)
         fields[field.name] = DatabaseSchema.map_field(field, type_metadata)
@@ -2825,8 +2879,8 @@ Write purity alone does not make a callback referentially stable. A const refere
 Illustrative library usage, not accepted final API:
 
 ```text
-let mut price = incremental.input(100)
-let mut quantity = incremental.input(2)
+let price = incremental.input(100)
+let quantity = incremental.input(2)
 
 total := incremental.compute(fn() -> i32:
     price.get() * quantity.get()

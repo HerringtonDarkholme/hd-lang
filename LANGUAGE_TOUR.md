@@ -65,26 +65,21 @@ if (trimmed := input.trim()) != "":
     println(trimmed)
 ```
 
-Use plain `let` when an immutable local needs an explicit declaration or type annotation:
+Use `let` for a local variable that may be reassigned. Type annotation is optional:
 
 ```text
 let display_name: string = "Ada"
 let nickname: string? = nil
 let inferred = 1
-```
-
-Use `let mut` when the variable will be reassigned or the value will be mutated in place. Type annotation is optional:
-
-```text
-let mut attempts: i32 = 0
-let mut counter = 1
+let attempts: i32 = 0
+let counter = 1
 
 attempts = attempts + 1
 counter = counter + 1
 attempts = attempts + 1
 ```
 
-For composite values, mutation permission is part of the access type. An immutable binding has access as `T`; `let mut` creates a mutable root with access as `mut T`. A const composite reference cannot be upgraded to a mutable one:
+For composite values, mutation permission is part of the type. `T` provides const access and `mut T` provides mutable access. Local declarations place `mut` in the type rather than before the binding name. A const composite reference cannot be upgraded to a mutable one:
 
 ```text
 user := User {
@@ -93,13 +88,13 @@ user := User {
     display_name: "Ada"
 }
 
-let mut alias = user  # error: User cannot become mut User
+let alias: mut User = user  # error: User cannot become mut User
 ```
 
 A mutable reference may be viewed as const, and that const alias can observe later changes made through an existing mutable alias:
 
 ```text
-let mut user = User {
+let user: mut User = User {
     id: "user_123",
     email: "ada@example.com",
     display_name: "Ada"
@@ -112,6 +107,8 @@ println(readonly.display_name)  # "Ada Lovelace"
 ```
 
 This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a const reference.
+
+An unannotated `let` infers the initializer's access type. Fresh composite construction may infer `mut T`, but assigning an existing `T` never upgrades it.
 
 Types appear where they make interfaces between code clear: function parameters, return types, struct fields, and public APIs.
 
@@ -281,7 +278,7 @@ If a map comprehension produces the same key more than once, the later value win
 
 Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
-The tour should prefer `:=` for ordinary immutable local values, `let` when an explicit local declaration is useful, `let mut` only for variables that must change, and explicit types for boundaries that humans, tools, and AI agents need to review.
+The tour should prefer `:=` for ordinary const local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
 
 ## Control Flow and Expressions
 
@@ -323,7 +320,7 @@ fn find_name(names: list[string], prefix: string) -> string?:
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:
 
 ```text
-let mut total: i32 = 0
+let total: i32 = 0
 
 for value in values:
     if value < 0:
@@ -336,7 +333,7 @@ for value in values:
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text
-let mut index: i32 = 0
+let index: i32 = 0
 
 while index < names.len():
     println(names[index])
@@ -415,14 +412,14 @@ struct Profile:
 struct Account:
     profile: mut Profile
 
-let mut profile = Profile {
+let profile: mut Profile = Profile {
     display_name: "Ada"
 }
 
 account := Account { profile: profile }
 account.profile.display_name = "Ada Lovelace"  # error: const root
 
-let mut editable = Account { profile: profile }
+let editable: mut Account = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
@@ -450,6 +447,10 @@ fn edit_users(users: mut list[mut User]) -> void:
 ```
 
 Here the list is a mutable root and its element references are mutable edges. `mut list[User]` can replace list elements but cannot mutate the referenced users; `list[mut User]` has mutable element references but lacks the mutable root needed to use them for mutation.
+
+Container and element permissions are independent, so all four forms are meaningful: `list[User]`, `list[mut User]`, `mut list[User]`, and `mut list[mut User]`.
+
+A read-only list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a const `User` into storage requiring `mut User`.
 
 Use copy-update syntax when creating a modified value from an existing struct:
 
@@ -787,7 +788,7 @@ Use varargs when a function accepts zero or more positional arguments of the sam
 
 ```text
 fn sum(values: i32...) -> i32:
-    let mut total: i32 = 0
+    let total: i32 = 0
     for value in values:
         total = total + value
     total
@@ -848,9 +849,9 @@ label := label_user("123")
 Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
 
 ```text
-let mut count: i32 = 0
+let count: i32 = 0
 
-let mut next = mut fn() -> i32:
+let next: mut fn() -> i32 = mut fn() -> i32:
     count = count + 1
     count
 
@@ -861,7 +862,7 @@ Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) ->
 
 ```text
 fn repeat(times: i32, f: mut fn() -> void) -> void:
-    let mut i: i32 = 0
+    let i: i32 = 0
     while i < times:
         f()
         i = i + 1
@@ -1190,6 +1191,21 @@ fn first[T](items: list[T]) -> T?:
     else:
         items[0]
 ```
+
+Generic type declarations use `+T` for covariance, `-T` for contravariance, and unmarked `T` for invariance:
+
+```text
+struct Producer[+T]:
+    produce: fn() -> T
+
+struct Consumer[-T]:
+    consume: fn(T) -> void
+
+struct Cell[T]:
+    value: T
+```
+
+Variance conversions apply to read-only outer views. A `mut Producer[T]`, `mut Consumer[T]`, or other mutable generic view remains invariant because its fields can be replaced.
 
 Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, annotation lookup, serialization, or type-directed dependency injection:
 
