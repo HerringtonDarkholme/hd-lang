@@ -1055,6 +1055,34 @@ If a map comprehension produces the same key more than once, the later value win
 
 Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
+### Iteration Protocol Direction
+
+Iteration has two distinct trait roles:
+
+- An ordinary `Iterable` source carries no per-traversal progress. Calling `iter()` creates a new traversal.
+- `Iterator` owns the mutable cursor/progress for one traversal. Calling `next(mut self)` advances only that iterator.
+
+Two iterators created from the same ordinary iterable therefore have independent progress, enabling repeated and nested traversal. An iterable may still contain data or refer to mutable data; it is only traversal-state-free, not necessarily an immutable or fieldless value.
+
+Every iterator also implements `Iterable`. Its `iter()` returns the same mutable iterator rather than creating a fresh cursor. It neither clones nor resets traversal state, so a `for` loop over a partially consumed iterator continues from its current position and leaves that iterator exhausted when the loop completes.
+
+Conceptually, the protocols have this shape:
+
+```text
+trait Iterator:
+    type Item
+
+    fn next(mut self) -> Self.Item?
+
+trait Iterable:
+    type Item
+    type Iter: Iterator
+
+    fn iter(self) -> mut Self.Iter
+```
+
+This sketch records the two-role model, not final associated-type constraint syntax. `for` loops and comprehensions consume these ordinary protocols rather than supporting only compiler-known collection types. Concurrent mutation of an underlying source during traversal remains unspecified.
+
 Mutable collection access is written in the collection type:
 
 ```text
@@ -1067,6 +1095,9 @@ attempts.append(2)
 Open syntax issues:
 
 1. Which collection operations are methods, functions, or trait-provided behavior.
+2. Exact associated-type syntax connecting `Iterable.Item`, `Iterable.Iter`, and `Iterator.Item`.
+3. Whether and how an iterator value itself can be passed directly to `for` without a separate wrapper.
+4. How source mutation during iteration is detected or specified.
 
 ## Function Shape
 

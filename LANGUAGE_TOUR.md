@@ -330,6 +330,16 @@ for value in values:
     total = total + value
 ```
 
+`for` separates an ordinary iterable source from the iterator that tracks one traversal. An ordinary `Iterable` contains no per-traversal cursor or progress. Each call to its `iter()` creates an independent mutable `Iterator`, whose `next()` operation advances only that iterator. This is why nested traversal over the same source has independent progress:
+
+```text
+for left in values:
+    for right in values:
+        println((left, right))
+```
+
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. The exact trait declarations and the behavior of an iterator when its underlying source is mutated remain open.
+
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text
