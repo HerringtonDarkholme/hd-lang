@@ -818,6 +818,34 @@ fn apply(value: string, transform: fn(string) -> string) -> string:
     transform(value)
 ```
 
+When a function's final parameter is a zero-argument callback, an indented trailing block can supply it without writing `fn()` or its return type:
+
+```text
+result := when(a, b):
+    compute_result()
+
+transaction:
+    save_user()
+    write_audit_log()
+```
+
+Ordinary arguments stay inside `()`. Calls with no ordinary arguments omit empty parentheses. The callback's return type and behavior are checked against the final parameter type. Callbacks with parameters continue to use explicit `fn(...)` syntax; trailing-block sugar is zero-argument only.
+
+`return` inside a trailing block exits the generated callback, not the enclosing function:
+
+```text
+fn load(cached: User, use_cache: bool) -> User:
+    user := transaction:
+        if use_cache:
+            return cached
+        fetch_user()
+
+    audit(user)
+    user
+```
+
+Here `return cached` supplies the callback's result, after which `load` continues with `audit(user)`. Trailing blocks do not support non-local return.
+
 Closures use anonymous `fn(...) -> ...` syntax. They are expressions, so they can be bound to names, passed to functions, or returned from functions:
 
 ```text
@@ -834,6 +862,30 @@ inc := fn(x: i32) -> i32: x + 1
 add := fn(x: i32, y: i32) -> i32: x + y
 make_id := fn() -> string: "id_123"
 ```
+
+Inline closures may omit parameter and return types when the surrounding call provides an expected function type. Parenthesize each closure expression to pass multiple multiline callbacks inline:
+
+```text
+fn choice(
+    first: fn(i32) -> void,
+    second: fn(string) -> void,
+) -> void:
+    first(1)
+    second("two")
+
+choice(
+    (
+        fn(aa):
+            println(aa)
+    ),
+    (
+        fn(bb):
+            println(bb)
+    ),
+)
+```
+
+The expected types infer `aa: i32`, `bb: string`, and a `void` return from both callbacks. Standalone or ambiguous closures still require explicit parameter and return types.
 
 Closures capture values from the surrounding lexical scope:
 
@@ -868,7 +920,7 @@ fn repeat(times: i32, f: mut fn() -> void) -> void:
         i = i + 1
 ```
 
-Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are stricter: they can only capture serializable values, and cannot capture live handles or capabilities unless a runtime feature explicitly supports that capture.
+Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are a separate deferred design area; the language has not yet defined their capture, identity, compatibility, or execution semantics.
 
 When a closure is passed where a function type is already expected, parameter and return types can usually be inferred:
 
@@ -1218,14 +1270,25 @@ items := resolve[list[i32]]()
 
 At the language level, a reified call behaves as if it passes a hidden `Type[T]` descriptor. This descriptor is not an ordinary source-level argument and cannot be supplied with a named argument. Reification is part of a function's public type and ABI.
 
-Variadic generics use type parameter packs. Minimal v1 supports packs only in function types, vararg parameters, and spread calls:
+Variadic generics use ordered type and value packs. Minimal v1 supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
 ```text
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
     f(args...)
 ```
 
-This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `list[any]` or a weak tuple type. v1 does not support pack mapping, filtering, splitting, or arithmetic.
+This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `list[Any]` or a weak tuple type.
+
+A pattern containing a pack can be expanded once per pack element. This is especially useful for a heterogeneous concurrency combinator:
+
+```text
+fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+    ...
+```
+
+For `Ts... = User, i32, bool`, `Suspend[Ts]...` expands to three parameter types, `Suspend[User], Suspend[i32], Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: `start(tasks)...` repeats `start(task)` for every value in the `tasks` pack. Pattern expansion happens at compile time and does not allocate a runtime collection.
+
+Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. v1 does not support general pack mapping, filtering, indexing, splitting, or arithmetic. This example establishes the type relationship for `all!`; its scheduling and cancellation behavior is defined separately by the concurrency design.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 
@@ -1245,19 +1308,48 @@ fn label[T: Display](value: T) -> string:
     value.display()
 ```
 
-Using a trait name as a value type creates a Go-style trait value: a pair of concrete value plus method table, dispatched at runtime. There is no `dyn` or `any` marker:
+Using a trait name as a value type creates a Go-style trait value: a pair of concrete value plus method table, dispatched at runtime. There is no `dyn` marker:
 
 ```text
 fn print_display(value: Display) -> void:
     println(value.display())
 ```
 
+`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically. Use `Any` for an erased dynamic value and `T: Any` when generic code must preserve the concrete type:
+
+```text
+fn keep_erased(value: Any) -> Any:
+    value
+
+fn preserve[T: Any](value: T) -> T:
+    value
+```
+
+Mutable bounds combine access permission with trait conformance:
+
+```text
+trait Clear:
+    fn clear(mut self) -> void
+
+fn clear_value[T: mut Clear](value: T) -> void:
+    value.clear()
+
+fn accept_mutable[T: mut Any](value: T) -> void:
+    keep_erased(value)
+```
+
+`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut list[User]` satisfies `mut Any`; `list[mut User]` does not, because its root is const.
+
 There is no implicit nullability. `T` and `T?` are different types, and `nil` only belongs to optional values:
 
 ```text
 let name: string = "Ada"
 let nickname: string? = nil
+let value: Any = nil         # invalid
+let maybe_value: Any? = nil
 ```
+
+Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
 
 Struct embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer struct a subtype of the embedded struct.
 
@@ -1384,6 +1476,41 @@ Import and re-export cycles are rejected in v1.
 
 v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier.
 
+## Program Entry Points
+
+`pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and every other host service are explicit context requirements:
+
+```text
+import std.host.{Args, Console}
+
+pub fn main!() -> Result[void, AppError] $ Args + Console:
+    args, console := $.use(Args, Console)
+    console.write_line!("starting " + args.program_name())?
+```
+
+The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `Err` to a failed invocation.
+
+`pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
+
+Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, structs, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
+
+```text
+pub struct LookupRequest:
+    ids: list[UserId]
+    filters: map[string, string]
+
+pub enum LookupError:
+    InvalidId(id: string)
+    Unavailable(message: string)
+
+fn lookup_users!(request: LookupRequest) -> Result[list[User], LookupError] $ Database:
+    ...
+```
+
+Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. Context requirements such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
+
+Maps are unordered by default. Their insertion or iteration order is not part of the value or boundary semantics, and boundary consumers must not infer meaning from the order used by a particular encoding.
+
 ## Effects
 
 Effects make handler-mediated behavior visible in function signatures. A function that accesses a dependency, logs, calls a model, uses a capability, or can suspend into a handler should say so in its type.
@@ -1417,6 +1544,19 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     user := db.get_user!(id)?
     user
 ```
+
+A suspending declaration also creates a cold computation constructor:
+
+```text
+pending := load_user(id)   # Suspend[Result[User?, DbError]]; no body code has run
+user := load_user!(id)?    # construct, drive, and suspend here if necessary
+```
+
+`fn load_user!(...) -> T` lowers conceptually to a function constructing `Suspend[T]`. Arguments are evaluated when the cold suspension is constructed, while the body is compiled into a resumable state machine and begins only when driven. Each nested bang call is a possible suspension point: the compiler saves the enclosing state, drives the child computation, and resumes with its result.
+
+`Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension.
+
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driving context. Cancellation is synchronous and cleanup cannot suspend. Source-level cleanup remains [backlog work](DESIGN_QUESTIONS.md#deferred-resource-cleanup-and-scope-exit). Stored-suspension driving syntax remains open, and a separate `Task[T]` API is deferred.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks the call as a suspension point where execution can enter the provider/handler.
 
@@ -1832,7 +1972,9 @@ $.with(FileRead=memory_files):
 
 A user-defined in-memory implementation can satisfy `FileRead` without receiving ambient filesystem access. If an implementation needs real filesystem, network, clock, secret, subprocess, or other host access, that access must itself come from the providers available to it.
 
-The runtime starts sandboxed and supplies no ambient external-resource providers by default. Security follows dependency reachability: code can only reach authority exposed by its current provider context. Missing requirements remain compile-time errors at ordinary call sites, and an application or deployment entry point must have its full requirement row satisfied by its host configuration.
+hd-lang compiles to WebAssembly using Wasm GC for managed language values. WASI is the host boundary. Every authority-bearing capability provider originates at that boundary; a Wasm module cannot manufacture ambient filesystem, network, clock, randomness, secrets, or similar authority. User code may wrap or narrow an injected provider, and a test host may inject an in-memory implementation through the same dependency mechanism.
+
+The runtime starts sandboxed and supplies no ungranted external-resource providers. Security follows dependency reachability: code can only reach authority exposed by its current provider context. Missing requirements remain compile-time errors at ordinary call sites, and an application or deployment entry point must have its full requirement row satisfied by its host configuration.
 
 An entry point's transitive `$` requirements are the authoritative capability list:
 
@@ -1842,16 +1984,21 @@ pub fn main!() -> void $ FileRead + Network:
     sync_config!(config)?
 ```
 
-The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate capability permission list. Host configuration binds concrete providers and their scopes to the derived requirement keys. Running or deploying an entry point fails before execution when any required provider is missing.
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate capability permission list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider.
 
-This design deliberately gives capabilities no special language semantics. Sandboxing is enforced by the runtime and host-provider boundary, while `$`, `$.use`, `$.with`, and `$.Context[...]` remain the single dependency mechanism.
+Every host-backed standard-library service is exposed as a trait requirement rather than a global API. `$`, `$.use`, `$.with`, and `$.Context[...]` are therefore the single mechanism for standard filesystem, network, clock, randomness, observability, workflow, and similar runtime services. Pure operations such as collection transforms, arithmetic, and in-memory parsing remain ordinary functions and require no context.
+
+This design deliberately gives capabilities no special language semantics. Sandboxing is enforced by the runtime and host-provider boundary.
 
 Open questions from this section:
 
 1. Which standard capability traits ship in v1.
-2. The configuration syntax for binding host providers to derived entry-point requirements.
-3. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
-4. How capability contexts are preserved or rejected during serialization and resumption.
+2. Which WASI version and component ABI the initial runtime uses.
+3. The configuration syntax for granting and binding host providers to derived entry-point requirements.
+4. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
+5. How capability contexts are preserved or rejected during serialization and resumption.
+
+The granularity of standard capability traits is intentionally deferred until the standard library is implemented. For example, the design does not yet choose between one `FileSystem` trait and narrower `FileRead`, `FileWrite`, and `DirectoryList` traits.
 
 ## Persistence and Resumption
 
@@ -1877,7 +2024,7 @@ Code between suspension points must be deterministic. Time, randomness, external
 
 External operations may run more than once if a worker fails after performing an operation but before recording its completion. The runtime therefore supplies an idempotency key for each scheduled event, and durable providers must either honor it or document weaker delivery guarantees.
 
-There is no `checkpoint` keyword. In v1, the runtime does not serialize the native or JavaScript call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures remain useful for queued callbacks and captured work, but they are not the primary workflow continuation mechanism.
+There is no `checkpoint` keyword. In v1, the runtime does not serialize the active WebAssembly call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures are not the primary workflow continuation mechanism, and their separate semantics remain in the backlog.
 
 Interactive notebook-style sessions combine a live kernel with a deterministic execution journal. While the kernel remains alive, closing and reconnecting a client reuses its current namespace without replay. Each successful cell atomically commits a run containing its cell and code identity, parent state, suspension events, state delta, and output.
 

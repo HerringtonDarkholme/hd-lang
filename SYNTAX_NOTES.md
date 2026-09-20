@@ -98,6 +98,27 @@ Reasoning:
 
 An unannotated `let` infers the initializer's access type. A fresh composite initializer may infer `mut T`, but an existing `T` remains `T`; inference never upgrades const access.
 
+A function returning mutable access must declare `-> mut T`. A return type of `T` exposes only const access, even if the function creates a fresh object internally. Callers use the declared return type; freshness does not propagate across a function boundary to recover mutation permission.
+
+```text
+fn new_user() -> User:
+    User { name: "hi" }
+
+fn new_mutable_user() -> mut User:
+    User { name: "hi" }
+
+fn borrow(u: User) -> User: u
+
+fn change_name(u: mut User) -> void:
+    u.name = "new"
+
+immutable := new_user()
+change_name(immutable)          # error: requires mut User
+change_name(new_user())         # error: declared return type is User
+change_name(borrow(immutable))  # error: declared return type is User
+change_name(new_mutable_user()) # allowed: declared return type is mut User
+```
+
 ## Type System Direction
 
 The type system should be static, with local inference and explicit public boundaries. The compiler should know the type of every expression before code runs, but ordinary local code can avoid redundant annotations.
@@ -267,20 +288,33 @@ The initial runtime-type operations requiring reification include:
 
 Concrete type expressions always have materializable descriptors, so `resolve[list[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve[list[T]]()` requires `T` to be reified.
 
-Reified functions do not require an `inline` modifier. JavaScript can pass descriptors directly; WebAssembly can use descriptor passing, specialization, or both. Backends may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
+Reified functions do not require an `inline` modifier. The WebAssembly backend can use descriptor passing, specialization, or both. It may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
 
 In v1, `reified` applies to function generic parameters. Reified parameters on generic struct, enum, trait, and type declarations remain a separate design question.
 
 v1 does not support partial explicit generic arguments or placeholder generic arguments.
 
-Variadic generics use type packs. Minimal v1 supports packs only in function types, vararg parameters, and spread calls:
+Variadic generics use ordered type and value packs. Minimal v1 supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
 ```text
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
     f(args...)
 ```
 
-v1 does not support pack mapping, filtering, splitting, or arithmetic.
+A pattern containing a pack can be repeated once for every pack element by placing `...` at its expansion position. This lets an ordinary library function preserve a pointwise relationship between heterogeneous inputs and outputs:
+
+```text
+fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+    ...
+```
+
+For `Ts... = User, i32, bool`, the parameter pattern expands to `Suspend[User], Suspend[i32], Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
+
+If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. v1 does not support general pack mapping, filtering, indexing, splitting, or arithmetic. The scheduling and cancellation semantics of `all!` belong to the concurrency design; this example specifies only the variadic type relationship.
+
+`all!` treats a child's `Err` as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `Err` values. Runtime panics and cancellation are separate from this result-value rule.
+
+`race!` returns the first completed child's value, including `Err`, and synchronously cancels the remaining children before returning. It does not wait for the first `Ok`. Tie-breaking between ready children remains unspecified.
 
 Traits are explicit, not structural. A type does not implement a trait just because it has matching methods:
 
@@ -293,7 +327,19 @@ impl Display for User:
         self.email
 ```
 
-Generic bounds such as `T: Display` use static dispatch. Trait value types such as `value: Display` use Go-style dynamic dispatch: the runtime value carries concrete data plus a method table. There is no `dyn` or `any` marker.
+Generic bounds such as `T: Display` use static dispatch. Trait value types such as `value: Display` use Go-style dynamic dispatch: the runtime value carries concrete data plus a method table. There is no `dyn` marker.
+
+`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically:
+
+```text
+fn preserve[T: Any](value: T) -> T:
+    value
+
+fn keep_erased(value: Any) -> Any:
+    value
+```
+
+`Any` is non-null. `nil` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T: Any` is a generic constraint that preserves the concrete type.
 
 Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values.
 
@@ -427,6 +473,26 @@ Submodule access goes through imports; a parent module does not automatically im
 Import and re-export cycles are rejected in v1.
 
 v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier.
+
+## Program Entry Points And Wasm Exports
+
+An executable package uses `pub fn main` as its conventional default entry point:
+
+```text
+import std.host.{Args, Console}
+
+pub fn main!() -> Result[void, AppError] $ Args + Console:
+    args, console := $.use(Args, Console)
+    console.write_line!("starting " + args.program_name())?
+```
+
+`main` has no source-level parameters. Arguments, environment, I/O, and other host facilities are supplied as context requirements. It follows ordinary suspension naming: use `main!` only when its body can suspend. Its return type may be `void` or `Result[void, E]`; the generated host adapter maps `Err` to invocation failure.
+
+`pub` only controls visibility between hd-lang modules. It does not export every public function through the Wasm component boundary. Tools, workflows, and library-facing functions require explicit registration, and that registration generates a typed host adapter. Their exact registration APIs are separate library/tooling designs.
+
+An exported signature is checked recursively for boundary-safe structural types. The initial allowed forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, structs, enums, `T?`, and `Result[T, E]`; every nested type argument, field, variant payload, success value, and error value must itself be boundary-safe. A map key must also satisfy the ordinary map-key rules. Mutable types, trait values, closures, and live runtime handles are rejected anywhere in the boundary shape. `$` requirements are bound by the host adapter and are not serialized parameters.
+
+`map[K, V]` is unordered by default. Insertion and iteration order are not part of map equality or boundary semantics, even if a particular host encoding represents entries as a sequence.
 
 ## Primitive Types
 
@@ -713,7 +779,19 @@ struct InvalidBox[T]:
     value: mut T  # invalid: T may already be `mut U`
 ```
 
-The spelling for constraining a generic parameter to mutable types remains open. Such a constraint must constrain `T` itself rather than constructing `mut T` inside the generic declaration.
+Mutable generic constraints qualify a trait bound. `T: mut Any` accepts any mutable root type; `T: mut Trait` accepts a mutable root whose underlying type implements `Trait`:
+
+```text
+trait Reset:
+    fn reset(mut self) -> void
+
+fn reset_value[T: mut Reset](value: T) -> void:
+    value.reset()
+```
+
+The `mut` qualifier proves that `value` can call methods requiring `mut self`. `T` remains the complete inferred type, including its access permission. For example, `mut list[User]` satisfies `mut Any`, but `list[mut User]` does not because its root is const.
+
+Trait values follow the same rule. `mut Trait` is a mutable dynamic trait view, and `mut Any` is an erased mutable composite reference. The qualifier preserves permission but does not invent operations: `mut Any` can only use universal runtime operations until checked as a concrete mutable type or passed somewhere with a stronger trait requirement.
 
 Mutable map keys are provisionally disallowed because changing a structurally hashed key could invalidate map invariants. The exact stable-key trait or restriction remains open.
 
@@ -1038,6 +1116,54 @@ fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connectio
     ...      # invalid: default value suspends and requires a capability
 ```
 
+### Trailing Blocks
+
+A call may pass an indented block as its final argument when the final parameter is a zero-argument function. Ordinary positional and named arguments remain inside parentheses:
+
+```text
+result := when(a, b):
+    compute_result()
+
+transaction:
+    save_user()
+    write_audit_log()
+```
+
+The second form has no ordinary arguments, so it omits empty `()`. The compiler constructs the zero-argument closure and checks the block against the final parameter's expected function type, including its inferred return type, capture mutability, requirements, and suspension behavior.
+
+Illustrative desugaring:
+
+```text
+result := when(a, b, fn():
+    compute_result()
+)
+```
+
+This sugar is restricted to zero-argument callbacks. A callback with parameters uses the ordinary explicit closure syntax:
+
+```text
+names := users.map(fn(user: User) -> string:
+    user.name
+)
+```
+
+Only one trailing block is allowed, and it always supplies the final function parameter.
+
+Control flow is local to the generated callback. In particular, `return` exits that callback and supplies its return value; it does not return from the enclosing function:
+
+```text
+fn load(cached: User, use_cache: bool) -> User:
+    user := transaction:
+        if use_cache:
+            return cached
+        fetch_user()
+
+    audit(user)
+    user
+```
+
+The `return cached` above returns from the callback passed to `transaction`. Execution then continues with `audit(user)` in `load`. Non-local return through a trailing block is not supported.
+
 Varargs accept zero or more positional arguments:
 
 ```text
@@ -1107,6 +1233,30 @@ The same call can use a same-line closure:
 lower_names := map_names(names, fn(name): name.lower())
 ```
 
+Contextual typing also keeps multiple multiline callbacks inline. Parentheses delimit each closure expression, and the comma after `)` separates call arguments:
+
+```text
+fn choice(
+    first: fn(i32) -> void,
+    second: fn(string) -> void,
+) -> void:
+    first(1)
+    second("two")
+
+choice(
+    (
+        fn(aa):
+            println(aa)
+    ),
+    (
+        fn(bb):
+            println(bb)
+    ),
+)
+```
+
+Here `aa` is inferred as `i32`, `bb` as `string`, and both callbacks return `void`. Without an expected function type, the closure must state its parameter and return types explicitly.
+
 Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named parameters in the closure parameter list.
 
 Closures capture values from lexical scope. Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
@@ -1131,7 +1281,7 @@ fn repeat(times: i32, f: mut fn() -> void) -> void:
         i = i + 1
 ```
 
-Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are stricter: they can only capture serializable values, and cannot capture live handles or capabilities unless a runtime feature explicitly supports that capture.
+Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are a separate deferred design area; their capture and execution semantics have not been decided.
 
 Overloads are not supported. Each function name resolves to one declaration in a scope.
 
@@ -1367,12 +1517,17 @@ Dependencies should be modeled as signature requirements, but they do not need a
 
 Normal error handling is not modeled as an effect. Errors use `Result[T, E]`.
 
-### Effect Body Operations
+### Decomposed Effect Model
 
-An effect is doing two related but distinct jobs:
+hd-lang pragmatically decomposes concerns commonly handled by algebraic effects into three mechanisms. They are related and intentionally not fully orthogonal:
 
-1. Resolving or injecting a dependency/capability.
-2. Suspending execution flow into a handler.
+1. **One-shot suspension:** `fn!`, `Suspend[T]`, bang calls, polling, and cancellation describe where execution may suspend and how a runtime drives it. This is not a general continuation system and does not provide multi-shot resumption.
+2. **Requirement checking:** `$` requirement rows let the compiler verify that every dependency a function may use is available. Requirements are not primarily an authority or host-capability model.
+3. **Dependency injection:** contexts, providers, `$.use(...)`, and `$.with(...)` select concrete implementations that satisfy those requirements.
+
+At explicit dependency and suspension boundaries, the same source can execute with different providers or runtime drivers, such as production, mock, sandbox, and replay implementations. Ordinary code outside those boundaries is not reinterpreted. Requirements and suspension points remain visible and compiler-checked across these executions.
+
+This decomposition replaces a single catch-all effect operation or handler construct. The mechanisms cooperate, but none implies the others: dependency lookup does not suspend, suspension does not represent normal errors, and a dependency may be required without being authority-bearing. Ordinary traits define dependency interfaces; they are the existing foundation of this model, not a fourth effect mechanism.
 
 The signature can summarize the required `$` row:
 
@@ -1380,7 +1535,7 @@ The signature can summarize the required `$` row:
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database
 ```
 
-But the distinction should be expressed in the body, not by writing `use` or `raise` as kinds inside the function signature.
+Their distinct roles are expressed in the body, not by writing `use` or `raise` as kinds inside the function signature.
 
 ```text
 db := $.use(Database)
@@ -1401,6 +1556,145 @@ fn get_user!(id: UserId) -> Result[User?, DbError]:
 
 user := db.get_user!(id)?
 ```
+
+The declaration also introduces a cold computation constructor. Given:
+
+```text
+fn load_user!(id: UserId) -> Result[User, DbError]:
+    user := fetch_user!(id)?
+    Ok(user)
+```
+
+the two call forms differ deliberately:
+
+```text
+pending := load_user(id)   # Suspend[Result[User, DbError]]; body has not started
+result := load_user!(id)   # construct and immediately drive the suspension
+```
+
+`fn load_user!(...) -> T` is source-level sugar for a function that constructs `Suspend[T]`. The compiler evaluates and captures ordinary call arguments when constructing the suspension, then lowers the function body into a resumable state machine. It does not lower to an eagerly executed ordinary function body that merely happens to return `Suspend[T]`. Inside that state machine, `fetch_user!(id)` drives the child suspension until it completes or suspends; if it suspends, the enclosing `load_user` state is saved and resumed later.
+
+Conceptually, but not as normative source syntax:
+
+```text
+fn load_user(id: UserId) -> Suspend[Result[User, DbError]]:
+    runtime.suspend_state_machine(...lowered body...)
+
+load_user!(id)
+# approximately: runtime.drive!(load_user(id))
+```
+
+`Suspend[T]` is the trait implemented directly by compiler-generated suspension frames. The driver polls a frame, receiving `Pending` or `Ready(T)`. `Poll[T]` describes the outcome of one poll, while `Suspend[T]` represents the computation that retains state between polls. The polling context provides a waker that requests another poll when progress is possible; the waker does not carry the result. No separate public `Continuation[T]` is required.
+
+```text
+enum Poll[T]:
+    Pending
+    Ready(T)
+
+trait Suspend[T]:
+    fn poll(mut self, context: PollContext) -> Poll[T]
+    fn cancel(mut self) -> void
+```
+
+Suspension values use ordinary dynamic trait dispatch. The driver must obtain mutable access under the runtime exclusive-driving guard; this is not permission to upgrade arbitrary const references. The exact compiler/runtime access mechanism remains to be specified.
+
+Each suspension represents one execution. Exclusive driving is checked at runtime, not through ownership or affine types: competing drivers and reentrant polling panic. Successive polls by the same driver while pending are valid. Starting another execution or polling a completed or canceled suspension panics. The suspension does not restart or cache a result for repeated driving.
+
+Dependency providers are captured at construction. The caller must satisfy the suspending function's `$` requirements through its own signature or a local provider scope, even for an unbanged call that only constructs the suspension. Arguments and providers are captured without running the body; a later driving context cannot replace the captured providers.
+
+```text
+fn prepare_user(id: UserId) -> Suspend[Result[User, DbError]] $ Database:
+    load_user(id)  # captures this caller's Database provider
+```
+
+This example assumes `load_user!` declares `$ Database`. Construction alone does not suspend, so `prepare_user` has no bang suffix. Durable replay reconstructs execution with rebound host providers rather than serializing provider handles.
+
+Cancellation is synchronous, provisionally expressed as `cancel(mut self) -> void` on the polling protocol. The driver serializes cancellation with polling. Cancellation terminates execution, cancels owned active child operations, unregisters waits, and performs synchronous cleanup. Repeated cancellation is harmless; late wakes cannot restart the suspension. Source-level cleanup registration and resource lifetime rules remain in [Deferred Resource Cleanup And Scope Exit](#deferred-resource-cleanup-and-scope-exit). Cancellation does not introduce a cleanup keyword or asynchronous cleanup.
+
+Cancelling `all!` or `race!` synchronously cancels every unfinished child. Once cancellation returns, those children cannot resume execution. Cancellation propagates through providers to actively abort underlying external operations, such as an HTTP request; merely ignoring their eventual results is insufficient. The synchronous cancellation path invokes the host/provider abort mechanism without waiting for remote acknowledgement. Aborting an operation does not undo effects already performed by a remote system.
+
+The direct syntax for driving a stored suspension remains open. A separate `Task[T]` wrapper and its API are backlog work. Scheduling, structured scope representation, and runtime-panic policies for concurrency combinators also remain open.
+
+### Compiling A Suspending Function
+
+The compilation strategy is a stackless state machine. Split the function at possible suspension points, store locals that remain live across those points in a managed frame, and generate polling and synchronous cancellation paths. The unbanged constructor captures arguments and the required providers; the first poll enters the body. A child returning `Ready` permits the parent to continue within the same poll. A child returning `Pending` causes the parent to preserve its state and return `Pending` using the same waker.
+
+The following lowering is non-normative and illustrative. Generated names, polling trait spelling, and `runtime` helpers are explanatory placeholders, not additional accepted source APIs. The compiler performs this transformation; it preserves ordinary runtime behavior rather than evaluating the body at compile time.
+
+Source:
+
+```text
+trait Counter:
+    fn next!(self) -> i32
+
+fn adjusted!(base: i32) -> i32 $ Counter:
+    counter := $.use(Counter)
+    offset := base + 1
+    value := counter.next!()
+    value + offset
+```
+
+Illustrative generated frame and constructor:
+
+```text
+enum AdjustedState:
+    New(base: i32, counter: Counter)
+    Waiting(child: mut Suspend[i32], offset: i32)
+    Done
+    Cancelled
+
+struct AdjustedFrame:
+    state: AdjustedState
+
+fn adjusted(base: i32) -> Suspend[i32] $ Counter:
+    counter := $.use(Counter)
+    AdjustedFrame {
+        state: AdjustedState.New(base, counter)
+    }
+```
+
+The generated frame implements `Suspend[i32]` directly and is returned through ordinary dynamic trait dispatch, without a separate suspension wrapper. Driver access and exclusive-driving checks are supplied by compiler/runtime machinery, whose exact representation remains open. Capturing `counter` here fixes the provider at construction time. Neither `base + 1` nor `counter.next()` runs until the first poll.
+
+Illustrative generated implementation:
+
+```text
+impl Suspend[i32] for AdjustedFrame:
+    fn poll(mut self, context: PollContext) -> Poll[i32]:
+        while true:
+            match self.state:
+                AdjustedState.New(base, counter) =>
+                    offset := base + 1
+                    child := runtime.claim_child(counter.next())
+                    self.state = AdjustedState.Waiting(child, offset)
+
+                AdjustedState.Waiting(child, offset) =>
+                    match runtime.poll_child(child, context):
+                        Poll.Pending => return Poll.Pending
+                        Poll.Ready(value) =>
+                            self.state = AdjustedState.Done
+                            return Poll.Ready(value + offset)
+
+                AdjustedState.Done => panic("suspension already completed")
+                AdjustedState.Cancelled => panic("suspension was cancelled")
+
+    fn cancel(mut self) -> void:
+        match self.state:
+            AdjustedState.New(_, _) =>
+                self.state = AdjustedState.Cancelled
+            AdjustedState.Waiting(child, _) =>
+                self.state = AdjustedState.Cancelled
+                runtime.cancel_child(child)
+            AdjustedState.Done => pass
+            AdjustedState.Cancelled => pass
+```
+
+The child helpers preserve the same exclusive driver identity through nested polling. They do not create a task or imply that `Task[T]` has been accepted. Mutable access to the child payload above represents generated access through the mutable frame; the exact source-level pattern rules are not specified by this lowering.
+
+The runtime guard around the frame rejects competing drivers and reentrant entry before calling generated code. Terminal-state checks prevent repeated execution. Cancelling before the first poll never starts the body; cancelling while waiting synchronously cancels the active child. The child provider unregisters its pending waits, and stale wakes cannot re-enter the cancelled execution. This example has no user-owned resources or cleanup declarations; those remain in [Deferred Resource Cleanup And Scope Exit](#deferred-resource-cleanup-and-scope-exit).
+
+For example, polling `adjusted(10)` constructs its child once and saves `offset = 11`. If the child is pending, a later wake triggers another poll of that same child. When it returns `7`, the parent returns `Ready(18)`. Each further suspension point adds the necessary frame state and live locals. Loops reuse states, and a `Result` propagated by `?` completes with `Ready(Err(error))`; an ordinary error result is not cancellation.
+
+For the Wasm GC backend, frames and captured language values use managed storage. A frame contains the state discriminator and the values needed for resumption; the compiler may optimize their layout. Durable workflow recovery reconstructs these frames by deterministic replay rather than serializing the frame or waker.
 
 This is closer to Effect's service model, where the type tracks required services but service access happens in the program body, and to Kotlin-style functional effects where effectful operations are explicit suspension points.
 
@@ -1460,7 +1754,7 @@ fn load_config!(path: string) -> Result[string, FileError] $ FileRead:
     files.read!(path)
 ```
 
-The sandbox supplies no ambient external-resource providers by default. A fake implementation may satisfy `FileRead` using in-memory data, while an implementation that accesses the host filesystem must receive that authority from its own context. Security is enforced at the runtime/provider boundary, not by making capability requirements a distinct type-system concept.
+hd-lang compiles to WebAssembly using Wasm GC for managed language values, with WASI as the host boundary. Every authority-bearing capability provider originates at that boundary. A Wasm module cannot manufacture ambient external authority. A fake implementation may satisfy `FileRead` using in-memory data, while an implementation that accesses the host filesystem must receive that authority from its host-injected context. User code may wrap or narrow an injected provider. Security is enforced at the runtime/provider boundary, not by making capability requirements a distinct type-system concept.
 
 An entry point's transitive `$` requirement row is the authoritative provider list:
 
@@ -1469,12 +1763,14 @@ pub fn main!() -> void $ FileRead + Network:
     ...
 ```
 
-The compiler derives and verifies requirements from the call graph. Manifests do not repeat a separate capability list; host configuration only binds concrete, scoped providers to the derived keys. Missing entry-point providers are reported before execution.
+The compiler derives and verifies requirements from the call graph. Manifests do not repeat a separate capability list; host configuration only grants and binds concrete, scoped providers to the derived keys. Every host-backed standard-library service is a trait requirement obtained through the context system; there are no ambient global service APIs. The official hd runtime implements every standard capability and injects only those granted to the invocation. Alternate hosts may implement a subset. Missing entry-point providers are reported before execution. Pure standard-library operations remain ordinary functions and require no context.
 
 Open syntax issues:
 
 1. Exact provider declaration syntax for production, tests, and package/app boundaries.
 2. `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction, including pattern matching.
+
+Standard capability granularity is deferred until the standard library is implemented. Broad service traits and narrower least-authority traits should be compared against concrete APIs rather than selected as a standalone language rule.
 
 ## Effect Polymorphism
 
@@ -2852,9 +3148,105 @@ trait Observability:
 
 Each observation has a stable identity derived from execution ID, boundary ID, attempt, and event kind. Replaying an already completed history event does not emit its observations again. Exact custom-span syntax, metric instruments, observation scalar representation, privacy rules, and exporter configuration remain open. The `sample + emit` interface is an initial draft and may be optimized.
 
+## Deferred Resource Cleanup And Scope Exit
+
+This entire topic is backlog material and is excluded from the MVP. The language has not selected `Drop`, `using`, `with`, `defer`, or `errdefer` syntax.
+
+The central distinction is where cleanup belongs:
+
+- RAII/`Drop` and `using` attach cleanup to a resource value and its lifetime. This gives the type system, generic constraints, analyzers, and tooling a protocol to inspect and enforce.
+- `defer` attaches an arbitrary action to exit from a lexical control-flow scope. The action can capture local mutable state and need not correspond to a resource type.
+- Python-style `with` gives a manager control over entry and exit around a block, including the opportunity to transform the entered value and inspect exceptional completion.
+
+There is an intentional asymmetry. A statement-form `defer` can invoke any cleanup protocol directly. A protocol can represent arbitrary scope-exit work only by wrapping a closure in a general guard or stack, which recreates defer as a library abstraction. The two approaches may be computationally equivalent with such adapters, but they are not equally direct or equally enforceable.
+
+Concrete cases where direct `defer` avoids protocol ceremony include:
+
+```text
+# Read local state after it has changed.
+started := clock.now()
+defer:
+    metrics.record(clock.now() - started, attempt, cache_hit)
+```
+
+```text
+# Restore a mutation rather than release a resource.
+old := config.verbose
+config.verbose = true
+defer:
+    config.verbose = old
+```
+
+Other cases are conditional or runtime-sized cleanup registration, outcome-dependent commit or rollback, staged construction that transfers completed resources on success, and several independent cleanups interleaved with ordinary logic. Protocol-based systems can express these with scope guards, context managers, exit stacks, disposable stacks, or explicit ownership-transfer operations, but each requires a reusable abstraction or closure-backed adapter.
+
+Most desirable uses still pair setup with teardown; the setup is simply not always resource construction. Unpaired patterns such as panic recovery, modifying a pending return value, or implicitly rewriting an error are separate control-flow features and are not accepted motivations for hd-lang.
+
+A candidate hybrid for later discussion is protocol-owned RAII/`Drop` as the foundation for real resources, plus Zig-style lexical `defer` and possibly `errdefer` as escape hatches for ad-hoc restoration and rollback. Go-style function-scoped defer is disfavored because registration inside a loop delays cleanup until the whole function exits. This candidate is recorded for comparison, not accepted.
+
+Any later design must specify interaction with `Result` and `?`, cleanup failures, mutable captures, alias escape, suspending `!` cleanup, cancellation, and deterministic replay. A live non-serializable resource may also need to be prohibited from crossing a durable suspension boundary.
+
+### Resource Escape And Use After Disposal
+
+The current type system does not cover resource leakage through aliases. `mut` expresses write permission only; it does not express ownership, lexical lifetime, open/closed state, or responsibility for disposal. Consequently, either a future `defer` or `using` design could allow an alias to outlive the resource scope:
+
+```text
+let global_file: File? = nil
+
+fn publish_file() -> void:
+    file := File.open("data.txt")
+    defer:
+        file.close()
+
+    global_file = file
+
+# In another function returning an optional value, after `publish_file`
+# has closed the file:
+file := global_file?
+file.read()  # should be rejected or fail explicitly as already disposed
+```
+
+The same problem exists with protocol-owned cleanup:
+
+```text
+fn publish_file() -> void:
+    using file = File.open("data.txt")
+    global_file = file
+```
+
+Both snippets are illustrative backlog syntax, not accepted hd-lang programs. The optional global is explicitly unwrapped before the later read, so the intended issue is use after disposal rather than optional-value handling. Lexical cleanup guarantees that one cleanup action runs; by itself it does not invalidate or find aliases stored in globals, fields, containers, returned values, or closures. Garbage collection also cannot provide prompt deterministic release.
+
+Potential solution families remain open:
+
+1. Resource-only affine ownership, where a scoped resource cannot be copied and an explicit transfer moves cleanup responsibility elsewhere.
+2. Region or scoped-lifetime types that prevent a resource reference from escaping its lexical region.
+3. Typestate such as `OpenFile` and `ClosedFile`, combined with alias restrictions strong enough to update every usable reference.
+4. A shared runtime handle whose operations detect disposal and return a typed `Result` error. This catches use after disposal at runtime but not at compile time.
+5. Scoped callback APIs whose resource type cannot escape the callback, requiring some form of higher-ranked or region-polymorphic typing.
+
+This problem is independent of choosing `defer`, `using`, or `with`: all three need an ownership, lifetime, or runtime-state policy if hd-lang intends `global_file.read()` to be a compile-time error. It also raises the question of whether a narrow ownership discipline should apply only to external resources even though general hd-lang values retain shared-reference semantics.
+
 ## Serializable Closures And Incremental Computation
 
-Serializable closures should package a function reference with its captured environment so computation can be stored, moved, cached, or resumed. Incremental computation should track dependencies so derived results are reused and only affected computations are recomputed.
+Serializable closures and incremental computation are deferred design areas rather than active syntax work. Serializable closures are intended to make captured computation storable or movable, but "a function reference plus its captured environment" is only a motivation, not an accepted semantic definition. Incremental computation should track dependencies so derived results can be reused and only affected computations are recomputed.
+
+### Serializable Closure Semantics Backlog
+
+The semantics must be fixed before choosing inference, a distinct function type, an annotation, a modifier, or a wrapper such as `Serializable[fn(...)]`. No such API or syntax has been accepted.
+
+The backlog must define:
+
+1. Whether capture serialization takes a value snapshot, preserves identity and aliasing, or rejects captures where the distinction is observable.
+2. Whether mutable captures are forbidden, frozen, independently copied, or restored as shared mutable state.
+3. Representation of nested graphs, repeated references, cycles, trait values, and nested closures.
+4. Stable code identity and compatibility across source changes, compiler versions, deployments, and WebAssembly runtime versions.
+5. Treatment of erased and `reified` generic arguments in stored identity and execution.
+6. Whether requirements, capabilities, authorization, and provider state are captured, rebound, or prohibited. Live runtime resources need an explicit rule rather than an assumed exception.
+7. The boundary between compile-time capture rejection and runtime serialization failure for dynamically typed or abstract values.
+8. Delivery, replay, cancellation, expiry, idempotency, and result-compatibility guarantees.
+9. Sandbox validation and trust of stored code identities and captured data.
+10. Schema evolution and migration for captures and results.
+
+Durable workflow replay already has its own semantics and does not depend on serializing closures or the execution stack. Incremental computation and cross-run caching likewise remain distinct concerns.
 
 ### Research Findings
 
@@ -2928,7 +3320,7 @@ The runtime should expose a stable machine-readable graph containing node and co
 
 These findings establish an architectural boundary, not a complete design. Exact API spelling, identity and fingerprint protocols, storage tiers, persistence and distribution, collection granularity, node lifetime, cycle handling, and observability integration remain open.
 
-Possible annotation sketches:
+Earlier syntax sketches, retained only as non-normative historical examples:
 
 ```text
 fn make_followup(query: string) -> fn(Response) -> Prompt:
@@ -2948,7 +3340,7 @@ fn answer_question!(query: string) -> Answer $ llm + search:
 annotate Workflow for answer_question: pass
 ```
 
-Runtime requirements:
+Related runtime constraints already identified, but not yet a complete serializable-closure model:
 
 1. Captured values must be serializable or rejected by tooling.
 2. Captured effects and capabilities must remain visible.
@@ -2965,14 +3357,12 @@ Runtime requirements:
 
 Interactive execution uses the same recorded-suspension foundation but has notebook semantics. A live kernel retains the current namespace for fast reconnects. Successful cells atomically commit records containing cell/source/code identity, parent state, suspension events, state delta, and output. Recovery restores a serializable namespace snapshot and deterministically replays later committed runs in actual execution order. Rerunning an earlier or edited cell creates a new history branch and marks previous descendants stale.
 
-Open syntax issues:
+Open issues after the semantic backlog:
 
-1. Whether serializable closures are inferred, annotated, or a distinct function type.
-2. The exact `std.incremental` API; no dedicated keyword or `annotate Cache` design is currently proposed.
-3. Whether workflows use `annotate Workflow for ...` or standard-library effects only.
-4. How closure capture restrictions are displayed to reviewers.
-5. How tracked external inputs expose versions and how incremental dependencies are inspected.
-6. How code identity is represented across JS and WASM targets.
+1. The exact `std.incremental` API; no dedicated keyword or `annotate Cache` design is currently proposed.
+2. Whether workflows use `annotate Workflow for ...` or standard-library effects only.
+3. How closure capture restrictions are displayed to reviewers after their semantics are decided.
+4. How tracked external inputs expose versions and how incremental dependencies are inspected.
 
 ## Syntax Questions To Decide Next
 
