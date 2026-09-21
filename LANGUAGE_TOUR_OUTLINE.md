@@ -53,7 +53,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Lexical captures
 - Named parameters, if supported
 - Varargs and spread calls
-- Error and effect signatures
+- Error, requirement, and suspension signatures
 - Function-first design
 
 ## 7. Traits and Methods
@@ -88,14 +88,14 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Re-exports
 - Visibility with `pub`
 
-## 10. Effects
+## 10. Requirements and Suspension
 
-- Basic effect signatures
-- Dependency injection as effects
-- User-defined effects
-- Handlers
-- Effect polymorphism
-- Removing handled effects from an effect variable
+- Static requirement rows
+- Dependency injection through provider contexts
+- One-shot suspension with `fn!` and `Suspend[T]`
+- Construction-time provider capture
+- Provisional requirement polymorphism
+- Removing locally provided requirements from a requirement variable
 
 ## 11. Using Annotations
 

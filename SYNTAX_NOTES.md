@@ -25,7 +25,7 @@ Design priorities:
 There should be only two local binding forms:
 
 1. `:=` for short bindings.
-2. `let`, with optional `mut`, for named local declarations.
+2. `let`, with an optional type annotation, for named local declarations.
 
 `:=` introduces an inferred, non-reassignable reference:
 
@@ -589,8 +589,8 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | Operators | Notes |
 | --- | --- |
 | `(expr)`, literals, list/map/struct displays | atoms |
-| `x.y`, `x[i]`, `x(args)` | field access, indexing, calls |
-| postfix `?`, postfix `!` call marker | propagation, suspension call marker |
+| `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
+| postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
 | `-x`, `~x`, `not x` | unary operators |
 | `*`, `/`, `%` | multiplicative |
@@ -896,12 +896,11 @@ enum ToolError:
     Internal(message: string)
 ```
 
-Payload variants are constructed with enum-qualified names and brace literals:
+Payload variants are called like functions. Positional arguments come first,
+followed by named arguments:
 
 ```text
-error := ToolError.NotFound {
-    resource: "user_123"
-}
+error := ToolError.NotFound(resource="user_123")
 ```
 
 Match arms use `pattern => expression`. Enum variant patterns must be qualified with the enum name, and payload patterns use call-style parentheses:
@@ -1318,19 +1317,18 @@ Closures that capture dependencies or capabilities carry those requirements in t
 
 Overloads are not supported. Each function name resolves to one declaration in a scope.
 
-Effectful function candidate:
+Function with suspension and a context requirement:
 
 ```text
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database:
     ...
 ```
 
-This keeps the function signature compact while making effects explicit.
+This keeps suspension and required dependencies explicit.
 
 Open questions:
 
-1. Should effect names be plain identifiers, trait/capability names, or typed values?
-2. Exact precedence and formatting rules for effect expressions using `+`, `-`, and parentheses.
+1. Exact precedence and formatting rules for requirement-row expressions using `+`, `-`, and parentheses.
 
 Examples:
 
@@ -1423,6 +1421,10 @@ fn show_static[T: Display](value: T) -> string:
 ```
 
 ## Contract Syntax Direction
+
+Status: deferred and excluded from the current language tour and MVP. The
+examples in this contract section preserve earlier exploration, including
+obsolete `$ require + ensure` notation, and are not accepted hd-lang syntax.
 
 Contracts need to be readable, toolable, and easy for AI to generate correctly. The preferred direction is direct `require` and `ensure` sections inspired by NimContracts, without a wrapping `contract` block:
 
@@ -1544,7 +1546,7 @@ struct Account:
 
 Open question: should type invariants be checked after construction, after public mutation, or at all function boundaries?
 
-## Dependency Effects
+## Requirements And Suspension
 
 Dependencies should be modeled as signature requirements, but they do not need a separate dependency declaration syntax. A dependency can be an ordinary trait or capability that appears in a function's `$` requirement row.
 
@@ -1578,7 +1580,7 @@ user := db.get_user!(id)?
 Body-level intent:
 
 1. `$.use(Database)` retrieves the `Database` provider from the current context.
-2. `db.get_user!(id)` is the suspension point where control can enter the handler.
+2. `db.get_user!(id)` is a possible suspension point.
 3. Normal errors are returned as `Result[T, E]`, not receiverless control effects.
 
 A suspending function must declare the `!` suffix in its function name, and callers use the same suffix at the suspension point:
@@ -1731,32 +1733,38 @@ For the Wasm GC backend, frames and captured language values use managed storage
 
 This is closer to Effect's service model, where the type tracks required services but service access happens in the program body, and to Kotlin-style functional effects where effectful operations are explicit suspension points.
 
-Candidate:
+Example:
 
 ```text
 trait Database:
-    fn get_user!(id: UserId) -> Result[User?, DbError]
+    fn get_user!(self, id: UserId) -> Result[User?, DbError]
 
 trait Cache:
-    fn get_user(id: UserId) -> User?
+    fn get_user(self, id: UserId) -> User?
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     cached := cache.get_user(id)
     if cached != nil:
         return Ok(cached)
-    user := db.get_user!(id)?
-    user
+    db.get_user!(id)
 
-handler mock_db for Database:
-    fn get_user!(id: UserId) -> Result[User?, DbError]:
-        Ok(User {
-            id: id,
-            name: "Test User"
-        })
+struct MockDatabase:
+    user: User
+
+impl Database for MockDatabase:
+    fn get_user!(self, id: UserId) -> Result[User?, DbError]:
+        Ok(self.user)
+
+mock_db := MockDatabase {
+    user: User {
+        id: UserId("user_123"),
+        name: "Test User"
+    }
+}
 
 $.with(Database=mock_db, Cache=memory_cache):
-    user := load_user!(UserId { value: "user_123" })
+    result := load_user!(UserId("user_123"))
 ```
 
 Reusable contexts are provider-map values typed by a requirement row:
@@ -1767,7 +1775,7 @@ fn prod_context() -> $.Context[Metrics + Cache]:
 
 $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
     db, logger, cache := $.use(Database, Logger, Cache)
-    user := load_user!(UserId { value: "user_123" })
+    result := load_user!(UserId("user_123"))
 ```
 
 `$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `$.with(Database=mock_db, ...prod_context())` opens a lexical provider scope and spreads reusable providers, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order.
@@ -1805,45 +1813,45 @@ Open syntax issues:
 
 Standard capability granularity is deferred until the standard library is implemented. Broad service traits and narrower least-authority traits should be compared against concrete APIs rather than selected as a standalone language rule.
 
-## Effect Polymorphism
+## Requirement Polymorphism
 
-Higher-order functions need a way to propagate the effects of function-typed arguments. Without it, `map` either forbids effectful callbacks or needs one copy per effect combination:
-
-```text
-fn map(items: list[T], f: fn(T) -> U) -> list[U]   # what effects does map have?
-```
-
-### Candidate A: Explicit effect-row variables (Koka-style)
+Higher-order functions need a way to propagate the requirements of function-typed arguments. Without it, `map` either forbids callbacks with requirements or needs one copy per requirement combination:
 
 ```text
-fn map[T, U, e](items: list[T], f: fn(T) -> U $ e) -> list[U] $ e
+fn map(items: list[T], f: fn(T) -> U) -> list[U]   # what requirements does map have?
 ```
 
-1. Fully explicit; aligns with effects being visible in signatures.
+### Candidate A: Explicit requirement-row variables
+
+```text
+fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r
+```
+
+1. Fully explicit; aligns with requirements being visible in signatures.
 2. General: supports several independent variables, stored function fields, and returned closures.
-3. Verbose; AI and reviewers must thread `$ e` correctly, and variables must be declared so a typo of an effect name cannot silently become a fresh variable.
+3. Verbose; AI and reviewers must thread `$ r` correctly, and variables must be declared so a typo of a requirement name cannot silently become a fresh variable.
 
-Explicit effect variables become more useful if handlers can remove effects from the variable. This may be full row polymorphism, or a smaller operation that only supports effect removal by handlers.
+Explicit requirement variables become more useful if a provider scope can satisfy and remove one requirement from the variable. This may use full row polymorphism or a smaller subtraction operation.
 
 Candidate:
 
 ```text
-fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - Logger):
+fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
     $.with(Logger=logger):
         callback("str")
 ```
 
 Meaning:
 
-1. `callback` may require any effects in `e`.
-2. `handle_log` installs a provider/handler for `Logger`.
-3. The remaining requirement row is `e - Logger`.
-4. If `callback` only requires `Logger`, the result is pure after `Logger` is handled.
-5. If `callback` requires `Logger` and `Database`, the result effect is `Database`.
+1. `callback` may have any requirements in `r`.
+2. `provide_logger` installs a provider for `Logger`.
+3. The remaining requirement row is `r - Logger`.
+4. If `callback` only requires `Logger`, the wrapper has an empty requirement row.
+5. If `callback` requires `Logger` and `Database`, the wrapper requires `Database`.
 
-The important idea is effect-variable transformation: a function can propagate "all callback effects except the ones I handle." This is useful even if the language does not expose full row polymorphism in v1.
+The important idea is requirement-row transformation: a function can propagate all callback requirements except the ones it provides locally. This is useful even if the language does not expose full row polymorphism in v1.
 
-### Candidate B: Parameter-linked effects (generalized Swift `rethrows`)
+### Candidate B: Parameter-linked requirements
 
 ```text
 fn map(items: list[T], f: fn(T) -> U) -> list[U] $ f
@@ -1861,43 +1869,42 @@ fn map(items: list[T], f: fn(T) -> U) -> list[U] $ f
 Unhandled requirements of function-typed parameters propagate automatically; the signature stays clean and tooling displays the resolved requirement row.
 
 1. Zero annotation burden; nothing for AI to get wrong.
-2. Conflicts with the decision that effects are explicit in signatures; a reviewer reading source sees `map` as pure.
+2. Conflicts with the decision that requirements are explicit in signatures; a reviewer reading source cannot see the callback requirements.
 
 ### Open questions regardless of candidate
 
-1. Effect subtraction/removal syntax: should handled effects be written explicitly as `$ (e - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
+1. Requirement subtraction/removal syntax: should provided requirements be written explicitly as `$ (r - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
 2. Function-typed struct fields and returned closures: row variables, monomorphization, or disallowed in v1?
-3. Do polymorphic rows range over contract effects (`require`, `ensure`) as well as user effects?
-4. How do handlers installed at a call site interact with a polymorphic row?
-5. Is the underlying model full row polymorphism, or a smaller effect-variable system that only supports union and removal?
+3. How do provider scopes installed at a call site interact with a polymorphic row?
+4. Is the underlying model full row polymorphism, or a smaller requirement-variable system that only supports union and removal?
 
-## Branded Validated Types
+## Nominal Types With Validation Metadata
 
-Validation annotations do not refine static types by default (unbranded values keep base type identity), but opt-in branded newtypes tie validation to type identity. If a type is not branded, it does not refine.
-
-Candidate spelling, reusing ordinary validator values:
+Validation metadata does not refine an existing static type. Reusable domain
+identity uses the ordinary nominal newtype syntax together with an exact
+annotation case; there is no separate `brand` declaration:
 
 ```text
-brand Email = string.email().max_len(320)
+type Email(string)
+
+annotate Validation for Email:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.String(StringRules {
+            min_len: 3,
+            max_len: 320,
+            contains: "@",
+        })
 
 struct User:
     id: UserId
     email: Email
 ```
 
-Rules:
-
-1. `Email` is a distinct static type. A `string` is not assignable to `Email` without going through validation.
-2. Construction is the enforcement boundary: `Email.parse(s)` returns `Email` or fails with a validation effect ("parse, don't validate").
-3. Once constructed, interior code can trust the brand; no re-validation at internal boundaries.
-4. Unbranded annotated fields keep the existing semantics: metadata for tooling and runtime checks only, no refinement.
-
-Open questions:
-
-1. Spelling: `brand Email = ...` versus `type Email = brand string ...` versus an annotation on a type alias.
-2. Whether brand-to-base coercion is implicit (usable anywhere a `string` is) or explicit (`.value`).
-3. Whether inline `@` annotations may appear on a branded field, and how conflicts with the brand's validators are handled. Candidate: field annotations on branded fields are a compile error; validators live on the brand.
-4. How brands appear in generated JSON Schema and TypeScript output. Candidate: TypeScript branded types.
+`Email` is nominal because of `type Email(string)`, not because it has a
+`Validation` annotation. The annotation supplies reusable metadata wherever
+`Email` appears. Whether a validation library exposes only checked construction
+or also permits direct `Email(value)` construction remains a library/API design
+question; the core annotation mechanism does not silently change construction.
 
 ## Schema And Validation Direction
 
@@ -3397,17 +3404,6 @@ Open issues after the semantic backlog:
 3. How closure capture restrictions are displayed to reviewers after their semantics are decided.
 4. How tracked external inputs expose versions and how incremental dependencies are inspected.
 
-## Syntax Questions To Decide Next
+## Open Design Questions
 
-1. Should postconditions refer to the return value as `result`, `return`, or a named return variable?
-2. Should old values use `old(x)`, `before(x)`, backticks like NimContracts, or another syntax?
-3. What should the failed `require` and failed `ensure` effects be named?
-4. Should every function with `require` or `ensure` explicitly list the contract effects, or should the effects be inferred from the sections?
-5. What should user-defined effect and handler syntax look like?
-6. What should inline validation annotation and external derivation/override syntax look like?
-7. What should declarative data-retention and cascade syntax look like?
-8. What information should registration annotations produce for explicit registries?
-9. Which effect-polymorphism candidate should higher-order functions use, and what is deferred to later versions?
-10. What is the exact `brand` spelling, and is brand-to-base coercion implicit or explicit?
-11. What should serializable closure syntax and capture restrictions look like?
-12. What should the `std.incremental` API and cache/dependency tooling look like?
+The maintained cross-cutting question list is in [Design Questions](DESIGN_QUESTIONS.md). This notes file records detailed alternatives near the relevant syntax instead of maintaining a second, easily outdated priority queue.

@@ -38,17 +38,15 @@ println("comments should feel familiar to Python users")
 
 Top-level statements make hd-lang useful as an interactive scripting language for AI agents. The same file can later grow into typed functions, tool definitions, tests, and deployable workflows without switching to a different language model.
 
-Open surface choices from this section:
-
-1. Whether the standard output function should be `println`, `print`, or something else.
-2. Whether the command should be `hd run`, `hd-lang run`, or another CLI shape.
-3. Whether executable files should use top-level statements, an explicit `main`, or both.
+Scripts execute top-level statements. Executable packages use the explicit `main`
+entry point described later in the tour. The exact CLI and standard-output API
+spellings remain provisional.
 
 ## Values and Types
 
 hd-lang is statically typed, but local code should stay light. There are two binding forms.
 
-Use `:=` for short bindings. The type is inferred, and the reference cannot be reassigned:
+Use `:=` for short bindings. The type is inferred, and the binding cannot be reassigned:
 
 ```text
 name := "Ada"
@@ -171,8 +169,8 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | Operators | Notes |
 | --- | --- |
 | `(expr)`, literals, list/map/struct displays | atoms |
-| `x.y`, `x[i]`, `x(args)` | field access, indexing, calls |
-| postfix `?`, postfix `!` call marker | propagation, suspension call marker |
+| `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
+| postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
 | `-x`, `~x`, `not x` | unary operators |
 | `*`, `/`, `%` | multiplicative |
@@ -278,11 +276,11 @@ If a map comprehension produces the same key more than once, the later value win
 
 Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
-The tour should prefer `:=` for ordinary const local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
+Use `:=` for ordinary const local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
 
 ## Control Flow and Expressions
 
-hd-lang should make value-producing code easy to read. Literals, calls, field access, arithmetic, closures, `if`, `match`, and `:=` bindings are expressions. `let` declarations and assignment are statements.
+hd-lang makes value-producing code easy to read. Literals, calls, field access, arithmetic, closures, `if`, `match`, and `:=` bindings are expressions. `let` declarations and assignment are statements.
 
 Block headers such as `fn`, `if`, `else if`, `else`, `for`, `while`, and `match` end with `:`. Blocks can evaluate to their last expression. This is why functions can return without an explicit `return`:
 
@@ -373,7 +371,7 @@ else:
 
 Without an `else` block, a loop evaluates to `void`, even if it contains plain `break`. `break value` is only valid in a value-producing loop with an `else`; use plain `break` in statement-only loops.
 
-`match` is also an expression. It should be exhaustive unless an explicit fallback arm is used:
+`match` is also an expression. It is exhaustive unless an explicit fallback arm is used:
 
 ```text
 message := match status:
@@ -571,15 +569,14 @@ enum ToolError:
 
 Payload variant declarations use the compact `Variant(field: type)` form in v1. Use a separate struct payload when the data is large enough to need a full field block.
 
-Payload variants use the same brace literal style as structs:
+Payload variants are called like functions. Positional arguments come first, and
+named arguments follow them:
 
 ```text
-error := ToolError.NotFound {
-    resource: "user_123"
-}
+error := ToolError.NotFound(resource="user_123")
 ```
 
-Use `match` to inspect an enum. Matches should be exhaustive unless an explicit fallback arm is present:
+Use `match` to inspect an enum. Matches are exhaustive unless an explicit fallback arm is present:
 
 ```text
 fn status_label(status: JobStatus) -> string:
@@ -698,7 +695,7 @@ fn eval_i64(expr: Expr[i64]) -> i64:
 
 In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; they do not need to match the payload field names `left` and `right`. In `Expr.Sub(left=l, right=r)`, `left=` and `right=` select payload fields by name, while `l` and `r` are still new binding patterns. `Expr.Scale(value, factor=2)` matches only a scale expression whose `factor` payload equals `2`. A positional pattern cannot appear after a named pattern. If the payload itself is an expression, match the nested variant explicitly, such as `right=Expr.IntLit(2)`.
 
-Because the compiler knows every variant, it can check that callers handle every state. This matters for AI-generated code: missing cases should become compiler diagnostics instead of latent production behavior.
+Because the compiler knows every variant, it checks that callers handle every state. This matters for AI-generated code: missing cases become compiler diagnostics instead of latent production behavior.
 
 `Option` and `Result` are standard enum-like types, even though hd-lang gives them special syntax:
 
@@ -729,11 +726,8 @@ fn add(a: i32, b: i32) -> i32:
 The function body is an indented block. The last expression is the return value:
 
 ```text
-fn display_name(user: User) -> string:
-    if user.display_name == nil:
-        user.email
-    else:
-        user.display_name!
+fn normalized_email(user: User) -> string:
+    user.email.trim().lower()
 ```
 
 Explicit `return` exists for early exits:
@@ -781,7 +775,7 @@ secure := connect(host="api.example.com")
 local := connect("localhost", port=8080, tls=false)
 ```
 
-Default values can use pure expressions and pure function calls. They cannot require effects, dependencies, or suspension:
+Default values can use pure expressions and pure function calls. They cannot require context requirements or suspension:
 
 ```text
 fn default_port() -> i32:
@@ -1009,7 +1003,7 @@ v1 does not support partial explicit generic arguments or placeholder generic ar
 
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
 
-Functions are the primary unit of behavior. Methods, tools, workflows, tests, and handlers should attach to normal functions instead of requiring a separate object model.
+Functions are the primary unit of behavior. Methods, tools, workflows, tests, and generated adapters attach to normal functions instead of requiring a separate object model.
 
 ## Traits and Methods
 
@@ -1135,14 +1129,14 @@ fn show_static[T: Display](value: T) -> string:
 
 ## Type System
 
-hd-lang is statically typed. The compiler should know the type of every expression before code runs, but local code can rely on inference when the type is obvious:
+hd-lang is statically typed. The compiler knows the type of every expression before code runs, but local code can rely on inference when the type is obvious:
 
 ```text
 name := "Ada"          # inferred string
 count := 3             # inferred i32
 ```
 
-Public boundaries should stay explicit. Function parameters, return types, struct fields, enum payloads, and trait methods carry type annotations so humans and AI agents can review interfaces without chasing implementation details:
+Public boundaries stay explicit. Function parameters, return types, struct fields, enum payloads, and trait methods carry type annotations so humans and AI agents can review interfaces without chasing implementation details:
 
 ```text
 fn find_user(id: UserId) -> Result[User?, DbError]:
@@ -1156,17 +1150,17 @@ struct User:
 User-defined structs and enums are nominal types. Two types with the same fields are still different types:
 
 ```text
-struct UserId:
+struct UserRecord:
     value: string
 
-struct PostId:
+struct PostRecord:
     value: string
 
-fn load_user(id: UserId) -> User?:
+fn load_user(record: UserRecord) -> User?:
     ...
 
-post_id := PostId { value: "post_123" }
-load_user(post_id)        # invalid: PostId is not UserId
+post := PostRecord { value: "post_123" }
+load_user(post)        # invalid: PostRecord is not UserRecord
 ```
 
 Tuples are structural. A value of type `(i32, i32)` is compatible with another `(i32, i32)` because tuple identity comes from its element types:
@@ -1188,7 +1182,7 @@ let raw: string = "Ada"
 greet(raw)              # ok: UserName is an alias for string
 ```
 
-Use a nominal newtype when the compiler should prevent accidental mixing. Candidate spelling:
+Use a nominal newtype when the compiler must prevent accidental mixing:
 
 ```text
 type Mile(i32)
@@ -1226,7 +1220,7 @@ let small_ok: i8 = 1   # ok: 1 fits in i8
 let bad: u8 = 300      # invalid: 300 is out of range for u8
 ```
 
-Range diagnostics should include the invalid literal, the target type range, and a repair hint:
+Range diagnostics include the invalid literal, the target type range, and a repair hint:
 
 ```text
 integer literal 300 does not fit in u8
@@ -1234,7 +1228,7 @@ valid range for u8 is 0..255
 suggestion: use u16 if the value is intentional
 ```
 
-Narrowing diagnostics should point to an explicit cast:
+Narrowing diagnostics point to an explicit cast:
 
 ```text
 cannot assign i64 to i16 without an explicit cast
@@ -1491,11 +1485,11 @@ v1 keeps visibility simple: declarations are module-private by default, and `pub
 `pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and every other host service are explicit context requirements:
 
 ```text
-import std.host.{Args, Console}
+import std.host.{Args, Console, ConsoleError}
 
-pub fn main!() -> Result[void, AppError] $ Args + Console:
+pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args, console := $.use(Args, Console)
-    console.write_line!("starting " + args.program_name())?
+    console.write_line!("starting " + args.program_name())
 ```
 
 The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `Err` to a failed invocation.
@@ -1521,13 +1515,18 @@ Mutable types, trait values, closures, and live runtime handles cannot appear an
 
 Maps are unordered by default. Their insertion or iteration order is not part of the value or boundary semantics, and boundary consumers must not infer meaning from the order used by a particular encoding.
 
-## Effects
+## Requirements and Suspension
 
-Effects make handler-mediated behavior visible in function signatures. A function that accesses a dependency, logs, calls a model, uses a capability, or can suspend into a handler should say so in its type.
+hd-lang separates three concerns often grouped under algebraic effects:
 
-This section is less settled than the previous ones. An effect needs to express two things: resolving or injecting a dependency/capability, and suspending execution flow into a handler. That intent should appear in the function body, not as `use` or `raise` keywords inside the signature.
+1. `$` rows statically check which dependencies a function requires.
+2. Context scopes inject concrete providers for those requirements.
+3. `fn!`, `Suspend[T]`, and bang calls provide one-shot suspension.
 
-Normal error handling uses `Result[T, E]`, not effects:
+These mechanisms cooperate, but none implies the others. Dependency lookup does
+not suspend, suspension does not represent normal errors, and an ordinary
+dependency does not have to be a host capability. Normal error handling uses
+`Result[T, E]`:
 
 ```text
 struct ParseError:
@@ -1541,25 +1540,24 @@ Dependencies are ordinary traits or capabilities that can appear in the `$` requ
 
 ```text
 trait Database:
-    fn get_user!(id: UserId) -> Result[User?, DbError]
+    fn get_user!(self, id: UserId) -> Result[User?, DbError]
 
 trait Cache:
-    fn get_user(id: UserId) -> User?
+    fn get_user(self, id: UserId) -> User?
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     cached := cache.get_user(id)
     if cached != nil:
         return Ok(cached)
-    user := db.get_user!(id)?
-    user
+    db.get_user!(id)
 ```
 
 A suspending declaration also creates a cold computation constructor:
 
 ```text
 pending := load_user(id)   # Suspend[Result[User?, DbError]]; no body code has run
-user := load_user!(id)?    # construct, drive, and suspend here if necessary
+result := load_user!(id)   # Result[User?, DbError]; drive and suspend if necessary
 ```
 
 `fn load_user!(...) -> T` lowers conceptually to a function constructing `Suspend[T]`. Arguments are evaluated when the cold suspension is constructed, while the body is compiled into a resumable state machine and begins only when driven. Each nested bang call is a possible suspension point: the compiler saves the enclosing state, drives the child computation, and resumes with its result.
@@ -1568,25 +1566,32 @@ user := load_user!(id)?    # construct, drive, and suspend here if necessary
 
 The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driving context. Cancellation is synchronous and cleanup cannot suspend. Source-level cleanup remains [backlog work](DESIGN_QUESTIONS.md#deferred-resource-cleanup-and-scope-exit). Stored-suspension driving syntax remains open, and a separate `Task[T]` API is deferred.
 
-Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks the call as a suspension point where execution can enter the provider/handler.
+Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 
-Handlers provide implementations for effects:
+Providers are ordinary values whose types implement the required trait:
 
 ```text
-handler mock_db for Database:
-    fn get_user!(id: UserId) -> Result[User?, DbError]:
-        Ok(User {
-            id: id,
-            email: "test@example.com",
-            display_name: "Test User"
-        })
+struct MockDatabase:
+    user: User
+
+impl Database for MockDatabase:
+    fn get_user!(self, id: UserId) -> Result[User?, DbError]:
+        Ok(self.user)
+
+mock_db := MockDatabase {
+    user: User {
+        id: UserId("user_123"),
+        email: "test@example.com",
+        display_name: "Test User"
+    }
+}
 ```
 
 Call sites provide requirements through context scopes. `$.with(Requirement=provider)` binds a requirement key to a provider value for the indented body:
 
 ```text
 $.with(Database=mock_db, Cache=memory_cache):
-    user := load_user!(UserId { value: "user_123" })
+    result := load_user!(UserId("user_123"))
 ```
 
 Reusable contexts are provider-map values typed by a requirement row:
@@ -1597,32 +1602,35 @@ fn prod_context() -> $.Context[Metrics + Cache]:
 
 $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
     db, logger, cache := $.use(Database, Logger, Cache)
-    user := load_user!(UserId { value: "user_123" })
+    result := load_user!(UserId("user_123"))
 ```
 
 `$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `...prod_context()` spreads reusable providers into a lexical context scope, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order. Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels. Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
 
-Higher-order functions need effect polymorphism so callback effects are not erased:
+Requirement polymorphism for higher-order functions is still provisional. Its
+purpose is to preserve callback requirements rather than erase them:
 
 ```text
-fn map[T, U, e](items: list[T], f: fn(T) -> U $ e) -> list[U] $ e:
+fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
     ...
 ```
 
-Handlers can remove effects from an effect variable. This is useful when a function handles one callback effect but must still expose the remaining effects:
+A provider scope may remove a requirement from a row variable. The exact row-polymorphism rules and subtraction syntax are not settled:
 
 ```text
-fn handle_log[e](callback: fn(string) -> void $ e) -> void $ (e - Logger):
+fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
     $.with(Logger=logger):
         callback("str")
 ```
 
-Here `callback` may require `Logger` plus other effects. `handle_log` handles `Logger`, so callers only see the remaining effects. The helper itself is not named `handle_log!` unless its own body contains a suspending call such as `some_call!()`.
+Here `callback` may require `Logger` plus other requirements. The local provider
+satisfies `Logger`, so callers see only the remaining row. The helper itself is
+not named `provide_logger!` because its body has no suspension point.
 
 Open surface choices from this section:
 
-1. Handler selection rules for tests, production, nested scopes, and defaults.
-2. Whether effect polymorphism uses full row polymorphism or a smaller effect-variable model.
+1. Provider selection rules for tests, production, nested scopes, and defaults.
+2. Whether requirement polymorphism uses full row polymorphism or a smaller requirement-variable model.
 3. Exact `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction.
 
 ## Using Annotations
@@ -1673,7 +1681,7 @@ Generated metadata is retrieved explicitly as an ordinary runtime value:
 user_validator := Validation::annotation(User)
 
 input := read_json()
-user := user_validator.parse(input)?
+result := user_validator.parse(input)
 ```
 
 The same declaration can provide unrelated annotation information:
