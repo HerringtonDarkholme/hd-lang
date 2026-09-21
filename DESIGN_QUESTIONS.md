@@ -213,7 +213,7 @@ Alternative retained for comparison: shallow const local bindings could be re-al
 67. Trailing-block call syntax is restricted to a final zero-argument function parameter. Ordinary arguments remain inside parentheses, as in `when(a, b):`; calls without ordinary arguments omit empty `()`, as in `transaction:`. The block omits `fn()` and an explicit return type, which are inferred from the final parameter. Parameterized callbacks use explicit closure syntax, and multiple trailing blocks are not supported.
 68. `return` inside a trailing block exits the generated callback, not the enclosing function. Trailing blocks do not support non-local return.
 69. Inline closures use contextual typing: parameter and return types may be omitted when the expected function type determines them. Standalone or ambiguous closures require explicit signatures. Multiple multiline callbacks can be passed inline by parenthesizing each closure expression; the comma after each closing parenthesis separates call arguments.
-70. Iteration uses separate `Iterable` and `Iterator` roles. An ordinary iterable source carries no per-traversal progress and creates an independent iterator on every `iter()` call. Each iterator owns mutable cursor/progress state for one traversal and advances through `next(mut self)`. Every iterator is itself iterable: its `iter()` returns the same mutable cursor without cloning or resetting it, so traversal resumes at its current position. "Traversal-state-free" applies to ordinary iterable sources, not to this self-iterable iterator implementation. Exact associated-type syntax and source mutation during traversal remain open.
+70. Iteration uses separate `Iterable` and `Iterator` roles. An ordinary iterable source carries no per-traversal progress and creates an independent iterator on every `iter()` call. Each iterator owns mutable cursor/progress state for one traversal and advances through `next(mut self)`. Every iterator is itself iterable: its `iter()` returns the same mutable cursor without cloning or resetting it, so traversal resumes at its current position. "Traversal-state-free" applies to ordinary iterable sources, not to this self-iterable iterator implementation. Exact associated-type syntax remains open. Mutation during traversal, including invalidation and fail-fast behavior, is deliberately deferred as too detailed for the current design pass.
 
 ## Modules, Packages, And Imports
 
@@ -233,7 +233,7 @@ Decisions:
 12. Standard-library imports use the `std` root.
 13. External dependency imports use `dep.<name>`, where `<name>` is declared in `hd.toml`.
 14. Import and re-export cycles are rejected in v1.
-15. v1 has only module-private declarations and `pub`; there is no package-private visibility modifier.
+15. v1 has only module-private declarations and `pub`; there is no package-private visibility modifier. Package-scoped visibility and visibility of individual fields or enum variants are deferred.
 16. `pub fn main` is the conventional default entry point for an executable package. It has no source-level parameters; arguments, environment, I/O, and other host services arrive through `$` context requirements.
 17. Entry points follow ordinary suspension naming, so the spelling is `main!` only when the function can suspend. The default entry point may return `void` or `Result[void, E]`.
 18. `pub` does not imply a Wasm export. Other public functions become host-visible only through explicit tool, workflow, or library registration that generates a boundary adapter.

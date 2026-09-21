@@ -338,7 +338,7 @@ for left in values:
         println((left, right))
 ```
 
-The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. The exact trait declarations and the behavior of an iterator when its underlying source is mutated remain open.
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. Exact trait declarations remain open. Mutation during traversal and iterator invalidation behavior are deferred.
 
 Use `while` when the loop condition is not just iterating a collection:
 
@@ -1484,7 +1484,7 @@ Submodules are not imported automatically. Parent modules and child modules both
 
 Import and re-export cycles are rejected in v1.
 
-v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier.
+v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier. Package-scoped visibility and visibility of individual fields or enum variants are deferred.
 
 ## Program Entry Points
 

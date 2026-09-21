@@ -472,7 +472,7 @@ Submodule access goes through imports; a parent module does not automatically im
 
 Import and re-export cycles are rejected in v1.
 
-v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier.
+v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier. Package-scoped visibility and visibility of individual fields or enum variants are deferred.
 
 ## Program Entry Points And Wasm Exports
 
@@ -1065,6 +1065,8 @@ Iteration has two distinct trait roles:
 Two iterators created from the same ordinary iterable therefore have independent progress, enabling repeated and nested traversal. An iterable may still contain data or refer to mutable data; it is only traversal-state-free, not necessarily an immutable or fieldless value.
 
 Every iterator also implements `Iterable`. Its `iter()` returns the same mutable iterator rather than creating a fresh cursor. It neither clones nor resets traversal state, so a `for` loop over a partially consumed iterator continues from its current position and leaves that iterator exhausted when the loop completes.
+
+Mutation during traversal, iterator invalidation, and possible fail-fast behavior are deferred. No semantics are selected yet.
 
 Conceptually, the protocols have this shape:
 
