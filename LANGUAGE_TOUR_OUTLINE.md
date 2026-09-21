@@ -119,60 +119,16 @@ This tour should introduce hd-lang through small examples first, then explain th
 - `AnnotationRef` for recursive metadata
 - Tool metadata as an example of `FuncAnnotator`, not a separate language feature
 
-## 13. Testing
+## Companion Runtime and Library Document
 
-- Dedicated named `test` blocks
-- Unit tests discovered by the test runner
-- `std.testing` assertions with mandatory reasons
-- Property testing as a deferred `std.testing` library design
-- Mocking via effects
+The following topics are outside the core-language tour and belong in [Runtime and Library Design](RUNTIME_AND_LIBRARY.md):
 
-## 14. Capabilities and Sandbox
-
-- Capability-based execution
-- Default sandbox model
-- Explicit access grants
-- Safe agent scripting
-
-## 15. Persistence and Resumption
-
-- Interactive notebook-style resumption
-- Durable workflow-style resumption
+- Testing and property testing
+- Capabilities and sandbox enforcement
+- WebAssembly, Wasm GC, and WASI runtime integration
+- Persistence, resumption, and deterministic replay
+- Observability
 - Serializable closures
-- Deterministic replay concerns
-
-## 16. Observability
-
-- Logging
-- Tracing
-- Metrics
-- Automatic telemetry at semantic runtime boundaries
-- Explicit telemetry through standard-library dependencies
-
-## 17. Incremental Computation
-
-- Cached computations
-- Dependency tracking
-- Partial recomputation
-- Use in AI workflows and infra code
-
-## 18. Data Retention
-
-- Expressing ownership
-- Retention policies such as `deleteWhen`
-- Declarative lifecycle rules
-- Keeping retention out of the core syntax
-
-## 19. Compilation Targets
-
-- JavaScript target
-- WASM target
-- Runtime assumptions
-- Interop direction
-
-## 20. Putting It Together
-
-- Small AI tool example
-- Effects, tools, and tests together
-- Generated test data and mock behavior
-- What the compiler can verify
+- Incremental computation
+- Data-retention libraries
+- Tool, RPC, and deployment adapters
