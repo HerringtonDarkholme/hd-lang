@@ -1,0 +1,6 @@
+# expect-panic: iterator-invalidated
+
+fn invalidated(values: mut list[i32]) -> void:
+    let iterator: mut Iterator[i32] = values.iter()
+    values.append(4)
+    iterator.next()

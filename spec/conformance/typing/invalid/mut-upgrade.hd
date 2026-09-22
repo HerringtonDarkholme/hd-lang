@@ -1,0 +1,7 @@
+# expect-error: mutable-upgrade
+
+struct User:
+    name: string
+
+fn invalid(user: User) -> void:
+    let mutable: mut User = user

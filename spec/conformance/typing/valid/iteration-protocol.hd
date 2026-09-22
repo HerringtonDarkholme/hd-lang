@@ -1,0 +1,14 @@
+struct Counter:
+    current: i32
+    end: i32
+
+impl Iterator[i32] for Counter:
+    fn next(mut self) -> i32?:
+        if self.current >= self.end:
+            return nil
+        value := self.current
+        self.current = self.current + 1
+        value
+
+fn consume(counter: mut Counter) -> list[i32]:
+    [for value in counter => value]

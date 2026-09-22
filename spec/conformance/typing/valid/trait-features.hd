@@ -1,0 +1,33 @@
+trait Display:
+    fn display(self) -> string
+
+trait Named:
+    fn name(self) -> string
+
+    fn label(self) -> string:
+        "name: " + self.name()
+
+trait Formattable: Display:
+    fn format(self) -> string
+
+trait Serializable
+
+struct User:
+    name: string
+
+impl Display for User:
+    fn display(self) -> string: self.name
+
+impl Named for User:
+    fn name(self) -> string: self.name
+
+impl Formattable for User:
+    fn format(self) -> string: self.display()
+
+impl Serializable for User
+
+fn audit[T: Display + Named](value: T) -> string:
+    value.display() + value.name()
+
+fn explicit_display(user: User) -> string:
+    Display::display(user)

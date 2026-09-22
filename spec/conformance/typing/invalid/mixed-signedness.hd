@@ -1,0 +1,4 @@
+# expect-error: mixed-signedness
+
+fn invalid(left: i32, right: u32) -> i64:
+    left + right

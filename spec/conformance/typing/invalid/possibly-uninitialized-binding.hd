@@ -1,0 +1,6 @@
+# expect-error: possibly-uninitialized-binding
+
+fn invalid(flag: bool) -> string:
+    if flag and (name := "Ada") != "":
+        pass
+    name

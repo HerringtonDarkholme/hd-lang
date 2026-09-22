@@ -1,0 +1,11 @@
+import std.testing.{assert_equal}
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+test "adds two values":
+    result := add(2, 3)
+    assert_equal(
+        result,
+        5,
+        reason="add should return the sum",
+    )

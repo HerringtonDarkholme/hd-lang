@@ -336,7 +336,7 @@ for left in values:
         println((left, right))
 ```
 
-The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. Exact trait declarations remain open. Mutation during traversal and iterator invalidation behavior are deferred.
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every mutable `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A const iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
 
 Use `while` when the loop condition is not just iterating a collection:
 
@@ -468,6 +468,10 @@ renamed := User {
     display_name: "Ada Lovelace"
 }
 ```
+
+Copy-update is shallow. It creates a new outer struct, copies primitive fields
+by value, and reuses composite field references unless an explicit replacement
+provides a different value.
 
 Structs can contain other structs:
 
@@ -627,6 +631,11 @@ enum HttpStatus(code: i32, phrase: string):
     NotFound -> HttpStatus(404, phrase="Not Found")
 ```
 
+Shared named constructor data is available on every enum value as a field, such
+as `HttpStatus.NotFound.phrase`. Unnamed shared data uses a zero-based numeric
+member, such as `StatusCode.NotFound.0`. Variant-specific payloads remain
+available through pattern matching.
+
 Enums can be generic algebraic data types:
 
 ```text
@@ -643,7 +652,7 @@ enum Tree[T]:
     Branch(left: Tree[T], right: Tree[T])
 ```
 
-For more precise modeling, a variant can declare an explicit result type. This gives hd-lang a GADT-style enum form where pattern matching can recover more specific type information:
+The following GADT form is provisional rather than stable core. For more precise modeling, a variant can declare an explicit result type so pattern matching can recover more specific type information:
 
 ```text
 enum Expr[T]:
@@ -1038,6 +1047,8 @@ Trait methods can be called with dot syntax:
 label := user.display()
 ```
 
+When two implemented traits leave a dot call ambiguous, qualify the trait explicitly with `Trait::method(receiver, ...)`, such as `Display::display(user)`. Qualification selects that trait implementation directly; it does not perform inherent or embedded-method lookup.
+
 Structs can also have inherent methods with `impl Struct`:
 
 ```text
@@ -1274,7 +1285,7 @@ items := resolve[list[i32]]()
 
 At the language level, a reified call behaves as if it passes a hidden `Type[T]` descriptor. This descriptor is not an ordinary source-level argument and cannot be supplied with a named argument. Reification is part of a function's public type and ABI.
 
-Variadic generics use ordered type and value packs. Minimal v1 supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
+The provisional variadic-generic design uses ordered type and value packs. Its minimal surface supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
 ```text
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
@@ -1392,6 +1403,8 @@ src/user/service.hd    # module user.service
 src/post/service.hd    # module post.service
 ```
 
+Module path components are ASCII identifiers and module identities are case-sensitive. A package is rejected when two source paths differ only by ASCII case, so one source tree resolves consistently on case-sensitive and case-insensitive hosts.
+
 Packages use `hd.toml`. The default source root is `src`:
 
 ```toml
@@ -1478,7 +1491,7 @@ Submodules are not imported automatically. Parent modules and child modules both
 
 Import and re-export cycles are rejected in v1.
 
-v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier. Package-scoped visibility and visibility of individual fields or enum variants are deferred.
+v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. A public struct or enum exposes all of its fields or variants, and a public signature cannot leak a module-private type. There is no package-private or per-member visibility modifier; finer visibility is deferred.
 
 ## Program Entry Points
 
@@ -1516,6 +1529,11 @@ Mutable types, trait values, closures, and live runtime handles cannot appear an
 Maps are unordered by default. Their insertion or iteration order is not part of the value or boundary semantics, and boundary consumers must not infer meaning from the order used by a particular encoding.
 
 ## Requirements and Suspension
+
+Requirements, provider contexts, and suspension are a provisional language
+surface. Their current semantics are specified separately from stable core so
+row polymorphism, driver APIs, and cancellation details can change without
+changing ordinary functions or `Result` error handling.
 
 hd-lang separates three concerns often grouped under algebraic effects:
 
@@ -1634,6 +1652,11 @@ Open surface choices from this section:
 3. Exact `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction.
 
 ## Using Annotations
+
+Annotations are provisional. The following surface records the accepted design
+direction for typed metadata and structural derivation, but its shape APIs,
+materialization spelling, missing-child policy, and generic target syntax are
+not stable core.
 
 Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
 

@@ -1,0 +1,8 @@
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value

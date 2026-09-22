@@ -1,0 +1,17 @@
+type UserId(string)
+type UserName = string
+
+struct User:
+    id: UserId
+    name: UserName
+
+enum Lookup:
+    Found(user: User)
+    Missing(id: UserId)
+
+trait Display:
+    fn display(self) -> string
+
+impl Display for User:
+    fn display(self) -> string:
+        self.name

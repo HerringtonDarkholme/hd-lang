@@ -1,5 +1,12 @@
 # Feature Fit
 
+> Historical research note. This comparison predates the current split between
+> `Result`, requirement rows, dependency injection, and one-shot suspension.
+> Terms such as "effects and handlers" below describe an earlier exploration,
+> not current hd-lang syntax or semantics. See [Language Idea](LANGUAGE_IDEA.md),
+> [Language Tour](LANGUAGE_TOUR.md), and [Formal Specification](spec/README.md)
+> for the maintained design.
+
 This document maps language features to the two main usage scenarios:
 
 1. Interactive scripts and tool calls inside AI agents.

@@ -1,0 +1,5 @@
+# expect-error: break-value-context
+
+fn invalid(values: list[i32]) -> void:
+    for value in values:
+        break value

@@ -1,0 +1,15 @@
+trait Display:
+    fn display(self) -> string
+
+struct User:
+    name: string
+
+impl Display for User:
+    fn display(self) -> string:
+        self.name
+
+fn show[T: Display](value: T) -> string:
+    value.display()
+
+fn dynamic_show(value: Display) -> string:
+    value.display()

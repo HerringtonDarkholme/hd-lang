@@ -1,0 +1,14 @@
+fn first_large(values: list[i32]) -> i32?:
+    for value in values:
+        if value > 100:
+            break value
+    else:
+        nil
+
+fn label(score: i32) -> string:
+    if score >= 90:
+        "excellent"
+    else if score >= 70:
+        "passing"
+    else:
+        "needs work"

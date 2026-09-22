@@ -1,5 +1,10 @@
 # Syntax Notes
 
+> Historical design log. This file preserves explored alternatives and may
+> include superseded syntax inside sections that record earlier discussions.
+> The maintained language surface is the [Language Tour](LANGUAGE_TOUR.md) and
+> the normative [Formal Specification](spec/README.md).
+
 ## Current Direction
 
 The language should read like Python, but behave more like a compact Rust/Go-inspired static language.

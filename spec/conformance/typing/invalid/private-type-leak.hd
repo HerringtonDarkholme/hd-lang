@@ -1,0 +1,7 @@
+# expect-error: private-type-leak
+
+struct Secret:
+    value: string
+
+pub fn reveal() -> Secret:
+    Secret { value: "hidden" }

@@ -1,0 +1,7 @@
+# expect-error: trait-not-dynamically-safe
+
+trait Convert:
+    fn convert[T](self, value: T) -> string
+
+fn invalid(value: Convert) -> void:
+    pass

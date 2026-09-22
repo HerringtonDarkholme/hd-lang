@@ -1,0 +1,9 @@
+type Mile(i32)
+
+fn widen(value: i16) -> i64:
+    value
+
+fn unwrap(distance: Mile) -> i32:
+    i32(distance)
+
+distance := Mile(10)

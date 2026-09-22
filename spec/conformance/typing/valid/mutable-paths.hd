@@ -1,0 +1,8 @@
+struct Profile:
+    name: string
+
+struct Account:
+    profile: mut Profile
+
+fn rename(account: mut Account, name: string) -> void:
+    account.profile.name = name

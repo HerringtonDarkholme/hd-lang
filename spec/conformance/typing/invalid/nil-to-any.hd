@@ -1,0 +1,3 @@
+# expect-error: nil-to-nonoptional
+
+let invalid: Any = nil

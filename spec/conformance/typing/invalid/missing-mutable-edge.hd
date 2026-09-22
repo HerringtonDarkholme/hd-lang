@@ -1,0 +1,10 @@
+# expect-error: const-edge
+
+struct Profile:
+    name: string
+
+struct Account:
+    profile: Profile
+
+fn invalid(account: mut Account) -> void:
+    account.profile.name = "Grace"

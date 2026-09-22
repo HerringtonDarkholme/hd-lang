@@ -1,0 +1,8 @@
+fn expressions(a: i32, b: i32, values: list[i32]) -> i32:
+    sum := a + b * 2 ** 3
+    pairs := [for x in values for y in values if x != y => (x, y)]
+    by_value := {for x in values => x: x * x}
+    if pairs.len() > 0 and by_value.len() > 0:
+        sum
+    else:
+        0

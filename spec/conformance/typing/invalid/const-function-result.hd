@@ -1,0 +1,13 @@
+# expect-error: const-argument-to-mutable-parameter
+
+struct User:
+    name: string
+
+fn new_user() -> User:
+    User { name: "Ada" }
+
+fn rename(user: mut User) -> void:
+    user.name = "Grace"
+
+fn invalid() -> void:
+    rename(new_user())

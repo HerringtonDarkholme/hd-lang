@@ -51,7 +51,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Return types
 - Closure expressions
 - Lexical captures
-- Named parameters, if supported
+- Named parameters
 - Varargs and spread calls
 - Error, requirement, and suspension signatures
 - Function-first design
@@ -130,5 +130,6 @@ The following topics are outside the core-language tour and belong in [Runtime a
 - Observability
 - Serializable closures
 - Incremental computation
+- Resource lifetime and deterministic-cleanup backlog
 - Data-retention libraries
 - Tool, RPC, and deployment adapters

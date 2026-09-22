@@ -1,0 +1,3 @@
+# expect-error: reserved-semicolon
+
+name := "Ada";

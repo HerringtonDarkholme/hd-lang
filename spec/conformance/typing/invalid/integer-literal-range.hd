@@ -1,0 +1,3 @@
+# expect-error: integer-literal-range
+
+let invalid: u8 = 300

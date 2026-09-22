@@ -1,0 +1,9 @@
+float_default := 0.5
+let float_small: f32 = 0.5
+let minimum: i8 = -128
+
+fn widen_signed(left: i16, right: i64) -> i64:
+    left + right
+
+fn widen_float(left: f32, right: f64) -> f64:
+    left + right

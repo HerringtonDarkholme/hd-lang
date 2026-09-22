@@ -1,0 +1,4 @@
+# expect-error: unsigned-negation
+
+let value: u8 = 1
+invalid := -value

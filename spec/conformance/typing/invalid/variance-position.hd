@@ -1,0 +1,4 @@
+# expect-error: invalid-variance
+
+struct InvalidProducer[+T]:
+    consume: fn(T) -> void

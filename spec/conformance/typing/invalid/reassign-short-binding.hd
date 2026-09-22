@@ -1,0 +1,5 @@
+# expect-error: immutable-binding
+
+fn invalid() -> void:
+    name := "Ada"
+    name = "Grace"

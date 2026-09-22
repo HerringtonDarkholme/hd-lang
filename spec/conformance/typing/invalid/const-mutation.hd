@@ -1,0 +1,7 @@
+# expect-error: const-root
+
+struct User:
+    name: string
+
+fn invalid(user: User) -> void:
+    user.name = "Grace"

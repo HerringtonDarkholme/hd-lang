@@ -1,0 +1,9 @@
+# expect-error: duplicate-field
+
+struct User:
+    name: string
+
+user := User {
+    name: "Ada",
+    name: "Grace",
+}

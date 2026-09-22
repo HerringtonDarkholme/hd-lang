@@ -1,0 +1,13 @@
+fn normalize(value: string) -> string: value.trim()
+
+fn example(input: string, items: list[string]) -> string:
+    outer := "fallback"
+
+    if (trimmed := input.trim()) != "":
+        println(trimmed)
+
+    for item in items:
+        inner := normalize(item)
+        println(inner)
+
+    outer

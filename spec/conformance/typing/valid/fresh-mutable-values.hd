@@ -1,0 +1,12 @@
+struct User:
+    name: string
+
+fn rename(user: mut User) -> void:
+    user.name = "Grace"
+
+fn new_mutable_user() -> mut User:
+    User { name: "Ada" }
+
+fn valid() -> void:
+    rename(User { name: "Ada" })
+    rename(new_mutable_user())

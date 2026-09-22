@@ -1,0 +1,35 @@
+enum ToolError:
+    NotFound(resource: string)
+    Unauthorized(reason: string)
+
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+    NotFound -> HttpStatus(404, phrase="Not Found")
+
+enum Maybe[T]:
+    Some(value: T)
+    None
+
+enum Arithmetic:
+    Add(left: i32, right: i32)
+    Scale(value: i32, factor: i32)
+
+fn message(error: ToolError) -> string:
+    match error:
+        ToolError.NotFound(resource) => "not found: " + resource
+        ToolError.Unauthorized(reason=message) => message
+
+fn evaluate(expr: Arithmetic) -> i32:
+    match expr:
+        Arithmetic.Add(l, r) => l + r
+        Arithmetic.Scale(value, factor=2) => value * 2
+        Arithmetic.Scale(value, factor) => value * factor
+
+status := StatusCode.NotFound
+code := status.0
+phrase := HttpStatus.NotFound.phrase
+maybe := Maybe.Some(1)

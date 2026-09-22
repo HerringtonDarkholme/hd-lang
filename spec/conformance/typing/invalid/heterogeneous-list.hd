@@ -1,0 +1,3 @@
+# expect-error: no-common-type
+
+values := [1, "one"]

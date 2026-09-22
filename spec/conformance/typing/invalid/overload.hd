@@ -1,0 +1,4 @@
+# expect-error: duplicate-module-name
+
+fn value(input: i32) -> i32: input
+fn value(input: string) -> string: input

@@ -1,0 +1,18 @@
+struct User:
+    id: string
+    name: string
+    active: bool
+
+fn collections(users: list[User]) -> map[string, User]:
+    point := (10, 20)
+    x, y := point
+    names := [for user in users if user.active => user.name]
+    labels := [
+        for user in users
+        if (label := user.name.trim().lower()) != ""
+        => label
+    ]
+    pairs := [for left in names for right in labels => (left, right)]
+    by_id := {for user in users if user.active => user.id: user}
+    println((x, y, pairs))
+    by_id

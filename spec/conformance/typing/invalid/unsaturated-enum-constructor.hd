@@ -1,0 +1,6 @@
+# expect-error: unsaturated-enum-constructor
+
+enum ToolError:
+    NotFound(resource: string)
+
+constructor := ToolError.NotFound

@@ -1,0 +1,17 @@
+struct Timestamps:
+    created_at: i64
+    updated_at: i64
+
+struct Post:
+    Timestamps
+    id: string
+    title: string
+
+post := Post {
+    Timestamps: Timestamps {
+        created_at: 1,
+        updated_at: 1,
+    },
+    id: "post-1",
+    title: "Hello",
+}

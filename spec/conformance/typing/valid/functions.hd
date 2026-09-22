@@ -1,0 +1,29 @@
+struct User:
+    name: string
+
+fn first[T](items: list[T]) -> T?:
+    if items.len() == 0:
+        nil
+    else:
+        items[0]
+
+fn connect(host: string, port: i32 = 443, tls: bool = true) -> string:
+    host + string(port) + string(tls)
+
+fn sum(values: i32...) -> i32:
+    let total: i32 = 0
+    for value in values:
+        total = total + value
+    total
+
+fn with_user(callback: fn() -> User) -> User:
+    callback()
+
+fn example(users: list[User]) -> User?:
+    value := first[User](users)
+    total := sum(1, 2, 3)
+    println(connect("localhost", port=8080))
+    println(total)
+    with_user:
+        User { name: "Ada" }
+    value

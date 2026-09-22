@@ -1,0 +1,2 @@
+fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
+    f(args...)

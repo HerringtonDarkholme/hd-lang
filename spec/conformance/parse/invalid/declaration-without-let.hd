@@ -1,0 +1,4 @@
+# expect-error: missing-let
+
+fn invalid() -> void:
+    display_name: string = "Ada"

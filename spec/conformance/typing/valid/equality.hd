@@ -1,0 +1,8 @@
+struct User:
+    id: string
+
+fn same(left: User, right: User) -> bool:
+    left == right
+
+fn same_map(left: map[string, i32], right: map[string, i32]) -> bool:
+    left == right

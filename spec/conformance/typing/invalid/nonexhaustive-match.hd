@@ -1,0 +1,9 @@
+# expect-error: nonexhaustive-match
+
+enum Status:
+    Ready
+    Waiting
+
+fn invalid(status: Status) -> string:
+    match status:
+        Status.Ready => "ready"

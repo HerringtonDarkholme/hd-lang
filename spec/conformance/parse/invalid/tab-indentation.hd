@@ -1,0 +1,4 @@
+# expect-error: tab-whitespace
+
+fn invalid() -> void:
+	pass

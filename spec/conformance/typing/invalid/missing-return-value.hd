@@ -1,0 +1,5 @@
+# expect-error: missing-return-value
+
+fn invalid(flag: bool) -> i32:
+    if flag:
+        return 1

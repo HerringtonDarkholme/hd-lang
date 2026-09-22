@@ -20,6 +20,10 @@ test "adds two values":
 
 A `test` block is a module-level test entry point discovered by the test runner. Its body uses normal hd-lang bindings, expressions, control flow, and function calls. It is not an annotation and does not need manual registration.
 
+The language-level `test` production is defined in the
+[core grammar](spec/02-grammar.md#test-blocks). This document defines its runner
+and standard-library behavior.
+
 Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:
 
 ```text
@@ -309,3 +313,133 @@ Fan-out, filtering, redaction, and sampling are provider composition strategies 
 Automatic observations receive stable identities derived from execution ID, boundary ID, attempt, and event kind. Deterministic replay does not re-emit observations for already completed history events. New workflow activations use new attempt identities, exporters may deduplicate by observation ID, and replay diagnostics use separate runtime events.
 
 This provider API is an initial draft. Explicit custom-span syntax, metric instruments, privacy/redaction policy, sampling details, and exporter configuration remain open and may be optimized later.
+
+## Resource Lifetime Backlog
+
+Deterministic cleanup is outside the MVP. hd-lang has not selected `Drop`/RAII,
+`using`, Python-style `with`, lexical `defer`, or `errdefer` syntax.
+
+The design must preserve the distinction between two jobs. A resource protocol
+attaches cleanup responsibility to a value and is visible to type checking and
+tooling. A scope-exit action can capture arbitrary local state and handles
+pragmatic cases such as restoring a temporary mutation, recording final metrics,
+conditional cleanup registration, and commit-or-rollback. A protocol can model
+the latter only through a general closure-backed guard or exit stack, while a
+bare scope-exit statement cannot by itself prove that every resource is closed.
+
+A later hybrid may use protocol-owned cleanup for real resources plus a
+block-scoped escape hatch for ad hoc restoration. That is a comparison point,
+not an accepted design. Go-style function-scoped `defer` is disfavored because
+registration in a loop delays cleanup until the whole function returns.
+
+The harder problem is alias escape. The current `mut` model controls write
+permission, not ownership, lifetime, open/closed typestate, or cleanup
+responsibility. Either protocol or scope-exit syntax could still permit this
+conceptual failure:
+
+```text
+# Illustrative backlog syntax; top-level stored values and defer are not core.
+let global_file: File? = nil
+
+fn publish_file() -> void:
+    file := File.open("data.txt")
+    defer:
+        file.close()
+    global_file = file
+
+# Later, after publish_file has closed the handle.
+file := global_file?
+file.read()
+```
+
+Lexical cleanup runs one action but does not invalidate aliases stored in
+globals, fields, containers, returns, or closures. Garbage collection also does
+not provide prompt release. Candidate solutions include resource-only affine
+ownership, scoped regions, typestate plus alias restrictions, runtime handles
+whose operations return a disposed error, or scoped callbacks with
+non-escaping resource types. The resource design must also define cleanup
+failure, `Result`/`?`, suspension, cancellation, replay, and whether live handles
+may cross a durable suspension boundary.
+
+## Serializable Closure Backlog
+
+Serializable closures are a runtime goal, not accepted syntax or semantics.
+Choosing an annotation, modifier, wrapper type, or inference rule comes only
+after the representation contract is settled.
+
+That contract must define:
+
+1. snapshot versus preserved identity and aliasing for captures;
+2. treatment of mutable captures, cycles, repeated references, trait values,
+   nested closures, and erased or reified generic arguments;
+3. stable code identity and compatibility across source, compiler, deployment,
+   and runtime versions;
+4. whether requirements, authorization, providers, and live resources are
+   captured, rebound, or rejected;
+5. compile-time rejection versus runtime serialization failure;
+6. schema migration, sandbox validation, cancellation, expiry, delivery,
+   idempotency, replay, and result compatibility.
+
+Durable workflow resumption does not depend on this feature. Its accepted
+initial model reconstructs execution through deterministic replay and recorded
+suspension results rather than serializing a closure or active Wasm stack.
+
+## Incremental Computation
+
+Incremental computation should initially be a native-feeling
+`std.incremental` library with runtime support, not a language keyword. It is
+distinct from both a persistent function cache and durable replay:
+
+- an incremental node recomputes when one of its tracked inputs changes;
+- a cache reuses a result only while code, arguments, captures, providers, and
+  external dependency identities remain valid; and
+- replay restores the recorded result belonging to one historical execution,
+  even if current external data has changed.
+
+The computation callback uses ordinary function rules to establish purity. It
+must be a plain non-suspending `fn`, not `mut fn` or `fn!`, and have no `$`
+requirements, mutable parameters, or mutable captures. These restrictions are
+checked transitively without an incremental-specific compiler instruction.
+Mutation of fresh, non-escaping local values remains permitted. Because a const
+reference can still observe writes through another alias, changing shared state
+must enter through a tracked input or a future stable-value constraint.
+
+Illustrative library shape, not a final API:
+
+```text
+let price = incremental.input(100)
+let quantity = incremental.input(2)
+
+total := incremental.compute:
+    price.get() * quantity.get()
+
+view := incremental.observe(total)
+
+incremental.update:
+    price.set(120)
+    quantity.set(3)
+
+incremental.stabilize()
+println(view.get())
+```
+
+The initial runtime direction is transactional updates, lazy demanded
+recomputation in topological order, equality-based propagation cutoff, DAGs
+with complete cycle diagnostics, whole-value tracking, and observation-driven
+node lifetime. Dynamic dependencies are the tracked inputs actually read on a
+successful evaluation; recomputation atomically replaces the old dependency
+set.
+
+External files, database reads, HTTP responses, clocks, environment values, and
+other external inputs require stable revisions, snapshots, digests, ETags, or
+equivalent dependency tokens. An opaque operation is volatile and prevents
+persistent reuse. TTL and manual invalidation are freshness policies, not
+substitutes for dependency correctness. Workflow replay never consults
+incremental cache freshness, and invalidating a node never repeats an external
+workflow action.
+
+Human and AI tooling must be able to inspect node/code identity, source
+location, value type, dependencies and dependents, external versions,
+clean/dirty state, revision, cache state, duration, and invalidation cause.
+Exact APIs, fingerprint protocols, storage tiers, distribution, collection
+granularity, lifetime, and observability integration remain open.
