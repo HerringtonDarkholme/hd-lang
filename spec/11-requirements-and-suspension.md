@@ -1,11 +1,11 @@
 # Requirements and Suspension
 
-Status: provisional design.
+Status: language specification draft.
 
-This chapter specifies the current design for static dependency requirements,
-provider injection, and one-shot suspension. The mechanisms are related but
-deliberately separate. This chapter is provisional because row polymorphism,
-driver APIs, and some cancellation details remain open.
+This chapter specifies static dependency requirements, provider injection, and
+one-shot suspension. The mechanisms are related but deliberately separate.
+The grammar and semantics in this chapter are part of hd-lang; runtime and
+library policies are specified separately.
 
 ## Decomposed Model
 
@@ -30,8 +30,8 @@ boundaries is not generally reinterpreted.
 
 ## Requirement Rows
 
-A function signature may end with `$` and an unordered row of requirement
-traits:
+A function signature may end with `$` and an unordered row expression of
+requirement traits:
 
 ```text
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
@@ -39,32 +39,47 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
 ```
 
 ```ebnf
-requirement_clause = "$", requirement_row ;
-requirement_row = requirement_key, { "+", requirement_key } ;
-requirement_key = qualified_name ;
+requirement_clause = "$", requirement_expression ;
+requirement_expression = requirement_union,
+                         { "-", requirement_key } ;
+requirement_union = requirement_term, { "+", requirement_term } ;
+requirement_term = requirement_key
+                 | "(", requirement_expression, ")"
+                 ;
+requirement_key = trait_type ;
 ```
 
-This chapter extends function declarations and function types:
+Function declarations, closure expressions, and function types use the same
+requirement clause:
 
 ```ebnf
-required_function_decl = "fn", suspendable_name, [ generic_params ],
-                         parameter_clause, "->", type,
-                         [ requirement_clause ], ":", suite_body ;
+function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
+                "->", type, [ requirement_clause ], ":", suite_body ;
 
-required_function_type = [ "mut" ], "fn", "(", [ type_list ], ")",
-                         "->", type, [ requirement_clause ] ;
+function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+                "->", type, [ requirement_clause ] ;
 
-suspendable_name = identifier, [ "!" ] ;
+closure_expression = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
+                     [ "->", type ], [ requirement_clause ],
+                     ":", suite_body ;
+
+callable_name = identifier, [ "!" ] ;
 ```
 
-The same `suspendable_name` and optional `requirement_clause` extend trait
-method declarations and functions inside `impl` blocks. A trait requirement and
-its implementation must agree on suspension and requirement-row behavior.
+The same callable name and optional requirement clause apply to trait methods
+and functions inside `impl` blocks. A trait requirement and its implementation
+must agree on suspension and normalized requirement-row behavior.
 
 Rows are sets: order does not affect type identity, and a key occurs at most
-once after normalization. A function may call another required function only
-when its own row includes those requirements or a lexical provider scope
-satisfies them.
+once after normalization. `+` forms set union. `r - Logger` removes `Logger`
+from a row parameter `r`; removing an absent key is allowed and leaves the row
+unchanged. Parentheses group row expressions. A function may call another
+required function only when its own row includes those requirements or a
+lexical provider scope satisfies them.
+
+A generic parameter used in requirement position is inferred to have the
+requirement-row kind. One parameter cannot be used as both an ordinary type and
+a requirement row.
 
 Requirements are usually traits, including interfaces such as `Database` and
 host capabilities such as `Clock` or `Network`. The language does not introduce
@@ -120,7 +135,7 @@ context_use = "$", ".", "use", "(", requirement_key,
               { ",", requirement_key }, [ "," ], ")" ;
 
 context_create = "$", ".", "context", "(", context_entries, ")" ;
-context_type = "$", ".", "Context", "[", requirement_row, "]" ;
+context_type = "$", ".", "Context", "[", requirement_expression, "]" ;
 context_scope = "$", ".", "with", "(", context_entries, ")",
                 ":", suite_body ;
 
@@ -130,9 +145,8 @@ context_entry = requirement_key, "=", expression
               ;
 ```
 
-`context_use` and `context_create` extend `primary_expression`; `context_type`
-extends `non_optional_type`; and `context_scope` extends the control/trailing
-block expression alternatives in the core grammar.
+`context_use` and `context_create` are primary expressions; `context_type` is a
+reference type; and `context_scope` is a suite expression.
 
 Provider values are ordinary values and use ordinary trait implementations.
 There is no separate `handler` declaration.
@@ -158,11 +172,38 @@ arguments and required providers but does not begin executing the body. The
 bang call constructs that suspension and drives it as a child of the current
 suspending computation. It is a possible suspension point.
 
+The surface type of `fetch_user` is
+`fn!(UserId) -> Result[User, DbError]`. A suspending function type is
+definitionally equivalent to an ordinary constructor function returning a
+suspension:
+
+```text
+fn!(A, B) -> T $ R
+fn(A, B) -> Suspend[T] $ R
+```
+
+The first spelling preserves the source-level bang-call operation; the second
+is its lowered callable type. Assignment or argument checking may convert the
+first to the second, but not back. Calling either form without `!` constructs
+the cold `Suspend[T]`. Only the first form supports `callee!(...)` directly.
+
+Anonymous suspending callables use the same marker after `fn`:
+
+```text
+loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
+    db := $.use(Database)
+    db.load_user!(id)
+```
+
+Requirement-bearing non-suspending closures omit `!` and place `$` after their
+result type. Closure inference may infer a requirement row from an expected
+function type, but it never silently makes a closure suspending.
+
 ```ebnf
 suspension_call_suffix = "!", argument_clause ;
 ```
 
-This suffix extends `postfix_suffix` at ordinary call precedence. A bang call
+This suffix is part of `postfix_suffix` at ordinary call precedence. A bang call
 is valid only in a suspending function body or another explicitly defined
 driver context. Merely using requirements does not make a function suspending;
 a non-suspending function may have a `$` row.
@@ -193,9 +234,11 @@ A `Suspend[T]` value is:
 arrange for the waker to be invoked when another poll may make progress. The
 waker carries no result; state remains in the suspension frame.
 
-Competing drivers, reentrant polling, polling after `Ready`, polling after
-cancellation, or attempting a second execution cause a runtime panic. These are
-runtime checks rather than ownership rules in the type system.
+Competing drivers, reentrant polling, polling after `Ready`, or attempting a
+second execution cause a runtime panic. Cancellation is idempotent: cancelling
+an already cancelled or completed suspension has no further effect. Polling a
+cancelled suspension causes a runtime panic. These are runtime checks rather
+than ownership rules in the type system.
 
 There is no separate `Pollable` or public `Continuation[T]` abstraction.
 
@@ -284,8 +327,8 @@ syntax.
 
 ## Requirement Polymorphism
 
-Higher-order code must preserve callback requirements. The current candidate
-uses a requirement-row variable:
+Higher-order code preserves callback requirements with a requirement-row
+variable:
 
 ```text
 fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
@@ -300,15 +343,19 @@ fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
         callback("message")
 ```
 
-The exact row-variable kind, inference, normalization, and subtraction syntax
-are not settled. These examples express the required relationship but are not
-yet normative grammar.
+The compiler infers `r` as a requirement-row parameter from its use after `$`.
+At a call, it infers the callback's normalized requirement set for `r`. The
+callee's own row is then normalized after union and subtraction. This mechanism
+does not quantify over arbitrary type-level expressions; it is specific to
+requirement rows.
 
-## Open Issues
+## Runtime Boundary
 
-1. Stored-suspension driver APIs and syntax outside another `fn!` body.
-2. The exact guarded mutable-access mechanism used by runtime drivers.
-3. Whether cancellation is idempotent or repeated cancellation panics.
-4. Provider defaulting and selection rules across package and host boundaries.
-5. Full requirement-row polymorphism and subtraction.
-6. Cleanup and resource lifetime; cancellation does not replace them.
+A stored suspension is driven through a runtime or standard-library driver; no
+additional source keyword is required. Drivers enforce exclusive access and the
+panic rules above without exposing a way to upgrade an arbitrary const
+reference. Provider selection is never implicit: a provider comes from an
+enclosing `$.with` scope or from the host configuration of an entry point.
+
+Scheduling APIs, durable replay, and source-level resource cleanup are runtime
+or library concerns. Cancellation does not replace deterministic cleanup.

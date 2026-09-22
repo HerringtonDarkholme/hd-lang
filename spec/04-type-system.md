@@ -1,6 +1,6 @@
 # Type System
 
-Status: core specification draft.
+Status: language specification draft.
 
 hd-lang is statically typed. Every expression has a compile-time type, and a
 program with a type error must not execute. Local inference removes redundant
@@ -8,7 +8,7 @@ annotations; public and aggregate boundaries remain explicit.
 
 ## Type Forms
 
-The core type forms are:
+The type forms are:
 
 - primitive types;
 - nominal structs and enums;
@@ -17,13 +17,17 @@ The core type forms are:
 - optional types `T?`;
 - function types `fn(...) -> T` and mutable function types
   `mut fn(...) -> T`;
+- suspending function types `fn!(...) -> T`;
+- requirement-bearing function types ending in `$ Row`;
 - generic instantiations;
+- associated type projections such as `T::Item`;
+- variadic type packs and pack expansions;
 - trait value types;
 - transparent aliases and nominal newtypes;
 - mutable-access types `mut T`.
 
-Requirement-bearing function types and `Suspend[T]` are specified
-provisionally. GADT refinements and variadic type packs are also provisional.
+`Suspend[T]` is the dynamic one-shot computation protocol. GADT refinements are
+arm-local type equalities rather than additional runtime type forms.
 
 ## Primitive Types
 
@@ -106,8 +110,8 @@ same arity and pairwise-equal element types. One-element tuples require a
 trailing comma; `()` is the empty tuple.
 
 Function types are structural when their parameter types, result type,
-mutability, and any provisional requirement information match. Function types
-are invariant in every parameter and the result in v1; there are no implicit
+mutability, suspension marker, and normalized requirement row match. Function types
+are invariant in every parameter and the result; there are no implicit
 function-type variance conversions.
 
 ## Transparent Aliases And Newtypes
@@ -379,7 +383,7 @@ trait conformance without mutable-root authority.
 
 Generic arguments are inferred at call sites when unambiguous. Callers may
 supply the complete generic argument list explicitly. Partial explicit generic
-arguments and placeholder generic arguments are not supported in v1.
+arguments and placeholder generic arguments are not language constructs.
 
 Function generic parameters are erased at runtime by default. A parameter
 marked `reified` carries runtime type metadata and may be used by operations
@@ -389,6 +393,17 @@ must not be used where runtime type identity is required.
 Reification is part of the function's public type and ABI, but its descriptor
 is not a source-level value argument. A backend may specialize a reified call
 only when doing so preserves observable reflection behavior.
+
+`shape(Target)` consumes this descriptor. For a concrete struct, enum,
+function, field, variant, or parameter declaration it returns the corresponding
+specialized shape type; for an otherwise generic concrete type it returns
+`TypeShape`. An erased generic parameter cannot be used as a shape target.
+Annotation lookup for a generic target has the same reification requirement.
+
+An identifier followed by `...` in a generic parameter list declares a type
+pack. Packs have a compile-time length and ordered element types; they are not
+runtime collection values. Expansion and inference are specified in
+[Variadic Generics](12-variadic-generics.md).
 
 ## Variance
 
@@ -451,8 +466,8 @@ contains a concrete value and dispatch metadata for that trait. Source syntax
 does not use a `dyn` marker.
 
 Only a dynamically safe trait may be used as a value type. A dynamically safe
-trait and every supertrait must have no method-level generic parameters, and
-`Self` may appear only as the receiver type. Trait declaration generic
+trait and every supertrait must have no associated types, associated functions,
+or method-level generic parameters, and `Self` may appear only as the receiver type. Trait declaration generic
 parameters are permitted because one concrete trait instantiation, such as
 `Repository[User]`, fixes them before erasure. Traits that fail these rules
 remain valid for static generic bounds and explicit implementations.
@@ -471,7 +486,7 @@ satisfies it automatically. As a value type, `Any` erases the concrete type.
 ## Map Key Types
 
 `map[K, V]` requires `K` to satisfy the compiler-defined `MapKey` contract.
-The following types satisfy it in v1:
+The following types satisfy it:
 
 - `bool`, `char`, `string`, and every signed or unsigned integer type;
 - transparent aliases of a `MapKey` type;
@@ -482,7 +497,7 @@ The following types satisfy it in v1:
 Floating-point types, structs, lists, maps, functions, dynamic trait values, and
 every `mut T` type do not satisfy `MapKey`. This conservative closed set ensures
 that a key's equality and hash cannot change through another mutable alias while
-the key is stored. A future edition may expose an explicit stable equality/hash
+the key is stored. A future extension may expose an explicit stable equality/hash
 trait after its aliasing contract is designed.
 
 `MapKey` equality is value equality: tuples compare element by element; enums
@@ -512,7 +527,7 @@ the program.
 
 ## Unsupported Type-System Extensions
 
-v1 has no runtime type tests or downcasts involving trait values. The exact
+The language has no runtime type tests or downcasts involving trait values. The exact
 host representation of a checked runtime panic is an ABI concern; its
 language-level control-flow semantics are defined in
 [Control Flow](06-control-flow.md#runtime-panics).

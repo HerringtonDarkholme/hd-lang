@@ -40,7 +40,7 @@ Top-level statements make hd-lang useful as an interactive scripting language fo
 
 Scripts execute top-level statements. Executable packages use the explicit `main`
 entry point described later in the tour. The exact CLI and standard-output API
-spellings remain provisional.
+spellings are tooling decisions rather than language syntax.
 
 ## Values and Types
 
@@ -130,7 +130,7 @@ let name: string = "Ada"
 let initial: char = 'A'
 ```
 
-There are no convenience aliases such as `int`, `uint`, or `float` in v1. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
+There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
 
 Text literals distinguish chars and strings:
 
@@ -179,7 +179,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `&` | bitwise and |
 | `^` | bitwise xor |
 | `|` | bitwise or |
-| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining in v1 |
+| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining  |
 | `and` | logical and |
 | `or` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
@@ -571,7 +571,7 @@ enum ToolError:
     Internal(message: string)
 ```
 
-Payload variant declarations use the compact `Variant(field: type)` form in v1. Use a separate struct payload when the data is large enough to need a full field block.
+Payload variant declarations use the compact `Variant(field: type)` form. Use a separate struct payload when the data is large enough to need a full field block.
 
 Payload variants are called like functions. Positional arguments come first, and
 named arguments follow them:
@@ -652,7 +652,7 @@ enum Tree[T]:
     Branch(left: Tree[T], right: Tree[T])
 ```
 
-The following GADT form is provisional rather than stable core. For more precise modeling, a variant can declare an explicit result type so pattern matching can recover more specific type information:
+For more precise modeling, a GADT variant can declare an explicit result type so pattern matching can recover more specific type information:
 
 ```text
 enum Expr[T]:
@@ -868,7 +868,7 @@ slugify := fn(text: string) -> string:
 slug := slugify("Hello hd-lang")
 ```
 
-There is no separate short closure syntax in v1. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
+There is no separate short closure syntax. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
 
 ```text
 inc := fn(x: i32) -> i32: x + 1
@@ -952,7 +952,7 @@ The same call can use a same-line closure:
 lower_names := map_names(names, fn(name): name.lower())
 ```
 
-Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named parameters in the closure parameter list.
+Shorthand argument closures such as `$0 + $1` are not supported; closures use named parameters.
 
 Generic functions put generic arguments after the function name:
 
@@ -1008,7 +1008,7 @@ fn invalid_resolved[T]() -> T $ TypeProvider:
 
 Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
 
-v1 does not support partial explicit generic arguments or placeholder generic arguments.
+hd-lang does not support partial explicit generic arguments or placeholder generic arguments.
 
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
 
@@ -1285,7 +1285,7 @@ items := resolve[list[i32]]()
 
 At the language level, a reified call behaves as if it passes a hidden `Type[T]` descriptor. This descriptor is not an ordinary source-level argument and cannot be supplied with a named argument. Reification is part of a function's public type and ABI.
 
-The provisional variadic-generic design uses ordered type and value packs. Its minimal surface supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
+Variadic generics use ordered type and value packs. Pack expansion is supported in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
 ```text
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
@@ -1303,7 +1303,7 @@ fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
 
 For `Ts... = User, i32, bool`, `Suspend[Ts]...` expands to three parameter types, `Suspend[User], Suspend[i32], Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: `start(tasks)...` repeats `start(task)` for every value in the `tasks` pack. Pattern expansion happens at compile time and does not allocate a runtime collection.
 
-Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. v1 does not support general pack mapping, filtering, indexing, splitting, or arithmetic. This example establishes the type relationship for `all!`; its scheduling and cancellation behavior is defined separately by the concurrency design.
+Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. hd-lang does not support general pack mapping, filtering, indexing, splitting, or arithmetic. This example establishes the type relationship for `all!`; its scheduling and cancellation behavior is defined separately by the concurrency design.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 
@@ -1489,9 +1489,9 @@ export pkg.user.service.{load_user, save_user}
 
 Submodules are not imported automatically. Parent modules and child modules both use explicit imports.
 
-Import and re-export cycles are rejected in v1.
+Import and re-export cycles are rejected.
 
-v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. A public struct or enum exposes all of its fields or variants, and a public signature cannot leak a module-private type. There is no package-private or per-member visibility modifier; finer visibility is deferred.
+Visibility is simple: declarations are module-private by default, and `pub` makes them public. A public struct or enum exposes all of its fields or variants, and a public signature cannot leak a module-private type. There is no package-private or per-member visibility modifier.
 
 ## Program Entry Points
 
@@ -1530,10 +1530,8 @@ Maps are unordered by default. Their insertion or iteration order is not part of
 
 ## Requirements and Suspension
 
-Requirements, provider contexts, and suspension are a provisional language
-surface. Their current semantics are specified separately from stable core so
-row polymorphism, driver APIs, and cancellation details can change without
-changing ordinary functions or `Result` error handling.
+Requirements, provider contexts, and suspension are language features specified
+separately from ordinary functions and `Result` error handling.
 
 hd-lang separates three concerns often grouped under algebraic effects:
 
@@ -1625,15 +1623,15 @@ $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
 
 `$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `...prod_context()` spreads reusable providers into a lexical context scope, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order. Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels. Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
 
-Requirement polymorphism for higher-order functions is still provisional. Its
-purpose is to preserve callback requirements rather than erase them:
+Requirement polymorphism for higher-order functions preserves callback
+requirements rather than erasing them:
 
 ```text
 fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
     ...
 ```
 
-A provider scope may remove a requirement from a row variable. The exact row-polymorphism rules and subtraction syntax are not settled:
+A provider scope removes a locally supplied requirement from a row variable:
 
 ```text
 fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
@@ -1645,18 +1643,17 @@ Here `callback` may require `Logger` plus other requirements. The local provider
 satisfies `Logger`, so callers see only the remaining row. The helper itself is
 not named `provide_logger!` because its body has no suspension point.
 
-Open surface choices from this section:
-
-1. Provider selection rules for tests, production, nested scopes, and defaults.
-2. Whether requirement polymorphism uses full row polymorphism or a smaller requirement-variable model.
-3. Exact `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction.
+Providers come from an enclosing `$.with` scope or an entry point's host
+configuration; there are no implicit provider defaults. Requirement variables
+are specialized row parameters with union and subtraction. Additional
+`Result[T, E]` convenience APIs belong to the standard library.
 
 ## Using Annotations
 
-Annotations are provisional. The following surface records the accepted design
-direction for typed metadata and structural derivation, but its shape APIs,
-materialization spelling, missing-child policy, and generic target syntax are
-not stable core.
+Annotations provide typed metadata and structural derivation. Shape APIs,
+materialization, exact-target derivation, and recursive references are part of
+the language; the missing-child policy remains the one unresolved annotation
+decision.
 
 Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
 
@@ -1753,12 +1750,10 @@ This produces tool information but does not discover or register the function, a
 tool_registry.register(Tool::annotation(get_user))
 ```
 
-Open surface choices from this section:
-
-1. The final spelling of runtime retrieval, currently `Facet::annotation(Target)`.
-2. The missing-child policy when a field or variant type has no metadata for the requested facet.
-3. The detailed syntax for whole-facet overrides in an `annotate` block.
-4. A future version may add `@expr` as optional locality sugar for member metadata, exactly equivalent to `annotate Target`; it is not current syntax.
+`Facet::annotation(Target)` is the runtime retrieval spelling. A local `build`
+inside the facet block replaces aggregate assembly. The missing-child policy
+when a member type lacks the requested facet remains unresolved. Decorator
+syntax is not part of the language.
 
 ## Implementing Annotators
 
@@ -1770,6 +1765,10 @@ shape(User.email)    # FieldShape
 shape(JobStatus)     # EnumShape
 shape(get_user)      # FnShape
 ```
+
+`FnShape` includes ordered parameter shapes, the result type, default presence,
+the suspension marker, and the normalized unordered requirement row. Parameter
+shapes do not have local metadata assignments.
 
 Every annotation value implements `Annotation` and chooses one uniform information type. `Annotate[A]` records that a concrete target provides information for annotation `A`:
 
@@ -1786,7 +1785,6 @@ Local member metadata uses open traits. A field metadata trait is generic over t
 ```text
 trait FieldMetadata[T]
 trait VariantMetadata
-trait ParamMetadata[T]
 ```
 
 For example, `MaxLen` applies to `string` fields but not `i32` fields:
@@ -1824,6 +1822,10 @@ annotate Invalid:
 An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and structs:
 
 ```text
+type Dict[K, V] = map[K, V]
+
+struct Validation: pass
+
 struct FieldValidator:
     name: string
     target: AnnotationRef[Validator]
@@ -1945,15 +1947,13 @@ trait FuncAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-`VariantMetadata` and `ParamMetadata[T]` provide the corresponding homogeneous dynamic-trait collections for variants and parameters. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
+`VariantMetadata` provides the corresponding homogeneous dynamic-trait collection for variants. Parameters do not have local metadata assignments; function annotators use each `ParamShape`'s name, type, default presence, and documentation. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
 
-Open surface choices from this section:
-
-1. The final shape APIs and method names.
-2. Generic exact-target syntax for families such as every `list[T]`.
-3. Whether type information and completed aggregate information always share `Annotation::Info`.
-4. The static missing-annotation policy and its granularity.
-5. Generic constraint syntax for metadata helper functions and generic `Annotate[A]` implementations.
+Shape values and annotator methods follow the definitions in the annotation
+chapter. Generic families use ordinary generic `impl Annotate[A] for Target`;
+the structure-aware `annotate` sugar names exact targets. Type and aggregate
+information share `Annotation::Info`. Only the static missing-annotation policy
+and its granularity remain unresolved.
 
 ## Runtime and Library Features
 

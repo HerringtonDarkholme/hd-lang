@@ -2,8 +2,9 @@
 
 This directory contains the normative language specification.
 
-Core chapters describe the stable language. Material under `provisional/` is
-still under design and is not part of the stable core specification.
+The numbered chapters describe one evolving language specification. Features
+are either specified, explicitly unsupported, or listed in the completion
+register; hd-lang does not divide the language into versioned subsets.
 
 ## Contents
 
@@ -19,15 +20,10 @@ still under design and is not part of the stable core specification.
 | [Structs and Enums](08-structs-and-enums.md) | aggregate declaration, construction, embedding |
 | [Traits](09-traits.md) | conformance, methods, static and dynamic dispatch |
 | [Modules](10-modules.md) | packages, imports, visibility, entry points, Wasm boundary |
-
-Provisional chapters:
-
-| Chapter | Unstable surface |
-| --- | --- |
-| [Requirements and Suspension](provisional/requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
-| [Variadic Generics](provisional/variadic-generics.md) | type/value packs and pattern expansion |
-| [GADTs](provisional/gadts.md) | variant result refinement and match typing |
-| [Annotations](provisional/annotations.md) | shapes, metadata, derivation, overrides, recursion |
+| [Requirements and Suspension](11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
+| [Variadic Generics](12-variadic-generics.md) | type/value packs and pattern expansion |
+| [GADTs](13-gadts.md) | variant result refinement and match typing |
+| [Annotations](14-annotations.md) | shapes, metadata, derivation, overrides, recursion |
 
 The remaining decisions needed to finish the draft are tracked in the
 [Specification Completion Register](OPEN_ISSUES.md).
@@ -36,7 +32,7 @@ Runtime and standard-library behavior that is not language semantics remains in
 [`RUNTIME_AND_LIBRARY.md`](../RUNTIME_AND_LIBRARY.md). The language tour remains
 the readable introduction; this directory is the formalization target.
 
-Future parser and type-checker cases live in
+Parser and type-checker cases live in
 [Conformance Fixtures](conformance/README.md). Run the repository-local
 specification checks with:
 
@@ -78,7 +74,7 @@ states it as a requirement. Explicitly open issues are not implementation
 freedom to guess silently: an implementation must diagnose unsupported syntax
 until the issue is resolved by a later specification revision.
 
-Unresolved decisions are recorded in the completion register or in the owning
-provisional chapter. The stable-core draft is not complete until every issue
-required for parsing, type checking, or execution has either been specified or
-deliberately moved out of the supported language version.
+Unresolved decisions are recorded in the completion register. The draft is not
+complete until every issue required for parsing, type checking, or execution
+has either been specified or explicitly classified as unsupported or runtime
+and library work.

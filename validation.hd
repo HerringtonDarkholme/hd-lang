@@ -1,10 +1,14 @@
 # Full validation and recursive annotation example.
 #
 # The annotation runtime provides AnnotationRef, cycle-aware annotation_ref,
-# shape types, metadata types, AnnotationError, and the stateless Validation
-# facet value.
+# shape types, metadata types, and AnnotationError. This file declares the
+# stateless Validation facet type.
 # `annotate Validation for T` generates `impl Annotate[Validation] for T`;
 # StructAnnotator and EnumAnnotator provide its aggregate derivation steps.
+
+type Dict[K, V] = map[K, V]
+
+struct Validation: pass
 
 trait Annotation:
     type Info

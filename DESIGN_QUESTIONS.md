@@ -1,22 +1,17 @@
 # Design Questions
 
 This file is the navigation index for unresolved hd-lang design work. It is not
-a second specification and does not repeat settled answers. Stable-core status
+a second specification and does not repeat settled answers. Specification status
 is tracked in the [Specification Completion Register](spec/OPEN_ISSUES.md), and
 accepted syntax and semantics live in the [formal specification](spec/README.md).
 
-## Provisional Language Features
+## Language Decisions
 
-The detailed questions are maintained beside the designs they affect:
-
-- [Requirements and Suspension](spec/provisional/requirements-and-suspension.md#open-issues): driver APIs, cancellation details, provider selection, requirement-row polymorphism, and cleanup interaction.
-- [Variadic Generics](spec/provisional/variadic-generics.md#open-issues): exact expansion grammar, explicit pack arguments, inference, and expansion count.
-- [GADTs](spec/provisional/gadts.md#open-issues): formal refinement/unification, explicit constructor arguments, existentials, variance, and reflection.
-- [Annotations](spec/provisional/annotations.md#open-issues): final shape APIs, generic targets, materialization, missing-child policy, generic implementations, whole derivation replacement, optional decorator sugar, manual laziness, and zero-sized facet values.
-
-Moving one of these features into stable core requires resolving its chapter's
-questions, integrating its grammar into `spec/02-grammar.md`, and adding parser,
-typing, and runtime conformance cases.
+Requirements and suspension, variadic generics, GADTs, and annotations are
+numbered language chapters and are integrated into the consolidated grammar.
+The remaining language-level decision is the static missing-child policy for
+annotation derivation, tracked in
+[the completion register](spec/OPEN_ISSUES.md#core-decisions-required).
 
 ## Runtime And Library Backlog
 
@@ -45,5 +40,5 @@ not additional core syntax:
 
 Function contracts/invariants, ownership transfer, property-test syntax, and a
 dedicated concurrency control-flow construct remain deliberately outside the
-MVP. Reopening one requires a motivating program that cannot be expressed
-cleanly through the stable core plus a library.
+language. Reopening one requires a motivating program that cannot be expressed
+cleanly through the specified language plus a library.

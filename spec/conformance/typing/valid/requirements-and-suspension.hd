@@ -1,0 +1,48 @@
+trait Database:
+    fn get_user!(self, id: string) -> Result[User?, DbError]
+
+trait Logger:
+    fn write(self, message: string) -> void
+
+struct User:
+    id: string
+
+struct DbError:
+    message: string
+
+struct MockDatabase: pass
+struct ConsoleLogger: pass
+
+impl Database for MockDatabase:
+    fn get_user!(self, id: string) -> Result[User?, DbError]:
+        Ok(nil)
+
+impl Logger for ConsoleLogger:
+    fn write(self, message: string) -> void: pass
+
+fn load_user!(id: string) -> Result[User?, DbError] $ Database:
+    db := $.use(Database)
+    db.get_user!(id)
+
+fn consume!(loader: fn!(string) -> Result[User?, DbError] $ Database) -> void $ Database:
+    result := loader!("user-1")
+    pass
+
+fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=ConsoleLogger {}):
+        callback("message")
+
+fn log_message(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+loader := fn!(id: string) -> Result[User?, DbError] $ Database:
+    load_user!(id)
+
+mock_database := MockDatabase {}
+context := $.context(Database=mock_database)
+$.with(...context):
+    pending := loader("user-1")
+    result := loader!("user-1")
+
+provide_logger(log_message)

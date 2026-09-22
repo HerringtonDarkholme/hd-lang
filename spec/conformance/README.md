@@ -13,8 +13,6 @@ specification.
   the file's first `# expect-error:` comment.
 - `runtime/panic`: must parse and type-check, then panic with the category named
   in the file's first `# expect-panic:` comment when executed.
-- `provisional`: examples for provisional chapters. They are not core
-  conformance requirements.
 
 An implementation test runner should accept one file at a time. Files may rely
 on primitive types and ordinary prelude names, but should declare all

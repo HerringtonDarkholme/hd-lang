@@ -1,6 +1,6 @@
 # Names and Scopes
 
-Status: core specification draft.
+Status: language specification draft.
 
 This chapter defines the scopes introduced by hd-lang programs and how names
 resolve. It does not define type compatibility or access permission.
@@ -86,7 +86,7 @@ their binding point. A top-level executable statement may refer to a named
 module declaration regardless of that declaration's textual position.
 
 Named `fn`, `struct`, `enum`, `trait`, and `type` declarations occur only at
-module scope in the current core. `impl` declarations also occur only at
+module scope. `impl` declarations also occur only at
 module scope, but do not introduce an independently referencable module name.
 
 Declarations are module-private unless marked `pub`. `pub` makes a declaration
@@ -115,7 +115,7 @@ import. Imports do not create overload sets and are not implicitly renamed.
 Imports are resolved before declarations are type checked. Their textual
 position does not limit their visibility, but style tools should place imports
 before other top-level items. Import and re-export cycles are compile-time
-errors in v1.
+errors.
 
 `export` re-exports selected public declarations. It does not introduce an
 additional local alias beyond names already available through ordinary module
@@ -291,7 +291,7 @@ are not ordinary identifiers and cannot be declared by users.
 
 ## Unsupported Scope Extensions
 
-v1 permits shadowing of outer local names; a style tool may warn about it, but
-that warning is not part of language semantics. v1 does not support nested
+hd-lang permits shadowing of outer local names; a style tool may warn about it, but
+that warning is not part of language semantics. hd-lang does not support nested
 named declarations, direct imports of enum variants, or top-level stored-value
 declarations distinct from sequential script bindings.

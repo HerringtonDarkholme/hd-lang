@@ -1,8 +1,8 @@
 # Grammar
 
-Status: core specification draft.
+Status: language specification draft.
 
-This chapter collects the core hd-lang grammar in EBNF. It specifies syntactic
+This chapter collects the hd-lang grammar in EBNF. It specifies syntactic
 form, not name resolution, typing, exhaustiveness, or runtime behavior.
 
 The grammar consumes the token stream produced by
@@ -10,9 +10,8 @@ The grammar consumes the token stream produced by
 `SUITE_END`, and `EOF` are abstract layout tokens. Comments do not appear in
 this grammar.
 
-Provisional features extend named productions from this chapter. Those
-extensions are defined only in their own chapters and are not part of the core
-grammar.
+The feature chapters refine the semantic constraints on these productions, but
+do not maintain separate extension grammars.
 
 ## Source Files And Suites
 
@@ -22,6 +21,7 @@ source_file = { NEWLINE | top_level_item }, EOF ;
 top_level_item = import_decl
                | export_decl
                | test_decl
+               | annotation_decl
                | declaration
                | statement
                ;
@@ -126,8 +126,10 @@ not independently named module members.
 ### Functions
 
 ```ebnf
-function_decl = "fn", identifier, [ generic_params ], parameter_clause,
-                "->", type, ":", suite_body ;
+function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
+                "->", type, [ requirement_clause ], ":", suite_body ;
+
+callable_name = identifier, [ "!" ] ;
 
 suite_body = simple_statement, SUITE_END
            | NEWLINE, INDENT, statement, { statement }, DEDENT
@@ -152,8 +154,13 @@ purity are semantic constraints defined in [Functions](07-functions.md).
 ### Structs
 
 ```ebnf
-struct_decl = "struct", identifier, [ type_params ], ":",
-              NEWLINE, INDENT, struct_member, { struct_member }, DEDENT ;
+struct_decl = "struct", identifier, [ type_params ], ":", struct_suite ;
+
+struct_suite = "pass", SUITE_END
+             | NEWLINE, INDENT,
+               ( "pass", NEWLINE
+               | struct_member, { struct_member } ), DEDENT
+             ;
 
 struct_member = struct_field, NEWLINE
               | embedded_field, NEWLINE
@@ -164,7 +171,7 @@ embedded_field = type_name ;
 ```
 
 An embedded field must denote a struct type and must not include generic
-arguments or `mut` in this core spelling. The type's final name is also its
+arguments or `mut`. The type's final name is also its
 embedded field name.
 
 ### Enums
@@ -174,21 +181,20 @@ enum_decl = "enum", identifier, [ type_params ],
             [ enum_parameter_clause ], ":",
             NEWLINE, INDENT, enum_variant, { enum_variant }, DEDENT ;
 
-enum_variant = identifier, [ variant_parameter_clause ],
-               [ "->", enum_constructor ], NEWLINE ;
+enum_variant = identifier, [ generic_params ], [ variant_parameter_clause ],
+               [ "->", variant_result ], NEWLINE ;
 
 enum_parameter_clause = "(", [ data_parameter_list ], ")" ;
 variant_parameter_clause = "(", [ data_parameter_list ], ")" ;
 data_parameter_list = data_parameter, { ",", data_parameter }, [ "," ] ;
 data_parameter = [ identifier, ":" ], type ;
 
-enum_constructor = qualified_name, argument_clause ;
+variant_result = named_type, [ argument_clause ] ;
 ```
 
-The optional variant result in the core grammar initializes constructor data
-shared by every variant, as in `NotFound -> StatusCode(404)`. The provisional
-GADT grammar extends the same position with refined result types and
-variant-local generic parameters.
+The optional variant result initializes constructor data shared by every
+variant, as in `NotFound -> StatusCode(404)`, and may refine the enclosing enum
+type as specified by the GADT rules.
 
 ### Traits And Implementations
 
@@ -203,21 +209,30 @@ trait_decl = "trait", identifier, [ type_params ],
 
 supertrait_bounds = trait_type, { "+", trait_type } ;
 
-trait_member = "fn", identifier, [ generic_params ], method_parameter_clause,
-               "->", type,
-               ( NEWLINE | ":", suite_body ) ;
+trait_member = associated_type_decl
+             | "fn", callable_name, [ generic_params ], parameter_clause,
+               "->", type, [ requirement_clause ],
+               ( NEWLINE | ":", suite_body )
+             ;
 
-impl_decl = "impl", type, [ "for", type ],
+impl_decl = "impl", [ generic_params ], type, [ "for", type ],
+            [ where_clause ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
-              method_decl, { method_decl }, DEDENT )
+              impl_member, { impl_member }, DEDENT )
             ;
 
-method_decl = "fn", identifier, [ generic_params ],
-              method_parameter_clause, "->", type, ":", suite_body ;
+impl_member = associated_type_decl | method_decl ;
 
-method_parameter_clause = "(", receiver_parameter,
-                          { ",", value_parameter }, [ "," ], ")" ;
+method_decl = "fn", callable_name, [ generic_params ],
+              parameter_clause, "->", type, [ requirement_clause ],
+              ":", suite_body ;
+
+associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
+
+where_clause = "where", where_predicate,
+               { ",", where_predicate }, [ "," ] ;
+where_predicate = type, ":", trait_bounds ;
 ```
 
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
@@ -225,11 +240,11 @@ implementation. A trait declaration without a body is a marker trait, and a
 trait implementation without a body implements such a marker trait. A
 bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a
 suite. `trait Child: Parent:` declares `Parent` as a supertrait and opens the
-body with the second `:`. Every core trait or implementation method has an
-explicit `self` or `mut self` receiver as its first parameter.
-
-Generic `impl` parameters and `where` clauses are not supported in v1 and do
-not appear in the core grammar.
+body with the second `:`. A function member whose first parameter is `self` or
+`mut self` is a method; a receiverless member is an associated function.
+Associated type declarations omit `=` in a
+trait requirement and provide `= type` in an implementation. Generic
+implementations may put bounds inline or in a `where` clause.
 
 ### Type Declarations
 
@@ -249,7 +264,8 @@ generic_params = "[", generic_parameter,
                  { ",", generic_parameter }, [ "," ], "]" ;
 
 type_parameter = [ variance ], identifier, [ ":", trait_bounds ] ;
-generic_parameter = [ "reified" ], identifier, [ ":", trait_bounds ] ;
+generic_parameter = [ "reified" ], identifier, [ "..." ],
+                    [ ":", trait_bounds ] ;
 variance = "+" | "-" ;
 
 trait_bounds = [ "mut" ], trait_type, { "+", trait_type } ;
@@ -257,8 +273,8 @@ trait_type = qualified_name, [ type_arguments ] ;
 ```
 
 Variance markers are valid on generic type declarations, not function generic
-parameters. `reified` is valid on function generic parameters, not generic type
-declarations. Variadic generic parameters are a provisional extension.
+parameters. `reified` and type packs are valid on function, method, variant, and
+generic-implementation parameters, not generic type declarations.
 
 ## Types
 
@@ -269,29 +285,51 @@ non_optional_type = [ "mut" ], reference_type
                   | function_type
                   ;
 
-reference_type = named_type | tuple_type | grouped_type ;
+reference_type = named_type
+               | tuple_type
+               | grouped_type
+               | associated_type_projection
+               | context_type
+               ;
 
 named_type = qualified_name, [ type_arguments ] ;
-type_arguments = "[", type, { ",", type }, [ "," ], "]" ;
+type_arguments = "[", type_argument,
+                 { ",", type_argument }, [ "," ], "]" ;
+type_argument = type, [ "..." ] ;
 
 tuple_type = "(", ")"
-           | "(", type, ",", [ type, { ",", type }, [ "," ] ], ")"
+           | "(", type_element, ",",
+             [ type_element, { ",", type_element }, [ "," ] ], ")"
            ;
+type_element = type, [ "..." ] ;
 
 grouped_type = "(", type, ")" ;
 
-function_type = [ "mut" ], "fn", "(", [ type_list ], ")", "->", type ;
-type_list = type, { ",", type }, [ "..." ], [ "," ] ;
+function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+                "->", type, [ requirement_clause ] ;
+type_list = type_element, { ",", type_element }, [ "," ] ;
+
+associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 
 type_name = identifier ;
 qualified_name = identifier, { ".", identifier } ;
+
+requirement_clause = "$", requirement_expression ;
+requirement_expression = requirement_union,
+                         { "-", requirement_key } ;
+requirement_union = requirement_term, { "+", requirement_term } ;
+requirement_term = requirement_key
+                 | "(", requirement_expression, ")"
+                 ;
+requirement_key = trait_type ;
 ```
 
 `mut` is a type modifier. Semantic rules reject meaningless or nested forms,
 including direct `mut mut T`. Optionality applies to the complete access type
 and may be nested. Parentheses group types; unlike a one-element tuple type,
 grouping has no trailing comma.
-Requirement rows on function types are specified provisionally.
+Requirement rows on function types are specified in
+[Requirements and Suspension](11-requirements-and-suspension.md).
 
 ## Imports And Exports
 
@@ -334,6 +372,7 @@ conditional_expression = if_expression
                        | match_expression
                        | closure_expression
                        | trailing_block_call
+                       | context_scope
                        | logical_or_expression
                        ;
 
@@ -343,6 +382,7 @@ suite_expression = if_expression
                  | match_expression
                  | closure_expression
                  | trailing_block_call
+                 | context_scope
                  ;
 
 logical_or_expression = logical_and_expression,
@@ -376,16 +416,16 @@ postfix_expression = primary_expression, { postfix_suffix } ;
 postfix_suffix = ".", ( identifier | integer_literal )
                | "[", expression, "]"
                | argument_clause
+               | "!", argument_clause
                | "?"
                ;
 ```
 
 `:=` is right-associative and has the lowest precedence. Comparisons do not
-chain in v1. Exponentiation is right-associative. The right operand of `**` may
+chain. Exponentiation is right-associative. The right operand of `**` may
 therefore begin with a unary operator.
 
-Suspension-call suffixes are added by the provisional requirements and
-suspension grammar.
+`!(` begins a suspension call suffix at ordinary call precedence.
 
 ### Primary Expressions
 
@@ -394,6 +434,10 @@ primary_expression = literal
                    | generic_function_reference
                    | qualified_name
                    | trait_qualified_call
+                   | context_use
+                   | context_create
+                   | shape_expression
+                   | annotation_runtime_access
                    | tuple_or_group_expression
                    | list_expression
                    | map_expression
@@ -403,6 +447,12 @@ primary_expression = literal
 
 generic_function_reference = qualified_name, type_arguments ;
 trait_qualified_call = trait_type, "::", identifier, argument_clause ;
+
+shape_expression = "shape", "(", shape_target, ")" ;
+shape_target = type | qualified_name ;
+
+annotation_runtime_access = qualified_name, "::", "annotation", "(",
+                            annotation_target, ")" ;
 
 literal = boolean_literal
         | nil_literal
@@ -476,8 +526,9 @@ identify a callable with an eligible final parameter.
 ### Closures
 
 ```ebnf
-closure_expression = [ "mut" ], "fn", closure_parameter_clause,
-                     [ "->", type ], ":", suite_body ;
+closure_expression = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
+                     [ "->", type ], [ requirement_clause ],
+                     ":", suite_body ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,
@@ -576,17 +627,62 @@ The first clause must be `for`. Later `for` and `if` clauses execute from left
 to right. Comprehensions do not have a `let` clause; `:=` binding expressions
 may be used inside guards or result expressions.
 
-## Provisional Extension Points
+## Requirements And Provider Contexts
 
-The core grammar reserves these extension points without incorporating their
-syntax:
+```ebnf
+context_use = "$", ".", "use", "(", requirement_key,
+              { ",", requirement_key }, [ "," ], ")" ;
 
-1. [Requirements and Suspension](provisional/requirements-and-suspension.md)
-   extends function declarations, function types, callable names, and postfix
-   calls.
-2. [Variadic Generics](provisional/variadic-generics.md) extends generic
-   parameters, types, patterns, parameter lists, and argument lists with packs.
-3. [Generalized Algebraic Data Types](provisional/gadts.md) extends enum
-   variants and pattern-refined result types.
-4. [Annotations](provisional/annotations.md) adds annotation declarations and
-   annotation override blocks.
+context_create = "$", ".", "context", "(", context_entries, ")" ;
+context_type = "$", ".", "Context", "[", requirement_expression, "]" ;
+context_scope = "$", ".", "with", "(", context_entries, ")",
+                ":", suite_body ;
+
+context_entries = context_entry, { ",", context_entry }, [ "," ] ;
+context_entry = requirement_key, "=", expression
+              | "...", expression
+              ;
+```
+
+Requirement expressions denote unordered rows after name resolution. A generic
+identifier used as a complete requirement term is a requirement-row parameter;
+subtraction removes one concrete key from such a row.
+
+## Annotations
+
+```ebnf
+annotation_decl = member_metadata_decl | facet_annotation_decl ;
+
+member_metadata_decl = "annotate", qualified_name, ":",
+                       annotation_member_suite ;
+
+facet_annotation_decl = "annotate", type, "for", annotation_target, ":",
+                        facet_annotation_suite ;
+
+annotation_target = type | qualified_name ;
+
+annotation_member_suite = "pass", SUITE_END
+                        | NEWLINE, INDENT,
+                          metadata_assignment,
+                          { metadata_assignment }, DEDENT
+                        ;
+
+metadata_assignment = identifier, "=", expression, NEWLINE ;
+
+facet_annotation_suite = "pass", SUITE_END
+                       | NEWLINE, INDENT,
+                         facet_override,
+                         { facet_override }, DEDENT
+                       ;
+
+facet_override = metadata_assignment | function_decl ;
+```
+
+## Pack Expansion
+
+An ellipsis following a generic parameter declares a type pack. In a type,
+parameter, tuple, or argument position, an ellipsis following a subtree that
+contains a pack reference expands that subtree once per pack element. The same
+token denotes an ordinary homogeneous vararg or list spread when no pack is
+referenced. Name and type resolution make the distinction; unresolved or mixed
+uses are compile-time errors.

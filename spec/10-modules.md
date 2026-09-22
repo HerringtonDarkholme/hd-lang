@@ -1,6 +1,6 @@
 # Modules
 
-Status: core specification draft.
+Status: language specification draft.
 
 Modules organize names by source path. Packages organize compilation,
 dependencies, and Wasm artifacts.
@@ -107,7 +107,7 @@ import pkg.user.types.{User, UserId}
 import dep.billing.types.{UserId as BillingUserId}
 ```
 
-Grouped imports may have a trailing comma. Wildcard imports are not in v1.
+Grouped imports may have a trailing comma. Wildcard imports are not supported.
 Importing a private or missing declaration is a compile-time error.
 
 Imports introduce names for the whole module and are resolved before type
@@ -159,10 +159,10 @@ export pkg.user.service.{load_user, save_user}
 
 A re-exported declaration must already be public in its defining module. A
 re-export does not create a new declaration identity. Import and re-export
-cycles are rejected in v1.
+cycles are rejected.
 
 There is no package-private visibility modifier and no independent field or
-variant visibility in the current core. Fields, variants, and inherent methods
+variant visibility. Fields, variants, and inherent methods
 follow the visibility of their owning nominal type. Trait methods follow the
 visibility of their trait; a usable implementation additionally requires its
 target type to be visible.
@@ -197,9 +197,9 @@ pub fn main() -> void:
 It may instead return `Result[void, E]`, in which case `Err` reports invocation
 failure through the runtime adapter. `main` has no source-level arguments;
 process arguments, console access, environment, and other host facilities are
-requirements supplied by the runtime in the provisional requirements model.
+requirements supplied by the runtime through the requirement model.
 
-A suspending entry point is spelled `main!` under that provisional model.
+A suspending entry point is spelled `main!`.
 
 ## Wasm Boundary
 
@@ -231,5 +231,5 @@ specification work.
 
 The complete `hd.toml` schema, lockfile, version constraints, and dependency
 resolver belong to package tooling. The exact Wasm component boundary and
-registration mechanism belong to the runtime ABI. v1 has no package-private
+registration mechanism belong to the runtime ABI. hd-lang has no package-private
 visibility or finer member visibility.

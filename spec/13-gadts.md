@@ -1,6 +1,6 @@
 # Generalized Algebraic Data Types
 
-Status: provisional design.
+Status: language specification draft.
 
 GADT-style enums let each variant refine the result instantiation of its
 enclosing generic enum. Pattern matching recovers that refinement inside the
@@ -20,14 +20,14 @@ enum Expr[T]:
     If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
 ```
 
-This chapter extends the core enum grammar:
+Enum variants use this grammar:
 
 ```ebnf
-gadt_variant = identifier, [ generic_params ],
+enum_variant = identifier, [ generic_params ],
                [ variant_parameter_clause ],
-               [ "->", gadt_result ], NEWLINE ;
+               [ "->", variant_result ], NEWLINE ;
 
-gadt_result = named_type, [ argument_clause ] ;
+variant_result = named_type, [ argument_clause ] ;
 ```
 
 The result's outer named type must be the enclosing enum. Its type arguments
@@ -63,9 +63,9 @@ flag := Expr.BoolLit(true) # Expr[bool]
 ```
 
 Positional arguments precede named arguments. Generic variant arguments are
-normally inferred from payload arguments and expected result type. If explicit
-generic arguments are allowed, they use the ordinary square-bracket call
-position; partial explicit arguments remain unsupported.
+inferred from payload arguments and the expected result type. Variant
+constructors do not accept explicit generic arguments; ambiguous inference is a
+compile-time error.
 
 ## Pattern Refinement
 
@@ -91,8 +91,8 @@ Refinement is arm-local. It affects payload binding types, nested calls, and the
 arm result check, then disappears after the arm. The complete match still has
 the result type required by its surrounding context.
 
-An arm whose variant result cannot unify with the subject type is unreachable
-and should be rejected or diagnosed as statically impossible. Exhaustiveness is
+An arm whose variant result cannot unify with the subject type is rejected as
+statically impossible. Exhaustiveness is
 checked over variants whose result types can inhabit the subject type.
 
 ## Payload Pattern Conventions
@@ -122,9 +122,10 @@ For each variant, the compiler must verify:
 4. construction produces exactly the declared result instantiation;
 5. pattern-arm equalities do not escape their arm.
 
-The initial design does not require higher-kinded types. Whether existential
-variant parameters are permitted beyond values hidden by ordinary
-variant-local generics remains open.
+The design does not require higher-kinded types. A variant-local parameter that
+does not occur in the result is existential when that variant is matched. It is
+fresh for the selected arm, may be used through its declared bounds, and must
+not escape the arm as an unconstrained concrete type.
 
 ## Runtime Representation
 
@@ -132,9 +133,21 @@ Refinements are compile-time facts. Runtime enum values still carry their
 ordinary variant tag and payload. The backend need not preserve erased type
 arguments unless a reified operation requires them.
 
-## Open Issues
+## Refinement Algorithm
 
-1. A formal unification and exhaustiveness algorithm for refined variants.
-2. Explicit generic arguments on variant constructors.
-3. Existential payload types and what pattern matching reveals.
-4. Interaction with variance, dynamic trait values, and reified type metadata.
+For a subject `E[S1, ..., Sn]` and a candidate variant result
+`E[R1, ..., Rn]`, the checker performs first-order nominal unification after
+expanding transparent aliases. Declaration parameters and variant-local
+parameters may be solved; distinct nominal types never unify merely because
+one converts to the other. A successful solution becomes a set of arm-local
+type equalities and existential variables.
+
+Exhaustiveness considers the closed set of variants with a successful
+unification. A catch-all covers all remaining inhabitable variants. Nested GADT
+patterns compose their equalities; contradictory equalities make the arm
+statically impossible. Arm-local equalities do not change variance declarations
+and are not runtime casts.
+
+Dynamic trait erasure discards GADT refinements. Reification preserves only
+descriptors explicitly carried by a reified operation; matching a GADT does not
+manufacture a descriptor for an erased parameter.

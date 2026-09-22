@@ -1,0 +1,7 @@
+# expect-error: bang-call-outside-suspension
+
+fn operation!() -> i32:
+    1
+
+fn invalid() -> i32:
+    operation!()

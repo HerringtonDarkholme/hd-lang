@@ -1,6 +1,6 @@
 # Lexical Structure
 
-Status: core specification draft.
+Status: language specification draft.
 
 This chapter defines how source text is divided into tokens and how indentation
 produces block structure. Syntactic use of those tokens is defined in
@@ -22,8 +22,8 @@ Comments and whitespace separate tokens but otherwise do not appear in the
 parser token stream. Layout tokens are the exception.
 
 Source files must be valid UTF-8. A byte-order mark is not permitted. Invalid
-UTF-8 is a compile-time lexical error. Identifiers are restricted to ASCII in
-v1; Unicode scalar values remain valid in comments, string literals, and
+UTF-8 is a compile-time lexical error. Identifiers are restricted to ASCII;
+Unicode scalar values remain valid in comments, string literals, and
 character literals.
 
 ## Physical And Logical Lines
@@ -82,7 +82,7 @@ the boundary from the expected suite and enclosing delimiter structure.
 A closing delimiter must match the most recent unclosed delimiter. An unmatched
 or mismatched delimiter is a compile-time error.
 
-hd-lang has no explicit backslash line-continuation syntax in the current core.
+hd-lang has no explicit backslash line-continuation syntax.
 
 ## Whitespace And Indentation
 
@@ -115,7 +115,7 @@ fn greet(name: string) -> void:
 fn test() -> void: println("hi")
 ```
 
-Horizontal tab characters are not permitted as source whitespace in v1. They
+Horizontal tab characters are not permitted as source whitespace. They
 may occur only as literal content represented by the `\t` escape or as raw
 characters inside comments. Indentation therefore consists only of ASCII space
 characters, and visual tab-width configuration cannot change block structure.
@@ -130,7 +130,7 @@ continues to the end of its physical line:
 name := "Ada"  # A comment after code.
 ```
 
-There are no block comments in the current core.
+There are no block comments.
 
 The lexical form is:
 
@@ -162,22 +162,23 @@ than lexically distinct tokens.
 
 ## Keywords And Reserved Words
 
-The current core grammar uses these reserved words:
+The grammar uses these reserved words:
 
 ```text
-and       as        break     continue   else      enum
-export    false     fn        for        if        impl
-import    in        let       match      mut       nil
-not       or        pass      pub        reified   return
-self      struct    super     trait      true      type
-while
+Self      and       annotate  as        break     continue
+else      enum      export    false     fn        for
+if        impl      import    in        let       match
+mut       nil       not       or        pass      pub
+reified   return    self      shape     struct    super
+trait     true      type      where     while
 ```
 
 `pkg`, `std`, and `dep` have special meaning only in an import root position.
 `test` has special meaning only at the beginning of a module-level test block.
-These contextual words remain ordinary identifiers elsewhere, so declarations
-such as `fn test() -> void` are valid. Keywords used only by provisional
-chapters are reserved only if the consolidated grammar explicitly lists them.
+`annotation` is contextual after `::` in annotation materialization, while
+`use`, `context`, `with`, and `Context` are contextual after `$.`. These words
+remain ordinary identifiers elsewhere, so declarations such as
+`fn test() -> void` are valid.
 
 ## Literals
 
@@ -192,17 +193,17 @@ nil_literal     = "nil" ;
 
 ### Integer Literals
 
-The current core requires decimal integer literals:
+Integer literals use decimal notation:
 
 ```ebnf
 integer_literal = DECIMAL_DIGIT, { DECIMAL_DIGIT } ;
 ```
 
 A leading `-` is an operator, not part of the literal. Unary `+` is not
-supported in v1. Integer literal typing and range checks are defined in
+supported. Integer literal typing and range checks are defined in
 [Type System](04-type-system.md).
 
-Radix prefixes and digit separators are not supported in v1.
+Radix prefixes and digit separators are not supported.
 
 ### Floating-Point Literals
 
@@ -215,7 +216,7 @@ float_literal = DECIMAL_DIGIT, { DECIMAL_DIGIT }, ".",
 ```
 
 Exponent notation, hexadecimal floating-point notation, and digit separators
-are not supported in v1.
+are not supported.
 
 ### String And Character Literals
 
@@ -248,8 +249,7 @@ one to six hexadecimal digits and must denote a Unicode scalar value in
 `0..10FFFF`, excluding surrogate code points `D800..DFFF`. Any other escape is
 a lexical error.
 
-Raw strings, multiline strings, and string interpolation are not supported in
-v1.
+Raw strings, multiline strings, and string interpolation are not supported.
 
 hd-lang has no byte or bytes literal and no primitive byte or bytes type.
 
@@ -279,8 +279,7 @@ rather than three `.` tokens.
 
 Operator precedence and semantics are defined in
 [Expressions](05-expressions.md). `$` and suspension-related uses of `!` are
-specified provisionally in
-[Requirements and Suspension](provisional/requirements-and-suspension.md).
+specified in [Requirements and Suspension](11-requirements-and-suspension.md).
 
 ## Lexical Token Grammar
 
@@ -322,6 +321,6 @@ layout processing rather than matched directly from source characters.
 ## Unsupported Lexical Extensions
 
 Unicode identifiers, raw or multiline strings, interpolation, numeric radix
-prefixes, exponent notation, and digit separators are not part of v1. A future
-edition may add them with new grammar; v1 implementations must diagnose them
+prefixes, exponent notation, and digit separators are not part of the language.
+A future extension may add them with new grammar; implementations must diagnose them
 rather than assign implementation-defined behavior.

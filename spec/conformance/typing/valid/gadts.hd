@@ -1,0 +1,12 @@
+enum Expr[T]:
+    IntLit(value: i64) -> Expr[i64]
+    BoolLit(value: bool) -> Expr[bool]
+
+fn eval[T](expr: Expr[T]) -> T:
+    match expr:
+        Expr.IntLit(value) => value
+        Expr.BoolLit(value) => value
+
+enum Box[T](contents: T):
+    IntBox(n: i64) -> Box[i64](n)
+    BoolBox(b: bool) -> Box[bool](b)

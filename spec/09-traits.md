@@ -1,6 +1,6 @@
 # Traits
 
-Status: core specification draft.
+Status: language specification draft.
 
 Traits describe behavior shared by otherwise unrelated types. Conformance is
 explicit; hd-lang does not use structural method matching or class inheritance.
@@ -24,10 +24,11 @@ trait Named:
         "name: " + self.name()
 ```
 
-Trait method names must be unique within the trait. Every parameter and result
-type is explicit. Every core trait method starts with `self` or `mut self`; a
-mutable receiver is a requirement callers must satisfy. Receiverless associated
-functions are not part of the stable core.
+Trait member names must be unique within the trait. Every parameter and result
+type is explicit. A function whose first parameter is `self` or `mut self` is a
+method; a mutable receiver is a requirement callers must satisfy. A function
+without a receiver is an associated function and is called with qualified
+`Trait::function(...)` or `Type::function(...)` syntax.
 
 Traits may be generic:
 
@@ -56,10 +57,23 @@ An implementation of `Formattable` must also satisfy `Display`.
 The supertrait graph must be acyclic; a direct or indirect cycle is a
 compile-time error.
 
-Associated types are not part of the v1 core grammar. The provisional
-annotation chapter defines an experimental associated-type extension for
-annotators; ordinary core programs must diagnose associated-type declarations
-and projections as unsupported.
+Traits may declare associated types, and implementations bind them:
+
+```text
+trait Supplier:
+    type Item
+    fn get(mut self) -> Self::Item?
+
+impl Supplier for NameSupplier:
+    type Item = string
+
+    fn get(mut self) -> string?:
+        ...
+```
+
+`Self::Item` projects from the current implementation. `T::Item` projects from
+a generic type whose bounds select exactly one associated type declaration.
+Ambiguous projections are compile-time errors.
 
 ## Trait Implementations
 
@@ -96,13 +110,27 @@ graph containing duplicate exact implementations, including the possible
 conflict where the trait-owning and type-owning packages each provide the same
 pair.
 
-The provisional annotation chapter defines one explicit coherence exception for
+The annotation chapter defines one explicit coherence exception for
 package-local `annotate Facet for ImportedTarget` blocks when no authoritative
 library annotation exists. That exception does not apply to ordinary `impl`.
 
-Generic implementation parameters and `where` clauses are not supported in v1.
-The prelude may expose compiler-provided blanket conformances, such as the
-mutable-iterator adapter, but user source cannot declare a generic `impl`.
+Implementations may be generic and may state additional bounds inline or in a
+`where` clause:
+
+```text
+impl[T: Display] Printable for Box[T]:
+    fn print(self) -> string:
+        self.value.display()
+
+impl[T] Iterable[T] for mut T where T: Iterator[T]:
+    fn iter(self) -> mut Iterator[T]: self
+```
+
+All generic implementation parameters must be constrained by the implemented
+trait, target type, or a bound reachable from them. Two implementations overlap
+when their trait and target heads can unify under any satisfying substitutions;
+potential overlap is rejected. `where` predicates are not used to claim that
+otherwise unifying implementations are disjoint.
 
 ## Inherent Implementations
 
@@ -115,8 +143,18 @@ impl User:
         self.email.split("@")[1]
 ```
 
-An inherent method name must not duplicate another inherent method on the same
-type. hd-lang has no method overloading.
+An inherent member name must not duplicate another inherent member on the same
+type. hd-lang has no method or associated-function overloading.
+
+Receiverless inherent functions are called through the nominal type:
+
+```text
+impl User:
+    fn guest() -> User:
+        User { name: "guest" }
+
+guest := User::guest()
+```
 
 ## Method Resolution
 
@@ -191,22 +229,23 @@ Such a value contains a concrete value plus dispatch metadata for the trait.
 There is no `dyn` marker. Only methods declared by the trait are available
 through the erased value.
 
-The trait must be dynamically safe: neither it nor a supertrait may declare a
-method-level generic parameter, and `Self` may occur only as a method receiver.
+The trait must be dynamically safe: neither it nor a supertrait may declare an
+associated type, associated function, or method-level generic parameter, and
+`Self` may occur only as a method receiver.
 A trait that is not dynamically safe can still be implemented and used as a
 static generic bound. Generic parameters of the trait itself are allowed when
 the value type names one complete instantiation.
 
 A child-trait bound or dynamic value exposes the methods of its transitive
 supertraits. A dynamic child-trait value widens implicitly to a supertrait
-value, losing access to child-only methods; v1 provides no reverse downcast.
+value, losing access to child-only methods; there is no reverse downcast.
 
 Converting a concrete value to a trait value requires an explicit
 implementation. The concrete type can be composite or primitive. Mutable
 dynamic access uses `mut Trait` and cannot be recovered from a const `Trait`
 value.
 
-Dynamic trait-value type tests and downcasts are not supported in v1.
+Dynamic trait-value type tests and downcasts are not supported.
 
 ## `Any`
 
@@ -240,8 +279,7 @@ to provide its ordinary dot-call behavior, or the caller may use
 
 ## Unsupported Trait Extensions
 
-v1 has no associated types or receiverless associated functions in stable core
-code, user-declared generic or conditional implementations, specialization,
-implicit structural conformance, or trait-value downcasting. Dynamic
-trait-value representation is an ABI detail and must preserve the dispatch
-semantics in this chapter.
+The language has no specialization, negative implementations, implicit
+structural conformance, or trait-value downcasting. Dynamic trait-value
+representation is an ABI detail and must preserve the dispatch semantics in
+this chapter.

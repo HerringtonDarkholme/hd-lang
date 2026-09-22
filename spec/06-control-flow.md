@@ -1,6 +1,6 @@
 # Control Flow
 
-Status: core specification draft.
+Status: language specification draft.
 
 hd-lang control-flow constructs use indentation-delimited suites and may
 produce values. Conditions are always `bool`; there is no truthiness conversion
@@ -72,12 +72,10 @@ call. The iterator stores traversal progress and `next` returns `nil` after
 exhaustion.
 
 Every mutable iterator has a compiler-provided `Iterable[T]` conformance whose
-`iter` returns that same mutable cursor without cloning or resetting it. This is
-conceptually the blanket implementation below; generic `impl` source syntax is
-not otherwise part of v1:
+`iter` returns that same mutable cursor without cloning or resetting it. The
+prelude provides the generic implementation below:
 
 ```text
-# Conceptual prelude behavior, not normative source syntax.
 impl[T, I: Iterator[T]] Iterable[T] for mut I:
     fn iter(self) -> mut Iterator[T]: self
 ```
@@ -195,9 +193,10 @@ viewpoint permission. A literal-constrained payload pattern such as
 arm must cover the remaining `Scale` values unless a later catch-all does.
 
 Nested variant and tuple patterns are permitted by the grammar. Struct
-destructuring patterns are not in the current core.
+destructuring patterns are not supported.
 
-GADT pattern refinement is defined in the provisional GADT chapter.
+GADT pattern refinement is defined in [Generalized Algebraic Data
+Types](13-gadts.md).
 
 ## Return
 
@@ -243,5 +242,5 @@ details.
 
 ## Unsupported Control-Flow Extensions
 
-Match guards are not part of v1. Filtering that depends on additional
+Match guards are not part of the language. Filtering that depends on additional
 conditions belongs in the selected arm body or in an enclosing conditional.

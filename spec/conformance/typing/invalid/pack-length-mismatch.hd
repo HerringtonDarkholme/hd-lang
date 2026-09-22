@@ -1,0 +1,16 @@
+# expect-error: pack-length-mismatch
+
+fn zip_apply[As..., Bs..., Rs...](
+    funcs: fn(As, Bs) -> Rs...,
+    left: As...,
+    right: Bs...,
+) -> (Rs...):
+    panic("fixture")
+
+result := zip_apply(
+    fn(a: i32, b: i32) -> i32: a + b,
+    fn(a: string, b: string) -> string: a + b,
+    1,
+    2,
+    "only one right value",
+)

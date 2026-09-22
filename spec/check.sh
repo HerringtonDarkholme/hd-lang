@@ -12,7 +12,7 @@ fail() {
     exit 1
 }
 
-for file in "$spec_dir"/*.md "$spec_dir"/provisional/*.md "$spec_dir"/conformance/*.md; do
+for file in "$spec_dir"/*.md "$spec_dir"/conformance/*.md; do
     fences=$(awk '/^```/{ count += 1 } END { print count + 0 }' "$file")
     [ $((fences % 2)) -eq 0 ] || fail "unbalanced code fence in $file"
 done
@@ -30,12 +30,12 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
     [ -f "$spec_dir/conformance/$path" ] || fail "missing fixture $path"
 
     case "$phase" in
-        parse|type|runtime|provisional) ;;
+        parse|type|runtime) ;;
         *) fail "unknown phase '$phase' for $path" ;;
     esac
 
     case "$expectation" in
-        accept|illustrative|reject:*|warn:*|panic:*) ;;
+        accept|reject:*|warn:*|panic:*) ;;
         *) fail "unknown expectation '$expectation' for $path" ;;
     esac
 
@@ -78,7 +78,7 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-for file in "$spec_dir"/0[1-9]-*.md "$spec_dir"/10-modules.md; do
+for file in "$spec_dir"/[0-9][0-9]-*.md; do
     name=${file#"$spec_dir/"}
     blocks=$(awk '/^```text/{ count += 1 } END { print count + 0 }' "$file")
     indexed=$(awk -F "$tab" -v name="$name" 'NR > 1 && $1 == name { count += 1 } END { print count + 0 }' "$examples")
@@ -89,9 +89,31 @@ done
 grep -Fq '```ebnf' "$spec_dir/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"
 
+for production in requirement_clause context_scope annotation_decl \
+    enum_variant generic_parameter annotation_runtime_access; do
+    grep -Eq "^${production}[[:space:]]*=" "$spec_dir/02-grammar.md" ||
+        fail "02-grammar.md is missing $production"
+done
+
+[ ! -d "$spec_dir/provisional" ] ||
+    fail "accepted language chapters must not remain under spec/provisional"
+[ ! -d "$spec_dir/conformance/provisional" ] ||
+    fail "accepted conformance fixtures must not remain provisional"
+
+if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
+    "$spec_dir" \
+    "$repo_dir/DESIGN_QUESTIONS.md" \
+    "$repo_dir/LANGUAGE_IDEA.md" \
+    "$repo_dir/LANGUAGE_TOUR.md" \
+    "$repo_dir/RUNTIME_AND_LIBRARY.md" \
+    "$repo_dir/SYNTAX_NOTES.md" \
+    --include='*.md'; then
+    fail "versioned or provisional language labels found"
+fi
+
 if grep -n -E '^## (Open|Unresolved)|remain(s)? (open|unresolved)|not yet specified' \
-    "$spec_dir"/0[1-9]-*.md "$spec_dir"/10-modules.md; then
-    fail "stable core chapter contains an unresolved design marker"
+    "$spec_dir"/[0-9][0-9]-*.md; then
+    fail "numbered specification chapter contains an unresolved design marker"
 fi
 
 tail -n +2 "$examples" | while IFS="$tab" read -r specification block classification fixtures; do

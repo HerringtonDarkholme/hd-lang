@@ -32,7 +32,7 @@ WASI-compatible host boundary.
   permission on every traversed composite edge.
 - Primitive names are lowercase: `bool`, `char`, `string`, fixed-width signed
   and unsigned integers, and `f32`/`f64`. There are no byte/bytes literals or
-  convenience `int`/`float` aliases in v1.
+  convenience `int`/`float` aliases.
 - Built-in structural types include tuples, `list[T]`, and `map[K, V]`.
 - Absence uses Swift-style `T?` and `nil`. Recoverable errors use
   `Result[T, E]`; postfix `?` propagates either absence or an error.
@@ -80,7 +80,7 @@ Competing drivers, reentrant polling, and driving after completion or
 cancellation panic at runtime. Ordinary errors remain `Result` values and are
 not suspension effects.
 
-Requirement-row polymorphism and subtraction remain provisional.
+Requirement-row polymorphism and subtraction are part of the requirement model.
 
 ## Typed Annotation Model
 
@@ -124,7 +124,7 @@ may be added only as exact sugar for member metadata.
   traits, and all authority-bearing providers originate at the Wasm host
   boundary.
 - Durable workflows use deterministic replay over recorded suspension results;
-  there is no checkpoint keyword and v1 does not serialize an active Wasm
+  there is no checkpoint keyword and hd-lang does not serialize an active Wasm
   stack.
 - Interactive sessions use a live kernel plus committed cell history,
   serializable snapshots, and deterministic replay after kernel loss.
@@ -145,13 +145,13 @@ These facilities are maintained in
 
 ## Deliberately Deferred
 
-- Function contracts and invariants are not part of the current core or MVP.
+- Function contracts and invariants are not part of the language.
 - Property testing must be a `std.testing` library, not dedicated language
   syntax; strategy derivation, shrinking, and replay remain open.
-- GADTs, variadic generics, requirements/suspension, and annotations have formal
-  provisional chapters and are not yet stable core language.
+- GADTs, variadic generics, requirements/suspension, and annotations are core
+  language features with numbered specification chapters.
 - Resource lifetime, deterministic cleanup, `using`/RAII, `defer`, and resource
-  escape are backlog work and are not in the MVP.
+  escape are backlog work and are not currently specified.
 - Concurrency scheduling is a library/runtime design over `Suspend[T]`; helper
   functions such as `all!` and `race!` are not first-class syntax.
 - Ownership transfer is not part of the current mutation model.

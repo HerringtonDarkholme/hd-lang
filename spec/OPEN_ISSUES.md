@@ -1,18 +1,19 @@
 # Specification Completion Register
 
 This register tracks decisions that still prevent the draft from becoming a
-complete implementable specification. It distinguishes required core decisions
-from deliberately unsupported features and provisional designs.
+complete implementable specification. It distinguishes language decisions from
+deliberately unsupported features and runtime or library work.
 
 ## Core Decisions Required
 
-None currently. New core issues must be added here when an implementation
-attempt exposes underspecified behavior.
+- Select the static `MissingAnnotationPolicy` representation and granularity for
+  aggregate annotation derivation. Until selected, derivation with a missing
+  child annotation is rejected as unsupported.
 
-## Core Features Explicitly Deferred
+## Unsupported Or Backlog Language Features
 
-These are not completion blockers. The v1 specification should reject or omit
-them rather than leave implementation-defined behavior.
+These are not completion blockers. Implementations must reject or omit them
+rather than leave implementation-defined behavior.
 
 - Nested named declarations and recursive local closure bindings.
 - Direct imports of enum variants.
@@ -36,21 +37,6 @@ tooling, or runtime rather than core syntax.
   failed casts, bounds errors, and related defects.
 - The complete `hd.toml` schema, lockfile, and dependency resolver.
 - Wasm component ABI and registration adapters.
-
-## Provisional Chapters
-
-The following mechanisms are intentionally isolated under `provisional/` and
-may be implemented experimentally without claiming stable-core conformance:
-
-- requirement rows, provider contexts, and one-shot suspension;
-- variadic generic packs and pattern expansion;
-- GADT result refinement;
-- typed annotations, associated types used by annotators, shape APIs, and
-  recursive annotation materialization.
-
-Each provisional chapter owns its detailed open issues. Stabilizing one requires
-moving its final grammar and semantics into the numbered core chapters and
-adding conformance fixtures.
 
 ## Resolution Process
 

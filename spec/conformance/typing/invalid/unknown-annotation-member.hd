@@ -1,0 +1,7 @@
+# expect-error: unknown-annotation-member
+
+struct User:
+    name: string
+
+annotate User:
+    missing = []

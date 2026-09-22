@@ -1,6 +1,6 @@
 # Expressions
 
-Status: core specification draft.
+Status: language specification draft.
 
 Expressions compute values. Every expression has a static type and is evaluated
 according to the order defined here and in the relevant feature chapter.
@@ -137,7 +137,7 @@ The spread expression is evaluated first and must have the exact struct type
 being constructed. Explicit fields replace the corresponding copied values.
 Copy-update is shallow: primitive fields are copied by value, while composite
 field references continue to refer to the same underlying objects with the
-permissions declared by their field types. The current core permits at most one
+permissions declared by their field types. A struct expression permits at most one
 struct spread, and it must precede every explicit field.
 
 Embedded fields are initialized with their embedded type name as the field key.
@@ -151,7 +151,7 @@ Postfix operations bind more tightly than every infix operator.
 `value.member` selects a field, and `tuple.0` selects a tuple element. When a
 member suffix is immediately followed by an argument clause,
 `value.method(arguments...)` performs method lookup and invocation. A bare
-method selection is not a first-class bound-method value in v1; wrap the call
+method selection is not a first-class bound-method value; wrap the call
 in a closure when a function value is required. Embedded field and method
 promotion follows
 [Names and Scopes](03-names-and-scopes.md).
@@ -205,11 +205,13 @@ first[string](names)
 ```
 
 The complete generic argument list must be supplied; partial explicit lists are
-not supported. In v1, explicit arguments may specialize a named module function
+not supported. In hd-lang, explicit arguments may specialize a named module function
 or qualified imported function. Generic methods rely on inference; explicit
 method type arguments are not supported.
 
-Suspension calls with `!` are a provisional postfix form specified separately.
+Suspension calls with `!` construct and drive a child suspension as specified in
+[Requirements and Suspension](11-requirements-and-suspension.md). The callee and
+arguments are evaluated left to right before the child begins execution.
 
 ### Propagation
 
@@ -233,7 +235,7 @@ Operators are ordered from highest to lowest precedence:
 
 | Precedence | Operators | Associativity |
 | --- | --- | --- |
-| Postfix | `.`, `[]`, `()`, postfix `?` | left |
+| Postfix | `.`, `[]`, `()`, `!()`, postfix `?` | left |
 | Power | `**` | right |
 | Unary | `-`, `~`, `not` | right |
 | Multiplicative | `*`, `/`, `%` | left |
@@ -248,8 +250,7 @@ Operators are ordered from highest to lowest precedence:
 | Control and closure | `if`, `match`, `for`, `while`, `fn` | structural |
 | Binding | `:=` | right |
 
-Suspension-call postfix `!` has the same precedence as an ordinary call in the
-provisional grammar.
+Suspension-call postfix `!` has the same precedence as an ordinary call.
 
 Exponentiation binds less tightly on its right than unary negation, following
 the grammar: `2 ** -3` is valid, while `-2 ** 2` means `-(2 ** 2)`.
@@ -282,7 +283,7 @@ ordinary floating widening, and the operation follows IEEE 754 power behavior.
 Integer and floating operands do not mix without an explicit cast.
 
 Floating `+`, `-`, `*`, `/`, and `**` follow IEEE 754, including infinities,
-signed zero, and NaN. `%` is integer-only in v1.
+signed zero, and NaN. `%` is integer-only.
 
 `not` requires `bool`. `and` and `or` require `bool` operands and produce
 `bool`. They evaluate the right operand only when needed.
@@ -297,19 +298,19 @@ signed zero, and NaN. `%` is integer-only in v1.
 Map equality is unordered key/value equality. Composite equality follows
 declared field or payload order and handles recursive object graphs without
 infinite recursion by tracking already-compared identity pairs. Function values
-and dynamic trait values do not support equality in v1. Equality never silently
+and dynamic trait values do not support equality. Equality never silently
 uses reference identity. Floating equality and ordering follow IEEE 754, so a
 NaN compares unequal to every value, including itself.
 
 `<`, `<=`, `>`, and `>=` are defined for compatible numeric values,
 characters by Unicode scalar value, strings by lexicographic Unicode scalar
 order, and nominal newtypes of an orderable type. General tuple, collection,
-struct, enum, and user-defined ordering is not supported in v1.
+struct, enum, and user-defined ordering is not supported.
 
 Arithmetic and bitwise operators are built in for the numeric types specified
 by this chapter and [Type System](04-type-system.md). `string + string`
 concatenates strings. User-defined operator overloading and operator traits are
-not part of v1.
+not part of the language.
 
 ## Binding Expressions
 
@@ -348,8 +349,8 @@ path:
 by_id := {for user in users if user.active => user.id: user}
 ```
 
-Duplicate keys use the later generated value. Comprehensions are eager in the
-current core and cannot contain suspension calls. `return`, `break`, and
+Duplicate keys use the later generated value. Comprehensions are eager and
+cannot contain suspension calls. `return`, `break`, and
 `continue` are not valid inside a comprehension.
 
 There is no comprehension `let` clause. Use a parenthesized `:=` binding in a
@@ -369,6 +370,6 @@ Closures are expressions described in [Functions](07-functions.md). `if`,
 
 ## Unsupported Expression Extensions
 
-v1 has no user-defined operator overloading, comparison chaining, match guards,
+hd-lang has no user-defined operator overloading, comparison chaining, match guards,
 first-class bound-method values, or fallback conversion of heterogeneous
 literals to `Any`.

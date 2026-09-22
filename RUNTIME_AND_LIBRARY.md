@@ -35,7 +35,7 @@ Specialized functions such as `assert_equal` receive the actual and expected val
 
 Property testing is intentionally deferred because it has a much larger API and runtime surface than unit assertions. It must be implemented as a library-level facility in `std.testing`, not as dedicated property-test syntax in the language.
 
-No property-testing API has been accepted yet. Strategy representation, generated-value access, type- and annotation-based derivation, dependency injection, shrinking, replay, correlated inputs, stateful testing, and failure artifacts all remain open. General language features such as reified generics, declaration shapes, annotations, and dependency contexts may support that library, but they should be designed independently rather than around one provisional property-testing API.
+No property-testing API has been accepted yet. Strategy representation, generated-value access, type- and annotation-based derivation, dependency injection, shrinking, replay, correlated inputs, stateful testing, and failure artifacts all remain open. General language features such as reified generics, declaration shapes, annotations, and dependency contexts may support that library, but they should be designed independently rather than around one tentative property-testing API.
 
 ## Capabilities and Sandbox
 
@@ -84,7 +84,7 @@ This design deliberately gives capabilities no special language semantics. Sandb
 
 Open questions from this section:
 
-1. Which standard capability traits ship in v1.
+1. Which standard capability traits ship.
 2. Which WASI version and component ABI the initial runtime uses.
 3. The configuration syntax for granting and binding host providers to derived entry-point requirements.
 4. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
@@ -116,7 +116,7 @@ Code between suspension points must be deterministic. Time, randomness, external
 
 External operations may run more than once if a worker fails after performing an operation but before recording its completion. The runtime therefore supplies an idempotency key for each scheduled event, and durable providers must either honor it or document weaker delivery guarantees.
 
-There is no `checkpoint` keyword. In v1, the runtime does not serialize the active WebAssembly call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures are not the primary workflow continuation mechanism, and their separate semantics remain in the backlog.
+There is no `checkpoint` keyword. In hd-lang, the runtime does not serialize the active WebAssembly call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures are not the primary workflow continuation mechanism, and their separate semantics remain in the backlog.
 
 Interactive notebook-style sessions combine a live kernel with a deterministic execution journal. While the kernel remains alive, closing and reconnecting a client reuses its current namespace without replay. Each successful cell atomically commits a run containing its cell and code identity, parent state, suspension events, state delta, and output.
 
@@ -316,7 +316,7 @@ This provider API is an initial draft. Explicit custom-span syntax, metric instr
 
 ## Resource Lifetime Backlog
 
-Deterministic cleanup is outside the MVP. hd-lang has not selected `Drop`/RAII,
+Deterministic cleanup is backlog work. hd-lang has not selected `Drop`/RAII,
 `using`, Python-style `with`, lexical `defer`, or `errdefer` syntax.
 
 The design must preserve the distinction between two jobs. A resource protocol

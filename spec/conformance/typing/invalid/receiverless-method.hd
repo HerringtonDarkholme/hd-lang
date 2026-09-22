@@ -1,4 +1,0 @@
-# expect-error: missing-method-receiver
-
-trait Factory:
-    fn create() -> string

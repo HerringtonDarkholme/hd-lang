@@ -1,6 +1,6 @@
 # Structs and Enums
 
-Status: core specification draft.
+Status: language specification draft.
 
 Structs are nominal product types. Enums are nominal sum types. Neither is a
 class, and neither creates an inheritance hierarchy.
@@ -17,11 +17,19 @@ struct User:
 ```
 
 Field names must be unique within the struct. Every field has an explicit type.
-Field-level visibility is not supported in v1; visibility applies to the struct
+Field-level visibility is not supported; visibility applies to the struct
 declaration as a whole.
 
 Struct identity is nominal. Two declarations with the same fields introduce
 different types.
+
+An empty nominal struct uses `pass`:
+
+```text
+struct Validation: pass
+
+facet := Validation {}
+```
 
 Struct declarations may be directly or mutually recursive because composite
 fields use managed references. Recursion does not imply optionality: a program
@@ -96,8 +104,8 @@ the embedded field.
 Unambiguous promoted methods may contribute to trait satisfaction. Ambiguous
 promoted methods never satisfy a trait requirement automatically.
 
-The current core embeds a named struct type with no generic arguments. Generic
-and explicitly mutable embedded-field shorthand is not supported in v1; an
+Embedded shorthand accepts a named struct type with no generic arguments. Generic
+and explicitly mutable embedded-field shorthand is not supported; an
 ordinary named field expresses those relationships.
 
 ## Enum Declarations
@@ -127,7 +135,7 @@ enum ToolError:
 Payload parameters follow function definition conventions: unnamed positional
 parameters first, followed by named parameters. Each payload type is explicit.
 Large payloads should use a separate struct rather than a nested field block;
-variant field blocks are not part of v1.
+variant field blocks are not part of the language.
 
 Variant construction follows function-call conventions. Positional arguments
 come before named arguments:
@@ -137,7 +145,7 @@ error := ToolError.NotFound(resource="user_123")
 ```
 
 A payload-bearing variant constructor is not itself a first-class function
-value in v1 and must be called. Use an explicit closure to pass construction as
+value  and must be called. Use an explicit closure to pass construction as
 a function value. A payload-free variant, including one whose declaration
 initializes shared enum data, is an enum value and is selected without `()`.
 
@@ -177,8 +185,7 @@ every variant.
 
 Within one variant, a named payload parameter must not duplicate a named shared
 constructor parameter. Every shared constructor parameter must be initialized
-by the variant result expression. Shared constructor data has no defaults in
-v1.
+by the variant result expression. Shared constructor data has no defaults.
 
 ## Generic And Recursive Enums
 
@@ -194,8 +201,10 @@ enum Tree[T]:
     Branch(left: Tree[T], right: Tree[T])
 ```
 
-Without a provisional GADT result clause, every variant constructs the
-enclosing enum instantiated with the declaration's type arguments.
+Without an explicit GADT result clause, every variant constructs the enclosing
+enum instantiated with the declaration's type arguments. Explicit refined
+results and variant-local generic parameters are defined in
+[Generalized Algebraic Data Types](13-gadts.md).
 
 ## Matching Enums
 
@@ -231,7 +240,7 @@ construction spellings for `Result`. In patterns, `Ok(pattern)` and
 are the exception to the ordinary enum-qualification rule.
 
 Core optional patterns include `nil`, `_`, and a bare catch-all binding. A
-dedicated present-value destructuring pattern is not part of v1; ordinary code
+dedicated present-value destructuring pattern is not part of the language; ordinary code
 uses postfix `?` or optional library operations to extract the contained value.
 
 Whether these are literally user-definable standard-library enums or compiler
@@ -247,18 +256,18 @@ interop facility exposes them explicitly.
 
 Reachable composite values are garbage collected, and unreachable reference
 cycles are reclaimable. The language does not expose manual deallocation in the
-current core, user-visible finalizers, or weak references. Resource cleanup is
+language, user-visible finalizers, or weak references. Resource cleanup is
 separate from memory reclamation and remains a runtime-design backlog item.
 
-## Provisional GADTs
+## Generalized Algebraic Data Types
 
-Variants with explicit refined result types, variant-local generic parameters,
-and pattern-driven type refinement are specified only in
-[Generalized Algebraic Data Types](provisional/gadts.md).
+Variants may declare explicit refined result types and variant-local generic
+parameters. Matching such a variant refines the subject type within that arm as
+specified in [Generalized Algebraic Data Types](13-gadts.md).
 
 ## Unsupported Aggregate Extensions
 
-v1 has no struct-field defaults, shared enum-constructor defaults, variant field
+hd-lang has no struct-field defaults, shared enum-constructor defaults, variant field
 blocks, generic embedded-field shorthand, or explicitly mutable embedded-field
 shorthand. Use explicit named fields when those relationships are required.
 Stable object layout and component-model representation are ABI concerns and

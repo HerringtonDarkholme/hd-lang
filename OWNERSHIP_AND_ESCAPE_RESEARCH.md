@@ -26,7 +26,7 @@
 
 ## Status
 
-This document records research and tentative design preferences for possible future hd-lang work. It is not part of the MVP and does not define accepted syntax or semantics.
+This document records research and tentative design preferences for possible future hd-lang work. It does not define accepted syntax or semantics.
 
 The current language design remains unchanged:
 

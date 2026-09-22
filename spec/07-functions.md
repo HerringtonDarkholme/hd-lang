@@ -1,6 +1,6 @@
 # Functions
 
-Status: core specification draft.
+Status: language specification draft.
 
 Functions are hd-lang's primary unit of behavior. Methods, entry points, tests,
 tools, workflows, and generated adapters are ordinary functions with additional
@@ -8,11 +8,16 @@ library metadata or calling conventions.
 
 ## Declarations
 
-A named function declares typed parameters and an explicit result type:
+A named function declares typed parameters and an explicit result type. A name
+ending in `!` declares a suspending function, and a trailing `$` clause declares
+requirements:
 
 ```text
 fn add(a: i32, b: i32) -> i32:
     a + b
+
+fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
+    ...
 ```
 
 Named functions must declare every parameter type and their result type. The
@@ -115,8 +120,9 @@ sum(items...)
 A vararg must be the last positional parameter. Passing it by name supplies a
 list without spread syntax. A vararg has no default expression. At a call site,
 one list spread may supply the remaining vararg elements and must be the final
-positional argument; it does not fill fixed parameters. Core varargs are
-homogeneous; heterogeneous packs belong to provisional variadic generics.
+positional argument; it does not fill fixed parameters. Homogeneous varargs and
+heterogeneous type-pack expansion share the ellipsis token; name resolution
+distinguishes them as specified in [Variadic Generics](12-variadic-generics.md).
 
 ## Function Types And Values
 
@@ -124,17 +130,18 @@ Functions are values. A plain function type lists parameter types and a result:
 
 ```text
 fn(string) -> string
+fn!(UserId) -> Result[User, DbError] $ Database
 ```
 
 Parameter names and default values are not part of a function value type.
 Calling through a function value therefore uses positional arguments only and
 does not inherit declaration defaults. Vararg calling convention, function
-mutability, and provisional requirement rows are part of the type; a vararg
+mutability, suspension, and requirement rows are part of the type; a vararg
 function type writes an ellipsis after its final element type, such as
 `fn(string, i32...) -> i32`.
 
 A named function value may be passed anywhere its function type is expected.
-Function types are invariant in parameter and result types in v1. Parameter and
+Function types are invariant in parameter and result types. Parameter and
 result types must therefore match after transparent alias expansion; ordinary
 numeric or reference-view coercions do not create a different function value
 type.
@@ -145,6 +152,11 @@ monomorphic function type or with the complete explicit type-argument list.
 The resulting value has an ordinary monomorphic function type. A reified
 instantiation captures the required runtime type descriptors in that value.
 
+A value of type `fn!(A) -> T $ R` constructs `Suspend[T]` when called normally
+and may be bang-called inside a suspending context. It may be weakened to the
+lowered constructor type `fn(A) -> Suspend[T] $ R`; the reverse conversion is
+not implicit.
+
 ## Closures
 
 A closure uses `fn` without a name:
@@ -154,11 +166,20 @@ slugify := fn(text: string) -> string:
     text.trim().lower().replace(" ", "-")
 ```
 
-There is no separate arrow or shorthand-argument closure syntax in v1.
+There is no separate arrow or shorthand-argument closure syntax.
 A one-line closure uses the same `:` suite syntax:
 
 ```text
 inc := fn(x: i32) -> i32: x + 1
+```
+
+A suspending closure places `!` after `fn`; a requirement clause follows its
+result type:
+
+```text
+loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
+    db := $.use(Database)
+    db.load_user!(id)
 ```
 
 When an expected function type is available, an inline closure may omit
@@ -263,7 +284,7 @@ first(names)
 first[string](names)
 ```
 
-Explicit type arguments apply to named module functions in v1. Generic method
+Explicit type arguments apply to named module functions. Generic method
 calls rely on inference.
 
 Generic parameters are erased by default. `reified T` requests runtime type
@@ -271,8 +292,8 @@ metadata, as defined in [Type System](04-type-system.md).
 
 ## Methods And Receivers
 
-Functions declared in core `impl` blocks are methods. Their first parameter
-must be `self` or `mut self`:
+Functions declared in `impl` blocks are methods when their first parameter is
+`self` or `mut self`:
 
 ```text
 impl User:
@@ -281,15 +302,14 @@ impl User:
 ```
 
 `self` is const access to the receiver. `mut self` is shorthand for
-`self: mut Self`. There is no reference sigil or ownership-taking receiver form
-in v1. Receiverless associated functions in traits or implementation blocks are
-not part of the stable core; use a module-level function. A provisional feature
-may add a narrowly scoped associated-function form with its own call rules.
+`self: mut Self`. There is no reference sigil or ownership-taking receiver form.
+Receiverless members are associated functions and are called with qualified
+`Type::function(...)` or `Trait::function(...)` syntax.
 
 Method-call syntax evaluates the receiver first and then ordinary arguments.
 It is semantically equivalent to selecting the resolved method and supplying
 the receiver as its first argument; promotion and dynamic dispatch are defined
-in [Traits](09-traits.md). Core v1 does not create a bound function value from
+in [Traits](09-traits.md). Method selection does not create a bound function value from
 bare `receiver.method`; use an explicit closure when a first-class adapter is
 needed.
 
@@ -304,13 +324,14 @@ self-reference in its own initializer is invalid under ordinary binding rules.
 
 `pub fn main() -> void` or `pub fn main() -> Result[void, E]` is the default
 non-suspending executable entry point. It has no source-level parameters.
-Suspending entry points and host requirements are provisional extensions.
+A suspending entry point is named `main!`; entry points may declare host
+requirements with the ordinary `$` clause.
 
 `pub` controls module visibility and does not itself create a Wasm host export.
 
 ## Unsupported Function Extensions
 
-v1 has no recursive local binding facility, partial generic argument lists,
+hd-lang has no recursive local binding facility, partial generic argument lists,
 placeholder generic arguments, shorthand-argument closures, or non-local
 returns from closures. The binary encoding of exported purity summaries is a
 compiler ABI detail, but their checked semantics are defined above.

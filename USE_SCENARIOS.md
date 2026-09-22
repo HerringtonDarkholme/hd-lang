@@ -84,8 +84,7 @@ Requirements:
 3. Property-based testing and generated data as a future `std.testing` library.
 4. Automatic test-data derivation from types and annotation metadata.
 
-Function contracts and invariants are explicitly outside the current core and
-MVP.
+Function contracts and invariants are explicitly outside the language.
 
 ### Built-In Observability
 

@@ -94,7 +94,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Dependency injection through provider contexts
 - One-shot suspension with `fn!` and `Suspend[T]`
 - Construction-time provider capture
-- Provisional requirement polymorphism
+- Requirement-row polymorphism
 - Removing locally provided requirements from a requirement variable
 
 ## 11. Using Annotations

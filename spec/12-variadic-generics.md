@@ -1,6 +1,6 @@
 # Variadic Generics
 
-Status: provisional design.
+Status: language specification draft.
 
 Variadic generics describe a statically known ordered pack of heterogeneous
 types and the corresponding pack of values. They are intended for typed
@@ -17,10 +17,8 @@ fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
 ```
 
 ```ebnf
-pack_parameter = identifier, "..." ;
-variadic_generic_parameter = [ "reified" ],
-                             ( identifier | pack_parameter ),
-                             [ ":", trait_bounds ] ;
+generic_parameter = [ "reified" ], identifier, [ "..." ],
+                    [ ":", trait_bounds ] ;
 ```
 
 A pack has a compile-time length and ordered elements. It is not a type whose
@@ -52,13 +50,20 @@ Expansion is permitted in:
 4. call argument positions;
 5. type and expression patterns explicitly containing pack names.
 
+The consolidated grammar exposes expansion positions directly:
+
 ```ebnf
-pack_expansion = pack_pattern, "..." ;
+type_argument = type, [ "..." ] ;
+type_element = type, [ "..." ] ;
+value_parameter = identifier, ":", type, [ "=" , expression ], [ "..." ] ;
+positional_argument = expression, [ "..." ] ;
 ```
 
-`pack_pattern` is not an arbitrary macro template. It is an ordinary type or
-expression subtree containing at least one pack reference, in a grammar
-position designated as expandable by this chapter.
+An ellipsis is a pack expansion when the preceding subtree contains at least
+one pack reference. Otherwise, parameter and argument ellipses retain their
+ordinary homogeneous-vararg and list-spread meanings. Expansion is not an
+arbitrary syntax macro: only the designated type, parameter, tuple, and
+argument positions may repeat.
 
 ## Lockstep Expansion
 
@@ -76,9 +81,8 @@ fn zip_apply[As..., Bs..., Rs...](
 ```
 
 This example is valid only when the three inferred packs have the same length.
-Whether the precise `funcs` spelling above needs additional grouping is a
-grammar issue still to be validated; the lockstep semantic rule is the accepted
-part.
+The `funcs` parameter expands the complete function-type subtree once per
+position. No additional grouping is required.
 
 ## Calls And Inference
 
@@ -86,10 +90,8 @@ Type-pack and value-pack inference uses the corresponding argument positions.
 All uses of one pack in a signature must infer one length and one ordered type
 sequence. A mismatch is a compile-time error with element-position diagnostics.
 
-Explicit pack arguments, partial explicit packs, and pack placeholders are not
-supported in the current design. The ordinary rule requiring a complete
-explicit generic argument list needs extension before explicit pack calls can
-become normative.
+Pack arguments are inferred. Explicit pack arguments, partial explicit packs,
+and pack placeholders are not language constructs.
 
 At runtime, each expanded parameter is an ordinary parameter and `(Ts...)` is
 an ordinary tuple. No hidden `list[Any]`, reflection array, or allocation is
@@ -121,12 +123,11 @@ Its signature can preserve each result type with one pack. Scheduling and
 cancellation are not variadic-generic semantics; they belong to the concurrency
 library and suspension protocol.
 
-## Open Issues
+## Expansion Validation
 
-1. Exact EBNF for expandable subtrees without introducing arbitrary syntax
-   macros.
-2. Explicit generic argument syntax for packs.
-3. Diagnostics and inference when one pack appears under multiple generic type
-   constructors.
-4. Whether more than one expansion may occur in one parameter or argument
-   list.
+More than one expansion may occur in one parameter, tuple, or argument list.
+Each expansion is checked independently. When multiple packs occur in one
+expanded subtree, they expand in lockstep and must have the same length. When a
+pack occurs beneath multiple generic constructors, every occurrence contributes
+constraints to the same ordered sequence; incompatible element constraints are
+reported at the first differing pack position.

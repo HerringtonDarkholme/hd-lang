@@ -295,11 +295,11 @@ Concrete type expressions always have materializable descriptors, so `resolve[li
 
 Reified functions do not require an `inline` modifier. The WebAssembly backend can use descriptor passing, specialization, or both. It may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
 
-In v1, `reified` applies to function generic parameters. Reified parameters on generic struct, enum, trait, and type declarations remain a separate design question.
+In hd-lang, `reified` applies to function generic parameters. Reified parameters on generic struct, enum, trait, and type declarations remain a separate design question.
 
-v1 does not support partial explicit generic arguments or placeholder generic arguments.
+hd-lang does not support partial explicit generic arguments or placeholder generic arguments.
 
-Variadic generics use ordered type and value packs. Minimal v1 supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
+Variadic generics use ordered type and value packs. The language supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
 ```text
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
@@ -315,7 +315,7 @@ fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
 
 For `Ts... = User, i32, bool`, the parameter pattern expands to `Suspend[User], Suspend[i32], Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
 
-If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. v1 does not support general pack mapping, filtering, indexing, splitting, or arithmetic. The scheduling and cancellation semantics of `all!` belong to the concurrency design; this example specifies only the variadic type relationship.
+If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. hd-lang does not support general pack mapping, filtering, indexing, splitting, or arithmetic. The scheduling and cancellation semantics of `all!` belong to the concurrency design; this example specifies only the variadic type relationship.
 
 `all!` treats a child's `Err` as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `Err` values. Runtime panics and cancellation are separate from this result-value rule.
 
@@ -475,9 +475,9 @@ fn normalize_email(email: string) -> string:
 
 Submodule access goes through imports; a parent module does not automatically import child modules, and a child module does not automatically import parent declarations.
 
-Import and re-export cycles are rejected in v1.
+Import and re-export cycles are rejected.
 
-v1 keeps visibility simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier. Package-scoped visibility and visibility of individual fields or enum variants are deferred.
+Visibility is simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier or independent field/variant visibility.
 
 ## Program Entry Points And Wasm Exports
 
@@ -558,7 +558,7 @@ fn log_start() -> void:
     println("start")
 ```
 
-There are no convenience aliases such as `int`, `uint`, or `float` in v1. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
+There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
 
 ## Operators
 
@@ -604,7 +604,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `&` | bitwise and |
 | `^` | bitwise xor |
 | `|` | bitwise or |
-| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining in v1 |
+| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining  |
 | `and` | logical and |
 | `or` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
@@ -647,7 +647,7 @@ x, y := point
 let name, score = entry
 ```
 
-Named tuples are not in v1. Use structs when field names are part of the meaning.
+Named tuples are not supported. Use structs when field names are part of the meaning.
 
 ## Struct Literals
 
@@ -798,7 +798,7 @@ The `mut` qualifier proves that `value` can call methods requiring `mut self`. `
 
 Trait values follow the same rule. `mut Trait` is a mutable dynamic trait view, and `mut Any` is an erased mutable composite reference. The qualifier preserves permission but does not invent operations: `mut Any` can only use universal runtime operations until checked as a concrete mutable type or passed somewhere with a stronger trait requirement.
 
-Mutable map keys are provisionally disallowed because changing a structurally hashed key could invalidate map invariants. The exact stable-key trait or restriction remains open.
+Mutable map keys are disallowed because changing a structurally hashed key could invalidate map invariants. The formal type specification defines the closed set of supported map-key types; a stable user-defined equality/hash protocol remains backlog work.
 
 ### Alternative: Shallow Const Bindings And Implicit Const Borrows
 
@@ -1245,7 +1245,7 @@ slugify := fn(text: string) -> string:
     text.trim().lower().replace(" ", "-")
 ```
 
-There is no separate short closure syntax in v1. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
+There is no separate short closure syntax. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
 
 ```text
 inc := fn(x: i32) -> i32: x + 1
@@ -1294,7 +1294,7 @@ choice(
 
 Here `aa` is inferred as `i32`, `bb` as `string`, and both callbacks return `void`. Without an expected function type, the closure must state its parameter and return types explicitly.
 
-Shorthand argument closures such as `$0 + $1` are deferred; v1 requires named parameters in the closure parameter list.
+Shorthand argument closures such as `$0 + $1` are not supported; closures use named parameters.
 
 Closures capture values from lexical scope. Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
 
@@ -1427,7 +1427,7 @@ fn show_static[T: Display](value: T) -> string:
 
 ## Contract Syntax Direction
 
-Status: deferred and excluded from the current language tour and MVP. The
+Status: backlog material excluded from the language tour. The
 examples in this contract section preserve earlier exploration, including
 obsolete `$ require + ensure` notation, and are not accepted hd-lang syntax.
 
@@ -1854,7 +1854,7 @@ Meaning:
 4. If `callback` only requires `Logger`, the wrapper has an empty requirement row.
 5. If `callback` requires `Logger` and `Database`, the wrapper requires `Database`.
 
-The important idea is requirement-row transformation: a function can propagate all callback requirements except the ones it provides locally. This is useful even if the language does not expose full row polymorphism in v1.
+The important idea is requirement-row transformation: a function can propagate all callback requirements except the ones it provides locally. This is useful even if the language does not expose full row polymorphism.
 
 ### Candidate B: Parameter-linked requirements
 
@@ -1879,7 +1879,7 @@ Unhandled requirements of function-typed parameters propagate automatically; the
 ### Open questions regardless of candidate
 
 1. Requirement subtraction/removal syntax: should provided requirements be written explicitly as `$ (r - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
-2. Function-typed struct fields and returned closures: row variables, monomorphization, or disallowed in v1?
+2. Function-typed struct fields and returned closures: row variables, monomorphization, or disallowed ?
 3. How do provider scopes installed at a call site interact with a polymorphic row?
 4. Is the underlying model full row polymorphism, or a smaller requirement-variable system that only supports union and removal?
 
@@ -1921,15 +1921,15 @@ Annotation design should be split into four separate concerns before finalizing 
 
 ### Common Representation
 
-The compiler should expose a typed common representation for declarations. This is similar in spirit to Python's runtime introspection model (`__annotations__`, docstrings, signatures, defaults) and Scala's compile-time generic representation, but hd-lang should make it compile-time-first, typed, and compiler-verifiable.
+The compiler should expose a typed runtime representation for declarations. This is similar in spirit to Python's runtime introspection model (`__annotations__`, docstrings, signatures, defaults) and Scala's compile-time generic representation, while remaining compiler-generated and compiler-verifiable.
 
 The common representation should cover at least:
 
-1. Structs: name, fields, embedded structs, field types, field defaults, docs, visibility, and attached metadata.
+1. Structs: name, fields, embedded structs, field types, docs, visibility, and attached metadata.
 2. Enums: name, variants, constructor arguments, GADT result types, docs, and attached metadata.
-3. Functions: name, parameters, return type, dependency requirements, suspension marker, docs, defaults, and attached metadata.
+3. Functions: name, parameters, return type, dependency requirements, suspension marker, docs, and parameter defaults.
 
-Provisional shape vocabulary:
+Shape vocabulary:
 
 ```text
 shape(User)       # StructShape
@@ -1964,7 +1964,7 @@ Derived behavior needs local specialization. There should be several override pa
 
 The design goal is Serde-like local override ergonomics without making each ecosystem invent unrelated attribute syntax.
 
-Provisional examples, not settled syntax:
+Examples of the accepted syntax:
 
 ```text
 derive UI for User:
@@ -1990,7 +1990,7 @@ derive Tool for get_user export GetUserTool
 
 The exact syntax is open, but the principle is settled: runtime metadata should be produced deliberately, not as an accidental consequence of attaching metadata to a declaration.
 
-### Provisional Annotation Protocol
+### Annotation Protocol
 
 A promising direction is to model annotations as uniformly typed derivation protocols implemented by ordinary types. This is not final syntax; it records the current idea for further design.
 
@@ -2031,7 +2031,6 @@ Local metadata protocols correspond directly to member shapes. They are open tra
 ```text
 trait FieldMetadata[T]
 trait VariantMetadata
-trait ParamMetadata[T]
 
 trait StructAnnotator: Annotation:
     type FieldTarget
@@ -2049,7 +2048,7 @@ trait StructAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` and `ParamMetadata[T]` serve the corresponding declaration shapes. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
+For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. Parameters do not have local metadata assignments; `FuncAnnotator` reads their shapes. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
 
 The supported type set is open because new exact cases can be added without changing an existing annotator:
 
@@ -2083,7 +2082,7 @@ impl Annotate[UI] for User:
 
 The two forms cannot coexist for the same annotation/target pair. A direct `impl` constructs the complete information value; `annotate` is the ergonomic form for structural derivation with member-level overrides.
 
-`annotate Target` is member-shape metadata sugar. It evaluates ordinary metadata values and attaches them to existing fields, variants, or parameters:
+`annotate Target` is member-shape metadata sugar. It evaluates ordinary metadata values and attaches them to existing fields or variants:
 
 ```text
 annotate User:
@@ -2104,7 +2103,7 @@ Decorator syntax may be added later as optional locality sugar. A future field f
 Generic code can use normal trait bounds to require annotation availability:
 
 ```text
-# Generic constraint syntax remains provisional.
+# Generic constraints use ordinary generic impl and where-clause syntax.
 fn validate[T: Annotate[Validation]](value: T) -> Result[T, ValidationError]:
     validator := Validation::annotation(T)
     validator.validate(value)
@@ -2322,7 +2321,7 @@ trait EnumAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-Function annotations use the same shape: a parameter mapping step plus `build`. In v1, function parameter assignment overrides inside `annotate` are not supported; parameter customization should come from parameter annotations, parameter docs, or a whole-function `build` override.
+Function annotations use the same shape: a parameter mapping step plus `build`. In hd-lang, function parameter assignment overrides inside `annotate` are not supported; parameter customization should come from parameter annotations, parameter docs, or a whole-function `build` override.
 
 ```text
 trait FuncAnnotator: Annotation:
@@ -2389,7 +2388,7 @@ annotate Tool for get_user:
         }
 ```
 
-This is not valid in v1:
+This is not valid:
 
 ```text
 annotate Tool for get_user:
@@ -2405,7 +2404,7 @@ ToolSpec := Tool::annotation(get_user)            # ToolSpec
 ErrorSchema := ErrorDoc::annotation(ToolError)    # ErrorSchema
 ```
 
-The spelling `Facet::annotation(Target)` is the current preferred provisional syntax. Semantically, it means:
+The spelling `Facet::annotation(Target)` is the language syntax. Semantically, it means:
 
 ```text
 shape_value := shape(Target)
@@ -2800,12 +2799,12 @@ Open concerns:
 2. Reusable generic target syntax for cases such as every `list[T]` remains open. The current example uses the exact target `list[Entry]` rather than inventing generic annotation syntax.
 3. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
 4. `build` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `build` should use the original `shape` ordering.
-5. Function parameter assignment overrides are deferred in v1; parameter customization uses parameter annotations/docs or whole-function `build`.
-6. Runtime annotation materialization syntax is provisional. The current preferred sketch uses `Facet::annotation(Target)`, but the exact spelling is still open.
+5. Function parameter assignment overrides are deferred; parameter customization uses parameter annotations/docs or whole-function `build`.
+6. Runtime annotation materialization uses `Facet::annotation(Target)`.
 7. The internal representation and lifecycle of `AnnotationRef[Info]` remain compiler/runtime details.
 8. Which compatible aggregate annotators consume manual `lazy` metadata remains open.
 9. Whether a statically visible `MissingAnnotationPolicy` should select compile-time rejection or omission for missing child type annotations remains open, including its default and granularity. Runtime `map_field` cannot make this choice.
-10. Whether to add future `@expr` locality sugar for member metadata remains deferred. It must be exactly equivalent to `annotate Target` and is not needed for v1.
+10. Decorator locality sugar is not part of the language.
 
 Support two `annotate` forms:
 
@@ -2819,8 +2818,8 @@ Support two `annotate` forms:
 Annotation principles:
 
 1. Metadata does not alter behavior, declaration names, underlying types, or signatures.
-2. `annotate Target` can assign metadata only to existing fields, variants, or parameters.
-3. A field of type `T` expects `list[FieldMetadata[T]]`; variants expect `list[VariantMetadata]`; parameters of type `T` expect `list[ParamMetadata[T]]`.
+2. `annotate Target` can assign metadata only to existing fields or variants.
+3. A field of type `T` expects `list[FieldMetadata[T]]`; variants expect `list[VariantMetadata]`. Parameters have no local metadata assignment syntax.
 4. These are homogeneous collections of Go-style dynamic trait values. Their concrete elements may have unrelated types.
 5. Metadata expressions create ordinary runtime values evaluated in a restricted metadata phase.
 6. Constructor calls, helper function calls, named values, and reusable lists are equivalent when their values implement the required metadata trait.
@@ -2835,7 +2834,7 @@ source code -> typed shapes -> metadata evaluation -> derived artifacts -> runti
 
 Metadata evaluation can construct ordinary hd-lang values such as `MaxLen { value: 320 }`, `max_len(320)`, named metadata values, reusable metadata lists, and annotation information values. The phase must be deterministic, sandboxed, and capability-limited so tooling can run it without running the application. Shape values expose their attached dynamic metadata values directly.
 
-For v1, metadata evaluation is intentionally strict:
+In hd-lang, metadata evaluation is intentionally strict:
 
 1. It can construct structs/enums, call pure functions, compose annotation values, inspect shape values, and use constants.
 2. It cannot use `$` context requirements.
@@ -2849,7 +2848,7 @@ Metadata evaluation follows a strict bottom-up order. Child declarations attach 
 
 ```text
 field metadata -> struct annotator -> Annotate information
-parameter metadata -> function annotator -> Annotate information
+parameter shapes -> function annotator -> Annotate information
 variant-field metadata -> variant metadata -> enum annotator -> Annotate information
 ```
 
@@ -2861,7 +2860,7 @@ For structs:
 4. Run the selected `StructAnnotator`, which can inspect field metadata.
 5. Build the annotation's `Info` and expose `Annotate[A]` for the struct.
 
-For functions, parameter metadata is attached before a `FuncAnnotator` maps parameters and builds function information.
+For functions, parameter shapes are assembled before a `FuncAnnotator` maps parameters and builds function information.
 
 For enums, payload-field metadata is attached before variant metadata, and both are available before an `EnumAnnotator` maps variants and builds enum information.
 
@@ -2874,7 +2873,7 @@ The compiler does perform annotation lowering/desugaring, but this desugared for
 The source-level model remains:
 
 1. `annotate Target` evaluates ordinary member metadata values in the restricted metadata phase.
-2. The compiler contextually checks each collection against `FieldMetadata[T]`, `VariantMetadata`, or `ParamMetadata[T]` for the selected member.
+2. The compiler contextually checks each collection against `FieldMetadata[T]` or `VariantMetadata` for the selected member.
 3. The compiler lowers those values into bottom-up shape metadata construction.
 4. `annotate Annotation for Target` is type-checked against the target shape and generates `impl Annotate[Annotation] for Target`.
 5. `pass` means default aggregate derivation with no result overrides.
@@ -2950,7 +2949,7 @@ fn __materialize_User_table() -> Result[TableSchema, AnnotationError]:
     __annotation_DatabaseSchema_User()
 ```
 
-Function and enum annotations lower the same way: parameter metadata is built before function information, and variant-field metadata is built before variant metadata and enum information. The compiler-generated form is equivalent to the source annotation semantics; it does not give user code extra effects or let metadata evaluation escape its restricted phase.
+Function and enum annotations lower the same way: parameter shapes are built before function information, and variant-field metadata is built before variant metadata and enum information. The compiler-generated form is equivalent to the source annotation semantics; it does not give user code extra effects or let metadata evaluation escape its restricted phase.
 
 ```text
 fn load_policy!() -> Policy $ Database:
@@ -3179,7 +3178,7 @@ The runtime keeps execution-local observability context containing the current s
 
 Explicit logs are enriched from the execution-local context and are also recorded as events on the current span. Span lifecycle replaces duplicate boundary start/end logs. Unhandled errors, defects, retries, cancellation, and failed suspensions produce automatic runtime events. Exact trait methods, custom-span source syntax, metric instruments, privacy, sampling, replay deduplication, and exporter configuration remain open.
 
-The provisional v1 provider surface is:
+The initial provider surface is:
 
 ```text
 trait Observability:
@@ -3195,7 +3194,7 @@ Each observation has a stable identity derived from execution ID, boundary ID, a
 
 ## Deferred Resource Cleanup And Scope Exit
 
-This entire topic is backlog material and is excluded from the MVP. The language has not selected `Drop`, `using`, `with`, `defer`, or `errdefer` syntax.
+This entire topic is backlog material. The language has not selected `Drop`, `using`, `with`, `defer`, or `errdefer` syntax.
 
 The central distinction is where cleanup belongs:
 
@@ -3305,7 +3304,7 @@ A suspending `!` call only means that execution may suspend. It does not say whe
 
 The strongest prior-art direction combines Salsa/DICE-style dynamic query dependencies and equality cutoff, Jane Street Incremental-style transactional stabilization, Bazel/Nix-style explicit external action identity, and Shake-style dependency diagnostics. Verse's planned live variables provide another useful lesson: actual reads can determine dynamic dependencies, but automatically repeated computation must be sharply restricted from writes and suspension.
 
-### Provisional Library Boundary
+### Initial Library Boundary
 
 Incremental computation should initially be a native-feeling `std.incremental` library rather than a new language construct or `incremental` keyword. The library owns inputs, computation nodes, observation, update transactions, stabilization, equality policies, storage strategies, and graph queries. Runtime library support maintains the active dependency recorder, while existing function shapes and tooling expose code identity and source metadata.
 
@@ -3336,7 +3335,7 @@ println(view.get())
 
 Inputs and computation regions are explicit. Calls to tracked `get` operations inside a computation record the dependencies actually read, including transitive reads through ordinary pure helper functions. When control flow changes, successful recomputation atomically replaces the node's previous dependency set.
 
-### Provisional Runtime Direction
+### Initial Runtime Direction
 
 The initial model should investigate:
 

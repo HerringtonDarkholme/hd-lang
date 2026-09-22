@@ -31,3 +31,26 @@ fn audit[T: Display + Named](value: T) -> string:
 
 fn explicit_display(user: User) -> string:
     Display::display(user)
+
+trait Factory:
+    fn create() -> string
+
+struct UserFactory: pass
+
+impl Factory for UserFactory:
+    fn create() -> string: "guest"
+
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Box[T]:
+    value: T
+
+impl[T] Source for Box[T] where T: Any:
+    type Item = T
+
+    fn get(self) -> T: self.value
+
+fn guest_name() -> string:
+    UserFactory::create()
