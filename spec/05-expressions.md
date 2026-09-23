@@ -168,10 +168,10 @@ Postfix operations bind more tightly than every infix operator.
 
 `value.member` selects a field, and `tuple.0` selects a tuple element. When a
 member suffix is immediately followed by an argument clause,
-`value.method(arguments...)` performs method lookup and invocation. A bare
-method selection is not a first-class bound-method value; wrap the call
-in a closure when a function value is required. Embedded field and method
-promotion follows
+`value.method(arguments...)` performs method lookup and invocation. Whether a
+bare `value.method` can form a bound function value is deferred; explicit
+closures can adapt method calls where a function value is needed. Embedded
+field and method promotion follows
 [Names and Scopes](03-names-and-scopes.md).
 
 Member access through a const composite root applies viewpoint weakening to
@@ -390,6 +390,5 @@ Closures are expressions described in [Functions](07-functions.md). `if`,
 
 ## Unsupported Expression Extensions
 
-hd-lang has no user-defined operator overloading, comparison chaining, match guards,
-first-class bound-method values, or fallback conversion of heterogeneous
-literals to `Any`.
+hd-lang has no user-defined operator overloading, comparison chaining, or
+fallback conversion of heterogeneous literals to `Any`.

@@ -153,8 +153,12 @@ message := match status:
     _ => "unknown"
 ```
 
-The first matching arm is selected, and only its body is evaluated. All arm
-results must have one compatible type when the match value is used.
+An arm may add `if` followed by a `bool` guard. After its pattern matches,
+the guard is evaluated using that arm's pattern bindings. If the guard is
+false, matching continues with the next arm; if it is true, that arm is
+selected. A guard is not evaluated when its pattern fails, and only the
+selected arm's body is evaluated. All arm results must have one compatible
+type when the match value is used.
 
 A match must be exhaustive. Coverage is checked as follows:
 
@@ -162,15 +166,24 @@ A match must be exhaustive. Coverage is checked as follows:
   constraints, or a catch-all pattern;
 - `bool` is covered by both `true` and `false`, or by a catch-all pattern;
 - a tuple pattern covers the tuple values covered recursively by its element
-  patterns; and
+  patterns;
+- a struct pattern covers its nominal struct when every listed field pattern
+  is irrefutable, while unlisted fields are unconstrained; and
 - integer, floating-point, `char`, `string`, optional, and other value spaces
   require an irrefutable catch-all after any literal or `nil` cases.
 
+A guarded arm contributes no coverage to exhaustiveness, even when its pattern
+would be irrefutable without the guard. A later unguarded arm must cover its
+values. An unguarded irrefutable catch-all must be the final arm; a guarded
+catch-all may be followed by other arms. Duplicate patterns are permitted when
+earlier occurrences are guarded, but an arm already covered by an earlier
+unguarded arm is unreachable.
+
 `_` and a bare binding identifier are catch-all patterns for the subject type.
-An irrefutable catch-all must be the final arm because every later arm would be
-unreachable. Duplicate literals, duplicate fully covered variants, arms after a
-catch-all, and other statically provable unreachable arms are compile-time
-errors.
+An unguarded irrefutable catch-all must be the final arm because every later
+arm would be unreachable. Duplicate unguarded literals, duplicate fully
+covered variants, arms after an unguarded catch-all, and other statically
+provable unreachable arms are compile-time errors.
 
 Enum payload patterns use call-style parentheses. Positional patterns come
 first, and `field=pattern` names a payload field:
@@ -196,7 +209,15 @@ viewpoint permission. A literal-constrained payload pattern such as
 arm must cover the remaining `Scale` values unless a later catch-all does.
 
 Nested variant and tuple patterns are permitted by the grammar. Struct
-destructuring patterns are not supported.
+destructuring patterns are also permitted. `User { name }` binds the `name`
+field; `User { name=alias }` binds it as `alias`; `User { age=18 }` matches
+only values with that field value. Unlisted fields are ignored. Listed fields
+must be distinct and exist on the named struct. A cross-module pattern may
+name only public fields. An empty struct pattern is irrefutable for that
+struct type. A named struct pattern must match the subject's nominal type;
+it does not structurally match a different struct with the same fields.
+Primitive fields bind by value; composite fields bind reference access under
+the same viewpoint rules as enum payload patterns.
 
 GADT pattern refinement is defined in [Generalized Algebraic Data
 Types](13-gadts.md).

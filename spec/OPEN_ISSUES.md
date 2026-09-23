@@ -22,6 +22,8 @@ decisions:
   with the language.
 - **Discuss** means the feature has a legitimate use case but needs focused
   design work.
+- **Deferred** means the behavior is deliberately undecided and is not a
+  permanent exclusion.
 - **Retain exclusion** means the existing restriction remains consistent with
   accepted design goals.
 
@@ -43,16 +45,22 @@ decisions:
   module-private by default or `pub`.
 - **Accepted:** enum variants inherit enum visibility; struct fields and
   inherent methods are module-private unless individually marked `pub`.
+  Trait methods share their trait's visibility and cannot mark `pub` separately.
 - **Retain exclusion:** nested `test` blocks.
 
 ### Expressions, Patterns, And Control Flow
 
 - **Retain exclusion:** truthiness conversions; conditions require `bool`.
 - **Retain exclusion:** user-defined operator overloading.
-- **Support candidate:** comparison chaining.
-- **Support candidate:** match guards.
-- **Support candidate:** struct destructuring patterns.
-- **Discuss:** first-class bound-method values.
+- **Retain exclusion:** comparison chaining; combine comparisons with `and`.
+- **Accepted:** `bool` match guards; guarded arms do not establish
+  exhaustiveness.
+- **Accepted:** struct destructuring patterns with shorthand field binding,
+  `field=pattern`, and implicit omission of unlisted fields.
+- **Deferred:** first-class bound-method values. Direct `receiver.method()`
+  calls are defined, but bare `receiver.method` as a value is not. Revisit the
+  reference syntax, `self` versus `mut self` receiver capture and lifetime,
+  and how suspension and requirements appear in the resulting function type.
 - **Retain exclusion:** automatic conversion of heterogeneous collection
   literals to collections of `Any`.
 - **Discuss:** user-defined ordering for aggregates and collections.

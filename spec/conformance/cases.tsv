@@ -8,6 +8,8 @@ parse/valid/struct-embedding.hd	parse	accept	08-structs-and-enums.md#struct-embe
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
 parse/invalid/declaration-without-let.hd	parse	reject:missing-let	02-grammar.md#statements
 parse/invalid/direct-variant-import.hd	parse	reject:direct-variant-import	10-modules.md#import-forms
+parse/invalid/pub-trait-method.hd	parse	reject:trait-method-visibility	02-grammar.md#traits-and-implementations
+parse/invalid/chained-comparison.hd	parse	reject:comparison-chaining	02-grammar.md#expressions
 parse/invalid/invalid-escape.hd	parse	reject:invalid-escape	01-lexical-structure.md#string-and-character-literals
 parse/invalid/named-pattern-before-positional.hd	parse	reject:pattern-order	02-grammar.md#patterns
 parse/valid/unicode-identifiers.hd	parse	accept	01-lexical-structure.md#identifiers
@@ -23,6 +25,8 @@ typing/valid/collections.hd	type	accept	05-expressions.md#comprehensions
 typing/valid/equality.hd	type	accept	05-expressions.md#unary-and-binary-operators
 typing/valid/control-flow.hd	type	accept	06-control-flow.md
 typing/valid/enums.hd	type	accept	08-structs-and-enums.md#matching-enums
+typing/valid/match-guards.hd	type	accept	06-control-flow.md#match-expressions
+typing/valid/struct-patterns.hd	type	accept	06-control-flow.md#match-expressions
 typing/valid/contextual-variants.hd	type	accept	08-structs-and-enums.md#matching-enums
 typing/valid/functions.hd	type	accept	07-functions.md
 typing/valid/local-functions.hd	type	accept	07-functions.md#declarations
@@ -59,12 +63,13 @@ runtime/panic/integer-divide-by-zero.hd	runtime	panic:integer-division-by-zero	0
 typing/invalid/missing-mutable-edge.hd	type	reject:const-edge	04-type-system.md#mutable-paths
 typing/invalid/nil-to-any.hd	type	reject:nil-to-nonoptional	04-type-system.md#optional-types
 typing/invalid/nonexhaustive-match.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
+typing/invalid/guarded-match-not-exhaustive.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
+typing/invalid/duplicate-struct-pattern-field.hd	type	reject:duplicate-struct-pattern-field	06-control-flow.md#match-expressions
 typing/invalid/contextual-variant-without-type.hd	type	reject:missing-contextual-enum-type	05-expressions.md#names
 typing/invalid/nonexhaustive-bool-match.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
 typing/invalid/overload.hd	type	reject:duplicate-module-name	03-names-and-scopes.md#name-categories
 typing/invalid/redeclare-core-type.hd	type	reject:predeclared-name-conflict	03-names-and-scopes.md#name-categories
 typing/invalid/function-equality.hd	type	reject:unsupported-equality	05-expressions.md#unary-and-binary-operators
-typing/invalid/bound-method-value.hd	type	reject:bound-method-value	05-expressions.md#member-access
 typing/invalid/unsaturated-enum-constructor.hd	type	reject:unsaturated-enum-constructor	08-structs-and-enums.md#enum-declarations
 typing/invalid/ambiguous-trait-method.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
 typing/invalid/unsafe-dynamic-trait.hd	type	reject:trait-not-dynamically-safe	09-traits.md#dynamic-trait-values

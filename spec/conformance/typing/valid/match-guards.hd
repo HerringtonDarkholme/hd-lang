@@ -1,0 +1,9 @@
+enum Status:
+    Queued(priority: i32)
+    Running
+
+fn label(status: Status) -> string:
+    match status:
+        Status.Queued(priority) if priority > 0 => "urgent"
+        Status.Queued(_) => "queued"
+        Status.Running => "running"

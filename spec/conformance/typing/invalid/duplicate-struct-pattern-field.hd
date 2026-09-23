@@ -1,0 +1,8 @@
+# expect-error: duplicate-struct-pattern-field
+
+struct User:
+    name: string
+
+fn invalid(user: User) -> string:
+    match user:
+        User { name, name=alias } => alias

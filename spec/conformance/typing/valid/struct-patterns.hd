@@ -1,0 +1,16 @@
+struct User:
+    name: string
+    age: i32
+    active: bool
+
+fn label(user: User) -> string:
+    match user:
+        User { name, active=true } => name
+        User { name=alias } => alias
+
+struct Envelope:
+    user: User
+
+fn nested(envelope: Envelope) -> string:
+    match envelope:
+        Envelope { user=User { name } } => name

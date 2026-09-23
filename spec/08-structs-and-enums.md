@@ -62,6 +62,11 @@ Field access uses `value.field`. Assignment to a field requires a mutable root.
 Nested mutation also requires every traversed composite field edge to have a
 `mut` type, as specified in [Type System](04-type-system.md).
 Cross-module field access additionally requires the field to be public.
+Struct values may be destructured in `match` patterns using the same
+`StructName { ... }` form. The pattern may mention any subset of visible
+fields; omitted fields are not tested. Within the braces, `field` binds the
+field value and `field=pattern` applies a nested pattern. See
+[Match Expressions](06-control-flow.md#match-expressions).
 
 Copy-update construction uses one leading spread:
 

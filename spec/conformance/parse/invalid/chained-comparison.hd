@@ -1,0 +1,3 @@
+# expect-error: comparison-chaining
+
+inside := 0 < value < 10

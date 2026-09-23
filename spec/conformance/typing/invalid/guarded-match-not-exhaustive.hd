@@ -1,0 +1,10 @@
+# expect-error: nonexhaustive-match
+
+enum Status:
+    Queued
+    Running
+
+fn label(status: Status, urgent: bool) -> string:
+    match status:
+        Status.Queued if urgent => "urgent"
+        Status.Running => "running"

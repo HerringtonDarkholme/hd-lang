@@ -325,9 +325,8 @@ Receiverless members are associated functions and are called with qualified
 Method-call syntax evaluates the receiver first and then ordinary arguments.
 It is semantically equivalent to selecting the resolved method and supplying
 the receiver as its first argument; promotion and dynamic dispatch are defined
-in [Traits](09-traits.md). Method selection does not create a bound function value from
-bare `receiver.method`; use an explicit closure when a first-class adapter is
-needed.
+in [Traits](09-traits.md). The treatment of bare `receiver.method` as a
+function value is deferred; see [Member Access](05-expressions.md#member-access).
 
 ## Recursion
 

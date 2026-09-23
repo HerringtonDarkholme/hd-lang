@@ -592,7 +592,7 @@ match_expression = "match", expression, ":", NEWLINE, INDENT,
                    match_arm, { match_arm }, DEDENT
                    ;
 
-match_arm = pattern, "=>", arm_body ;
+match_arm = pattern, [ "if", expression ], "=>", arm_body ;
 arm_body = suite_expression
          | expression, NEWLINE
          | NEWLINE, INDENT, statement, { statement }, DEDENT
@@ -610,6 +610,7 @@ pattern = "_"
         | literal_pattern
         | binding_pattern_atom
         | variant_pattern
+        | struct_pattern
         | tuple_pattern
         ;
 
@@ -634,6 +635,11 @@ pattern_argument_list = positional_pattern,
 positional_pattern = pattern ;
 named_pattern = identifier, "=", pattern ;
 
+struct_pattern = qualified_name, "{", [ struct_pattern_fields ], "}" ;
+struct_pattern_fields = struct_pattern_field,
+                        { ",", struct_pattern_field }, [ "," ] ;
+struct_pattern_field = identifier, [ "=", pattern ] ;
+
 tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
 ```
@@ -642,6 +648,9 @@ Variant patterns may use a qualified enum variant name or `.Variant` when the
 matched value's type supplies one enum. Positional binding names need not match
 payload field names. Only `field=pattern` is a named pattern, and no positional
 pattern may follow a named pattern.
+In a struct pattern, bare `field` binds that field's value to a new name;
+`field=pattern` matches it against a nested pattern. Unlisted fields are
+ignored.
 
 ## Comprehensions
 

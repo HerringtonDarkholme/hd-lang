@@ -283,7 +283,7 @@ A `while` body and its `else` suite likewise have separate child scopes.
 ### Matches
 
 Every match arm has an independent child scope. Names bound by an arm's pattern
-are visible in that arm body only:
+are visible in that arm's optional guard and body only:
 
 ```text
 match error:

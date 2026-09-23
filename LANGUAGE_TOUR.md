@@ -451,6 +451,15 @@ Field access uses dot syntax:
 println(user.email)
 ```
 
+Structs can also be matched by field. Unlisted fields are ignored;
+`field=pattern` can rename a binding or test a nested value:
+
+```text
+fn email_of(user: User) -> string:
+    match user:
+        User { email=address } => address
+```
+
 Composite fields may store either const or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:
 
 ```text
@@ -625,6 +634,20 @@ Use `match` to inspect an enum. Matches are exhaustive unless an explicit fallba
 ```text
 fn status_label(status: JobStatus) -> string:
     match status:
+        JobStatus.Queued => "queued"
+        JobStatus.Running => "running"
+        JobStatus.Succeeded => "succeeded"
+        JobStatus.Failed => "failed"
+```
+
+An arm may use `if` to guard a pattern. Pattern bindings are visible in the guard;
+when it is false, matching continues. Guarded arms do not count toward
+exhaustiveness, so a later arm must cover the remaining values:
+
+```text
+fn queue_label(status: JobStatus, urgent: bool) -> string:
+    match status:
+        JobStatus.Queued if urgent => "urgent"
         JobStatus.Queued => "queued"
         JobStatus.Running => "running"
         JobStatus.Succeeded => "succeeded"

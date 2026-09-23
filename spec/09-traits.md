@@ -158,7 +158,8 @@ Inherent methods and associated functions are module-private unless
 individually marked `pub`, including when their nominal type is public.
 Methods in trait declarations and trait implementations follow the trait's
 visibility; `pub` is not written on an individual trait method or its
-implementation.
+implementation. A trait has one visibility level for all its methods; it
+cannot mix public and private methods.
 
 An inherent member name must not duplicate another inherent member on the same
 type. hd-lang has no method or associated-function overloading.
