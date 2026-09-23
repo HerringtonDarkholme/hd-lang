@@ -43,7 +43,7 @@ decisions:
 - **Retain exclusion:** wildcard imports.
 - **Retain exclusion:** package-private visibility; declarations are
   module-private by default or `pub`.
-- **Accepted:** enum variants inherit enum visibility; struct fields and
+- **Accepted:** enum variants inherit enum visibility; data fields and
   inherent methods are module-private unless individually marked `pub`.
   Trait methods share their trait's visibility and cannot mark `pub` separately.
 - **Retain exclusion:** nested `test` blocks.
@@ -55,7 +55,7 @@ decisions:
 - **Retain exclusion:** comparison chaining; combine comparisons with `and`.
 - **Accepted:** `bool` match guards; guarded arms do not establish
   exhaustiveness.
-- **Accepted:** struct destructuring patterns with shorthand field binding,
+- **Accepted:** data destructuring patterns with shorthand field binding,
   `field=pattern`, and implicit omission of unlisted fields.
 - **Deferred:** first-class bound-method values. Direct `receiver.method()`
   calls are defined, but bare `receiver.method` as a value is not. Revisit the
@@ -83,9 +83,9 @@ decisions:
 - **Retain exclusion:** ownership-taking receivers and reference sigils.
 - **Discuss:** reassignable parameter bindings.
 
-### Structs, Enums, Representation, And Resources
+### Data Types, Enums, Representation, And Resources
 
-- **Support candidate:** struct field defaults.
+- **Support candidate:** defaults for data fields.
 - **Discuss:** defaults for shared enum constructor data.
 - **Retain exclusion:** inline enum variant field blocks; variants use
   call-style constructor parameters.

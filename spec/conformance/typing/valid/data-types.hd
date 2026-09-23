@@ -1,4 +1,4 @@
-struct User:
+data User:
     id: string
     display_name: string
 

@@ -182,28 +182,28 @@ enum Outcome:
     Cancelled
     Interrupted
 
-struct SpanContext:
+data SpanContext:
     trace_id: string
     span_id: string
     sampled: bool
 
-struct SpanCandidate:
+data SpanCandidate:
     operation: OperationInfo
     parent: SpanContext?
 
-struct SpanStarted:
+data SpanStarted:
     context: SpanContext
     parent: SpanContext?
     operation: OperationInfo
     timestamp: Timestamp
 
-struct SpanEnded:
+data SpanEnded:
     context: SpanContext
     outcome: Outcome
     timestamp: Timestamp
     duration: Duration
 
-struct LogRecord:
+data LogRecord:
     level: LogLevel
     message: string
     fields: map[string, ObservationValue]
@@ -262,7 +262,7 @@ fn process_user!(id: UserId) -> Result[void, ProcessError] $
 A development provider can format every event:
 
 ```text
-struct ConsoleObservability:
+data ConsoleObservability:
     output: TextOutput
     minimum_level: LogLevel
 
@@ -277,7 +277,7 @@ impl Observability for ConsoleObservability:
 A production provider can buffer events for OpenTelemetry export:
 
 ```text
-struct OTelObservability:
+data OTelObservability:
     queue: TelemetryQueue
     sampler: Sampler
 

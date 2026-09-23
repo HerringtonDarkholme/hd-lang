@@ -279,15 +279,15 @@ type-specific methods.
 
 ## Embedding And Trait Satisfaction
 
-An unambiguous method promoted from an embedded struct may satisfy a trait
-requirement for the outer type. If multiple embedded structs promote conflicting
+An unambiguous method promoted from an embedded data type may satisfy a trait
+requirement for the outer type. If multiple embedded data types promote conflicting
 methods, the outer type does not satisfy the trait automatically.
 
 Diagnostics for this failure should identify the required signature, list the
 ambiguous promoted methods, and suggest either an explicit implementation or a
 qualified embedded-field call.
 
-Embedding is still composition, not subtype inheritance. An outer struct is not
+Embedding is still composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.
 
 ## Default-Method Conflicts

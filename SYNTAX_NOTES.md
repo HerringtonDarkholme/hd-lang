@@ -128,24 +128,24 @@ change_name(new_mutable_user()) # allowed: declared return type is mut User
 
 The type system should be static, with local inference and explicit public boundaries. The compiler should know the type of every expression before code runs, but ordinary local code can avoid redundant annotations.
 
-Function parameters, return types, struct fields, enum payloads, and trait methods should carry type annotations:
+Function parameters, return types, data fields, enum payloads, and trait methods should carry type annotations:
 
 ```text
 fn find_user(id: UserId) -> Result[User?, DbError]:
     ...
 
-struct User:
+data User:
     id: UserId
     email: string
 ```
 
-Structs and enums are nominal types. Matching field shape is not enough for assignment or calls:
+Data types and enums are nominal types. Matching field shape is not enough for assignment or calls:
 
 ```text
-struct UserId:
+data UserId:
     value: string
 
-struct PostId:
+data PostId:
     value: string
 
 fn load_user(id: UserId) -> User?:
@@ -295,7 +295,7 @@ Concrete type expressions always have materializable descriptors, so `resolve[li
 
 Reified functions do not require an `inline` modifier. The WebAssembly backend can use descriptor passing, specialization, or both. It may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
 
-In hd-lang, `reified` applies to function generic parameters. Reified parameters on generic struct, enum, trait, and type declarations remain a separate design question.
+In hd-lang, `reified` applies to function generic parameters. Reified parameters on generic data, enum, trait, and type declarations remain a separate design question.
 
 hd-lang does not support partial explicit generic arguments or placeholder generic arguments.
 
@@ -348,19 +348,19 @@ fn keep_erased(value: Any) -> Any:
 
 Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values.
 
-Struct embedding is composition, not inheritance. Embedded fields and methods can be promoted, but the outer struct is not automatically a subtype of the embedded struct.
+Data embedding is composition, not inheritance. Embedded fields and methods can be promoted, but the outer data is not automatically a subtype of the embedded data.
 
 Embedded promoted methods count for trait satisfaction when they are unambiguous:
 
 ```text
-struct Logger:
+data Logger:
     name: string
 
 impl Display for Logger:
     fn display(self) -> string:
         self.name
 
-struct Service:
+data Service:
     Logger
 
 fn show(value: Display) -> void:
@@ -410,7 +410,7 @@ Example public types:
 
 pub type UserId(string)
 
-pub struct User:
+pub data User:
     pub id: UserId
     pub email: string
 ```
@@ -477,7 +477,7 @@ Submodule access goes through imports; a parent module does not automatically im
 
 Import and re-export cycles are rejected.
 
-Declarations are module-private by default, and `pub` makes them public. Enum variants inherit enum visibility; struct fields and inherent methods are private unless individually marked `pub`. There is no package-private visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit enum visibility; data fields and inherent methods are private unless individually marked `pub`. There is no package-private visibility modifier.
 
 ## Program Entry Points And Wasm Exports
 
@@ -495,7 +495,7 @@ pub fn main!() -> Result[void, AppError] $ Args + Console:
 
 `pub` only controls visibility between hd-lang modules. It does not export every public function through the Wasm component boundary. Tools, workflows, and library-facing functions require explicit registration, and that registration generates a typed host adapter. Their exact registration APIs are separate library/tooling designs.
 
-An exported signature is checked recursively for boundary-safe structural types. The initial allowed forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, structs, enums, `T?`, and `Result[T, E]`; every nested type argument, field, variant payload, success value, and error value must itself be boundary-safe. A map key must also satisfy the ordinary map-key rules. Mutable types, trait values, closures, and live runtime handles are rejected anywhere in the boundary shape. `$` requirements are bound by the host adapter and are not serialized parameters.
+An exported signature is checked recursively for boundary-safe structural types. The initial allowed forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, data types, enums, `T?`, and `Result[T, E]`; every nested type argument, field, variant payload, success value, and error value must itself be boundary-safe. A map key must also satisfy the ordinary map-key rules. Mutable types, trait values, closures, and live runtime handles are rejected anywhere in the boundary shape. `$` requirements are bound by the host adapter and are not serialized parameters.
 
 `map[K, V]` is unordered by default. Insertion and iteration order are not part of map equality or boundary semantics, even if a particular host encoding represents entries as a sequence.
 
@@ -593,7 +593,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 
 | Operators | Notes |
 | --- | --- |
-| `(expr)`, literals, list/map/struct displays | atoms |
+| `(expr)`, literals, list/map/data displays | atoms |
 | `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
 | postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
@@ -647,11 +647,11 @@ x, y := point
 let name, score = entry
 ```
 
-Named tuples are not supported. Use structs when field names are part of the meaning.
+Named tuples are not supported. Use data types when field names are part of the meaning.
 
-## Struct Literals
+## Data Literals
 
-Struct literals use the type name followed by braces:
+Data literals use the type name followed by braces:
 
 ```text
 user := User {
@@ -666,10 +666,10 @@ This keeps construction visually distinct from function calls.
 Composite fields may carry mutable reference permission in their type:
 
 ```text
-struct Profile:
+data Profile:
     display_name: string
 
-struct Account:
+data Account:
     profile: mut Profile
 
 let profile: mut Profile = Profile {
@@ -717,13 +717,13 @@ fn apply(user: mut User, operation: fn(mut User) -> void) -> void
 `mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Generic declarations state variance with `+` and `-`: `+T` is covariant, `-T` is contravariant, and an unmarked `T` is invariant. Variance applies to read-only outer views. Every `mut Generic[...]` view is invariant in its generic arguments because mutation could otherwise store a value that violates the original type.
 
 ```text
-struct Producer[+T]:
+data Producer[+T]:
     produce: fn() -> T
 
-struct Consumer[-T]:
+data Consumer[-T]:
     consume: fn(T) -> void
 
-struct Cell[T]:
+data Cell[T]:
     value: T
 ```
 
@@ -774,13 +774,13 @@ The covariant conversion creates a read-only view, not an immutable snapshot. Ch
 An ordinary generic parameter denotes a complete type, including any access modifier. Therefore an unconstrained generic declaration cannot apply `mut` again:
 
 ```text
-struct Box[T]:
+data Box[T]:
     value: T
 
 Box[User]       # value: User
 Box[mut User]   # value: mut User
 
-struct InvalidBox[T]:
+data InvalidBox[T]:
     value: mut T  # invalid: T may already be `mut U`
 ```
 
@@ -819,7 +819,7 @@ fn rename(mut user: User, name: string) -> void:
 
 Fields had no `mut T` reference-permission type. This kept the surface smaller but could not precisely express mutation authority for nested fields, collection elements, map values, function values, or mutable returns. It also made local shallow constness and call-boundary constness follow different propagation rules. This model is retained as an alternative, not the current direction.
 
-Use copy-update syntax when creating a modified value from an existing struct:
+Use copy-update syntax when creating a modified value from an existing data:
 
 ```text
 renamed := User {
@@ -828,22 +828,22 @@ renamed := User {
 }
 ```
 
-## Struct Embedding
+## Data Embedding
 
-Struct embedding uses a bare type-name line inside the struct body. There is no `embed` keyword.
+Data embedding uses a bare type-name line inside the data declaration body. There is no `embed` keyword.
 
 ```text
-struct Timestamps:
+data Timestamps:
     created_at: i64
     updated_at: i64
 
-struct Post:
+data Post:
     Timestamps
     id: string
     title: string
 ```
 
-Embedded structs are initialized with the embedded type name as the field key:
+Embedded data types are initialized with the embedded type name as the field key:
 
 ```text
 post := Post {
@@ -856,22 +856,22 @@ post := Post {
 }
 ```
 
-The embedded struct's fields are promoted for ordinary field access:
+The embedded data's fields are promoted for ordinary field access:
 
 ```text
 post.created_at
 ```
 
-Embedded-field name conflicts follow Go-style promotion rules. Direct promoted access is allowed only when the field name is unambiguous. If multiple embedded structs promote the same field name, direct access is invalid and the user must qualify through the embedded field:
+Embedded-field name conflicts follow Go-style promotion rules. Direct promoted access is allowed only when the field name is unambiguous. If multiple embedded data types promote the same field name, direct access is invalid and the user must qualify through the embedded field:
 
 ```text
-struct CreatedBySystem:
+data CreatedBySystem:
     id: string
 
-struct CreatedByUser:
+data CreatedByUser:
     id: string
 
-struct AuditRecord:
+data AuditRecord:
     CreatedBySystem
     CreatedByUser
 
@@ -891,7 +891,7 @@ enum JobStatus:
     Failed
 ```
 
-Payload variants use compact `Variant(field: type)` declarations. Use a separate struct payload when the data is large enough to need a full field block:
+Payload variants use compact `Variant(field: type)` declarations. Use a separate data type when the payload is large enough to need a full field block:
 
 ```text
 enum ToolError:
@@ -1388,11 +1388,11 @@ fn audit_label[T: Display + Named](value: T) -> string:
     value.display() + " / " + value.name()
 ```
 
-Receiver spelling is `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameter permissions appear in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is shorthand for `self: mut Self`. Structs, tuples, lists, and maps are composite types.
+Receiver spelling is `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameter permissions appear in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is shorthand for `self: mut Self`. Data types, tuples, lists, and maps are composite types.
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
-Struct embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
+Data embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer data. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
 
 When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
 
@@ -1483,7 +1483,7 @@ Use:
 
 1. `require` for caller obligations.
 2. `ensure` for callee obligations.
-3. `invariant` for loops and structs.
+3. `invariant` for loops and data types.
 4. Dedent back to the function or loop body after contract sections.
 
 Rejected alternatives:
@@ -1538,10 +1538,10 @@ while low < high:
 
 ## Type Invariants
 
-Structs should be able to declare invariants:
+Data Types should be able to declare invariants:
 
 ```text
-struct Account:
+data Account:
     balance: Money
     currency: Currency
 
@@ -1683,7 +1683,7 @@ enum AdjustedState:
     Done
     Cancelled
 
-struct AdjustedFrame:
+data AdjustedFrame:
     state: AdjustedState
 
 fn adjusted(base: i32) -> Suspend[i32] $ Counter:
@@ -1754,7 +1754,7 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
         return Ok(cached)
     db.get_user!(id)
 
-struct MockDatabase:
+data MockDatabase:
     user: User
 
 impl Database for MockDatabase:
@@ -1867,7 +1867,7 @@ fn map(items: list[T], f: fn(T) -> U) -> list[U] $ f
 1. Reads naturally; no type-level machinery in the common case.
 2. Typo-resistant: `$ f` must name a function-typed parameter or the program does not compile.
 3. Multiple function parameters union: `$ f + g`.
-4. Does not cover function values stored in structs or returned closures; those need row variables or monomorphization.
+4. Does not cover function values stored in data types or returned closures; those need row variables or monomorphization.
 
 ### Candidate C: Inferred propagation
 
@@ -1879,7 +1879,7 @@ Unhandled requirements of function-typed parameters propagate automatically; the
 ### Open questions regardless of candidate
 
 1. Requirement subtraction/removal syntax: should provided requirements be written explicitly as `$ (r - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
-2. Function-typed struct fields and returned closures: row variables, monomorphization, or disallowed ?
+2. Function-typed data fields and returned closures: row variables, monomorphization, or disallowed ?
 3. How do provider scopes installed at a call site interact with a polymorphic row?
 4. Is the underlying model full row polymorphism, or a smaller requirement-variable system that only supports union and removal?
 
@@ -1900,7 +1900,7 @@ annotate Validation for Email:
             contains: "@",
         })
 
-struct User:
+data User:
     id: UserId
     email: Email
 ```
@@ -1925,14 +1925,14 @@ The compiler should expose a typed runtime representation for declarations. This
 
 The common representation should cover at least:
 
-1. Structs: name, fields, embedded structs, field types, docs, visibility, and attached metadata.
+1. Data Types: name, fields, embedded data types, field types, docs, visibility, and attached metadata.
 2. Enums: name, variants, constructor arguments, GADT result types, docs, and attached metadata.
 3. Functions: name, parameters, return type, dependency requirements, suspension marker, docs, and parameter defaults.
 
 Shape vocabulary:
 
 ```text
-shape(User)       # StructShape
+shape(User)       # DataShape
 shape(JobStatus)  # EnumShape
 shape(get_user)   # FnShape
 ```
@@ -1997,7 +1997,7 @@ A promising direction is to model annotations as uniformly typed derivation prot
 Shape values should be usable as runtime values:
 
 ```text
-shape(User)        # StructShape
+shape(User)        # DataShape
 shape(User.id)     # FieldShape
 shape(JobStatus)   # EnumShape
 shape(get_user)    # FnShape
@@ -2032,7 +2032,7 @@ Local metadata protocols correspond directly to member shapes. They are open tra
 trait FieldMetadata[T]
 trait VariantMetadata
 
-trait StructAnnotator: Annotation:
+trait DataAnnotator: Annotation:
     type FieldTarget
 
     fn map_field(
@@ -2043,12 +2043,12 @@ trait StructAnnotator: Annotation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Info
 ```
 
-For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. Parameters do not have local metadata assignments; `FuncAnnotator` reads their shapes. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
+For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. Parameters do not have local metadata assignments; `FuncAnnotator` reads their shapes. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
 
 The supported type set is open because new exact cases can be added without changing an existing annotator:
 
@@ -2068,7 +2068,7 @@ There is no wildcard `annotate Facet for type` fallback. Each block contributes 
 
 Annotations do not introduce a separate semantic constraint system. Their semantics reduce to traits, implementations, ordinary values, and declaration shapes.
 
-`annotate A for T` is structural syntax for the same conformance as `impl Annotate[A] for T`. It adds compiler-supported field or variant overrides while deriving all unmentioned members through the applicable struct or enum annotator:
+`annotate A for T` is structural syntax for the same conformance as `impl Annotate[A] for T`. It adds compiler-supported field or variant overrides while deriving all unmentioned members through the applicable data or enum annotator:
 
 ```text
 annotate UI for User:
@@ -2118,7 +2118,7 @@ Annotation derivation follows one strict composition direction:
 1. An exact type annotation produces the type's metadata.
 2. A field annotation combines that type metadata with annotations attached to the field, producing field metadata.
 3. An enum variant combines its payload-field metadata with annotations attached to the variant, producing variant metadata.
-4. A struct combines its field metadata with annotations attached to the struct, producing struct metadata.
+4. A data type combines its field metadata with annotations attached to the type, producing aggregate metadata.
 5. An enum combines its variant metadata with annotations attached to the enum, producing enum metadata.
 
 Conceptually:
@@ -2127,16 +2127,16 @@ Conceptually:
 type_metadata := Facet::annotation_ref(field.type)
 field_metadata := Facet.map_field(field, type_metadata)
 variant_metadata := Facet.map_variant(variant, payload_fields)
-struct_metadata := Facet.build(struct_shape, fields)
+data_metadata := Facet.build(data_shape, fields)
 enum_metadata := Facet.build(enum_shape, variants)
 ```
 
-Evaluation is strictly bottom-up. An enclosing annotator can inspect child metadata and its own attached annotation values, but a child annotator cannot depend on metadata from its enclosing struct, variant, or enum. The compiler should pass already-derived type metadata into `map_field`; the field mapper should not secretly restart type resolution.
+Evaluation is strictly bottom-up. An enclosing annotator can inspect child metadata and its own attached annotation values, but a child annotator cannot depend on metadata from its enclosing data, variant, or enum. The compiler should pass already-derived type metadata into `map_field`; the field mapper should not secretly restart type resolution.
 
 The source relationship is:
 
 ```text
-struct A:
+data A:
     field: i32
     variant: Enum
 
@@ -2151,11 +2151,11 @@ annotate A:
 annotate Enum:
     Foo = [VariantDec]
 
-annotate StructDec for A: pass
+annotate DataDec for A: pass
 annotate EnumDec for Enum: pass
 ```
 
-The compiler requires `StructDec: StructAnnotator`, each field value to implement `FieldMetadata[T]` for that field's declared type, `EnumDec: EnumAnnotator`, and each variant value to implement `VariantMetadata`.
+The compiler requires `DataDec: DataAnnotator`, each field value to implement `FieldMetadata[T]` for that field's declared type, `EnumDec: EnumAnnotator`, and each variant value to implement `VariantMetadata`.
 
 For UI, every field maps to a `ReactComponent`:
 
@@ -2163,7 +2163,7 @@ For UI, every field maps to a `ReactComponent`:
 impl Annotation for UI:
     type Info = list[ReactComponent]
 
-impl StructAnnotator for UI:
+impl DataAnnotator for UI:
     type FieldTarget = ReactComponent
 
     fn map_field(
@@ -2178,7 +2178,7 @@ impl StructAnnotator for UI:
         else:
             DefaultInput(field.name)
 
-    fn build(self, shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(self, shape: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
         [for field in shape.fields => fields[field.name]]
 ```
 
@@ -2188,7 +2188,7 @@ impl StructAnnotator for UI:
 annotate UI for User:
     userId = ReactUserId
 
-    fn build(self, shape: StructShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(self, shape: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
         [
             fields["userId"],
             fields["displayName"],
@@ -2235,14 +2235,14 @@ enum DatabaseColumn:
     BoolColumn(name: string)
     JsonColumn(name: string)
 
-struct TableSchema:
+data TableSchema:
     name: string
     columns: list[DatabaseColumn]
 
 impl Annotation for DatabaseSchema:
     type Info = TableSchema
 
-impl StructAnnotator for DatabaseSchema:
+impl DataAnnotator for DatabaseSchema:
     type FieldTarget = DatabaseColumn
 
     fn map_field(
@@ -2265,7 +2265,7 @@ impl StructAnnotator for DatabaseSchema:
         else:
             DatabaseColumn.JsonColumn(field.name)
 
-    fn build(self, shape: StructShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
+    fn build(self, shape: DataShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
         TableSchema {
             name: shape.name,
             columns: [for field in shape.fields => fields[field.name]],
@@ -2275,7 +2275,7 @@ impl StructAnnotator for DatabaseSchema:
 Overrides typecheck against the uniform target:
 
 ```text
-struct User:
+data User:
     id: UserId
     email: string
     display_name: string
@@ -2339,12 +2339,12 @@ trait FuncAnnotator: Annotation:
 Example tool annotation:
 
 ```text
-struct ToolParam:
+data ToolParam:
     name: string
     schema: JsonSchema
     description: string?
 
-struct ToolSpec:
+data ToolSpec:
     name: string
     description: string
     params: Dict[string, ToolParam]
@@ -2470,27 +2470,27 @@ openapi.add_tool(Tool::annotation(get_user))
 
 ### Complete Validation Derivation Example
 
-The standalone source version is [`validation.hd`](validation.hd). The following example combines primitive and generic type mapping, struct fields, enum payload fields, nominal defaults, field metadata, and automatic recursion. `Validator` does not need a facet-specific `Ref` variant because references are represented uniformly by `AnnotationRef[Validator]`:
+The standalone source version is [`validation.hd`](validation.hd). The following example combines primitive and generic type mapping, data fields, enum payload fields, nominal defaults, field metadata, and automatic recursion. `Validator` does not need a facet-specific `Ref` variant because references are represented uniformly by `AnnotationRef[Validator]`:
 
 ```text
-struct StringRules:
+data StringRules:
     min_len: i32?
     max_len: i32?
     contains: string?
 
-struct FieldRules:
+data FieldRules:
     required: bool
     min_len: i32?
     max_len: i32?
     contains: string?
 
-struct FieldValidator:
+data FieldValidator:
     position: i32
     name: string?
     target: AnnotationRef[Validator]
     rules: FieldRules
 
-struct VariantValidator:
+data VariantValidator:
     name: string
     description: string?
     fields: list[FieldValidator]
@@ -2501,23 +2501,23 @@ enum Validator:
     String(rules: StringRules)
     Optional(inner: AnnotationRef[Validator])
     List(item: AnnotationRef[Validator])
-    Struct(name: string, fields: Dict[string, FieldValidator])
+    Data(name: string, fields: Dict[string, FieldValidator])
     Enum(name: string, variants: Dict[string, VariantValidator])
 ```
 
 The field and variant annotations used below are ordinary values. Lowercase helpers construct them using functional annotation syntax:
 
 ```text
-struct MinLen:
+data MinLen:
     value: i32
 
-struct MaxLen:
+data MaxLen:
     value: i32
 
-struct Contains:
+data Contains:
     value: string
 
-struct VariantDoc:
+data VariantDoc:
     text: string
 
 fn min_len(value: i32) -> MinLen: MinLen { value: value }
@@ -2531,7 +2531,7 @@ impl FieldMetadata[string] for Contains
 impl VariantMetadata for VariantDoc
 ```
 
-`Validation` is a zero-configuration annotation value. It implements the enclosing annotators for structs and enums, while field and variant annotations are independent ordinary values implementing their corresponding target-specific annotator traits:
+`Validation` is a zero-configuration annotation value. It implements the enclosing annotators for data types and enums, while field and variant annotations are independent ordinary values implementing their corresponding target-specific annotator traits:
 
 ```text
 impl Annotation for Validation:
@@ -2579,7 +2579,7 @@ fn validation_field(
         },
     }
 
-impl StructAnnotator for Validation:
+impl DataAnnotator for Validation:
     type FieldTarget = FieldValidator
 
     fn map_field(
@@ -2591,10 +2591,10 @@ impl StructAnnotator for Validation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, FieldValidator],
     ) -> Validator:
-        Validator.Struct(name=shape.name, fields=fields)
+        Validator.Data(name=shape.name, fields=fields)
 
 impl EnumAnnotator for Validation:
     type FieldTarget = FieldValidator
@@ -2637,8 +2637,8 @@ resolve(Validation, target):
 
     target_shape := shape(target)
     match target_shape:
-        StructShape if target_shape.has_annotation(Validation) =>
-            derive_struct(Validation, target_shape)
+        DataShape if target_shape.has_annotation(Validation) =>
+            derive_data(Validation, target_shape)
         EnumShape if target_shape.has_annotation(Validation) =>
             derive_enum(Validation, target_shape)
         _ => annotation_not_found(Validation, target)
@@ -2652,7 +2652,7 @@ resolve(Validation, list[Entry])
 
 This resolver is conceptual compiler behavior, not a user-callable overloaded function.
 
-Field and variant metadata is attached to shapes before their enclosing struct or enum annotator runs. Consequently, `validation_field` can read `MinLen`, `MaxLen`, and `Contains` values from `FieldShape`, and `Validation.map_variant` can inspect `VariantMetadata` values through `VariantShape` when needed.
+Field and variant metadata is attached to shapes before their enclosing data or enum annotator runs. Consequently, `validation_field` can read `MinLen`, `MaxLen`, and `Contains` values from `FieldShape`, and `Validation.map_variant` can inspect `VariantMetadata` values through `VariantShape` when needed.
 
 A nominal type can provide a reusable explicit default without placing annotation syntax on a type expression:
 
@@ -2670,10 +2670,10 @@ annotate Validation for Email:
 
 Every `Email` field therefore resolves through `Validation::annotation(Email)` unless the enclosing target's `annotate Validation for ...` block overrides that field result.
 
-The same annotation handles recursion across structs and enums:
+The same annotation handles recursion across data types and enums:
 
 ```text
-struct Folder:
+data Folder:
     name: string
     path: string
     note: string?
@@ -2701,7 +2701,7 @@ annotate Validation for list[Entry]:
 
 This follows the same target-specific annotation model throughout:
 
-1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation: StructAnnotator`.
+1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation: DataAnnotator`.
 2. `Folder.name` expects `list[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
 3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation: EnumAnnotator`.
 4. `Entry.File` expects `list[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
@@ -2710,7 +2710,7 @@ This follows the same target-specific annotation model throughout:
 No `Validation` metadata is placed directly on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. Putting `Validation` into a field metadata list is rejected because it does not implement `FieldMetadata[string]`:
 
 ```text
-struct Invalid:
+data Invalid:
     value: string
 
 annotate Invalid:
@@ -2734,12 +2734,12 @@ This mechanism is universal across annotation facets:
 4. Completed targets are memoized per package.
 5. `Facet::annotation(Target)` returns the completed ordinary target; only the internal structural graph carries `AnnotationRef` values.
 
-There is no `Annotation.reference` hook and no `Validator.Ref` case. An annotation opts into recursive structure by placing `AnnotationRef[Info]` wherever its own output graph can contain another information value. Struct and enum validation use the same `AnnotationRef[Validator]` representation.
+There is no `Annotation.reference` hook and no `Validator.Ref` case. An annotation opts into recursive structure by placing `AnnotationRef[Info]` wherever its own output graph can contain another information value. Data and enum validation use the same `AnnotationRef[Validator]` representation.
 
 Annotation resolution otherwise follows this order:
 
 1. Use an exact `annotate Facet for ConcreteTarget` implementation when one exists.
-2. Otherwise use an attached `StructAnnotator` or `EnumAnnotator` for aggregate declarations.
+2. Otherwise use an attached `DataAnnotator` or `EnumAnnotator` for aggregate declarations.
 3. If neither applies, behavior remains unresolved. A statically visible missing-annotation policy is the current candidate below.
 
 ### Candidate Missing Annotation Policy
@@ -2751,13 +2751,13 @@ Candidate sketch, not a decision:
 ```text
 trait MissingAnnotationPolicy
 
-struct Require
-struct Ignore
+data Require
+data Ignore
 
 impl MissingAnnotationPolicy for Require
 impl MissingAnnotationPolicy for Ignore
 
-trait StructAnnotator: Annotation:
+trait DataAnnotator: Annotation:
     type FieldTarget
     type MissingTypePolicy: MissingAnnotationPolicy
 
@@ -2773,18 +2773,18 @@ Under this proposal, `Require` makes a missing child type annotation a compiler 
 One possible way to make the policy selectable is to carry it in the annotator's static type:
 
 ```text
-struct Validation[Missing: MissingAnnotationPolicy]:
+data Validation[Missing: MissingAnnotationPolicy]:
     ...
 ```
 
-The names, marker representation, selection syntax, default policy, policy granularity, and applicability to structs, enums, fields, and variants are all unresolved. In particular, this does not adopt `Require` or `Ignore` as a default.
+The names, marker representation, selection syntax, default policy, policy granularity, and applicability to data types, enums, fields, and variants are all unresolved. In particular, this does not adopt `Require` or `Ignore` as a default.
 
 ### Manual Deferral
 
 An optional `lazy` field-metadata value remains a candidate for explicit deferral even when no cycle is detected:
 
 ```text
-struct Document:
+data Document:
     related: list[Document]
 
 annotate Document:
@@ -2836,7 +2836,7 @@ Metadata evaluation can construct ordinary hd-lang values such as `MaxLen { valu
 
 In hd-lang, metadata evaluation is intentionally strict:
 
-1. It can construct structs/enums, call pure functions, compose annotation values, inspect shape values, and use constants.
+1. It can construct data types/enums, call pure functions, compose annotation values, inspect shape values, and use constants.
 2. It cannot use `$` context requirements.
 3. It cannot call suspending functions marked with `!`.
 4. It cannot perform IO, network access, database access, time reads, random generation, or other nondeterministic work.
@@ -2847,18 +2847,18 @@ Metadata constructors, helper functions, and aggregate annotator methods must th
 Metadata evaluation follows a strict bottom-up order. Child declarations attach metadata before their enclosing declaration attaches metadata:
 
 ```text
-field metadata -> struct annotator -> Annotate information
+field metadata -> data annotator -> Annotate information
 parameter shapes -> function annotator -> Annotate information
 variant-field metadata -> variant metadata -> enum annotator -> Annotate information
 ```
 
-For structs:
+For data types:
 
-1. Type-check the struct and field shapes.
+1. Type-check the data and field shapes.
 2. Contextually type each field's assigned values as `list[FieldMetadata[T]]`.
 3. Evaluate those values and store them on `FieldShape`.
-4. Run the selected `StructAnnotator`, which can inspect field metadata.
-5. Build the annotation's `Info` and expose `Annotate[A]` for the struct.
+4. Run the selected `DataAnnotator`, which can inspect field metadata.
+5. Build the annotation's `Info` and expose `Annotate[A]` for the data.
 
 For functions, parameter shapes are assembled before a `FuncAnnotator` maps parameters and builds function information.
 
@@ -2881,7 +2881,7 @@ The source-level model remains:
 Source:
 
 ```text
-struct User:
+data User:
     id: UserId
     email: string
 
@@ -2916,11 +2916,11 @@ fn __meta_User_email() -> Result[FieldShape, AnnotationError]:
         metadata=[max_len(320), description("Company email")],
     ))
 
-fn __meta_User() -> Result[StructShape, AnnotationError]:
+fn __meta_User() -> Result[DataShape, AnnotationError]:
     id_field := __meta_User_id()?
     email_field := __meta_User_email()?
 
-    StructShape.base(
+    DataShape.base(
         name="User",
         fields=FieldShapes.of(id_field, email_field),
     )
@@ -2955,7 +2955,7 @@ Function and enum annotations lower the same way: parameter shapes are built bef
 fn load_policy!() -> Policy $ Database:
     ...
 
-struct User:
+data User:
     email: string
 
 annotate User:
@@ -2965,13 +2965,13 @@ annotate User:
 Example:
 
 ```text
-struct MaxLen:
+data MaxLen:
     value: i32
 
 impl FieldMetadata[string] for MaxLen
 impl[T] FieldMetadata[list[T]] for MaxLen
 
-struct User:
+data User:
     id: UserId
     email: string
     tags: list[string]
@@ -2993,7 +2993,7 @@ let email_metadata: list[FieldMetadata[string]] = [
     min_len(3),
 ]
 
-struct User:
+data User:
     email: string
 
 annotate User:
@@ -3028,7 +3028,7 @@ Custom validators should be normal functions and can be referenced from annotati
 fn company_email(value: string) -> bool:
     value.ends_with("@company.com")
 
-struct Employee:
+data Employee:
     id: UserId
     email: string
 
@@ -3120,17 +3120,17 @@ Open syntax issues:
 
 ## Data Retention Direction
 
-Struct data should be able to express retention, deletion, and cascade requirements declaratively. The behavior should not be hardcoded into the language as a specific policy; the language should provide syntax for expressing the requirement.
+Data types should be able to express retention, deletion, and cascade requirements declaratively. The behavior should not be hardcoded into the language as a specific policy; the language should provide syntax for expressing the requirement.
 
 Retention should use the general derivation/override facet model, not a standalone retention syntax. Its payload should look like facet-specific field annotations, similar to validation annotations.
 
 Conceptual model, not final syntax:
 
 ```text
-struct User:
+data User:
     id: UserId
 
-struct Post:
+data Post:
     id: PostId
     userId: UserId
 

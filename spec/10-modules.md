@@ -151,7 +151,7 @@ available for import:
 ```text
 pub type UserId(string)
 
-pub struct User:
+pub data User:
     pub id: UserId
     pub email: string
 ```
@@ -175,7 +175,7 @@ implementation additionally requires its target type to be visible.
 
 A public declaration's complete source-level signature must not expose a
 module-private declaration. This check recursively covers function parameters
-and results, struct fields, enum constructor data and payloads, alias/newtype
+and results, data fields, enum constructor data and payloads, alias/newtype
 underlying types, trait bounds, supertraits, and public generic arguments. A
 private implementation detail may occur in a public function body but not in
 its exported typed interface.
@@ -218,7 +218,7 @@ Registered boundaries initially allow recursively structural values:
 - primitive scalar types and `string`;
 - tuples;
 - `list[T]` and `map[K, V]` whose contents are boundary-safe;
-- structs and enums whose complete fields and payloads are boundary-safe;
+- data types and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
 Mutable types, dynamic trait values, closures, and live runtime handles are not

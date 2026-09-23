@@ -1,6 +1,6 @@
-# expect-error: duplicate-struct-pattern-field
+# expect-error: duplicate-data-pattern-field
 
-struct User:
+data User:
     name: string
 
 fn invalid(user: User) -> string:

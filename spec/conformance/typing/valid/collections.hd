@@ -1,4 +1,4 @@
-struct User:
+data User:
     id: string
     name: string
     active: bool

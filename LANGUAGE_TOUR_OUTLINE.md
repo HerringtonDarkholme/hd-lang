@@ -29,12 +29,12 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Loop `else` blocks and `break value`
 - `return`, `break`, and `continue`
 
-## 4. Structs
+## 4. Data Types
 
-- Defining structs
-- Struct literals
+- Defining data types
+- Data literals
 - No classes
-- Struct embedding
+- Data embedding
 
 ## 5. Enums
 
@@ -59,7 +59,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 ## 7. Traits and Methods
 
 - Defining traits
-- Implementing traits for structs
+- Implementing traits for data types
 - Trait-based methods
 - Generic constraints
 
@@ -67,7 +67,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 
 - Static typing with local inference
 - Explicit public boundaries
-- Nominal structs and enums
+- Nominal data types and enums
 - Structural tuples
 - Transparent aliases and nominal newtypes
 - Numeric widening and explicit narrowing casts
@@ -114,7 +114,7 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Runtime declaration shapes
 - `Annotation.Info` and `Annotate[A]`
 - `FieldMetadata[T]`, `VariantMetadata`, and `ParamMetadata[T]`
-- Struct, enum, and function annotators
+- Data, enum, and function annotators
 - Exact type annotation cases
 - `AnnotationRef` for recursive metadata
 - Tool metadata as an example of `FuncAnnotator`, not a separate language feature

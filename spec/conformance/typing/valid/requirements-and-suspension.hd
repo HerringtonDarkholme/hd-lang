@@ -4,14 +4,14 @@ trait Database:
 trait Logger:
     fn write(self, message: string) -> void
 
-struct User:
+data User:
     id: string
 
-struct DbError:
+data DbError:
     message: string
 
-struct MockDatabase: pass
-struct ConsoleLogger: pass
+data MockDatabase: pass
+data ConsoleLogger: pass
 
 impl Database for MockDatabase:
     fn get_user!(self, id: string) -> Result[User?, DbError]:

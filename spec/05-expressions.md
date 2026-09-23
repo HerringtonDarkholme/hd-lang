@@ -9,7 +9,7 @@ according to the order defined here and in the relevant feature chapter.
 
 Unless a construct states otherwise, subexpressions are evaluated from left to
 right and exactly once. This rule applies to tuple and collection elements,
-struct fields, call arguments, operands, and indexing expressions.
+data fields, call arguments, operands, and indexing expressions.
 
 `and`, `or`, `if`, `match`, loops, optional or result propagation with `?`, and
 comprehension filters evaluate conditionally as described below. A compiler may
@@ -127,9 +127,9 @@ traits; an expected `list[Display]` or `map[K, Display]` may request that
 conversion explicitly. When `nil` occurs with non-`nil` elements having one
 unique least type `T`, the inferred element or value type is `T?`.
 
-### Struct Expressions
+### Data Expressions
 
-A struct expression names its type and provides every required field:
+A data expression names its type and provides every required field:
 
 ```text
 user := User {
@@ -151,12 +151,12 @@ renamed := User {
 }
 ```
 
-The spread expression is evaluated first and must have the exact struct type
+The spread expression is evaluated first and must have the exact data type
 being constructed. Explicit fields replace the corresponding copied values.
 Copy-update is shallow: primitive fields are copied by value, while composite
 field references continue to refer to the same underlying objects with the
-permissions declared by their field types. A struct expression permits at most one
-struct spread, and it must precede every explicit field.
+permissions declared by their field types. A data expression permits at most one
+data spread, and it must precede every explicit field.
 
 Embedded fields are initialized with their embedded type name as the field key.
 
@@ -312,7 +312,7 @@ signed zero, and NaN. `%` is integer-only.
 
 - booleans, characters, strings, and compatible numeric values;
 - transparent aliases and nominal newtypes of an equality-capable type;
-- optional values, tuples, lists, maps, structs, enums, and `Result` values when
+- optional values, tuples, lists, maps, data types, enums, and `Result` values when
   every contained value is equality-capable.
 
 Map equality is unordered key/value equality. Composite equality follows
@@ -325,7 +325,7 @@ NaN compares unequal to every value, including itself.
 `<`, `<=`, `>`, and `>=` are defined for compatible numeric values,
 characters by Unicode scalar value, strings by lexicographic Unicode scalar
 order, and nominal newtypes of an orderable type. General tuple, collection,
-struct, enum, and user-defined ordering is not supported.
+data, enum, and user-defined ordering is not supported.
 
 Arithmetic and bitwise operators are built in for the numeric types specified
 by this chapter and [Type System](04-type-system.md). `string + string`

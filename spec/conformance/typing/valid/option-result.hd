@@ -1,4 +1,4 @@
-struct ParseError:
+data ParseError:
     message: string
 
 fn label(value: string?) -> string?:

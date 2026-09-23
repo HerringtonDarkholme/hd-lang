@@ -11,7 +11,7 @@ annotations; public and aggregate boundaries remain explicit.
 The type forms are:
 
 - primitive types;
-- nominal structs and enums;
+- nominal data types and enums;
 - tuples;
 - `list[T]` and `map[K, V]`;
 - optional types `T?`;
@@ -95,14 +95,14 @@ character literal has type `char`.
 
 ## Nominal And Structural Types
 
-Each `struct` and `enum` declaration introduces a distinct nominal type.
+Each `data` and `enum` declaration introduces a distinct nominal type.
 Matching fields or variants do not make two nominal types interchangeable:
 
 ```text
-struct UserId:
+data UserId:
     value: string
 
-struct PostId:
+data PostId:
     value: string
 ```
 
@@ -260,7 +260,7 @@ declaration.
 
 ## Composite Values And Access Permission
 
-Structs, enums with storage, tuples, lists, maps, trait values, and closures are
+Data types, enums with storage, tuples, lists, maps, trait values, and closures are
 composite values. Composite parameters and results use shared references at the
 language level. hd-lang does not require exclusive ownership and may have
 multiple aliases to one composite value.
@@ -288,7 +288,7 @@ underlying object against other mutable aliases.
 
 ### Bindings And Fresh Values
 
-A fresh struct or copy-update expression, stored enum construction, tuple
+A fresh data or copy-update expression, stored enum construction, tuple
 expression, list expression, or map expression produces mutable access to its
 new outer object. This permission may be weakened immediately by an expected
 const type. Freshness does not recursively upgrade composite values stored in
@@ -324,7 +324,7 @@ Mutation through a composite access path requires:
    location being mutated.
 
 ```text
-struct Account:
+data Account:
     profile: mut Profile
 
 let account: mut Account = Account { profile: profile }
@@ -350,7 +350,7 @@ Container mutation and element mutation are independent:
 | `mut list[User]` | yes | no |
 | `mut list[mut User]` | yes | yes |
 
-The same rules apply recursively to maps, tuples, and user-defined structs.
+The same rules apply recursively to maps, tuples, and user-defined data types.
 
 ### Parameters And Results
 
@@ -397,7 +397,7 @@ Reification is part of the function's public type and ABI, but its descriptor
 is not a source-level value argument. A backend may specialize a reified call
 only when doing so preserves observable reflection behavior.
 
-`shape(Target)` consumes this descriptor. For a concrete struct, enum,
+`shape(Target)` consumes this descriptor. For a concrete data type, enum,
 function, field, variant, or parameter declaration it returns the corresponding
 specialized shape type; for an otherwise generic concrete type it returns
 `TypeShape`. An erased generic parameter cannot be used as a shape target.
@@ -414,18 +414,18 @@ Generic type declarations mark covariance with `+T`, contravariance with `-T`,
 and invariance by leaving `T` unmarked:
 
 ```text
-struct Producer[+T]:
+data Producer[+T]:
     produce: fn() -> T
 
-struct Consumer[-T]:
+data Consumer[-T]:
     consume: fn(T) -> void
 
-struct Cell[T]:
+data Cell[T]:
     value: T
 ```
 
 The compiler verifies each declared parameter against its use on the type's
-read-only public surface. That surface includes struct fields, enum shared data
+read-only public surface. That surface includes data fields, enum shared data
 and variant payloads, trait method signatures, and every inherent method
 available with the nominal type. A separate trait implementation does not alter
 the nominal type declaration's variance; its own instantiated signatures must
@@ -497,7 +497,7 @@ The following types satisfy it:
 - tuples whose elements are all `MapKey`;
 - optional and enum types whose contained payload types are all `MapKey`.
 
-Floating-point types, structs, lists, maps, functions, dynamic trait values, and
+Floating-point types, data types, lists, maps, functions, dynamic trait values, and
 every `mut T` type do not satisfy `MapKey`. This conservative closed set ensures
 that a key's equality and hash cannot change through another mutable alias while
 the key is stored. A future extension may expose an explicit stable equality/hash
@@ -518,7 +518,7 @@ solution is unambiguous.
 The following declarations require explicit types:
 
 - named function parameters and results;
-- public and private struct fields;
+- public and private data fields;
 - enum payload fields and constructor data;
 - trait method parameters and results;
 - named function type parameters and bounds where applicable.

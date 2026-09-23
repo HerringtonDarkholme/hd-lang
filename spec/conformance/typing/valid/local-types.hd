@@ -1,6 +1,6 @@
 fn describe(name: string) -> string:
     type Label = string
-    struct Entry:
+    data Entry:
         label: Label
     enum Format:
         Plain

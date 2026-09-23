@@ -4,11 +4,11 @@
 # shape types, metadata types, and AnnotationError. This file declares the
 # stateless Validation facet type.
 # `annotate Validation for T` generates `impl Annotate[Validation] for T`;
-# StructAnnotator and EnumAnnotator provide its aggregate derivation steps.
+# DataAnnotator and EnumAnnotator provide its aggregate derivation steps.
 
 type Dict[K, V] = map[K, V]
 
-struct Validation: pass
+data Validation: pass
 
 trait Annotation:
     type Info
@@ -19,7 +19,7 @@ trait Annotate[A: Annotation]:
 trait FieldMetadata[T]
 trait VariantMetadata
 
-trait StructAnnotator: Annotation:
+trait DataAnnotator: Annotation:
     type FieldTarget
 
     fn map_field(
@@ -30,7 +30,7 @@ trait StructAnnotator: Annotation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Info
 
@@ -56,24 +56,24 @@ trait EnumAnnotator: Annotation:
         variants: Dict[string, Self::VariantTarget],
     ) -> Self::Info
 
-struct StringRules:
+data StringRules:
     min_len: i32?
     max_len: i32?
     contains: string?
 
-struct FieldRules:
+data FieldRules:
     required: bool
     min_len: i32?
     max_len: i32?
     contains: string?
 
-struct FieldValidator:
+data FieldValidator:
     position: i32
     name: string?
     target: AnnotationRef[Validator]
     rules: FieldRules
 
-struct VariantValidator:
+data VariantValidator:
     name: string
     description: string?
     fields: list[FieldValidator]
@@ -84,19 +84,19 @@ enum Validator:
     String(rules: StringRules)
     Optional(inner: AnnotationRef[Validator])
     List(item: AnnotationRef[Validator])
-    Struct(name: string, fields: Dict[string, FieldValidator])
+    Data(name: string, fields: Dict[string, FieldValidator])
     Enum(name: string, variants: Dict[string, VariantValidator])
 
-struct MinLen:
+data MinLen:
     value: i32
 
-struct MaxLen:
+data MaxLen:
     value: i32
 
-struct Contains:
+data Contains:
     value: string
 
-struct VariantDoc:
+data VariantDoc:
     text: string
 
 fn min_len(value: i32) -> MinLen: MinLen { value: value }
@@ -154,7 +154,7 @@ fn validation_field(
         },
     }
 
-impl StructAnnotator for Validation:
+impl DataAnnotator for Validation:
     type FieldTarget = FieldValidator
 
     fn map_field(
@@ -166,10 +166,10 @@ impl StructAnnotator for Validation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, FieldValidator],
     ) -> Validator:
-        Validator.Struct(name=shape.name, fields=fields)
+        Validator.Data(name=shape.name, fields=fields)
 
 impl EnumAnnotator for Validation:
     type FieldTarget = FieldValidator
@@ -212,7 +212,7 @@ annotate Validation for Email:
             contains: "@",
         })
 
-struct Folder:
+data Folder:
     name: string
     path: string
     note: string?

@@ -1,4 +1,4 @@
 # expect-error: predeclared-name-conflict
 
-struct i32:
+data i32:
     value: string

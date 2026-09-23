@@ -62,7 +62,7 @@ otherwise it remains an ordinary identifier.
 ```ebnf
 statement = suite_statement
           | function_decl
-          | struct_decl
+          | data_decl
           | enum_decl
           | trait_decl
           | type_decl
@@ -119,7 +119,7 @@ are rejected semantically.
 
 ```ebnf
 declaration = [ "pub" ], ( function_decl
-                         | struct_decl
+                         | data_decl
                          | enum_decl
                          | trait_decl
                          | type_decl )
@@ -158,26 +158,26 @@ The receiver forms are valid only for methods. A vararg parameter ends in
 `...`; it must be the final positional parameter. Default-argument ordering and
 purity are semantic constraints defined in [Functions](07-functions.md).
 
-### Structs
+### Data Types
 
 ```ebnf
-struct_decl = "struct", identifier, [ type_params ], ":", struct_suite ;
+data_decl = "data", identifier, [ type_params ], ":", data_suite ;
 
-struct_suite = "pass", SUITE_END
+data_suite = "pass", SUITE_END
              | NEWLINE, INDENT,
                ( "pass", NEWLINE
-               | struct_member, { struct_member } ), DEDENT
+               | data_member, { data_member } ), DEDENT
              ;
 
-struct_member = struct_field, NEWLINE
+data_member = data_field, NEWLINE
               | embedded_field, NEWLINE
               ;
 
-struct_field = [ "pub" ], identifier, ":", type ;
+data_field = [ "pub" ], identifier, ":", type ;
 embedded_field = [ "pub" ], type_name ;
 ```
 
-An embedded field must denote a struct type and must not include generic
+An embedded field must denote a data type and must not include generic
 arguments or `mut`. The type's final name is also its
 embedded field name.
 
@@ -452,7 +452,7 @@ primary_expression = literal
                    | tuple_or_group_expression
                    | list_expression
                    | map_expression
-                   | struct_expression
+                   | data_expression
                    | "pass"
                    ;
 
@@ -511,15 +511,15 @@ map_expression = "{", [ map_items ], "}"
 map_items = map_item, { ",", map_item }, [ "," ] ;
 map_item = expression, ":", expression ;
 
-struct_expression = named_type, "{", [ struct_items ], "}" ;
-struct_items = [ "...", expression, "," ],
-               struct_field_item, { ",", struct_field_item }, [ "," ]
+data_expression = named_type, "{", [ data_items ], "}" ;
+data_items = [ "...", expression, "," ],
+             data_field_item, { ",", data_field_item }, [ "," ]
              | "...", expression, [ "," ]
              ;
-struct_field_item = identifier, ":", expression ;
+data_field_item = identifier, ":", expression ;
 ```
 
-Name resolution distinguishes a struct expression from a map expression and
+Name resolution distinguishes a data expression from a map expression and
 an enum variant selection from ordinary field access. It also distinguishes a
 named generic-function reference from indexing: in `first[string](names)`, the
 bracketed form is parsed as type arguments because `first` resolves to a named
@@ -610,7 +610,7 @@ pattern = "_"
         | literal_pattern
         | binding_pattern_atom
         | variant_pattern
-        | struct_pattern
+        | data_pattern
         | tuple_pattern
         ;
 
@@ -635,10 +635,10 @@ pattern_argument_list = positional_pattern,
 positional_pattern = pattern ;
 named_pattern = identifier, "=", pattern ;
 
-struct_pattern = qualified_name, "{", [ struct_pattern_fields ], "}" ;
-struct_pattern_fields = struct_pattern_field,
-                        { ",", struct_pattern_field }, [ "," ] ;
-struct_pattern_field = identifier, [ "=", pattern ] ;
+data_pattern = qualified_name, "{", [ data_pattern_fields ], "}" ;
+data_pattern_fields = data_pattern_field,
+                      { ",", data_pattern_field }, [ "," ] ;
+data_pattern_field = identifier, [ "=", pattern ] ;
 
 tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
@@ -648,7 +648,7 @@ Variant patterns may use a qualified enum variant name or `.Variant` when the
 matched value's type supplies one enum. Positional binding names need not match
 payload field names. Only `field=pattern` is a named pattern, and no positional
 pattern may follow a named pattern.
-In a struct pattern, bare `field` binds that field's value to a new name;
+In a data pattern, bare `field` binds that field's value to a new name;
 `field=pattern` matches it against a nested pattern. Unlisted fields are
 ignored.
 

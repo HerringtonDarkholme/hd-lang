@@ -1,4 +1,4 @@
-struct User:
+data User:
     name: string
 
 fn rename(user: mut User) -> void:

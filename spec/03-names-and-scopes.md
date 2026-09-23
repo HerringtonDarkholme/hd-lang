@@ -16,9 +16,9 @@ hd-lang has four lookup categories:
 2. **Value names** identify top-level executable bindings, parameters, local
    bindings, local named functions, loop bindings, pattern bindings, and
    captured values.
-3. **Local type names** identify structs, enums, traits, aliases, and newtypes
+3. **Local type names** identify data types, enums, traits, aliases, and newtypes
    declared inside an executable suite.
-4. **Member names** identify struct fields, embedded fields, methods, enum
+4. **Member names** identify data fields, embedded fields, methods, enum
    variants, and tuple fields within the namespace of their owning type.
 
 A use is resolved in the category required by its syntax. For example, the
@@ -91,7 +91,7 @@ not visible before their binding point, including from the body of a function
 declared earlier. A top-level executable statement may refer to a named module
 declaration regardless of that declaration's textual position.
 
-Named `fn`, `struct`, `enum`, `trait`, and `type` declarations may also occur
+Named `fn`, `data`, `enum`, `trait`, and `type` declarations may also occur
 inside executable block suites. `impl` declarations may occur at module scope
 or inside an executable block suite; they do not introduce an independently
 referencable name.
@@ -205,7 +205,7 @@ the function's own body, permitting recursion. It is not visible before its
 declaration, outside the suite, or from another module. It follows the same
 shadowing and duplicate-name rules as other local values.
 
-A local `struct`, `enum`, `trait`, or `type` declaration introduces a type name
+A local `data`, `enum`, `trait`, or `type` declaration introduces a type name
 at its declaration point, visible in its own definition and in the rest of its
 enclosing suite. It is not visible before that point or outside the suite.
 Local type declarations do not execute, capture runtime values, or become
@@ -225,7 +225,7 @@ nominal type or local trait, as specified in [Traits](09-traits.md).
 ```text
 fn describe(name: string) -> string:
     type Label = string
-    struct Entry:
+    data Entry:
         label: Label
     enum Format:
         Plain
@@ -318,7 +318,7 @@ The names `user` and `label` are not visible after the comprehension.
 ## Member Resolution
 
 Member access first considers members declared directly by the receiver type,
-then members promoted from embedded structs. A directly declared member hides
+then members promoted from embedded data types. A directly declared member hides
 promoted members of the same name. A promoted member is usable only when there
 is exactly one shortest embedding path to it. Multiple equally short paths are
 ambiguous and require explicit qualification through an embedded field.

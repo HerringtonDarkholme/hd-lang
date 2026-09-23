@@ -1,6 +1,6 @@
 # expect-error: const-argument-to-mutable-parameter
 
-struct User:
+data User:
     name: string
 
 fn new_user() -> User:

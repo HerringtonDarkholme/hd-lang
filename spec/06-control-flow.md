@@ -167,7 +167,7 @@ A match must be exhaustive. Coverage is checked as follows:
 - `bool` is covered by both `true` and `false`, or by a catch-all pattern;
 - a tuple pattern covers the tuple values covered recursively by its element
   patterns;
-- a struct pattern covers its nominal struct when every listed field pattern
+- a data pattern covers its nominal data type when every listed field pattern
   is irrefutable, while unlisted fields are unconstrained; and
 - integer, floating-point, `char`, `string`, optional, and other value spaces
   require an irrefutable catch-all after any literal or `nil` cases.
@@ -208,14 +208,14 @@ viewpoint permission. A literal-constrained payload pattern such as
 `Expr.Scale(value, factor=2)` covers only that subset of the variant, so another
 arm must cover the remaining `Scale` values unless a later catch-all does.
 
-Nested variant and tuple patterns are permitted by the grammar. Struct
+Nested variant and tuple patterns are permitted by the grammar. Data
 destructuring patterns are also permitted. `User { name }` binds the `name`
 field; `User { name=alias }` binds it as `alias`; `User { age=18 }` matches
 only values with that field value. Unlisted fields are ignored. Listed fields
-must be distinct and exist on the named struct. A cross-module pattern may
-name only public fields. An empty struct pattern is irrefutable for that
-struct type. A named struct pattern must match the subject's nominal type;
-it does not structurally match a different struct with the same fields.
+must be distinct and exist on the named data type. A cross-module pattern may
+name only public fields. An empty data pattern is irrefutable for that
+data type. A named data pattern must match the subject's nominal type;
+it does not structurally match a different data type with the same fields.
 Primitive fields bind by value; composite fields bind reference access under
 the same viewpoint rules as enum payload patterns.
 

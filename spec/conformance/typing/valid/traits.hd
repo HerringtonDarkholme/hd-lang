@@ -1,7 +1,7 @@
 trait Display:
     fn display(self) -> string
 
-struct User:
+data User:
     name: string
 
 impl Display for User:

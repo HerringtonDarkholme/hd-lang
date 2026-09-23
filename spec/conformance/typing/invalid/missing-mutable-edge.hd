@@ -1,9 +1,9 @@
 # expect-error: const-edge
 
-struct Profile:
+data Profile:
     name: string
 
-struct Account:
+data Account:
     profile: Profile
 
 fn invalid(account: mut Account) -> void:

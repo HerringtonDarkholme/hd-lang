@@ -1,7 +1,7 @@
 type UserId(string)
 type UserName = string
 
-pub struct User:
+pub data User:
     pub id: UserId
     name: UserName
 

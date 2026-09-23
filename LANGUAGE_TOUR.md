@@ -108,7 +108,7 @@ This is shared reference permission, not ownership or deep immutability. Multipl
 
 An unannotated `let` infers the initializer's access type. Fresh composite construction may infer `mut T`, but assigning an existing `T` never upgrades it.
 
-Types appear where they make interfaces between code clear: function parameters, return types, struct fields, and public APIs.
+Types appear where they make interfaces between code clear: function parameters, return types, data fields, and public APIs.
 
 ```text
 fn greeting(name: string) -> string:
@@ -208,7 +208,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 
 | Operators | Notes |
 | --- | --- |
-| `(expr)`, literals, list/map/struct displays | atoms |
+| `(expr)`, literals, list/map/data displays | atoms |
 | `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
 | postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
@@ -258,12 +258,12 @@ x, y := point
 let name, score = ("Ada", 10)
 ```
 
-Use structs instead of named tuples when field names are part of the meaning.
+Use data types instead of named tuples when field names are part of the meaning.
 
 Optional values use Swift-style `?`. A plain `string` must contain a string. A `string?` may be `nil`.
 
 ```text
-struct Profile:
+data Profile:
     display_name: string
     nickname: string?
 ```
@@ -424,18 +424,20 @@ message := match status:
 
 `pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate Validation for User: pass`, it means default derivation with no overrides.
 
-## Structs
+## Data Types
 
-hd-lang has structs, not classes. Structs describe data with named, typed fields:
+hd-lang has data types, not classes. The `data` declaration defines a nominal
+product type with named, typed fields. Its composite values use shared references,
+not value-type copies:
 
 ```text
-struct User:
+data User:
     id: string
     email: string
     display_name: string?
 ```
 
-Construct a struct with a typed literal:
+Construct a data value with a typed literal:
 
 ```text
 user := User {
@@ -451,7 +453,7 @@ Field access uses dot syntax:
 println(user.email)
 ```
 
-Structs can also be matched by field. Unlisted fields are ignored;
+Data types can also be matched by field. Unlisted fields are ignored;
 `field=pattern` can rename a binding or test a nested value:
 
 ```text
@@ -463,10 +465,10 @@ fn email_of(user: User) -> string:
 Composite fields may store either const or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:
 
 ```text
-struct Profile:
+data Profile:
     display_name: string
 
-struct Account:
+data Account:
     profile: mut Profile
 
 let profile: mut Profile = Profile {
@@ -509,7 +511,7 @@ Container and element permissions are independent, so all four forms are meaning
 
 A read-only list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a const `User` into storage requiring `mut User`.
 
-Use copy-update syntax when creating a modified value from an existing struct:
+Use copy-update syntax when creating a modified value from an existing data value:
 
 ```text
 renamed := User {
@@ -518,37 +520,37 @@ renamed := User {
 }
 ```
 
-Copy-update is shallow. It creates a new outer struct, copies primitive fields
+Copy-update is shallow. It creates a new outer data value, copies primitive fields
 by value, and reuses composite field references unless an explicit replacement
 provides a different value.
 
-Structs can contain other structs:
+Data types can contain other data types:
 
 ```text
-struct Profile:
+data Profile:
     avatar_url: string?
     bio: string?
 
-struct Account:
+data Account:
     user: User
     profile: Profile
 ```
 
-Struct embedding supports Go-style composition without inheritance. A bare type-name line embeds that struct:
+Data embedding supports Go-style composition without inheritance. A bare type-name line embeds that data:
 
 ```text
-struct Timestamps:
+data Timestamps:
     created_at: i64
     updated_at: i64
 
-struct Post:
+data Post:
     Timestamps
     id: string
     title: string
     author_id: string
 ```
 
-Embedded structs are initialized with the embedded type name as the field key. Their fields are still promoted for ordinary access:
+Embedded data types are initialized with the embedded type name as the field key. Their fields are still promoted for ordinary access:
 
 ```text
 post := Post {
@@ -564,16 +566,16 @@ post := Post {
 println(post.created_at)
 ```
 
-Embedded-field name conflicts follow Go-style promotion rules. A promoted field can be accessed directly only when it is unambiguous. If two embedded structs promote the same field name, direct access is ambiguous and the code must qualify through the embedded field:
+Embedded-field name conflicts follow Go-style promotion rules. A promoted field can be accessed directly only when it is unambiguous. If two embedded data types promote the same field name, direct access is ambiguous and the code must qualify through the embedded field:
 
 ```text
-struct CreatedBySystem:
+data CreatedBySystem:
     id: string
 
-struct CreatedByUser:
+data CreatedByUser:
     id: string
 
-struct AuditRecord:
+data AuditRecord:
     CreatedBySystem
     CreatedByUser
 
@@ -592,7 +594,7 @@ record.CreatedByUser.id      # ok
 
 ## Enums
 
-Structs model product types: one value contains all listed fields. Enums model sum types: one value is exactly one of several variants.
+Data types model product types: one value contains all listed fields. Enums model sum types: one value is exactly one of several variants.
 
 Use `enum` for closed sets of variants:
 
@@ -620,7 +622,7 @@ enum ToolError:
     Internal(message: string)
 ```
 
-Payload variant declarations use the compact `Variant(field: type)` form. Use a separate struct payload when the data is large enough to need a full field block.
+Payload variant declarations use the compact `Variant(field: type)` form. Use a separate data type when the payload is large enough to need a full field block.
 
 Payload variants are called like functions. Positional arguments come first, and
 named arguments follow them:
@@ -1096,7 +1098,7 @@ trait Named:
         "name: " + self.name()
 ```
 
-Implement a trait for a struct with an `impl` block:
+Implement a trait for a data type with an `impl` block:
 
 ```text
 impl Display for User:
@@ -1112,7 +1114,7 @@ label := user.display()
 
 When two implemented traits leave a dot call ambiguous, qualify the trait explicitly with `Trait::method(receiver, ...)`, such as `Display::display(user)`. Qualification selects that trait implementation directly; it does not perform inherent or embedded-method lookup.
 
-Structs can also have inherent methods with `impl Struct`:
+Data types can also have inherent methods with `impl TypeName`:
 
 ```text
 impl User:
@@ -1144,12 +1146,13 @@ fn audit_label[T: Display + Named](value: T) -> string:
     value.display() + " / " + value.name()
 ```
 
-Receivers are either `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameters use reference permissions in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is receiver shorthand for `self: mut Self`. Structs, tuples, lists, and maps are composite types.
+Receivers are either `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameters use reference permissions in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is receiver shorthand for `self: mut Self`. Data types, tuples, lists, and maps are composite types.
 
-Structs do not own behavior in the class sense. Behavior lives in `impl Struct` blocks or trait implementations:
+Data types do not own behavior in the class sense. Behavior lives in inherent
+`impl TypeName` blocks or trait implementations:
 
 ```text
-struct Money:
+data Money:
     amount: i64
     currency: string
 
@@ -1166,7 +1169,7 @@ impl Add[Money] for Money:
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
-Struct embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer struct. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
+Data embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer data. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
 
 When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
 
@@ -1210,24 +1213,24 @@ name := "Ada"          # inferred string
 count := 3             # inferred i32
 ```
 
-Public boundaries stay explicit. Function parameters, return types, struct fields, enum payloads, and trait methods carry type annotations so humans and AI agents can review interfaces without chasing implementation details:
+Public boundaries stay explicit. Function parameters, return types, data fields, enum payloads, and trait methods carry type annotations so humans and AI agents can review interfaces without chasing implementation details:
 
 ```text
 fn find_user(id: UserId) -> Result[User?, DbError]:
     ...
 
-struct User:
+data User:
     id: UserId
     email: string
 ```
 
-User-defined structs and enums are nominal types. Two types with the same fields are still different types:
+User-defined data types and enums are nominal types. Two types with the same fields are still different types:
 
 ```text
-struct UserRecord:
+data UserRecord:
     value: string
 
-struct PostRecord:
+data PostRecord:
     value: string
 
 fn load_user(record: UserRecord) -> User?:
@@ -1325,13 +1328,13 @@ fn first[T](items: list[T]) -> T?:
 Generic type declarations use `+T` for covariance, `-T` for contravariance, and unmarked `T` for invariance:
 
 ```text
-struct Producer[+T]:
+data Producer[+T]:
     produce: fn() -> T
 
-struct Consumer[-T]:
+data Consumer[-T]:
     consume: fn(T) -> void
 
-struct Cell[T]:
+data Cell[T]:
     value: T
 ```
 
@@ -1429,19 +1432,19 @@ let maybe_value: Any? = nil
 
 Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
 
-Struct embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer struct a subtype of the embedded struct.
+Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
 Embedded promoted methods count for trait satisfaction when they are unambiguous:
 
 ```text
-struct Logger:
+data Logger:
     name: string
 
 impl Display for Logger:
     fn display(self) -> string:
         self.name
 
-struct Service:
+data Service:
     Logger
 
 fn show(value: Display) -> void:
@@ -1497,7 +1500,7 @@ Export public API with `pub`:
 
 pub type UserId(string)
 
-pub struct User:
+pub data User:
     pub id: UserId
     pub email: string
 ```
@@ -1554,7 +1557,7 @@ Submodules are not imported automatically. Parent modules and child modules both
 
 Import and re-export cycles are rejected.
 
-Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Struct fields and inherent methods remain private unless individually marked `pub`, even on a public struct. A public signature cannot leak a module-private type. There is no package-private visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. A public signature cannot leak a module-private type. There is no package-private visibility modifier.
 
 ## Program Entry Points
 
@@ -1572,10 +1575,10 @@ The ordinary function rules still apply. Use the `!` suffix only when `main` can
 
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 
-Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, structs, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
+Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, data types, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
 
 ```text
-pub struct LookupRequest:
+pub data LookupRequest:
     pub ids: list[UserId]
     pub filters: map[string, string]
 
@@ -1608,7 +1611,7 @@ dependency does not have to be a host capability. Normal error handling uses
 `Result[T, E]`:
 
 ```text
-struct ParseError:
+data ParseError:
     message: string
 
 fn parse_user(input: string) -> Result[User, ParseError]:
@@ -1650,7 +1653,7 @@ Here `$.use(Database, Cache)` retrieves multiple providers from the current cont
 Providers are ordinary values whose types implement the required trait:
 
 ```text
-struct MockDatabase:
+data MockDatabase:
     user: User
 
 impl Database for MockDatabase:
@@ -1723,7 +1726,7 @@ Annotations attach typed metadata to declaration shapes and derive typed informa
 Use `annotate Target` to attach metadata to existing members:
 
 ```text
-struct User:
+data User:
     display_name: string
     active: bool
 
@@ -1741,7 +1744,7 @@ let display_name_metadata: list[FieldMetadata[string]] = [
     max_len(80),
 ]
 
-struct User:
+data User:
     display_name: string
 
 annotate User:
@@ -1756,7 +1759,7 @@ Use `annotate Annotation for Target` to derive information for a complete target
 annotate Validation for User: pass
 ```
 
-Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation information for each field's declared type, reads the field's `FieldMetadata[string]` values, and then uses `StructAnnotator` to build validation information for the complete struct.
+Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation information for each field's declared type, reads the field's `FieldMetadata[string]` values, and then uses `DataAnnotator` to build validation information for the complete data.
 
 Generated metadata is retrieved explicitly as an ordinary runtime value:
 
@@ -1770,7 +1773,7 @@ result := user_validator.parse(input)
 The same declaration can provide unrelated annotation information:
 
 ```text
-struct User:
+data User:
     id: UserId
     display_name: string
     avatar: string?
@@ -1823,7 +1826,7 @@ syntax is not part of the language.
 Annotators are ordinary types that transform declaration shapes into typed metadata. The compiler exposes shapes for the declarations an annotator can inspect:
 
 ```text
-shape(User)          # StructShape
+shape(User)          # DataShape
 shape(User.email)    # FieldShape
 shape(JobStatus)     # EnumShape
 shape(get_user)      # FnShape
@@ -1853,7 +1856,7 @@ trait VariantMetadata
 For example, `MaxLen` applies to `string` fields but not `i32` fields:
 
 ```text
-struct MaxLen:
+data MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen:
@@ -1865,7 +1868,7 @@ impl FieldMetadata[string] for MaxLen
 The compiler accepts this metadata based on ordinary trait checking:
 
 ```text
-struct User:
+data User:
     display_name: string
 
 annotate User:
@@ -1875,21 +1878,21 @@ annotate User:
 It rejects the same value on an incompatible field because `MaxLen` does not implement `FieldMetadata[i32]`:
 
 ```text
-struct Invalid:
+data Invalid:
     retry_count: i32
 
 annotate Invalid:
     retry_count = [max_len(80)]  # compile error
 ```
 
-An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and structs:
+An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and data types:
 
 ```text
 type Dict[K, V] = map[K, V]
 
-struct Validation: pass
+data Validation: pass
 
-struct FieldValidator:
+data FieldValidator:
     name: string
     target: AnnotationRef[Validator]
     max_len: i32?
@@ -1897,7 +1900,7 @@ struct FieldValidator:
 enum Validator:
     I32
     String
-    Struct(name: string, fields: Dict[string, FieldValidator])
+    Data(name: string, fields: Dict[string, FieldValidator])
 
 impl Annotation for Validation:
     type Info = Validator
@@ -1919,10 +1922,10 @@ There is no wildcard `annotate Validation for type` fallback. Each block contrib
 
 `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot.
 
-An annotator for a struct maps each field and then builds one result for the complete struct:
+An annotator for a data type maps each field and then builds one result for the complete type:
 
 ```text
-trait StructAnnotator: Annotation:
+trait DataAnnotator: Annotation:
     type FieldTarget
 
     fn map_field(
@@ -1933,7 +1936,7 @@ trait StructAnnotator: Annotation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Info
 ```
@@ -1941,7 +1944,7 @@ trait StructAnnotator: Annotation:
 `Validation` combines each field's already-derived type validator with metadata attached directly to that field:
 
 ```text
-impl StructAnnotator for Validation:
+impl DataAnnotator for Validation:
     type FieldTarget = FieldValidator
 
     fn map_field(
@@ -1959,19 +1962,19 @@ impl StructAnnotator for Validation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, FieldValidator],
     ) -> Validator:
-        Validator.Struct(name=shape.name, fields=fields)
+        Validator.Data(name=shape.name, fields=fields)
 ```
 
 The compiler supplies `type_metadata`; `map_field` does not restart annotation resolution. This enforces the bottom-up order:
 
 ```text
-type metadata -> field metadata -> struct metadata
+type metadata -> field metadata -> data metadata
 ```
 
-`AnnotationRef[T]` is provided by the annotation runtime. It can hold an already-built target or a deferred reference to one, allowing the same annotator to support recursive structs and enums without adding a facet-specific `Ref` variant.
+`AnnotationRef[T]` is provided by the annotation runtime. It can hold an already-built target or a deferred reference to one, allowing the same annotator to support recursive data types and enums without adding a facet-specific `Ref` variant.
 
 Enums and functions follow the same mapping-then-building pattern:
 
@@ -2010,7 +2013,7 @@ trait FuncAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-`VariantMetadata` provides the corresponding homogeneous dynamic-trait collection for variants. Parameters do not have local metadata assignments; function annotators use each `ParamShape`'s name, type, default presence, and documentation. `StructAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
+`VariantMetadata` provides the corresponding homogeneous dynamic-trait collection for variants. Parameters do not have local metadata assignments; function annotators use each `ParamShape`'s name, type, default presence, and documentation. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
 
 Shape values and annotator methods follow the definitions in the annotation
 chapter. Generic families use ordinary generic `impl Annotate[A] for Target`;

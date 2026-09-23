@@ -1988,12 +1988,12 @@ The restriction is relative to a lifetime or dependency, not an absolute stateme
 
 ### 2. Non-Escapability Propagates Through Containment
 
-A struct, enum payload, tuple, collection element, closure environment, or other aggregate containing a non-escapable value should normally be non-escapable itself.
+A data type, enum payload, tuple, collection element, closure environment, or other aggregate containing a non-escapable value should normally be non-escapable itself.
 
 This property must be transitive. Otherwise an aggregate becomes a trivial smuggling mechanism:
 
 ```text
-struct HiddenFile:
+data HiddenFile:
     file: NonEscapableFile
 
 fn leak(file: NonEscapableFile) -> HiddenFile:

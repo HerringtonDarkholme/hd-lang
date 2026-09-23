@@ -1,6 +1,6 @@
 # expect-error: duplicate-field
 
-struct User:
+data User:
     name: string
 
 user := User {

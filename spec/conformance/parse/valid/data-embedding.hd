@@ -1,8 +1,8 @@
-struct Timestamps:
+data Timestamps:
     created_at: i64
     updated_at: i64
 
-struct Post:
+data Post:
     Timestamps
     id: string
     title: string

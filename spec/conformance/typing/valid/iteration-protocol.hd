@@ -1,4 +1,4 @@
-struct Counter:
+data Counter:
     current: i32
     end: i32
 

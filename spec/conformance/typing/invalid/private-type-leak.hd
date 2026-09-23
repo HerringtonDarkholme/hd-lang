@@ -1,6 +1,6 @@
 # expect-error: private-type-leak
 
-struct Secret:
+data Secret:
     value: string
 
 pub fn reveal() -> Secret:

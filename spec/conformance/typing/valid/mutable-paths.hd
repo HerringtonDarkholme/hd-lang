@@ -1,7 +1,7 @@
-struct Profile:
+data Profile:
     name: string
 
-struct Account:
+data Account:
     profile: mut Profile
 
 fn rename(account: mut Account, name: string) -> void:

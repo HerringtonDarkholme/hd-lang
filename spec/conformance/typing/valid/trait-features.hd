@@ -12,7 +12,7 @@ trait Formattable: Display:
 
 trait Serializable
 
-struct User:
+data User:
     name: string
 
 impl Display for User:
@@ -35,7 +35,7 @@ fn explicit_display(user: User) -> string:
 trait Factory:
     fn create() -> string
 
-struct UserFactory: pass
+data UserFactory: pass
 
 impl Factory for UserFactory:
     fn create() -> string: "guest"
@@ -44,7 +44,7 @@ trait Source:
     type Item
     fn get(self) -> Self::Item
 
-struct Box[T]:
+data Box[T]:
     value: T
 
 impl[T] Source for Box[T] where T: Any:

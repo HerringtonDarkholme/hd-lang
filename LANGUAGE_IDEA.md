@@ -4,7 +4,7 @@
 
 hd-lang is a general-purpose, statically typed language for software generated
 with AI and reviewed by humans. It combines Python-like indentation with
-Rust/Go-inspired explicit types, structs, traits, error values, and visible
+Rust/Go-inspired explicit types, data types, traits, error values, and visible
 runtime boundaries. Source should expose enough intent for a compiler, tooling,
 human reviewer, or AI repair loop to reason about the program without relying
 on framework conventions or string parsing.
@@ -24,8 +24,9 @@ WASI-compatible host boundary.
 - Source identifiers support Unicode XID characters, require NFC spelling, and
   receive compiler diagnostics for suspicious script mixing or confusable
   names. Standard language names remain ASCII.
-- The language has structs and enums, not classes. Struct embedding follows
-  Go-style promotion and ambiguity rules.
+- The language declares nominal product types with `data`, not `struct` or
+  `class`. Data values use shared references; `data` avoids implying value-copy
+  semantics. Data embedding follows Go-style promotion and ambiguity rules.
 - Traits provide methods, default implementations, generic constraints, and
   Go-style dynamic trait values. Conformance is explicit.
 - Local bindings use only `:=` and `let`. `:=` is inferred and cannot be
@@ -121,9 +122,9 @@ validator := Validation::annotation(User)
 ```
 
 Derivation is structural, overrides are local, mapped member values are
-uniformly typed, and evaluation is strictly bottom-up. `StructAnnotator`,
+uniformly typed, and evaluation is strictly bottom-up. `DataAnnotator`,
 `EnumAnnotator`, and `FuncAnnotator` map members and `build` the aggregate
-result. Runtime `StructShape`, `EnumShape`, `FnShape`, and member shapes expose
+result. Runtime `DataShape`, `EnumShape`, `FnShape`, and member shapes expose
 compiler-verified structure without a special HList or mapped-record type.
 
 Recursive annotation graphs use general `AnnotationRef[Info]` values with

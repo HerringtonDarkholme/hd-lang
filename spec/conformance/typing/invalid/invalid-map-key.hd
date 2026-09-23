@@ -1,6 +1,6 @@
 # expect-error: invalid-map-key
 
-struct User:
+data User:
     id: string
 
 let users: map[User, string] = {}

@@ -89,11 +89,15 @@ done
 grep -Fq '```ebnf' "$spec_dir/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"
 
-for production in requirement_clause context_scope annotation_decl \
+for production in data_decl requirement_clause context_scope annotation_decl \
     enum_variant generic_parameter annotation_runtime_access; do
     grep -Eq "^${production}[[:space:]]*=" "$spec_dir/02-grammar.md" ||
         fail "02-grammar.md is missing $production"
 done
+
+if grep -Eq '^struct_decl[[:space:]]*=' "$spec_dir/02-grammar.md"; then
+    fail "02-grammar.md still defines the old struct declaration"
+fi
 
 [ ! -d "$spec_dir/provisional" ] ||
     fail "accepted language chapters must not remain under spec/provisional"

@@ -17,7 +17,7 @@ register; hd-lang does not divide the language into versioned subsets.
 | [Expressions](05-expressions.md) | evaluation, operators, calls, literals, comprehensions |
 | [Control Flow](06-control-flow.md) | blocks, conditionals, loops, matching, return |
 | [Functions](07-functions.md) | parameters, closures, captures, trailing blocks |
-| [Structs and Enums](08-structs-and-enums.md) | aggregate declaration, construction, embedding |
+| [Data Types and Enums](08-data-and-enums.md) | aggregate declaration, construction, embedding |
 | [Traits](09-traits.md) | conformance, methods, static and dynamic dispatch |
 | [Modules](10-modules.md) | packages, imports, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |

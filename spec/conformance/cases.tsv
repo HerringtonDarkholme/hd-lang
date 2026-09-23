@@ -4,7 +4,8 @@ parse/valid/declarations.hd	parse	accept	02-grammar.md#declarations
 parse/valid/expressions.hd	parse	accept	02-grammar.md#expressions
 parse/valid/functions-and-closures.hd	parse	accept	07-functions.md
 parse/valid/imports.hd	parse	accept	10-modules.md#import-forms
-parse/valid/struct-embedding.hd	parse	accept	08-structs-and-enums.md#struct-embedding
+parse/valid/data-embedding.hd	parse	accept	08-data-and-enums.md#data-embedding
+parse/invalid/old-struct-declaration.hd	parse	reject:old-struct-declaration	08-data-and-enums.md#data-declarations
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
 parse/invalid/declaration-without-let.hd	parse	reject:missing-let	02-grammar.md#statements
 parse/invalid/direct-variant-import.hd	parse	reject:direct-variant-import	10-modules.md#import-forms
@@ -24,10 +25,10 @@ typing/valid/bindings.hd	type	accept	04-type-system.md#composite-values-and-acce
 typing/valid/collections.hd	type	accept	05-expressions.md#comprehensions
 typing/valid/equality.hd	type	accept	05-expressions.md#unary-and-binary-operators
 typing/valid/control-flow.hd	type	accept	06-control-flow.md
-typing/valid/enums.hd	type	accept	08-structs-and-enums.md#matching-enums
+typing/valid/enums.hd	type	accept	08-data-and-enums.md#matching-enums
 typing/valid/match-guards.hd	type	accept	06-control-flow.md#match-expressions
-typing/valid/struct-patterns.hd	type	accept	06-control-flow.md#match-expressions
-typing/valid/contextual-variants.hd	type	accept	08-structs-and-enums.md#matching-enums
+typing/valid/data-patterns.hd	type	accept	06-control-flow.md#match-expressions
+typing/valid/contextual-variants.hd	type	accept	08-data-and-enums.md#matching-enums
 typing/valid/functions.hd	type	accept	07-functions.md
 typing/valid/local-functions.hd	type	accept	07-functions.md#declarations
 typing/valid/local-types.hd	type	accept	03-names-and-scopes.md#function-and-closure-scopes
@@ -41,7 +42,7 @@ typing/invalid/forward-module-binding.hd	type	reject:binding-not-yet-visible	03-
 typing/valid/newtypes-and-widening.hd	type	accept	04-type-system.md#numeric-conversions
 typing/valid/numeric-types.hd	type	accept	04-type-system.md#numeric-conversions
 typing/valid/option-result.hd	type	accept	04-type-system.md#result-types
-typing/valid/structs.hd	type	accept	08-structs-and-enums.md#construction-and-access
+typing/valid/data-types.hd	type	accept	08-data-and-enums.md#construction-and-access
 typing/valid/trait-features.hd	type	accept	09-traits.md
 typing/valid/traits.hd	type	accept	09-traits.md
 typing/invalid/break-value-without-else.hd	type	reject:break-value-context	06-control-flow.md#break-continue-and-loop-else
@@ -64,13 +65,13 @@ typing/invalid/missing-mutable-edge.hd	type	reject:const-edge	04-type-system.md#
 typing/invalid/nil-to-any.hd	type	reject:nil-to-nonoptional	04-type-system.md#optional-types
 typing/invalid/nonexhaustive-match.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
 typing/invalid/guarded-match-not-exhaustive.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
-typing/invalid/duplicate-struct-pattern-field.hd	type	reject:duplicate-struct-pattern-field	06-control-flow.md#match-expressions
+typing/invalid/duplicate-data-pattern-field.hd	type	reject:duplicate-data-pattern-field	06-control-flow.md#match-expressions
 typing/invalid/contextual-variant-without-type.hd	type	reject:missing-contextual-enum-type	05-expressions.md#names
 typing/invalid/nonexhaustive-bool-match.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
 typing/invalid/overload.hd	type	reject:duplicate-module-name	03-names-and-scopes.md#name-categories
 typing/invalid/redeclare-core-type.hd	type	reject:predeclared-name-conflict	03-names-and-scopes.md#name-categories
 typing/invalid/function-equality.hd	type	reject:unsupported-equality	05-expressions.md#unary-and-binary-operators
-typing/invalid/unsaturated-enum-constructor.hd	type	reject:unsaturated-enum-constructor	08-structs-and-enums.md#enum-declarations
+typing/invalid/unsaturated-enum-constructor.hd	type	reject:unsaturated-enum-constructor	08-data-and-enums.md#enum-declarations
 typing/invalid/ambiguous-trait-method.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
 typing/invalid/unsafe-dynamic-trait.hd	type	reject:trait-not-dynamically-safe	09-traits.md#dynamic-trait-values
 typing/invalid/orphan-impl.hd	type	reject:orphan-impl	09-traits.md#trait-implementations
@@ -78,7 +79,7 @@ typing/invalid/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	
 typing/invalid/private-type-leak.hd	type	reject:private-type-leak	10-modules.md#exports-and-visibility
 typing/invalid/variance-position.hd	type	reject:invalid-variance	04-type-system.md#variance
 typing/warnings/unreachable-code.hd	type	warn:unreachable-code	06-control-flow.md#unreachable-code
-typing/invalid/duplicate-struct-field.hd	type	reject:duplicate-field	08-structs-and-enums.md#construction-and-access
+typing/invalid/duplicate-data-field.hd	type	reject:duplicate-field	08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	11-requirements-and-suspension.md
 typing/valid/variadic-generics.hd	type	accept	12-variadic-generics.md
 typing/valid/gadts.hd	type	accept	13-gadts.md

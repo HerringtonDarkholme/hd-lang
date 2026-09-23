@@ -71,7 +71,7 @@ choice(
 
 Layout recognition and parsing therefore cooperate at a suite-introducing
 colon; a lexer may implement this with parser feedback or with equivalent
-context tracking. Ordinary colons in maps, struct fields, named types, and
+context tracking. Ordinary colons in maps, data fields, named types, and
 arguments do not open a suite.
 
 A same-line suite ends with the abstract token `SUITE_END`. At delimiter depth
@@ -182,7 +182,7 @@ Self      and       annotate  as        break     continue
 else      enum      export    false     fn        for
 if        impl      import    in        let       match
 mut       nil       not       or        pass      pub
-reified   return    self      shape     struct    super
+reified   return    self      shape     data      super
 trait     true      type      where     while
 ```
 

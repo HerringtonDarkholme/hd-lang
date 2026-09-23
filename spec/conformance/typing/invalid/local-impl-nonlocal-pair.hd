@@ -3,7 +3,7 @@
 trait Label:
     fn label(self) -> string
 
-struct Entry:
+data Entry:
     name: string
 
 fn describe(entry: Entry) -> string:

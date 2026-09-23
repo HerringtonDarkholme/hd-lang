@@ -6,7 +6,7 @@ trait LeftLabel:
 trait RightLabel:
     fn label(self) -> string
 
-struct User:
+data User:
     name: string
 
 impl LeftLabel for User:

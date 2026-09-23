@@ -1,50 +1,54 @@
-# Structs and Enums
+# Data Types and Enums
 
 Status: language specification draft.
 
-Structs are nominal product types. Enums are nominal sum types. Neither is a
-class, and neither creates an inheritance hierarchy.
+Data types are nominal product types with reference semantics. Enums are nominal
+sum types. Neither is a class, and neither creates an inheritance hierarchy.
+`data` names the declaration form without suggesting value-type copying.
 
-## Struct Declarations
+## Data Declarations
 
-A struct declares named, typed fields:
+A `data` declaration defines named, typed fields:
 
 ```text
-struct User:
+data User:
     id: string
     email: string
     display_name: string?
 ```
 
-Field names must be unique within the struct. Every field has an explicit type.
+Field names must be unique within the data type. Every field has an explicit type.
 Fields, including embedded fields, are module-private unless individually
-marked `pub`. A public struct does not make its unmarked fields public. In
-another module, a struct literal may construct the type only when all its
+marked `pub`. A public data type does not make its unmarked fields public. In
+another module, a data literal may construct the type only when all its
 fields are public; private fields cannot be named, initialized, or carried
 through a copy-update literal there. A public factory function can construct
 a value with private fields inside the defining module.
 
-Struct identity is nominal. Two declarations with the same fields introduce
+Data identity is nominal. Two declarations with the same fields introduce
 different types.
 
-An empty nominal struct uses `pass`:
+An empty nominal data type uses `pass`:
 
 ```text
-struct Validation: pass
+data Validation: pass
 
 facet := Validation {}
 ```
 
-Struct declarations may be directly recursive because composite fields use
-managed references. Module-level structs may also be mutually recursive;
-local structs follow declaration-point visibility and cannot refer to a later
+Data declarations may be directly recursive because composite fields use
+managed references. Module-level data types may also be mutually recursive;
+local data types follow declaration-point visibility and cannot refer to a later
 local declaration. Recursion does not imply optionality: a program must still
 provide a value for every required field during construction, so a recursive
 graph normally includes an optional, enum, list, or another finite base case.
+Passing a data value to a function passes a shared reference, not a copy of its
+fields. The `T` and `mut T` views control mutation through that reference as
+specified in [Type System](04-type-system.md#composite-values-and-access-permission).
 
 ## Construction And Access
 
-Struct values use typed brace literals:
+Data values use typed brace literals:
 
 ```text
 user := User {
@@ -62,8 +66,8 @@ Field access uses `value.field`. Assignment to a field requires a mutable root.
 Nested mutation also requires every traversed composite field edge to have a
 `mut` type, as specified in [Type System](04-type-system.md).
 Cross-module field access additionally requires the field to be public.
-Struct values may be destructured in `match` patterns using the same
-`StructName { ... }` form. The pattern may mention any subset of visible
+Data values may be destructured in `match` patterns using the same
+`DataName { ... }` form. The pattern may mention any subset of visible
 fields; omitted fields are not tested. Within the braces, `field` binds the
 field value and `field=pattern` applies a nested pattern. See
 [Match Expressions](06-control-flow.md#match-expressions).
@@ -77,16 +81,16 @@ renamed := User {
 }
 ```
 
-The spread has the same struct type and supplies every field. Explicit fields
-replace copied values. This creates a struct value; it does not mutate the
+The spread has the same data type and supplies every field. Explicit fields
+replace copied values. This creates a data value; it does not mutate the
 spread source.
 
-## Struct Embedding
+## Data Embedding
 
-A bare type-name member embeds another struct:
+A bare type-name member embeds another data type:
 
 ```text
-struct Post:
+data Post:
     Timestamps
     id: string
     title: string
@@ -107,7 +111,7 @@ post := Post {
 ```
 
 Embedding promotes fields and methods for convenient access but does not make
-the outer struct a subtype of the embedded type. Promotion follows Go-style
+the outer data type a subtype of the embedded type. Promotion follows Go-style
 shortest-path resolution. A direct member hides promoted members. Multiple
 equally short promoted members are ambiguous and require qualification through
 the embedded field.
@@ -117,7 +121,7 @@ promoted member to be public.
 Unambiguous promoted methods may contribute to trait satisfaction. Ambiguous
 promoted methods never satisfy a trait requirement automatically.
 
-Embedded shorthand accepts a named struct type with no generic arguments. Generic
+Embedded shorthand accepts a named data type with no generic arguments. Generic
 and explicitly mutable embedded-field shorthand is not supported; an
 ordinary named field expresses those relationships.
 
@@ -150,7 +154,7 @@ enum ToolError:
 
 Payload parameters follow function definition conventions: unnamed positional
 parameters first, followed by named parameters. Each payload type is explicit.
-Large payloads should use a separate struct rather than a nested field block;
+Large payloads should use a separate data type rather than a nested field block;
 variant field blocks are not part of the language.
 
 Variant construction follows function-call conventions. Positional arguments
@@ -281,7 +285,7 @@ difference.
 
 ## Representation And Garbage Collection
 
-Struct and enum representation is chosen by the Wasm GC backend subject to
+Data and enum representation is chosen by the Wasm GC backend subject to
 observable language semantics. Programs must not depend on field offsets,
 variant tags, object addresses, or representation identity unless a future
 interop facility exposes them explicitly.
@@ -299,7 +303,7 @@ specified in [Generalized Algebraic Data Types](13-gadts.md).
 
 ## Unsupported Aggregate Extensions
 
-hd-lang has no struct-field defaults, shared enum-constructor defaults, variant field
+hd-lang has no data-field defaults, shared enum-constructor defaults, variant field
 blocks, generic embedded-field shorthand, or explicitly mutable embedded-field
 shorthand. Use explicit named fields when those relationships are required.
 Stable object layout and component-model representation are ABI concerns and

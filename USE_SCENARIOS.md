@@ -165,7 +165,7 @@ Requirements:
 
 ### Declarative Data Retention
 
-Struct data should be able to express retention, deletion, and cascade requirements declaratively.
+Data types should be able to express retention, deletion, and cascade requirements declaratively.
 
 This behavior should not be a hardcoded built-in policy. Instead, the language should provide a way to express domain-specific lifecycle requirements.
 
@@ -174,10 +174,10 @@ Retention should use the general annotation model, not a standalone `retention` 
 Open library sketch using the accepted annotation layers:
 
 ```text
-struct User:
+data User:
     id: UserId
 
-struct Post:
+data Post:
     id: PostId
     userId: UserId
 

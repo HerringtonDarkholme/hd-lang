@@ -25,7 +25,7 @@ syntax is not part of the language.
 The compiler exposes declaration structure as ordinary runtime shape values:
 
 ```text
-shape(User)          # StructShape
+shape(User)          # DataShape
 shape(User.email)    # FieldShape
 shape(JobStatus)     # EnumShape
 shape(get_user)      # FnShape
@@ -34,14 +34,14 @@ shape(get_user)      # FnShape
 The common representation includes at least:
 
 - `TypeShape` for a concrete type;
-- `StructShape` and ordered `FieldShape` values;
+- `DataShape` and ordered `FieldShape` values;
 - `EnumShape`, ordered `VariantShape` values, and payload `FieldShape` values;
 - `FnShape` and ordered `ParamShape` values;
 - names, positions, declared runtime type descriptors, documentation, and
   attached member metadata.
 
 Shape types are not parameterized by the reflected declaration. In particular,
-the type is `StructShape`, not `StructShape[S]`. This avoids a special HList or
+the type is `DataShape`, not `DataShape[S]`. This avoids a special HList or
 mapped-record type in the language. Aggregate mapped results are uniform
 collections such as `Dict[string, DatabaseColumn]`. The annotation support
 module defines `type Dict[K, V] = map[K, V]`; `Dict` is an ordinary transparent
@@ -52,7 +52,7 @@ source declaration. Every shape provides a stable declaration identity, source
 name, qualified name, source position, documentation string, and declaration
 kind. `FieldShape`, `VariantShape`, and `ParamShape` additionally provide their
 zero-based declaration position and declared `TypeShape`. Fields and variants
-also expose metadata attached by `annotate Target`. `StructShape`, `EnumShape`,
+also expose metadata attached by `annotate Target`. `DataShape`, `EnumShape`,
 and `FnShape` contain their ordered direct members. `FnShape` additionally
 exposes its result type, whether it is suspending, and its normalized unordered
 requirement row; each `ParamShape` records whether a default is declared.
@@ -98,10 +98,10 @@ impl Annotation for Validation:
     type Info = Validator
 ```
 
-An annotation facet is an ordinary type. A stateless facet uses an empty struct:
+An annotation facet is an ordinary type. A stateless facet uses an empty data type:
 
 ```text
-struct Validation: pass
+data Validation: pass
 ```
 
 Its ordinary value is `Validation {}`. Annotation lowering constructs that
@@ -117,14 +117,14 @@ trait conformance for constraint and coherence purposes.
 `annotate Target` attaches metadata values to existing fields or variants:
 
 ```text
-struct User:
+data User:
     display_name: string
 
 annotate User:
     display_name = [min_len(1), max_len(80)]
 ```
 
-The target is a declared struct or enum, not an arbitrary type expression.
+The target is a declared data type or enum, not an arbitrary type expression.
 Every left-hand name must identify an existing direct member. The block cannot
 add, rename, remove, or change the type of a member.
 
@@ -140,7 +140,7 @@ Metadata objects are ordinary values. Constructors and helper functions are
 equivalent ways to make them:
 
 ```text
-struct MaxLen:
+data MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
@@ -232,17 +232,17 @@ annotation_runtime_access = qualified_name, "::", "annotation", "(",
 
 The facet name is parsed as a type implementing `Annotation`. Target resolution
 distinguishes a type target from a function target. `annotate Target` metadata
-assignments apply to struct fields or enum variants. Function annotators read
+assignments apply to data fields or enum variants. Function annotators read
 parameter shapes and may replace the complete `build`; there is no
 parameter-assignment override syntax.
 
 ## Aggregate Annotators
 
-A struct facet maps each field to one uniform `FieldTarget`, then builds the
+A facet for data types maps each field to one uniform `FieldTarget`, then builds the
 facet's `Info`:
 
 ```text
-trait StructAnnotator: Annotation:
+trait DataAnnotator: Annotation:
     type FieldTarget
 
     fn map_field(
@@ -253,7 +253,7 @@ trait StructAnnotator: Annotation:
 
     fn build(
         self,
-        shape: StructShape,
+        shape: DataShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Info
 ```
@@ -311,7 +311,7 @@ type to mapped output type.
 
 ## Structural Overrides
 
-Within `annotate Facet for Struct`, an assignment to a field name replaces that
+Within `annotate Facet for Data`, an assignment to a field name replaces that
 field's default `map_field` result and must have type
 `Facet::FieldTarget`:
 
@@ -394,7 +394,7 @@ The following is illustrative, not normative generated source. The compiler may
 lower differently while preserving the checked behavior.
 
 ```text
-struct User:
+data User:
     email: string
 
 annotate User:
@@ -406,8 +406,8 @@ annotate Validation for User: pass
 Conceptually becomes shape metadata plus an implementation:
 
 ```text
-fn __user_shape() -> StructShape:
-    StructShape {
+fn __user_shape() -> DataShape:
+    DataShape {
         name: "User",
         fields: [
             FieldShape {
@@ -439,7 +439,7 @@ references to child information using the general runtime type
 `AnnotationRef[T]`:
 
 ```text
-struct FieldValidator:
+data FieldValidator:
     name: string
     target: AnnotationRef[Validator]
 ```
@@ -449,13 +449,13 @@ different key normally returns a ready reference after construction. Re-entering
 an active key returns a deferred reference to that key. Once the outer build
 completes, the deferred reference resolves through the memoized registry entry.
 
-This automatic cycle detection applies uniformly to struct and enum annotation
+This automatic cycle detection applies uniformly to data and enum annotation
 graphs. Facets do not need a custom `Validator.Ref` variant or a separate
 `Annotation.reference` hook. A facet opts into recursive output by storing
 `AnnotationRef[Info]` where child information appears.
 
 For example, mutually recursive `Folder` and `Entry` validation can use the same
-`AnnotationRef[Validator]` for struct fields and enum payloads. Non-recursive
+`AnnotationRef[Validator]` for data fields and enum payloads. Non-recursive
 edges produce ready references; only back edges are deferred.
 
 Automatic cycle detection is the annotation recursion mechanism. It does not
@@ -497,10 +497,10 @@ worked example. It demonstrates:
 
 - exact primitive and nominal type annotations;
 - field and variant metadata checked through ordinary traits;
-- struct and enum annotators;
+- data and enum annotators;
 - uniform mapped dictionaries and lists;
 - runtime materialization;
-- recursive struct/enum graphs through `AnnotationRef`.
+- recursive data/enum graphs through `AnnotationRef`.
 
 The focused annotation conformance fixtures cover the language surface. The
 repository example additionally sketches a validation library built on it.

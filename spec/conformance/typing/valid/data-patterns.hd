@@ -1,4 +1,4 @@
-struct User:
+data User:
     name: string
     age: i32
     active: bool
@@ -8,7 +8,7 @@ fn label(user: User) -> string:
         User { name, active=true } => name
         User { name=alias } => alias
 
-struct Envelope:
+data Envelope:
     user: User
 
 fn nested(envelope: Envelope) -> string:

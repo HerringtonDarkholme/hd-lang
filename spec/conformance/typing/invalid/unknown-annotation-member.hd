@@ -1,6 +1,6 @@
 # expect-error: unknown-annotation-member
 
-struct User:
+data User:
     name: string
 
 annotate User:
