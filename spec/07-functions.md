@@ -31,13 +31,29 @@ fallthrough is rejected. A `void` function likewise rejects a non-`void` final
 expression; use `return`, `pass`, or another `void` expression when a preceding
 value is intentionally ignored.
 
-Function names are unique in a module. hd-lang has no function or method
+Function names are unique in their scope. hd-lang has no function or method
 overloading; one name resolves to one declaration in its scope.
 
 A same-line body is permitted when it contains one simple statement:
 
 ```text
 fn test() -> void: println("hi")
+```
+
+A named function may also be declared inside an executable block suite. Its
+name is visible from that declaration onward and within its own body; it can
+capture enclosing local values under the same read-only capture rules as a
+plain closure. It cannot be marked `pub` or imported:
+
+```text
+fn total_with_bonus(values: list[i32], bonus: i32) -> i32:
+    fn add_bonus(value: i32) -> i32:
+        value + bonus
+
+    let total = 0
+    for value in values:
+        total = total + add_bonus(value)
+    total
 ```
 
 ## Parameters
@@ -315,7 +331,7 @@ needed.
 
 ## Recursion
 
-Named functions may call themselves or other module functions recursively.
+Named functions may call themselves or other visible named functions recursively.
 Closures do not acquire an implicit self-name. A recursively used closure must
 be expressed through a separately designed recursive binding facility; direct
 self-reference in its own initializer is invalid under ordinary binding rules.

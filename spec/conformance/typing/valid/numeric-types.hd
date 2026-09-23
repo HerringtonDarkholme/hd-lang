@@ -1,6 +1,19 @@
 float_default := 0.5
+large_float := 1e9
+small_float := 1.5e-6
+upper_float := 2E+8
+grouped_float := 1_000.25
+large_exponent := 1.5e1_000
+binary := 0b1010
+mode := 0O755
+color := 0xFF8800
+grouped_binary := 0b_1010_0110
+grouped_color := 0x_FF_FF_00
 let float_small: f32 = 0.5
 let minimum: i8 = -128
+let positive: u8 = +1
+unchanged := +positive
+let grouped: i32 = +(1 + 2)
 
 fn widen_signed(left: i16, right: i64) -> i64:
     left + right

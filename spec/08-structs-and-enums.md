@@ -17,8 +17,12 @@ struct User:
 ```
 
 Field names must be unique within the struct. Every field has an explicit type.
-Field-level visibility is not supported; visibility applies to the struct
-declaration as a whole.
+Fields, including embedded fields, are module-private unless individually
+marked `pub`. A public struct does not make its unmarked fields public. In
+another module, a struct literal may construct the type only when all its
+fields are public; private fields cannot be named, initialized, or carried
+through a copy-update literal there. A public factory function can construct
+a value with private fields inside the defining module.
 
 Struct identity is nominal. Two declarations with the same fields introduce
 different types.
@@ -31,11 +35,12 @@ struct Validation: pass
 facet := Validation {}
 ```
 
-Struct declarations may be directly or mutually recursive because composite
-fields use managed references. Recursion does not imply optionality: a program
-must still provide a value for every required field during construction, so a
-recursive graph normally includes an optional, enum, list, or another finite
-base case.
+Struct declarations may be directly recursive because composite fields use
+managed references. Module-level structs may also be mutually recursive;
+local structs follow declaration-point visibility and cannot refer to a later
+local declaration. Recursion does not imply optionality: a program must still
+provide a value for every required field during construction, so a recursive
+graph normally includes an optional, enum, list, or another finite base case.
 
 ## Construction And Access
 
@@ -56,6 +61,7 @@ in any order.
 Field access uses `value.field`. Assignment to a field requires a mutable root.
 Nested mutation also requires every traversed composite field edge to have a
 `mut` type, as specified in [Type System](04-type-system.md).
+Cross-module field access additionally requires the field to be public.
 
 Copy-update construction uses one leading spread:
 
@@ -100,6 +106,8 @@ the outer struct a subtype of the embedded type. Promotion follows Go-style
 shortest-path resolution. A direct member hides promoted members. Multiple
 equally short promoted members are ambiguous and require qualification through
 the embedded field.
+Cross-module access through an embedded field requires that field and the
+promoted member to be public.
 
 Unambiguous promoted methods may contribute to trait satisfaction. Ambiguous
 promoted methods never satisfy a trait requirement automatically.
@@ -120,8 +128,11 @@ enum JobStatus:
     Failed
 ```
 
-Variant names must be unique within the enum and are accessed through the enum
-name, such as `JobStatus.Queued`.
+Variant names must be unique within the enum. The qualified form is
+`JobStatus.Queued`; `.Queued` is also valid where a contextual expected type
+fixes `JobStatus`. A matching name in another enum does not create ambiguity
+when that expected type is known, and a unique name across the program does
+not make the shorthand valid without an expected enum type.
 
 A variant may carry payload parameters:
 
@@ -208,8 +219,8 @@ results and variant-local generic parameters are defined in
 
 ## Matching Enums
 
-Enum values are inspected with exhaustive `match`. Variant patterns are always
-qualified:
+Enum values are inspected with exhaustive `match`. Variant patterns may be
+qualified, or use `.Variant` when the matched value fixes their enum:
 
 ```text
 match error:
@@ -217,6 +228,22 @@ match error:
     ToolError.Unauthorized(reason) => reason
     ToolError.RateLimited(retry_after_ms) => retry_after_ms.to_string()
 ```
+
+```text
+fn queued() -> JobStatus: .Queued
+
+fn label(status: JobStatus) -> string:
+    match status:
+        .Queued => "queued"
+        .Running => "running"
+        .Succeeded => "succeeded"
+        .Failed => "failed"
+```
+
+The shorthand also works for payload construction and nested variant patterns
+when their expected enum type is fixed. It is not a way to infer an enum from
+the variant spelling alone: `status := .Queued` has no contextual enum type and
+is rejected.
 
 Payload patterns use parentheses, not braces. Positional patterns may bind names
 different from declared field names. Named patterns use `field=pattern`, and no
@@ -236,8 +263,8 @@ scope and exhaustiveness are defined in [Control Flow](06-control-flow.md).
 Optional `T?` and `Result[T, E]` behave as standard enum-like types, with
 language support for `nil` and postfix `?`. `Ok(value)` and `Err(error)` are the
 construction spellings for `Result`. In patterns, `Ok(pattern)` and
-`Err(pattern)` are the corresponding unqualified built-in variant spellings and
-are the exception to the ordinary enum-qualification rule.
+`Err(pattern)` are the corresponding unqualified built-in spellings; they do
+not make ordinary enum variants directly importable.
 
 Core optional patterns include `nil`, `_`, and a bare catch-all binding. A
 dedicated present-value destructuring pattern is not part of the language; ordinary code

@@ -1,0 +1,13 @@
+# expect-error: local-impl-nonlocal-pair
+
+trait Label:
+    fn label(self) -> string
+
+struct Entry:
+    name: string
+
+fn describe(entry: Entry) -> string:
+    impl Label for Entry:
+        fn label(self) -> string: self.name
+
+    entry.label()

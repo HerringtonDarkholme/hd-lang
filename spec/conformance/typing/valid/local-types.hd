@@ -1,0 +1,18 @@
+fn describe(name: string) -> string:
+    type Label = string
+    struct Entry:
+        label: Label
+    enum Format:
+        Plain
+        Loud
+    trait Named:
+        fn name(self) -> string
+    impl Named for Entry:
+        fn name(self) -> string: self.label
+    impl Entry:
+        fn shout(self) -> string: self.label + "!"
+
+    entry := Entry { label: name }
+    match Format.Plain:
+        Format.Plain => entry.name()
+        Format.Loud => entry.shout()

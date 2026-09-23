@@ -51,15 +51,18 @@ implicitly visible in children.
 Two files must not map to the same module identity. Case sensitivity of module
 paths is defined by the source language rather than the host filesystem:
 
-- every non-`mod.hd` path component used in a module identity must be a valid
-  ASCII identifier;
+- every non-`mod.hd` path component used in a module identity must be an NFC
+  Unicode identifier under the source identifier rules;
 - module identities are case-sensitive; and
-- a package is rejected if two source paths collide after ASCII case folding,
-  even when the host filesystem could otherwise distinguish them.
+- a package is rejected if two source paths collide after full Unicode case
+  folding followed by NFC normalization of each module path component, even
+  when the host filesystem could otherwise distinguish them.
 
 The final `.hd` suffix and the special filename `mod.hd` are lowercase and
-case-sensitive. These rules make one package resolve to the same module graph
-on case-sensitive and case-insensitive hosts.
+case-sensitive. The compiler applies the declared Unicode data version from
+the lexical rules to path validation and collision checks. This rejects
+ambiguous module names before host filesystem case behavior can change the
+module graph.
 
 ## Import Roots
 
@@ -108,7 +111,8 @@ import dep.billing.types.{UserId as BillingUserId}
 ```
 
 Grouped imports may have a trailing comma. Wildcard imports are not supported.
-Importing a private or missing declaration is a compile-time error.
+Enum variants are members, not module declarations, and cannot be imported
+directly. Importing a private or missing declaration is a compile-time error.
 
 Imports introduce names for the whole module and are resolved before type
 checking.
@@ -124,8 +128,10 @@ independent of filesystem enumeration.
 
 Within one module, named declarations are available before initialization and
 top-level executable statements run in source order. Imports and exports do not
-execute as statements. A module with no top-level executable statements has no
-observable initialization step.
+execute as statements. Top-level bindings are initialized at their statement,
+before later function bodies may access them. Their storage remains available
+to functions in that module for the lifetime of the program instance. A module
+with no top-level executable statements has no observable initialization step.
 
 After dependency initialization, a script executes its top-level statements as
 that module's initialization. An executable package then invokes `main` after
@@ -146,8 +152,8 @@ available for import:
 pub type UserId(string)
 
 pub struct User:
-    id: UserId
-    email: string
+    pub id: UserId
+    pub email: string
 ```
 
 Use grouped `export` in a `mod.hd` file to re-export a package-facing API:
@@ -161,11 +167,11 @@ A re-exported declaration must already be public in its defining module. A
 re-export does not create a new declaration identity. Import and re-export
 cycles are rejected.
 
-There is no package-private visibility modifier and no independent field or
-variant visibility. Fields, variants, and inherent methods
-follow the visibility of their owning nominal type. Trait methods follow the
-visibility of their trait; a usable implementation additionally requires its
-target type to be visible.
+There is no package-private visibility modifier: another module in the same
+package can import only `pub` declarations. Fields and inherent methods are
+module-private unless individually marked `pub`; enum variants inherit their
+enum's visibility. Trait methods follow their trait's visibility; a usable
+implementation additionally requires its target type to be visible.
 
 A public declaration's complete source-level signature must not expose a
 module-private declaration. This check recursively covers function parameters
@@ -232,4 +238,4 @@ specification work.
 The complete `hd.toml` schema, lockfile, version constraints, and dependency
 resolver belong to package tooling. The exact Wasm component boundary and
 registration mechanism belong to the runtime ABI. hd-lang has no package-private
-visibility or finer member visibility.
+visibility or independent visibility for enum variants and trait methods.

@@ -10,21 +10,24 @@ produces block structure. Syntactic use of those tokens is defined in
 
 An implementation processes a source file in this order:
 
-1. Divide source text into physical lines.
-2. Recognize comments, whitespace, literals, identifiers, and operators.
-3. Join physical lines that continue inside `()`, `[]`, or `{}` into logical
+1. Decode source bytes as UTF-8 and remove one optional initial byte-order mark.
+2. Divide source text into physical lines.
+3. Recognize comments, whitespace, literals, identifiers, and operators.
+4. Join physical lines that continue inside `()`, `[]`, or `{}` into logical
    lines, except for an indentation suite nested in that continuation.
-4. Emit `NEWLINE`, `INDENT`, `DEDENT`, and same-line `SUITE_END` layout tokens
+5. Emit `NEWLINE`, `INDENT`, `DEDENT`, and same-line `SUITE_END` layout tokens
    from logical lines and nested suites.
-5. Parse the resulting token stream.
+6. Parse the resulting token stream.
 
 Comments and whitespace separate tokens but otherwise do not appear in the
 parser token stream. Layout tokens are the exception.
 
-Source files must be valid UTF-8. A byte-order mark is not permitted. Invalid
-UTF-8 is a compile-time lexical error. Identifiers are restricted to ASCII;
-Unicode scalar values remain valid in comments, string literals, and
-character literals.
+Source files must be valid UTF-8. If the first three bytes are `EF BB BF`, they
+are removed before lexical analysis. No other byte-order mark is removed; a
+`U+FEFF` outside a comment or literal at any other position is a compile-time
+lexical error. Invalid UTF-8 is also a compile-time lexical error. Unicode
+scalar values are valid in identifiers under the identifier rules below and in
+comments, string literals, and character literals.
 
 ## Physical And Logical Lines
 
@@ -143,17 +146,27 @@ ending.
 
 ## Identifiers
 
-An identifier begins with an ASCII letter or `_` and continues with ASCII
-letters, decimal digits, or `_`. Identifiers are case-sensitive. Any non-ASCII
-character in an identifier position is a lexical error.
+An identifier begins with a Unicode `XID_Start` character or `_` and continues
+with Unicode `XID_Continue` characters or `_`. Identifiers are case-sensitive.
+Their source spelling must be in Unicode Normalization Form C (NFC); a
+non-NFC identifier is a lexical error rather than being silently rewritten.
 
 ```ebnf
 identifier       = identifier_start, { identifier_continue } ;
-identifier_start = ASCII_LETTER | "_" ;
-identifier_continue = ASCII_LETTER | DECIMAL_DIGIT | "_" ;
-ASCII_LETTER     = "A" ... "Z" | "a" ... "z" ;
+identifier_start = XID_START | "_" ;
+identifier_continue = XID_CONTINUE | "_" ;
 DECIMAL_DIGIT    = "0" ... "9" ;
 ```
+
+`XID_START` and `XID_CONTINUE` denote the corresponding Unicode derived core
+properties. An implementation must use one declared Unicode data version
+consistently for lexing, normalization, and diagnostics.
+
+The compiler must diagnose identifiers that are visually confusable with
+another identifier visible in the same scope and identifiers that suspiciously
+mix scripts. These security diagnostics do not change name identity: two
+different NFC identifier strings remain different names. Standard-library
+APIs, language keywords, and compiler-generated source names use ASCII.
 
 An identifier that exactly matches a reserved word is not an identifier token.
 The complete reserved-word set is defined by the consolidated grammar. Built-in
@@ -193,30 +206,61 @@ nil_literal     = "nil" ;
 
 ### Integer Literals
 
-Integer literals use decimal notation:
+Integer literals use Python-style decimal, binary, octal, or hexadecimal
+notation:
 
 ```ebnf
-integer_literal = DECIMAL_DIGIT, { DECIMAL_DIGIT } ;
+integer_literal = decimal_integer_literal
+                | binary_integer_literal
+                | octal_integer_literal
+                | hexadecimal_integer_literal
+                ;
+decimal_integer_literal = decimal_digits ;
+binary_integer_literal = "0", ( "b" | "B" ),
+                         [ "_" ], binary_digits ;
+octal_integer_literal = "0", ( "o" | "O" ),
+                        [ "_" ], octal_digits ;
+hexadecimal_integer_literal = "0", ( "x" | "X" ),
+                              [ "_" ], hexadecimal_digits ;
+BINARY_DIGIT = "0" | "1" ;
+OCTAL_DIGIT = "0" ... "7" ;
+binary_digits = BINARY_DIGIT, { [ "_" ], BINARY_DIGIT } ;
+octal_digits = OCTAL_DIGIT, { [ "_" ], OCTAL_DIGIT } ;
+hexadecimal_digits = HEX_DIGIT, { [ "_" ], HEX_DIGIT } ;
 ```
 
 A leading `-` is an operator, not part of the literal. Unary `+` is not
 supported. Integer literal typing and range checks are defined in
 [Type System](04-type-system.md).
 
-Radix prefixes and digit separators are not supported.
+The radix prefix does not affect the inferred type. Hexadecimal digits may use
+uppercase or lowercase letters. A leading zero without an explicit radix
+prefix remains decimal; it never selects octal implicitly.
+
+An underscore may separate adjacent digits. One underscore may also appear
+immediately after an explicit radix prefix, as in `0x_FF`. An underscore cannot
+begin or end a literal, occur twice consecutively, or touch a decimal point,
+exponent marker, or exponent sign. Separators do not affect the literal's value
+or inferred type.
 
 ### Floating-Point Literals
 
-The required floating-point form contains digits on both sides of a decimal
-point:
+Floating-point literals use a decimal fraction, an exponent, or both. A
+decimal point requires digits on both sides:
 
 ```ebnf
-float_literal = DECIMAL_DIGIT, { DECIMAL_DIGIT }, ".",
-                DECIMAL_DIGIT, { DECIMAL_DIGIT } ;
+float_literal = decimal_fraction, [ decimal_exponent ]
+              | decimal_digits, decimal_exponent
+              ;
+decimal_fraction = decimal_digits, ".", decimal_digits ;
+decimal_exponent = ( "e" | "E" ), [ "+" | "-" ], decimal_digits ;
+decimal_digits = DECIMAL_DIGIT, { [ "_" ], DECIMAL_DIGIT } ;
 ```
 
-Exponent notation, hexadecimal floating-point notation, and digit separators
-are not supported.
+Thus `1e9`, `1.5e-6`, and `2E+8` are floating-point literals. Separators may
+occur between digits in the integer, fractional, and exponent parts. `.5` and
+`1.` are invalid; write `0.5` and `1.0`. Hexadecimal floating-point notation is
+not supported.
 
 ### String And Character Literals
 
@@ -227,29 +271,73 @@ literal:
 name := "Ada"
 initial := 'A'
 greeting := "你好"
+pattern := r"\d+\s+\w+"
+template := r"""first line
+second line"""
+message := """hello
+world"""
+welcome := "Hello, $name"
+summary := """User: ${user.name}
+Posts: ${posts.len()}"""
 ```
 
 ```ebnf
-string_literal = '"', { string_character | escape_sequence }, '"' ;
+string_literal = interpreted_string_literal
+               | interpreted_multiline_string_literal
+               | raw_string_literal
+               | raw_multiline_string_literal
+               ;
+interpreted_string_literal = '"',
+                             { string_character | escape_sequence }, '"' ;
+interpreted_multiline_string_literal = '"""',
+                                       { multiline_string_character
+                                       | escape_sequence }, '"""' ;
+raw_string_literal = 'r"', { raw_string_character }, '"' ;
+raw_multiline_string_literal = 'r"""',
+                               { raw_multiline_character }, '"""' ;
 char_literal   = "'", (char_character | escape_sequence), "'" ;
 
 escape_sequence = "\\", ( "\\" | '"' | "'" | "n" | "r" | "t" | "0"
-                       | unicode_escape ) ;
+                       | "$" | unicode_escape ) ;
 unicode_escape = "u", "{", HEX_DIGIT, { HEX_DIGIT }, "}" ;
 HEX_DIGIT = DECIMAL_DIGIT | "A" ... "F" | "a" ... "f" ;
 ```
 
 A character literal must decode to exactly one Unicode scalar value. A string
-literal is a sequence of Unicode scalar values. A literal may not contain an
-unescaped line ending or an unescaped copy of its own delimiter.
+literal is a sequence of Unicode scalar values. A single-line literal may not
+contain an unescaped line ending or an unescaped copy of its own delimiter.
+
+An interpreted multiline string uses `"""..."""`. It accepts the same escape
+sequences as a single-line interpreted string and may contain physical line
+endings. Source indentation and line endings inside the delimiters are part of
+the value; the compiler does not dedent or trim them. Each source line ending
+contributes one line-feed scalar to the value. The literal continues until an
+unescaped `"""` delimiter.
+
+Interpreted single-line and multiline strings use Kotlin-style interpolation.
+`$name` interpolates one identifier, and `${expression}` interpolates an
+arbitrary expression with balanced nested delimiters. An unescaped `$` must
+begin one of those forms; `\$` produces a literal dollar sign. Braces without a
+leading `$` are ordinary string content. The lexer switches back to normal
+expression tokenization inside `${...}` and resumes string scanning at the
+matching `}`.
+
+Raw strings use Python-style `r"..."` and raw multiline strings use
+`r"""..."""`. Backslashes and escape-looking text are preserved literally.
+A backslash may prevent the following quote from terminating the raw literal,
+but that backslash remains part of the resulting string. Consequently, a raw
+string cannot end with an odd number of backslashes immediately before its
+closing delimiter. A single-line raw string cannot contain a physical line
+ending. A raw multiline string may contain line endings and continues until an
+unescaped `"""` delimiter. Hash-delimited raw strings are not part of the
+language. Raw strings do not interpolate, so `$` and `${...}` remain literal
+content in both raw forms.
 
 The simple escapes mean backslash, double quote, single quote, line feed,
 carriage return, horizontal tab, and null respectively. A Unicode escape has
 one to six hexadecimal digits and must denote a Unicode scalar value in
 `0..10FFFF`, excluding surrogate code points `D800..DFFF`. Any other escape is
 a lexical error.
-
-Raw strings, multiline strings, and string interpolation are not supported.
 
 hd-lang has no byte or bytes literal and no primitive byte or bytes type.
 
@@ -320,7 +408,6 @@ layout processing rather than matched directly from source characters.
 
 ## Unsupported Lexical Extensions
 
-Unicode identifiers, raw or multiline strings, interpolation, numeric radix
-prefixes, exponent notation, and digit separators are not part of the language.
+Hexadecimal floating-point notation is not part of the language.
 A future extension may add them with new grammar; implementations must diagnose them
 rather than assign implementation-defined behavior.

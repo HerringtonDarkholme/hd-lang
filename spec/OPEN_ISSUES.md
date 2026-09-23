@@ -15,18 +15,117 @@ deliberately unsupported features and runtime or library work.
 These are not completion blockers. Implementations must reject or omit them
 rather than leave implementation-defined behavior.
 
-- Nested named declarations and recursive local closure bindings.
-- Direct imports of enum variants.
-- General top-level stored declarations distinct from script bindings.
-- Direct composition of permission weakening with generic variance.
-- Struct field defaults.
-- Generic or explicitly mutable embedded-field shorthand.
-- Struct destructuring patterns and match guards.
-- Trait-value downcasting and runtime type tests.
-- Package-private and member-level visibility.
-- Wildcard imports.
-- Stable object layout, field offsets, and user-visible addresses.
-- Resource ownership, deterministic cleanup, and escape checking.
+The dispositions below are triage suggestions, not accepted language
+decisions:
+
+- **Support candidate** means the feature appears useful and reasonably aligned
+  with the language.
+- **Discuss** means the feature has a legitimate use case but needs focused
+  design work.
+- **Retain exclusion** means the existing restriction remains consistent with
+  accepted design goals.
+
+### Lexical Surface
+
+- **Retain exclusion:** primitive byte/bytes types and byte literals.
+
+### Declarations, Scope, Modules, And Visibility
+
+- **Retain exclusion:** direct imports of enum variants; contextual `.Variant`
+  syntax is available when the enum type is known.
+- **Accepted:** top-level `:=` and `let` bindings remain accessible to later
+  function bodies in the same module; no distinct stored declaration is needed.
+- **Retain exclusion:** function and method overloading.
+- **Retain exclusion:** source-level `module` or `package` declarations in the
+  path-inferred module system.
+- **Retain exclusion:** wildcard imports.
+- **Retain exclusion:** package-private visibility; declarations are
+  module-private by default or `pub`.
+- **Accepted:** enum variants inherit enum visibility; struct fields and
+  inherent methods are module-private unless individually marked `pub`.
+- **Retain exclusion:** nested `test` blocks.
+
+### Expressions, Patterns, And Control Flow
+
+- **Retain exclusion:** truthiness conversions; conditions require `bool`.
+- **Retain exclusion:** user-defined operator overloading.
+- **Support candidate:** comparison chaining.
+- **Support candidate:** match guards.
+- **Support candidate:** struct destructuring patterns.
+- **Discuss:** first-class bound-method values.
+- **Retain exclusion:** automatic conversion of heterogeneous collection
+  literals to collections of `Any`.
+- **Discuss:** user-defined ordering for aggregates and collections.
+- **Discuss:** a dedicated present-value optional pattern.
+- **Retain exclusion:** suspension calls inside comprehensions.
+- **Retain exclusion:** a special comprehension `let` clause; `:=` remains the
+  binding form inside expressions.
+- **Retain exclusion:** catchable runtime panic or language-level unwinding.
+
+### Functions And Closures
+
+- **Discuss:** recursive local closure bindings.
+- **Discuss:** partial explicit generic argument lists.
+- **Discuss:** generic argument placeholders.
+- **Support candidate:** explicit generic arguments on methods.
+- **Retain exclusion:** shorthand-argument or arrow closure syntax.
+- **Retain exclusion:** non-local returns from closures.
+- **Retain exclusion:** multiple trailing callback blocks or trailing callbacks
+  with parameters.
+- **Retain exclusion:** ownership-taking receivers and reference sigils.
+- **Discuss:** reassignable parameter bindings.
+
+### Structs, Enums, Representation, And Resources
+
+- **Support candidate:** struct field defaults.
+- **Discuss:** defaults for shared enum constructor data.
+- **Retain exclusion:** inline enum variant field blocks; variants use
+  call-style constructor parameters.
+- **Discuss:** generic embedded-field shorthand.
+- **Discuss:** explicitly mutable embedded-field shorthand.
+- **Retain exclusion:** stable object layout, field offsets, variant tags,
+  object addresses, and representation identity as core-language semantics.
+- **Discuss:** weak references and user-visible finalizers.
+- **Discuss:** resource ownership, deterministic cleanup, alias escape, and
+  use-after-disposal checking.
+
+### Traits And Types
+
+- **Discuss:** runtime type tests for dynamic trait values.
+- **Discuss:** dynamic trait-value downcasting.
+- **Retain exclusion:** implicit structural trait conformance.
+- **Retain exclusion:** trait implementation specialization.
+- **Discuss:** negative trait implementations.
+- **Discuss:** direct composition of permission weakening with generic
+  variance, such as `mut Cell[Cat]` to `Cell[Animal]`.
+- **Discuss:** user-defined stable equality and hashing for map keys.
+- **Retain exclusion:** implicit signed/unsigned and integer/floating-point
+  conversions.
+- **Retain exclusion:** upgrading const access `T` to mutable access `mut T`.
+
+### Variadic Generics
+
+- **Discuss:** general pack mapping.
+- **Discuss:** pack filtering.
+- **Discuss:** pack indexing.
+- **Discuss:** pack splitting and concatenation.
+- **Discuss:** pack length arithmetic.
+- **Discuss:** iteration over a pack as a runtime sequence.
+
+Pattern expansion remains the only accepted pack transformation unless one of
+these operations is selected explicitly.
+
+### Annotations
+
+- **Discuss:** decorator syntax as exact sugar for member metadata.
+- **Discuss:** wildcard or generic-family annotation derivation syntax beyond
+  ordinary generic `impl Annotate[A] for Target` declarations.
+- **Discuss:** replacing an entire derivation rather than overriding aggregate
+  `build` after member mapping.
+- **Retain exclusion:** function-parameter metadata assignment overrides.
+- **Retain exclusion:** metadata overrides of promoted fields.
+- **Retain exclusion:** implicit default annotations and downstream replacement
+  of an authoritative library annotation.
 
 ## Library Or ABI Decisions
 

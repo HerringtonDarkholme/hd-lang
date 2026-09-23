@@ -1,0 +1,3 @@
+# expect-error: direct-variant-import
+
+import pkg.status.{Status.Queued}

@@ -1,0 +1,32 @@
+enum Status:
+    Queued
+    Running
+    Failed(reason: string)
+
+enum Other:
+    Queued
+
+enum Container:
+    Wrap(status: Status)
+    Empty
+
+fn initial() -> Status: .Queued
+
+fn label(status: Status) -> string:
+    match status:
+        .Queued => "queued"
+        .Running => "running"
+        .Failed(reason) => reason
+
+fn make_failed() -> Status:
+    .Failed(reason="unavailable")
+
+fn inspect(container: Container) -> string:
+    match container:
+        .Wrap(.Queued) => "queued"
+        .Wrap(_) => "other"
+        .Empty => "empty"
+
+fn use_status() -> Status:
+    let current: Status = .Queued
+    current

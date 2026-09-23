@@ -45,11 +45,29 @@ An identifier expression evaluates the declaration or local binding selected
 by lexical name resolution. A qualified name selects a declaration or enum
 variant through a module or type namespace.
 
+`.Variant` selects a variant only when the expression has a contextual expected
+type that fixes one nominal enum. It has the same construction and argument
+rules as `Enum.Variant`; a payload-bearing variant still requires a call.
+The compiler does not search all visible enums for a matching variant name.
+Without a unique expected enum type, `.Variant` is a type error.
+
 ### Literals
 
 Boolean, integer, floating-point, string, character, and `nil` literals are
 defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in
 [Type System](04-type-system.md).
+
+Interpreted strings support `$name` and `${expression}` interpolation. Embedded
+expressions are evaluated from left to right at the position of their segment.
+Each expression's type must implement the canonical `std.format.Display`
+trait; the compiler appends the string returned by that implementation. There
+is no fallback conversion through `Any`, runtime reflection, or debug output.
+The standard library provides `Display` implementations for ordinary
+printable primitive types and `string`. Optional and user-defined values are
+displayable only when the corresponding type implements `Display`.
+
+Raw strings never interpolate. A string with no interpolation segments is an
+ordinary constant value and performs no `Display` calls.
 
 `pass` is the no-op expression. It has type `void` and performs no operation.
 
@@ -237,7 +255,7 @@ Operators are ordered from highest to lowest precedence:
 | --- | --- | --- |
 | Postfix | `.`, `[]`, `()`, `!()`, postfix `?` | left |
 | Power | `**` | right |
-| Unary | `-`, `~`, `not` | right |
+| Unary | `+`, `-`, `~`, `not` | right |
 | Multiplicative | `*`, `/`, `%` | left |
 | Additive | `+`, `-` | left |
 | Shift | `<<`, `>>` | left |
@@ -265,8 +283,10 @@ requires an explicit cast.
 
 For compatible integer operands, `+`, `-`, and `*` produce the common integer
 type and use checked arithmetic. `/` truncates toward zero, `%` produces the
-corresponding remainder, and a zero divisor panics. Unary `-` accepts signed
-integers and floating-point values, but not unsigned integers. `~`, `&`, `|`,
+corresponding remainder, and a zero divisor panics. Unary `+` accepts all
+numeric types, preserves its operand's type and value, and evaluates the operand
+once. Unary `-` accepts signed integers and floating-point values, but not
+unsigned integers. `~`, `&`, `|`,
 and `^` accept integer values only and produce the operand common type.
 
 Shifts are the exception to ordinary binary numeric unification. The left

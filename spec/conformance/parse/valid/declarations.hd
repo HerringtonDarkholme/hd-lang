@@ -1,8 +1,8 @@
 type UserId(string)
 type UserName = string
 
-struct User:
-    id: UserId
+pub struct User:
+    pub id: UserId
     name: UserName
 
 enum Lookup:
@@ -15,3 +15,7 @@ trait Display:
 impl Display for User:
     fn display(self) -> string:
         self.name
+
+impl User:
+    pub fn id_string(self) -> string:
+        string(self.id)

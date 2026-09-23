@@ -94,6 +94,17 @@ in an inherent `impl` instead.
 At most one implementation of the same instantiated trait for the same target
 type may exist in a resolved program.
 
+An `impl` inside an executable block suite is a compile-time declaration. A
+local trait implementation must involve a local trait or a local nominal target
+type visible at its declaration point. A local inherent implementation must
+target a local nominal type. Implementations for a pair of nonlocal types belong
+at module scope. Local implementations obey the same signature, orphan,
+overlap, and uniqueness checks as module-level implementations; lexical scope
+does not permit a second implementation for an existing pair. Local methods
+and local-trait default methods cannot capture enclosing runtime values.
+Their methods are available for lookup from the local `impl` declaration point
+through its enclosing suite and child scopes, not before or outside that scope.
+
 An ordinary trait implementation may be declared only in a package that owns
 either the trait declaration or the target nominal type's declaration. For a
 generic target, ownership is determined by its outer nominal type constructor.
@@ -143,6 +154,12 @@ impl User:
         self.email.split("@")[1]
 ```
 
+Inherent methods and associated functions are module-private unless
+individually marked `pub`, including when their nominal type is public.
+Methods in trait declarations and trait implementations follow the trait's
+visibility; `pub` is not written on an individual trait method or its
+implementation.
+
 An inherent member name must not duplicate another inherent member on the same
 type. hd-lang has no method or associated-function overloading.
 
@@ -164,8 +181,11 @@ For `value.method(args)`, the compiler considers:
 2. an unambiguous method promoted from an embedded field;
 3. methods from explicitly implemented traits available to type checking.
 
+Only members visible from the calling module participate in method lookup.
+
 For a concrete receiver, a trait is available to dot-call lookup when its name
-is declared in or imported into the current module, or supplied by the prelude.
+is declared in or imported into the current module, visible in the current
+lexical scope, or supplied by the prelude.
 For a generic receiver, its declared bounds are also available. A dynamic trait
 value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module

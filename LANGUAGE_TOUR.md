@@ -126,9 +126,49 @@ let octet: u8 = 255
 let size: u64 = 1024
 let ratio: f32 = 0.5
 let precise: f64 = 0.5
+large_float := 1e9
+small_float := 1.5e-6
 let name: string = "Ada"
 let initial: char = 'A'
+binary := 0b1010
+mode := 0o755
+color := 0xFF8800
+million := 1_000_000
+mask := 0x_FF_FF_00
 ```
+
+Python-style raw strings preserve backslashes and escape-looking text. Their
+multiline form uses three double quotes:
+
+```text
+pattern := r"\d+\s+\w+"
+prompt := r"""Summarize the input.
+Return one paragraph."""
+```
+
+Regular triple-quoted strings also span lines and continue interpreting normal
+escapes. Multiline strings preserve their source indentation and line breaks:
+
+```text
+message := """Hello,\n
+This remains on the next source line."""
+```
+
+Ordinary strings use Kotlin-style interpolation. A simple name follows `$`
+directly; other expressions use `${...}`. Interpolated values must implement
+`std.format.Display`:
+
+```text
+import std.format.Display
+
+greeting := "Hello, $name"
+summary := "User ${user.name} has ${posts.len()} posts"
+price := "Cost: \$5"
+literal := r"$name and ${user.name} are not expanded here"
+```
+
+Use `\$` for a literal dollar sign in an interpreted string. Raw strings treat
+every dollar sign literally.
 
 There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
 
@@ -591,7 +631,7 @@ fn status_label(status: JobStatus) -> string:
         JobStatus.Failed => "failed"
 ```
 
-Enum variant patterns must be qualified with the enum name, such as `JobStatus.Queued`, even when the matched value's type is known.
+Enum variants can use `.Variant` where the enum type is known from context, including a typed binding, a return type, or a `match` subject. Without that context, use the qualified form such as `JobStatus.Queued`; the compiler does not guess an enum from a variant name. Enum variants cannot be imported directly.
 
 Payload fields can be bound in a match arm:
 
@@ -1403,7 +1443,7 @@ src/user/service.hd    # module user.service
 src/post/service.hd    # module post.service
 ```
 
-Module path components are ASCII identifiers and module identities are case-sensitive. A package is rejected when two source paths differ only by ASCII case, so one source tree resolves consistently on case-sensitive and case-insensitive hosts.
+Module path components follow the same NFC Unicode identifier rules as source names. Module identities are case-sensitive, but a package is rejected when two paths collide after Unicode case folding and NFC normalization.
 
 Packages use `hd.toml`. The default source root is `src`:
 
@@ -1435,8 +1475,8 @@ Export public API with `pub`:
 pub type UserId(string)
 
 pub struct User:
-    id: UserId
-    email: string
+    pub id: UserId
+    pub email: string
 ```
 
 Import selected names with grouped imports:
@@ -1491,7 +1531,7 @@ Submodules are not imported automatically. Parent modules and child modules both
 
 Import and re-export cycles are rejected.
 
-Visibility is simple: declarations are module-private by default, and `pub` makes them public. A public struct or enum exposes all of its fields or variants, and a public signature cannot leak a module-private type. There is no package-private or per-member visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Struct fields and inherent methods remain private unless individually marked `pub`, even on a public struct. A public signature cannot leak a module-private type. There is no package-private visibility modifier.
 
 ## Program Entry Points
 
@@ -1513,8 +1553,8 @@ Registered Wasm boundaries accept only recursively boundary-safe structural valu
 
 ```text
 pub struct LookupRequest:
-    ids: list[UserId]
-    filters: map[string, string]
+    pub ids: list[UserId]
+    pub filters: map[string, string]
 
 pub enum LookupError:
     InvalidId(id: string)

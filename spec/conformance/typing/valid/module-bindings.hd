@@ -1,0 +1,10 @@
+let count: i32 = 0
+label := "requests"
+
+fn increment() -> void:
+    count = count + 1
+
+fn describe() -> string:
+    "${label}: ${count}"
+
+increment()

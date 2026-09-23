@@ -184,7 +184,10 @@ match expr:
 
 A bare identifier in payload position binds a new arm-local name; it does not
 need to match the payload field's declaration name. A literal pattern requires
-an equal value. Enum variant patterns must be qualified with the enum name.
+an equal value. An enum variant pattern may use `.Variant` when its subject or
+enclosing payload position fixes one enum type; otherwise it uses the qualified
+`Enum.Variant` form. The shorthand has the same exhaustiveness and GADT
+refinement rules as the qualified form.
 
 Matching does not transfer ownership. Primitive payloads bind by value;
 composite payloads bind reference access after applying the matched subject's

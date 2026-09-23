@@ -1,0 +1,3 @@
+# expect-error: nonnumeric-unary-plus
+
+invalid := +"hello"

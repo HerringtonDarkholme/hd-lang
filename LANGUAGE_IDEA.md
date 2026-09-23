@@ -21,6 +21,9 @@ WASI-compatible host boundary.
 
 - Indentation defines structure. Block headers end in `:` and may use an
   indented body or one same-line statement.
+- Source identifiers support Unicode XID characters, require NFC spelling, and
+  receive compiler diagnostics for suspicious script mixing or confusable
+  names. Standard language names remain ASCII.
 - The language has structs and enums, not classes. Struct embedding follows
   Go-style promotion and ambiguity rules.
 - Traits provide methods, default implementations, generic constraints, and
@@ -33,6 +36,19 @@ WASI-compatible host boundary.
 - Primitive names are lowercase: `bool`, `char`, `string`, fixed-width signed
   and unsigned integers, and `f32`/`f64`. There are no byte/bytes literals or
   convenience `int`/`float` aliases.
+- Integer literals support Python-style `0b`/`0B`, `0o`/`0O`, and `0x`/`0X`
+  radix prefixes without changing integer inference or range checking.
+- Floating-point literals support decimal `e`/`E` exponent notation with an
+  optional exponent sign. Decimal points still require digits on both sides.
+- Numeric literals support `_` separators between digits and immediately after
+  an explicit radix prefix. Separators do not affect value or type.
+- Strings support Python-style interpreted multiline literals `"""..."""`,
+  raw literals `r"..."`, and raw multiline literals `r"""..."""`. Raw
+  content does not interpret escapes, and multiline content is not
+  automatically dedented.
+- Interpreted strings use Kotlin-style `$name` and `${expression}`
+  interpolation. Embedded values must implement `std.format.Display`; there is
+  no universal reflection-based conversion.
 - Built-in structural types include tuples, `list[T]`, and `map[K, V]`.
 - Absence uses Swift-style `T?` and `nil`. Recoverable errors use
   `Result[T, E]`; postfix `?` propagates either absence or an error.

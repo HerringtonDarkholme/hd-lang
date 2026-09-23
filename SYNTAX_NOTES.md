@@ -411,8 +411,8 @@ Example public types:
 pub type UserId(string)
 
 pub struct User:
-    id: UserId
-    email: string
+    pub id: UserId
+    pub email: string
 ```
 
 Import selected names with grouped import syntax:
@@ -477,7 +477,7 @@ Submodule access goes through imports; a parent module does not automatically im
 
 Import and re-export cycles are rejected.
 
-Visibility is simple: declarations are module-private by default, and `pub` makes them public. There is no package-private visibility modifier or independent field/variant visibility.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit enum visibility; struct fields and inherent methods are private unless individually marked `pub`. There is no package-private visibility modifier.
 
 ## Program Entry Points And Wasm Exports
 
@@ -908,7 +908,7 @@ followed by named arguments:
 error := ToolError.NotFound(resource="user_123")
 ```
 
-Match arms use `pattern => expression`. Enum variant patterns must be qualified with the enum name, and payload patterns use call-style parentheses:
+Match arms use `pattern => expression`. Enum variant patterns may use `.Variant` when the matched value fixes the enum type; otherwise use the qualified enum name. Payload patterns use call-style parentheses:
 
 ```text
 fn error_message(error: ToolError) -> string:

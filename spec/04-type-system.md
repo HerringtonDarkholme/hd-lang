@@ -56,8 +56,8 @@ types and there is no implicit conversion between them.
 
 ## Literal Types
 
-An integer literal with no expected type has type `i32` in every value range.
-It does not automatically choose a wider type:
+An integer literal in any supported radix with no expected type has type `i32`
+in every value range. It does not automatically choose a wider type:
 
 ```text
 x := 1  # i32
@@ -73,6 +73,9 @@ let bad: u8 = 300    # error
 
 The diagnostic must identify the literal, the target range, and an appropriate
 wider type when one exists.
+
+An expected numeric type passes through unary `+` to a numeric literal, so
+`let positive: u8 = +1` checks the literal against the `u8` range.
 
 When unary `-` is applied directly to an integer literal under an expected
 signed integer type, range checking considers the negated mathematical value as

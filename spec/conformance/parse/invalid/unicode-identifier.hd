@@ -1,3 +1,0 @@
-# expect-error: non-ascii-identifier
-
-名字 := "Ada"

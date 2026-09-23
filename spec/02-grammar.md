@@ -37,9 +37,10 @@ following logical line. An
 implementation must reject an empty `block_suite`; use `pass` when an explicit
 no-op body is required.
 
-Named declarations, imports, and exports are top-level items. Methods occur
+Named declarations and implementations may also occur in executable block
+suites. Imports, exports, and annotations remain top-level items. Methods occur
 inside trait and implementation declarations through their dedicated grammar
-productions; arbitrary declarations do not occur in an executable suite.
+productions.
 
 ## Test Blocks
 
@@ -60,6 +61,12 @@ otherwise it remains an ordinary identifier.
 
 ```ebnf
 statement = suite_statement
+          | function_decl
+          | struct_decl
+          | enum_decl
+          | trait_decl
+          | type_decl
+          | impl_decl
           | simple_statement, NEWLINE
           ;
 
@@ -166,8 +173,8 @@ struct_member = struct_field, NEWLINE
               | embedded_field, NEWLINE
               ;
 
-struct_field = identifier, ":", type ;
-embedded_field = type_name ;
+struct_field = [ "pub" ], identifier, ":", type ;
+embedded_field = [ "pub" ], type_name ;
 ```
 
 An embedded field must denote a struct type and must not include generic
@@ -224,7 +231,7 @@ impl_decl = "impl", [ generic_params ], type, [ "for", type ],
 
 impl_member = associated_type_decl | method_decl ;
 
-method_decl = "fn", callable_name, [ generic_params ],
+method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
               parameter_clause, "->", type, [ requirement_clause ],
               ":", suite_body ;
 
@@ -238,6 +245,8 @@ where_predicate = type, ":", trait_bounds ;
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
 implementation. A trait declaration without a body is a marker trait, and a
 trait implementation without a body implements such a marker trait. A
+`pub` method is permitted only in an inherent implementation; trait method
+visibility follows the trait. A
 bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a
 suite. `trait Child: Parent:` declares `Parent` as a supertrait and opens the
 body with the second `:`. A function member whose first parameter is `self` or
@@ -407,7 +416,7 @@ additive_expression = multiplicative_expression,
 multiplicative_expression = unary_expression,
                             { ( "*" | "/" | "%" ), unary_expression } ;
 
-unary_expression = ( "-" | "~" | "not" ), unary_expression
+unary_expression = ( "+" | "-" | "~" | "not" ), unary_expression
                  | power_expression
                  ;
 power_expression = postfix_expression, [ "**", unary_expression ] ;
@@ -431,8 +440,10 @@ therefore begin with a unary operator.
 
 ```ebnf
 primary_expression = literal
+                   | string_expression
                    | generic_function_reference
                    | qualified_name
+                   | contextual_variant_expression
                    | trait_qualified_call
                    | context_use
                    | context_create
@@ -446,6 +457,7 @@ primary_expression = literal
                    ;
 
 generic_function_reference = qualified_name, type_arguments ;
+contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier, argument_clause ;
 
 shape_expression = "shape", "(", shape_target, ")" ;
@@ -458,9 +470,29 @@ literal = boolean_literal
         | nil_literal
         | float_literal
         | integer_literal
-        | string_literal
         | char_literal
         ;
+
+string_expression = interpreted_string_expression
+                  | interpreted_multiline_string_expression
+                  | raw_string_literal
+                  | raw_multiline_string_literal
+                  ;
+
+interpreted_string_expression = '"', { string_segment }, '"' ;
+interpreted_multiline_string_expression = '"""',
+                                          { multiline_string_segment },
+                                          '"""' ;
+string_segment = string_text
+               | escape_sequence
+               | "$", identifier
+               | "${", expression, "}"
+               ;
+multiline_string_segment = multiline_string_text
+                         | escape_sequence
+                         | "$", identifier
+                         | "${", expression, "}"
+                         ;
 
 tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
@@ -591,7 +623,8 @@ literal_pattern = boolean_literal
 
 binding_pattern_atom = identifier ;
 
-variant_pattern = qualified_name, [ pattern_argument_clause ] ;
+variant_pattern = ( qualified_name | ".", identifier ),
+                  [ pattern_argument_clause ] ;
 pattern_argument_clause = "(", [ pattern_argument_list ], ")" ;
 pattern_argument_list = positional_pattern,
                         { ",", positional_pattern },
@@ -605,9 +638,10 @@ tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
 ```
 
-Variant patterns must use a qualified enum variant name. Positional binding
-names need not match payload field names. Only `field=pattern` is a named
-pattern, and no positional pattern may follow a named pattern.
+Variant patterns may use a qualified enum variant name or `.Variant` when the
+matched value's type supplies one enum. Positional binding names need not match
+payload field names. Only `field=pattern` is a named pattern, and no positional
+pattern may follow a named pattern.
 
 ## Comprehensions
 

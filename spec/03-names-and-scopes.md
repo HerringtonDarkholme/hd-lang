@@ -7,15 +7,18 @@ resolve. It does not define type compatibility or access permission.
 
 ## Name Categories
 
-hd-lang has three lookup categories:
+hd-lang has four lookup categories:
 
 1. **Module names** identify top-level types, traits, functions, and imported
    declarations. A module cannot contain two declarations with the same module
    name, even if they are different kinds of declaration. Function overloading
    is therefore not permitted.
-2. **Local value names** identify parameters, local bindings, loop bindings,
-   pattern bindings, and captured values.
-3. **Member names** identify struct fields, embedded fields, methods, enum
+2. **Value names** identify top-level executable bindings, parameters, local
+   bindings, local named functions, loop bindings, pattern bindings, and
+   captured values.
+3. **Local type names** identify structs, enums, traits, aliases, and newtypes
+   declared inside an executable suite.
+4. **Member names** identify struct fields, embedded fields, methods, enum
    variants, and tuple fields within the namespace of their owning type.
 
 A use is resolved in the category required by its syntax. For example, the
@@ -81,13 +84,17 @@ for executable top-level statements.
 
 Top-level executable statements run in a separate module execution scope.
 Bindings created by those statements become visible to later top-level
-statements, but are not importable declarations and are not visible before
-their binding point. A top-level executable statement may refer to a named
-module declaration regardless of that declaration's textual position.
+statements and to the bodies of functions declared after their binding point.
+Those functions may read a top-level `:=` or `let` binding and may reassign a
+top-level `let` binding. Such bindings are not importable declarations and are
+not visible before their binding point, including from the body of a function
+declared earlier. A top-level executable statement may refer to a named module
+declaration regardless of that declaration's textual position.
 
-Named `fn`, `struct`, `enum`, `trait`, and `type` declarations occur only at
-module scope. `impl` declarations also occur only at
-module scope, but do not introduce an independently referencable module name.
+Named `fn`, `struct`, `enum`, `trait`, and `type` declarations may also occur
+inside executable block suites. `impl` declarations may occur at module scope
+or inside an executable block suite; they do not introduce an independently
+referencable name.
 
 Declarations are module-private unless marked `pub`. `pub` makes a declaration
 eligible to be imported from another module. It does not register a Wasm export
@@ -192,14 +199,58 @@ its signature after their declaration point and throughout its body. All value
 parameters belong to the function body's outermost local scope and must have
 distinct names.
 
+A named function declared in a block suite introduces a local value name at
+its declaration point. The name is visible in the rest of that suite and in
+the function's own body, permitting recursion. It is not visible before its
+declaration, outside the suite, or from another module. It follows the same
+shadowing and duplicate-name rules as other local values.
+
+A local `struct`, `enum`, `trait`, or `type` declaration introduces a type name
+at its declaration point, visible in its own definition and in the rest of its
+enclosing suite. It is not visible before that point or outside the suite.
+Local type declarations do not execute, capture runtime values, or become
+importable module members. They may refer to type names and type parameters
+visible at their declaration point. A local nominal type has one declaration
+identity, not a fresh identity per call to the enclosing function. Local type
+and value declarations cannot duplicate a name in the same scope; local type
+declarations also cannot replace a predeclared core type name. `pub` is not
+permitted on local declarations.
+
+A local `impl` contributes methods or trait conformance from its declaration
+point to the end of its enclosing suite and its child scopes. It has no runtime
+execution step. Neither its methods nor methods on a local trait capture
+enclosing runtime values. A local implementation must involve a visible local
+nominal type or local trait, as specified in [Traits](09-traits.md).
+
+```text
+fn describe(name: string) -> string:
+    type Label = string
+    struct Entry:
+        label: Label
+    enum Format:
+        Plain
+        Loud
+    trait Named:
+        fn name(self) -> string
+    impl Named for Entry:
+        fn name(self) -> string: self.label
+    impl Entry:
+        fn shout(self) -> string: self.label + "!"
+
+    entry := Entry { label: name }
+    match Format.Plain:
+        Format.Plain => entry.name()
+        Format.Loud => entry.shout()
+```
+
 Within a method, `self` is an ordinary parameter name supplied by the receiver
 syntax. `mut self` is shorthand for `self: mut Self`; it does not create a
 different lookup category.
 
-A closure resolves otherwise-unbound local names in lexically enclosing
-scopes. Those resolved names are its captures. Whether a capture permits
-mutation is determined by the closure's function type and the captured value's
-access type, as specified in [Functions](07-functions.md).
+A closure or local named function resolves otherwise-unbound local names in
+lexically enclosing scopes. Those resolved names are its captures. Whether a
+capture permits mutation is determined by the function type and the captured
+value's access type, as specified in [Functions](07-functions.md).
 
 `return` in a closure or trailing block targets that closure, not the enclosing
 named function.
@@ -276,14 +327,14 @@ The same promotion rule applies to fields and methods. During trait
 satisfaction, an unambiguous promoted method can satisfy a required method;
 ambiguous promoted methods cannot.
 
-Enum variants are members of their enum and must be qualified in construction
-and patterns:
+Enum variants are members of their enum. Construction and patterns may use the
+qualified spelling or `.Variant` with an unambiguous contextual enum type:
 
 ```text
 status := JobStatus.Queued
 
 match status:
-    JobStatus.Queued => "waiting"
+    .Queued => "waiting"
 ```
 
 Tuple members use numeric selectors such as `.0` and `.1`. Numeric selectors
@@ -291,7 +342,7 @@ are not ordinary identifiers and cannot be declared by users.
 
 ## Unsupported Scope Extensions
 
-hd-lang permits shadowing of outer local names; a style tool may warn about it, but
-that warning is not part of language semantics. hd-lang does not support nested
-named declarations, direct imports of enum variants, or top-level stored-value
-declarations distinct from sequential script bindings.
+hd-lang permits shadowing of outer local names; a style tool may warn about it,
+but that warning is not part of language semantics. hd-lang does not support
+direct imports of enum variants. Top-level stored values use ordinary `:=` and
+`let` bindings; there is no separate stored-value declaration form.

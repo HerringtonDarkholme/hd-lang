@@ -1,0 +1,3 @@
+# expect-error: unexpected-bom
+first := 1
+﻿second := 2

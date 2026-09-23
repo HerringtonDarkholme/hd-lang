@@ -1,0 +1,8 @@
+# expect-error: missing-contextual-enum-type
+
+enum Status:
+    Queued
+
+fn invalid() -> void:
+    status := .Queued
+    println(status)
