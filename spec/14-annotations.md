@@ -55,11 +55,12 @@ Shapes expose structure for generic handling but do not permit mutation of the
 source declaration. Every shape provides a stable declaration identity, source
 name, qualified name, source position, documentation string, and declaration
 kind. `FieldShape`, `VariantShape`, and `ParamShape` additionally provide their
-zero-based declaration position and declared `TypeShape`. Fields and variants
-also expose metadata attached by `annotate Target`. `DataShape`, `EnumShape`,
-and `FnShape` contain their ordered direct members. `FnShape` additionally
-exposes its result type, whether it is suspending, and its normalized unordered
-requirement row; each `ParamShape` records whether a default is declared.
+zero-based declaration position and declared `TypeShape`. Fields, variants,
+and parameters expose metadata attached by `annotate Target`. `DataShape`,
+`EnumShape`, and `FnShape` contain their ordered direct members. `FnShape`
+additionally exposes its result type, whether it is suspending, and its
+normalized unordered requirement row; each `ParamShape` records whether a
+default is declared.
 Promoted embedded members are not duplicated as direct fields.
 
 `shape(Target)` materializes the appropriate shape value. A concrete target
@@ -127,6 +128,15 @@ pass`, which occupies the `impl Annotate[Validation] for User` coherence slot.
 The same rule applies to `@Validation` before an enum and `@Tool` before a
 function. A decorator does not register the resulting runtime information.
 
+A declaration decorator may instead be an ordinary configured facet
+expression. If `tool(strict=true)` has static type `Tool`, then
+`@tool(strict=true)` expands to `annotate tool(strict=true) for Target: pass`
+and occupies the same `(Tool, Target)` coherence slot as `@Tool`. The expression
+is evaluated once during annotation initialization, and that exact value is
+used as `self` for every mapping and `build` call for the target. It must obey
+the same pure, deterministic, non-suspending, dependency-free restrictions as
+other annotation initialization expressions.
+
 An `@value` line immediately before a direct data field or enum variant
 attaches member metadata. For a field `name: string`, `@max_len(80)` expands to
 the `max_len(80)` entry in `annotate User: name = [max_len(80)]`. The value must
@@ -136,9 +146,27 @@ duplicate-concrete-type rule as an explicit member metadata list. A decorator
 and an explicit `annotate` block for the same target combine only when they do
 not assign the same member or occupy the same facet/target coherence slot.
 Decorators attach to declarations or members, never to type expressions.
+Declaration decorators are module-level syntax; local declarations cannot be
+decorated or targeted by an `annotate` declaration.
 
-Parameter decorators and configured facet values are tracked separately in
-[Open Issues](OPEN_ISSUES.md).
+An `@value` prefix on a parameter of a module-level named function attaches
+parameter metadata. For `id: UserId`, the value must implement
+`ParamMetadata[UserId]`. The prefix may be inline or occupy its own line in a
+multiline parameter clause:
+
+```text
+@Tool
+fn get_user(
+    @description("User identifier")
+    id: UserId,
+) -> User:
+    ...
+```
+
+This expands to the `id` entry in `annotate get_user` and becomes visible
+through `ParamShape` before `Tool.map_param` runs. Parameter decorators are not
+accepted on closures, methods, trait requirements, receiver parameters, or
+local functions.
 
 `@derive` uses the same prefix position but is not an ordinary `@Facet`
 decorator. Its arguments are trait names rather than metadata values. The
@@ -147,7 +175,8 @@ compiler checks and generates each requested implementation; no general
 
 ### Member Metadata
 
-`annotate Target` attaches metadata values to existing fields or variants:
+`annotate Target` attaches metadata values to existing fields, enum variants,
+or function parameters:
 
 ```text
 data User:
@@ -157,9 +186,10 @@ annotate User:
     display_name = [min_len(1), max_len(80)]
 ```
 
-The target is a declared data type or enum, not an arbitrary type expression.
-Every left-hand name must identify an existing direct member. The block cannot
-add, rename, remove, or change the type of a member.
+The target is a declared data type, enum, or module-level named function, not
+an arbitrary type expression. Every left-hand name must identify an existing
+direct member or parameter. The block cannot add, rename, remove, or change the
+type of a member or parameter.
 
 Field metadata is contextually typed as `list[FieldMetadata[T]]`, where `T` is
 the declared field type. Variant metadata uses the corresponding marker trait:
@@ -167,7 +197,13 @@ the declared field type. Variant metadata uses the corresponding marker trait:
 ```text
 trait FieldMetadata[T]
 trait VariantMetadata
+trait ParamMetadata[T]
 ```
+
+Function parameter metadata is contextually typed as
+`list[ParamMetadata[T]]`, where `T` is the declared parameter type. One
+parameter must not contain two metadata values with the same concrete metadata
+type.
 
 Metadata objects are ordinary values. Constructors and helper functions are
 equivalent ways to make them:
@@ -238,8 +274,10 @@ annotation_decl = member_metadata_decl | facet_annotation_decl ;
 member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
-facet_annotation_decl = "annotate", type, "for", annotation_target, ":",
+facet_annotation_decl = "annotate", annotation_facet, "for", annotation_target, ":",
                         facet_annotation_suite ;
+
+annotation_facet = type | expression ;
 
 annotation_target = type | qualified_name ;
 
@@ -263,11 +301,16 @@ annotation_runtime_access = qualified_name, "::", "annotation", "(",
                             annotation_target, ")" ;
 ```
 
-The facet name is parsed as a type implementing `Annotation`. Target resolution
-distinguishes a type target from a function target. `annotate Target` metadata
-assignments apply to data fields or enum variants. Function annotators read
-parameter shapes and may replace the complete `build`; there is no
-parameter-assignment override syntax.
+The facet operand is either a facet type or a configured expression whose
+static type implements `Annotation`. A type operand constructs the stateless
+facet's default empty value and therefore requires a facet type with no required
+fields. An expression value is retained and reused for the complete
+derivation. In both cases, the facet's static type determines the
+`Annotate[Facet]` coherence slot. Target resolution distinguishes a type target
+from a function target. `annotate Target` metadata
+assignments apply to data fields, enum variants, or module-level function
+parameters. Function annotators read the resulting parameter shapes and may
+replace the complete `build`.
 
 ## Aggregate Annotators
 
@@ -340,7 +383,8 @@ trait FuncAnnotator: Annotation:
 They do not vary at the type level with the original member type. An annotator
 may inspect each shape's runtime type descriptor and member metadata to choose a
 value, but the core type system does not model a type-level function from field
-type to mapped output type.
+type to mapped output type. `map_param` may inspect metadata attached to its
+`ParamShape` through `ParamMetadata[T]` values.
 
 ## Structural Overrides
 
@@ -366,10 +410,11 @@ whole result. Other map steps still occur. A local `build` replaces aggregate
 assembly, not member mapping; hd-lang has no separate full-derivation
 replacement hook.
 
-Function parameter assignment overrides are not part of the language.
-`ParamShape` therefore has no parameter-local metadata collection.
-Function-specific customization uses parameter types, names, defaults,
-documentation, or a whole-function `build` override.
+An assignment in `annotate Function` attaches parameter metadata; it does not
+replace that parameter's `ParamTarget`. Exact function-parameter result
+overrides in `annotate Facet for Function` are not part of the language.
+Function-specific result customization uses parameter metadata, types, names,
+defaults, documentation, or a whole-function `build` override.
 
 ## Bottom-Up Evaluation
 
@@ -377,7 +422,7 @@ Annotation materialization follows a strict order:
 
 1. resolve annotation information for each member's declared type, except
    members whose exact facet result is overridden;
-2. attach and evaluate that member's field or variant metadata;
+2. attach and evaluate that member's field, variant, or parameter metadata;
 3. call the enclosing annotator's `map_field`, `map_variant`, or `map_param`
    for members without an exact result override;
 4. use exact structural result overrides in place of those mapped results;
@@ -385,6 +430,9 @@ Annotation materialization follows a strict order:
 
 For enums, every payload field is mapped before its containing variant; every
 variant is mapped before enum `build`.
+
+For functions, every parameter's metadata is evaluated and attached before
+`map_param`; every parameter is mapped before function `build`.
 
 An enclosing annotator receives ordinary shape and mapped values. It may
 interpret or replace child metadata values in its own result, but it cannot
@@ -415,6 +463,11 @@ annotation-initialization phase, not as unrestricted compiler evaluation. They
 must be pure, deterministic, non-suspending, and dependency-free: no `$`
 context, bang calls, IO, clock, randomness, network, database, or escaping
 mutation. Completed results are memoized per package.
+
+Configured facet expressions execute once under these same restrictions before
+their target is mapped. Their value is retained for that target's derivation;
+calling `Facet::annotation(Target)` returns the completed memoized `Info`, not
+the facet configuration value.
 
 The compiler's special role is to:
 
@@ -505,12 +558,18 @@ make the program field itself lazy.
 At most one annotation exists for an exact `(facet, target)` pair in the whole
 resolved package graph. `annotate Facet for Target` and an explicit
 `impl Annotate[Facet] for Target` occupy the same coherence slot.
+Configured facet expressions use their static facet type in this key, so two
+differently configured values of `Tool` cannot annotate the same target.
 
 Annotation blocks are package-global rather than lexical. If a library provides
 an annotation for its target, a downstream package cannot override it. A
 downstream application may provide package-local information for an imported
 target only when no library in the resolved graph already provides that exact
 facet/target pair.
+
+Local declarations cannot participate in annotation coherence. They may still
+be reflected where ordinary local shape rules permit, but they cannot receive
+facet or member metadata through decorators or `annotate` blocks.
 
 There is no implicit library default annotation. A target has facet information
 only when the facet/target conformance is explicitly present or structural

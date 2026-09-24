@@ -90,16 +90,24 @@ decisions:
 
 ### Functions And Closures
 
-- **Discuss:** recursive local closure bindings.
-- **Discuss:** partial explicit generic argument lists.
-- **Discuss:** generic argument placeholders.
-- **Support candidate:** explicit generic arguments on methods.
+- **Accepted:** a directly bound local closure may refer to its own binding in
+  its body when its return type is explicit. Nonrecursive closures may infer
+  their return type; closure parameter types may be contextual.
+- **Retain exclusion:** partial explicit generic argument lists. A call either
+  infers every generic argument or supplies the complete list explicitly.
+- **Accepted:** `_` may occupy a slot in a complete explicit generic argument
+  list for a named function. Each placeholder is inferred; unresolved
+  placeholders are errors. `_` is not an ordinary type argument.
+- **Accepted:** generic methods accept complete explicit generic argument lists
+  with the same `_` placeholder rules as named module functions.
 - **Retain exclusion:** shorthand-argument or arrow closure syntax.
 - **Retain exclusion:** non-local returns from closures.
 - **Retain exclusion:** multiple trailing callback blocks or trailing callbacks
   with parameters.
 - **Retain exclusion:** ownership-taking receivers and reference sigils.
-- **Discuss:** reassignable parameter bindings.
+- **Retain exclusion:** reassignable parameter bindings. Parameter names are
+  immutable bindings, independently of whether their types grant mutable
+  access. Copy the value into a `let` local when rebinding is needed.
 
 ### Data Types, Enums, Representation, And Resources
 
@@ -138,8 +146,9 @@ decisions:
   object addresses, and representation identity as core-language semantics.
 - **Deferred:** weak references and user-visible finalizers. Neither is
   supported now; revisit them separately from resource cleanup.
-- **Discuss:** resource ownership, deterministic cleanup, alias escape, and
-  use-after-disposal checking.
+- **Deferred:** resource ownership, deterministic cleanup, alias escape, and
+  use-after-disposal checking. The core language does not currently prevent a
+  resource from escaping before a deferred cleanup invalidates it.
 
 ### Traits And Types
 
@@ -150,7 +159,7 @@ decisions:
 - **Retain exclusion:** trait implementation specialization.
 - **Deferred:** negative trait implementations. There is no current use case
   requiring them; explicit conformance and the existing overlap rules remain.
-- **Discuss:** direct composition of permission weakening with generic
+- **Deferred:** direct composition of permission weakening with generic
   variance, such as `mut Cell[Cat]` to `Cell[Animal]`.
 - **Accepted:** a direct generic data field declared `field: P` reads as its
   substituted type. For `Box[mut User]`, `value: P` reads as `mut User` even
@@ -199,15 +208,24 @@ Other pack operations are outside the current design.
 - **Accepted:** prefix `@value` on a direct data field or enum variant expands
   to its member's `annotate Target` metadata; order and duplicate checks match
   explicit member metadata lists.
-- **Discuss:** parameter decorators, configured facet values, and decorator
-  support on local declarations or embedded fields.
+- **Accepted:** typed parameter decorators on module-level named functions.
+  They attach `ParamMetadata[T]` values to `ParamShape` before `map_param` and
+  lower through `annotate Function` parameter metadata.
+- **Accepted:** configured declaration-facet values. A decorator expression's
+  static annotation type determines coherence; its ordinary value is evaluated
+  once and reused for mapping and `build`.
+- **Retain exclusion:** decorators and `annotate` blocks on local declarations.
+  Annotation coherence and memoization remain package-global.
+- **Discuss:** decorators on embedded fields.
 - **Accepted:** `@derive(PartialEq, Eq)` uses the compiler-intrinsic path, not
   annotation lowering. No equality is derived implicitly.
 - **Discuss:** wildcard or generic-family annotation derivation syntax beyond
   ordinary generic `impl Annotate[A] for Target` declarations.
 - **Discuss:** replacing an entire derivation rather than overriding aggregate
   `build` after member mapping.
-- **Retain exclusion:** function-parameter metadata assignment overrides.
+- **Retain exclusion:** exact function-parameter `ParamTarget` result
+  overrides inside `annotate Facet for Function`; parameter metadata remains
+  available through `annotate Function` and prefix decorators.
 - **Retain exclusion:** metadata overrides of promoted fields.
 - **Retain exclusion:** implicit default annotations and downstream replacement
   of an authoritative library annotation.

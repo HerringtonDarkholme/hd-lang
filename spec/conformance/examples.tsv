@@ -73,7 +73,9 @@ specification	block	classification	fixture
 07-functions.md	17	accept	typing/valid/trait-features.hd
 07-functions.md	18	accept	typing/valid/functions.hd
 07-functions.md	19	accept	typing/valid/functions.hd
-07-functions.md	20	accept	typing/valid/requirements-and-suspension.hd
+07-functions.md	20	accept	typing/valid/generic-argument-placeholder.hd
+07-functions.md	21	accept	typing/valid/explicit-generic-method.hd
+07-functions.md	22	accept	typing/valid/requirements-and-suspension.hd
 08-data-and-enums.md	1	accept	typing/valid/data-types.hd
 08-data-and-enums.md	2	accept	typing/valid/data-types.hd
 08-data-and-enums.md	3	accept	typing/valid/data-types.hd
@@ -141,7 +143,7 @@ specification	block	classification	fixture
 14-annotations.md	3	accept	typing/valid/annotations.hd
 14-annotations.md	4	accept	typing/valid/annotations.hd
 14-annotations.md	5	accept	typing/valid/annotations.hd
-14-annotations.md	6	accept	typing/valid/annotations.hd
+14-annotations.md	6	accept	typing/valid/parameter-decorator.hd
 14-annotations.md	7	accept	typing/valid/annotations.hd
 14-annotations.md	8	accept	typing/valid/annotations.hd
 14-annotations.md	9	accept	typing/valid/annotations.hd
@@ -155,3 +157,4 @@ specification	block	classification	fixture
 14-annotations.md	17	accept	typing/valid/annotations.hd
 14-annotations.md	18	accept	typing/valid/annotations.hd
 14-annotations.md	19	accept	typing/valid/annotations.hd
+14-annotations.md	20	accept	typing/valid/annotations.hd

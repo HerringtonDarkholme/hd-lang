@@ -429,8 +429,10 @@ requires the underlying type to implement `Trait`. A plain `T: Trait` requires
 trait conformance without mutable-root authority.
 
 Generic arguments are inferred at call sites when unambiguous. Callers may
-supply the complete generic argument list explicitly. Partial explicit generic
-arguments and placeholder generic arguments are not language constructs.
+supply the complete generic argument list explicitly. Partial explicit lists
+are not permitted. In a named generic-function reference, `_` may occupy a
+slot in the complete list and requests inference for that argument; it is not
+itself a type and is invalid in ordinary type applications.
 
 Function generic parameters are erased at runtime by default. A parameter
 marked `reified` carries runtime type metadata and may be used by operations

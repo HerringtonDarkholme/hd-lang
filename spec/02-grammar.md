@@ -147,15 +147,19 @@ parameter_clause = "(", [ parameter_list ], ")" ;
 parameter_list = parameter, { ",", parameter }, [ "," ] ;
 
 parameter = receiver_parameter
-          | value_parameter
+          | { parameter_decorator }, value_parameter
           ;
 
+parameter_decorator = "@", expression ;
 value_parameter = identifier, ":", type, [ "=", expression ], [ "..." ] ;
 
 receiver_parameter = "self" | "mut", "self" ;
 ```
 
-The receiver forms are valid only for methods. A vararg parameter ends in
+The receiver forms are valid only for methods. Parameter decorators are valid
+only on value parameters of module-level named functions. Within a multiline
+parameter clause, each decorator may occupy its own prefix line; delimiter
+line breaks do not terminate the parameter. A vararg parameter ends in
 `...`; it must be the final positional parameter. Default-argument ordering and
 purity are semantic constraints defined in [Functions](07-functions.md).
 
@@ -431,7 +435,8 @@ unary_expression = ( "+" | "-" | "~" | "not" ), unary_expression
 power_expression = postfix_expression, [ "**", unary_expression ] ;
 
 postfix_expression = primary_expression, { postfix_suffix } ;
-postfix_suffix = ".", ( identifier | integer_literal )
+postfix_suffix = ".", identifier, [ function_type_arguments ]
+               | ".", integer_literal
                | "[", expression, "]"
                | argument_clause
                | "!", argument_clause
@@ -444,6 +449,11 @@ chain. Exponentiation is right-associative. The right operand of `**` may
 therefore begin with a unary operator.
 
 `!(` begins a suspension call suffix at ordinary call precedence.
+
+After member resolution, brackets immediately following a generic method name
+are parsed as `function_type_arguments`, not as an indexing suffix. An explicit
+method type-argument list is valid only when the selected member is generic and
+the expression proceeds to an ordinary or suspending call.
 
 ### Primary Expressions
 
@@ -466,7 +476,10 @@ primary_expression = literal
                    | "pass"
                    ;
 
-generic_function_reference = qualified_name, type_arguments ;
+generic_function_reference = qualified_name, function_type_arguments ;
+function_type_arguments = "[", function_type_argument,
+                          { ",", function_type_argument }, [ "," ], "]" ;
+function_type_argument = type_argument | "_" ;
 contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier, argument_clause ;
 
@@ -538,9 +551,11 @@ data_field_item = identifier, ":", expression ;
 Name resolution distinguishes a data expression from a map expression and
 an enum variant selection from ordinary field access. It also distinguishes a
 named generic-function reference from indexing: in `first[string](names)`, the
-bracketed form is parsed as type arguments because `first` resolves to a named
-generic function. A parser may preserve this syntactic ambiguity until name
-resolution, but it must parse every generic argument as a type.
+bracketed form is parsed as function type arguments because `first` resolves
+to a named generic function. A parser may preserve this syntactic ambiguity
+until name resolution. Each argument is a type, a type-pack expansion, or the
+inference placeholder `_`. The placeholder is not part of ordinary
+`type_arguments` and therefore cannot occur in a type such as `list[_]`.
 
 ### Calls And Arguments
 
@@ -725,8 +740,10 @@ annotation_decl = member_metadata_decl | facet_annotation_decl ;
 member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
-facet_annotation_decl = "annotate", type, "for", annotation_target, ":",
+facet_annotation_decl = "annotate", annotation_facet, "for", annotation_target, ":",
                         facet_annotation_suite ;
+
+annotation_facet = type | expression ;
 
 annotation_target = type | qualified_name ;
 
@@ -746,6 +763,13 @@ facet_annotation_suite = "pass", SUITE_END
 
 facet_override = metadata_assignment | function_decl ;
 ```
+
+An `annotation_facet` that resolves as a type requests that stateless facet's
+default empty value and is valid only when the type has no required fields. An
+expression form is evaluated as a configured facet
+value; its static type is the facet type used for coherence and
+`Annotate[Facet]` generation. The syntactic overlap between a named type and a
+name expression is resolved by ordinary name and type resolution.
 
 ## Pack Expansion
 

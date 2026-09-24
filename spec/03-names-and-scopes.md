@@ -70,6 +70,11 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 
 This permits ordinary inner-scope shadowing without making a new binding
 self-referential.
+The sole exception is a direct local closure initializer with an explicit
+result type: its body may refer to the name being bound for recursion. The
+initializer expression itself is still evaluated before the binding becomes
+available; only the closure body receives this forward name. The closure body
+cannot run before initialization completes.
 
 ## Module Scope
 
@@ -215,6 +220,10 @@ identity, not a fresh identity per call to the enclosing function. Local type
 and value declarations cannot duplicate a name in the same scope; local type
 declarations also cannot replace a predeclared core type name. `pub` is not
 permitted on local declarations.
+
+Decorators and `annotate` declarations are not permitted in a local scope.
+Annotation coherence, initialization, and memoization remain package-global
+even though undecorated local declarations are available.
 
 A local `impl` contributes methods or trait conformance from its declaration
 point to the end of its enclosing suite and its child scopes. It has no runtime

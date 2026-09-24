@@ -1,0 +1,5 @@
+# expect-error: unresolved-generic-placeholder
+fn make[T]() -> T:
+    panic("not implemented")
+
+value := make[_]()

@@ -1,0 +1,38 @@
+data Tool: pass
+data ToolSpec: pass
+data ToolParam: pass
+data User: pass
+type UserId(i64)
+
+data Description:
+    text: string
+
+fn description(text: string) -> Description:
+    Description { text: text }
+
+impl[T] ParamMetadata[T] for Description
+
+impl Annotation for Tool:
+    type Info = ToolSpec
+
+impl FuncAnnotator for Tool:
+    type ParamTarget = ToolParam
+
+    fn map_param(self, param: ParamShape) -> ToolParam:
+        ToolParam {}
+
+    fn build(
+        self,
+        shape: FnShape,
+        params: Dict[string, ToolParam],
+    ) -> ToolSpec:
+        ToolSpec {}
+
+@Tool
+fn get_user(
+    @description("User identifier")
+    id: UserId,
+) -> User:
+    User {}
+
+tool := Tool::annotation(get_user)

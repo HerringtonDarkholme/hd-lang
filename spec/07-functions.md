@@ -164,7 +164,8 @@ type.
 
 Generic functions are not first-class polymorphic values. Referring to one as
 a value must instantiate every generic parameter, either from an expected
-monomorphic function type or with the complete explicit type-argument list.
+monomorphic function type or with a complete explicit type-argument list. A
+placeholder in that list may be solved from the expected monomorphic type.
 The resulting value has an ordinary monomorphic function type. A reified
 instantiation captures the required runtime type descriptors in that value.
 
@@ -205,8 +206,11 @@ parameter and result annotations:
 lower := names.map(fn(name): name.lower())
 ```
 
-Without a sufficient expected type, the closure must state enough annotations
-to determine all parameter and result types.
+Without a sufficient expected type, parameters must be annotated. A
+nonrecursive closure may infer its result type from its body; an expected
+function type may instead supply the result type. A recursive local closure
+must always write its result type explicitly, even if an expected function
+type could supply it.
 
 ### Captures
 
@@ -305,8 +309,36 @@ first(names)
 first[string](names)
 ```
 
-Explicit type arguments apply to named module functions. Generic method
-calls rely on inference.
+An explicit type-argument list must supply every generic parameter. Partial
+prefix lists are not permitted, even when inference could determine the
+remaining arguments.
+
+An explicit list may write `_` in any slot to infer that argument:
+
+```text
+fn convert[From, To](value: From) -> To:
+    ...
+
+user := convert[_, User](payload)
+```
+
+The list still has exactly one slot per generic parameter. A placeholder is
+solved from call arguments, the expected result type, and the function's
+generic constraints. If those constraints do not determine one type, the call
+is rejected as ambiguous. `_` is a call-site inference instruction, not a type,
+and cannot appear in an ordinary type argument list such as `list[_]`.
+
+The same explicit-list rules apply to generic methods:
+
+```text
+parser.parse[User](text)
+parser.convert[_, User](payload)
+```
+
+Name resolution distinguishes the brackets from an indexing operation. A
+generic method may still rely entirely on inference by omitting the list. Bare
+generic bound-method values remain unsupported; the explicitly instantiated
+member must be called.
 
 Generic parameters are erased by default. `reified T` requests runtime type
 metadata, as defined in [Type System](04-type-system.md).
@@ -320,6 +352,11 @@ Functions declared in `impl` blocks are methods when their first parameter is
 impl User:
     fn domain(self) -> string:
         self.email.split("@")[1]
+
+    fn tagged[T](self, value: T) -> T:
+        value
+
+label := user.tagged[string]("admin")
 ```
 
 `self` is const access to the receiver. `mut self` is shorthand for
@@ -336,9 +373,18 @@ function value is deferred; see [Member Access](05-expressions.md#member-access)
 ## Recursion
 
 Named functions may call themselves or other visible named functions recursively.
-Closures do not acquire an implicit self-name. A recursively used closure must
-be expressed through a separately designed recursive binding facility; direct
-self-reference in its own initializer is invalid under ordinary binding rules.
+Closures do not acquire an implicit self-name. A closure directly initialized
+by a statement-form local `:=` or `let` binding may refer to that binding's
+name inside its body. Its result type after `->` is mandatory. Parameter types
+may be supplied by an expected function type or written on the closure. The
+compiler checks recursive calls against that established function type, not
+against a result inferred from the recursive body. Ordinary references in the
+initializer outside the closure body still resolve in the outer scope.
+
+The self-reference uses the ordinary binding. With `let`, reassignment changes
+which function a later recursive call invokes. A closure body cannot execute
+until its binding's initializer completes; this exception does not enable
+general forward references or mutual recursion between local closures.
 
 ## Program Entry Functions
 
@@ -351,7 +397,7 @@ requirements with the ordinary `$` clause.
 
 ## Unsupported Function Extensions
 
-hd-lang has no recursive local binding facility, partial generic argument lists,
-placeholder generic arguments, shorthand-argument closures, or non-local
+hd-lang has no general recursive local binding facility, partial generic
+argument lists, shorthand-argument closures, or non-local
 returns from closures. The binary encoding of exported purity summaries is a
 compiler ABI detail, but their checked semantics are defined above.

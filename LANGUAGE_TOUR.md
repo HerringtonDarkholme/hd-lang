@@ -909,6 +909,17 @@ fn normalize_email(email: string) -> string:
 clean := normalize_email("Ada@Example.COM ")
 ```
 
+Parameter names are immutable bindings. A `mut T` parameter permits mutation
+through the reference but cannot itself be rebound. Use a `let` local when the
+algorithm needs reassignment:
+
+```text
+fn normalize(value: i32) -> i32:
+    let current = value
+    current = current.abs()
+    current
+```
+
 Calls can mix positional and named arguments. Positional arguments must come first; no positional argument can appear after a named argument:
 
 ```text
@@ -1043,7 +1054,18 @@ choice(
 )
 ```
 
-The expected types infer `aa: i32`, `bb: string`, and a `void` return from both callbacks. Standalone or ambiguous closures still require explicit parameter and return types.
+The expected types infer `aa: i32`, `bb: string`, and a `void` return from both callbacks. A standalone nonrecursive closure needs explicit parameter types but may infer its return type from its body.
+
+A directly bound local closure may call itself when it writes an explicit
+return type. Parameter types can still come from an expected function type:
+
+```text
+let sum: fn(i32) -> i32 = fn(n) -> i32:
+    if n == 0: 0
+    else: n + sum(n - 1)
+```
+
+`sum := fn(n: i32): ...` cannot recurse because its return type is inferred.
 
 Closures capture values from the surrounding lexical scope:
 
@@ -1118,6 +1140,20 @@ a := first(names)          # T inferred as string
 b := first[string](names)  # explicit generic argument
 ```
 
+An explicit generic argument list must be complete. A call cannot provide only
+a left-to-right prefix and infer the remaining generic arguments. Use `_` to
+infer an individual slot while preserving the complete list:
+
+```text
+fn convert[From, To](value: From) -> To:
+    ...
+
+user := convert[_, User](payload)
+```
+
+Every `_` must be determined by the call arguments, expected result type, or
+generic constraints. It is not a type and cannot be used in `list[_]`.
+
 Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
 
 ```text
@@ -1153,7 +1189,8 @@ fn invalid_resolved[T]() -> T $ TypeProvider:
 
 Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
 
-hd-lang does not support partial explicit generic arguments or placeholder generic arguments.
+hd-lang does not support partial explicit generic argument lists. An explicit
+list remains complete even when one or more slots use `_` for inference.
 
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
 
@@ -1201,8 +1238,16 @@ impl User:
     fn domain(self) -> string:
         self.email.split("@")[1]
 
+    fn tagged[T](self, value: T) -> T:
+        value
+
 domain := user.domain()
+label := user.tagged[string]("admin")
 ```
+
+Generic methods infer all arguments when brackets are omitted. Their explicit
+lists must be complete and may use `_` in individual inferred slots, just like
+module functions.
 
 Traits can require multiple methods:
 
@@ -1805,21 +1850,47 @@ is a compile-time error, never an implicit omission.
 Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
 
 Prefix decorators put a no-override facet next to a declaration and member
-metadata next to a field or variant:
+metadata next to a field, variant, or function parameter:
 
 ```text
 @Validation
 data User:
     @max_len(80)
     display_name: string
+
+@Tool
+fn get_user(
+    @description("User identifier")
+    id: UserId,
+) -> User:
+    ...
 ```
 
 Here `@Validation` expands to `annotate Validation for User: pass`, then to
 `impl Annotate[Validation] for User`. The field decorator expands to
 `annotate User: display_name = [max_len(80)]` and attaches metadata to its
-field shape. An enum can use `@Validation` and decorators on its variants;
-functions can use a facet decorator such as `@Tool`. These are compile-time
-checked attachments, not runtime wrappers.
+field shape. An enum can use `@Validation` and decorators on its variants. A
+function can use a facet decorator such as `@Tool`; its parameter decorators
+expand to metadata in `annotate get_user` and are attached to `ParamShape`
+before `map_param`. These are compile-time checked attachments, not runtime
+wrappers.
+
+Decorators and `annotate` blocks are module-level. Local declarations cannot
+carry annotation facets or member metadata.
+
+Declaration facets may be configured with ordinary values:
+
+```text
+@tool(strict=true)
+fn search(query: string) -> list[Result]:
+    ...
+```
+
+If `tool(strict=true)` returns `Tool`, the compiler uses `Tool` as the facet
+type and retains that value as `self` for `map_param` and `build`. The
+configuration runs once during restricted annotation initialization. It does
+not create a second annotation namespace: `@Tool` and `@tool(...)` occupy the
+same `(Tool, search)` coherence slot.
 
 Use `annotate Target` to attach metadata to existing members:
 
@@ -1950,6 +2021,7 @@ Local member metadata uses open traits. A field metadata trait is generic over t
 ```text
 trait FieldMetadata[T]
 trait VariantMetadata
+trait ParamMetadata[T]
 ```
 
 For example, `MaxLen` applies to `string` fields but not `i32` fields:
@@ -2112,7 +2184,13 @@ trait FuncAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-`VariantMetadata` provides the corresponding homogeneous dynamic-trait collection for variants. Parameters do not have local metadata assignments; function annotators use each `ParamShape`'s name, type, default presence, and documentation. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for aggregate mapping and building.
+`VariantMetadata` provides the corresponding homogeneous dynamic-trait
+collection for variants. A parameter of type `T` uses
+`list[ParamMetadata[T]]`; function annotators can read it together with each
+`ParamShape`'s name, type, default presence, and documentation. This metadata
+customizes `map_param` but does not directly replace its `ParamTarget` result.
+`DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for
+aggregate mapping and building.
 
 Shape values and annotator methods follow the definitions in the annotation
 chapter. Generic families use ordinary generic `impl Annotate[A] for Target`;

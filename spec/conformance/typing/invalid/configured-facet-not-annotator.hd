@@ -1,0 +1,7 @@
+# expect-error: decorator-not-annotator
+fn enabled() -> bool:
+    true
+
+@enabled()
+fn health() -> string:
+    "ok"

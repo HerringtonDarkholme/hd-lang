@@ -1,0 +1,4 @@
+# expect-error: immutable-parameter-binding
+fn normalize(value: i32) -> i32:
+    value = value.abs()
+    value

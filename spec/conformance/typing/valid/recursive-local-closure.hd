@@ -1,0 +1,15 @@
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+
+fn sum_to_contextual(limit: i32) -> i32:
+    let sum: fn(i32) -> i32 = fn(n) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+
+fn double(value: i32) -> i32:
+    twice := fn(n: i32): n * 2
+    twice(value)

@@ -1,0 +1,10 @@
+data Identity:
+    name: string
+
+impl Identity:
+    fn pair[Left, Right](self, left: Left, right: Right) -> (Left, Right):
+        (left, right)
+
+identity := Identity { name: "identity" }
+explicit := identity.pair[string, i32]("left", 1)
+inferred := identity.pair[_, i32]("left", 1)

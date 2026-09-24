@@ -1,0 +1,32 @@
+data Tool:
+    strict: bool
+
+data ToolSpec:
+    strict: bool
+
+data ToolParam: pass
+
+fn tool(strict: bool) -> Tool:
+    Tool { strict: strict }
+
+impl Annotation for Tool:
+    type Info = ToolSpec
+
+impl FuncAnnotator for Tool:
+    type ParamTarget = ToolParam
+
+    fn map_param(self, param: ParamShape) -> ToolParam:
+        ToolParam {}
+
+    fn build(
+        self,
+        shape: FnShape,
+        params: Dict[string, ToolParam],
+    ) -> ToolSpec:
+        ToolSpec { strict: self.strict }
+
+@tool(strict=true)
+fn health() -> string:
+    "ok"
+
+spec := Tool::annotation(health)

@@ -246,6 +246,17 @@ a := first(names)          # T inferred as string
 b := first[string](names)  # explicit generic argument
 ```
 
+An explicit generic argument list must provide every generic argument. Partial
+prefix lists are not supported; omit the list to infer all arguments. A full
+list may use `_` to infer selected slots:
+
+```text
+value := convert[_, User](input)
+```
+
+An unresolved `_` is an ambiguity error. The placeholder is available only in
+named generic-function references; it is not a type and `list[_]` is invalid.
+
 Function generic parameters are erased at runtime by default:
 
 ```text
@@ -297,7 +308,8 @@ Reified functions do not require an `inline` modifier. The WebAssembly backend c
 
 In hd-lang, `reified` applies to function generic parameters. Reified parameters on generic data, enum, trait, and type declarations remain a separate design question.
 
-hd-lang does not support partial explicit generic arguments or placeholder generic arguments.
+hd-lang does not support partial explicit generic argument lists. An explicit
+list remains complete even when individual slots use `_` for inference.
 
 Variadic generics use ordered type and value packs. The language supports pack expansion in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
@@ -1188,6 +1200,17 @@ fn first_name(name: string) -> string:
     name.split(" ")[0]
 ```
 
+Parameters are immutable bindings. A parameter typed `mut T` allows mutation
+through that reference, not assignment of a new value to the parameter name.
+Use a `let` local for rebinding:
+
+```text
+fn normalize(value: i32) -> i32:
+    let current = value
+    current = current.abs()
+    current
+```
+
 Named arguments are supported. Calls can mix positional and named arguments, but positional arguments must come first:
 
 ```text
@@ -1357,7 +1380,13 @@ choice(
 )
 ```
 
-Here `aa` is inferred as `i32`, `bb` as `string`, and both callbacks return `void`. Without an expected function type, the closure must state its parameter and return types explicitly.
+Here `aa` is inferred as `i32`, `bb` as `string`, and both callbacks return `void`. Without an expected function type, the closure must state its parameter types, but a nonrecursive return type may be inferred from its body.
+
+A direct local `:=` or `let` closure initializer may refer to its own binding
+from the closure body when it writes `-> T` explicitly. The parameter types
+may be contextual. The binding is not visible to other expressions in its
+initializer. A nonrecursive closure may infer `T` from its body; recursive
+return inference is not allowed.
 
 Shorthand argument closures such as `$0 + $1` are not supported; closures use named parameters.
 
@@ -1424,9 +1453,17 @@ impl User:
     fn domain(self) -> string:
         self.email.split("@")[1]
 
+    fn tagged[T](self, value: T) -> T:
+        value
+
 fn show[T: Display](value: T) -> string:
     value.display()
 ```
+
+Generic method calls accept complete explicit argument lists, including `_`
+in inferred slots: `user.tagged[string]("admin")` and
+`codec.convert[_, User](payload)`. Brackets are resolved as method type
+arguments rather than indexing when the selected member is generic.
 
 Traits can provide default implementations:
 
@@ -2096,6 +2133,7 @@ Local metadata protocols correspond directly to member shapes. They are open tra
 ```text
 trait FieldMetadata[T]
 trait VariantMetadata
+trait ParamMetadata[T]
 
 trait DataAnnotator: Annotation:
     type FieldTarget
@@ -2113,7 +2151,7 @@ trait DataAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. Parameters do not have local metadata assignments; `FuncAnnotator` reads their shapes. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
+For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. A module-level function parameter of type `T` expects `list[ParamMetadata[T]]`; `FuncAnnotator` reads those values from its `ParamShape`. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
 
 The supported type set is open because new exact cases can be added without changing an existing annotator:
 
@@ -2159,7 +2197,17 @@ annotate Entry:
 
 For `User.email: string`, the first right-hand side is contextually typed as `list[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
 
-Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a direct field or variant expands to its member metadata in `annotate Target`, which becomes shape metadata. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
+Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a direct field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
+
+All decorator and `annotate` forms are module-level. Local declarations cannot
+participate in package-global annotation coherence or memoization.
+
+A declaration facet may also be an ordinary configured value. For example,
+`@tool(strict=true)` lowers to
+`annotate tool(strict=true) for Target: pass`. If the expression returns
+`Tool`, its coherence key remains `(Tool, Target)`. The expression is evaluated
+once during restricted annotation initialization, and the retained value is
+used as `self` for mapping and `build`.
 
 `pass` is the general no-op expression and evaluates to `void`. Its use in a no-override `annotate` body introduces no special runtime behavior.
 
@@ -2386,7 +2434,11 @@ trait EnumAnnotator: Annotation:
     ) -> Self::Info
 ```
 
-Function annotations use the same shape: a parameter mapping step plus `build`. In hd-lang, function parameter assignment overrides inside `annotate` are not supported; parameter customization should come from parameter annotations, parameter docs, or a whole-function `build` override.
+Function annotations use the same shape: a parameter mapping step plus `build`.
+`annotate Function` may attach typed metadata to a parameter, and `map_param`
+reads it from `ParamShape`. An assignment inside `annotate Facet for Function`
+still cannot replace a mapped `ParamTarget` directly; use metadata, parameter
+docs, or a whole-function `build` override.
 
 ```text
 trait FuncAnnotator: Annotation:
@@ -2453,11 +2505,14 @@ annotate Tool for get_user:
         }
 ```
 
-This is not valid:
+Direct parameter metadata and exact mapped-result overrides are distinct:
 
 ```text
+annotate get_user:
+    id = [description("User identifier")]  # valid ParamMetadata[UserId]
+
 annotate Tool for get_user:
-    id = ToolParam { ... }  # invalid: function parameter assignment overrides are deferred
+    id = ToolParam { ... }  # invalid: cannot replace ParamTarget directly
 ```
 
 Runtime use should be explicit. Applying an annotation facet can produce a runtime value that tools, registries, UI renderers, schema generators, or deployment systems can consume:
@@ -2848,11 +2903,14 @@ Open concerns:
 2. Reusable generic target syntax for cases such as every `list[T]` remains open. The current example uses the exact target `list[Entry]` rather than inventing generic annotation syntax.
 3. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
 4. `build` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `build` should use the original `shape` ordering.
-5. Function parameter assignment overrides are deferred; parameter customization uses parameter annotations/docs or whole-function `build`.
+5. Function parameter metadata is attached before `map_param`; exact
+   per-parameter `ParamTarget` result overrides remain unsupported.
 6. Runtime annotation materialization uses `Facet::annotation(Target)`.
 7. The internal representation and lifecycle of `AnnotationRef[Info]` remain compiler/runtime details.
 8. Which compatible aggregate annotators consume manual `lazy` metadata remains open.
-10. Data, enum, and function facet decorators and direct field or variant metadata decorators are locality sugar for `annotate` blocks; parameter decorators and configured facet values remain design questions.
+10. Data, enum, and function facet decorators and direct field, variant, or
+    parameter metadata decorators are locality sugar for `annotate` blocks.
+    Declaration facet expressions may carry ordinary per-target configuration.
 
 Support two `annotate` forms:
 
