@@ -159,7 +159,7 @@ directly; other expressions use `${...}`. Interpolated values must implement
 `std.format.Display`:
 
 ```text
-import std.format.Display
+use std.format.Display
 
 greeting := "Hello, $name"
 summary := "User ${user.name} has ${posts.len()} posts"
@@ -728,7 +728,7 @@ fn queue_label(status: JobStatus, urgent: bool) -> string:
         JobStatus.Failed => "failed"
 ```
 
-Enum variants can use `.Variant` where the enum type is known from context, including a typed binding, a return type, or a `match` subject. Without that context, use the qualified form such as `JobStatus.Queued`; the compiler does not guess an enum from a variant name. Enum variants cannot be imported directly.
+Enum variants can use `.Variant` where the enum type is known from context, including a typed binding, a return type, or a `match` subject. Without that context, use the qualified form such as `JobStatus.Queued`; the compiler does not guess an enum from a variant name. Enum variants cannot be named as items in a use declaration.
 
 Payload fields can be bound in a match arm:
 
@@ -1584,7 +1584,7 @@ show(service)       # ok: Service satisfies Display through Logger
 
 If multiple embedded fields promote conflicting methods, the outer type does not satisfy the trait automatically. The user must qualify calls or write an explicit impl to resolve the conflict.
 
-## Modules, Packages, and Imports
+## Modules, Packages, and Use Declarations
 
 Modules are inferred from file paths under the package source root. There is no required `module` or `package` declaration:
 
@@ -1618,7 +1618,7 @@ src/user/types.hd      # module user.types
 src/user/service.hd    # module user.service
 ```
 
-Export public API with `pub`:
+Make declarations public with `pub`:
 
 ```text
 # src/user/types.hd
@@ -1630,57 +1630,66 @@ pub data User:
     pub email: string
 ```
 
-Import selected names with grouped imports:
+Use selected names with grouped use declarations:
 
 ```text
 # src/post/service.hd
 
-import pkg.user.types.{User, UserId}
+use pkg.user.types.{User, UserId}
 
 fn author_id(user: User) -> UserId:
     user.id
 ```
 
-Import the module namespace when qualification is clearer:
+Use the module namespace when qualification is clearer:
 
 ```text
-import pkg.user.types
+use pkg.user.types
 
-fn author_id(user: pkg.user.types.User) -> pkg.user.types.UserId:
+fn author_id(user: types.User) -> types.UserId:
     user.id
 ```
 
 Use aliases for long paths or name conflicts:
 
 ```text
-import pkg.user.types as user_types
-import dep.billing.types.{UserId as BillingUserId}
-import std.time.{Duration}
+use pkg.user.types as user_types
+use dep.billing.types.{UserId as BillingUserId}
+use std.time.{Duration}
 ```
 
 `pkg` means the current package root. `std` means the standard library. `dep.<name>` means an external dependency from `hd.toml`.
 
-Use `self` and `super` for relative imports:
+Use `self` and `super` for relative use paths:
 
 ```text
 # src/user/service.hd
 
-import self.types.{User, UserId}
-import super.shared.{Email}
+use self.types.{User, UserId}
+use super.shared.{Email}
 ```
 
-Use `mod.hd` to define the directory module and re-export a clean package-facing API:
+Use `mod.hd` to define the directory module and expose a clean package-facing API:
 
 ```text
 # src/user/mod.hd
 
-export pkg.user.types.{User, UserId}
-export pkg.user.service.{load_user, save_user}
+pub use pkg.user.types.{User, UserId}
+pub use pkg.user.service.{load_user, save_user}
 ```
 
-Submodules are not imported automatically. Parent modules and child modules both use explicit imports.
+`pub use` introduces the names into `pkg.user` and exposes them to other
+modules. The source declarations must already be `pub`, and no new declaration
+identity is created:
 
-Import and re-export cycles are rejected.
+```text
+use pkg.user.{User, UserId, load_user}
+```
+
+Submodules are not brought into scope automatically. Parent modules and child
+modules both use explicit use declarations.
+
+Cycles involving `use` or `pub use` are rejected.
 
 Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. A public signature cannot leak a module-private type. There is no package-private visibility modifier.
 
@@ -1689,7 +1698,7 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 `pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and every other host service are explicit context requirements:
 
 ```text
-import std.host.{Args, Console, ConsoleError}
+use std.host.{Args, Console, ConsoleError}
 
 pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args, console := $.use(Args, Console)
@@ -1858,6 +1867,10 @@ data User:
     @max_len(80)
     display_name: string
 
+data Post:
+    @flatten()
+    Timestamps
+
 @Tool
 fn get_user(
     @description("User identifier")
@@ -1869,7 +1882,10 @@ fn get_user(
 Here `@Validation` expands to `annotate Validation for User: pass`, then to
 `impl Annotate[Validation] for User`. The field decorator expands to
 `annotate User: display_name = [max_len(80)]` and attaches metadata to its
-field shape. An enum can use `@Validation` and decorators on its variants. A
+field shape. The embedded-field decorator similarly expands to
+`annotate Post: Timestamps = [flatten()]`; it must implement
+`FieldMetadata[Timestamps]` and does not decorate members promoted from
+`Timestamps`. An enum can use `@Validation` and decorators on its variants. A
 function can use a facet decorator such as `@Tool`; its parameter decorators
 expand to metadata in `annotate get_user` and are attached to `ParamShape`
 before `map_param`. These are compile-time checked attachments, not runtime

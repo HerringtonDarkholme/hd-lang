@@ -1,4 +1,4 @@
-import std.cmp.PartialEq
+use std.cmp.PartialEq
 
 data User:
     id: string

@@ -78,14 +78,14 @@ This tour should introduce hd-lang through small examples first, then explain th
 - Trait values versus generic static dispatch
 - No implicit nullability
 
-## 9. Modules, Packages, and Imports
+## 9. Modules, Packages, and Use Declarations
 
 - Path-inferred modules
 - Directory submodules
 - `mod.hd` index files
-- Importing names and modules
+- Using names and modules
 - Aliases
-- Re-exports
+- Public use declarations
 - Visibility with `pub`
 
 ## 10. Requirements and Suspension

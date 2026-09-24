@@ -1,4 +1,4 @@
-import std.cmp.{Ordering, PartialEq, PartialOrd}
+use std.cmp.{Ordering, PartialEq, PartialOrd}
 
 data Score:
     value: i32

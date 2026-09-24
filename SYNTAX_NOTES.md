@@ -383,7 +383,7 @@ show(Service { Logger: Logger { name: "api" } })    # ok
 
 If multiple embedded fields promote conflicting methods, the outer type does not satisfy the trait automatically. The user must qualify calls or write an explicit impl to resolve the conflict.
 
-## Modules, Packages, And Imports
+## Modules, Packages, And Use Declarations
 
 Modules are path-inferred. There is no required `module` or `package` declaration in source files. The module path comes from the file path under the package source root.
 
@@ -427,52 +427,59 @@ pub data User:
     pub email: string
 ```
 
-Import selected names with grouped import syntax:
+Use selected names with grouped syntax:
 
 ```text
 # src/post/service.hd
 
-import pkg.user.types.{User, UserId}
+use pkg.user.types.{User, UserId}
 
 fn author_id(user: User) -> UserId:
     user.id
 ```
 
-Import a module namespace when qualification is useful:
+Use a module namespace when qualification is useful:
 
 ```text
-import pkg.user.types
+use pkg.user.types
 
-fn author_id(user: pkg.user.types.User) -> pkg.user.types.UserId:
+fn author_id(user: types.User) -> types.UserId:
     user.id
 ```
 
 Use aliases for long module paths or conflicting names:
 
 ```text
-import pkg.user.types as user_types
-import dep.billing.types.{UserId as BillingUserId}
-import std.time.{Duration}
+use pkg.user.types as user_types
+use dep.billing.types.{UserId as BillingUserId}
+use std.time.{Duration}
 ```
 
 `pkg` means the current package root. `std` means the standard library. `dep.<name>` means an external dependency from `hd.toml`.
 
-Use `self` and `super` for relative imports:
+Use `self` and `super` for relative use paths:
 
 ```text
 # src/user/service.hd
 
-import self.types.{User, UserId}
-import super.shared.{Email}
+use self.types.{User, UserId}
+use super.shared.{Email}
 ```
 
-Use `mod.hd` to define the directory module and re-export a clean package-facing API:
+Use `mod.hd` to define the directory module and expose a clean package-facing API:
 
 ```text
 # src/user/mod.hd
 
-export pkg.user.types.{User, UserId}
-export pkg.user.service.{load_user, save_user}
+pub use pkg.user.types.{User, UserId}
+pub use pkg.user.service.{load_user, save_user}
+```
+
+`pub use` introduces the names into `pkg.user` and exposes them to other
+modules. The source declarations must already be `pub`:
+
+```text
+use pkg.user.{User, UserId, load_user}
 ```
 
 Visibility is explicit with `pub`. Declarations without `pub` are private to their module:
@@ -485,9 +492,11 @@ fn normalize_email(email: string) -> string:
     email.trim().lower()
 ```
 
-Submodule access goes through imports; a parent module does not automatically import child modules, and a child module does not automatically import parent declarations.
+Submodule access goes through use declarations; a parent module does not
+automatically bring child modules into scope, and a child module does not
+automatically bring parent declarations into scope.
 
-Import and re-export cycles are rejected.
+Cycles involving `use` or `pub use` are rejected.
 
 Declarations are module-private by default, and `pub` makes them public. Enum variants inherit enum visibility; data fields and inherent methods are private unless individually marked `pub`. There is no package-private visibility modifier.
 
@@ -496,7 +505,7 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 An executable package uses `pub fn main` as its conventional default entry point:
 
 ```text
-import std.host.{Args, Console}
+use std.host.{Args, Console}
 
 pub fn main!() -> Result[void, AppError] $ Args + Console:
     args, console := $.use(Args, Console)
@@ -2207,7 +2216,7 @@ annotate Entry:
 
 For `User.email: string`, the first right-hand side is contextually typed as `list[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
 
-Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a direct field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
+Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a named or embedded field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Embedded-field metadata is checked through `FieldMetadata[EmbeddedType]` and stays on the embedded field's own shape rather than propagating to promoted members. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
 
 All decorator and `annotate` forms are module-level. Local declarations cannot
 participate in package-global annotation coherence or memoization.
@@ -2221,7 +2230,7 @@ used as `self` for mapping and `build`.
 
 `pass` is the general no-op expression and evaluates to `void`. Its use in a no-override `annotate` body introduces no special runtime behavior.
 
-For a field decorator such as `@max_len(320)`, the expansion is the corresponding value in `annotate User`, checked through the same `FieldMetadata[T]` trait. Multiple prefix lines preserve source order and cannot duplicate a concrete metadata type on one member.
+For a field decorator such as `@max_len(320)`, the expansion is the corresponding value in `annotate User`, checked through the same `FieldMetadata[T]` trait. For an embedded `Timestamps`, `@flatten()` expands under the canonical field name `Timestamps` and is checked through `FieldMetadata[Timestamps]`. Multiple prefix lines preserve source order and cannot duplicate a concrete metadata type on one member.
 
 Generic code can use normal trait bounds to require annotation availability:
 
@@ -2925,8 +2934,8 @@ Open concerns:
 6. Runtime annotation materialization uses `Facet::annotation(Target)`.
 7. The internal representation and lifecycle of `AnnotationRef[Info]` remain compiler/runtime details.
 8. Which compatible aggregate annotators consume manual `lazy` metadata remains open.
-10. Data, enum, and function facet decorators and direct field, variant, or
-    parameter metadata decorators are locality sugar for `annotate` blocks.
+10. Data, enum, and function facet decorators and named-field, embedded-field,
+    variant, or parameter metadata decorators are locality sugar for `annotate` blocks.
     Declaration facet expressions may carry ordinary per-target configuration.
 
 Support two `annotate` forms:
@@ -3201,7 +3210,7 @@ Open syntax issues:
 1. Standard inline validation annotation set.
 2. Exact external derivation/override block syntax.
 3. Whether validator composition uses method chaining, pipes, nested calls, or blocks.
-4. How annotation facets import and reuse validators from other files.
+4. How annotation facets use and reuse validators from other files.
 5. How generators handle custom validators.
 6. Whether annotation facets are open-ended user-defined names or declared interfaces.
 

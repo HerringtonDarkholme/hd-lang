@@ -89,8 +89,8 @@ done
 grep -Fq '```ebnf' "$spec_dir/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"
 
-for production in data_decl requirement_clause context_scope annotation_decl \
-    enum_variant generic_parameter annotation_runtime_access; do
+for production in data_decl use_decl requirement_clause context_scope \
+    annotation_decl enum_variant generic_parameter annotation_runtime_access; do
     grep -Eq "^${production}[[:space:]]*=" "$spec_dir/02-grammar.md" ||
         fail "02-grammar.md is missing $production"
 done

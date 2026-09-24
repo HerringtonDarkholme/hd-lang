@@ -9,9 +9,9 @@ accepted syntax and semantics live in the [formal specification](spec/README.md)
 
 Requirements and suspension, variadic generics, GADTs, and annotations are
 numbered language chapters and are integrated into the consolidated grammar.
-The remaining language-level decision is the static missing-child policy for
-annotation derivation, tracked in
-[the completion register](spec/OPEN_ISSUES.md#core-decisions-required).
+No unresolved core decision currently blocks an implementable specification.
+Optional and deferred language work is tracked in
+[the completion register](spec/OPEN_ISSUES.md#unsupported-or-backlog-language-features).
 
 ## Runtime And Library Backlog
 

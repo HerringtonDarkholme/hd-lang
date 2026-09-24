@@ -231,9 +231,9 @@ first[string](names)
 ```
 
 The complete generic argument list must be supplied; partial explicit lists are
-not supported. In hd-lang, explicit arguments may specialize a named module function
-or qualified imported function. Generic methods rely on inference; explicit
-method type arguments are not supported.
+not supported. In hd-lang, explicit arguments may specialize a named module
+function or qualified function introduced by a use declaration. Generic
+methods rely on inference; explicit method type arguments are not supported.
 
 Suspension calls with `!` construct and drive a child suspension as specified in
 [Requirements and Suspension](11-requirements-and-suspension.md). The callee and

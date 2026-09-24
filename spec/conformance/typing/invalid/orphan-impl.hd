@@ -1,7 +1,7 @@
 # expect-error: orphan-impl
 
-import dep.display.{Display}
-import dep.user.{User}
+use dep.display.{Display}
+use dep.user.{User}
 
 impl Display for User:
     fn display(self) -> string:

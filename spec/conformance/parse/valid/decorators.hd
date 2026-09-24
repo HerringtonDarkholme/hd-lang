@@ -3,6 +3,10 @@ data User:
     @max_len(80)
     name: string
 
+data Post:
+    @flatten()
+    Timestamps
+
 @Validation
 enum Status:
     @variant_doc("Ready")

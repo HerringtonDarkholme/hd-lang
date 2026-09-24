@@ -18,8 +18,7 @@ do not maintain separate extension grammars.
 ```ebnf
 source_file = { NEWLINE | top_level_item }, EOF ;
 
-top_level_item = import_decl
-               | export_decl
+top_level_item = use_decl
                | test_decl
                | annotation_decl
                | decorated_decl
@@ -39,7 +38,7 @@ implementation must reject an empty `block_suite`; use `pass` when an explicit
 no-op body is required.
 
 Named declarations and implementations may also occur in executable block
-suites. Imports, exports, and annotations remain top-level items. Methods occur
+suites. Use and annotation declarations remain top-level items. Methods occur
 inside trait and implementation declarations through their dedicated grammar
 productions.
 
@@ -174,8 +173,7 @@ data_suite = "pass", SUITE_END
                | data_member, { data_member } ), DEDENT
              ;
 
-data_member = { decorator_line }, data_field, NEWLINE
-              | embedded_field, NEWLINE
+data_member = { decorator_line }, ( data_field | embedded_field ), NEWLINE
               ;
 
 data_field = [ "pub" ], identifier, ":", type, [ "=", expression ] ;
@@ -353,29 +351,27 @@ grouping has no trailing comma.
 Requirement rows on function types are specified in
 [Requirements and Suspension](11-requirements-and-suspension.md).
 
-## Imports And Exports
+## Use Declarations
 
 ```ebnf
-import_decl = "import", import_path, [ "as", identifier ], NEWLINE
-            | "import", import_path, ".", import_group, NEWLINE
-            ;
+use_decl = "use", use_path, [ "as", identifier ], NEWLINE
+         | [ "pub" ], "use", use_path, ".", use_group, NEWLINE
+         ;
 
-export_decl = "export", import_path, ".", import_group, NEWLINE ;
+use_path = use_root, { ".", identifier } ;
+use_root = "pkg"
+         | "std"
+         | "dep", ".", identifier
+         | "self"
+         | "super", { ".", "super" }
+         ;
 
-import_path = import_root, { ".", identifier } ;
-import_root = "pkg"
-            | "std"
-            | "dep", ".", identifier
-            | "self"
-            | "super", { ".", "super" }
-            ;
-
-import_group = "{", import_item, { ",", import_item }, [ "," ], "}" ;
-import_item = identifier, [ "as", identifier ] ;
+use_group = "{", use_item, { ",", use_item }, [ "," ], "}" ;
+use_item = identifier, [ "as", identifier ] ;
 ```
 
-`pkg`, `std`, and `dep` are contextual import-root words. The lexical reserved
-words `self` and `super` also act as relative import roots.
+`pkg`, `std`, and `dep` are contextual use-root words. The lexical reserved
+words `self` and `super` also act as relative use roots.
 
 ## Expressions
 

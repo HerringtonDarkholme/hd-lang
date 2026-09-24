@@ -1,9 +1,0 @@
-import pkg.user.types
-import pkg.user.service.{load_user, save_user}
-import dep.billing.types.{UserId as BillingUserId}
-import std.time.{Duration}
-import pkg.résumé.{Entrée}
-import self.local.{Config}
-import super.shared.{Email}
-
-export pkg.user.types.{User, UserId}

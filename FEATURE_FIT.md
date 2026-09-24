@@ -22,7 +22,7 @@ They should support:
 
 1. Tool input and output validation.
 2. Sanity checks before a tool is executed.
-3. Shared data types imported across files.
+3. Reference shared data types defined in other files.
 4. Generated external specs for existing ecosystems, such as JSON Schema, OpenAPI, MCP tool definitions, and TypeScript types.
 5. Lightweight validation annotations for simple tool input/output constraints.
 6. External `annotate Validation for ...` blocks for richer validation behavior.

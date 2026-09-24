@@ -1,0 +1,3 @@
+# expect-error: old-export-declaration
+
+export pkg.user.types.{User}

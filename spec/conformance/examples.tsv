@@ -8,7 +8,7 @@ specification	block	classification	fixture
 01-lexical-structure.md	7	lexical-inventory	-
 01-lexical-structure.md	8	lexical-inventory	-
 03-names-and-scopes.md	1	accept	typing/valid/names-and-scopes.hd
-03-names-and-scopes.md	2	accept	parse/valid/imports.hd
+03-names-and-scopes.md	2	accept	parse/valid/uses.hd
 03-names-and-scopes.md	3	accept	typing/valid/bindings.hd
 03-names-and-scopes.md	4	accept	typing/valid/bindings.hd
 03-names-and-scopes.md	5	accept	typing/valid/collections.hd
@@ -108,12 +108,13 @@ specification	block	classification	fixture
 09-traits.md	15	accept	typing/valid/trait-features.hd
 10-modules.md	1	filesystem-layout	-
 10-modules.md	2	filesystem-layout	-
-10-modules.md	3	accept	parse/valid/imports.hd
-10-modules.md	4	accept	parse/valid/imports.hd
-10-modules.md	5	accept	parse/valid/imports.hd
+10-modules.md	3	accept	parse/valid/uses.hd
+10-modules.md	4	accept	parse/valid/uses.hd
+10-modules.md	5	accept	parse/valid/uses.hd
 10-modules.md	6	accept	parse/valid/declarations.hd
-10-modules.md	7	accept	parse/valid/imports.hd
-10-modules.md	8	accept	typing/valid/functions.hd
+10-modules.md	7	accept	parse/valid/uses.hd
+10-modules.md	8	accept	parse/valid/uses.hd
+10-modules.md	9	accept	typing/valid/functions.hd
 11-requirements-and-suspension.md	1	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	2	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	3	accept	typing/valid/requirements-and-suspension.hd

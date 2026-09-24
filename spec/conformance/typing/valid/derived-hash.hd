@@ -1,4 +1,4 @@
-import std.hash.Hash
+use std.hash.Hash
 
 @derive(PartialEq, Eq, Hash)
 data Revision:

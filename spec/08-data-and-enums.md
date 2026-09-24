@@ -160,6 +160,11 @@ is a duplicate-field error. Explicitly mutable embedded-field shorthand is
 not supported; use an ordinary named field with a `mut` type for a mutable
 edge, without promotion.
 
+An embedded field accepts the same prefix metadata decorators as a named field.
+The metadata is attached to the embedded field itself, whose name is the final
+type name and whose declared type includes any generic arguments. It is not
+copied to fields or methods promoted from the embedded value.
+
 ## Enum Declarations
 
 An enum defines a closed set of variants:

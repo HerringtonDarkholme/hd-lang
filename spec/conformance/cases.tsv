@@ -3,7 +3,7 @@ parse/valid/layout.hd	parse	accept	01-lexical-structure.md#whitespace-and-indent
 parse/valid/declarations.hd	parse	accept	02-grammar.md#declarations
 parse/valid/expressions.hd	parse	accept	02-grammar.md#expressions
 parse/valid/functions-and-closures.hd	parse	accept	07-functions.md
-parse/valid/imports.hd	parse	accept	10-modules.md#import-forms
+parse/valid/uses.hd	parse	accept	10-modules.md#use-forms
 parse/valid/data-embedding.hd	parse	accept	08-data-and-enums.md#data-embedding
 parse/invalid/mutable-field-modifier.hd	parse	reject:mutable-field-modifier	08-data-and-enums.md#data-declarations
 parse/invalid/mutable-embedded-field.hd	parse	reject:mutable-embedded-field	08-data-and-enums.md#data-embedding
@@ -12,7 +12,9 @@ typing/invalid/duplicate-generic-embedded-name.hd	type	reject:duplicate-embedded
 parse/invalid/old-struct-declaration.hd	parse	reject:old-struct-declaration	08-data-and-enums.md#data-declarations
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
 parse/invalid/declaration-without-let.hd	parse	reject:missing-let	02-grammar.md#statements
-parse/invalid/direct-variant-import.hd	parse	reject:direct-variant-import	10-modules.md#import-forms
+parse/invalid/direct-variant-use.hd	parse	reject:direct-variant-use	10-modules.md#use-forms
+parse/invalid/old-import-declaration.hd	parse	reject:old-import-declaration	02-grammar.md#use-declarations
+parse/invalid/old-export-declaration.hd	parse	reject:old-export-declaration	02-grammar.md#use-declarations
 parse/invalid/pub-trait-method.hd	parse	reject:trait-method-visibility	02-grammar.md#traits-and-implementations
 parse/invalid/chained-comparison.hd	parse	reject:comparison-chaining	02-grammar.md#expressions
 parse/invalid/invalid-escape.hd	parse	reject:invalid-escape	01-lexical-structure.md#string-and-character-literals
@@ -115,7 +117,7 @@ typing/invalid/ambiguous-trait-method.hd	type	reject:ambiguous-method	09-traits.
 typing/invalid/unsafe-dynamic-trait.hd	type	reject:trait-not-dynamically-safe	09-traits.md#dynamic-trait-values
 typing/invalid/orphan-impl.hd	type	reject:orphan-impl	09-traits.md#trait-implementations
 typing/invalid/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	09-traits.md#trait-implementations
-typing/invalid/private-type-leak.hd	type	reject:private-type-leak	10-modules.md#exports-and-visibility
+typing/invalid/private-type-leak.hd	type	reject:private-type-leak	10-modules.md#public-uses-and-visibility
 typing/invalid/variance-position.hd	type	reject:invalid-variance	04-type-system.md#variance
 typing/warnings/unreachable-code.hd	type	warn:unreachable-code	06-control-flow.md#unreachable-code
 typing/invalid/duplicate-data-field.hd	type	reject:duplicate-field	08-data-and-enums.md#construction-and-access
@@ -126,6 +128,8 @@ typing/valid/annotations.hd	type	accept	14-annotations.md
 typing/valid/missing-child-override.hd	type	accept	14-annotations.md#missing-child-information
 typing/invalid/missing-child-annotation.hd	type	reject:missing-child-annotation	14-annotations.md#missing-child-information
 typing/valid/data-decorator.hd	type	accept	14-annotations.md#prefix-decorators
+typing/valid/embedded-field-decorator.hd	type	accept	14-annotations.md#prefix-decorators
+typing/invalid/embedded-field-decorator-type.hd	type	reject:invalid-field-metadata	14-annotations.md#prefix-decorators
 typing/valid/derived-equality.hd	type	accept	09-traits.md#comparison-traits
 typing/valid/derived-hash.hd	type	accept	09-traits.md#comparison-traits
 typing/invalid/derived-hash-field-not-hash.hd	type	reject:field-not-hash	09-traits.md#comparison-traits

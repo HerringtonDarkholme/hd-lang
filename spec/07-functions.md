@@ -43,7 +43,7 @@ fn test() -> void: println("hi")
 A named function may also be declared inside an executable block suite. Its
 name is visible from that declaration onward and within its own body; it can
 capture enclosing local values under the same read-only capture rules as a
-plain closure. It cannot be marked `pub` or imported:
+plain closure. It cannot be marked `pub` or used from another module:
 
 ```text
 fn total_with_bonus(values: list[i32], bonus: i32) -> i32:

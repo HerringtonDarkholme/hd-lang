@@ -137,17 +137,26 @@ used as `self` for every mapping and `build` call for the target. It must obey
 the same pure, deterministic, non-suspending, dependency-free restrictions as
 other annotation initialization expressions.
 
-An `@value` line immediately before a direct data field or enum variant
-attaches member metadata. For a field `name: string`, `@max_len(80)` expands to
-the `max_len(80)` entry in `annotate User: name = [max_len(80)]`. The value must
-implement `FieldMetadata[string]`; a variant value must implement
-`VariantMetadata`. Multiple lines retain source order and obey the same
-duplicate-concrete-type rule as an explicit member metadata list. A decorator
-and an explicit `annotate` block for the same target combine only when they do
-not assign the same member or occupy the same facet/target coherence slot.
-Decorators attach to declarations or members, never to type expressions.
-Declaration decorators are module-level syntax; local declarations cannot be
-decorated or targeted by an `annotate` declaration.
+An `@value` line immediately before a named or embedded data field or an enum
+variant attaches member metadata. For a field `name: string`, `@max_len(80)`
+expands to the `max_len(80)` entry in
+`annotate User: name = [max_len(80)]`. The value must implement
+`FieldMetadata[string]`; a variant value must implement `VariantMetadata`.
+
+For an embedded `Timestamps` field in `Post`, `@flatten()` expands to the
+`flatten()` entry in `annotate Post: Timestamps = [flatten()]` and must
+implement `FieldMetadata[Timestamps]`. A generic embedded `Box[T]` similarly
+requires `FieldMetadata[Box[T]]`, while its member name remains `Box`. Metadata
+is attached only to the embedded field's own `FieldShape`; it is not propagated
+to promoted fields or methods.
+
+Multiple lines retain source order and obey the same duplicate-concrete-type
+rule as an explicit member metadata list. A decorator and an explicit
+`annotate` block for the same target combine only when they do not assign the
+same member or occupy the same facet/target coherence slot. Decorators attach
+to declarations or members, never to type expressions. Declaration decorators
+are module-level syntax; local declarations cannot be decorated or targeted by
+an `annotate` declaration.
 
 An `@value` prefix on a parameter of a module-level named function attaches
 parameter metadata. For `id: UserId`, the value must implement
@@ -188,8 +197,9 @@ annotate User:
 
 The target is a declared data type, enum, or module-level named function, not
 an arbitrary type expression. Every left-hand name must identify an existing
-direct member or parameter. The block cannot add, rename, remove, or change the
-type of a member or parameter.
+direct member or parameter. An embedded field is a direct member under its
+final type name; members promoted through it are not direct members. The block
+cannot add, rename, remove, or change the type of a member or parameter.
 
 Field metadata is contextually typed as `list[FieldMetadata[T]]`, where `T` is
 the declared field type. Variant metadata uses the corresponding marker trait:
@@ -578,9 +588,9 @@ differently configured values of `Tool` cannot annotate the same target.
 
 Annotation blocks are package-global rather than lexical. If a library provides
 an annotation for its target, a downstream package cannot override it. A
-downstream application may provide package-local information for an imported
-target only when no library in the resolved graph already provides that exact
-facet/target pair.
+downstream application may provide package-local information for a target
+introduced by a use declaration only when no library in the resolved graph
+already provides that exact facet/target pair.
 
 Local declarations cannot participate in annotation coherence. They may still
 be reflected where ordinary local shape rules permit, but they cannot receive

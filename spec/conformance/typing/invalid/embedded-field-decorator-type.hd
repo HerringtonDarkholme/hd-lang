@@ -1,0 +1,16 @@
+# expect-error: invalid-field-metadata
+
+data Timestamps:
+    created_at: i64
+
+data Label:
+    value: string
+
+fn label(value: string) -> Label:
+    Label { value: value }
+
+impl FieldMetadata[string] for Label
+
+data Post:
+    @label("timestamps")
+    Timestamps

@@ -1,4 +1,4 @@
-import std.testing.assert_equal
+use std.testing.assert_equal
 
 @derive(PartialEq, Eq)
 data Revision:

@@ -9,10 +9,10 @@ resolve. It does not define type compatibility or access permission.
 
 hd-lang has four lookup categories:
 
-1. **Module names** identify top-level types, traits, functions, and imported
-   declarations. A module cannot contain two declarations with the same module
-   name, even if they are different kinds of declaration. Function overloading
-   is therefore not permitted.
+1. **Module names** identify top-level types, traits, functions, and names
+   introduced by use declarations. A module cannot contain two declarations
+   with the same module name, even if they are different kinds of declaration.
+   Function overloading is therefore not permitted.
 2. **Value names** identify top-level executable bindings, parameters, local
    bindings, local named functions, loop bindings, pattern bindings, and
    captured values.
@@ -27,11 +27,11 @@ name before `{` in `User { ... }` is resolved as a type, while `user` in
 
 Every module has predeclared core type names: `bool`, `i8`, `i16`, `i32`,
 `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`,
-`list`, `map`, `Result`, and `Any`. A module declaration or import must not
-replace one of these names. They remain ordinary identifier tokens rather than
-reserved words. A local value may use the same spelling under ordinary lexical
-shadowing; type positions continue to resolve the predeclared type name, while
-value expressions resolve the local value.
+`list`, `map`, `Result`, and `Any`. A module declaration or use declaration
+must not replace one of these names. They remain ordinary identifier tokens
+rather than reserved words. A local value may use the same spelling under
+ordinary lexical shadowing; type positions continue to resolve the predeclared
+type name, while value expressions resolve the local value.
 
 Type parameters are type names local to their declaration. They may shadow a
 module name within that declaration but must not duplicate another type
@@ -102,36 +102,38 @@ or inside an executable block suite; they do not introduce an independently
 referencable name.
 
 Declarations are module-private unless marked `pub`. `pub` makes a declaration
-eligible to be imported from another module. It does not register a Wasm export
+eligible to be used from another module. It does not register a Wasm export
 or make a declaration host-callable.
 
-## Imports
+## Use Declarations
 
-An import introduces either one local module name or one or more local
-declaration names into the importing module's module scope:
+A `use` declaration introduces either one local module name or one or more
+local declaration names into the using module's module scope:
 
 ```text
-import pkg.user.types
-import pkg.user.types as user_types
-import pkg.user.types.{User, UserId}
-import dep.billing.types.{UserId as BillingUserId}
+use pkg.user.types
+use pkg.user.types as user_types
+use pkg.user.types.{User, UserId}
+use dep.billing.types.{UserId as BillingUserId}
 ```
 
-Without `as`, a namespace import binds the final path component. The first
-example therefore binds `types`. A grouped import binds each selected name,
-after applying any item alias.
+A path-only use may name either a module namespace or one public declaration.
+Without `as`, it binds the final path component; the first example therefore
+binds `types`. A grouped use binds each selected name after applying any item
+alias.
 
-An imported name must not collide with another module-scope declaration or
-import. Imports do not create overload sets and are not implicitly renamed.
+A used name must not collide with another module-scope declaration or use.
+Use declarations do not create overload sets and are not implicitly renamed.
 
-Imports are resolved before declarations are type checked. Their textual
-position does not limit their visibility, but style tools should place imports
-before other top-level items. Import and re-export cycles are compile-time
-errors.
+Use declarations are resolved before declarations are type checked. Their
+textual position does not limit their visibility, but style tools should place
+them before other top-level items. Cycles involving `use` or `pub use` are
+compile-time errors.
 
-`export` re-exports selected public declarations. It does not introduce an
-additional local alias beyond names already available through ordinary module
-resolution.
+Prefixing a grouped use declaration with `pub` makes every name it introduces
+available to other modules. The source declaration must already be public. A
+`pub use` introduces the same local binding as an ordinary `use`; it
+additionally exposes that binding without creating a new declaration identity.
 
 ## Local Bindings
 
@@ -353,5 +355,5 @@ are not ordinary identifiers and cannot be declared by users.
 
 hd-lang permits shadowing of outer local names; a style tool may warn about it,
 but that warning is not part of language semantics. hd-lang does not support
-direct imports of enum variants. Top-level stored values use ordinary `:=` and
+direct uses of enum variants. Top-level stored values use ordinary `:=` and
 `let` bindings; there is no separate stored-value declaration form.

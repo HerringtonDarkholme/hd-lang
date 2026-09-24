@@ -13,7 +13,7 @@ Requirements:
 1. Define structured data types for tool inputs and outputs.
 2. Attach validation rules to data types and fields.
 3. Support custom validation creators.
-4. Import data types from other files.
+4. Reference data types defined in other files.
 5. Reuse shared data definitions across multiple tools.
 
 ### Tool Call Interfaces

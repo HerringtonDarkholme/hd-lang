@@ -12,14 +12,14 @@ register; hd-lang does not divide the language into versioned subsets.
 | --- | --- |
 | [Lexical Structure](01-lexical-structure.md) | source text, tokens, indentation, literals |
 | [Grammar](02-grammar.md) | consolidated EBNF |
-| [Names and Scopes](03-names-and-scopes.md) | declarations, bindings, imports, member lookup |
+| [Names and Scopes](03-names-and-scopes.md) | declarations, bindings, use declarations, member lookup |
 | [Type System](04-type-system.md) | types, coercions, `mut`, generics, variance |
 | [Expressions](05-expressions.md) | evaluation, operators, calls, literals, comprehensions |
 | [Control Flow](06-control-flow.md) | blocks, conditionals, loops, matching, return |
 | [Functions](07-functions.md) | parameters, closures, captures, trailing blocks |
 | [Data Types and Enums](08-data-and-enums.md) | aggregate declaration, construction, embedding |
 | [Traits](09-traits.md) | conformance, methods, static and dynamic dispatch |
-| [Modules](10-modules.md) | packages, imports, visibility, entry points, Wasm boundary |
+| [Modules](10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](12-variadic-generics.md) | type/value packs and pattern expansion |
 | [GADTs](13-gadts.md) | variant result refinement and match typing |

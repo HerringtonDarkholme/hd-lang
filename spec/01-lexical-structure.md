@@ -179,19 +179,20 @@ The grammar uses these reserved words:
 
 ```text
 Self      and       annotate  as        break     continue
-else      enum      export    false     fn        for
-if        impl      import    in        is        let       match
+data      else      enum      false     fn        for
+if        impl      in        is        let       match
 mut       nil       not       or        pass      pub
-reified   return    self      shape     data      super
-trait     true      type      where     while
+reified   return    self      shape     super     trait
+true      type      use       where     while
 ```
 
-`pkg`, `std`, and `dep` have special meaning only in an import root position.
+`pkg`, `std`, and `dep` have special meaning only in a use root position.
 `test` has special meaning only at the beginning of a module-level test block.
 `annotation` is contextual after `::` in annotation materialization, while
-`use`, `context`, `with`, and `Context` are contextual after `$.`. These words
-remain ordinary identifiers elsewhere, so declarations such as
-`fn test() -> void` are valid.
+`context`, `with`, and `Context` are contextual after `$.`. These contextual
+words remain ordinary identifiers elsewhere, so declarations such as
+`fn test() -> void` are valid. The reserved word `use` is also accepted in the
+dedicated `$.use(...)` context expression.
 
 ## Literals
 

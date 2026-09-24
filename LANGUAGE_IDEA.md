@@ -66,8 +66,9 @@ WASI-compatible host boundary.
 - Types include transparent aliases, nominal single-field newtypes, generics,
   explicit variance markers, erased function generics, and `reified` function
   parameters.
-- Modules are inferred from paths. Packages use `hd.toml`; imports use
-  `pkg`/`std`/`dep` roots and `self`/`super` relative paths.
+- Modules are inferred from paths. Packages use `hd.toml`; names from other
+  modules are brought into scope with `use`, using `pkg`/`std`/`dep` roots and
+  `self`/`super` relative paths.
 - Unit tests use module-level `test "name":` blocks. Assertions are ordinary
   functions in `std.testing` and require a reason.
 

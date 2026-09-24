@@ -31,14 +31,14 @@ decisions:
 
 ### Declarations, Scope, Modules, And Visibility
 
-- **Retain exclusion:** direct imports of enum variants; contextual `.Variant`
+- **Retain exclusion:** direct uses of enum variants; contextual `.Variant`
   syntax is available when the enum type is known.
 - **Accepted:** top-level `:=` and `let` bindings remain accessible to later
   function bodies in the same module; no distinct stored declaration is needed.
 - **Retain exclusion:** function and method overloading.
 - **Retain exclusion:** source-level `module` or `package` declarations in the
   path-inferred module system.
-- **Retain exclusion:** wildcard imports.
+- **Retain exclusion:** wildcard uses.
 - **Retain exclusion:** package-private visibility; declarations are
   module-private by default or `pub`.
 - **Accepted:** enum variants inherit enum visibility; data fields and
@@ -205,9 +205,11 @@ Other pack operations are outside the current design.
 - **Accepted:** prefix `@Facet` on module-level data, enum, and function
   declarations expands to `annotate Facet for Target: pass`, then to
   `impl Annotate[Facet] for Target`.
-- **Accepted:** prefix `@value` on a direct data field or enum variant expands
-  to its member's `annotate Target` metadata; order and duplicate checks match
-  explicit member metadata lists.
+- **Accepted:** prefix `@value` on a named or embedded data field or enum
+  variant expands to its member's `annotate Target` metadata; order and
+  duplicate checks match explicit member metadata lists. Embedded-field
+  metadata is checked against `FieldMetadata[EmbeddedType]`, attaches only to
+  that field's own shape, and does not propagate to promoted members.
 - **Accepted:** typed parameter decorators on module-level named functions.
   They attach `ParamMetadata[T]` values to `ParamShape` before `map_param` and
   lower through `annotate Function` parameter metadata.
@@ -216,7 +218,6 @@ Other pack operations are outside the current design.
   once and reused for mapping and `build`.
 - **Retain exclusion:** decorators and `annotate` blocks on local declarations.
   Annotation coherence and memoization remain package-global.
-- **Discuss:** decorators on embedded fields.
 - **Accepted:** `@derive(PartialEq, Eq)` uses the compiler-intrinsic path, not
   annotation lowering. No equality is derived implicitly.
 - **Accepted:** generic-family `annotate` declarations use generic binders and

@@ -242,8 +242,8 @@ For `value.method(args)`, the compiler considers:
 Only members visible from the calling module participate in method lookup.
 
 For a concrete receiver, a trait is available to dot-call lookup when its name
-is declared in or imported into the current module, visible in the current
-lexical scope, or supplied by the prelude.
+is declared in or introduced by a use declaration in the current module,
+visible in the current lexical scope, or supplied by the prelude.
 For a generic receiver, its declared bounds are also available. A dynamic trait
 value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module

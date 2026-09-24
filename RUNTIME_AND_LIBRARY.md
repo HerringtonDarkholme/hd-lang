@@ -7,7 +7,7 @@ This document covers standard-library, tooling, and runtime facilities built on 
 Unit tests use dedicated named blocks:
 
 ```text
-import std.testing.{assert, assert_equal}
+use std.testing.{assert, assert_equal}
 
 test "adds two values":
     result := add(2, 3)

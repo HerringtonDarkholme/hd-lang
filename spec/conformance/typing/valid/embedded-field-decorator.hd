@@ -1,0 +1,15 @@
+data Timestamps:
+    created_at: i64
+
+data Flatten: pass
+
+fn flatten() -> Flatten:
+    Flatten {}
+
+impl FieldMetadata[Timestamps] for Flatten
+
+data Post:
+    @flatten()
+    Timestamps
+
+post_shape := shape(Post)
