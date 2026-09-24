@@ -3,8 +3,9 @@
 This directory contains the normative language specification.
 
 The numbered chapters describe one evolving language specification. Features
-are either specified, explicitly unsupported, or listed in the completion
-register; hd-lang does not divide the language into versioned subsets.
+are either specified, explicitly unsupported, or listed in
+[Open Issues](../future-work/OPEN_ISSUES.md); hd-lang does not divide the language into
+versioned subsets.
 
 ## Contents
 
@@ -25,11 +26,11 @@ register; hd-lang does not divide the language into versioned subsets.
 | [GADTs](13-gadts.md) | variant result refinement and match typing |
 | [Annotations](14-annotations.md) | shapes, metadata, derivation, overrides, recursion |
 
-The remaining decisions needed to finish the draft are tracked in the
-[Specification Completion Register](OPEN_ISSUES.md).
+Deferred language design and the runtime, library, ABI, product, and tooling
+backlog are tracked in [Open Issues](../future-work/OPEN_ISSUES.md).
 
 Runtime and standard-library behavior that is not language semantics remains in
-[`RUNTIME_AND_LIBRARY.md`](../RUNTIME_AND_LIBRARY.md). The language tour remains
+[`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md). The language tour remains
 the readable introduction; this directory is the formalization target.
 
 Parser and type-checker cases live in
@@ -74,7 +75,7 @@ states it as a requirement. Explicitly open issues are not implementation
 freedom to guess silently: an implementation must diagnose unsupported syntax
 until the issue is resolved by a later specification revision.
 
-Unresolved decisions are recorded in the completion register. The draft is not
-complete until every issue required for parsing, type checking, or execution
-has either been specified or explicitly classified as unsupported or runtime
-and library work.
+Unresolved decisions are recorded in [Open Issues](../future-work/OPEN_ISSUES.md). The
+draft is not complete until every issue required for parsing, type checking, or
+execution has either been specified or explicitly classified as unsupported or
+runtime and library work.

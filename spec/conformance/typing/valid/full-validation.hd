@@ -1,4 +1,4 @@
-# Full validation and recursive annotation example.
+# Full validation and recursive annotation conformance example.
 #
 # The annotation runtime provides AnnotationRef, cycle-aware annotation_ref,
 # shape types, metadata types, and AnnotationError. This file declares the

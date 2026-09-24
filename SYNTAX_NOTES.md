@@ -2,7 +2,7 @@
 
 > Historical design log. This file preserves explored alternatives and may
 > include superseded syntax inside sections that record earlier discussions.
-> The maintained language surface is the [Language Tour](LANGUAGE_TOUR.md) and
+> The maintained language surface is the [Language Tour](guide/LANGUAGE_TOUR.md) and
 > the normative [Formal Specification](spec/README.md).
 
 ## Current Direction
@@ -1434,15 +1434,8 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database:
 
 This keeps suspension and required dependencies explicit.
 
-Open questions:
-
-1. Exact precedence and formatting rules for requirement-row expressions using `+`, `-`, and parentheses.
-
-Examples:
-
-```text
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database
-```
+Requirement-row expressions use `+` for union and `-` for removal, with
+parentheses for grouping, as defined by the formal specification.
 
 ## Traits And Methods
 
@@ -1660,7 +1653,8 @@ data Account:
         balance >= 0
 ```
 
-Open question: should type invariants be checked after construction, after public mutation, or at all function boundaries?
+Type invariants are not part of the current language. The draft does not define
+automatic checks after construction, mutation, or function boundaries.
 
 ## Requirements And Suspension
 
@@ -1931,25 +1925,16 @@ Standard capability granularity is deferred until the standard library is implem
 
 ## Requirement Polymorphism
 
-Higher-order functions need a way to propagate the requirements of function-typed arguments. Without it, `map` either forbids callbacks with requirements or needs one copy per requirement combination:
-
-```text
-fn map(items: list[T], f: fn(T) -> U) -> list[U]   # what requirements does map have?
-```
-
-### Candidate A: Explicit requirement-row variables
+Higher-order functions propagate callback requirements with explicit
+requirement-row parameters. A generic parameter used after `$` has the
+requirement-row kind:
 
 ```text
 fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r
 ```
 
-1. Fully explicit; aligns with requirements being visible in signatures.
-2. General: supports several independent variables, stored function fields, and returned closures.
-3. Verbose; AI and reviewers must thread `$ r` correctly, and variables must be declared so a typo of a requirement name cannot silently become a fresh variable.
-
-Explicit requirement variables become more useful if a provider scope can satisfy and remove one requirement from the variable. This may use full row polymorphism or a smaller subtraction operation.
-
-Candidate:
+Union and removal transform rows explicitly. A provider scope may satisfy a
+removed requirement inside the function:
 
 ```text
 fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
@@ -1957,42 +1942,9 @@ fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
         callback("str")
 ```
 
-Meaning:
-
-1. `callback` may have any requirements in `r`.
-2. `provide_logger` installs a provider for `Logger`.
-3. The remaining requirement row is `r - Logger`.
-4. If `callback` only requires `Logger`, the wrapper has an empty requirement row.
-5. If `callback` requires `Logger` and `Database`, the wrapper requires `Database`.
-
-The important idea is requirement-row transformation: a function can propagate all callback requirements except the ones it provides locally. This is useful even if the language does not expose full row polymorphism.
-
-### Candidate B: Parameter-linked requirements
-
-```text
-fn map(items: list[T], f: fn(T) -> U) -> list[U] $ f
-```
-
-`$ f` in the requirement row means "whatever requirements the argument bound to `f` has".
-
-1. Reads naturally; no type-level machinery in the common case.
-2. Typo-resistant: `$ f` must name a function-typed parameter or the program does not compile.
-3. Multiple function parameters union: `$ f + g`.
-4. Does not cover function values stored in data types or returned closures; those need row variables or monomorphization.
-
-### Candidate C: Inferred propagation
-
-Unhandled requirements of function-typed parameters propagate automatically; the signature stays clean and tooling displays the resolved requirement row.
-
-1. Zero annotation burden; nothing for AI to get wrong.
-2. Conflicts with the decision that requirements are explicit in signatures; a reviewer reading source cannot see the callback requirements.
-
-### Open questions regardless of candidate
-
-1. Requirement subtraction/removal syntax: should provided requirements be written explicitly as `$ (r - Logger)` or inferred from provider scopes such as `$.with(Logger=logger):`?
-2. Function-typed data fields and returned closures: row variables, monomorphization, or disallowed ?
-3. How do provider scopes installed at a call site interact with a polymorphic row?
-4. Is the underlying model full row polymorphism, or a smaller requirement-variable system that only supports union and removal?
+The compiler infers `r` from the callback's normalized requirement row and
+then normalizes the enclosing row after union and subtraction. Requirements do
+not propagate implicitly from function-typed parameters.
 
 ## Nominal Types With Validation Metadata
 
@@ -2614,7 +2566,12 @@ openapi.add_tool(Tool::annotation(get_user))
 
 ### Complete Validation Derivation Example
 
-The standalone source version is [`validation.hd`](validation.hd). The following example combines primitive and generic type mapping, data fields, enum payload fields, nominal defaults, field metadata, and automatic recursion. `Validator` does not need a facet-specific `Ref` variant because references are represented uniformly by `AnnotationRef[Validator]`:
+The standalone source version is
+[`full-validation.hd`](spec/conformance/typing/valid/full-validation.hd). The
+following example combines primitive and generic type mapping, data fields,
+enum payload fields, nominal defaults, field metadata, and automatic recursion.
+`Validator` does not need a facet-specific `Ref` variant because references are
+represented uniformly by `AnnotationRef[Validator]`:
 
 ```text
 data StringRules:
@@ -3533,13 +3490,6 @@ Related runtime constraints already identified, but not yet a complete serializa
 
 Interactive execution uses the same recorded-suspension foundation but has notebook semantics. A live kernel retains the current namespace for fast reconnects. Successful cells atomically commit records containing cell/source/code identity, parent state, suspension events, state delta, and output. Recovery restores a serializable namespace snapshot and deterministically replays later committed runs in actual execution order. Rerunning an earlier or edited cell creates a new history branch and marks previous descendants stale.
 
-Open issues after the semantic backlog:
-
-1. The exact `std.incremental` API; no dedicated keyword or `annotate Cache` design is currently proposed.
-2. Whether workflows use `annotate Workflow for ...` or standard-library effects only.
-3. How closure capture restrictions are displayed to reviewers after their semantics are decided.
-4. How tracked external inputs expose versions and how incremental dependencies are inspected.
-
-## Open Design Questions
-
-The maintained cross-cutting question list is in [Design Questions](DESIGN_QUESTIONS.md). This notes file records detailed alternatives near the relevant syntax instead of maintaining a second, easily outdated priority queue.
+The remaining language, runtime, and product work is tracked in
+[Open Issues](future-work/OPEN_ISSUES.md). This notes file records constraints and
+historical alternatives rather than a second priority queue.

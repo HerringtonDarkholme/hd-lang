@@ -106,10 +106,10 @@ fi
 
 if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$spec_dir" \
-    "$repo_dir/DESIGN_QUESTIONS.md" \
-    "$repo_dir/LANGUAGE_IDEA.md" \
-    "$repo_dir/LANGUAGE_TOUR.md" \
-    "$repo_dir/RUNTIME_AND_LIBRARY.md" \
+    "$repo_dir/future-work/OPEN_ISSUES.md" \
+    "$repo_dir/guide/OVERVIEW.md" \
+    "$repo_dir/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/future-work/RUNTIME_AND_LIBRARY.md" \
     "$repo_dir/SYNTAX_NOTES.md" \
     --include='*.md'; then
     fail "versioned or provisional language labels found"
@@ -141,10 +141,9 @@ done
 
 if grep -R -n -E 'let[[:space:]]+mut([[:space:]]|$)|fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \
-    "$repo_dir/LANGUAGE_IDEA.md" \
-    "$repo_dir/LANGUAGE_TOUR.md" \
-    "$repo_dir/RUNTIME_AND_LIBRARY.md" \
-    "$repo_dir/validation.hd" \
+    "$repo_dir/guide/OVERVIEW.md" \
+    "$repo_dir/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/future-work/RUNTIME_AND_LIBRARY.md" \
     --include='*.md' --include='*.hd'; then
     fail "obsolete mutability syntax found"
 fi

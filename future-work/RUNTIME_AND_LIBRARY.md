@@ -1,6 +1,6 @@
 # hd-lang Runtime and Library Design
 
-This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The syntax and language-level model remain in the [language tour](LANGUAGE_TOUR.md).
+This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The syntax and language-level model remain in the [language tour](../guide/LANGUAGE_TOUR.md).
 
 ## Testing
 
@@ -21,7 +21,7 @@ test "adds two values":
 A `test` block is a module-level test entry point discovered by the test runner. Its body uses normal hd-lang bindings, expressions, control flow, and function calls. It is not an annotation and does not need manual registration.
 
 The language-level `test` production is defined in the
-[core grammar](spec/02-grammar.md#test-blocks). This document defines its runner
+[core grammar](../spec/02-grammar.md#test-blocks). This document defines its runner
 and standard-library behavior.
 
 Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:

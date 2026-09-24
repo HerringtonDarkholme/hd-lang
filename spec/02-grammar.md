@@ -52,7 +52,7 @@ test_decl = "test", string_literal, ":", suite_body ;
 
 The string is the test's human-readable name. A test body is an ordinary suite.
 Its discovery, execution, and assertion APIs are standard-library and tooling
-behavior specified in [`RUNTIME_AND_LIBRARY.md`](../RUNTIME_AND_LIBRARY.md).
+behavior specified in [`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md).
 `test` blocks are not permitted inside executable suites. `test` is contextual:
 at module level it begins a test block only when followed by a string literal;
 otherwise it remains an ordinary identifier.

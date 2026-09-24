@@ -125,6 +125,7 @@ typing/valid/requirements-and-suspension.hd	type	accept	11-requirements-and-susp
 typing/valid/variadic-generics.hd	type	accept	12-variadic-generics.md
 typing/valid/gadts.hd	type	accept	13-gadts.md
 typing/valid/annotations.hd	type	accept	14-annotations.md
+typing/valid/full-validation.hd	type	accept	14-annotations.md#full-validation-example
 typing/valid/missing-child-override.hd	type	accept	14-annotations.md#missing-child-information
 typing/invalid/missing-child-annotation.hd	type	reject:missing-child-annotation	14-annotations.md#missing-child-information
 typing/valid/data-decorator.hd	type	accept	14-annotations.md#prefix-decorators

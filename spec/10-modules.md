@@ -145,7 +145,7 @@ are not part of module initialization.
 
 This rule governs one program instance. Interactive cell re-execution and
 durable replay have separate runtime histories described in
-[`RUNTIME_AND_LIBRARY.md`](../RUNTIME_AND_LIBRARY.md).
+[`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md).
 
 ## Public Uses And Visibility
 

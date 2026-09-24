@@ -619,8 +619,9 @@ implementation or a `FieldTarget` override.
 
 ## Full Validation Example
 
-The repository file [`validation.hd`](../validation.hd) is the current full
-worked example. It demonstrates:
+The conformance fixture
+[`full-validation.hd`](conformance/typing/valid/full-validation.hd) is the
+current full worked example. It demonstrates:
 
 - exact primitive and nominal type annotations;
 - field and variant metadata checked through ordinary traits;
@@ -629,5 +630,6 @@ worked example. It demonstrates:
 - runtime materialization;
 - recursive data/enum graphs through `AnnotationRef`.
 
-The focused annotation conformance fixtures cover the language surface. The
-repository example additionally sketches a validation library built on it.
+The focused annotation conformance fixtures cover individual parts of the
+language surface. This larger fixture additionally sketches a validation
+library built on it.

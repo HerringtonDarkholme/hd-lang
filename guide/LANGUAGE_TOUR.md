@@ -1,6 +1,25 @@
 # hd-lang in Y Minutes
 
-This is a draft language tour. Syntax examples are intended to be concrete enough to discuss, while still allowing us to revise unsettled choices as the design sharpens.
+This is a draft language tour. It introduces hd-lang through small examples,
+then briefly explains the design behind each feature. Syntax examples are
+concrete enough to discuss while still allowing unsettled choices to evolve.
+
+## Contents
+
+1. [Hello hd-lang](#hello-hd-lang)
+2. [Values and Types](#values-and-types)
+3. [Control Flow and Expressions](#control-flow-and-expressions)
+4. [Data Types](#data-types)
+5. [Enums](#enums)
+6. [Functions](#functions)
+7. [Traits and Methods](#traits-and-methods)
+8. [Type System](#type-system)
+9. [Modules, Packages, and Use Declarations](#modules-packages-and-use-declarations)
+10. [Program Entry Points](#program-entry-points)
+11. [Requirements and Suspension](#requirements-and-suspension)
+12. [Using Annotations](#using-annotations)
+13. [Implementing Annotators](#implementing-annotators)
+14. [Runtime and Library Features](#runtime-and-library-features)
 
 ## Hello hd-lang
 
@@ -1780,7 +1799,7 @@ result := load_user!(id)   # Result[User?, DbError]; drive and suspend if necess
 
 `Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension.
 
-The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driving context. Cancellation is synchronous and cleanup cannot suspend. Source-level cleanup remains [backlog work](DESIGN_QUESTIONS.md#deferred-resource-cleanup-and-scope-exit). Stored-suspension driving syntax remains open, and a separate `Task[T]` API is deferred.
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driving context. Cancellation is synchronous and cleanup cannot suspend. Source-level cleanup remains [backlog work](../future-work/OPEN_ISSUES.md#resources-and-lifetime). Stored-suspension driving syntax remains open, and a separate `Task[T]` API is deferred.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 
@@ -2241,4 +2260,4 @@ at compile time.
 
 ## Runtime and Library Features
 
-Testing, sandbox enforcement, persistence, replay, and observability build on the language features introduced above but are primarily standard-library, tooling, or runtime concerns. They are documented separately in [Runtime and Library Design](RUNTIME_AND_LIBRARY.md).
+Testing, sandbox enforcement, persistence, replay, and observability build on the language features introduced above but are primarily standard-library, tooling, or runtime concerns. They are documented separately in [Runtime and Library Design](../future-work/RUNTIME_AND_LIBRARY.md).
