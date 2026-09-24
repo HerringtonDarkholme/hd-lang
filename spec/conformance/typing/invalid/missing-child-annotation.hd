@@ -1,0 +1,31 @@
+# expect-error: missing-child-annotation
+data Validation: pass
+data Validator: pass
+data FieldValidator: pass
+data Opaque: pass
+type Dict[K, V] = map[K, V]
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        shape: DataShape,
+        fields: Dict[string, FieldValidator],
+    ) -> Validator:
+        Validator {}
+
+data Record:
+    opaque: Opaque
+
+annotate Validation for Record: pass

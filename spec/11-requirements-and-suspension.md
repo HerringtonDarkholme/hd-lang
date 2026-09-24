@@ -163,7 +163,7 @@ fn fetch_user!(id: UserId) -> Result[User, DbError]:
 It introduces two call forms:
 
 ```text
-pending := fetch_user(id)   # Suspend[Result[User, DbError]]
+let pending: mut Suspend[Result[User, DbError]] = fetch_user(id)
 result := fetch_user!(id)   # Result[User, DbError]
 ```
 
@@ -179,13 +179,16 @@ suspension:
 
 ```text
 fn!(A, B) -> T $ R
-fn(A, B) -> Suspend[T] $ R
+fn(A, B) -> mut Suspend[T] $ R
 ```
 
 The first spelling preserves the source-level bang-call operation; the second
 is its lowered callable type. Assignment or argument checking may convert the
 first to the second, but not back. Calling either form without `!` constructs
-the cold `Suspend[T]`. Only the first form supports `callee!(...)` directly.
+the cold mutable `Suspend[T]`. Only the first form supports `callee!(...)`
+directly. A `:=` binding weakens that fresh result to readonly `Suspend[T]`;
+it cannot call `poll` or `cancel`. Store it with
+`let pending: mut Suspend[T] = callee(...)` when it must be driven later.
 
 Anonymous suspending callables use the same marker after `fn`:
 
@@ -248,7 +251,7 @@ There is no separate `Pollable` or public `Continuation[T]` abstraction.
 machine implementing `Suspend[T]`. Conceptually, not as normative source code:
 
 ```text
-fn adjusted(base: i32) -> Suspend[i32] $ Counter:
+fn adjusted(base: i32) -> mut Suspend[i32] $ Counter:
     counter := $.use(Counter)
     AdjustedFrame {
         state: AdjustedState.New(base=base, counter=counter),
@@ -270,7 +273,7 @@ impl Suspend[i32] for AdjustedFrame:
         while true:
             match self.state:
                 AdjustedState.New(base, counter) =>
-                    child := counter.next()
+                    let child: mut Suspend[i32] = counter.next()
                     self.state = AdjustedState.Waiting(child, offset=base)
                 AdjustedState.Waiting(child, offset) =>
                     match child.poll(context):

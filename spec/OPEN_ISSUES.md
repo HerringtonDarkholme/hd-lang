@@ -6,9 +6,7 @@ deliberately unsupported features and runtime or library work.
 
 ## Core Decisions Required
 
-- Select the static `MissingAnnotationPolicy` representation and granularity for
-  aggregate annotation derivation. Until selected, derivation with a missing
-  child annotation is rejected as unsupported.
+No unresolved core decision is currently listed here.
 
 ## Unsupported Or Backlog Language Features
 
@@ -51,7 +49,8 @@ decisions:
 ### Expressions, Patterns, And Control Flow
 
 - **Retain exclusion:** truthiness conversions; conditions require `bool`.
-- **Retain exclusion:** user-defined operator overloading.
+- **Retain exclusion:** user-defined arithmetic and bitwise operator
+  overloading; comparison traits are the explicit exception.
 - **Retain exclusion:** comparison chaining; combine comparisons with `and`.
 - **Accepted:** `bool` match guards; guarded arms do not establish
   exhaustiveness.
@@ -63,8 +62,27 @@ decisions:
   and how suspension and requirements appear in the resulting function type.
 - **Retain exclusion:** automatic conversion of heterogeneous collection
   literals to collections of `Any`.
-- **Discuss:** user-defined ordering for aggregates and collections.
-- **Discuss:** a dedicated present-value optional pattern.
+- **Accepted:** `PartialEq`/`Eq` and `PartialOrd`/`Ord` back comparison
+  operators. User data and enums require explicit implementation or derivation;
+  `is` compares composite reference identity without invoking equality.
+- **Accepted:** `@derive(Trait, ...)` on data and enums is a compiler intrinsic
+  that generates ordinary, checked trait implementations. It is not an
+  `Annotation` or `DataAnnotator`.
+- **Accepted:** derived structural equality includes every declared data field
+  (including embedded fields) and every enum payload field; distinct variants
+  are unequal. There is no implicit field exclusion or cycle detection;
+  recursively comparing cyclic graphs may exhaust the stack.
+- **Accepted:** `@derive(PartialOrd, Ord)` compares data fields lexicographically
+  in declaration order and orders enum variants by declaration order, then
+  compares shared data and payload fields. Unordered fields propagate through
+  `PartialOrd`.
+- **Accepted:** `@derive(Hash)` for data and enums hashes all declared fields
+  and the enum variant identity. User-defined map keys still need explicit
+  `Eq + Hash` conformance, whether handwritten or derived; agreement of custom
+  implementations is not enforced.
+- **Accepted:** `T` implicitly constructs a present `T?`, and `nil` constructs
+  absence. In patterns, `value?` matches and binds the present value; no
+  built-in `Some(...)` constructor or pattern is used for `T?`.
 - **Retain exclusion:** suspension calls inside comprehensions.
 - **Retain exclusion:** a special comprehension `let` clause; `:=` remains the
   binding form inside expressions.
@@ -85,47 +103,106 @@ decisions:
 
 ### Data Types, Enums, Representation, And Resources
 
-- **Support candidate:** defaults for data fields.
-- **Discuss:** defaults for shared enum constructor data.
+- **Accepted:** ordinary named data fields may have pure defaults, evaluated
+  once per construction when omitted; embedded fields remain required.
+- **Accepted:** shared enum constructor parameters may have pure defaults with
+  function-default ordering and evaluation rules; variant payload parameters
+  remain required.
 - **Retain exclusion:** inline enum variant field blocks; variants use
   call-style constructor parameters.
-- **Discuss:** generic embedded-field shorthand.
-- **Discuss:** explicitly mutable embedded-field shorthand.
+- **Accepted:** generic data types may be embedded with type arguments; the
+  final type name remains the field name, and duplicate names are rejected.
+- **Accepted:** data members have no standalone `mut` modifier. A named field
+  may have a `mut T` type, but embedded fields cannot have a mutable type or
+  mutable-member modifier; use a named field for a mutable edge.
+- **Accepted:** a `mut T` root may reassign any field; mutation through a child
+  or a `mut self` call additionally requires a `mut`-typed direct field. A
+  readonly data view reads a direct `mut U` field as `U` and may be constructed
+  with `U` in that field. Constructing a `mut` outer view requires `mut U`.
+  A generic `field: P` retains substituted `P`, including `mut U`.
+- **Accepted:** copy-update reads each copied field through the spread source's
+  view. A readonly spread can fill a direct `mut U` field in a readonly copy;
+  a mutable copy requires a `mut U` replacement. Generic fields retain their
+  substituted type.
+- **Accepted:** `mut T` permits assignment to visible fields, but validation
+  and cross-field invariants are not automatically enforced by field writes.
+  Keep invariant-bearing fields private and expose controlled methods for
+  their writes; independently held mutable aliases to stored children remain
+  allowed and are not governed by the parent's setter.
+- **Accepted:** readonly is an access-path permission, not object immutability
+  or stable/snapshot reads. Ordinary callable values may return mutable aliases
+  under their declared result types. Structural extraction sites apply the
+  permission rule defined for that form; direct data fields and generic fields
+  intentionally differ.
 - **Retain exclusion:** stable object layout, field offsets, variant tags,
   object addresses, and representation identity as core-language semantics.
-- **Discuss:** weak references and user-visible finalizers.
+- **Deferred:** weak references and user-visible finalizers. Neither is
+  supported now; revisit them separately from resource cleanup.
 - **Discuss:** resource ownership, deterministic cleanup, alias escape, and
   use-after-disposal checking.
 
 ### Traits And Types
 
-- **Discuss:** runtime type tests for dynamic trait values.
-- **Discuss:** dynamic trait-value downcasting.
+- **Deferred:** runtime type tests for dynamic trait values and downcasting
+  from trait values to concrete or other trait types. Erased values remain
+  opaque for now; `is` continues to mean reference identity.
 - **Retain exclusion:** implicit structural trait conformance.
 - **Retain exclusion:** trait implementation specialization.
-- **Discuss:** negative trait implementations.
+- **Deferred:** negative trait implementations. There is no current use case
+  requiring them; explicit conformance and the existing overlap rules remain.
 - **Discuss:** direct composition of permission weakening with generic
   variance, such as `mut Cell[Cat]` to `Cell[Animal]`.
-- **Discuss:** user-defined stable equality and hashing for map keys.
+- **Accepted:** a direct generic data field declared `field: P` reads as its
+  substituted type. For `Box[mut User]`, `value: P` reads as `mut User` even
+  through a readonly `Box` and an erased generic getter may return `P`.
+- **Accepted:** indexing or iterating `list[T]` yields `T`, including `mut U`
+  when `T = mut U`, even through a readonly list. Replacing an element still
+  requires a mutable list root. Covariant weakening to `list[U]` remains an
+  explicit type conversion and removes mutable element access through that
+  converted view.
+- **Accepted:** lookup or iteration on `map[K, V]` preserves `V`, including
+  `mut U` when `V = mut U`, even through a readonly map; replacing entries
+  requires a mutable map. Lookup returns `V?`, and present-value unwrapping
+  preserves that generic `V`.
+- **Accepted:** generic contents retain their declared type through readonly
+  wrappers. Optional and `Result` unwrapping preserve `T`, including `mut U`;
+  tuple extraction preserves each declared element type, and generic enum
+  payloads preserve their substituted type. Direct non-generic mutable fields
+  or payloads still follow the enclosing view's permission.
+- **Accepted:** `map[K, V]` requires `K: Eq + Hash` and excludes `mut T` key
+  types. User data and enums may implement both traits. The language does not
+  require or verify equal hashes for keys that `Eq` considers equal. If a key
+  changes through another mutable alias while stored, the map does not
+  reindex it; lookup or removal can miss an entry still visible in iteration.
 - **Retain exclusion:** implicit signed/unsigned and integer/floating-point
   conversions.
 - **Retain exclusion:** upgrading const access `T` to mutable access `mut T`.
 
 ### Variadic Generics
 
-- **Discuss:** general pack mapping.
-- **Discuss:** pack filtering.
-- **Discuss:** pack indexing.
-- **Discuss:** pack splitting and concatenation.
-- **Discuss:** pack length arithmetic.
-- **Discuss:** iteration over a pack as a runtime sequence.
+- **Accepted:** `pack.map` maps a heterogeneous tuple through a named generic
+  function to another tuple; `pack.map_list` collects homogeneous mapper
+  results. These operations support the per-child state and readiness steps
+  of a library `all!` driver without first-class polymorphic function values.
+- **Deferred:** pack filtering, indexing, splitting and concatenation, length
+  arithmetic, and runtime iteration. None is needed by `all!`; revisit only
+  when a concrete use case requires one.
 
-Pattern expansion remains the only accepted pack transformation unless one of
-these operations is selected explicitly.
+Pattern expansion and tuple mapping are the accepted pack transformations.
+Other pack operations are outside the current design.
 
 ### Annotations
 
-- **Discuss:** decorator syntax as exact sugar for member metadata.
+- **Accepted:** prefix `@Facet` on module-level data, enum, and function
+  declarations expands to `annotate Facet for Target: pass`, then to
+  `impl Annotate[Facet] for Target`.
+- **Accepted:** prefix `@value` on a direct data field or enum variant expands
+  to its member's `annotate Target` metadata; order and duplicate checks match
+  explicit member metadata lists.
+- **Discuss:** parameter decorators, configured facet values, and decorator
+  support on local declarations or embedded fields.
+- **Accepted:** `@derive(PartialEq, Eq)` uses the compiler-intrinsic path, not
+  annotation lowering. No equality is derived implicitly.
 - **Discuss:** wildcard or generic-family annotation derivation syntax beyond
   ordinary generic `impl Annotate[A] for Target` declarations.
 - **Discuss:** replacing an entire derivation rather than overriding aggregate

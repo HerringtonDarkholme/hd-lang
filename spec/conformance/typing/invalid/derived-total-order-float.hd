@@ -1,0 +1,4 @@
+# expect-error: field-not-eq
+@derive(PartialEq, Eq, PartialOrd, Ord)
+data Measurement:
+    value: f64

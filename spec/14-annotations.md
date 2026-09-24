@@ -17,8 +17,12 @@ The design principles are:
 6. the semantic foundation is ordinary traits, implementations, values, and
    compiler-provided shape values.
 
-The surface `annotate` forms are syntax sugar over that foundation. Decorator
-syntax is not part of the language.
+Ordinary decorators expand to `annotate` blocks. The compiler lowers facet blocks to
+`impl Annotate[Facet] for Target` and member blocks to shape metadata
+construction. This is not runtime wrapper execution. `@derive(Trait, ...)` is
+the compiler-intrinsic exception: it generates ordinary trait implementations
+directly and does not invoke the annotation protocol. An ordinary decorator
+must not silently change a declaration's name, type, behavior, or visibility.
 
 ## Common Shape Representation
 
@@ -111,6 +115,35 @@ value when invoking instance methods on its annotator implementation.
 trait conformance for constraint and coherence purposes.
 
 ## Two `annotate` Forms
+
+### Prefix Decorators
+
+An `@Facet` line immediately before a module-level data, enum, or function
+declaration requests the same no-override derivation as `annotate Facet for
+Target: pass`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or
+`FuncAnnotator` for the respective target, in addition to `Annotation`. Thus
+`@Validation` before `data User` expands to `annotate Validation for User:
+pass`, which occupies the `impl Annotate[Validation] for User` coherence slot.
+The same rule applies to `@Validation` before an enum and `@Tool` before a
+function. A decorator does not register the resulting runtime information.
+
+An `@value` line immediately before a direct data field or enum variant
+attaches member metadata. For a field `name: string`, `@max_len(80)` expands to
+the `max_len(80)` entry in `annotate User: name = [max_len(80)]`. The value must
+implement `FieldMetadata[string]`; a variant value must implement
+`VariantMetadata`. Multiple lines retain source order and obey the same
+duplicate-concrete-type rule as an explicit member metadata list. A decorator
+and an explicit `annotate` block for the same target combine only when they do
+not assign the same member or occupy the same facet/target coherence slot.
+Decorators attach to declarations or members, never to type expressions.
+
+Parameter decorators and configured facet values are tracked separately in
+[Open Issues](OPEN_ISSUES.md).
+
+`@derive` uses the same prefix position but is not an ordinary `@Facet`
+decorator. Its arguments are trait names rather than metadata values. The
+compiler checks and generates each requested implementation; no general
+`DataAnnotator` can emit implementations through `Annotation::Info`.
 
 ### Member Metadata
 
@@ -322,6 +355,10 @@ annotate UI for User:
 
 The assignment cannot target a missing or promoted field. Enum variant
 overrides follow the same rule with `VariantTarget`.
+An explicit field result also permits derivation when the field's declared
+type has no `Annotate[Facet]` implementation. In that case the compiler uses
+the override directly and does not call `map_field` for that field. An exact
+variant result similarly bypasses mapping that variant's payload fields.
 
 A local `fn build` definition replaces aggregate `build` for that exact
 facet/target pair. It receives the completed uniform map and may rewrite the
@@ -338,10 +375,12 @@ documentation, or a whole-function `build` override.
 
 Annotation materialization follows a strict order:
 
-1. resolve annotation information for each member's declared type;
+1. resolve annotation information for each member's declared type, except
+   members whose exact facet result is overridden;
 2. attach and evaluate that member's field or variant metadata;
-3. call the enclosing annotator's `map_field`, `map_variant`, or `map_param`;
-4. apply exact structural result overrides;
+3. call the enclosing annotator's `map_field`, `map_variant`, or `map_param`
+   for members without an exact result override;
+4. use exact structural result overrides in place of those mapped results;
 5. call the enclosing `build`, or the exact local `build` override.
 
 For enums, every payload field is mapped before its containing variant; every
@@ -479,16 +518,20 @@ derivation is explicitly requested with `annotate Facet for Target`.
 
 ## Missing Child Information
 
-An aggregate may contain a child type with no annotation for the requested
-facet. Some facets should reject this statically; others should omit or replace
-the child.
+An unoverridden field derives facet information from its declared type. Each
+primitive, collection instantiation, or user-defined type that participates in
+that facet must provide `Annotate[Facet]`; for example, an `i32` validator
+checks that a value is an integer, while a custom type supplies its own default
+validation. The same rule applies to enum payload fields.
 
-`map_field` runs in the runtime annotation phase, so it cannot itself choose a
-compile-time error. The proposed solution is a statically visible
-`MissingAnnotationPolicy` associated with the aggregate annotator, but its
-policy type, default, and granularity have not been accepted. Until that design
-is selected, a program whose derivation encounters missing child information
-must be rejected as unsupported rather than silently ignored.
+An exact field override in `annotate Facet for Data` supplies
+`Facet::FieldTarget` instead of deriving it from the field type. An exact enum
+variant override supplies `Facet::VariantTarget` instead of mapping that
+variant's payload fields. If neither an applicable type annotation nor an
+applicable exact override exists, derivation is a compile-time error. The
+compiler never silently omits a child. Ordinary `annotate Data` member metadata
+can customize `map_field`, but metadata alone is not an `Annotate[Facet]`
+implementation or a `FieldTarget` override.
 
 ## Full Validation Example
 

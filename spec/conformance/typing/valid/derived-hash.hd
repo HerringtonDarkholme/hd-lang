@@ -1,0 +1,21 @@
+import std.hash.Hash
+
+@derive(PartialEq, Eq, Hash)
+data Revision:
+    number: i32
+
+@derive(PartialEq, Eq, Hash)
+data Key:
+    Revision
+    name: string
+
+@derive(PartialEq, Eq, Hash)
+enum Status:
+    Ready(code: i32)
+    Failed(code: i32, reason: string)
+
+fn lookup_key(items: map[Key, i32], key: Key) -> i32?:
+    items[key]
+
+fn lookup_status(items: map[Status, i32], status: Status) -> i32?:
+    items[status]

@@ -400,9 +400,10 @@ The computation callback uses ordinary function rules to establish purity. It
 must be a plain non-suspending `fn`, not `mut fn` or `fn!`, and have no `$`
 requirements, mutable parameters, or mutable captures. These restrictions are
 checked transitively without an incremental-specific compiler instruction.
-Mutation of fresh, non-escaping local values remains permitted. Because a const
-reference can still observe writes through another alias, changing shared state
-must enter through a tracked input or a future stable-value constraint.
+Mutation of fresh, non-escaping local values remains permitted. A readonly
+reference is not a snapshot or stable value: another mutable alias can change
+what it observes between reads. Changing shared state must therefore enter
+through a tracked input or a future stable-value constraint.
 
 Illustrative library shape, not a final API:
 

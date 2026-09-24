@@ -1,0 +1,15 @@
+data Child:
+    name: string
+
+enum LookupError:
+    Missing
+
+fn rename_result(result: Result[mut Child, LookupError]) -> Result[mut Child, LookupError]:
+    let child: mut Child = result?
+    child.name = "updated"
+    Ok(child)
+
+fn rename_optional(value: (mut Child)?) -> (mut Child)?:
+    let child: mut Child = value?
+    child.name = "updated"
+    child

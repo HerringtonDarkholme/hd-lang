@@ -1,5 +1,5 @@
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
     f(args...)
 
-fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     panic("fixture does not provide a scheduler")

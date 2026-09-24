@@ -1,0 +1,22 @@
+data Child:
+    name: string
+
+data MutableChild:
+    child: mut Child
+
+data ReadonlyChild:
+    child: Child
+
+fn copy_mutable(source: mut MutableChild) -> mut MutableChild:
+    MutableChild { ...source }
+
+fn replace_mutable(source: MutableChild) -> mut MutableChild:
+    MutableChild { ...source, child: Child { name: "new" } }
+
+fn copy_readonly_mutable_field(source: MutableChild) -> MutableChild:
+    MutableChild { ...source }
+
+fn copy_readonly(source: ReadonlyChild) -> mut ReadonlyChild:
+    let copy: mut ReadonlyChild = ReadonlyChild { ...source }
+    copy.child = Child { name: "new" }
+    copy

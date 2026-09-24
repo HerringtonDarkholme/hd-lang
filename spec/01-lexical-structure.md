@@ -180,7 +180,7 @@ The grammar uses these reserved words:
 ```text
 Self      and       annotate  as        break     continue
 else      enum      export    false     fn        for
-if        impl      import    in        let       match
+if        impl      import    in        is        let       match
 mut       nil       not       or        pass      pub
 reified   return    self      shape     data      super
 trait     true      type      where     while
@@ -358,7 +358,7 @@ The lexer recognizes these operators and compound punctuation tokens:
 +  -  *  /  %  **
 &  |  ^  ~  <<  >>
 =  ==  !=  <  <=  >  >=
-:=  ->  =>  ?  !  $  ...  ::
+:=  ->  =>  ?  !  $  @  ...  ::
 ```
 
 When two tokens share a prefix, the lexer uses the longest valid token. For

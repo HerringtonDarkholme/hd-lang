@@ -6,9 +6,10 @@ enum StatusCode(i32):
     Ok -> StatusCode(200)
     NotFound -> StatusCode(404)
 
-enum HttpStatus(code: i32, phrase: string):
+enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")
     NotFound -> HttpStatus(404, phrase="Not Found")
+    ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)
 
 enum Maybe[T]:
     Some(value: T)

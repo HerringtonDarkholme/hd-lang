@@ -168,9 +168,9 @@ monomorphic function type or with the complete explicit type-argument list.
 The resulting value has an ordinary monomorphic function type. A reified
 instantiation captures the required runtime type descriptors in that value.
 
-A value of type `fn!(A) -> T $ R` constructs `Suspend[T]` when called normally
+A value of type `fn!(A) -> T $ R` constructs `mut Suspend[T]` when called normally
 and may be bang-called inside a suspending context. It may be weakened to the
-lowered constructor type `fn(A) -> Suspend[T] $ R`; the reverse conversion is
+lowered constructor type `fn(A) -> mut Suspend[T] $ R`; the reverse conversion is
 not implicit.
 
 ## Closures
@@ -213,6 +213,11 @@ to determine all parameter and result types.
 A closure captures local bindings that it references from enclosing lexical
 scopes. A plain `fn(...) -> T` closure may read captures but must not mutate
 them.
+
+Reading a captured mutable reference and returning it with a `mut T` result
+type is permitted; a readonly reference to the closure does not weaken its
+declared result. Calling a `mut fn` closure still requires mutable access to
+the closure itself.
 
 A closure that mutates captured state has type `mut fn(...) -> T` and uses the
 same marker in its literal:

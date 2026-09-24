@@ -1,0 +1,5 @@
+# expect-error: impure-data-default
+fn next!() -> i32: 1
+
+data Counter:
+    value: i32 = next!()

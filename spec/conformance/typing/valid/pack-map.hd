@@ -1,0 +1,15 @@
+data Box[T]:
+    value: T
+
+fn box[T](value: T) -> Box[T]:
+    Box { value: value }
+
+fn present[T](value: Box[T], flag: bool) -> bool:
+    flag
+
+fn box_all[Ts...](values: Ts...) -> (Box[Ts]...):
+    pack.map((values...), box)
+
+fn present_all[Ts...](values: Ts...) -> list[bool]:
+    boxes := pack.map((values...), box)
+    pack.map_list(boxes, present, true)

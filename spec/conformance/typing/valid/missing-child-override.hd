@@ -1,0 +1,37 @@
+data Validation: pass
+data Validator: pass
+data FieldValidator: pass
+data Opaque: pass
+type Dict[K, V] = map[K, V]
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        shape: DataShape,
+        fields: Dict[string, FieldValidator],
+    ) -> Validator:
+        Validator {}
+
+annotate Validation for i32:
+    fn build(self, shape: TypeShape) -> Validator: Validator {}
+
+data Record:
+    count: i32
+    opaque: Opaque
+
+annotate Validation for Record:
+    opaque = FieldValidator {}
+
+validator := Validation::annotation(Record)

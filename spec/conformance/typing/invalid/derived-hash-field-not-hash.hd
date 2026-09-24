@@ -1,0 +1,8 @@
+# expect-error: field-not-hash
+import std.hash.Hash
+
+data Opaque: pass
+
+@derive(Hash)
+data Key:
+    value: Opaque

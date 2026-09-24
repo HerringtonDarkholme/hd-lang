@@ -1,0 +1,6 @@
+# expect-error: missing-required-field
+data User:
+    id: i32
+    active: bool = true
+
+user := User {}

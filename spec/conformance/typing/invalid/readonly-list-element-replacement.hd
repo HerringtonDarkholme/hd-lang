@@ -1,0 +1,7 @@
+# expect-error: const-root
+
+data Child:
+    name: string
+
+fn invalid(children: list[mut Child], replacement: mut Child) -> void:
+    children[0] = replacement

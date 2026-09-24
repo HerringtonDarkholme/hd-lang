@@ -1,0 +1,12 @@
+data Box[T]:
+    value: T
+
+data Shipment[T]:
+    Box[T]
+    id: string
+
+shipment := Shipment[i32] {
+    Box: Box[i32] { value: 5 },
+    id: "shipment_1",
+}
+value := shipment.value

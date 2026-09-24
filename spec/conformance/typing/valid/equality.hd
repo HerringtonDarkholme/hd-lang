@@ -1,8 +1,17 @@
+import std.cmp.PartialEq
+
 data User:
     id: string
 
+impl PartialEq for User:
+    fn eq(self, other: Self) -> bool:
+        self.id == other.id
+
 fn same(left: User, right: User) -> bool:
     left == right
+
+fn same_object(left: User, right: User) -> bool:
+    left is right
 
 fn same_map(left: map[string, i32], right: map[string, i32]) -> bool:
     left == right

@@ -130,6 +130,7 @@ specification	block	classification	fixture
 12-variadic-generics.md	2	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	3	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	4	accept	typing/valid/variadic-generics.hd
+12-variadic-generics.md	5	expression-fragment	-
 13-gadts.md	1	accept	typing/valid/gadts.hd
 13-gadts.md	2	accept	typing/valid/gadts.hd
 13-gadts.md	3	accept	typing/valid/gadts.hd

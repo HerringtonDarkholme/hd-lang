@@ -309,13 +309,13 @@ fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
 A pattern containing a pack can be repeated once for every pack element by placing `...` at its expansion position. This lets an ordinary library function preserve a pointwise relationship between heterogeneous inputs and outputs:
 
 ```text
-fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     ...
 ```
 
-For `Ts... = User, i32, bool`, the parameter pattern expands to `Suspend[User], Suspend[i32], Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
+For `Ts... = User, i32, bool`, the parameter pattern expands to `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
 
-If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. hd-lang does not support general pack mapping, filtering, indexing, splitting, or arithmetic. The scheduling and cancellation semantics of `all!` belong to the concurrency design; this example specifies only the variadic type relationship.
+If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. `pack.map((tasks...), make_slot)` maps a heterogeneous tuple through a named generic function and returns another tuple, preserving each result type. `pack.map_list(slots, poll_slot, context)` uses the same per-element instantiation but collects a homogeneous `list[bool]` for readiness checks. Both are compiler-recognized expressions, not ordinary function calls or first-class generic function values; each mapped call executes left to right. Filtering, indexing, splitting, and pack arithmetic remain unsupported. The scheduling and cancellation semantics of `all!` belong to the concurrency library.
 
 `all!` treats a child's `Err` as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `Err` values. Runtime panics and cancellation are separate from this result-value rule.
 
@@ -346,7 +346,7 @@ fn keep_erased(value: Any) -> Any:
 
 `Any` is non-null. `nil` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T: Any` is a generic constraint that preserves the concrete type.
 
-Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values.
+Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values. A plain `T` implicitly constructs a present `T?` where that type is expected; no `Some(T)` wrapper is needed or built in. In a pattern, `value?` matches only the present case and binds `value: T`, while `nil` matches absence.
 
 Data embedding is composition, not inheritance. Embedded fields and methods can be promoted, but the outer data is not automatically a subtype of the embedded data.
 
@@ -604,7 +604,19 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `&` | bitwise and |
 | `^` | bitwise xor |
 | `|` | bitwise or |
-| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining  |
+| `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
+
+`==` and `!=` dispatch through `PartialEq`; relational comparisons use
+`PartialOrd`. `Eq` and `Ord` are the corresponding total-law refinements.
+User-defined data and enums do not receive implicit equality or ordering.
+Explicit trait implementation and compiler-intrinsic `@derive(Trait, ...)` are
+available. Derived equality compares every declared data field, including
+embedded fields, and every enum payload field; different variants are unequal.
+Derived ordering compares data fields lexicographically and enum variants by
+declaration order, then shared data and payload fields. No field is implicitly
+excluded. `is` checks composite reference identity
+without calling comparison methods. It cannot compare primitives, `nil`, or
+optional values.
 | `and` | logical and |
 | `or` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
@@ -688,7 +700,19 @@ Mutation through a composite path requires both:
 1. A mutable root whose type is `mut T`, including a local, parameter, field projection, return value, or `mut self`.
 2. `mut` permission on every composite field, list element, or map value edge crossed by the path.
 
-An ordinary `field: T` is a const edge. A mutable outer root may replace that field slot but cannot mutate the referenced child through it. Initializing `field: mut T` requires a `mut T` value; `T` cannot be upgraded.
+An ordinary `field: T` is a const edge. A mutable outer root may replace any
+field slot, including one typed `T`, but cannot mutate the referenced child
+through a const edge. It may mutate a `field: mut T` child or call that child's
+`mut self` methods. A readonly outer root cannot replace fields, mutate nested
+direct `mut` fields, or call their nested `mut self` methods: those fields read
+as readonly. A readonly outer value may be constructed with `T` in a direct
+`field: mut T`; constructing or reassigning through a mutable outer value
+requires `mut T`. A generic field `field: P` retains its substituted type,
+including `mut T` when `P = mut T`. No readonly outer value can be upgraded to
+a mutable one later.
+Data members have no `mut` modifier: `mut friend: User` is invalid, while
+`friend: mut User` declares a mutable reference edge. An embedded member is
+bare (`Base`), never `mut Base`; embedding cannot carry a mutable edge.
 
 Mutable parameter permission is written in the type position:
 
@@ -739,7 +763,8 @@ The compiler checks declared variance against the read-only fields and methods. 
 
 Local declarations use `let name: mut T`; the former `let mut name: T` spelling does not exist. Receiver syntax remains `mut self`, shorthand for `self: mut Self`.
 
-Lists and maps apply the root-and-edge rule uniformly:
+For lists, the root controls slot replacement and the generic element type
+controls mutation of a referenced element:
 
 ```text
 fn replace_users(users: mut list[User], replacement: User) -> void:
@@ -754,7 +779,7 @@ The container root and element edge are independent:
 
 ```text
 list[User]           # const container, const elements
-list[mut User]       # const container, latent mutable element edges
+list[mut User]       # const container, mutable elements
 mut list[User]       # mutable container, const elements
 mut list[mut User]   # mutable container, mutable elements
 ```
@@ -770,6 +795,15 @@ let invalid: mut list[User] = editable      # invalid: mutable containers are in
 ```
 
 The covariant conversion creates a read-only view, not an immutable snapshot. Changes made through another mutable alias remain observable. The `list` API must preserve its `+T` declaration; an operation that consumes an element through a read-only list view needs a separately type-safe signature rather than placing `T` directly in a negative position.
+Without such a conversion, indexing or iterating `list[mut User]` retains
+`mut User` even when the list root is readonly; only slot replacement requires
+`mut list[mut User]`.
+Similarly, lookup and iteration on readonly `map[K, mut User]` preserve the
+mutable value type. Lookup yields `mut User?`, whose present-value extraction
+returns `mut User`; only entry replacement requires a mutable map root.
+Generic contents are not weakened by a readonly wrapper: `Result[mut User, E]`
+propagates `mut User` on success, and tuple elements and generic enum payloads
+retain their declared or substituted types on extraction.
 
 An ordinary generic parameter denotes a complete type, including any access modifier. Therefore an unconstrained generic declaration cannot apply `mut` again:
 
@@ -798,7 +832,13 @@ The `mut` qualifier proves that `value` can call methods requiring `mut self`. `
 
 Trait values follow the same rule. `mut Trait` is a mutable dynamic trait view, and `mut Any` is an erased mutable composite reference. The qualifier preserves permission but does not invent operations: `mut Any` can only use universal runtime operations until checked as a concrete mutable type or passed somewhere with a stronger trait requirement.
 
-Mutable map keys are disallowed because changing a structurally hashed key could invalidate map invariants. The formal type specification defines the closed set of supported map-key types; a stable user-defined equality/hash protocol remains backlog work.
+Map key types require `Eq + Hash`; user-defined data and enums can implement both. `mut T` remains disallowed as a key type, but a stored readonly key can still change through another mutable alias. If that changes its hash or equality, the map does not reindex it: lookup or removal can miss an entry that remains visible during iteration. The language does not verify agreement between custom `Eq` and `Hash` implementations.
+
+`@derive(Hash)` generates ordinary `Hash` conformance for data and enums. It
+hashes all declared data fields in declaration order, including embeddings;
+for enums it hashes variant identity, shared data, then payload fields. Every
+hashed field must implement `Hash`. There is no cycle detection or cross-run
+hash stability guarantee.
 
 ### Alternative: Shallow Const Bindings And Implicit Const Borrows
 
@@ -827,6 +867,19 @@ renamed := User {
     display_name: "Ada Lovelace"
 }
 ```
+
+An ordinary named data field can declare a pure default with `field: T = expr`.
+An omitted field evaluates its default for each construction, after explicit
+field expressions; defaults run in field declaration order. They do not
+implicitly bind sibling fields. Embedded fields remain required, and a
+copy-update spread supplies all fields without evaluating defaults.
+
+Copied fields are type-checked through the spread source's access view. A
+readonly source reads a direct `mut T` field as `T`; that value can fill the
+same field in a readonly copy, but not a mutable copy without an explicit
+`mut T` replacement. Generic fields retain their substituted type. A readonly
+view controls access; it does not freeze the underlying object against other
+mutable aliases.
 
 ## Data Embedding
 
@@ -861,6 +914,11 @@ The embedded data's fields are promoted for ordinary field access:
 ```text
 post.created_at
 ```
+
+Generic data types may also be embedded, for example `Box[T]` inside
+`Shipment[T]`. The embedded field and construction key are `Box`, regardless
+of its type arguments. Embedding both `Box[i32]` and `Box[string]` in one data
+type is a duplicate-field error.
 
 Embedded-field name conflicts follow Go-style promotion rules. Direct promoted access is allowed only when the field name is unambiguous. If multiple embedded data types promote the same field name, direct access is invalid and the user must qualify through the embedded field:
 
@@ -927,10 +985,17 @@ enum StatusCode(i32):
     Ok -> StatusCode(200)
     NotFound -> StatusCode(404)
 
-enum HttpStatus(code: i32, phrase: string):
+enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")
     NotFound -> HttpStatus(404, phrase="Not Found")
+    ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)
 ```
+
+Shared enum constructor parameters may have pure defaults. The function-default
+ordering rule applies: after the first defaulted parameter, all later shared
+parameters need defaults. Omitted defaults are evaluated per construction after
+explicit arguments, in parameter order. Variant payload parameters have no
+defaults.
 
 Enums support generic ADTs, recursive enums, and GADT-style variants with explicit result types:
 
@@ -1608,16 +1673,16 @@ fn load_user!(id: UserId) -> Result[User, DbError]:
 the two call forms differ deliberately:
 
 ```text
-pending := load_user(id)   # Suspend[Result[User, DbError]]; body has not started
+let pending: mut Suspend[Result[User, DbError]] = load_user(id)
 result := load_user!(id)   # construct and immediately drive the suspension
 ```
 
-`fn load_user!(...) -> T` is source-level sugar for a function that constructs `Suspend[T]`. The compiler evaluates and captures ordinary call arguments when constructing the suspension, then lowers the function body into a resumable state machine. It does not lower to an eagerly executed ordinary function body that merely happens to return `Suspend[T]`. Inside that state machine, `fetch_user!(id)` drives the child suspension until it completes or suspends; if it suspends, the enclosing `load_user` state is saved and resumed later.
+`fn load_user!(...) -> T` is source-level sugar for a function that constructs `mut Suspend[T]`. The compiler evaluates and captures ordinary call arguments when constructing the suspension, then lowers the function body into a resumable state machine. It does not lower to an eagerly executed ordinary function body that merely happens to return `Suspend[T]`. A `:=` binding weakens the returned suspension to readonly `Suspend[T]` and cannot drive it. Inside the state machine, `fetch_user!(id)` drives the child suspension until it completes or suspends; if it suspends, the enclosing `load_user` state is saved and resumed later.
 
 Conceptually, but not as normative source syntax:
 
 ```text
-fn load_user(id: UserId) -> Suspend[Result[User, DbError]]:
+fn load_user(id: UserId) -> mut Suspend[Result[User, DbError]]:
     runtime.suspend_state_machine(...lowered body...)
 
 load_user!(id)
@@ -1636,14 +1701,14 @@ trait Suspend[T]:
     fn cancel(mut self) -> void
 ```
 
-Suspension values use ordinary dynamic trait dispatch. The driver must obtain mutable access under the runtime exclusive-driving guard; this is not permission to upgrade arbitrary const references. The exact compiler/runtime access mechanism remains to be specified.
+Suspension values use ordinary dynamic trait dispatch. A cold `fn!` call supplies mutable access; a driver must retain it under the runtime exclusive-driving guard. A readonly `Suspend[T]` cannot be upgraded to mutable access.
 
 Each suspension represents one execution. Exclusive driving is checked at runtime, not through ownership or affine types: competing drivers and reentrant polling panic. Successive polls by the same driver while pending are valid. Starting another execution or polling a completed or canceled suspension panics. The suspension does not restart or cache a result for repeated driving.
 
 Dependency providers are captured at construction. The caller must satisfy the suspending function's `$` requirements through its own signature or a local provider scope, even for an unbanged call that only constructs the suspension. Arguments and providers are captured without running the body; a later driving context cannot replace the captured providers.
 
 ```text
-fn prepare_user(id: UserId) -> Suspend[Result[User, DbError]] $ Database:
+fn prepare_user(id: UserId) -> mut Suspend[Result[User, DbError]] $ Database:
     load_user(id)  # captures this caller's Database provider
 ```
 
@@ -1686,14 +1751,14 @@ enum AdjustedState:
 data AdjustedFrame:
     state: AdjustedState
 
-fn adjusted(base: i32) -> Suspend[i32] $ Counter:
+fn adjusted(base: i32) -> mut Suspend[i32] $ Counter:
     counter := $.use(Counter)
     AdjustedFrame {
         state: AdjustedState.New(base, counter)
     }
 ```
 
-The generated frame implements `Suspend[i32]` directly and is returned through ordinary dynamic trait dispatch, without a separate suspension wrapper. Driver access and exclusive-driving checks are supplied by compiler/runtime machinery, whose exact representation remains open. Capturing `counter` here fixes the provider at construction time. Neither `base + 1` nor `counter.next()` runs until the first poll.
+The generated frame implements `Suspend[i32]` directly and is returned through ordinary dynamic trait dispatch, without a separate suspension wrapper. The returned mutable view permits polling; the runtime still checks exclusive driving. Capturing `counter` here fixes the provider at construction time. Neither `base + 1` nor `counter.next()` runs until the first poll.
 
 Illustrative generated implementation:
 
@@ -1704,7 +1769,7 @@ impl Suspend[i32] for AdjustedFrame:
             match self.state:
                 AdjustedState.New(base, counter) =>
                     offset := base + 1
-                    child := runtime.claim_child(counter.next())
+                    let child: mut Suspend[i32] = counter.next()
                     self.state = AdjustedState.Waiting(child, offset)
 
                 AdjustedState.Waiting(child, offset) =>
@@ -1728,7 +1793,7 @@ impl Suspend[i32] for AdjustedFrame:
             AdjustedState.Cancelled => pass
 ```
 
-The child helpers preserve the same exclusive driver identity through nested polling. They do not create a task or imply that `Task[T]` has been accepted. Mutable access to the child payload above represents generated access through the mutable frame; the exact source-level pattern rules are not specified by this lowering.
+The child helpers preserve the same exclusive driver identity through nested polling. They do not create a task or imply that `Task[T]` has been accepted. The child retains mutable access in the generated frame; the exact source-level pattern rules are not specified by this lowering.
 
 The runtime guard around the frame rejects competing drivers and reentrant entry before calling generated code. Terminal-state checks prevent repeated execution. Cancelling before the first poll never starts the body; cancelling while waiting synchronously cancels the active child. The child provider unregisters its pending waits, and stale wakes cannot re-enter the cancelled execution. This example has no user-owned resources or cleanup declarations; those remain in [Deferred Resource Cleanup And Scope Exit](#deferred-resource-cleanup-and-scope-exit).
 
@@ -2094,11 +2159,11 @@ annotate Entry:
 
 For `User.email: string`, the first right-hand side is contextually typed as `list[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
 
-There is no decorator syntax. `annotate A for T: pass` requests default aggregate derivation with no result overrides; `annotate T` attaches member metadata that any aggregate annotator may inspect.
+Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a direct field or variant expands to its member metadata in `annotate Target`, which becomes shape metadata. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
 
 `pass` is the general no-op expression and evaluates to `void`. Its use in a no-override `annotate` body introduces no special runtime behavior.
 
-Decorator syntax may be added later as optional locality sugar. A future field form such as `@max_len(320)` must lower exactly to the corresponding value in `annotate User`, use the same `FieldMetadata[T]` trait checking, and introduce no new annotation semantics. Decorators are not part of the current language design.
+For a field decorator such as `@max_len(320)`, the expansion is the corresponding value in `annotate User`, checked through the same `FieldMetadata[T]` trait. Multiple prefix lines preserve source order and cannot duplicate a concrete metadata type on one member.
 
 Generic code can use normal trait bounds to require annotation availability:
 
@@ -2740,44 +2805,28 @@ Annotation resolution otherwise follows this order:
 
 1. Use an exact `annotate Facet for ConcreteTarget` implementation when one exists.
 2. Otherwise use an attached `DataAnnotator` or `EnumAnnotator` for aggregate declarations.
-3. If neither applies, behavior remains unresolved. A statically visible missing-annotation policy is the current candidate below.
+3. If neither applies, that type has no annotation for the facet. An aggregate
+   field of that type needs an exact facet-specific result override; an enum
+   payload needs its containing variant's exact result override.
 
-### Candidate Missing Annotation Policy
+### Missing Child Information
 
-A missing child type annotation crosses the static/runtime boundary. `map_field` runs at runtime, so an error returned by `map_field` cannot become a compiler error. If a facet can choose whether missing child metadata is rejected during compilation or ignored, that choice must be visible statically before runtime derivation.
+A field without an exact override uses its declared type's `Annotate[Facet]`
+implementation. This includes ordinary behavior for primitives and custom
+types supplied by their own annotation implementations. For example, a
+validation facet can require an `i32` value to be an integer, while a user
+type provides its own default validation.
 
-Candidate sketch, not a decision:
+An exact `annotate Facet for Data` field assignment provides the
+`Facet::FieldTarget` directly. The compiler skips `map_field` and does not
+require a child annotation for that field. An exact enum variant assignment
+provides `Facet::VariantTarget` directly and skips payload mapping. If neither
+the child type annotation nor the exact override exists, compilation fails.
+No child is silently omitted and no `MissingAnnotationPolicy` is needed.
 
-```text
-trait MissingAnnotationPolicy
-
-data Require
-data Ignore
-
-impl MissingAnnotationPolicy for Require
-impl MissingAnnotationPolicy for Ignore
-
-trait DataAnnotator: Annotation:
-    type FieldTarget
-    type MissingTypePolicy: MissingAnnotationPolicy
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Self::Info],
-    ) -> Self::FieldTarget
-```
-
-Under this proposal, `Require` makes a missing child type annotation a compiler error. `Ignore` excludes that child before runtime `map_field` and `build` execute. `map_field` therefore keeps a non-optional `AnnotationRef[Info]` and never decides whether compilation succeeds.
-
-One possible way to make the policy selectable is to carry it in the annotator's static type:
-
-```text
-data Validation[Missing: MissingAnnotationPolicy]:
-    ...
-```
-
-The names, marker representation, selection syntax, default policy, policy granularity, and applicability to data types, enums, fields, and variants are all unresolved. In particular, this does not adopt `Require` or `Ignore` as a default.
+Ordinary `annotate Data` member metadata can modify how `map_field` handles a
+type annotation, but does not itself provide the type annotation or a
+facet-specific field result.
 
 ### Manual Deferral
 
@@ -2803,8 +2852,7 @@ Open concerns:
 6. Runtime annotation materialization uses `Facet::annotation(Target)`.
 7. The internal representation and lifecycle of `AnnotationRef[Info]` remain compiler/runtime details.
 8. Which compatible aggregate annotators consume manual `lazy` metadata remains open.
-9. Whether a statically visible `MissingAnnotationPolicy` should select compile-time rejection or omission for missing child type annotations remains open, including its default and granularity. Runtime `map_field` cannot make this choice.
-10. Decorator locality sugar is not part of the language.
+10. Data, enum, and function facet decorators and direct field or variant metadata decorators are locality sugar for `annotate` blocks; parameter decorators and configured facet values remain design questions.
 
 Support two `annotate` forms:
 

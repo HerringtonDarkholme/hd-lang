@@ -1,0 +1,25 @@
+import std.testing.assert_equal
+
+@derive(PartialEq, Eq, PartialOrd, Ord)
+data Key:
+    first: i32
+    second: i32
+
+@derive(PartialEq, Eq, PartialOrd, Ord)
+enum Priority:
+    Low(value: i32)
+    High(value: i32)
+
+@derive(PartialEq, PartialOrd)
+data Measurement:
+    value: f64
+
+test "derived ordering follows declaration order":
+    a := Key { first: 1, second: 9 }
+    b := Key { first: 2, second: 0 }
+    c := Key { first: 1, second: 10 }
+    assert_equal(a < b, true)
+    assert_equal(a < c, true)
+    assert_equal(Priority.Low(99) < Priority.High(0), true)
+    assert_equal(Priority.Low(2) < Priority.Low(3), true)
+    assert_equal(Measurement { value: 1.0 } < Measurement { value: 2.0 }, true)

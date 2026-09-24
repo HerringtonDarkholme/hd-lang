@@ -7,6 +7,10 @@ data Post:
     id: string
     title: string
 
+data Owner:
+    friend: mut Timestamps
+    Timestamps
+
 post := Post {
     Timestamps: Timestamps {
         created_at: 1,

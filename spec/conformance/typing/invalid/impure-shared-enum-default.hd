@@ -1,0 +1,5 @@
+# expect-error: impure-enum-default
+fn next!() -> i32: 1
+
+enum Status(code: i32 = next!()):
+    Unknown -> Status()

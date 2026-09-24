@@ -29,6 +29,9 @@ WASI-compatible host boundary.
   semantics. Data embedding follows Go-style promotion and ambiguity rules.
 - Traits provide methods, default implementations, generic constraints, and
   Go-style dynamic trait values. Conformance is explicit.
+- Comparison operators use `PartialEq`/`Eq` and `PartialOrd`/`Ord` traits.
+  User data and enums require explicit implementation or derivation, while
+  `is` compares shared-reference identity without invoking equality.
 - Local bindings use only `:=` and `let`. `:=` is inferred and cannot be
   reassigned; `let` may be reassigned and may carry a type annotation.
 - Reference mutation permission is part of composite types: `T` is const access
@@ -132,8 +135,17 @@ automatic cycle detection. Exact facet/target implementations are
 package-global and coherent; a library-provided exact annotation cannot be
 overridden downstream.
 
-There is no decorator syntax in the current language. A future decorator form
-may be added only as exact sugar for member metadata.
+`@Facet` on a data, enum, or function declaration expands to `annotate Facet
+for Target: pass`, then to `impl Annotate[Facet] for Target`. `@value` on a
+field or variant expands to its member metadata in `annotate Target`, which
+becomes shape metadata. `@derive(PartialEq, Eq, PartialOrd, Ord)` is a compiler intrinsic that
+generates ordinary trait implementations from the data or enum shape. It does
+not invoke `DataAnnotator` or create `Annotate[Facet]` conformance. Derived
+equality includes every declared field, including embedded fields and enum
+payloads. Derived equality does not detect reference cycles; recursive
+comparison may exhaust the stack.
+Derived ordering compares data fields lexicographically and enum variants by
+declaration order before comparing their shared data and payload fields.
 
 ## Runtime And Library Direction
 

@@ -1,0 +1,10 @@
+data Child:
+    name: string
+
+fn rename(child: mut Child, name: string) -> void:
+    child.name = name
+
+fn update_children(children: list[mut Child]) -> void:
+    rename(children[0], "indexed")
+    for child in children:
+        rename(child, "iterated")

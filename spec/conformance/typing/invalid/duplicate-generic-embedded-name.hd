@@ -1,0 +1,7 @@
+# expect-error: duplicate-embedded-field
+data Box[T]:
+    value: T
+
+data Storage:
+    Box[i32]
+    Box[string]

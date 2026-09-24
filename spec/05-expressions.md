@@ -152,11 +152,17 @@ renamed := User {
 ```
 
 The spread expression is evaluated first and must have the exact data type
-being constructed. Explicit fields replace the corresponding copied values.
-Copy-update is shallow: primitive fields are copied by value, while composite
-field references continue to refer to the same underlying objects with the
-permissions declared by their field types. A data expression permits at most one
-data spread, and it must precede every explicit field.
+being constructed. For each field not explicitly replaced, the copied value is
+type-checked as a read through the spread source's access view. A readonly
+source reads a direct `mut U` field as `U`: that value can fill the same field
+in a readonly result, but not in a `mut` result without an explicit `mut U`
+replacement. Generic fields retain their substituted type, even when it is
+`mut U`. A mutable source retains direct fields' declared permissions.
+Copy-update is shallow: primitive fields are
+copied by value, while composite field references continue to refer to the
+same underlying objects. A fresh mutable outer result does not upgrade copied
+child references. A data expression permits at most one data spread, and it
+must precede every explicit field.
 
 Embedded fields are initialized with their embedded type name as the field key.
 
@@ -174,8 +180,9 @@ closures can adapt method calls where a function value is needed. Embedded
 field and method promotion follows
 [Names and Scopes](03-names-and-scopes.md).
 
-Member access through a const composite root applies viewpoint weakening to
-nested mutable edges, as defined in [Type System](04-type-system.md).
+Member access through a readonly data root weakens a direct `mut U` field to
+`U`, but does not weaken a generic field's substituted type. Other member
+forms follow their own access rules in [Type System](04-type-system.md).
 
 ### Indexing
 
@@ -184,13 +191,14 @@ receiver type's indexing behavior.
 
 For `list[T]`, an index may have any integer type. It must be non-negative and
 less than the list length. A failed check causes the standard checked runtime
-panic. Reading through a const list yields the const viewpoint of `T`; reading
-through `mut list[T]` preserves the stored element permission. Assigning
-`items[index] = value` requires a mutable list root and an in-range index.
+panic. Reading a list element yields its declared generic type `T`, including
+`mut U` when `T = mut U`, regardless of the list root's permission. Assigning
+`items[index] = value` still requires a mutable list root and an in-range index.
 
 For `map[K, V]`, the index must have type `K`. Reading `entries[key]` returns
-`V?`: `nil` means no equal key exists. Reading through a const map applies the
-ordinary const viewpoint to the contained value. Assigning
+`V?`: `nil` means no equal key exists. The generic `V` is preserved through a
+readonly map, including `mut U` when `V = mut U`; unwrapping the optional
+returns `V`. Assigning
 `entries[key] = value` requires `mut map[K, V]` and inserts or replaces the
 entry. Removal and entry APIs are standard-library methods rather than special
 syntax.
@@ -237,8 +245,9 @@ Postfix `?` handles either an optional or a `Result` value:
 
 - for `T?`, a present value produces `T`; `nil` immediately returns `nil` from
   the nearest function;
-- for `Result[T, E]`, `Ok(value)` produces `T`; `Err(error)` immediately returns
-  a compatible `Err` from the nearest function.
+- for `Result[T, E]`, `Ok(value)` produces the declared `T`, including a
+  mutable type argument; `Err(error)` immediately returns a compatible `Err`
+  from the nearest function.
 
 The operand is evaluated once. `?` does not catch runtime panics and does not
 interact with suspension by itself.
@@ -262,7 +271,7 @@ Operators are ordered from highest to lowest precedence:
 | Bitwise AND | `&` | left |
 | Bitwise XOR | `^` | left |
 | Bitwise OR | `|` | left |
-| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=` | non-associative |
+| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | non-associative |
 | Logical AND | `and` | left, short-circuiting |
 | Logical OR | `or` | left, short-circuiting |
 | Control and closure | `if`, `match`, `for`, `while`, `fn` | structural |
@@ -308,29 +317,34 @@ signed zero, and NaN. `%` is integer-only.
 `not` requires `bool`. `and` and `or` require `bool` operands and produce
 `bool`. They evaluate the right operand only when needed.
 
-`==` and `!=` use structural value equality for:
+`==` calls `PartialEq.eq` and `!=` negates that result. Standard-library
+implementations provide value equality for primitives, optional and result
+values, tuples, lists, and maps when their elements support equality. Map
+equality is independent of entry order. A user-defined data or enum type has
+no implicit `PartialEq` implementation, even if all its members are
+comparable: the author must explicitly implement or request derivation of
+the trait. Equality never
+silently falls back to reference identity. Floating-point equality follows
+IEEE 754, so NaN is unequal even to itself.
 
-- booleans, characters, strings, and compatible numeric values;
-- transparent aliases and nominal newtypes of an equality-capable type;
-- optional values, tuples, lists, maps, data types, enums, and `Result` values when
-  every contained value is equality-capable.
+`<`, `<=`, `>`, and `>=` use `PartialOrd.partial_cmp`. The standard library
+implements it for compatible numeric values, characters by Unicode scalar
+value, and strings lexicographically. Users can implement comparison traits
+for their own types. `Ord` is the total-order refinement; floating-point
+types have `PartialOrd` but not `Ord` because NaN is unordered. An unordered
+comparison makes all four relational operators false.
 
-Map equality is unordered key/value equality. Composite equality follows
-declared field or payload order and handles recursive object graphs without
-infinite recursion by tracking already-compared identity pairs. Function values
-and dynamic trait values do not support equality. Equality never silently
-uses reference identity. Floating equality and ordering follow IEEE 754, so a
-NaN compares unequal to every value, including itself.
-
-`<`, `<=`, `>`, and `>=` are defined for compatible numeric values,
-characters by Unicode scalar value, strings by lexicographic Unicode scalar
-order, and nominal newtypes of an orderable type. General tuple, collection,
-data, enum, and user-defined ordering is not supported.
+`is` compares the identity of two references to the same composite object,
+regardless of any `PartialEq` implementation. Both operands must have
+compatible composite reference types; access permission (`mut`) does not
+change identity. Primitive values, `nil`, and optional values must not be
+compared with `is`. Use `not (a is b)` for distinct identities. Identity
+comparison never invokes user code.
 
 Arithmetic and bitwise operators are built in for the numeric types specified
 by this chapter and [Type System](04-type-system.md). `string + string`
-concatenates strings. User-defined operator overloading and operator traits are
-not part of the language.
+concatenates strings. Comparison traits are the only operator traits; other
+user-defined operator overloading is not part of the language.
 
 ## Binding Expressions
 
@@ -390,5 +404,5 @@ Closures are expressions described in [Functions](07-functions.md). `if`,
 
 ## Unsupported Expression Extensions
 
-hd-lang has no user-defined operator overloading, comparison chaining, or
+hd-lang has no user-defined arithmetic or bitwise operator overloading, comparison chaining, or
 fallback conversion of heterogeneous literals to `Any`.

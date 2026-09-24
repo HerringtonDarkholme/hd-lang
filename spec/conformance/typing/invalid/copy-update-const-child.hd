@@ -1,0 +1,11 @@
+# expect-error: const-edge
+
+data Child:
+    name: string
+
+data Parent:
+    child: Child
+
+fn invalid(parent: Parent) -> void:
+    let copy: mut Parent = Parent { ...parent }
+    copy.child.name = "new"

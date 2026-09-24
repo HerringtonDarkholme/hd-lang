@@ -84,12 +84,14 @@ A const iterator view cannot advance and therefore does not gain this adapter.
 `for` accepts an ordinary `Iterable[T]` or a mutable iterator through the
 adapter and repeatedly calls `next` on the resulting cursor.
 
-The built-in read-only `list[T]` iterable yields the const viewpoint of each
-stored element. The built-in `map[K, V]` iterable yields `(K, V)` tuples in an
-unspecified order, with the ordinary const viewpoint applied to `V`. Iteration
-does not grant mutable element access merely because the original expression
-has a mutable root; libraries may provide explicit mutable-iteration APIs with
-separate aliasing rules.
+The built-in `list[T]` iterable yields each element as `T`, including `mut U`
+when `T = mut U`, even through a readonly list. The built-in `map[K, V]`
+iterable yields `(K, V)` tuples in an unspecified order. Destructuring each
+entry preserves `V`, including `mut U` when `V = mut U`, even through a
+readonly map. Iteration
+does not grant mutable element access merely because the list root is mutable;
+the declared list or map value type determines that permission. Libraries may provide
+additional mutable-iteration APIs with separate aliasing rules.
 
 Built-in list and map iterators capture a structural-version counter. Inserting,
 removing, clearing, or otherwise changing collection shape invalidates existing
@@ -169,8 +171,9 @@ A match must be exhaustive. Coverage is checked as follows:
   patterns;
 - a data pattern covers its nominal data type when every listed field pattern
   is irrefutable, while unlisted fields are unconstrained; and
-- integer, floating-point, `char`, `string`, optional, and other value spaces
-  require an irrefutable catch-all after any literal or `nil` cases.
+- an optional is covered by `nil` plus an unguarded present-value pattern,
+  or by a catch-all; integer, floating-point, `char`, `string`, and other value
+  spaces require an irrefutable catch-all after any literal cases.
 
 A guarded arm contributes no coverage to exhaustiveness, even when its pattern
 would be irrefutable without the guard. A later unguarded arm must cover its
@@ -180,6 +183,12 @@ earlier occurrences are guarded, but an arm already covered by an earlier
 unguarded arm is unreachable.
 
 `_` and a bare binding identifier are catch-all patterns for the subject type.
+For a subject of type `T?`, `value?` matches only the present case and binds
+`value` as `T`; `nil` matches only absence. The suffix `?` in a pattern does
+not propagate or unwrap an expression. It may also appear in a nested pattern
+whose expected type is optional. A bare `value` still binds the entire `T?`,
+including `nil`. Matching `T??` with `value?` removes only the outer optional
+layer, so `value` has type `T?`.
 An unguarded irrefutable catch-all must be the final arm because every later
 arm would be unreachable. Duplicate unguarded literals, duplicate fully
 covered variants, arms after an unguarded catch-all, and other statically
@@ -204,7 +213,10 @@ refinement rules as the qualified form.
 
 Matching does not transfer ownership. Primitive payloads bind by value;
 composite payloads bind reference access after applying the matched subject's
-viewpoint permission. A literal-constrained payload pattern such as
+viewpoint permission when the payload directly declares a non-generic mutable
+type. A payload declared with a generic parameter instead binds its
+substituted type, including `mut U`. Tuple pattern elements retain their
+declared types. A literal-constrained payload pattern such as
 `Expr.Scale(value, factor=2)` covers only that subset of the variant, so another
 arm must cover the remaining `Scale` values unless a later catch-all does.
 
@@ -217,7 +229,9 @@ name only public fields. An empty data pattern is irrefutable for that
 data type. A named data pattern must match the subject's nominal type;
 it does not structurally match a different data type with the same fields.
 Primitive fields bind by value; composite fields bind reference access under
-the same viewpoint rules as enum payload patterns.
+the data subject's effective field types. A direct `mut U` field in a readonly
+subject binds as `U`; a generic field declared `field: P` binds as substituted
+`P`, including `mut U` when `P = mut U`.
 
 GADT pattern refinement is defined in [Generalized Algebraic Data
 Types](13-gadts.md).

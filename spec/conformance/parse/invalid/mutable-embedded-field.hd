@@ -1,0 +1,7 @@
+# expect-error: mutable-embedded-field
+
+data Base:
+    id: string
+
+data User:
+    mut Base

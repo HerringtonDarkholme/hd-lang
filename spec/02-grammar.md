@@ -22,6 +22,7 @@ top_level_item = import_decl
                | export_decl
                | test_decl
                | annotation_decl
+               | decorated_decl
                | declaration
                | statement
                ;
@@ -169,17 +170,22 @@ data_suite = "pass", SUITE_END
                | data_member, { data_member } ), DEDENT
              ;
 
-data_member = data_field, NEWLINE
+data_member = { decorator_line }, data_field, NEWLINE
               | embedded_field, NEWLINE
               ;
 
-data_field = [ "pub" ], identifier, ":", type ;
-embedded_field = [ "pub" ], type_name ;
+data_field = [ "pub" ], identifier, ":", type, [ "=", expression ] ;
+embedded_field = [ "pub" ], named_type ;
 ```
 
-An embedded field must denote a data type and must not include generic
-arguments or `mut`. The type's final name is also its
-embedded field name.
+`mut` is not a data-member modifier: `mut name: string` and `mut Base` are
+invalid. A named field may instead declare a mutable type, as in
+`friend: mut User`. An embedded field must denote a data type and must not
+include `mut`. It may
+instantiate a generic data type. The type's final name, without its type
+arguments, is the embedded field name; duplicate embedded names are rejected.
+Data-field default expressions have the purity constraint specified in
+[Data Types and Enums](08-data-and-enums.md#data-declarations).
 
 ### Enums
 
@@ -188,10 +194,12 @@ enum_decl = "enum", identifier, [ type_params ],
             [ enum_parameter_clause ], ":",
             NEWLINE, INDENT, enum_variant, { enum_variant }, DEDENT ;
 
-enum_variant = identifier, [ generic_params ], [ variant_parameter_clause ],
+enum_variant = { decorator_line }, identifier, [ generic_params ], [ variant_parameter_clause ],
                [ "->", variant_result ], NEWLINE ;
 
-enum_parameter_clause = "(", [ data_parameter_list ], ")" ;
+enum_parameter_clause = "(", [ enum_parameter_list ], ")" ;
+enum_parameter_list = enum_parameter, { ",", enum_parameter }, [ "," ] ;
+enum_parameter = [ identifier, ":" ], type, [ "=", expression ] ;
 variant_parameter_clause = "(", [ data_parameter_list ], ")" ;
 data_parameter_list = data_parameter, { ",", data_parameter }, [ "," ] ;
 data_parameter = [ identifier, ":" ], type ;
@@ -202,6 +210,8 @@ variant_result = named_type, [ argument_clause ] ;
 The optional variant result initializes constructor data shared by every
 variant, as in `NotFound -> StatusCode(404)`, and may refine the enclosing enum
 type as specified by the GADT rules.
+Only shared enum constructor parameters may declare defaults. Their ordering
+and purity constraints follow function-parameter defaults.
 
 ### Traits And Implementations
 
@@ -320,7 +330,6 @@ type_list = type_element, { ",", type_element }, [ "," ] ;
 
 associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 
-type_name = identifier ;
 qualified_name = identifier, { ".", identifier } ;
 
 requirement_clause = "$", requirement_expression ;
@@ -401,7 +410,7 @@ logical_and_expression = comparison_expression,
 
 comparison_expression = bitwise_or_expression,
                         [ comparison_operator, bitwise_or_expression ] ;
-comparison_operator = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
+comparison_operator = "==" | "!=" | "<" | "<=" | ">" | ">=" | "is" ;
 
 bitwise_or_expression = bitwise_xor_expression,
                         { "|", bitwise_xor_expression } ;
@@ -449,6 +458,7 @@ primary_expression = literal
                    | context_create
                    | shape_expression
                    | annotation_runtime_access
+                   | pack_map_expression
                    | tuple_or_group_expression
                    | list_expression
                    | map_expression
@@ -465,6 +475,10 @@ shape_target = type | qualified_name ;
 
 annotation_runtime_access = qualified_name, "::", "annotation", "(",
                             annotation_target, ")" ;
+
+pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
+                      expression, ",", qualified_name,
+                      { ",", expression }, [ "," ], ")" ;
 
 literal = boolean_literal
         | nil_literal
@@ -496,9 +510,11 @@ multiline_string_segment = multiline_string_text
 
 tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
-                          | "(", expression, ",",
-                            [ expression, { ",", expression }, [ "," ] ], ")"
+                          | "(", tuple_element, ",",
+                            [ tuple_element, { ",", tuple_element }, [ "," ] ], ")"
+                          | "(", expression, "...", ")"
                           ;
+tuple_element = expression, [ "..." ] ;
 
 list_expression = "[", [ list_items ], "]"
                 | list_comprehension
@@ -608,6 +624,7 @@ rules, not separate grammar productions.
 ```ebnf
 pattern = "_"
         | literal_pattern
+        | optional_pattern
         | binding_pattern_atom
         | variant_pattern
         | data_pattern
@@ -623,6 +640,7 @@ literal_pattern = boolean_literal
                 ;
 
 binding_pattern_atom = identifier ;
+optional_pattern = binding_pattern_atom, "?" ;
 
 variant_pattern = ( qualified_name | ".", identifier ),
                   [ pattern_argument_clause ] ;
@@ -694,6 +712,14 @@ subtraction removes one concrete key from such a row.
 ## Annotations
 
 ```ebnf
+decorated_decl = decorator_line, { decorator_line },
+                 [ "pub" ], ( data_decl | enum_decl | function_decl ) ;
+
+decorator_line = "@", ( derive_decorator | expression ), NEWLINE ;
+
+derive_decorator = "derive", "(", qualified_name,
+                   { ",", qualified_name }, [ "," ], ")" ;
+
 annotation_decl = member_metadata_decl | facet_annotation_decl ;
 
 member_metadata_decl = "annotate", qualified_name, ":",

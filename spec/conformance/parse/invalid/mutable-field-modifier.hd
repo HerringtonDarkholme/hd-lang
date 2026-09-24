@@ -1,0 +1,4 @@
+# expect-error: mutable-field-modifier
+
+data User:
+    mut name: string

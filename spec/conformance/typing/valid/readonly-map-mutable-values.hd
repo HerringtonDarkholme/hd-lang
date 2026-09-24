@@ -1,0 +1,12 @@
+data Child:
+    name: string
+
+fn rename(child: mut Child, name: string) -> void:
+    child.name = name
+
+fn update_children(children: map[string, mut Child], id: string) -> void:
+    match children[id]:
+        child? => rename(child, "indexed")
+        nil => println("missing")
+    for key, child in children:
+        rename(child, key)

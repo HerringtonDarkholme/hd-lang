@@ -1,0 +1,27 @@
+import std.testing.assert_equal
+
+@derive(PartialEq, Eq)
+data Revision:
+    number: i32
+
+@derive(PartialEq, Eq)
+data User:
+    Revision
+    id: i64
+    name: string
+
+@derive(PartialEq, Eq)
+enum State:
+    Active(code: i32, label: string)
+    Paused(code: i32)
+
+test "derived equality includes every member":
+    left := User { Revision: Revision { number: 1 }, id: 1, name: "Ada" }
+    same := User { Revision: Revision { number: 1 }, id: 1, name: "Ada" }
+    renamed := User { Revision: Revision { number: 1 }, id: 1, name: "Grace" }
+    revised := User { Revision: Revision { number: 2 }, id: 1, name: "Ada" }
+    assert_equal(left == same, true)
+    assert_equal(left == renamed, false)
+    assert_equal(left == revised, false)
+    assert_equal(State.Active(1, "ready") == State.Active(1, "busy"), false)
+    assert_equal(State.Active(1, "ready") == State.Paused(1), false)

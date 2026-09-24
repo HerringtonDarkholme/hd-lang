@@ -1,0 +1,10 @@
+fn default_name() -> string: "anonymous"
+
+data User:
+    id: i32
+    name: string = default_name()
+    active: bool = true
+
+user := User { id: 1 }
+named := User { id: 2, name: "Ada" }
+copied := User { ...user, id: 3 }

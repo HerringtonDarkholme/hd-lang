@@ -1,0 +1,9 @@
+fn default_phrase() -> string: "unknown"
+
+enum HttpStatus(code: i32, phrase: string = default_phrase(), retryable: bool = false):
+    Ok -> HttpStatus(200, phrase="OK")
+    Unknown -> HttpStatus(520)
+    Unavailable -> HttpStatus(503, retryable=true)
+
+status := HttpStatus.Unknown
+phrase := status.phrase

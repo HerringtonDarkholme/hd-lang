@@ -3,6 +3,21 @@ data Profile:
 
 data Account:
     profile: mut Profile
+    snapshot: Profile
+
+impl Profile:
+    fn rename(mut self, name: string) -> void:
+        self.name = name
 
 fn rename(account: mut Account, name: string) -> void:
+    account.snapshot = Profile { name: name }
+    account.profile = Profile { name: name }
     account.profile.name = name
+    account.profile.rename(name)
+
+fn readonly_account(profile: mut Profile) -> Account:
+    let account: Account = Account {
+        profile: profile,
+        snapshot: Profile { name: "Ada" },
+    }
+    account

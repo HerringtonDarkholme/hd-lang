@@ -219,12 +219,36 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `&` | bitwise and |
 | `^` | bitwise xor |
 | `|` | bitwise or |
-| `==`, `!=`, `<`, `<=`, `>`, `>=` | comparisons; no chaining  |
+| `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
 | `and` | logical and |
 | `or` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
+
+`==` uses `PartialEq`, while ordering uses `PartialOrd`; `Eq` and `Ord` express
+the stronger total-equality and total-order contracts. Data and enums do not
+gain equality automatically: implement the trait or request explicit
+derivation. `is` checks whether two composite references point to the same
+object, independently of their values. `not (a is b)` checks distinct identity.
+
+```text
+@derive(PartialEq, Eq, PartialOrd, Ord, Hash)
+data User:
+    id: i64
+    name: string
+```
+
+`@derive` is a compiler intrinsic: it generates ordinary trait
+implementations from the data or enum shape. Derived equality compares every
+declared field, including embedded fields; enum equality also distinguishes
+variants. It does not detect reference cycles, so comparison may exhaust the
+stack when it repeatedly traverses one. It is not an annotation facet.
+Derived ordering compares data fields in declaration order. Enum variants
+compare by declaration order before their shared data and payload fields.
+Derived `Hash` hashes every declared data field, or the enum variant identity
+followed by its shared data and payload fields. Each such field needs `Hash`;
+`Eq + Hash` lets a user-defined type serve as a map key.
 
 Use parentheses when a binding expression appears inside a larger expression.
 
@@ -434,7 +458,7 @@ not value-type copies:
 data User:
     id: string
     email: string
-    display_name: string?
+    display_name: string? = nil
 ```
 
 Construct a data value with a typed literal:
@@ -442,10 +466,13 @@ Construct a data value with a typed literal:
 ```text
 user := User {
     id: "user_123",
-    email: "ada@example.com",
-    display_name: "Ada"
+    email: "ada@example.com"
 }
 ```
+
+Omitted fields use their declared defaults. Defaults must be pure and are
+evaluated for each construction after explicit field expressions; a
+copy-update spread supplies every field and skips defaults.
 
 Field access uses dot syntax:
 
@@ -482,7 +509,18 @@ let editable: mut Account = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
-An ordinary composite field is a const edge. A mutable outer object may replace that field, but cannot mutate the referenced child through it.
+An ordinary composite field is a const edge. A `mut` outer object may replace
+any field, even a const-typed one, but cannot mutate a referenced child through
+a const edge. A readonly outer view cannot replace fields. It reads a direct
+`friend: mut User` field as `User`, so it cannot mutate that child or call its
+`mut self` methods. A readonly outer `User` may be constructed with a readonly
+value in that direct field; constructing `mut User` requires a mutable value.
+A generic field `value: T` instead retains its substituted type, including
+`mut Child` when `T = mut Child`. Other mutable aliases may still change the
+underlying object.
+`mut` belongs in a named field's type (`friend: mut User`), never before its
+name (`mut friend: User`). Embedded members also cannot carry `mut`: use
+`Base`, not `mut Base`; use a named field if a mutable edge is needed.
 
 Mutable parameter permission is written in the type position:
 
@@ -505,11 +543,21 @@ fn edit_users(users: mut list[mut User]) -> void:
     users[0].display_name = "new"
 ```
 
-Here the list is a mutable root and its element references are mutable edges. `mut list[User]` can replace list elements but cannot mutate the referenced users; `list[mut User]` has mutable element references but lacks the mutable root needed to use them for mutation.
+Here the list is a mutable root and its element references are mutable edges.
+`mut list[User]` can replace list elements but cannot mutate the referenced
+users; `list[mut User]` cannot replace list elements but can mutate its
+referenced users, because indexing retains the generic element type.
 
 Container and element permissions are independent, so all four forms are meaningful: `list[User]`, `list[mut User]`, `mut list[User]`, and `mut list[mut User]`.
 
 A read-only list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a const `User` into storage requiring `mut User`.
+
+Maps follow the same separation: a readonly `map[K, mut User]` can yield
+`mut User` from lookup or iteration, but replacing an entry requires a
+`mut map[K, mut User]`. Lookup returns `mut User?`; matching the present case
+or propagating `?` yields `mut User`.
+The same generic-content rule applies to `Result[mut User, E]`: propagating a
+successful result with `?` yields `mut User`, not a weakened reference.
 
 Use copy-update syntax when creating a modified value from an existing data value:
 
@@ -522,7 +570,10 @@ renamed := User {
 
 Copy-update is shallow. It creates a new outer data value, copies primitive fields
 by value, and reuses composite field references unless an explicit replacement
-provides a different value.
+provides a different value. Copied fields are read through the source view:
+a readonly source exposes a direct `mut`-typed child as readonly. It can fill
+that field in a readonly copy; a mutable copy requires an explicit mutable
+replacement. Generic fields retain their substituted types in either view.
 
 Data types can contain other data types:
 
@@ -565,6 +616,27 @@ post := Post {
 
 println(post.created_at)
 ```
+
+Generic data types can be embedded with type arguments. The construction key
+is the type's final name, without arguments:
+
+```text
+data Box[T]:
+    value: T
+
+data Shipment[T]:
+    Box[T]
+    id: string
+
+shipment := Shipment[i32] {
+    Box: Box[i32] { value: 5 },
+    id: "shipment_1",
+}
+shipment.value
+```
+
+Two embedded types with the same final name are rejected, even when their
+type arguments differ.
 
 Embedded-field name conflicts follow Go-style promotion rules. A promoted field can be accessed directly only when it is unambiguous. If two embedded data types promote the same field name, direct access is ambiguous and the code must qualify through the embedded field:
 
@@ -691,10 +763,15 @@ enum StatusCode(i32):
 Enum constructor definitions and calls follow the same parameter conventions as functions. In definitions, unnamed positional parameters come before named parameters. In calls, positional arguments come first, and named arguments must come after positional arguments.
 
 ```text
-enum HttpStatus(code: i32, phrase: string):
+enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")
     NotFound -> HttpStatus(404, phrase="Not Found")
+    ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)
 ```
+
+Shared enum constructor parameters may have pure defaults. Defaults follow
+function-parameter ordering and run when omitted for each construction, after
+explicit arguments. Variant payload parameters remain required.
 
 Shared named constructor data is available on every enum value as a field, such
 as `HttpStatus.NotFound.phrase`. Unnamed shared data uses a zero-based numeric
@@ -780,6 +857,9 @@ fn loaded() -> Result[User, DbError]:
 ```
 
 `nil` is the empty optional case, and `?` propagates `nil` or `Result` errors from the current function.
+A plain `User` can be assigned to `User?` without writing a wrapper. In a
+`match`, `user?` matches a present optional and binds `user` as `User`; `nil`
+matches absence. A bare `user` pattern would bind the entire optional.
 
 Construct `Result` values with capitalized helper constructors:
 
@@ -1363,13 +1443,13 @@ This lets the compiler preserve the exact argument types of higher-order functio
 A pattern containing a pack can be expanded once per pack element. This is especially useful for a heterogeneous concurrency combinator:
 
 ```text
-fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     ...
 ```
 
-For `Ts... = User, i32, bool`, `Suspend[Ts]...` expands to three parameter types, `Suspend[User], Suspend[i32], Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: `start(tasks)...` repeats `start(task)` for every value in the `tasks` pack. Pattern expansion happens at compile time and does not allocate a runtime collection.
+For `Ts... = User, i32, bool`, `mut Suspend[Ts]...` expands to three parameter types, `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: `start(tasks)...` repeats `start(task)` for every value in the `tasks` pack. Pattern expansion happens at compile time and does not allocate a runtime collection.
 
-Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. hd-lang does not support general pack mapping, filtering, indexing, splitting, or arithmetic. This example establishes the type relationship for `all!`; its scheduling and cancellation behavior is defined separately by the concurrency design.
+Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. A library `all!` driver can use `pack.map((tasks...), make_slot)` to turn the heterogeneous task pack into a tuple of typed slots, `pack.map_list(slots, poll_slot, context)` to gather homogeneous readiness flags, and `pack.map(slots, take_ready)` to recover the result tuple. Each mapper is a named generic function instantiated for each tuple element; mapping is compiler-supported, while scheduling and cancellation remain library behavior. Filtering, indexing, splitting, and pack arithmetic remain unsupported.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 
@@ -1638,11 +1718,11 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
 A suspending declaration also creates a cold computation constructor:
 
 ```text
-pending := load_user(id)   # Suspend[Result[User?, DbError]]; no body code has run
+let pending: mut Suspend[Result[User?, DbError]] = load_user(id)
 result := load_user!(id)   # Result[User?, DbError]; drive and suspend if necessary
 ```
 
-`fn load_user!(...) -> T` lowers conceptually to a function constructing `Suspend[T]`. Arguments are evaluated when the cold suspension is constructed, while the body is compiled into a resumable state machine and begins only when driven. Each nested bang call is a possible suspension point: the compiler saves the enclosing state, drives the child computation, and resumes with its result.
+`fn load_user!(...) -> T` lowers conceptually to a function constructing `mut Suspend[T]`. Arguments are evaluated when the cold suspension is constructed, while the body is compiled into a resumable state machine and begins only when driven. `:=` weakens a stored suspension to readonly `Suspend[T]`; use `let pending: mut Suspend[T]` when it must later be polled or cancelled. Each nested bang call is a possible suspension point: the compiler saves the enclosing state, drives the child computation, and resumes with its result.
 
 `Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension.
 
@@ -1718,10 +1798,28 @@ are specialized row parameters with union and subtraction. Additional
 
 Annotations provide typed metadata and structural derivation. Shape APIs,
 materialization, exact-target derivation, and recursive references are part of
-the language; the missing-child policy remains the one unresolved annotation
-decision.
+the language. An unoverridden field uses its type's facet annotation; an exact
+field result override can supply the facet result instead. Missing information
+is a compile-time error, never an implicit omission.
 
 Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
+
+Prefix decorators put a no-override facet next to a declaration and member
+metadata next to a field or variant:
+
+```text
+@Validation
+data User:
+    @max_len(80)
+    display_name: string
+```
+
+Here `@Validation` expands to `annotate Validation for User: pass`, then to
+`impl Annotate[Validation] for User`. The field decorator expands to
+`annotate User: display_name = [max_len(80)]` and attaches metadata to its
+field shape. An enum can use `@Validation` and decorators on its variants;
+functions can use a facet decorator such as `@Tool`. These are compile-time
+checked attachments, not runtime wrappers.
 
 Use `annotate Target` to attach metadata to existing members:
 
@@ -1817,9 +1915,10 @@ tool_registry.register(Tool::annotation(get_user))
 ```
 
 `Facet::annotation(Target)` is the runtime retrieval spelling. A local `build`
-inside the facet block replaces aggregate assembly. The missing-child policy
-when a member type lacks the requested facet remains unresolved. Decorator
-syntax is not part of the language.
+inside the facet block replaces aggregate assembly. A member type without the
+requested facet needs an exact field or variant result override; otherwise
+derivation is a compile-time error. Decorator syntax is an optional locality
+form for the corresponding `annotate` blocks.
 
 ## Implementing Annotators
 
@@ -1920,7 +2019,7 @@ annotate Validation for string:
 
 There is no wildcard `annotate Validation for type` fallback. Each block contributes one exact target to the open facet.
 
-`annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot.
+Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot. `@derive` is the compiler-intrinsic exception.
 
 An annotator for a data type maps each field and then builds one result for the complete type:
 
@@ -2018,8 +2117,9 @@ trait FuncAnnotator: Annotation:
 Shape values and annotator methods follow the definitions in the annotation
 chapter. Generic families use ordinary generic `impl Annotate[A] for Target`;
 the structure-aware `annotate` sugar names exact targets. Type and aggregate
-information share `Annotation::Info`. Only the static missing-annotation policy
-and its granularity remain unresolved.
+information share `Annotation::Info`. A child with no facet implementation
+requires an exact field or variant result override; otherwise derivation fails
+at compile time.
 
 ## Runtime and Library Features
 

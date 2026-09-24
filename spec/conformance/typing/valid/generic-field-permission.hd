@@ -1,0 +1,30 @@
+data Child:
+    name: string
+
+data Mixed[T]:
+    direct: mut Child
+    generic: T
+
+data Box[T]:
+    value: T
+
+fn rename(child: mut Child, name: string) -> void:
+    child.name = name
+
+fn get[T](box: Box[T]) -> T:
+    box.value
+
+immutable := Child { name: "Ada" }
+let editable: mut Child = Child { name: "Grace" }
+
+let mixed: Mixed[mut Child] = Mixed {
+    direct: immutable,
+    generic: editable,
+}
+rename(mixed.generic, "Grace Hopper")
+
+let readonly_copy: Mixed[mut Child] = Mixed { ...mixed }
+rename(readonly_copy.generic, "Grace")
+
+let box: Box[mut Child] = Box { value: editable }
+rename(get(box), "from box")

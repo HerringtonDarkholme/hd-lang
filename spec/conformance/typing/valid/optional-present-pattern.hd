@@ -1,0 +1,15 @@
+import std.testing.assert_equal
+
+data User:
+    name: string
+
+fn display_name(user: User?) -> string:
+    match user:
+        nil => "unknown"
+        value? => value.name
+
+test "plain values construct optionals and patterns extract them":
+    let user: User? = nil
+    assert_equal(display_name(user), "unknown")
+    user = User { name: "Ada" }
+    assert_equal(display_name(user), "Ada")

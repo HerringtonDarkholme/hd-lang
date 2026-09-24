@@ -1,7 +1,5 @@
-type UserId(string)
-
-fn lookup(scores: map[UserId, i32], id: UserId) -> i32?:
+fn lookup(scores: map[string, i32], id: string) -> i32?:
     scores[id]
 
-fn insert(scores: mut map[UserId, i32], id: UserId, score: i32) -> void:
+fn insert(scores: mut map[string, i32], id: string, score: i32) -> void:
     scores[id] = score

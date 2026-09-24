@@ -1,0 +1,17 @@
+@Validation
+data User:
+    @max_len(80)
+    name: string
+
+@Validation
+enum Status:
+    @variant_doc("Ready")
+    Ready
+
+@Tool
+fn get_user(id: i32) -> User:
+    User { name: "Ada" }
+
+@derive(PartialEq, Eq)
+data Key:
+    value: i32

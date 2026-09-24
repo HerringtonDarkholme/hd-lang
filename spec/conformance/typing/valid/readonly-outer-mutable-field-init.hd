@@ -1,0 +1,9 @@
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+
+immutable := Child { name: "Ada" }
+let parent: Parent = Parent { child: immutable }
+copy := Parent { ...parent }

@@ -1,0 +1,43 @@
+data Validation: pass
+data Validator: pass
+data FieldValidator: pass
+
+type Dict[K, V] = map[K, V]
+
+data MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
+
+impl FieldMetadata[string] for MaxLen
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        shape: DataShape,
+        fields: Dict[string, FieldValidator],
+    ) -> Validator:
+        Validator {}
+
+annotate Validation for string:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator {}
+
+@Validation
+data User:
+    @max_len(80)
+    name: string
+
+validator := Validation::annotation(User)

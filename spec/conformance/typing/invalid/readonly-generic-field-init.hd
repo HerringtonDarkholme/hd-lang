@@ -1,0 +1,10 @@
+# expect-error: mutable-upgrade
+
+data Child:
+    name: string
+
+data Box[T]:
+    value: T
+
+immutable := Child { name: "Ada" }
+let box: Box[mut Child] = Box { value: immutable }

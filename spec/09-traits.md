@@ -77,6 +77,63 @@ Ambiguous projections are compile-time errors.
 
 ## Trait Implementations
 
+### Comparison Traits
+
+The standard library defines `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and
+`Ordering` in `std.cmp`. `PartialEq` requires
+`fn eq(self, other: Self) -> bool`; `Eq: PartialEq` is a marker asserting
+reflexive equality. `PartialOrd: PartialEq` requires
+`fn partial_cmp(self, other: Self) -> Ordering?`, where `nil` means unordered.
+`Ord: Eq + PartialOrd` requires
+`fn cmp(self, other: Self) -> Ordering`. `Ordering` has `Less`, `Equal`, and
+`Greater` cases. `Eq` and `Ord` implementations must agree with their partial
+counterparts. These semantic laws are obligations of the implementer; ordinary
+trait checking cannot prove them. In particular, floating-point values do not
+satisfy `Eq` or `Ord` because of NaN.
+
+The standard library also defines `Hash` in `std.hash`. A map key must
+implement both `Eq` and `Hash`; neither trait is inferred for user-defined
+data or enums. The compiler does not verify any relationship between their
+implementations. A readonly key can still change through another mutable
+alias, potentially leaving its map entry unreachable.
+
+There is no automatic conformance for user-defined data or enum types. An
+explicit implementation may choose domain-specific equality or ordering.
+`@derive(PartialEq, Eq)` is an explicit compiler intrinsic on a data or enum
+declaration. Its arguments name traits, not annotator values. The compiler
+generates ordinary implementations of the named traits from the declaration's
+shape, checks trait requirements and coherence, and rejects traits for which it
+has no derivation rule. It does not generate `Annotate[A]` conformance or run a
+`DataAnnotator`. Derived `PartialEq` compares every declared data field,
+including embedded fields, by its `PartialEq` implementation. No field is
+implicitly excluded. Derived enum equality first compares the variant, then
+every payload field of that variant, including common enum fields; different
+variants are unequal. Derived `Eq` requires every compared field to satisfy
+`Eq`. Derived equality does not detect cycles or track previously compared
+objects: it recursively invokes each field's `PartialEq` implementation. A
+comparison that repeatedly traverses a cycle may exhaust the execution stack.
+`@derive(PartialOrd, Ord)` also supports data and enums. Derived ordering is
+lexicographic in declared data-field order, including embedded fields. For
+enums, distinct variants compare by variant declaration order; values of the
+same variant compare shared enum data in declaration order, followed by that
+variant's payload parameters in declaration order. Constructor argument order
+does not affect comparison. Derived `PartialOrd` requires every compared field
+to satisfy `PartialOrd` and returns `nil` if a field comparison is unordered
+before a comparison result is determined. Derived `Ord` requires every compared
+field to satisfy `Ord`.
+`@derive(Hash)` supports data and enums. It generates an ordinary `Hash`
+implementation that hashes every declared data field in declaration order,
+including embedded fields. For an enum, it hashes the variant identity, then
+shared enum data in declaration order, then that variant's payload fields in
+declaration order. Every hashed field must implement `Hash`; no field is
+implicitly excluded. Like derived equality, derived hashing does not detect
+cycles, so hashing a cyclic graph may exhaust the execution stack. Hash values
+are not guaranteed to be stable across processes or runtime versions.
+The target must also satisfy each derived trait's supertraits, whether through
+an existing implementation or another derivation. Implementers remain
+responsible for consistency with any manually implemented comparison traits.
+Comparison traits are the only traits invoked by operator syntax.
+
 An explicit implementation names the trait and target type:
 
 ```text

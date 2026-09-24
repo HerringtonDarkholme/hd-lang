@@ -148,6 +148,10 @@ No implicit conversion exists in either direction.
 
 `T?` is an optional type containing either a `T` or `nil`. `T` and `T?` are
 different types; a non-optional type never contains `nil`.
+A value of `T` is implicitly accepted where `T?` is expected, constructing a
+present optional. This applies to assignments, arguments, and return values;
+the source expression is evaluated once. `nil` constructs the absent case.
+There is no built-in `Some(value)` constructor for `T?`.
 
 Optionality may nest: `T??` is `(T?)?`, preserving the distinction between an
 absent outer value and a present outer value containing an absent inner value.
@@ -157,7 +161,9 @@ level. Postfix `?` removes and propagates one optional layer at a time.
 Optional syntax is equivalent in role to `Option[T]`, but its representation is
 an implementation detail. Postfix `?` on an optional expression either
 produces its contained value or returns `nil` from the nearest function. That
-function must itself return a compatible optional type.
+function must itself return a compatible optional type. A present value keeps
+the optional's declared contained type `T`, including `mut U` when
+`T = mut U`; unwrapping does not weaken that generic argument.
 
 `Any` does not include `nil`. An optional value may be erased to `Any?`, not to
 `Any`.
@@ -174,7 +180,9 @@ constructed with `Ok(value)` and `Err(error)`.
 Postfix `?` on `Result[T, E]` either produces the success value or immediately
 returns the error from the nearest function. The enclosing function must return
 a `Result[U, F]` whose error type accepts the propagated error. Returning an
-`Err` value without `?` does not itself alter control flow.
+`Err` value without `?` does not itself alter control flow. The success value
+retains its declared generic type `T`, including `mut U` when `T = mut U`,
+regardless of whether the `Result` value itself is readonly.
 
 The core language does not use effect syntax for recoverable errors.
 
@@ -272,9 +280,13 @@ For a composite type `T`:
 - `mut T` is a mutable reference view. It permits operations that mutate the
   referenced value.
 
-`mut` expresses access permission, not ownership, uniqueness, or deep
-immutability. A `mut T` may be viewed as `T`; a `T` must never be upgraded to
-`mut T`.
+`mut` expresses access permission, not ownership, uniqueness, or a deep freeze
+of the object. A readonly `T` reference cannot reassign its fields. A direct
+data field declared `field: mut U` is read as `U` through readonly `T`, while a
+generic data field declared `field: P` retains its substituted type even when
+`P` is instantiated as `mut U`. Other extraction forms state their own
+permission rules below. A `mut T` may be viewed as `T`; a `T` must never be
+upgraded to `mut T`.
 
 ```text
 let user: mut User = User { name: "Ada" }
@@ -284,7 +296,12 @@ println(readonly.name)  # observes "Grace"
 ```
 
 The const alias prevents mutation through `readonly`; it does not freeze the
-underlying object against other mutable aliases.
+underlying object against other mutable aliases. Readonly access does not
+guarantee that repeated reads return the same values, that the object is a
+stable cache input, or that independently held mutable aliases cannot change
+its reachable state. A readonly view restricts structural access through that
+view; it does not prohibit a called function from returning a separately held
+mutable reference according to its declared result type.
 
 ### Bindings And Fresh Values
 
@@ -294,6 +311,14 @@ new outer object. This permission may be weakened immediately by an expected
 const type. Freshness does not recursively upgrade composite values stored in
 the new object; each field or element keeps the permission of the supplied
 expression and declared edge.
+
+A data literal with a direct `field: mut U` may produce readonly `T` when that
+field is supplied only `U`. It produces `mut T` only when every direct mutable
+field is supplied mutable access. An expected readonly `T`, including a `:=`
+binding, permits the weaker field value; an expected `mut T` rejects it. An
+unannotated `let` infers readonly `T` when any such direct field is supplied
+only `U`. A generic field declared `field: P` still requires its substituted
+type, including `mut U` when `P = mut U`.
 
 `:=` always exposes a const composite view, even when its initializer creates a
 fresh value:
@@ -331,26 +356,45 @@ let account: mut Account = Account { profile: profile }
 account.profile.display_name = "Ada"
 ```
 
-An ordinary field `field: T` is a const edge. A mutable owner may replace that
-field, but reading through it yields only `T`, so the referenced child cannot be
-mutated through that path. A field `field: mut T` preserves mutable access when
-read through a mutable root.
+Given a `mut T` root, every field may be reassigned with a value assignable to
+its declared type, whether the field is `field: U` or `field: mut U`. Replacing
+a field does not mutate the old referenced value. An ordinary field `field: U`
+is a const edge: reading it yields only `U`, so its child cannot be mutated
+through that path. A direct field `field: mut U` preserves mutable access when
+read through a mutable root. That access permits assigning the child's fields
+and calling its `mut self` methods. A mutable root must store `mut U` in that
+field. A readonly root may store `U`; it cannot later be upgraded to `mut T`.
 
-Reading any field or element through a const composite root applies viewpoint
-weakening: mutable permission stored beyond that root is observed as const. For
-example, indexing `list[mut User]` yields `User`, while indexing
-`mut list[mut User]` yields `mut User`.
+Given a readonly `T` root, no field may be reassigned. A direct data field
+`field: mut U` read through it yields only `U`; neither the child's fields nor
+its `mut self` methods are available through that path. A field declared with
+a generic parameter instead yields that parameter's substituted type: reading
+`value: P` from readonly `Box[mut User]` yields `mut User`. A list's element
+type likewise remains its generic argument: indexing `list[mut User]` yields
+`mut User`, even when the list itself is readonly. Mutating that user does not
+replace the list slot. A map lookup likewise returns `V?` for the declared
+`map[K, V]`, so a successful lookup from `map[K, mut User]` yields `mut User`
+after unwrapping; a readonly map root still cannot replace entries.
 
 Container mutation and element mutation are independent:
 
 | Type | Replace elements | Mutate referenced elements |
 | --- | --- | --- |
 | `list[User]` | no | no |
-| `list[mut User]` | no | no, due to const root |
+| `list[mut User]` | no | yes |
 | `mut list[User]` | yes | no |
 | `mut list[mut User]` | yes | yes |
 
-The same rules apply recursively to maps, tuples, and user-defined data types.
+Generic type arguments are not weakened solely because their enclosing value
+is readonly. Data patterns and copy-update use the effective field types of
+the subject's view; built-in collection indexing and iteration preserve their
+declared generic element or value types; optional and `Result` unwrapping
+preserve their declared generic contents. Tuple elements likewise retain their
+declared element types on extraction. Enum payload extraction preserves a
+generic parameter's substituted type while direct non-generic mutable payloads
+follow the subject's viewpoint. A call result is checked against
+the callable's declared return type, not automatically weakened merely
+because the callable was reached through a readonly value.
 
 ### Parameters And Results
 
@@ -488,26 +532,25 @@ satisfies it automatically. As a value type, `Any` erases the concrete type.
 
 ## Map Key Types
 
-`map[K, V]` requires `K` to satisfy the compiler-defined `MapKey` contract.
-The following types satisfy it:
+`map[K, V]` requires `K: Eq + Hash` and rejects a `mut T` key type.
+`Hash` is a standard-library trait in `std.hash`; user-defined data and enum
+types can become keys by explicitly implementing or deriving both traits. Standard-library
+implementations cover eligible built-in scalar types and their supported
+compositions, including tuples and optionals. Floating-point types do not
+implement `Eq` because of NaN.
 
-- `bool`, `char`, `string`, and every signed or unsigned integer type;
-- transparent aliases of a `MapKey` type;
-- nominal single-field newtypes whose underlying type is `MapKey`;
-- tuples whose elements are all `MapKey`;
-- optional and enum types whose contained payload types are all `MapKey`.
+Map lookup and duplicate-key replacement use `Eq` for key comparison and
+`Hash` for indexing. The language does not check or impose a law connecting
+these two implementations. If an implementation hashes values differently
+that `Eq` considers equal, lookup and duplicate-key behavior are not
+guaranteed. Map iteration order and hash values are not part of map value
+semantics.
 
-Floating-point types, data types, lists, maps, functions, dynamic trait values, and
-every `mut T` type do not satisfy `MapKey`. This conservative closed set ensures
-that a key's equality and hash cannot change through another mutable alias while
-the key is stored. A future extension may expose an explicit stable equality/hash
-trait after its aliasing contract is designed.
-
-`MapKey` equality is value equality: tuples compare element by element; enums
-compare variant then payload; newtypes compare their underlying value; and
-optional values compare absence or their contained key. Implementations may
-choose any hash algorithm that agrees with this equality and must not expose
-the hash or iteration order as value semantics.
+A readonly key view does not freeze the object. If another mutable alias
+changes a stored key's equality or hash after insertion, the map does not
+automatically reindex it. The entry can remain visible during iteration yet
+be unreachable by lookup or removal with the mutated key: a ghost entry.
+Such mutation does not trigger a compile-time error or an automatic repair.
 
 ## Type Inference Boundaries
 

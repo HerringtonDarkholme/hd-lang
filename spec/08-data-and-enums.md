@@ -14,10 +14,21 @@ A `data` declaration defines named, typed fields:
 data User:
     id: string
     email: string
-    display_name: string?
+    display_name: string? = nil
 ```
 
 Field names must be unique within the data type. Every field has an explicit type.
+Fields have no standalone `mut` modifier. `friend: mut User` declares a field
+whose type grants mutable access through that reference; `mut friend: User`
+is invalid. The same rule applies to embedded fields: `Base` embeds `Base`,
+but `mut Base` is invalid. Embedded fields cannot declare a mutable edge.
+An ordinary named field may have a default expression. It must be assignable to
+the declared field type and obey the same compile-time purity rule as a
+function-parameter default: no externally observable mutation, mutable calls,
+requirements, or suspension. A default is evaluated separately for each
+construction, not when the data type is declared. It sees the declaration's
+lexical scope but does not implicitly bind other fields of the new value.
+Embedded fields have no default syntax.
 Fields, including embedded fields, are module-private unless individually
 marked `pub`. A public data type does not make its unmarked fields public. In
 another module, a data literal may construct the type only when all its
@@ -58,13 +69,33 @@ user := User {
 }
 ```
 
-Every field without a future default mechanism must be initialized exactly
-once. Unknown and duplicate fields are compile-time errors. Fields may appear
-in any order.
+Each field without a default must be initialized exactly once. A field with a
+default may be omitted or supplied explicitly. Unknown and duplicate fields
+are compile-time errors. Fields may appear in any order. Explicit field
+expressions are evaluated in source order, then defaults for omitted fields
+are evaluated in field declaration order. A copy-update spread supplies every
+field, so it does not evaluate defaults for unlisted fields.
+Each copied field is checked through the spread source's access view. A
+readonly source can supply its effective `U` value for a direct `mut U` field
+when the result is also readonly `T`; producing `mut T` requires a `mut U`
+replacement. Generic fields retain their substituted type in both views. See
+[Data Expressions](05-expressions.md#data-expressions).
 
-Field access uses `value.field`. Assignment to a field requires a mutable root.
-Nested mutation also requires every traversed composite field edge to have a
-`mut` type, as specified in [Type System](04-type-system.md).
+Field access uses `value.field`. A `mut T` root may reassign any of its fields,
+regardless of the field's declared mutability; a readonly `T` root cannot
+reassign any field. Nested mutation or a `mut self` call through a field also
+requires a mutable root and every traversed composite field edge to have a
+`mut` type, as specified in [Type System](04-type-system.md). Reading a
+`field: mut U` through a readonly root yields only `U`. A readonly data value
+may be constructed with `U` in that direct field, while a mutable data value
+requires `mut U`. A generic field declared `field: P` retains its substituted
+type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
+Direct assignment to a visible field enforces its declared type, not arbitrary
+validation or cross-field invariants. Keep fields private and expose controlled
+methods when writes to those fields must preserve such invariants. This does
+not control other mutable aliases to an object stored in a private field; the
+language permits shared mutable children and does not guarantee invariants
+over the entire reachable object graph.
 Cross-module field access additionally requires the field to be public.
 Data values may be destructured in `match` patterns using the same
 `DataName { ... }` form. The pattern may mention any subset of visible
@@ -121,9 +152,13 @@ promoted member to be public.
 Unambiguous promoted methods may contribute to trait satisfaction. Ambiguous
 promoted methods never satisfy a trait requirement automatically.
 
-Embedded shorthand accepts a named data type with no generic arguments. Generic
-and explicitly mutable embedded-field shorthand is not supported; an
-ordinary named field expresses those relationships.
+Embedded shorthand accepts a named data type, including one with generic
+arguments. For `Box[T]`, the embedded field's name and construction key are
+`Box`; type arguments are not part of the key. The name must be unique among
+the outer data type's fields, so embedding both `Box[i32]` and `Box[string]`
+is a duplicate-field error. Explicitly mutable embedded-field shorthand is
+not supported; use an ordinary named field with a `mut` type for a mutable
+edge, without promotion.
 
 ## Enum Declarations
 
@@ -179,14 +214,22 @@ enum StatusCode(i32):
     Ok -> StatusCode(200)
     NotFound -> StatusCode(404)
 
-enum HttpStatus(code: i32, phrase: string):
+enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")
     NotFound -> HttpStatus(404, phrase="Not Found")
+    ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)
 ```
 
 Each variant with shared enum data must provide its enum constructor expression
 after `->`. The constructor call follows ordinary positional/named argument
-ordering and must initialize the declared shared data.
+ordering and must initialize each shared parameter without a default. A shared
+parameter may declare a default expression. After the first defaulted
+parameter, every following shared parameter must also have a default, as with
+function parameters. The default must satisfy the same purity rule as a
+function-parameter or data-field default and is evaluated for each construction
+when omitted. Explicit argument expressions are evaluated first, then omitted
+defaults in parameter declaration order. A default may refer to earlier named
+shared parameters but not later ones.
 
 Shared constructor data is part of every enum value. A named constructor
 parameter is available as a field on the enum value; an unnamed parameter uses
@@ -204,8 +247,7 @@ pattern matching rather than direct field access, because they do not exist on
 every variant.
 
 Within one variant, a named payload parameter must not duplicate a named shared
-constructor parameter. Every shared constructor parameter must be initialized
-by the variant result expression. Shared constructor data has no defaults.
+constructor parameter. Variant payload parameters do not have defaults.
 
 ## Generic And Recursive Enums
 
@@ -275,9 +317,10 @@ construction spellings for `Result`. In patterns, `Ok(pattern)` and
 `Err(pattern)` are the corresponding unqualified built-in spellings; they do
 not make ordinary enum variants directly importable.
 
-Core optional patterns include `nil`, `_`, and a bare catch-all binding. A
-dedicated present-value destructuring pattern is not part of the language; ordinary code
-uses postfix `?` or optional library operations to extract the contained value.
+Optional patterns include `nil`, `value?` for the present case, `_`, and a bare
+catch-all binding. The pattern `value?` binds the contained value; it is not a
+`Some` constructor. A plain `T` value constructs a present `T?` wherever that
+optional type is expected.
 
 Whether these are literally user-definable standard-library enums or compiler
 intrinsics with equivalent semantics is an ABI decision, not a source-language
@@ -292,7 +335,8 @@ interop facility exposes them explicitly.
 
 Reachable composite values are garbage collected, and unreachable reference
 cycles are reclaimable. The language does not expose manual deallocation in the
-language, user-visible finalizers, or weak references. Resource cleanup is
+language, user-visible finalizers, or weak references. Weak references and
+finalizers are deferred rather than permanently ruled out. Resource cleanup is
 separate from memory reclamation and remains a runtime-design backlog item.
 
 ## Generalized Algebraic Data Types
@@ -303,8 +347,8 @@ specified in [Generalized Algebraic Data Types](13-gadts.md).
 
 ## Unsupported Aggregate Extensions
 
-hd-lang has no data-field defaults, shared enum-constructor defaults, variant field
-blocks, generic embedded-field shorthand, or explicitly mutable embedded-field
-shorthand. Use explicit named fields when those relationships are required.
+hd-lang has no variant field blocks or explicitly mutable embedded-field
+shorthand. Use an explicit named field with a `mut` type when a mutable
+reference edge is required.
 Stable object layout and component-model representation are ABI concerns and
 are not observable core-language semantics.

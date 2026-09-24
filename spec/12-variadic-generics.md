@@ -30,14 +30,14 @@ Placing `...` at an expansion position repeats the containing type or
 expression pattern once per pack element:
 
 ```text
-fn all![Ts...](tasks: Suspend[Ts]...) -> (Ts...):
+fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     ...
 ```
 
 For `Ts... = User, i32, bool`:
 
-- `Suspend[Ts]...` expands to parameter types `Suspend[User]`,
-  `Suspend[i32]`, and `Suspend[bool]`;
+- `mut Suspend[Ts]...` expands to parameter types `mut Suspend[User]`,
+  `mut Suspend[i32]`, and `mut Suspend[bool]`;
 - `(Ts...)` expands to `(User, i32, bool)`;
 - a value pattern such as `start(tasks)...` repeats `start(task)` once for each
   corresponding value.
@@ -84,6 +84,65 @@ This example is valid only when the three inferred packs have the same length.
 The `funcs` parameter expands the complete function-type subtree once per
 position. No additional grouping is required.
 
+## Pack Mapping
+
+`pack.map(items, mapper, extras...)` maps a statically known tuple to another
+tuple. `pack.map_list(items, mapper, extras...)` maps the same input to a
+homogeneous `list[R]`. Both are compiler-recognized operations on tuples, not
+ordinary first-class functions or runtime reflection. The first argument is
+evaluated once and must have tuple type `(T1, ..., Tn)`. The second argument
+names a non-suspending function; it is not evaluated as a function
+value. The compiler type-checks and instantiates one call
+`mapper(item_i, extras...)` for each tuple element. A generic mapper may infer
+different type arguments for each call without requiring a first-class
+polymorphic function type.
+
+`pack.map` returns `(R1, ..., Rn)`, where `Ri` is the result type of mapper
+call `i`. `pack.map_list` requires all mapper results to be assignable to one
+element type `R` using the ordinary collection-literal inference rules; an
+expected `list[R]` may provide that type. It does not infer `Any` merely to
+combine heterogeneous results. Mapping an empty tuple with `pack.map` returns
+`()`. Empty `pack.map_list` requires an expected `list[R]` type.
+
+The tuple expression `(values...)` expands a value pack into tuple elements;
+it is not a runtime pack object. A tuple-element `...` without a pack reference
+is invalid. Mapping also works on an ordinary tuple
+stored in a local variable, so a mapped tuple can be mapped again:
+
+```text
+data Slot[T]:
+    task: mut Suspend[T]
+
+fn make_slot[T](task: mut Suspend[T]) -> mut Slot[T]:
+    Slot { task: task }
+
+fn poll_slot[T](slot: mut Slot[T], context: PollContext) -> bool:
+    ...
+
+fn take_ready[T](slot: mut Slot[T]) -> T:
+    ...
+
+# Inside the standard-library all! driver, with Ts... inferred from its tasks:
+slots := pack.map((tasks...), make_slot)     # (mut Slot[Ts]...)
+ready := pack.map_list(slots, poll_slot, context)  # list[bool]
+results := pack.map(slots, take_ready)        # (Ts...)
+```
+
+The sketch shows only the typed transformations. The library driver retains
+`slots` across polls, checks `ready`, and returns `results` only after all
+slots complete; suspension, waking, and cancellation follow the `Suspend[T]`
+protocol. `all!` remains a library combinator, not special control-flow
+syntax. The exact private driver representation is not specified here.
+The child inputs are mutable `Suspend[T]` views so the driver can poll and
+cancel them; an ordinary cold `fn!` call supplies such a view.
+
+The input tuple is evaluated first, then each extra argument once from left
+to right. Mapped calls execute left to right. A failed mapper call stops
+evaluation just as an ordinary sequence of calls would. Each mapped call
+performs normal requirement checking. A suspending `fn!` cannot be the mapper;
+mapping itself does not introduce a suspension point. No heap list is created
+by `pack.map`; `pack.map_list` constructs its declared list result.
+
 ## Calls And Inference
 
 Type-pack and value-pack inference uses the corresponding argument positions.
@@ -99,17 +158,16 @@ required by the source semantics.
 
 ## Deliberate Limits
 
-The minimal design does not provide general pack:
+The language does not provide general pack:
 
-- mapping;
 - filtering;
 - indexing;
 - splitting or concatenation;
 - length arithmetic;
 - iteration as a runtime sequence.
 
-Pattern expansion covers the accepted initial use cases without creating a
-compile-time metaprogramming language.
+Pattern expansion and tuple mapping cover the accepted use cases without
+creating a general compile-time metaprogramming language.
 
 ## `all!` Motivation
 
@@ -119,9 +177,10 @@ The standard-library `all!` combinator needs heterogeneous input and output:
 user, count, ready := all!(load_user(), load_count(), check_ready())
 ```
 
-Its signature can preserve each result type with one pack. Scheduling and
-cancellation are not variadic-generic semantics; they belong to the concurrency
-library and suspension protocol.
+Its signature preserves each result type with one pack. Pack mapping lets its
+library driver build and inspect per-child state without erasing result types.
+Scheduling and cancellation are not variadic-generic semantics; they belong to
+the concurrency library and suspension protocol.
 
 ## Expansion Validation
 
