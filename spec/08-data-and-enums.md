@@ -2,6 +2,10 @@
 
 Status: language specification draft.
 
+`struct` is not a declaration keyword; diagnose `struct Name:` as
+`old-struct-declaration` so obsolete source does not masquerade as a sequence
+of identifiers.
+
 Data types are nominal product types with reference semantics. Enums are nominal
 sum types. Neither is a class, and neither creates an inheritance hierarchy.
 `data` names the declaration form without suggesting value-type copying.
@@ -24,8 +28,8 @@ is invalid. The same rule applies to embedded fields: `Base` embeds `Base`,
 but `mut Base` is invalid. Embedded fields cannot declare a mutable edge.
 An ordinary named field may have a default expression. It must be assignable to
 the declared field type and obey the same compile-time purity rule as a
-function-parameter default: no externally observable mutation, mutable calls,
-requirements, or suspension. A default is evaluated separately for each
+function-parameter default in [Functions](07-functions.md#default-values). A
+default is evaluated separately for each
 construction, not when the data type is declared. It sees the declaration's
 lexical scope but does not implicitly bind other fields of the new value.
 Embedded fields have no default syntax.
@@ -149,8 +153,9 @@ the embedded field.
 Cross-module access through an embedded field requires that field and the
 promoted member to be public.
 
-Unambiguous promoted methods may contribute to trait satisfaction. Ambiguous
-promoted methods never satisfy a trait requirement automatically.
+Embedding never grants trait conformance. Inside an explicit trait `impl`, an
+unambiguous promoted method may supply a required method. Ambiguous promoted
+methods require an explicit method body and a qualified embedded-field call.
 
 Embedded shorthand accepts a named data type, including one with generic
 arguments. For `Box[T]`, the embedded field's name and construction key are
@@ -178,7 +183,7 @@ enum JobStatus:
 ```
 
 Variant names must be unique within the enum. The qualified form is
-`JobStatus.Queued`; `.Queued` is also valid where a contextual expected type
+`JobStatus.Queued`; `.Queued` is also valid where an expected type
 fixes `JobStatus`. A matching name in another enum does not create ambiguity
 when that expected type is known, and a unique name across the program does
 not make the shorthand valid without an expected enum type.
@@ -246,7 +251,7 @@ phrase := HttpStatus.NotFound.phrase
 ```
 
 Shared fields follow ordinary composite access permissions. Reading through a
-const enum yields a const viewpoint; assignment requires a mutable enum root
+readonly enum yields a readonly viewpoint; assignment requires a mutable enum root
 and the required mutable edges. Variant payload fields remain available through
 pattern matching rather than direct field access, because they do not exist on
 every variant.
@@ -320,7 +325,7 @@ Optional `T?` and `Result[T, E]` behave as standard enum-like types, with
 language support for `nil` and postfix `?`. `Ok(value)` and `Err(error)` are the
 construction spellings for `Result`. In patterns, `Ok(pattern)` and
 `Err(pattern)` are the corresponding unqualified built-in spellings; they do
-not make ordinary enum variants directly importable.
+not make ordinary enum variants directly nameable through `use`.
 
 Optional patterns include `nil`, `value?` for the present case, `_`, and a bare
 catch-all binding. The pattern `value?` binds the contained value; it is not a
@@ -342,7 +347,11 @@ Reachable composite values are garbage collected, and unreachable reference
 cycles are reclaimable. The language does not expose manual deallocation in the
 language, user-visible finalizers, or weak references. Weak references and
 finalizers are deferred rather than permanently ruled out. Resource cleanup is
-separate from memory reclamation and remains a runtime-design backlog item.
+separate from memory reclamation. Block-scoped `defer` provides explicit
+synchronous cleanup on ordinary control-flow exits and cancellation; it is not
+an ownership or garbage-collection mechanism. Ownership, alias-escape
+prevention, automatic finalization, and asynchronous or fallible cleanup policy
+remain deferred in [Open Issues](../future-work/OPEN_ISSUES.md).
 
 ## Generalized Algebraic Data Types
 

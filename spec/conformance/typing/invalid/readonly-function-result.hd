@@ -1,4 +1,4 @@
-# expect-error: const-argument-to-mutable-parameter
+# expect-error: readonly-argument-to-mutable-parameter
 
 data User:
     name: string

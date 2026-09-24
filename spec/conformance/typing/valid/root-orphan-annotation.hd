@@ -1,0 +1,5 @@
+# fixture-package-role: root-application
+use dep.validation.{Validation}
+use dep.models.{User}
+
+annotate Validation for User: pass

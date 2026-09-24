@@ -4,8 +4,8 @@ Status: language specification draft.
 
 This chapter specifies static dependency requirements, provider injection, and
 one-shot suspension. The mechanisms are related but deliberately separate.
-The grammar and semantics in this chapter are part of hd-lang; runtime and
-library policies are specified separately.
+The grammar and semantics in this chapter are part of hd-lang; additional
+runtime and library policies are tracked as future work.
 
 ## Decomposed Model
 
@@ -29,6 +29,11 @@ drivers at explicit requirement and suspension boundaries. Code outside those
 boundaries is not generally reinterpreted.
 
 ## Requirement Rows
+
+A **requirement row** is the normalized unordered set of requirement keys on a
+callable signature. A **row parameter** is a generic parameter whose values are
+requirement rows. These are the only terms used below for the concrete and
+generic forms.
 
 A function signature may end with `$` and an unordered row expression of
 requirement traits:
@@ -68,7 +73,15 @@ callable_name = identifier, [ "!" ] ;
 
 The same callable name and optional requirement clause apply to trait methods
 and functions inside `impl` blocks. A trait requirement and its implementation
-must agree on suspension and normalized requirement-row behavior.
+must agree on suspension and normalized requirement row behavior.
+
+When a closure omits its requirement clause, the compiler infers the least row
+containing every requirement used by its body that is not satisfied by an
+enclosing lexical provider scope. Calls through function parameters contribute
+their normalized rows. If an expected function type contains a row parameter,
+the inferred concrete row is unified with that parameter; omission never means
+an empty row merely because the expected row is generic. A written `$` clause
+is explicit and must entail the same body requirements.
 
 Rows are sets: order does not affect type identity, and a key occurs at most
 once after normalization. `+` forms set union. `r - Logger` removes `Logger`
@@ -77,11 +90,27 @@ unchanged. Parentheses group row expressions. A function may call another
 required function only when its own row includes those requirements or a
 lexical provider scope satisfies them.
 
-A generic parameter used in requirement position is inferred to have the
-requirement-row kind. One parameter cannot be used as both an ordinary type and
-a requirement row.
+Requirement checking uses set entailment after alias expansion. For a body,
+`available = declared_row + lexical_keys`, and every required key must be a
+member of `available`. For an unknown row parameter `r`:
 
-Requirements are usually traits, including interfaces such as `Database` and
+- `r` is entailed by `(r - K) + S` exactly when `K` is in `S`;
+- `r` is not entailed by `r - K`;
+- `K1 - K2` removes a generic key only when the two keys are identical after
+  alias expansion; and
+- inference for a parameter pattern `r + K` chooses the least row solution,
+  so matching it against `{K}` infers the empty row for `r`.
+
+Subtraction is legal on row parameters in parameter and result positions. The
+compiler warns with `requirement-subtract-absent` when it can prove that the
+subtracted key can never occur in the input row; the normalized row is still
+unchanged.
+
+A generic parameter used in requirement position is inferred to be a row
+parameter. One parameter cannot be used as both an ordinary type and a
+requirement row.
+
+Requirement keys are traits, including interfaces such as `Database` and
 host capabilities such as `Clock` or `Network`. The language does not introduce
 a separate effect-declaration syntax.
 
@@ -95,8 +124,13 @@ db, cache := $.use(Database, Cache)
 ```
 
 The result order matches the requested key order. A missing provider is a
-compile-time error. `$.use` is non-suspending and performs no dynamic handler
-search that can fail at runtime.
+compile-time error at every call site below an entry point. Entry-point rows
+may contain only host capability traits declared by the selected runtime
+profile. For a registered boundary, the registration contract's explicit
+bindable-trait set is that boundary's profile. Failure to configure one of
+those host providers is a pre-execution host configuration error. `$.use` is
+non-suspending and performs no dynamic handler search that can fail at runtime
+below that boundary.
 
 `$` is a special context namespace, not an ordinary value. Requirement keys in
 its operations are type-level keys rather than named argument labels.
@@ -106,13 +140,28 @@ its operations are type-level keys rather than named argument labels.
 `$.with` binds providers for one lexical trailing block:
 
 ```text
-$.with(Database=mock_db, Cache=memory_cache):
-    result := load_user!(UserId("user_123"))
+fn demo!() -> Result[User?, DbError] $ Cache:
+    $.with(Database=mock_db):
+        load_user!(UserId("user_123"))
 ```
 
 Each provider expression is evaluated before entering the block and must have a
 type implementing its named requirement trait. Nested scopes may replace an
 outer provider for the same key within the nested block.
+
+At each `$.with`, the compiler compares every newly bound key with every other
+new key and with every declared-row or lexical key visible in the block. Two
+distinct generic key expressions that can become identical under any valid
+type-argument substitution are a `generic-requirement-key-collision` error.
+The same check applies among entries of a `$.context` expression. For example,
+a generic body may not make `Repo[T]` and `Repo[U]` concurrently visible,
+because an instantiation can choose `T = U`; it likewise may not combine a
+declared `Repo[T]` with a lexical `Repo[User]`, because `T` can be `User`.
+An exact replacement written with the same key expression remains the ordinary
+nested-scope override described above.
+This check is performed before erasure or specialization, so compilation
+strategy cannot change which provider a lookup selects. Distinct concrete keys
+such as `Repo[User]` and `Repo[Post]` remain valid.
 
 Reusable provider maps use `$.Context[Row]`:
 
@@ -207,9 +256,39 @@ suspension_call_suffix = "!", argument_clause ;
 ```
 
 This suffix is part of `postfix_suffix` at ordinary call precedence. A bang call
-is valid only in a suspending function body or another explicitly defined
-driver context. Merely using requirements does not make a function suspending;
-a non-suspending function may have a `$` row.
+is valid only in a **driver context**, which is exactly one of: a suspending
+function or closure body, a `test` block, or the host executor driving
+`main!`. Module top level is not a driver context. A driver is **active** while
+its executor is evaluating or polling that driver context on the current
+program-instance call stack. A pending invocation retained by the host between
+polls is unfinished but not active. A test block counts as active throughout
+its execution, including calls through non-suspending helpers. Merely using requirements
+does not make a function suspending; a non-suspending function may have a `$`
+row.
+
+For any expression `s` of type `mut Suspend[T]`, `s!()` drives that stored
+suspension to completion and has type `T`. The expression is evaluated once.
+This is the same postfix bang suffix used for a direct `fn!` call; it is not a
+method lookup. Non-suspending code imports `use std.task.block_on` and calls the
+standard function `block_on[T](s: mut Suspend[T]) -> T`, which owns the driver
+loop until the suspension completes or panics. `block_on` is forbidden in an
+annotation builder, a default expression, a `defer` suite, or non-entry module
+initialization; those contexts cannot start suspension work. This ban is
+transitive through the statically known call graph. If a call through a
+function value or dynamic trait method prevents the compiler from proving that
+`block_on` is unreachable, the call is rejected in one of these contexts.
+Every direct or transitive violation reports `suspension-forbidden-context`.
+If any suspension
+driver is already active in the program instance, calling `block_on` causes a
+`suspension-nested-driver` panic before polling its argument. This includes a
+call reached indirectly from a suspending body or during cancellation, and
+prevents nested cooperative drivers from blocking one another.
+
+The host executor is the driver for `main!`. The runtime-provided leaf
+`std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` maps an opaque
+host wait operation to the WebAssembly Component Model async ABI as used by
+WASI 0.3 host interfaces. User code obtains `HostWait[T]`
+values only from host providers; the type has no public constructor.
 
 ## `Suspend[T]` Protocol
 
@@ -226,6 +305,11 @@ trait Suspend[T]:
     fn cancel(mut self) -> void
 ```
 
+`Suspend[T]` is sealed. Only compiler-generated frames and implementations in
+`std.task` may implement it; ordinary packages may consume the trait but cannot
+declare an implementation. This makes the one-shot runtime checks part of the
+protocol rather than an unenforceable user convention.
+
 A `Suspend[T]` value is:
 
 - cold until first polled;
@@ -233,17 +317,53 @@ A `Suspend[T]` value is:
 - exclusively driven at runtime;
 - stateful across normal successive polls while pending.
 
-`PollContext` contains at least a waker. An operation returning `Pending` must
-arrange for the waker to be invoked when another poll may make progress. The
-waker carries no result; state remains in the suspension frame.
+`PollContext` is constructed only by the host runtime and `std.task`; user code
+cannot construct one. Standard-library suspension implementations access its
+waker through this sealed surface:
+
+```text
+data PollContext: pass
+
+impl PollContext:
+    fn waker(self) -> Waker
+
+trait Waker:
+    fn wake(self) -> void
+```
+
+Ordinary user packages may receive a `PollContext` only inside APIs explicitly
+provided by `std.task`; they cannot use it to implement the sealed `Suspend`
+trait.
+
+An operation returning `Pending` must arrange for the waker to be invoked when
+another poll may make progress. A waker may be retained after `poll` returns,
+invoked from a host callback, and invoked more than once; redundant wakes are
+coalesced and never poll concurrently. The waker carries no result; state
+remains in the suspension frame.
 
 Competing drivers, reentrant polling, polling after `Ready`, or attempting a
-second execution cause a runtime panic. Cancellation is idempotent: cancelling
-an already cancelled or completed suspension has no further effect. Polling a
-cancelled suspension causes a runtime panic. These are runtime checks rather
-than ownership rules in the type system.
+second execution cause a runtime panic. Cancelling a suspension while it or
+one of its descendants is active on the current poll stack causes
+`suspension-reentrant-poll`; the cancellation performs no cleanup or state
+transition. Cancellation is otherwise idempotent: cancelling an already
+cancelled or completed suspension has no further effect. Polling a cancelled
+suspension causes a runtime panic. These are runtime checks rather than
+ownership rules in the type system. Competing drivers report
+`suspension-competing-driver`; recursive polling and active-stack cancellation
+report `suspension-reentrant-poll`; polling after completion or cancellation
+and attempting a second execution report `suspension-invalid-state`.
+
+Discarding a cold suspension that has never been polled has no cleanup work to
+perform. Once polling has begun, a host or driver that stops owning the
+suspension must cancel it before discarding it. Raw abandonment of a started
+suspension does not run its registered `defer` suites.
 
 There is no separate `Pollable` or public `Continuation[T]` abstraction.
+
+Each program instance executes cooperatively on one thread. Bang calls are the
+only language-level yield points; code between them does not interleave with a
+sibling suspension in that instance. `std.task.all!` polls children in argument
+order on its initial poll and again in argument order after every wake.
 
 ## Compilation Strategy
 
@@ -295,46 +415,49 @@ constructed, not when a later driver first polls it. The chosen providers are
 captured by the generated frame:
 
 ```text
-pending := $.with(Database=mock_db):
+let pending: mut Suspend[Result[User?, DbError]] = $.with(Database=mock_db):
     load_user(id)
 
 # Driving pending later still uses mock_db.
 ```
 
 This prevents a stored computation from silently changing dependencies when it
-moves between runtime contexts. A caller constructing a required suspension
+moves between drivers. A caller constructing a required suspension
 must itself satisfy that requirement even if it does not immediately bang-call
 the suspension.
 
 ## Cancellation
 
 `cancel(mut self)` is synchronous and must not suspend. It marks the suspension
-cancelled, synchronously propagates cancellation to an active child, and asks
-active external operations to abort through their provider/runtime contracts.
+cancelled, synchronously propagates cancellation to an unfinished child, and
+asks unfinished external operations to abort through their provider/runtime
+contracts. After an unfinished child has completed its own cancellation
+cleanup, registered `defer` suites in the suspension's unfinished frames run
+synchronously in last-in, first-out order, from the innermost frame outward.
 
 Cancellation is cooperative at suspension boundaries for language code, but a
 runtime must not leave a known active HTTP request or equivalent external
 operation running when its provider supports abort.
 
-Source-level cleanup and resource lifetime are not solved by cancellation.
-Cleanup that can fail or requires asynchronous work needs a separate design;
-the current cancellation hook itself remains synchronous.
+Cancellation runs already registered synchronous `defer` suites, but it does
+not establish ownership or stop aliases from escaping. Cleanup that can fail or
+requires asynchronous work needs a separate design; the cancellation hook
+itself remains synchronous.
 
-The library combinators `all!` and `race!` cancel their children when the parent
-is cancelled. `race!` also synchronously cancels losing children before
-returning the first completed value. A retry combinator cancels its active
-attempt and starts no further attempt after parent cancellation.
+The `std.task` combinators `all!` and `race!` cancel their children when the
+parent is cancelled. `race!` also synchronously cancels losing children before
+returning the first completed value. A retry combinator in `std.task` cancels
+its active attempt and starts no further attempt after parent cancellation.
 
-These combinators are standard-library functions, not first-class control-flow
-syntax.
+These combinators are library guidance, not first-class control-flow syntax;
+their concrete generic signatures remain standard-library API design.
 
 ## Requirement Polymorphism
 
-Higher-order code preserves callback requirements with a requirement-row
-variable:
+Higher-order code preserves callback requirements with a row parameter:
 
 ```text
-fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
     ...
 ```
 
@@ -346,8 +469,8 @@ fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
         callback("message")
 ```
 
-The compiler infers `r` as a requirement-row parameter from its use after `$`.
-At a call, it infers the callback's normalized requirement set for `r`. The
+The compiler infers `r` as a row parameter from its use after `$`.
+At a call, it infers the callback's requirement row for `r`. The
 callee's own row is then normalized after union and subtraction. This mechanism
 does not quantify over arbitrary type-level expressions; it is specific to
 requirement rows.
@@ -356,9 +479,10 @@ requirement rows.
 
 A stored suspension is driven through a runtime or standard-library driver; no
 additional source keyword is required. Drivers enforce exclusive access and the
-panic rules above without exposing a way to upgrade an arbitrary const
+panic rules above without exposing a way to upgrade an arbitrary readonly
 reference. Provider selection is never implicit: a provider comes from an
 enclosing `$.with` scope or from the host configuration of an entry point.
 
-Scheduling APIs, durable replay, and source-level resource cleanup are runtime
-or library concerns. Cancellation does not replace deterministic cleanup.
+Scheduling APIs, durable replay, and affine resource ownership are runtime or
+library concerns. Cancellation participates in synchronous `defer` cleanup but
+does not replace an ownership or resource-lifetime design.

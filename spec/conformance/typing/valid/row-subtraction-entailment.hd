@@ -1,0 +1,17 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn provide_logger[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn log() -> void $ Logger:
+    $.use(Logger).write("hello")
+
+fn run() -> void:
+    provide_logger(log)

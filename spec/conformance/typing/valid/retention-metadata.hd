@@ -1,0 +1,23 @@
+type UserId(string)
+type PostId(string)
+
+data RetentionRule: pass
+
+fn retention_owner(target: DataShape) -> RetentionRule:
+    RetentionRule {}
+
+fn delete_when(target: FieldShape) -> RetentionRule:
+    RetentionRule {}
+
+impl FieldMetadata[UserId] for RetentionRule
+
+data User:
+    id: UserId
+    deleted: bool
+
+data Post:
+    id: PostId
+    userId: UserId
+
+annotate Post:
+    userId = [retention_owner(shape(User)), delete_when(shape(User.deleted))]

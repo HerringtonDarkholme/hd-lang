@@ -1,0 +1,7 @@
+data User:
+    name: string
+
+enum Witness[T]:
+    IsMutUser -> Witness[mut User]
+
+let witness: Witness[mut User] = Witness.IsMutUser

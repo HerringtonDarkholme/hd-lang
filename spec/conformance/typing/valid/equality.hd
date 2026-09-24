@@ -1,4 +1,3 @@
-use std.cmp.PartialEq
 
 data User:
     id: string

@@ -57,6 +57,12 @@ starts on the next physical line, layout processing emits its `NEWLINE`,
 `INDENT`, body layout, and closing `DEDENT` even if surrounding delimiters are
 still open. After the suite closes, implicit continuation resumes.
 
+The indentation reference for such a nested suite is the indentation of the
+physical line containing its suite header. Its first body line must be indented
+farther than that reference. A closing delimiter at the nested suite's
+delimiter depth ends the last body line: layout processing emits `NEWLINE` and
+all pending `DEDENT` tokens before emitting the closing delimiter.
+
 This exception permits explicit multiline closures in calls:
 
 ```text
@@ -71,14 +77,27 @@ choice(
 
 Layout recognition and parsing therefore cooperate at a suite-introducing
 colon; a lexer may implement this with parser feedback or with equivalent
-context tracking. Ordinary colons in maps, data fields, named types, and
-arguments do not open a suite.
+parser-state tracking. Ordinary colons in maps, data fields, named types, and
+arguments do not open a suite. Trailing-block call colons occur only at
+delimiter depth zero when the call is the complete statement or the outermost
+right-hand side of a binding. They are not recognized in `if`, `while`, `for`,
+or `match` headers or inside brackets.
 
-A same-line suite ends with the abstract token `SUITE_END`. At delimiter depth
-zero, `SUITE_END` replaces the logical `NEWLINE` that terminates the suite. In
-an implicit continuation, it is emitted before the comma or closing delimiter
-that returns control to the enclosing expression. For example, the body of
-`fn(name): name.lower()` ends immediately before that closure's closing `)`.
+A same-line suite ends with the abstract token `SUITE_END`. At a logical line
+boundary, layout closes every same-line suite opened on that logical line,
+emitting one `SUITE_END` per suite from innermost to outermost. At delimiter
+depth zero the outermost `SUITE_END` replaces that line's `NEWLINE`; it does
+not precede a second terminator. In an implicit continuation, the equivalent
+boundary is a comma or closing delimiter that returns control to the enclosing
+expression, and the same innermost-first sequence is emitted before that token.
+For example, the body of `fn(name): name.lower()` ends immediately before that
+closure's closing `)`.
+
+`else` is also a boundary for the immediately preceding same-line `if` suite:
+layout emits that suite's `SUITE_END` before `else` and keeps the enclosing
+conditional open. Thus `x := if c: 1 else: 2` is one conditional expression;
+the line boundary after `2` closes the `else` suite and then any enclosing
+same-line suite, innermost first.
 `SUITE_END` has no source spelling; parser-aware layout processing identifies
 the boundary from the expected suite and enclosing delimiter structure.
 
@@ -112,10 +131,10 @@ A block header ends in `:`. Its body may be either an indented suite beginning
 on the next logical line or a same-line suite:
 
 ```text
-fn greet(name: string) -> void:
+fn greet(name: string) -> void $ Console:
     println("hello, " + name)
 
-fn test() -> void: println("hi")
+fn test() -> void $ Console: println("hi")
 ```
 
 Horizontal tab characters are not permitted as source whitespace. They
@@ -135,10 +154,23 @@ name := "Ada"  # A comment after code.
 
 There are no block comments.
 
+`##` at the start of a comment is a documentation comment. One or more
+consecutive documentation-comment lines attach to the next declaration or
+member at the same indentation when no blank line or non-documentation token
+intervenes. Members include data fields, embedded fields, enum variants and
+payload fields, trait and implementation methods, and function parameters.
+The lexer removes `##` and one following space when present, then joins lines
+with `\n`. The resulting string is exposed as the target shape's `doc` field;
+without an attached documentation comment, `doc` is `nil`. A trailing `##`
+comment after source code is ordinary commentary and does not attach. An
+otherwise unattached documentation-comment line is a
+`doc-comment-without-target` lexical error.
+
 The lexical form is:
 
 ```ebnf
 line_comment = "#", { comment_character } ;
+doc_comment = "##", [ " " ], { comment_character } ;
 ```
 
 `comment_character` is any supported source character other than a line
@@ -158,9 +190,12 @@ identifier_continue = XID_CONTINUE | "_" ;
 DECIMAL_DIGIT    = "0" ... "9" ;
 ```
 
-`XID_START` and `XID_CONTINUE` denote the corresponding Unicode derived core
-properties. An implementation must use one declared Unicode data version
-consistently for lexing, normalization, and diagnostics.
+The single source spelling `_` is a distinct placeholder token, not an
+`identifier`; an identifier that begins with `_` must contain at least one
+additional `identifier_continue` character. `XID_START` and `XID_CONTINUE`
+denote the corresponding Unicode derived core properties. An implementation
+must use one declared Unicode data version consistently for lexing,
+normalization, and diagnostics.
 
 The compiler must diagnose identifiers that are visually confusable with
 another identifier visible in the same scope and identifiers that suspiciously
@@ -169,7 +204,7 @@ different NFC identifier strings remain different names. Standard-library
 APIs, language keywords, and compiler-generated source names use ASCII.
 
 An identifier that exactly matches a reserved word is not an identifier token.
-The complete reserved-word set is defined by the consolidated grammar. Built-in
+The complete reserved-word set is listed below. Built-in
 type names such as `i32`, `string`, `list`, and `map` are ordinary names rather
 than lexically distinct tokens.
 
@@ -179,7 +214,7 @@ The grammar uses these reserved words:
 
 ```text
 Self      and       annotate  as        break     continue
-data      else      enum      false     fn        for
+data      defer     else      enum      false     fn        for
 if        impl      in        is        let       match
 mut       nil       not       or        pass      pub
 reified   return    self      shape     super     trait
@@ -188,11 +223,15 @@ true      type      use       where     while
 
 `pkg`, `std`, and `dep` have special meaning only in a use root position.
 `test` has special meaning only at the beginning of a module-level test block.
-`annotation` is contextual after `::` in annotation materialization, while
-`context`, `with`, and `Context` are contextual after `$.`. These contextual
-words remain ordinary identifiers elsewhere, so declarations such as
-`fn test() -> void` are valid. The reserved word `use` is also accepted in the
-dedicated `$.use(...)` context expression.
+`annotation` and `annotation_ref` are contextual after `::` in annotation
+materialization;
+`context`, `with`, and `Context` are contextual after `$.`; `pack`, `map`, and
+`map_list` are contextual in the `pack.map(...)` and `pack.map_list(...)`
+forms; and `derive` is contextual immediately after `@`. These contextual words
+remain ordinary identifiers elsewhere, so declarations such as `fn test() ->
+void`, `fn map_list() -> void`, and `fn derive() -> void` are lexically valid;
+the separate prelude shadowing rule still applies. The reserved
+word `use` is also accepted in the dedicated `$.use(...)` provider expression.
 
 ## Literals
 
@@ -230,8 +269,8 @@ octal_digits = OCTAL_DIGIT, { [ "_" ], OCTAL_DIGIT } ;
 hexadecimal_digits = HEX_DIGIT, { [ "_" ], HEX_DIGIT } ;
 ```
 
-A leading `-` is an operator, not part of the literal. Unary `+` is not
-supported. Integer literal typing and range checks are defined in
+A leading `-` is an operator, not part of the literal. Integer literal typing
+and range checks are defined in
 [Type System](04-type-system.md).
 
 The radix prefix does not affect the inferred type. Hexadecimal digits may use
@@ -298,11 +337,24 @@ raw_multiline_string_literal = 'r"""',
                                { raw_multiline_character }, '"""' ;
 char_literal   = "'", (char_character | escape_sequence), "'" ;
 
+string_text = string_character, { string_character } ;
+multiline_string_text = multiline_string_character,
+                        { multiline_string_character } ;
+
 escape_sequence = "\\", ( "\\" | '"' | "'" | "n" | "r" | "t" | "0"
                        | "$" | unicode_escape ) ;
 unicode_escape = "u", "{", HEX_DIGIT, { HEX_DIGIT }, "}" ;
 HEX_DIGIT = DECIMAL_DIGIT | "A" ... "F" | "a" ... "f" ;
 ```
+
+`string_character` is any Unicode scalar value other than `"`, `\\`, `$`, or
+a line ending. `multiline_string_character` has the same exclusions except that
+line endings are allowed. `raw_string_character` is any Unicode scalar value
+other than an unescaped `"` or a line ending; `raw_multiline_character` is any
+Unicode scalar value other than the start of an unescaped `"""` delimiter.
+`char_character` is any Unicode scalar value other than `'`, `\\`, or a line
+ending. `string_text` and `multiline_string_text` are maximal nonempty runs of
+their corresponding character class between interpolation or escape segments.
 
 A character literal must decode to exactly one Unicode scalar value. A string
 literal is a sequence of Unicode scalar values. A single-line literal may not
@@ -378,12 +430,12 @@ processing occurs after token recognition as described above.
 ```ebnf
 token = identifier
       | keyword
-      | literal
+      | literal_token
       | operator
       | delimiter
       ;
 
-literal = boolean_literal
+literal_token = boolean_literal
         | nil_literal
         | float_literal
         | integer_literal
@@ -398,7 +450,7 @@ delimiter = "(" | ")" | "[" | "]" | "{" | "}"
 operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "&" | "|" | "^" | "~" | "<<" | ">>"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
-         | ":=" | "->" | "=>" | "?" | "!" | "$"
+         | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
          | "..." | "::"
          ;
 ```

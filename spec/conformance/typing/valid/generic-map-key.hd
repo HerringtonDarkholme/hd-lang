@@ -1,5 +1,3 @@
-use std.cmp.Eq
-use std.hash.Hash
 
 fn lookup[K: Eq + Hash](items: map[K, i32], key: K) -> i32?:
     items[key]

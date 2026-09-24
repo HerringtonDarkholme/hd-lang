@@ -1,15 +1,23 @@
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
 
 data User:
     name: string
 
-impl Display for User:
-    fn display(self) -> string:
+impl Describe for User:
+    fn describe(self) -> string:
         self.name
 
-fn show[T: Display](value: T) -> string:
-    value.display()
+impl Display for User:
+    fn to_string(self) -> string:
+        self.name
 
-fn dynamic_show(value: Display) -> string:
-    value.display()
+impl User:
+    fn domain(self) -> string:
+        self.name.split("@")[1]
+
+fn show[T: Describe](value: T) -> string:
+    value.describe()
+
+fn dynamic_show(value: Describe) -> string:
+    value.describe()

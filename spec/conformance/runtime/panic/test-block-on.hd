@@ -1,0 +1,11 @@
+# expect-panic: suspension-nested-driver
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+fn helper() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    block_on(pending)
+
+test "a test is an active driver":
+    _ := helper()

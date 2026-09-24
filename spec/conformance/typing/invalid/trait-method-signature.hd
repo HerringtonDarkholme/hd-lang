@@ -1,0 +1,8 @@
+# expect-error: trait-method-signature
+trait Named:
+    fn name(self) -> string
+
+data User: pass
+
+impl Named for User:
+    fn name(self) -> i32: 0

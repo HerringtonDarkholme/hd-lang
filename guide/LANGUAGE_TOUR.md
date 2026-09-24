@@ -16,10 +16,11 @@ concrete enough to discuss while still allowing unsettled choices to evolve.
 8. [Type System](#type-system)
 9. [Modules, Packages, and Use Declarations](#modules-packages-and-use-declarations)
 10. [Program Entry Points](#program-entry-points)
-11. [Requirements and Suspension](#requirements-and-suspension)
-12. [Using Annotations](#using-annotations)
-13. [Implementing Annotators](#implementing-annotators)
-14. [Runtime and Library Features](#runtime-and-library-features)
+11. [Tests](#tests)
+12. [Requirements and Suspension](#requirements-and-suspension)
+13. [Using Annotations](#using-annotations)
+14. [Implementing Annotators](#implementing-annotators)
+15. [Runtime and Library Features](#runtime-and-library-features)
 
 ## Hello hd-lang
 
@@ -40,10 +41,10 @@ hd run hello.hd
 The language uses indentation for structure, so blocks are introduced by a header ending in `:` followed by either an indented body or a same-line body:
 
 ```text
-fn greet(name: string) -> void:
+fn greet(name: string) -> void $ Console:
     println("hello, " + name)
 
-fn test() -> void: println("hi")
+fn test() -> void $ Console: println("hi")
 
 greet("Ada")
 ```
@@ -75,7 +76,7 @@ active := true
 println(name)
 ```
 
-`:=` is also an expression. It evaluates to the value being bound, and the inferred immutable name is available in the nearest enclosing block:
+`:=` is also an expression. It evaluates to the value being bound, and the inferred non-reassignable name is available in the nearest enclosing block:
 
 ```text
 if (trimmed := input.trim()) != "":
@@ -96,7 +97,7 @@ counter = counter + 1
 attempts = attempts + 1
 ```
 
-For composite values, mutation permission is part of the type. `T` provides const access and `mut T` provides mutable access. Local declarations place `mut` in the type rather than before the binding name. A const composite reference cannot be upgraded to a mutable one:
+For composite values, mutation permission is part of the type. `T` provides readonly access and `mut T` provides mutable access. Local declarations place `mut` in the type rather than before the binding name. A readonly composite reference cannot be upgraded to a mutable one:
 
 ```text
 user := User {
@@ -108,7 +109,7 @@ user := User {
 let alias: mut User = user  # error: User cannot become mut User
 ```
 
-A mutable reference may be viewed as const, and that const alias can observe later changes made through an existing mutable alias:
+A mutable reference may be viewed as readonly, and that readonly alias can observe later changes made through an existing mutable alias:
 
 ```text
 let user: mut User = User {
@@ -123,7 +124,7 @@ user.display_name = "Ada Lovelace"
 println(readonly.display_name)  # "Ada Lovelace"
 ```
 
-This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a const reference.
+This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a readonly reference.
 
 An unannotated `let` infers the initializer's access type. Fresh composite construction may infer `mut T`, but assigning an existing `T` never upgrades it.
 
@@ -178,8 +179,6 @@ directly; other expressions use `${...}`. Interpolated values must implement
 `std.format.Display`:
 
 ```text
-use std.format.Display
-
 greeting := "Hello, $name"
 summary := "User ${user.name} has ${posts.len()} posts"
 price := "Cost: \$5"
@@ -188,6 +187,12 @@ literal := r"$name and ${user.name} are not expanded here"
 
 Use `\$` for a literal dollar sign in an interpreted string. Raw strings treat
 every dollar sign literally.
+
+Core types, traits, and functions such as `list`, `map`, `Result`, `Display`,
+`Ordering`, and `println` come from the prelude. A declaration, type parameter,
+parameter, local binding, or explicit `use` cannot reuse a prelude name; use
+the names directly without importing them again. The complete list is in the
+[prelude specification](../spec/10-modules.md#prelude).
 
 There are no convenience aliases such as `int`, `uint`, or `float`. Use explicit-width numeric types. `decimal` is a standard-library type, not a primitive.
 
@@ -210,6 +215,10 @@ power := a ** b
 negative := -value
 ```
 
+For floating operands, `**` is IEEE 754-2019 `pow` (clause 9.2), including its
+special cases, correctly rounded to the destination format. Integer and
+floating operands do not mix in `**` without an explicit cast.
+
 Integer `/` truncates toward zero. Integer overflow is always checked unless code uses explicit wrapping APIs. Shift counts can use any integer type, but must be non-negative and in range at runtime unless the compiler can prove that statically.
 
 Integer values also support bitwise operators:
@@ -228,10 +237,9 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | Operators | Notes |
 | --- | --- |
 | `(expr)`, literals, list/map/data displays | atoms |
-| `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
-| postfix `?` | optional or error propagation |
+| `x.y`, `x[i]`, `x(args)`, `x!(args)`, `x?` | postfix operations, left to right |
 | `**` | exponentiation, right-associative |
-| `-x`, `~x`, `not x` | unary operators |
+| `+x`, `-x`, `~x`, `not x` | unary operators |
 | `*`, `/`, `%` | multiplicative |
 | `+`, `-` | additive |
 | `<<`, `>>` | shifts |
@@ -270,11 +278,14 @@ followed by its shared data and payload fields. Each such field needs `Hash`;
 `Eq + Hash` lets a user-defined type serve as a map key.
 
 Use parentheses when a binding expression appears inside a larger expression.
+A nested multi-name binding is written `(a, b := value)` and is never parsed as
+a tuple; to put a binding in a tuple, parenthesize that element separately, as
+in `(a, (b := value))`.
 
 `void` is used for functions that return no useful value:
 
 ```text
-fn log_start() -> void:
+fn log_start() -> void $ Console:
     println("start")
 ```
 
@@ -359,7 +370,7 @@ If a map comprehension produces the same key more than once, the later value win
 
 Comprehensions cannot contain suspension points. Use an explicit loop when the body needs a `!` call.
 
-Use `:=` for ordinary const local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
+Use `:=` for ordinary readonly local values and `let` for variables that may be reassigned. Composite mutation permission is written in the type as `mut T`; explicit types remain important at boundaries that humans, tools, and AI agents need to review.
 
 ## Control Flow and Expressions
 
@@ -377,7 +388,8 @@ fn score_label(score: i32) -> string:
         "needs work"
 ```
 
-When `if` is used as an expression, every branch must produce the same type, and an `else` branch is required:
+When `if` is used as an expression, every reachable branch must produce a
+value of one compatible result type, and an `else` branch is required:
 
 ```text
 label := if active:
@@ -416,10 +428,10 @@ for value in values:
 ```text
 for left in values:
     for right in values:
-        println((left, right))
+        println("$left, $right")
 ```
 
-The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every mutable `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A const iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every mutable `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A readonly iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
 
 Use `while` when the loop condition is not just iterating a collection:
 
@@ -431,7 +443,7 @@ while index < names.len():
     index = index + 1
 ```
 
-`for` and `while` can also have `else` blocks. When a loop has an `else`, the loop becomes a value-producing expression: `break value` produces the loop value when the loop exits early, and `else value` produces the loop value when the loop finishes normally.
+`for` and `while` can also have `else` blocks. When a loop has an `else`, the loop becomes a value-producing expression: `break value` produces the loop value when the loop exits early, and the value of the `else` suite produces the loop value when the loop finishes normally.
 
 ```text
 first_large := for value in values:
@@ -454,7 +466,8 @@ else:
 
 Without an `else` block, a loop evaluates to `void`, even if it contains plain `break`. `break value` is only valid in a value-producing loop with an `else`; use plain `break` in statement-only loops.
 
-`match` is also an expression. It is exhaustive unless an explicit fallback arm is used:
+`match` is also an expression. A match must be exhaustive; a final `_` arm
+covers any remaining values:
 
 ```text
 message := match status:
@@ -462,10 +475,30 @@ message := match status:
     JobStatus.Running => "working"
     JobStatus.Succeeded => "done"
     JobStatus.Failed => "failed"
-    _ => "unknown"
 ```
 
-`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate Validation for User: pass`, it means default derivation with no overrides.
+`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate Validation for User: pass`, it means default facet derivation with no overrides.
+
+### Deferred cleanup
+
+Use `defer:` for synchronous cleanup at the end of the innermost executing
+block. The suite is registered when execution reaches it, and multiple suites
+run in reverse registration order. Cleanup also runs on `return`, `break`,
+`continue`, `?` propagation, and cancellation, but not during a runtime panic.
+
+```text
+fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
+    let handle: mut FileHandle = $.use(Files).open!(path)?
+    defer:
+        _ := handle.close()
+    handle.read!()
+```
+
+The `_ :=` makes the deliberate discard of the close result visible. A defer
+suite must produce `void` and cannot suspend, call `block_on`, propagate with
+`?`, or use `return`, `break`, or `continue`. A return value or propagated value
+is evaluated before cleanup runs. `defer` is block-scoped cleanup, not an
+ownership system: another alias to the handle may still escape.
 
 ## Data Types
 
@@ -508,7 +541,7 @@ fn email_of(user: User) -> string:
         User { email=address } => address
 ```
 
-Composite fields may store either const or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:
+Composite fields may store either readonly or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:
 
 ```text
 data Profile:
@@ -522,15 +555,15 @@ let profile: mut Profile = Profile {
 }
 
 account := Account { profile: profile }
-account.profile.display_name = "Ada Lovelace"  # error: const root
+account.profile.display_name = "Ada Lovelace"  # error: readonly root
 
 let editable: mut Account = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
-An ordinary composite field is a const edge. A `mut` outer object may replace
-any field, even a const-typed one, but cannot mutate a referenced child through
-a const edge. A readonly outer view cannot replace fields. It reads a direct
+An ordinary composite field is a readonly edge. A `mut` outer object may replace
+any field, even a readonly-typed one, but cannot mutate a referenced child through
+a readonly edge. A readonly outer view cannot replace fields. It reads a direct
 `friend: mut User` field as `User`, so it cannot mutate that child or call its
 `mut self` methods. A readonly outer `User` may be constructed with a readonly
 value in that direct field; constructing `mut User` requires a mutable value.
@@ -548,7 +581,7 @@ fn inspect(user: User) -> string:
     user.display_name
 
 fn invalid(user: User) -> void:
-    user.display_name = "new"  # error: User is const
+    user.display_name = "new"  # error: User is readonly
 
 fn normalize_user(user: mut User) -> User:
     user.email = user.email.trim().lower()
@@ -567,9 +600,22 @@ Here the list is a mutable root and its element references are mutable edges.
 users; `list[mut User]` cannot replace list elements but can mutate its
 referenced users, because indexing retains the generic element type.
 
+The two rules also compose through a readonly containing object:
+
+```text
+data Cart:
+    items: mut list[mut LineItem]
+
+fn inspect_cart(cart: Cart, item: mut LineItem) -> void:
+    cart.items[0].quantity = 0  # allowed: element remains mut LineItem
+    cart.items.append(item)     # error: readonly Cart weakens the direct list field
+```
+
+Iterating `list[mut T]` likewise yields `mut T`, even through a readonly list.
+
 Container and element permissions are independent, so all four forms are meaningful: `list[User]`, `list[mut User]`, `mut list[User]`, and `mut list[mut User]`.
 
-A read-only list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a const `User` into storage requiring `mut User`.
+A readonly list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a readonly `User` into storage requiring `mut User`.
 
 Maps follow the same separation: a readonly `map[K, mut User]` can yield
 `mut User` from lookup or iteration, but replacing an entry requires a
@@ -722,7 +768,8 @@ named arguments follow them:
 error := ToolError.NotFound(resource="user_123")
 ```
 
-Use `match` to inspect an enum. Matches are exhaustive unless an explicit fallback arm is present:
+Use `match` to inspect an enum. A match must be exhaustive; a final `_` arm
+covers any remaining values:
 
 ```text
 fn status_label(status: JobStatus) -> string:
@@ -747,7 +794,7 @@ fn queue_label(status: JobStatus, urgent: bool) -> string:
         JobStatus.Failed => "failed"
 ```
 
-Enum variants can use `.Variant` where the enum type is known from context, including a typed binding, a return type, or a `match` subject. Without that context, use the qualified form such as `JobStatus.Queued`; the compiler does not guess an enum from a variant name. Enum variants cannot be named as items in a use declaration.
+Enum variants can use `.Variant` where the expected type is known, including a typed binding, a return type, or a `match` subject. Without that expected type, use the qualified form such as `JobStatus.Queued`; the compiler does not guess an enum from a variant name. Enum variants cannot be named as items in a use declaration.
 
 Payload fields can be bound in a match arm:
 
@@ -860,17 +907,21 @@ fn eval_i64(expr: Expr[i64]) -> i64:
         Expr.Add(l, r) => eval_i64(l) + eval_i64(r)
         Expr.Sub(left=l, right=r) => eval_i64(l) - eval_i64(r)
         Expr.Scale(value, factor=2) => eval_i64(value) * 2
+        Expr.Scale(value, factor) => eval_i64(value) * factor
         Expr.IntLit(value) => value
+        Expr.If(cond, then_value, else_value) =>
+            if eval(cond): eval_i64(then_value) else: eval_i64(else_value)
 ```
 
 In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; they do not need to match the payload field names `left` and `right`. In `Expr.Sub(left=l, right=r)`, `left=` and `right=` select payload fields by name, while `l` and `r` are still new binding patterns. `Expr.Scale(value, factor=2)` matches only a scale expression whose `factor` payload equals `2`. A positional pattern cannot appear after a named pattern. If the payload itself is an expression, match the nested variant explicitly, such as `right=Expr.IntLit(2)`.
 
 Because the compiler knows every variant, it checks that callers handle every state. This matters for AI-generated code: missing cases become compiler diagnostics instead of latent production behavior.
 
-`Option` and `Result` are standard enum-like types, even though hd-lang gives them special syntax:
+`T?` (in the role commonly called `Option[T]`) and `Result[T, E]` are
+standard enum-like forms, though only `T?` is the optional source spelling:
 
 ```text
-let name: string? = nil                 # Option[string]
+let name: string? = nil
 fn loaded() -> Result[User, DbError]:
     ...
 ```
@@ -886,6 +937,20 @@ Construct `Result` values with capitalized helper constructors:
 return Ok(user)
 return Err(db_error)
 ```
+
+`Result[T, E]`, `T?`, and `mut Suspend[T]` are must-use values. Do not leave
+one as an ignored statement, including as the final expression of a loop,
+an `if` without `else`, or a test block. Propagate it, match it, return it, or
+store it for later. When discarding it is deliberate, make that decision
+visible with `_ := expression`:
+
+```text
+_ := cache.refresh()
+```
+
+The compiler warns when an ordinary local binding is never read. A name
+beginning with `_` suppresses that warning for ordinary values, but it does not
+silently discard a must-use value; use the exact `_ :=` form for that.
 
 ## Functions
 
@@ -915,7 +980,7 @@ fn first_name(name: string) -> string:
 Use `void` when a function does not return a useful value:
 
 ```text
-fn print_user(user: User) -> void:
+fn print_user(user: User) -> void $ Console:
     println(user.email)
 ```
 
@@ -928,14 +993,14 @@ fn normalize_email(email: string) -> string:
 clean := normalize_email("Ada@Example.COM ")
 ```
 
-Parameter names are immutable bindings. A `mut T` parameter permits mutation
+Parameter names are non-reassignable bindings. A `mut T` parameter permits mutation
 through the reference but cannot itself be rebound. Use a `let` local when the
 algorithm needs reassignment:
 
 ```text
 fn normalize(value: i32) -> i32:
     let current = value
-    current = current.abs()
+    if current < 0: current = -current
     current
 ```
 
@@ -959,7 +1024,9 @@ secure := connect(host="api.example.com")
 local := connect("localhost", port=8080, tls=false)
 ```
 
-Default values can use pure expressions and pure function calls. They cannot require context requirements or suspension:
+Default values can use pure expressions and pure function calls. They cannot
+require provider requirements or suspension, mutate parameters or captures,
+call a `mut fn` value, or pass non-fresh mutable access to any call:
 
 ```text
 fn default_port() -> i32:
@@ -971,6 +1038,10 @@ fn connect(host: string, port: i32 = default_port()) -> Connection:
 fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connection:
     ...      # invalid: default value suspends and requires a capability
 ```
+
+Until purity is represented in function types, a default cannot call through a
+function value or dynamic trait method; a named callable must have a verified
+purity summary.
 
 Use varargs when a function accepts zero or more positional arguments of the same type:
 
@@ -1043,7 +1114,8 @@ slugify := fn(text: string) -> string:
 slug := slugify("Hello hd-lang")
 ```
 
-There is no separate short closure syntax. Use `fn(...) -> ...:` for closures. Same-line closure bodies are allowed when the body is a single expression:
+There is no separate short closure syntax. Use `fn(...) -> ...:` for closures.
+Same-line closure bodies allow one simple statement:
 
 ```text
 inc := fn(x: i32) -> i32: x + 1
@@ -1055,9 +1127,9 @@ Inline closures may omit parameter and return types when the surrounding call pr
 
 ```text
 fn choice(
-    first: fn(i32) -> void,
-    second: fn(string) -> void,
-) -> void:
+    first: fn(i32) -> void $ Console,
+    second: fn(string) -> void $ Console,
+) -> void $ Console:
     first(1)
     second("two")
 
@@ -1119,7 +1191,12 @@ fn repeat(times: i32, f: mut fn() -> void) -> void:
         i = i + 1
 ```
 
-Closures that capture dependencies or capabilities carry those requirements in their function type. Serializable closures are a separate deferred design area; the language has not yet defined their capture, identity, compatibility, or execution semantics.
+A closure that uses a provider from an enclosing `$.with` scope captures that
+provider value when the closure is created. Its function type lists only
+requirements that no enclosing provider scope satisfies. Provider values are
+ordinary captured values, so a requirement row is not a complete authority
+escape report. Serializable closures are a separate deferred design area; the
+language has not yet defined their compatibility or execution semantics.
 
 When a closure is passed where a function type is already expected, parameter and return types can usually be inferred:
 
@@ -1220,8 +1297,8 @@ Functions are the primary unit of behavior. Methods, tools, workflows, tests, an
 Traits describe shared behavior without classes or inheritance:
 
 ```text
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
 ```
 
 Traits can provide default implementations:
@@ -1237,18 +1314,18 @@ trait Named:
 Implement a trait for a data type with an `impl` block:
 
 ```text
-impl Display for User:
-    fn display(self) -> string:
+impl Describe for User:
+    fn describe(self) -> string:
         self.email
 ```
 
 Trait methods can be called with dot syntax:
 
 ```text
-label := user.display()
+label := user.describe()
 ```
 
-When two implemented traits leave a dot call ambiguous, qualify the trait explicitly with `Trait::method(receiver, ...)`, such as `Display::display(user)`. Qualification selects that trait implementation directly; it does not perform inherent or embedded-method lookup.
+When two implemented traits leave a dot call ambiguous, qualify the trait explicitly with `Trait::method(receiver, ...)`, such as `Describe::describe(user)`. Qualification selects that trait implementation directly; it does not perform inherent or embedded-method lookup.
 
 Data types can also have inherent methods with `impl TypeName`:
 
@@ -1279,18 +1356,18 @@ trait Repository[T]:
 Functions can use trait constraints on generic parameters:
 
 ```text
-fn show[T: Display](value: T) -> string:
-    value.display()
+fn show[T: Describe](value: T) -> string:
+    value.describe()
 ```
 
 Trait bounds compose like Rust:
 
 ```text
-fn audit_label[T: Display + Named](value: T) -> string:
-    value.display() + " / " + value.name()
+fn audit_label[T: Describe + Named](value: T) -> string:
+    value.describe() + " / " + value.name()
 ```
 
-Receivers are either `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameters use reference permissions in the type position: `value: T` is const and `value: mut T` is mutable. `mut self` is receiver shorthand for `self: mut Self`. Data types, tuples, lists, and maps are composite types.
+Receivers are either `self` or `mut self`; there is no reference receiver spelling. Primitive parameters are passed by value. Composite parameters use reference permissions in the type position: `value: T` is readonly and `value: mut T` is mutable. `mut self` is receiver shorthand for `self: mut Self`. Data types, enums with storage, tuples, lists, maps, trait values, and closures are composite types.
 
 Data types do not own behavior in the class sense. Behavior lives in inherent
 `impl TypeName` blocks or trait implementations:
@@ -1313,30 +1390,31 @@ impl Add[Money] for Money:
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
-Data embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous, and unambiguous promoted methods can satisfy trait requirements for the outer data. Ambiguous promoted methods must be qualified through the embedded field or resolved with an explicit impl.
+Data embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous. Embedding never grants trait conformance. Inside an explicit `impl`, one unambiguous promoted method may fill a requirement; an ambiguous requirement needs an explicit method body with a qualified embedded-field call.
 
 When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
 
 ```text
-C does not satisfy Display
+C does not satisfy Describe
 
 required method:
-  fn display(self) -> string
+  fn describe(self) -> string
 
 ambiguous promoted methods:
-  A.display(self) -> string
-  B.display(self) -> string
+  A.describe(self) -> string
+  B.describe(self) -> string
 
 fix:
-  implement Display for C explicitly
-  or call the embedded method through c.A.display() / c.B.display()
+  give describe an explicit body in impl Describe for C,
+  calling self.A.describe() or self.B.describe()
+  or call the embedded method through c.A.describe() / c.B.describe()
 ```
 
 Dynamic dispatch follows the Go interface style: use the trait name as a value type, and method calls through that trait value dispatch to the concrete implementation at runtime.
 
 ```text
-fn print_display(value: Display) -> void:
-    println(value.display())
+fn print_display(value: Describe) -> void $ Console:
+    println(value.describe())
 
 print_display(user)
 ```
@@ -1344,8 +1422,8 @@ print_display(user)
 This is different from generic static dispatch, where the compiler specializes the function for a concrete type:
 
 ```text
-fn show_static[T: Display](value: T) -> string:
-    value.display()
+fn show_static[T: Describe](value: T) -> string:
+    value.describe()
 ```
 
 ## Type System
@@ -1396,7 +1474,7 @@ Type aliases are transparent by default:
 ```text
 type UserName = string
 
-fn greet(name: UserName) -> void:
+fn greet(name: UserName) -> void $ Console:
     println("hello, " + name)
 
 let raw: string = "Ada"
@@ -1422,7 +1500,9 @@ drive(10)               # invalid: i32 is not Mile
 raw_distance := i32(miles)     # explicit cast back to base type
 ```
 
-Lower-precision integers can widen into higher-precision integers without an explicit cast. Narrowing requires an explicit cast:
+Integers widen implicitly only within one signedness family (`i8` through
+`i64`, or `u8` through `u64`), and `f32` widens to `f64`. Crossing signedness
+or narrowing requires an explicit cast:
 
 ```text
 let small: i16 = 42
@@ -1482,7 +1562,11 @@ data Cell[T]:
     value: T
 ```
 
-Variance conversions apply to read-only outer views. A `mut Producer[T]`, `mut Consumer[T]`, or other mutable generic view remains invariant because its fields can be replaced.
+Variance conversions apply to readonly outer views. A `mut Producer[T]`, `mut Consumer[T]`, or other mutable generic view remains invariant because its fields can be replaced.
+They must also preserve representation. A function-valued field read through a
+converted container may reflect only the corresponding permission weakening
+(`mut U` to `U` in a positive position, or `U` to `mut U` in a negative one);
+this is not a general function-type variance conversion.
 
 Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, annotation lookup, serialization, or type-directed dependency injection:
 
@@ -1493,7 +1577,10 @@ fn resolve[reified T]() -> T $ TypeProvider:
 items := resolve[list[i32]]()
 ```
 
-At the language level, a reified call behaves as if it passes a hidden `Type[T]` descriptor. This descriptor is not an ordinary source-level argument and cannot be supplied with a named argument. Reification is part of a function's public type and ABI.
+At the language level, a reified call behaves as if it passes a hidden runtime
+type descriptor, observable only as `shape(T): TypeShape`. This descriptor is
+not an ordinary source-level argument and cannot be supplied with a named
+argument. Reification is part of a function's public type and ABI.
 
 Variadic generics use ordered type and value packs. Pack expansion is supported in function types, vararg parameters, tuple types, call arguments, and type or expression patterns:
 
@@ -1501,6 +1588,9 @@ Variadic generics use ordered type and value packs. Pack expansion is supported 
 fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
     f(args...)
 ```
+
+The value-pack parameter must be the final positional parameter; calls never
+guess how to split positional arguments between a pack and a later parameter.
 
 This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `list[Any]` or a weak tuple type.
 
@@ -1511,33 +1601,33 @@ fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     ...
 ```
 
-For `Ts... = User, i32, bool`, `mut Suspend[Ts]...` expands to three parameter types, `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: `start(tasks)...` repeats `start(task)` for every value in the `tasks` pack. Pattern expansion happens at compile time and does not allocate a runtime collection.
+For `Ts... = User, i32, bool`, `mut Suspend[Ts]...` expands to three parameter types, `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: a value pattern such as `start(tasks)...` expands to `start(tasks_0), start(tasks_1), ...`. Pattern expansion happens at compile time and does not allocate a runtime collection.
 
 Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. A library `all!` driver can use `pack.map((tasks...), make_slot)` to turn the heterogeneous task pack into a tuple of typed slots, `pack.map_list(slots, poll_slot, context)` to gather homogeneous readiness flags, and `pack.map(slots, take_ready)` to recover the result tuple. Each mapper is a named generic function instantiated for each tuple element; mapping is compiler-supported, while scheduling and cancellation remain library behavior. Filtering, indexing, splitting, and pack arithmetic remain unsupported.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 
 ```text
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
 
-impl Display for User:
-    fn display(self) -> string:
+impl Describe for User:
+    fn describe(self) -> string:
         self.email
 ```
 
 Generic trait bounds use static dispatch:
 
 ```text
-fn label[T: Display](value: T) -> string:
-    value.display()
+fn label[T: Describe](value: T) -> string:
+    value.describe()
 ```
 
 Using a trait name as a value type creates a Go-style trait value: a pair of concrete value plus method table, dispatched at runtime. There is no `dyn` marker:
 
 ```text
-fn print_display(value: Display) -> void:
-    println(value.display())
+fn print_display(value: Describe) -> void $ Console:
+    println(value.describe())
 ```
 
 `Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically. Use `Any` for an erased dynamic value and `T: Any` when generic code must preserve the concrete type:
@@ -1561,9 +1651,10 @@ fn clear_value[T: mut Clear](value: T) -> void:
 
 fn accept_mutable[T: mut Any](value: T) -> void:
     keep_erased(value)
+    pass
 ```
 
-`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut list[User]` satisfies `mut Any`; `list[mut User]` does not, because its root is const.
+`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut list[User]` satisfies `mut Any`; `list[mut User]` does not, because its root is readonly.
 
 There is no implicit nullability. `T` and `T?` are different types, and `nil` only belongs to optional values:
 
@@ -1578,30 +1669,76 @@ Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
-Embedded promoted methods count for trait satisfaction when they are unambiguous:
+An explicit impl may reuse an unambiguous promoted method:
 
 ```text
 data Logger:
     name: string
 
-impl Display for Logger:
-    fn display(self) -> string:
+impl Describe for Logger:
+    fn describe(self) -> string:
         self.name
 
 data Service:
     Logger
 
-fn show(value: Display) -> void:
-    println(value.display())
+impl Describe for Service
+
+fn show(value: Describe) -> void $ Console:
+    println(value.describe())
 
 service := Service {
     Logger: Logger { name: "api" }
 }
 
-show(service)       # ok: Service satisfies Display through Logger
+show(service)       # ok: explicit impl uses Logger's promoted method
 ```
 
-If multiple embedded fields promote conflicting methods, the outer type does not satisfy the trait automatically. The user must qualify calls or write an explicit impl to resolve the conflict.
+Embedding never grants trait conformance: the explicit bodyless `impl` above
+opts `Service` in and may reuse the one unambiguous promoted `self` method. A
+promoted `mut self` method cannot fill a trait requirement because the embedded
+field is a readonly edge; that implementation needs an explicit body. If
+multiple fields promote conflicting methods, the implementation must likewise
+provide a body and use a qualified embedded-field call.
+
+### Small Typed Idioms
+
+Generic implementation binders, associated functions, width conversion,
+trait-valued collection literals, and inferred closure rows use the ordinary
+forms shown here:
+
+```text
+trait Notifier:
+    fn notify(self, message: string) -> void
+
+impl[N: Notifier] Notifier for list[N]:
+    fn notify(self, message: string) -> void:
+        for notifier in self:
+            notifier.notify(message)
+
+data Duration:
+    day_count: i32
+
+impl Duration:
+    fn days(count: i32) -> Duration:
+        Duration { day_count: count }
+
+month := Duration::days(30)
+let narrow: i16 = 12
+let wide: i64 = 30
+let total: i64 = narrow + wide
+
+let labels: list[Display] = ["Ada", "Grace"]
+
+fn invoke[r](callback: fn() -> void $ r) -> void $ r:
+    callback()
+
+fn report() -> void $ Console:
+    invoke(fn() -> void: println(labels.len()))
+```
+
+The `invoke` call infers the omitted closure row as `Console` from its body and
+unifies it with `r`; an omitted row is not assumed empty.
 
 ## Modules, Packages, and Use Declarations
 
@@ -1612,6 +1749,11 @@ src/user/types.hd      # module user.types
 src/user/service.hd    # module user.service
 src/post/service.hd    # module post.service
 ```
+
+Which source file a package designates as the executable `main` module, and
+how a concrete host profile binds `Console`, remain package-tooling and runtime
+configuration work tracked in Open Issues. The language-level signature still
+exposes `$ Console`.
 
 Module path components follow the same NFC Unicode identifier rules as source names. Module identities are case-sensitive, but a package is rejected when two paths collide after Unicode case folding and NFC normalization.
 
@@ -1710,19 +1852,30 @@ modules both use explicit use declarations.
 
 Cycles involving `use` or `pub use` are rejected.
 
-Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. A public signature cannot leak a module-private type. There is no package-private visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. There is no package-private visibility modifier.
 
 ## Program Entry Points
 
-`pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and every other host service are explicit context requirements:
+`pub fn main` is the conventional default entry point for an executable package. It takes no source-level parameters. Process arguments, environment, console I/O, and other host services selected by the runtime profile are explicit requirement-row entries:
 
 ```text
-use std.host.{Args, Console, ConsoleError}
+# This example's runtime profile supplies Args and Console.
+use std.host.Args
 
 pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args, console := $.use(Args, Console)
-    console.write_line!("starting " + args.program_name())
+    console.write_line!("starting " + args.program_name())?
+    Ok()
 ```
+
+`Ok()` is the success constructor for `Result[void, E]`; it is distinct from
+both the `void` expression `pass` and the unit tuple `()`.
+`ConsoleError` implements `Display`, as required for an entry-point error type.
+
+An entry-point row may contain only host capability traits supplied by its
+selected runtime profile, such as `Args` and `Console` above. Application
+traits such as `Database` are not injected merely because they appear on
+`main`; bind them with `$.with` inside the entry point.
 
 The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `Err` to a failed invocation.
 
@@ -1743,9 +1896,42 @@ fn lookup_users!(request: LookupRequest) -> Result[list[User], LookupError] $ Da
     ...
 ```
 
-Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. Context requirements such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
+Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
 
-Maps are unordered by default. Their insertion or iteration order is not part of the value or boundary semantics, and boundary consumers must not infer meaning from the order used by a particular encoding.
+Maps iterate in insertion order. Replacing an existing key keeps its position;
+removing and reinserting it moves it to the end. Map equality and boundary
+meaning remain independent of that order, so consumers must not attach semantic
+meaning to field order unless their own format explicitly does so.
+
+## Tests
+
+Tests are named module-level blocks. Each test runs in a fresh program instance,
+and a test block is a suspension driver context, so it may bang-call directly.
+Use ordinary provider scopes for mocks and `std.testing` for assertions:
+
+```text
+use std.testing.assert_equal
+
+@derive(PartialEq)
+data DbError:
+    message: string
+
+trait Database:
+    fn count!(self) -> Result[i32, DbError]
+
+data MockDatabase: pass
+
+impl Database for MockDatabase:
+    fn count!(self) -> Result[i32, DbError]: Ok(3)
+
+test "loads the count":
+    $.with(Database=MockDatabase {}):
+        result := $.use(Database).count!()
+        assert_equal(result, Ok(3), reason="mock count is returned")
+```
+
+A test passes when the block completes normally and fails on an assertion
+failure or panic. Test instances do not share top-level mutable state.
 
 ## Requirements and Suspension
 
@@ -1755,7 +1941,7 @@ separately from ordinary functions and `Result` error handling.
 hd-lang separates three concerns often grouped under algebraic effects:
 
 1. `$` rows statically check which dependencies a function requires.
-2. Context scopes inject concrete providers for those requirements.
+2. Provider scopes inject concrete providers for those requirements.
 3. `fn!`, `Suspend[T]`, and bang calls provide one-shot suspension.
 
 These mechanisms cooperate, but none implies the others. Dependency lookup does
@@ -1782,9 +1968,9 @@ trait Cache:
 
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
-    cached := cache.get_user(id)
-    if cached != nil:
-        return Ok(cached)
+    match cache.get_user(id):
+        user? => return Ok(user)
+        nil => pass
     db.get_user!(id)
 ```
 
@@ -1792,14 +1978,16 @@ A suspending declaration also creates a cold computation constructor:
 
 ```text
 let pending: mut Suspend[Result[User?, DbError]] = load_user(id)
-result := load_user!(id)   # Result[User?, DbError]; drive and suspend if necessary
+
+fn demo!() -> Result[User?, DbError] $ Database + Cache:
+    load_user!(id)   # drive and suspend inside a suspending body
 ```
 
 `fn load_user!(...) -> T` lowers conceptually to a function constructing `mut Suspend[T]`. Arguments are evaluated when the cold suspension is constructed, while the body is compiled into a resumable state machine and begins only when driven. `:=` weakens a stored suspension to readonly `Suspend[T]`; use `let pending: mut Suspend[T]` when it must later be polled or cancelled. Each nested bang call is a possible suspension point: the compiler saves the enclosing state, drives the child computation, and resumes with its result.
 
-`Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension.
+`Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension. Cancelling a suspension while it or a descendant is active on the current poll stack also panics and leaves its state unchanged.
 
-The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driving context. Cancellation is synchronous and cleanup cannot suspend. Source-level cleanup remains [backlog work](../future-work/OPEN_ISSUES.md#resources-and-lifetime). Stored-suspension driving syntax remains open, and a separate `Task[T]` API is deferred.
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; a test is active for its whole execution, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, annotation builders, `defer` suites, and non-entry module initialization.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 
@@ -1822,11 +2010,12 @@ mock_db := MockDatabase {
 }
 ```
 
-Call sites provide requirements through context scopes. `$.with(Requirement=provider)` binds a requirement key to a provider value for the indented body:
+Call sites provide requirements through provider scopes. `$.with(Requirement=provider)` binds a requirement key to a provider value for the indented body:
 
 ```text
-$.with(Database=mock_db, Cache=memory_cache):
-    result := load_user!(UserId("user_123"))
+fn demo_mock!() -> Result[User?, DbError] $ Cache:
+    $.with(Database=mock_db):
+        load_user!(UserId("user_123"))
 ```
 
 Reusable contexts are provider-map values typed by a requirement row:
@@ -1835,22 +2024,32 @@ Reusable contexts are provider-map values typed by a requirement row:
 fn prod_context() -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
-$.with(Database=mock_db, Logger=console_logger, ...prod_context()):
-    db, logger, cache := $.use(Database, Logger, Cache)
-    result := load_user!(UserId("user_123"))
+fn demo_context!() -> Result[User?, DbError] $ Logger + Metrics + Cache:
+    $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
+        load_user!(UserId("user_123"))
 ```
 
-`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `...prod_context()` spreads reusable providers into a lexical context scope, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order. Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels. Duplicate providers for the same requirement cannot coexist; during context construction or spread, later bindings win and the resulting context has one entry per key. If a required provider does not exist for a call, that is a compile-time error. The `$` namespace is special context syntax, not an ordinary value namespace.
+`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache`
+part is an unordered requirement row. `$.context` creates a reusable context,
+`...prod_context()` spreads providers into a lexical scope, and `$.use`
+retrieves them in the requested order. Entries in these forms are trait-type
+requirement keys, not ordinary named-argument labels. Duplicate concrete keys
+cannot coexist in one scope; a nested binding for the same written key replaces
+the outer provider. Distinct generic key expressions that could become equal
+under substitution are rejected instead of relying on erasure or
+specialization. A missing provider is a compile-time error below an entry
+boundary. The `$` namespace is special context syntax, not an ordinary value
+namespace.
 
 Requirement polymorphism for higher-order functions preserves callback
 requirements rather than erasing them:
 
 ```text
-fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
     ...
 ```
 
-A provider scope removes a locally supplied requirement from a row variable:
+A provider scope removes a locally supplied requirement from a row parameter:
 
 ```text
 fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
@@ -1862,15 +2061,15 @@ Here `callback` may require `Logger` plus other requirements. The local provider
 satisfies `Logger`, so callers see only the remaining row. The helper itself is
 not named `provide_logger!` because its body has no suspension point.
 
-Providers come from an enclosing `$.with` scope or an entry point's host
-configuration; there are no implicit provider defaults. Requirement variables
-are specialized row parameters with union and subtraction. Additional
+Providers come from an enclosing `$.with` scope or an entry point's permitted
+runtime-profile configuration; there are no implicit provider defaults. Row
+parameters support union and subtraction. Additional
 `Result[T, E]` convenience APIs belong to the standard library.
 
 ## Using Annotations
 
-Annotations provide typed metadata and structural derivation. Shape APIs,
-materialization, exact-target derivation, and recursive references are part of
+Annotations provide typed metadata and facet derivation. Shape APIs,
+materialization, exact-target facet derivation, and recursive references are part of
 the language. An unoverridden field uses its type's facet annotation; an exact
 field result override can supply the facet result instead. Missing information
 is a compile-time error, never an implicit omission.
@@ -1916,8 +2115,11 @@ carry annotation facets or member metadata.
 Declaration facets may be configured with ordinary values:
 
 ```text
+data SearchHit:
+    title: string
+
 @tool(strict=true)
-fn search(query: string) -> list[Result]:
+fn search(query: string) -> list[SearchHit]:
     ...
 ```
 
@@ -1957,7 +2159,8 @@ annotate User:
 
 Metadata values execute in a restricted metadata phase. They must be pure, deterministic, non-suspending, and dependency-free. Multiple entries with the same concrete metadata type on one member are rejected.
 
-Use `annotate Annotation for Target` to derive information for a complete target. `pass` requests default derivation with no structural result overrides:
+Use `annotate Facet for Target` to derive information for a complete target.
+`pass` requests default facet derivation with no structural result overrides:
 
 ```text
 annotate Validation for User: pass
@@ -1995,19 +2198,19 @@ table := DatabaseSchema::annotation(User)
 form := UI::annotation(User)
 ```
 
-Add structural result overrides when default derivation is insufficient:
+Add structural result overrides when default facet derivation is insufficient:
 
 ```text
 annotate UI for User:
     avatar = profile_image(size=40)
 ```
 
-Assignments in an `annotate` block can override existing fields or variants only; they cannot invent members that are absent from the target declaration. A package can have at most one block for an exact facet/target pair.
+Assignments in an `annotate` block can override existing fields or variants only; they cannot invent members that are absent from the target declaration. The whole resolved package graph can have at most one block for an exact facet/target pair.
 
 Function annotations follow the same model:
 
 ```text
-fn get_user!(id: UserId) -> Result[User?, ToolError] $ Database:
+fn get_user!(id: UserId) -> Result[User?, DbError] $ Database:
     db := $.use(Database)
     db.get_user!(id)
 
@@ -2023,7 +2226,7 @@ tool_registry.register(Tool::annotation(get_user))
 `Facet::annotation(Target)` is the runtime retrieval spelling. A local `build`
 inside the facet block replaces aggregate assembly. A member type without the
 requested facet needs an exact field or variant result override; otherwise
-derivation is a compile-time error. Decorator syntax is an optional locality
+facet derivation is a compile-time error. Decorator syntax is an optional locality
 form for the corresponding `annotate` blocks.
 
 ## Implementing Annotators
@@ -2037,9 +2240,14 @@ shape(JobStatus)     # EnumShape
 shape(get_user)      # FnShape
 ```
 
+The current `TypeShape` surface cannot represent mutable access, dynamic trait
+values, `Any`, or `Suspend[T]`. Materializing a shape that would require one of
+those cases is rejected rather than producing a lossy descriptor.
+
 `FnShape` includes ordered parameter shapes, the result type, default presence,
 the suspension marker, and the normalized unordered requirement row. Parameter
-shapes do not have local metadata assignments.
+shapes carry attached `ParamMetadata[T]` values, but `annotate Facet for
+Function` cannot override a parameter's `ParamTarget`.
 
 Every annotation value implements `Annotation` and chooses one uniform information type. `Annotate[A]` records that a concrete target provides information for annotation `A`:
 
@@ -2094,8 +2302,6 @@ annotate Invalid:
 An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and data types:
 
 ```text
-type Dict[K, V] = map[K, V]
-
 data Validation: pass
 
 data FieldValidator:
@@ -2106,7 +2312,9 @@ data FieldValidator:
 enum Validator:
     I32
     String
-    Data(name: string, fields: Dict[string, FieldValidator])
+    List(item: AnnotationRef[Validator])
+    Custom(name: string)
+    Data(name: string, fields: list[(string, FieldValidator)])
 
 impl Annotation for Validation:
     type Info = Validator
@@ -2116,11 +2324,11 @@ Exact `annotate` blocks extend the facet for individual types:
 
 ```text
 annotate Validation for i32:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.I32
 
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String
 ```
 
@@ -2128,25 +2336,30 @@ Generic target families use the same binders and bounds as generic
 implementations:
 
 ```text
-annotate[T: Annotate[Validation]] Validation for list[T]:
-    fn build(self, shape: TypeShape) -> Validator:
+annotate[reified T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
 
-This occupies the same coherence region as the corresponding generic
+This occupies the same coherence slot as the corresponding generic
 `impl Annotate[Validation] for list[T]`. There is no unconstrained wildcard
 `annotate Validation for type` fallback.
 
-Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot. `@derive` is the compiler-intrinsic exception.
+Default facet derivation with `: pass` is available for data, enum, and
+function targets. A newtype does not automatically derive from its underlying
+type; its annotation must provide an explicit `build` or direct `Annotate`
+implementation.
+
+Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same coherence slot. `@derive` is the compiler-intrinsic exception.
 
 A local `build` in `annotate Facet for Target` replaces only aggregate assembly;
 child resolution and member mapping still happen first. To replace the entire
-derivation pipeline, implement the conformance directly:
+facet derivation pipeline, implement the conformance directly:
 
 ```text
 impl Annotate[Validation] for User:
     fn info() -> Validator:
-        Validator.Custom(...)
+        Validator.Custom(name="user")
 ```
 
 The direct implementation and structural `annotate` form cannot coexist for
@@ -2166,8 +2379,8 @@ trait DataAnnotator: Annotation:
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, Self::FieldTarget],
+        target: DataShape,
+        fields: list[(string, Self::FieldTarget)],
     ) -> Self::Info
 ```
 
@@ -2185,17 +2398,17 @@ impl DataAnnotator for Validation:
         FieldValidator {
             name: field.name,
             target: type_metadata,
-            max_len: field.metadata(MaxLen).map(
+            max_len: field.metadata[MaxLen]().map(
                 fn(annotation: MaxLen) -> i32: annotation.value
             ),
         }
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, FieldValidator],
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
     ) -> Validator:
-        Validator.Data(name=shape.name, fields=fields)
+        Validator.Data(name=target.name, fields=fields)
 ```
 
 The compiler supplies `type_metadata`; `map_field` does not restart annotation resolution. This enforces the bottom-up order:
@@ -2227,8 +2440,8 @@ trait EnumAnnotator: Annotation:
 
     fn build(
         self,
-        shape: EnumShape,
-        variants: Dict[string, Self::VariantTarget],
+        target: EnumShape,
+        variants: list[(string, Self::VariantTarget)],
     ) -> Self::Info
 
 trait FuncAnnotator: Annotation:
@@ -2238,8 +2451,8 @@ trait FuncAnnotator: Annotation:
 
     fn build(
         self,
-        shape: FnShape,
-        params: Dict[string, Self::ParamTarget],
+        target: FnShape,
+        params: list[(string, Self::ParamTarget)],
     ) -> Self::Info
 ```
 
@@ -2253,9 +2466,9 @@ aggregate mapping and building.
 
 Shape values and annotator methods follow the definitions in the annotation
 chapter. Generic families may use generic `annotate` declarations or ordinary
-generic `impl Annotate[A] for Target`; both occupy the same coherence region. Type and aggregate
+generic `impl Annotate[A] for Target`; both occupy the same coherence slot. Type and aggregate
 information share `Annotation::Info`. A child with no facet implementation
-requires an exact field or variant result override; otherwise derivation fails
+requires an exact field or variant result override; otherwise facet derivation fails
 at compile time.
 
 ## Runtime and Library Features

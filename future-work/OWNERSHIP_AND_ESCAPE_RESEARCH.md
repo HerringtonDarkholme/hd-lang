@@ -34,7 +34,7 @@ The current language design remains unchanged:
 - `T` versus `mut T` expresses read versus write permission through a reference path.
 - `mut` does not express ownership, exclusive access, lifetime, deep immutability, or concurrency safety.
 - Multiple mutable aliases may exist.
-- `$` capabilities describe external authority and dependency availability. They are unrelated to Pony-style reference capabilities.
+- `$` requirement rows describe dependency availability; some requirements are host capabilities. They are unrelated to Pony-style reference capabilities.
 
 Ownership, borrowing, resource lifetime, non-escape checking, sendability, and data-race prevention should be revisited only after more foundational features are implemented.
 
@@ -187,11 +187,14 @@ This subsection is intentionally a pointer list rather than a second tutorial. I
 - **Move** has a small resource-oriented model: `copy`, `drop`, `store`, and `key` abilities plus ephemeral `&`/`&mut` references. It remains small partly because stored references are forbidden and the language solves a narrower problem.
 - **Clean** uses inferred uniqueness attributes. The source can be terse, while higher-order uniqueness propagation remains conceptually complex.
 - **Linear Haskell** has a small central idea—multiplicity on function arrows—but practical use requires a parallel linearity-aware library vocabulary.
-- **Mojo** uses explicit ownership conventions such as borrowed, inout, and owned arguments, together with origin tracking for borrowed results. It is relevant as a newer systems-language design, but its language and documentation are still evolving too quickly to treat it as a stable baseline.
+- **Mojo** uses an immutable default argument convention plus `mut`, `var`,
+  `ref`, and `out`, together with origin tracking for borrowed results. Mojo
+  1.0 shipped in August 2026; it is now a released comparison point, though its
+  ownership model remains younger than Rust's or Swift's.
 
 ## Main Findings By Language
 
-The Rust examples target rustc 1.97 and should work on recent stable Rust. The Swift examples target Swift 6.3.3; `Span` and `~Escapable` require Swift 6.2 or later, and the positive lifetime-dependency example additionally enables the experimental `Lifetimes` feature. The `inout` overlap and lifetime-escape errors are emitted only in a full compile, not by `swiftc -typecheck`. Scala examples target the experimental capture/separation checker used by Scala 3.9.0. Kotlin local lifetimes is research in progress rather than a released Kotlin compiler feature, so its blocks illustrate the design note's proposed syntax and cannot currently be compiled or assigned real diagnostics. Pony examples target the current Pony 0.69-era reference-capability syntax; Pony remains pre-1.0.
+The Rust examples target rustc 1.97 and should work on recent stable Rust. The Swift examples target Swift 6.3.3; `Span` and `~Escapable` require Swift 6.2 or later, and the positive lifetime-dependency example additionally enables the experimental `Lifetimes` feature. The `inout` overlap and lifetime-escape errors are emitted only in a full compile, not by `swiftc -typecheck`. Scala examples target the experimental capture/separation checker used by Scala 3.9.0. Kotlin local lifetimes is research in progress rather than a released Kotlin compiler feature, so its blocks illustrate the design note's proposed syntax and cannot currently be compiled or assigned real diagnostics. The Pony examples were written against ponyc 0.69 and use long-stable reference-capability forms; they have not been rechecked against later releases.
 
 ### Rust
 
@@ -1387,7 +1390,12 @@ Scala capture checking has no blanket structural equivalent of Rust's `Send` and
 
 For clients of a well-designed scoped API, annotation burden can be extremely low. Routine API authors expose capture types and function arrows. Advanced generic code may need explicit capture-set parameters, reach capabilities, classifiers, read-only projections, and separate-compilation declarations.
 
-A reach capability such as `xs*` names capabilities stored inside and reachable through a generic value `xs`; `@use` marks a parameter whose reachable contents the implementation accesses. This is principally library-author syntax for effect-retaining generic abstractions such as lazy `flatMap`, not routine application syntax.
+A reach capability such as `xs*` names capabilities stored inside and reachable
+through a generic value `xs`. The former `@use` spelling has been deprecated
+since Scala 3.8; current code expresses this relationship with explicit
+capture-set parameters. This is principally library-author syntax for
+effect-retaining generic abstractions such as lazy `flatMap`, not routine
+application syntax.
 
 The standard-library evaluation is unusually useful evidence. Approximately 31,395 lines of collections and related code were migrated with roughly 3% of lines changed; most classes and methods required no signature change, while difficult cases clustered around lazy structures, iterators, builders, and effect-retaining abstractions. This supports low notation for mainstream functional collections, not low conceptual complexity for the entire system.
 
@@ -1737,7 +1745,7 @@ The proposal does not solve hd-lang's special `Suspend[T]` requirement. Because 
 
 ### Pony Reference Capabilities
 
-Pony is included as an adjacent compile-time aliasing and concurrency design, not as another lexical lifetime system. These examples target the current Pony 0.69-era syntax documented by the Pony tutorial. Pony remains pre-1.0, so surface details are more version-sensitive than Rust or Swift.
+Pony is included as an adjacent compile-time aliasing and concurrency design, not as another lexical lifetime system. These examples were written against ponyc 0.69 and use long-stable forms such as capability annotations, `recover`, and `consume`; they have not been rechecked against later releases. Pony remains pre-1.0, so surface details are more version-sensitive than Rust or Swift.
 
 #### Overall Idea
 
@@ -1943,7 +1951,11 @@ Its compile-time contribution is alias and actor-transfer safety.
 
 Defaults keep routine code relatively light: ordinary classes default to `ref`, primitives commonly use `val`, and actors use `tag`. Capability notation becomes visible at actor messages, isolated fields, recovery boundaries, and generic libraries. Advanced code adds ephemeral and alias forms, receiver capabilities, recovery, destructive reads, viewpoint adaptation, and capability constraints.
 
-Pony has non-demo evidence. Wallaroo was a substantial distributed stream-processing system written in Pony, and projects such as Stallion and Corral exercised isolated buffers and capability-sensitive APIs. This demonstrates that the model can support real systems, while their archived or limited status and Pony's pre-1.0 ecosystem make the evidence historical rather than a sign of broad current adoption.
+Pony has non-demo evidence. Wallaroo was a substantial distributed
+stream-processing system written in Pony but is now inactive; Stallion and
+Corral remain maintained and exercise isolated buffers and capability-sensitive
+APIs. None of those repositories is archived. This demonstrates that the model
+can support real systems, while Pony's pre-1.0 ecosystem remains limited.
 
 #### Relevance To hd-lang
 
@@ -1963,7 +1975,7 @@ The intended core is **locality tracking, not ownership tracking**:
 
 - A restricted parameter promises that the callee will not retain it beyond the lifetime admitted by the signature.
 - A returned value may remain dependent on one or more restricted inputs. The dependency is part of the function contract even if some simple cases are inferred or elided.
-- Closures, structs, enum payloads, containers, and other aggregates transitively retain the dependencies of the values they capture or store.
+- Closures, data types, enum payloads, containers, and other aggregates transitively retain the dependencies of the values they capture or store.
 - Restricted values remain ordinarily copyable and aliasable inside their permitted lifetime. Locality does not imply exclusive access, read-only access, consumption, or thread safety.
 - A result depending on several inputs is valid only within their common lifetime. A bare binary `NonEscapable` property is therefore insufficient for general returned values; the compiler needs dependency provenance analogous to Kotlin's dependent lifetimes.
 - hd-lang is not currently expected to gain a general user-visible `NonCopyable` facility as part of this work.

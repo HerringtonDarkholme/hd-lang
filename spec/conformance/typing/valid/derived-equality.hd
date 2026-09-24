@@ -20,8 +20,8 @@ test "derived equality includes every member":
     same := User { Revision: Revision { number: 1 }, id: 1, name: "Ada" }
     renamed := User { Revision: Revision { number: 1 }, id: 1, name: "Grace" }
     revised := User { Revision: Revision { number: 2 }, id: 1, name: "Ada" }
-    assert_equal(left == same, true)
-    assert_equal(left == renamed, false)
-    assert_equal(left == revised, false)
-    assert_equal(State.Active(1, "ready") == State.Active(1, "busy"), false)
-    assert_equal(State.Active(1, "ready") == State.Paused(1), false)
+    assert_equal(left == same, true, reason="equal data")
+    assert_equal(left == renamed, false, reason="field participates")
+    assert_equal(left == revised, false, reason="embedded field participates")
+    assert_equal(State.Active(1, "ready") == State.Active(1, "busy"), false, reason="payload participates")
+    assert_equal(State.Active(1, "ready") == State.Paused(1), false, reason="variant participates")

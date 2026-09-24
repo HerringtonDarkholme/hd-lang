@@ -5,7 +5,9 @@
 > The maintained language surface is the [Language Tour](guide/LANGUAGE_TOUR.md) and
 > the normative [Formal Specification](spec/README.md).
 
-## Current Direction
+## Original Direction (superseded)
+
+> Not maintained; see `spec/` for current language rules.
 
 The language should read like Python, but behave more like a compact Rust/Go-inspired static language.
 
@@ -1147,6 +1149,8 @@ Comprehensions cannot contain suspension points. Use an explicit loop when the b
 
 ### Iteration Protocol Direction
 
+> Not maintained; see `spec/06-control-flow.md` for current iterator rules.
+
 Iteration has two distinct trait roles:
 
 - An ordinary `Iterable` source carries no per-traversal progress. Calling `iter()` creates a new traversal.
@@ -1622,6 +1626,8 @@ Reasons:
 
 ## Loop Invariants
 
+> Not maintained; loop invariants are not part of the language; see `spec/`.
+
 Loops should also support invariants:
 
 ```text
@@ -1641,6 +1647,8 @@ while low < high:
 ```
 
 ## Type Invariants
+
+> Not maintained; type invariants are not part of the language; see `spec/`.
 
 Data Types should be able to declare invariants:
 

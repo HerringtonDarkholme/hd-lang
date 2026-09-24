@@ -47,7 +47,7 @@ conformance. Absence is represented by `T?`; recoverable failure is represented
 by `Result[T, E]`. Panics are reserved for defects and violated runtime
 contracts rather than ordinary application errors.
 
-Values use shared-reference semantics. `mut` expresses permission to mutate
+Composite values use shared-reference semantics. `mut` expresses permission to mutate
 through a reference; it does not imply ownership, uniqueness, or deep
 immutability.
 
@@ -63,11 +63,14 @@ dependency framework:
 
 Requirements are traits, so capabilities such as storage, networking, clocks,
 or observability have typed interfaces. Missing providers are compile-time
-errors. A suspension captures its arguments and providers when constructed,
-then runs at most once when driven.
+errors below a registered boundary; a boundary's host bindings are checked
+before execution. A suspension captures its arguments and providers when
+constructed, then runs at most once when driven.
 
-This separation keeps authority visible without treating ordinary errors as
-effects or making every dependency a global runtime lookup.
+This separation prevents ambient provider lookup and requirement-row erasure
+at call sites without treating ordinary errors as effects. Provider values are
+still ordinary values; the limits of auditing authority that escapes through
+value flow are recorded as future work.
 
 ### Typed annotations
 

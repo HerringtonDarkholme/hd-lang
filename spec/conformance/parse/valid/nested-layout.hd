@@ -1,0 +1,12 @@
+fn choose(flag: bool) -> i32:
+    if flag: 1 else: 2
+
+fn apply(callback: fn(i32) -> i32) -> i32: callback(1)
+
+fn use_layout(flag: bool) -> i32:
+    apply(
+        (
+            fn(value: i32):
+                if flag: value else: 0
+        ),
+    )

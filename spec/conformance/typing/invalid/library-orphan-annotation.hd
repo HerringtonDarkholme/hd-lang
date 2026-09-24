@@ -1,0 +1,6 @@
+# expect-error: orphan-annotation-in-library
+# fixture-package-role: library
+use dep.validation.{Validation}
+use dep.models.{User}
+
+annotate Validation for User: pass

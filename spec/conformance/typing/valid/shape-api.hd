@@ -1,0 +1,16 @@
+## A reflected user.
+data User:
+    ## The public display name.
+    name: string
+
+enum JobStatus:
+    Queued
+    Running
+
+fn optional(target: TypeShape) -> bool:
+    target.is_optional()
+
+user_shape := shape(User)
+field_shape := shape(User.name)
+status_shape := shape(JobStatus)
+documentation := field_shape.doc

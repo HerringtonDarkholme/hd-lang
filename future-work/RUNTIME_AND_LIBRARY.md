@@ -1,6 +1,6 @@
 # hd-lang Runtime and Library Design
 
-This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The syntax and language-level model remain in the [language tour](../guide/LANGUAGE_TOUR.md).
+This document covers standard-library, tooling, and runtime facilities built on hd-lang's core language semantics. The normative syntax and language-level model live in the [formal specification](../spec/README.md); the [language tour](../guide/LANGUAGE_TOUR.md) is the readable introduction.
 
 ## Testing
 
@@ -21,8 +21,9 @@ test "adds two values":
 A `test` block is a module-level test entry point discovered by the test runner. Its body uses normal hd-lang bindings, expressions, control flow, and function calls. It is not an annotation and does not need manual registration.
 
 The language-level `test` production is defined in the
-[core grammar](../spec/02-grammar.md#test-blocks). This document defines its runner
-and standard-library behavior.
+[core grammar](../spec/02-grammar.md#test-blocks). This document describes the
+runner. Assertion signatures and behavior are normative in
+[Modules and Packages](../spec/10-modules.md#standard-testing).
 
 Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:
 
@@ -43,14 +44,17 @@ Capabilities use the ordinary dependency model. There is no separate capability 
 
 ```text
 trait FileRead:
-    fn read!(path: string) -> Result[string, FileError]
+    fn read!(self, path: string) -> Result[string, FileError]
 
 fn load_config!(path: string) -> Result[string, FileError] $ FileRead:
     files := $.use(FileRead)
     files.read!(path)
 ```
 
-`FileRead` is an ordinary trait used as a requirement key. Production, tests, and interactive sessions can provide different implementations through the same context operations:
+`FileRead` is shown as the library declaration of an ordinary trait that the
+example runtime profile designates as a host-bindable capability key.
+Production, tests, and interactive sessions can provide different
+implementations through the same context operations:
 
 ```text
 $.with(FileRead=workspace_files):
@@ -64,19 +68,20 @@ $.with(FileRead=memory_files):
 
 A user-defined in-memory implementation can satisfy `FileRead` without receiving ambient filesystem access. If an implementation needs real filesystem, network, clock, secret, subprocess, or other host access, that access must itself come from the providers available to it.
 
-hd-lang compiles to WebAssembly using Wasm GC for managed language values. WASI is the host boundary. Every authority-bearing capability provider originates at that boundary; a Wasm module cannot manufacture ambient filesystem, network, clock, randomness, secrets, or similar authority. User code may wrap or narrow an injected provider, and a test host may inject an in-memory implementation through the same dependency mechanism.
+hd-lang compiles to WebAssembly using Wasm GC for managed language values and a WASI-compatible host boundary. Authority-bearing providers originate at that boundary; a Wasm module cannot manufacture ambient filesystem, network, clock, randomness, secrets, or similar authority. User code may wrap or narrow an injected provider, and a test host may inject an in-memory implementation through the same dependency mechanism.
 
-The runtime starts sandboxed and supplies no ungranted external-resource providers. Security follows dependency reachability: code can only reach authority exposed by its current provider context. Missing requirements remain compile-time errors at ordinary call sites, and an application or deployment entry point must have its full requirement row satisfied by its host configuration.
+The runtime starts sandboxed and supplies no ungranted external-resource providers. Missing requirements remain compile-time errors at ordinary call sites, and an application or deployment entry point must have its full requirement row satisfied by its host configuration. Provider values can escape their original context through ordinary value flow, so the row is not by itself a complete authority-reachability report.
 
-An entry point's transitive `$` requirements are the authoritative capability list:
+An entry point's transitive `$` requirements are the host provider-binding list:
 
 ```text
-pub fn main!() -> void $ FileRead + Network:
+pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     config := load_config!("config/app.json")?
     sync_config!(config)?
+    Ok()
 ```
 
-The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate capability permission list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider.
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. Because provider values are ordinary values, this list is not claimed to be a complete audit of authority that has escaped through value flow; that question remains open in [Open Issues](OPEN_ISSUES.md#provider-escape-and-authority-visibility).
 
 Every host-backed standard-library service is exposed as a trait requirement rather than a global API. `$`, `$.use`, `$.with`, and `$.Context[...]` are therefore the single mechanism for standard filesystem, network, clock, randomness, observability, workflow, and similar runtime services. Pure operations such as collection transforms, arithmetic, and in-memory parsing remain ordinary functions and require no context.
 
@@ -102,6 +107,7 @@ fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
     user := db.load_user!(id)?
     remote.push_user!(user)?
     db.mark_synced!(id)?
+    Ok()
 ```
 
 When a durable runner starts `sync_user!`, it records the entry function's stable identity, code version, arguments, and provider configuration identity. It then runs the function normally until a `!` call suspends.
@@ -294,16 +300,17 @@ impl Observability for OTelObservability:
 Tests can inject an in-memory recorder and assert normalized observations:
 
 ```text
-recording := RecordingObservability.new()
+test "process_user records its log":
+    recording := RecordingObservability::new()
 
-$.with(Observability=recording):
-    result := process_user!("user-1")
+    $.with(Observability=recording):
+        _ := process_user!("user-1")
 
-assert_equal(
-    recording.log_messages(),
-    ["processing user"],
-    reason="processing should emit its structured log",
-)
+    assert_equal(
+        recording.log_messages(),
+        ["processing user"],
+        reason="processing should emit its structured log",
+    )
 ```
 
 Fan-out, filtering, redaction, and sampling are provider composition strategies rather than language syntax.
@@ -316,8 +323,10 @@ This provider API is an initial draft. Explicit custom-span syntax, metric instr
 
 ## Resource Lifetime Backlog
 
-Deterministic cleanup is backlog work. hd-lang has not selected `Drop`/RAII,
-`using`, Python-style `with`, lexical `defer`, or `errdefer` syntax.
+hd-lang accepts block-scoped `defer` for synchronous cleanup on ordinary
+control-flow exits and cancellation. Ownership-driven cleanup, alias-escape
+prevention, automatic finalization, and policies for asynchronous or fallible
+cleanup remain backlog work.
 
 The design must preserve the distinction between two jobs. A resource protocol
 attaches cleanup responsibility to a value and is visible to type checking and
@@ -327,37 +336,42 @@ conditional cleanup registration, and commit-or-rollback. A protocol can model
 the latter only through a general closure-backed guard or exit stack, while a
 bare scope-exit statement cannot by itself prove that every resource is closed.
 
-A later hybrid may use protocol-owned cleanup for real resources plus a
-block-scoped escape hatch for ad hoc restoration. That is a comparison point,
-not an accepted design. Go-style function-scoped `defer` is disfavored because
-registration in a loop delays cleanup until the whole function returns.
+A later hybrid may combine protocol-owned cleanup for real resources with the
+accepted block-scoped construct for ad hoc restoration. Unlike Go-style
+function-scoped defer, registration in a loop is attached to that iteration's
+body and runs before the next iteration begins.
 
 The harder problem is alias escape. The current `mut` model controls write
 permission, not ownership, lifetime, open/closed typestate, or cleanup
-responsibility. Either protocol or scope-exit syntax could still permit this
-conceptual failure:
+responsibility. The accepted scope-exit syntax still permits this conceptual
+failure:
 
 ```text
-# Illustrative backlog syntax; top-level stored values and defer are not core.
 let global_file: File? = nil
 
-fn publish_file() -> void:
-    file := File.open("data.txt")
+fn publish_file!() -> void:
+    file := File::open("data.txt")
     defer:
-        file.close()
+        _ := file.close()
     global_file = file
 
-# Later, after publish_file has closed the handle.
+# Later, after cleanup has closed the handle.
 file := global_file?
-file.read()
+match file.read():
+    Err(ResourceError.Disposed) => pass
+    _ => panic("closed handle did not report Disposed")
 ```
 
-Lexical cleanup runs one action but does not invalidate aliases stored in
+The accepted Wasm-handle contract already requires an operation after close to
+return `Err(ResourceError.Disposed)` rather than trap. That checked failure is
+not deterministic cleanup: lexical cleanup would run one action but would not
+invalidate aliases stored in
 globals, fields, containers, returns, or closures. Garbage collection also does
-not provide prompt release. Candidate solutions include resource-only affine
-ownership, scoped regions, typestate plus alias restrictions, runtime handles
-whose operations return a disposed error, or scoped callbacks with
-non-escaping resource types. The resource design must also define cleanup
+not provide prompt release. The leading candidate pairs `defer` with a
+compiler-recognized `NonEscapable` locality category that propagates through
+containers and captures. Other candidates include resource-only affine
+ownership, scoped regions, typestate plus alias restrictions, or scoped
+callbacks with non-escaping resource types. The resource design must also define cleanup
 failure, `Result`/`?`, suspension, cancellation, replay, and whether live handles
 may cross a durable suspension boundary.
 
@@ -396,10 +410,11 @@ distinct from both a persistent function cache and durable replay:
 - replay restores the recorded result belonging to one historical execution,
   even if current external data has changed.
 
-The computation callback uses ordinary function rules to establish purity. It
-must be a plain non-suspending `fn`, not `mut fn` or `fn!`, and have no `$`
-requirements, mutable parameters, or mutable captures. These restrictions are
-checked transitively without an incremental-specific compiler instruction.
+The computation callback is intended to be pure: a plain non-suspending `fn`,
+not `mut fn` or `fn!`, with no `$` requirements, mutable parameters, or mutable
+captures. Ordinary function types cannot yet prove that property through every
+indirect call; the required type-system choice remains in
+[Open Issues](OPEN_ISSUES.md#purity-in-function-types).
 Mutation of fresh, non-escaping local values remains permitted. A readonly
 reference is not a snapshot or stable value: another mutable alias can change
 what it observes between reads. Changing shared state must therefore enter

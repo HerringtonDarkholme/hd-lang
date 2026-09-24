@@ -1,0 +1,6 @@
+# expect-panic: suspension-reentrant-poll
+# fixture-runtime-scenario: reentrant-poll
+fn ready!() -> i32: 42
+
+pub fn main!() -> void:
+    _ := ready!()

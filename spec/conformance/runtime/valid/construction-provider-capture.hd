@@ -1,0 +1,20 @@
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data FixedCounter:
+    current: i32
+
+impl Counter for FixedCounter:
+    fn value(self) -> i32: self.current
+
+fn read_counter!() -> i32 $ Counter:
+    $.use(Counter).value()
+
+pub fn main!() -> void:
+    let pending: mut Suspend[i32] = $.with(Counter=FixedCounter { current: 1 }):
+        read_counter()
+    $.with(Counter=FixedCounter { current: 2 }):
+        actual := pending!()
+        assert_equal(actual, 1, reason="construction provider is retained")

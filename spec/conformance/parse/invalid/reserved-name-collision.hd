@@ -1,0 +1,2 @@
+# expect-error: reserved-name
+fn bad(shape: i32) -> i32: shape

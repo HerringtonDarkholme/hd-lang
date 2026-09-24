@@ -1,0 +1,6 @@
+# expect-error: supertrait-cycle
+trait Left: Right:
+    fn left(self) -> void
+
+trait Right: Left:
+    fn right(self) -> void

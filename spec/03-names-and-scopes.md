@@ -25,22 +25,21 @@ A use is resolved in the category required by its syntax. For example, the
 name before `{` in `User { ... }` is resolved as a type, while `user` in
 `user.email` is resolved as a value and `email` as a member of its type.
 
-Every module has predeclared core type names: `bool`, `i8`, `i16`, `i32`,
-`i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`,
-`list`, `map`, `Result`, and `Any`. A module declaration or use declaration
-must not replace one of these names. They remain ordinary identifier tokens
-rather than reserved words. A local value may use the same spelling under
-ordinary lexical shadowing; type positions continue to resolve the predeclared
-type name, while value expressions resolve the local value.
+Every built-in core type is supplied by the prelude described in
+[Modules and Packages](10-modules.md#prelude). Prelude names remain ordinary
+identifier tokens rather than reserved words, but a module declaration, use,
+type parameter, parameter, or local binding must not shadow one. Every such
+conflict is a `prelude-name-shadow` error; there is no separate predeclared-name
+namespace or shadowing rule.
 
 Type parameters are type names local to their declaration. They may shadow a
 module name within that declaration but must not duplicate another type
 parameter in the same parameter list.
 
-`Self` is a contextual type name inside a trait or `impl` body. In a trait it
-denotes the eventual implementing type; in a trait or inherent implementation
-it denotes that implementation's target type. It is not a reserved word and
-has no special meaning outside those bodies.
+`Self` is a reserved word that names the implementation target inside a trait
+or `impl` body. In a trait it denotes the eventual implementing type; in a
+trait or inherent implementation it denotes that implementation's target type.
+It has no valid type meaning outside those bodies.
 
 ## Lexical Scopes
 
@@ -91,10 +90,19 @@ Top-level executable statements run in a separate module execution scope.
 Bindings created by those statements become visible to later top-level
 statements and to the bodies of functions declared after their binding point.
 Those functions may read a top-level `:=` or `let` binding and may reassign a
-top-level `let` binding. Such bindings are not importable declarations and are
+top-level `let` binding. Such bindings are not nameable by a `use` declaration and are
 not visible before their binding point, including from the body of a function
 declared earlier. A top-level executable statement may refer to a named module
 declaration regardless of that declaration's textual position.
+
+Referring to such a declaration does not bypass initialization order. At every
+top-level executable statement, the compiler computes the transitive set of
+top-level bindings read by every module function or closure referenced by that
+statement, whether called directly, passed as a value, or reached through a
+trait method, interpolation, iteration, or another implicit call. Every binding
+in that set must have been initialized by an earlier top-level statement. This
+is a whole-module value-flow and call-graph check; an indirect read through a
+later function value is rejected like a direct forward binding reference.
 
 Named `fn`, `data`, `enum`, `trait`, and `type` declarations may also occur
 inside executable block suites. `impl` declarations may occur at module scope
@@ -216,11 +224,11 @@ A local `data`, `enum`, `trait`, or `type` declaration introduces a type name
 at its declaration point, visible in its own definition and in the rest of its
 enclosing suite. It is not visible before that point or outside the suite.
 Local type declarations do not execute, capture runtime values, or become
-importable module members. They may refer to type names and type parameters
+module members nameable by a `use` declaration. They may refer to type names and type parameters
 visible at their declaration point. A local nominal type has one declaration
 identity, not a fresh identity per call to the enclosing function. Local type
 and value declarations cannot duplicate a name in the same scope; local type
-declarations also cannot replace a predeclared core type name. `pub` is not
+declarations are also subject to the prelude shadowing rule. `pub` is not
 permitted on local declarations.
 
 Decorators and `annotate` declarations are not permitted in a local scope.
@@ -254,9 +262,9 @@ fn describe(name: string) -> string:
         Format.Loud => entry.shout()
 ```
 
-Within a method, `self` is an ordinary parameter name supplied by the receiver
-syntax. `mut self` is shorthand for `self: mut Self`; it does not create a
-different lookup category.
+Within a method, `self` is a reserved word that names the receiver parameter
+supplied by the receiver syntax. `mut self` is shorthand for `self: mut Self`;
+it does not create a different lookup category.
 
 A closure or local named function resolves otherwise-unbound local names in
 lexically enclosing scopes. Those resolved names are its captures. Whether a
@@ -334,9 +342,10 @@ promoted members of the same name. A promoted member is usable only when there
 is exactly one shortest embedding path to it. Multiple equally short paths are
 ambiguous and require explicit qualification through an embedded field.
 
-The same promotion rule applies to fields and methods. During trait
-satisfaction, an unambiguous promoted method can satisfy a required method;
-ambiguous promoted methods cannot.
+The same promotion rule applies to fields and methods. Embedding never grants
+trait conformance. Inside an explicit trait `impl`, an unambiguous promoted
+method may supply a required method; an ambiguous one requires an explicit
+method body and qualified embedded-field call.
 
 Enum variants are members of their enum. Construction and patterns may use the
 qualified spelling or `.Variant` with an unambiguous contextual enum type:

@@ -1,5 +1,7 @@
 type Mile(i32)
 
+let small: i8 = 1
+
 fn widen(value: i16) -> i64:
     value
 
@@ -7,3 +9,6 @@ fn unwrap(distance: Mile) -> i32:
     i32(distance)
 
 distance := Mile(10)
+
+let wide: i64 = 9000
+narrow := i16(wide)

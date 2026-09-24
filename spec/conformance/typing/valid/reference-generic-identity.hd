@@ -1,0 +1,2 @@
+fn same[T: Reference](left: T, right: T) -> bool:
+    left is right

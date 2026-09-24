@@ -2,6 +2,19 @@
 
 Status: language specification draft.
 
+## Terminology
+
+- A **facet** is a type implementing `Annotation` and identifies one family of
+  attached or derived information.
+- A **facet value** is the concrete value retained as `self` while that facet
+  runs; it may carry configuration.
+- An **annotator** is a facet implementation of `TypeAnnotator`,
+  `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator`.
+- **Info** is the uniform output type selected by `Facet::Info`.
+- A **coherence slot** is one `(facet type, concrete target)` pair over the
+  resolved package graph; direct and structural implementations occupy the
+  same slot.
+
 Annotations attach typed metadata to declaration shapes and derive ordinary
 runtime information from those shapes. They do not alter a declaration's name,
 type, behavior, or visibility, and they do not discover or register runtime
@@ -9,7 +22,7 @@ objects automatically.
 
 The design principles are:
 
-1. derivation is structural;
+1. facet derivation is structural;
 2. overrides are local;
 3. annotation and metadata values are typed;
 4. runtime information is produced explicitly when requested;
@@ -47,9 +60,8 @@ The common representation includes at least:
 Shape types are not parameterized by the reflected declaration. In particular,
 the type is `DataShape`, not `DataShape[S]`. This avoids a special HList or
 mapped-record type in the language. Aggregate mapped results are uniform
-collections such as `Dict[string, DatabaseColumn]`. The annotation support
-module defines `type Dict[K, V] = map[K, V]`; `Dict` is an ordinary transparent
-alias, not another built-in collection.
+collections such as `list[(string, DatabaseColumn)]`, where `DatabaseColumn`
+is an example user-defined facet result rather than a prelude type.
 
 Shapes expose structure for generic handling but do not permit mutation of the
 source declaration. Every shape provides a stable declaration identity, source
@@ -63,12 +75,133 @@ normalized unordered requirement row; each `ParamShape` records whether a
 default is declared.
 Promoted embedded members are not duplicated as direct fields.
 
-`shape(Target)` materializes the appropriate shape value. A concrete target
-always has a descriptor. A generic target requires every type parameter needed
-by the target to be `reified`. Shape values are immutable runtime values and may
-be passed, stored, and inspected like other composite values.
+The following declarations are the normative shape surface. `DeclarationId`
+is an opaque, equality-comparable identity allocated by the compiler. A
+`SourcePosition` identifies the beginning of the reflected declaration or
+member. `position` on a member shape is its zero-based declaration ordinal;
+source coordinates are kept separately in `source`.
+
+```text
+data SourcePosition:
+    file: string
+    line: i32
+    column: i32
+
+enum DeclarationKind:
+    Data
+    Enum
+    Function
+    Field
+    Variant
+    Parameter
+
+enum PrimitiveKind:
+    Bool
+    Signed(bits: i32)
+    Unsigned(bits: i32)
+    Float(bits: i32)
+    Char
+    String
+    Void
+    Never
+
+enum TypeShape:
+    Primitive(kind: PrimitiveKind)
+    Optional(inner: TypeShape)
+    List(element: TypeShape)
+    Map(key: TypeShape, value: TypeShape)
+    Tuple(elements: list[TypeShape])
+    Named(decl: DeclarationId, args: list[TypeShape])
+    Newtype(base: TypeShape)
+    Fn(
+        params: list[TypeShape],
+        result: TypeShape,
+        suspending: bool,
+        requirements: list[TypeShape],
+    )
+
+data FieldShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    position: i32
+    doc: string?
+    field_type: TypeShape
+
+data DataShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    doc: string?
+    fields: list[FieldShape]
+
+data VariantShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    position: i32
+    doc: string?
+    payload: list[FieldShape]
+
+data EnumShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    doc: string?
+    variants: list[VariantShape]
+
+data ParamShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    position: i32
+    doc: string?
+    param_type: TypeShape
+    has_default: bool
+
+data FnShape:
+    id: DeclarationId
+    name: string
+    qualified_name: string
+    source: SourcePosition
+    doc: string?
+    params: list[ParamShape]
+    result: TypeShape
+    suspending: bool
+    requirements: list[TypeShape]
+
+trait ShapeMetadata:
+    fn metadata[reified M](self) -> M?
+```
+
+Every concrete shape type implements sealed `ShapeMetadata`; user code cannot
+add implementations. `metadata[M]()` performs the one narrow runtime type
+lookup supported for heterogeneous annotation metadata and preserves the
+attached value's declared permission. It does not add a general `Any`
+downcast. `TypeShape.is_optional() -> bool` is also a compiler-provided readonly
+method and is true exactly for `TypeShape.Optional`.
+
+`TypeShape` does not yet encode mutable access, a dynamic trait value, `Any`, or
+`Suspend[T]`. A `shape(Target)` request, annotation derivation, or generated
+shape implementation whose target or recursively inspected member signature
+requires one of those encodings is rejected with
+`unrepresentable-type-shape`; the underlying declaration remains legal. This
+is an interim rejection rule rather than an opaque or lossy descriptor.
+
+`shape(Target)` otherwise materializes the appropriate shape value. A generic
+target requires every type parameter needed by the target to be `reified`.
+Shape values are readonly runtime values and may be passed, stored, and
+inspected like other composite values.
 
 ## Annotation Protocol
+
+All annotation protocol and shape names in this chapter are declared by
+`std.annotation` and re-exported by the prelude.
 
 An annotation facet chooses one uniform output type:
 
@@ -83,8 +216,7 @@ trait Annotate[A: Annotation]:
 Associated types and projections use the core trait grammar:
 
 ```ebnf
-associated_type_decl = "type", identifier,
-                       [ "=", type ], NEWLINE ;
+associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 
 associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 ```
@@ -120,7 +252,7 @@ trait conformance for constraint and coherence purposes.
 ### Prefix Decorators
 
 An `@Facet` line immediately before a module-level data, enum, or function
-declaration requests the same no-override derivation as `annotate Facet for
+declaration requests the same no-override facet derivation as `annotate Facet for
 Target: pass`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or
 `FuncAnnotator` for the respective target, in addition to `Annotation`. Thus
 `@Validation` before `data User` expands to `annotate Validation for User:
@@ -246,30 +378,30 @@ trait value `FieldMetadata[string]`.
 
 ### Derived Facet Information
 
-`annotate Facet for Target` generates the same conformance slot as
+`annotate Facet for Target` generates the same coherence slot as
 `impl Annotate[Facet] for Target`, while allowing structure-aware overrides:
 
 ```text
 annotate Validation for User: pass
 ```
 
-`pass` requests ordinary derivation with no field, variant, parameter, or whole
+`pass` requests ordinary facet derivation with no field, variant, parameter, or whole
 result override.
 
-For an exact primitive, nominal type, or collection instantiation, the block
-may provide `build` directly:
+For an exact primitive, nominal type, optional type, or collection
+instantiation, the block may provide `build` directly:
 
 ```text
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String
 
 annotate Validation for Email:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.Email
 
-annotate[T: Annotate[Validation]] Validation for list[T]:
-    fn build(self, shape: TypeShape) -> Validator:
+annotate[reified T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
 
@@ -295,7 +427,7 @@ facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
 
 annotation_facet = type | expression ;
 
-annotation_target = type | qualified_name ;
+annotation_target = type ;
 
 annotation_member_suite = "pass", SUITE_END
                         | NEWLINE, INDENT,
@@ -314,14 +446,17 @@ facet_annotation_suite = "pass", SUITE_END
 facet_override = metadata_assignment | function_decl ;
 
 annotation_runtime_access = qualified_name, "::", "annotation", "(",
-                            annotation_target, ")" ;
+                            annotation_target, ")"
+                          | qualified_name, "::", "annotation_ref", "(",
+                            annotation_target, ")"
+                          ;
 ```
 
 The facet operand is either a facet type or a configured expression whose
 static type implements `Annotation`. A type operand constructs the stateless
 facet's default empty value and therefore requires a facet type with no required
 fields. An expression value is retained and reused for the complete
-derivation. In both cases, the facet's static type determines the
+facet derivation. In both cases, the facet's static type determines the
 `Annotate[Facet]` coherence slot. Target resolution distinguishes a type target
 from a function target. `annotate Target` metadata
 assignments apply to data fields, enum variants, or module-level function
@@ -330,11 +465,22 @@ replace the complete `build`.
 
 Generic parameters and `where` predicates have the same meaning as on an
 ordinary generic implementation. For example,
-`annotate[T] Validation for list[T]` occupies the same coherence region as
+`annotate[T] Validation for list[T]` occupies the same coherence slot as
 `impl[T] Annotate[Validation] for list[T]`; an overlapping exact annotation is
 rejected under the normal implementation-overlap rules.
 
 ## Aggregate Annotators
+
+Exact primitive, newtype, and collection-family facet derivation uses the
+type-level annotator protocol:
+
+```text
+trait TypeAnnotator: Annotation:
+    fn build(self, target: TypeShape) -> Self::Info
+```
+
+An exact-type `build` override is checked against this signature and requires
+the facet to implement `TypeAnnotator`.
 
 A facet for data types maps each field to one uniform `FieldTarget`, then builds the
 facet's `Info`:
@@ -351,10 +497,14 @@ trait DataAnnotator: Annotation:
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, Self::FieldTarget],
+        target: DataShape,
+        fields: list[(string, Self::FieldTarget)],
     ) -> Self::Info
 ```
+
+`fields` is in declaration order. The name in each tuple is the declared field
+name; an ordered list is used so deterministic builders never depend on map
+hashing or insertion accidents.
 
 An enum first maps every payload field, then maps each variant, then builds the
 enum result:
@@ -378,8 +528,8 @@ trait EnumAnnotator: Annotation:
 
     fn build(
         self,
-        shape: EnumShape,
-        variants: Dict[string, Self::VariantTarget],
+        target: EnumShape,
+        variants: list[(string, Self::VariantTarget)],
     ) -> Self::Info
 ```
 
@@ -396,10 +546,15 @@ trait FuncAnnotator: Annotation:
 
     fn build(
         self,
-        shape: FnShape,
-        params: Dict[string, Self::ParamTarget],
+        target: FnShape,
+        params: list[(string, Self::ParamTarget)],
     ) -> Self::Info
 ```
+
+The compiler supplies data fields, enum variants, and function parameters as
+ordered `(declared_name, mapped_value)` lists in source declaration order. The
+three aggregate annotator protocols therefore use one input shape and do not
+depend on map hashing or insertion behavior.
 
 `FieldTarget`, `VariantTarget`, `ParamTarget`, and `Info` are uniform types.
 They do not vary at the type level with the original member type. An annotator
@@ -415,13 +570,14 @@ field's default `map_field` result and must have type
 `Facet::FieldTarget`:
 
 ```text
+# UI and profile_image are user-defined examples, not prelude declarations.
 annotate UI for User:
     avatar = profile_image(size=40)
 ```
 
 The assignment cannot target a missing or promoted field. Enum variant
 overrides follow the same rule with `VariantTarget`.
-An explicit field result also permits derivation when the field's declared
+An explicit field result also permits facet derivation when the field's declared
 type has no `Annotate[Facet]` implementation. In that case the compiler uses
 the override directly and does not call `map_field` for that field. An exact
 variant result similarly bypasses mapping that variant's payload fields.
@@ -429,7 +585,7 @@ variant result similarly bypasses mapping that variant's payload fields.
 A local `fn build` definition replaces aggregate `build` for that exact
 facet/target pair. It receives the completed uniform map and may rewrite the
 whole result. Other map steps still occur. A local `build` replaces aggregate
-assembly, not member mapping; hd-lang has no separate full-derivation
+assembly, not member mapping; hd-lang has no separate full facet derivation
 replacement hook. To bypass child annotation resolution and every mapping step,
 write a direct `impl Annotate[Facet] for Target`. That implementation produces
 `Facet::Info` itself and occupies the same coherence slot as an `annotate`
@@ -465,7 +621,8 @@ retroactively alter the source declaration or another independent facet.
 
 ## Runtime Materialization
 
-Derived information is requested explicitly:
+The following user-defined facets illustrate explicit materialization; their
+names are examples, not prelude declarations:
 
 ```text
 validator := Validation::annotation(User)
@@ -483,14 +640,22 @@ tool_registry.register(Tool::annotation(get_user))
 
 Registration is explicit library behavior.
 
-Annotation builders and metadata expressions execute at runtime in a restricted
-annotation-initialization phase, not as unrestricted compiler evaluation. They
-must be pure, deterministic, non-suspending, and dependency-free: no `$`
-context, bang calls, IO, clock, randomness, network, database, or escaping
-mutation. Completed results are memoized per package.
+Annotation builders and metadata expressions execute lazily at runtime on the
+first `annotation(...)` or `annotation_ref(...)` request for a concrete
+`(facet, target)` key. One thread-free registry per program instance
+materializes each key at most once. This restricted annotation-initialization
+phase is not unrestricted compiler evaluation. Builders and metadata must be
+pure, deterministic, non-suspending, and dependency-free: no provider access,
+bang calls, IO, clock, randomness, network, database, top-level binding reads,
+top-level `let` reassignment, or escaping mutation. A call through a function
+value or dynamic trait method is rejected here because its current type cannot
+prove purity; a named callable requires an available verified purity summary.
+A panic is an ordinary panic reported at the first
+request site; it does not occur merely because the annotated declaration is
+loaded.
 
-Configured facet expressions execute once under these same restrictions before
-their target is mapped. Their value is retained for that target's derivation;
+Configured facet expressions execute once under these same restrictions when
+their key is first materialized, before the target is mapped. Their value is retained for that target's facet derivation;
 calling `Facet::annotation(Target)` returns the completed memoized `Info`, not
 the facet configuration value.
 
@@ -500,7 +665,7 @@ The compiler's special role is to:
 - contextually type metadata and override values;
 - check the corresponding annotation traits;
 - generate ordinary shape construction and trait implementation code;
-- arrange cycle-aware resolution and package initialization.
+- arrange lazy cycle-aware resolution and per-instance memoization.
 
 The lowering does not otherwise change the runtime semantics of annotation
 values.
@@ -524,25 +689,21 @@ Conceptually becomes shape metadata plus an implementation:
 
 ```text
 fn __user_shape() -> DataShape:
-    DataShape {
-        name: "User",
-        fields: [
-            FieldShape {
-                name: "email",
-                type: shape(string),
-                metadata: [max_len(320), contains("@")],
-            },
-        ],
-    }
+    # The compiler constructs all required identity, source, position, doc,
+    # and type fields and attaches the declared metadata to the field target.
+    shape(User)
 
 impl Annotate[Validation] for User:
     fn info() -> Validator:
-        shape := __user_shape()
-        field := Validation.map_field(
-            shape.fields[0],
+        target := __user_shape()
+        facet := Validation {}
+        # Attached values are available through
+        # target.fields[0].metadata[FieldMetadata[string]]().
+        field := facet.map_field(
+            target.fields[0],
             Validation::annotation_ref(string),
         )
-        Validation.build(shape, {"email": field})
+        facet.build(target, [("email", field)])
 ```
 
 The generated names and exact runtime calls are implementation details. This
@@ -561,10 +722,31 @@ data FieldValidator:
     target: AnnotationRef[Validator]
 ```
 
+The two annotation access forms are compiler-recognized typed operations:
+
+```text
+Facet::annotation(Target) -> Facet::Info
+Facet::annotation_ref(Target) -> AnnotationRef[Facet::Info]
+
+trait AnnotationRef[T]:
+    fn get(self) -> T
+```
+
+`Target` is a type or function target, not an ordinary value expression.
+`get()` returns the completed memoized value. Reading a deferred reference
+before its key completes panics with `annotation-reference-unresolved`.
+
 When resolution first enters a key, it marks the key active. Resolving a
 different key normally returns a ready reference after construction. Re-entering
 an active key returns a deferred reference to that key. Once the outer build
 completes, the deferred reference resolves through the memoized registry entry.
+
+A direct `annotation(K)` call while `K` is being resolved is rejected
+statically when the cycle is reachable from the annotation call graph. If the
+cycle depends on a dynamic call and cannot be proven statically, re-entry is a
+checked panic with category `annotation-resolution-reentry`. Recursive
+builders must use `annotation_ref(K)` and delay `get()` until resolution has
+completed.
 
 This automatic cycle detection applies uniformly to data and enum annotation
 graphs. Facets do not need a custom `Validator.Ref` variant or a separate
@@ -587,10 +769,12 @@ Configured facet expressions use their static facet type in this key, so two
 differently configured values of `Tool` cannot annotate the same target.
 
 Annotation blocks are package-global rather than lexical. If a library provides
-an annotation for its target, a downstream package cannot override it. A
-downstream application may provide package-local information for a target
-introduced by a use declaration only when no library in the resolved graph
-already provides that exact facet/target pair.
+an annotation for its target, a downstream package cannot override it. Only
+the root application package may provide an orphan annotation for a target and
+facet it does not own, and only when no library in the resolved graph provides
+that exact pair. The root annotation occupies the one global coherence slot.
+If a dependency version later supplies the same pair, dependency resolution
+fails rather than silently changing which annotation is selected.
 
 Local declarations cannot participate in annotation coherence. They may still
 be reflected where ordinary local shape rules permit, but they cannot receive
@@ -598,7 +782,7 @@ facet or member metadata through decorators or `annotate` blocks.
 
 There is no implicit library default annotation. A target has facet information
 only when the facet/target conformance is explicitly present or structural
-derivation is explicitly requested with `annotate Facet for Target`.
+facet derivation is explicitly requested with `annotate Facet for Target`.
 
 ## Missing Child Information
 
@@ -612,7 +796,7 @@ An exact field override in `annotate Facet for Data` supplies
 `Facet::FieldTarget` instead of deriving it from the field type. An exact enum
 variant override supplies `Facet::VariantTarget` instead of mapping that
 variant's payload fields. If neither an applicable type annotation nor an
-applicable exact override exists, derivation is a compile-time error. The
+applicable exact override exists, facet derivation is a compile-time error. The
 compiler never silently omits a child. Ordinary `annotate Data` member metadata
 can customize `map_field`, but metadata alone is not an `Annotate[Facet]`
 implementation or a `FieldTarget` override.

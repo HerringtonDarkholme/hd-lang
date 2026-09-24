@@ -1,5 +1,9 @@
 # expect-error: impure-enum-default
-fn next!() -> i32: 1
+let sequence: i32 = 0
 
-enum Status(code: i32 = next!()):
+fn next() -> i32:
+    sequence = sequence + 1
+    sequence
+
+enum Status(code: i32 = next()):
     Unknown -> Status()

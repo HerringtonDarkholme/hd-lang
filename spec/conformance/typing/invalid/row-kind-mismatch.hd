@@ -1,0 +1,5 @@
+# expect-error: generic-kind-mismatch
+data Box[T]:
+    value: T
+
+fn invalid(value: Box[$()]) -> void: pass

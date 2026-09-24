@@ -10,8 +10,8 @@ explicit; hd-lang does not use structural method matching or class inheritance.
 A trait declares required methods:
 
 ```text
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
 ```
 
 A method with a body is a default implementation:
@@ -46,6 +46,9 @@ trait Serializable
 impl Serializable for User
 ```
 
+A bodyless implementation is also permitted when every required method is
+filled by an unambiguous promoted `self` method of an embedded field.
+
 A trait may require another trait using a supertrait bound:
 
 ```text
@@ -55,7 +58,10 @@ trait Formattable: Display:
 
 An implementation of `Formattable` must also satisfy `Display`.
 The supertrait graph must be acyclic; a direct or indirect cycle is a
-compile-time error.
+`supertrait-cycle` compile-time error.
+
+Member names must be unique within a trait; a repeated associated type, method,
+or associated function name is a `duplicate-trait-member` error.
 
 Traits may declare associated types, and implementations bind them:
 
@@ -91,7 +97,17 @@ counterparts. These semantic laws are obligations of the implementer; ordinary
 trait checking cannot prove them. In particular, floating-point values do not
 satisfy `Eq` or `Ord` because of NaN.
 
-The standard library also defines `Hash` in `std.hash`. A map key must
+The standard library also defines `Hash` and `Hasher` in `std.hash`:
+
+```text
+trait Hasher:
+    fn write(mut self, bytes: list[u8]) -> void
+
+trait Hash:
+    fn hash(self, state: mut Hasher) -> void
+```
+
+A map key must
 implement both `Eq` and `Hash`; neither trait is inferred for user-defined
 data or enums. The compiler does not verify any relationship between their
 implementations. A readonly key can still change through another mutable
@@ -104,7 +120,11 @@ declaration. Its arguments name traits, not annotator values. The compiler
 generates ordinary implementations of the named traits from the declaration's
 shape, checks trait requirements and coherence, and rejects traits for which it
 has no derivation rule. It does not generate `Annotate[A]` conformance or run a
-`DataAnnotator`. Derived `PartialEq` compares every declared data field,
+`DataAnnotator`. For each derived trait, the generated implementation adds a
+`T: Trait` bound for every declaration type parameter `T` that occurs in a
+field compared, ordered, or hashed by that derivation. Thus
+`@derive(PartialEq) data Box[T]` produces conformance only when `T: PartialEq`.
+Derived `PartialEq` compares every declared data field,
 including embedded fields, by its `PartialEq` implementation. No field is
 implicitly excluded. Derived enum equality first compares the variant, then
 every payload field of that variant, including common enum fields; different
@@ -138,13 +158,14 @@ An explicit implementation names the trait and target type:
 
 ```text
 impl Display for User:
-    fn display(self) -> string:
+    fn to_string(self) -> string:
         self.email
 ```
 
 The implementation must provide every required method not supplied by a
-default. It may override a default with the exact instantiated signature.
-Method signatures must match the instantiated trait signatures.
+default or it is a `missing-trait-method` error. It may override a default with
+the exact instantiated signature. A mismatched method is a
+`trait-method-signature` error.
 Additional methods do not become part of that trait implementation; place them
 in an inherent `impl` instead.
 
@@ -178,8 +199,8 @@ graph containing duplicate exact implementations, including the possible
 conflict where the trait-owning and type-owning packages each provide the same
 pair.
 
-The annotation chapter defines one explicit coherence exception for
-package-local `annotate Facet for ImportedTarget` blocks when no authoritative
+The annotation chapter defines one explicit coherence exception for a root
+application's `annotate Facet for ForeignTarget` block when no authoritative
 library annotation exists. That exception does not apply to ordinary `impl`.
 
 Implementations may be generic and may state additional bounds inline or in a
@@ -188,9 +209,9 @@ Implementations may be generic and may state additional bounds inline or in a
 ```text
 impl[T: Display] Printable for Box[T]:
     fn print(self) -> string:
-        self.value.display()
+        self.value.to_string()
 
-impl[T] Iterable[T] for mut T where T: Iterator[T]:
+impl[T, I: mut Iterator[T]] Iterable[T] for I:
     fn iter(self) -> mut Iterator[T]: self
 ```
 
@@ -199,6 +220,12 @@ trait, target type, or a bound reachable from them. Two implementations overlap
 when their trait and target heads can unify under any satisfying substitutions;
 potential overlap is rejected. `where` predicates are not used to claim that
 otherwise unifying implementations are disjoint.
+
+For coherence, `X` and `mut X` denote the same target. Permission markers do
+not create distinct implementation slots, and lookup through either access
+view considers the same implementations. Consequently an implementation for
+`Iterable[T]` on `X` overlaps one on `mut X`, including overlap between the
+standard `Iterator` adapter and a direct `Iterable` implementation.
 
 ## Inherent Implementations
 
@@ -219,7 +246,8 @@ implementation. A trait has one visibility level for all its methods; it
 cannot mix public and private methods.
 
 An inherent member name must not duplicate another inherent member on the same
-type. hd-lang has no method or associated-function overloading.
+type; a duplicate is a `duplicate-inherent-member` error. hd-lang has no method
+or associated-function overloading.
 
 Receiverless inherent functions are called through the nominal type:
 
@@ -256,13 +284,13 @@ does not select by conversion ranking or declaration order.
 Explicit qualification through an embedded field resolves promotion conflicts:
 
 ```text
-record.CreatedByUser.display()
+record.CreatedByUser.to_string()
 ```
 
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
 ```text
-label := Display::display(value)
+label := Display::to_string(value)
 sum := Add[Money]::add(left, right)
 ```
 
@@ -277,14 +305,14 @@ A generic bound requires explicit conformance and uses static dispatch:
 
 ```text
 fn show[T: Display](value: T) -> string:
-    value.display()
+    value.to_string()
 ```
 
 Bounds compose with `+`:
 
 ```text
 fn audit[T: Display + Named](value: T) -> string:
-    value.display() + " / " + value.name()
+    value.to_string() + " / " + value.name()
 ```
 
 `T: mut Trait` additionally requires `T` to be a mutable-root type. `T: mut Any`
@@ -299,8 +327,8 @@ Using a trait name directly as a value type creates a Go-style dynamic trait
 value:
 
 ```text
-fn print_display(value: Display) -> void:
-    println(value.display())
+fn print_display(value: Display) -> void $ Console:
+    println(value.to_string())
 ```
 
 Such a value contains a concrete value plus dispatch metadata for the trait.
@@ -320,7 +348,7 @@ value, losing access to child-only methods; there is no reverse downcast.
 
 Converting a concrete value to a trait value requires an explicit
 implementation. The concrete type can be composite or primitive. Mutable
-dynamic access uses `mut Trait` and cannot be recovered from a const `Trait`
+dynamic access uses `mut Trait` and cannot be recovered from a readonly `Trait`
 value.
 
 Dynamic trait-value type tests and downcasts are not supported.
@@ -336,12 +364,17 @@ type-specific methods.
 
 ## Embedding And Trait Satisfaction
 
-An unambiguous method promoted from an embedded data type may satisfy a trait
-requirement for the outer type. If multiple embedded data types promote conflicting
-methods, the outer type does not satisfy the trait automatically.
+Embedding never grants trait conformance. The outer type must declare an
+explicit `impl`. Within that implementation, an unambiguous promoted method
+may fill a required method only when its receiver is `self`, not `mut self`.
+A `mut self` requirement needs an explicit method body because an embedded
+field is a readonly edge and cannot be mutated through promotion.
+
+If multiple embedded data types promote conflicting methods, a bodyless
+explicit implementation cannot select between them.
 
 Diagnostics for this failure should identify the required signature, list the
-ambiguous promoted methods, and suggest either an explicit implementation or a
+ambiguous promoted methods, and suggest an explicit method body with a
 qualified embedded-field call.
 
 Embedding is still composition, not subtype inheritance. An outer data type is not

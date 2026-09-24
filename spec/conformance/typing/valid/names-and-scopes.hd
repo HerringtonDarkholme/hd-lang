@@ -1,6 +1,12 @@
 fn normalize(value: string) -> string: value.trim()
 
-fn example(input: string, items: list[string]) -> string:
+name := " outer "
+
+fn normalize_again() -> string:
+    name := normalize(name)
+    name
+
+fn example(input: string, items: list[string]) -> string $ Console:
     outer := "fallback"
 
     if (trimmed := input.trim()) != "":

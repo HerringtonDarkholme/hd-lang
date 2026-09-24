@@ -4,7 +4,7 @@ data Child:
 fn rename(child: mut Child, name: string) -> void:
     child.name = name
 
-fn update_children(children: map[string, mut Child], id: string) -> void:
+fn update_children(children: map[string, mut Child], id: string) -> void $ Console:
     match children[id]:
         child? => rename(child, "indexed")
         nil => println("missing")

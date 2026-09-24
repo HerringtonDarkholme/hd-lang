@@ -47,6 +47,26 @@ The key words **must**, **must not**, **should**, **should not**, and **may** ar
 normative. Text marked as a note or example is explanatory unless it explicitly
 states otherwise.
 
+### Diagnostics
+
+Unless a rule explicitly calls for a warning, **diagnose** means reject the
+program with an error. Diagnostic prose and source spans may improve, but the
+machine-readable code is stable. The table below is normative; `cases.tsv`
+maps each exercised code to its fixture.
+
+| Severity | Stable diagnostic codes |
+| --- | --- |
+| Error | `ambiguous-method`, `annotation-build-signature`, `annotation-resolution-reentry`, `annotation-top-level-read`, `argument-order`, `bang-call-outside-suspension`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `comparison-chaining`, `decorator-not-annotator`, `decorator-not-top-level`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-annotation-impl`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `entry-error-not-display`, `enum-default-order`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `generic-kind-mismatch`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `impure-data-default`, `impure-enum-default`, `integer-literal-range`, `invalid-escape`, `invalid-field-metadata`, `invalid-map-key`, `invalid-parameter-metadata`, `invalid-variance`, `local-impl-nonlocal-pair`, `missing-child-annotation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-return-value`, `missing-trait-method`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-capture-requires-mut-fn`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-receiver-required`, `mutable-upgrade`, `nil-to-nonoptional`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonhost-entry-requirement`, `nonnumeric-unary-plus`, `old-export-declaration`, `old-import-declaration`, `old-struct-declaration`, `optional-pattern-requires-optional`, `orphan-annotation-in-library`, `orphan-impl`, `overlapping-annotation-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-order`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-type-leak`, `promoted-mutable-requirement`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `reserved-name`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `type-used-as-value`, `unexpected-bom`, `unknown-annotation-member`, `unknown-shape-target`, `unrepresentable-type-shape`, `unresolved-generic-placeholder`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
+| Error | `defer-outside-cleanup-scope`, `suspending-defer` |
+| Warning | `confusable-identifier`, `mixed-script-identifier`, `requirement-subtract-absent`, `unreachable-code`, `unused-local-binding`, `variant-binding-name-mismatch` |
+| Runtime panic | The complete closed category list is defined in [Control Flow](06-control-flow.md#runtime-panics). |
+| Boundary failure | `boundary-cycle`, `boundary-decoder-panic` |
+
+Identifier-security warnings use Unicode confusable skeletons and a
+moderately-restrictive mixed-script profile. They do not change identifier
+identity and do not reject a program unless a package warning policy promotes
+them.
+
 ## Grammar Notation
 
 The specification uses EBNF for lexical and syntactic grammar. In grammar

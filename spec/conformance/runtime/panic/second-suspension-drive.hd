@@ -1,0 +1,9 @@
+# expect-panic: suspension-invalid-state
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+pub fn main() -> void:
+    let pending: mut Suspend[i32] = ready()
+    _ := block_on(pending)
+    _ := block_on(pending)

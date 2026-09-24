@@ -1,0 +1,6 @@
+@derive(PartialEq)
+data Box[T]:
+    value: T
+
+fn same(left: Box[i32], right: Box[i32]) -> bool:
+    left == right

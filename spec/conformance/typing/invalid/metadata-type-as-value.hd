@@ -1,0 +1,6 @@
+# expect-error: type-used-as-value
+data MaxLen:
+    value: i32
+
+fn invalid(field: FieldShape) -> MaxLen?:
+    field.metadata(MaxLen)

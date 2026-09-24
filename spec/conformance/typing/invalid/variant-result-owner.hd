@@ -1,0 +1,6 @@
+# expect-error: variant-result-owner
+enum Other[T]:
+    Value(T)
+
+enum Expr[T]:
+    Broken(value: T) -> Other[T]

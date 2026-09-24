@@ -1,0 +1,2 @@
+# expect-error: prelude-name-shadow
+data Display: pass

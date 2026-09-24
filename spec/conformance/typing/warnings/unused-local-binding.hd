@@ -1,0 +1,4 @@
+# expect-warning: unused-local-binding
+fn example() -> void:
+    unused := 1
+    pass

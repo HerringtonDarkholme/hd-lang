@@ -1,4 +1,4 @@
-# expect-error: const-receiver
+# expect-error: mutable-receiver-required
 
 fn ready!() -> i32:
     1

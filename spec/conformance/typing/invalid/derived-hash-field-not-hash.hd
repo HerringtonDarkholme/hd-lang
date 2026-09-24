@@ -1,5 +1,4 @@
 # expect-error: field-not-hash
-use std.hash.Hash
 
 data Opaque: pass
 

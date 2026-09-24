@@ -1,8 +1,4 @@
 # expect-error: orphan-impl
-
-use dep.display.{Display}
-use dep.user.{User}
-
-impl Display for User:
-    fn display(self) -> string:
-        "user"
+impl Display for i32:
+    fn to_string(self) -> string:
+        "$self"

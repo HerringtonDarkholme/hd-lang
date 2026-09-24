@@ -1,0 +1,4 @@
+# expect-error: mutable-capture-requires-mut-fn
+fn make_appender(items: mut list[i32]) -> fn(i32) -> void:
+    fn(value: i32) -> void:
+        items.append(value)

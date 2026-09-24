@@ -1,0 +1,5 @@
+let narrow: i16 = 12
+let wide: i64 = 30
+let total: i64 = narrow + wide
+
+let labels: list[Display] = ["Ada", "Grace"]

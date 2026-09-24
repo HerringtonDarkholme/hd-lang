@@ -19,6 +19,19 @@ enum Arithmetic:
     Add(left: i32, right: i32)
     Scale(value: i32, factor: i32)
 
+enum Expr:
+    Add(left: i32, right: i32)
+    Sub(left: i32, right: i32)
+    Scale(left: i32, factor: i32)
+
+enum Tree[T]:
+    Leaf(value: T)
+    Branch(left: Tree[T], right: Tree[T])
+
+enum JobStatus:
+    Queued
+    Running
+
 fn message(error: ToolError) -> string:
     match error:
         ToolError.NotFound(resource) => "not found: " + resource
@@ -30,7 +43,15 @@ fn evaluate(expr: Arithmetic) -> i32:
         Arithmetic.Scale(value, factor=2) => value * 2
         Arithmetic.Scale(value, factor) => value * factor
 
+fn eval_expr(expr: Expr) -> i32:
+    match expr:
+        Expr.Add(l, r) => l + r
+        Expr.Sub(left=l, right=r) => l - r
+        Expr.Scale(left, factor=2) => left * 2
+        Expr.Scale(left, factor) => left * factor
+
 status := StatusCode.NotFound
 code := status.0
 phrase := HttpStatus.NotFound.phrase
 maybe := Maybe.Some(1)
+job_status := JobStatus.Queued

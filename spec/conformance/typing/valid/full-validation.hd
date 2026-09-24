@@ -1,60 +1,12 @@
 # Full validation and recursive annotation conformance example.
 #
 # The annotation runtime provides AnnotationRef, cycle-aware annotation_ref,
-# shape types, metadata types, and AnnotationError. This file declares the
+# shape types and metadata types. This file declares the
 # stateless Validation facet type.
 # `annotate Validation for T` generates `impl Annotate[Validation] for T`;
 # DataAnnotator and EnumAnnotator provide its aggregate derivation steps.
 
-type Dict[K, V] = map[K, V]
-
 data Validation: pass
-
-trait Annotation:
-    type Info
-
-trait Annotate[A: Annotation]:
-    fn info() -> A::Info
-
-trait FieldMetadata[T]
-trait VariantMetadata
-
-trait DataAnnotator: Annotation:
-    type FieldTarget
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Self::Info],
-    ) -> Self::FieldTarget
-
-    fn build(
-        self,
-        shape: DataShape,
-        fields: Dict[string, Self::FieldTarget],
-    ) -> Self::Info
-
-trait EnumAnnotator: Annotation:
-    type FieldTarget
-    type VariantTarget
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Self::Info],
-    ) -> Self::FieldTarget
-
-    fn map_variant(
-        self,
-        variant: VariantShape,
-        fields: list[Self::FieldTarget],
-    ) -> Self::VariantTarget
-
-    fn build(
-        self,
-        shape: EnumShape,
-        variants: Dict[string, Self::VariantTarget],
-    ) -> Self::Info
 
 data StringRules:
     min_len: i32?
@@ -84,8 +36,8 @@ enum Validator:
     String(rules: StringRules)
     Optional(inner: AnnotationRef[Validator])
     List(item: AnnotationRef[Validator])
-    Data(name: string, fields: Dict[string, FieldValidator])
-    Enum(name: string, variants: Dict[string, VariantValidator])
+    Data(name: string, fields: list[(string, FieldValidator)])
+    Enum(name: string, variants: list[(string, VariantValidator)])
 
 data MinLen:
     value: i32
@@ -112,16 +64,20 @@ impl VariantMetadata for VariantDoc
 impl Annotation for Validation:
     type Info = Validator
 
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        panic("exact annotation supplies build")
+
 annotate Validation for bool:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.Bool
 
 annotate Validation for i32:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.I32
 
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
             min_len: nil,
             max_len: nil,
@@ -129,7 +85,7 @@ annotate Validation for string:
         })
 
 annotate Validation for string?:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.Optional(Validation::annotation_ref(string))
 
 fn validation_field(
@@ -141,14 +97,14 @@ fn validation_field(
         name: field.name,
         target: type_metadata,
         rules: FieldRules {
-            required: not field.type.is_optional(),
-            min_len: field.metadata(MinLen).map(
+            required: not field.field_type.is_optional(),
+            min_len: field.metadata[MinLen]().map(
                 fn(annotation: MinLen) -> i32: annotation.value
             ),
-            max_len: field.metadata(MaxLen).map(
+            max_len: field.metadata[MaxLen]().map(
                 fn(annotation: MaxLen) -> i32: annotation.value
             ),
-            contains: field.metadata(Contains).map(
+            contains: field.metadata[Contains]().map(
                 fn(annotation: Contains) -> string: annotation.value
             ),
         },
@@ -166,10 +122,10 @@ impl DataAnnotator for Validation:
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, FieldValidator],
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
     ) -> Validator:
-        Validator.Data(name=shape.name, fields=fields)
+        Validator.Data(name=target.name, fields=fields)
 
 impl EnumAnnotator for Validation:
     type FieldTarget = FieldValidator
@@ -189,7 +145,7 @@ impl EnumAnnotator for Validation:
     ) -> VariantValidator:
         VariantValidator {
             name: variant.name,
-            description: variant.metadata(VariantDoc).map(
+            description: variant.metadata[VariantDoc]().map(
                 fn(annotation: VariantDoc) -> string: annotation.text
             ),
             fields: fields,
@@ -197,15 +153,15 @@ impl EnumAnnotator for Validation:
 
     fn build(
         self,
-        shape: EnumShape,
-        variants: Dict[string, VariantValidator],
+        target: EnumShape,
+        variants: list[(string, VariantValidator)],
     ) -> Validator:
-        Validator.Enum(name=shape.name, variants=variants)
+        Validator.Enum(name=target.name, variants=variants)
 
 type Email(string)
 
 annotate Validation for Email:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
             min_len: 3,
             max_len: 320,
@@ -233,8 +189,8 @@ annotate Entry:
 annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
-annotate[T: Annotate[Validation]] Validation for list[T]:
-    fn build(self, shape: TypeShape) -> Validator:
+annotate[reified T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 
 fn materialize_validators() -> (Validator, Validator):

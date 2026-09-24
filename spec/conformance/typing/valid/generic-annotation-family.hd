@@ -4,12 +4,16 @@ data Validator: pass
 impl Annotation for Validation:
     type Info = Validator
 
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        panic("exact annotation supplies build")
+
 annotate Validation for i32:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator {}
 
-annotate[T: Annotate[Validation]] Validation for list[T]:
-    fn build(self, shape: TypeShape) -> Validator:
+annotate[reified T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, target: TypeShape) -> Validator:
         Validator {}
 
 validator := Validation::annotation(list[i32])

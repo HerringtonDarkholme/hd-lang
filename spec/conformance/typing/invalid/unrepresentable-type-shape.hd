@@ -1,0 +1,8 @@
+# expect-error: unrepresentable-type-shape
+data Cell:
+    value: i32
+
+data Holder:
+    cell: mut Cell
+
+holder_shape := shape(Holder)

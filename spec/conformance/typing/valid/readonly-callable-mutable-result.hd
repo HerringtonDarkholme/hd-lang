@@ -4,6 +4,6 @@ data Child:
 data Holder:
     get_child: fn() -> mut Child
 
-fn recover(child: mut Child) -> mut Child:
-    holder := Holder { get_child: fn() -> mut Child: child }
+fn recover(get_child: fn() -> mut Child) -> mut Child:
+    holder := Holder { get_child: get_child }
     holder.get_child()

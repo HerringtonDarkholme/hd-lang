@@ -10,6 +10,6 @@ fn display_name(user: User?) -> string:
 
 test "plain values construct optionals and patterns extract them":
     let user: User? = nil
-    assert_equal(display_name(user), "unknown")
+    assert_equal(display_name(user), "unknown", reason="nil case")
     user = User { name: "Ada" }
-    assert_equal(display_name(user), "Ada")
+    assert_equal(display_name(user), "Ada", reason="present case")

@@ -1,5 +1,8 @@
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
+
+trait Add[T]:
+    fn add(self, other: T) -> T
 
 trait Named:
     fn name(self) -> string
@@ -7,33 +10,52 @@ trait Named:
     fn label(self) -> string:
         "name: " + self.name()
 
-trait Formattable: Display:
+trait Formattable: Describe:
     fn format(self) -> string
 
 trait Serializable
 
+trait Clear:
+    fn clear(mut self) -> void
+
 data User:
     name: string
 
-impl Display for User:
-    fn display(self) -> string: self.name
+impl Describe for User:
+    fn describe(self) -> string: self.name
 
 impl Named for User:
     fn name(self) -> string: self.name
 
 impl Formattable for User:
-    fn format(self) -> string: self.display()
+    fn format(self) -> string: self.describe()
 
 impl Serializable for User
 
-fn audit[T: Display + Named](value: T) -> string:
-    value.display() + value.name()
+fn audit[T: Describe + Named](value: T) -> string:
+    value.describe() + value.name()
+
+fn clear_value[T: mut Clear](value: T) -> void:
+    value.clear()
 
 fn explicit_display(user: User) -> string:
-    Display::display(user)
+    Describe::describe(user)
 
 trait Factory:
     fn create() -> string
+
+trait Supplier:
+    type Item
+    fn get(mut self) -> Self::Item?
+
+data NameSupplier:
+    next_name: string?
+
+impl Supplier for NameSupplier:
+    type Item = string
+
+    fn get(mut self) -> string?:
+        self.next_name
 
 data UserFactory: pass
 

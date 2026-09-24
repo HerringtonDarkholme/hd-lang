@@ -8,7 +8,7 @@ fn greet(name: string) -> string:
 
 fn one_line() -> void: pass
 
-fn test() -> void: pass
+fn test() -> void $ Console: println("hi")
 
 value := greet(
     "Ada",

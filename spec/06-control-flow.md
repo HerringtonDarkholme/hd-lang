@@ -16,6 +16,22 @@ whose final statement is not a value expression has type `void`.
 runtime panic complete the current control path abruptly rather than producing
 the suite's ordinary final value.
 
+An expression whose value is discarded and whose type is `Result[T, E]`, `T?`,
+or `mut Suspend[T]` is a compile-time `discarded-must-use-value` error. This
+includes a non-final expression statement and the final expression of any suite
+whose value is discarded: a loop body, an `if` without `else`, a
+statement-position `match` arm, a `defer` suite, a test body, or a module's
+top-level script. Such a value must be propagated with `?`, inspected by
+`match`, returned, stored for later use, or explicitly discarded with
+`_ := expression`. The `_` spelling does not bind a local name and makes the
+discard visible in review.
+
+The compiler emits an `unused-local-binding` warning when an ordinary local
+binding is never read. Names beginning with `_` suppress that warning, except
+that an unread binding of a must-use value is a
+`discarded-must-use-value` error. Only the exact `_ := expression` discard
+form explicitly discards a must-use value without binding it.
+
 An indented suite must contain at least one statement. `pass` supplies an
 explicit no-op expression when a body is intentionally empty.
 
@@ -76,17 +92,17 @@ Every mutable iterator has a compiler-provided `Iterable[T]` conformance whose
 prelude provides the generic implementation below:
 
 ```text
-impl[T, I: Iterator[T]] Iterable[T] for mut I:
+impl[T, I: mut Iterator[T]] Iterable[T] for I:
     fn iter(self) -> mut Iterator[T]: self
 ```
 
-A const iterator view cannot advance and therefore does not gain this adapter.
+A readonly iterator view cannot advance and therefore does not gain this adapter.
 `for` accepts an ordinary `Iterable[T]` or a mutable iterator through the
 adapter and repeatedly calls `next` on the resulting cursor.
 
 The built-in `list[T]` iterable yields each element as `T`, including `mut U`
 when `T = mut U`, even through a readonly list. The built-in `map[K, V]`
-iterable yields `(K, V)` tuples in an unspecified order. Destructuring each
+iterable yields `(K, V)` tuples in insertion order. Destructuring each
 entry preserves `V`, including `mut U` when `V = mut U`, even through a
 readonly map. Iteration
 does not grant mutable element access merely because the list root is mutable;
@@ -183,12 +199,17 @@ earlier occurrences are guarded, but an arm already covered by an earlier
 unguarded arm is unreachable.
 
 `_` and a bare binding identifier are catch-all patterns for the subject type.
+If a bare identifier resolves to a variant of the subject enum, it is a
+`bare-variant-pattern` error rather than a new catch-all binding; write
+`.Variant` or a qualified variant name.
 For a subject of type `T?`, `value?` matches only the present case and binds
 `value` as `T`; `nil` matches only absence. The suffix `?` in a pattern does
 not propagate or unwrap an expression. It may also appear in a nested pattern
 whose expected type is optional. A bare `value` still binds the entire `T?`,
 including `nil`. Matching `T??` with `value?` removes only the outer optional
 layer, so `value` has type `T?`.
+Using a present-value pattern where the expected subject or nested payload type
+is not optional is an `optional-pattern-requires-optional` error.
 An unguarded irrefutable catch-all must be the final arm because every later
 arm would be unreachable. Duplicate unguarded literals, duplicate fully
 covered variants, arms after an unguarded catch-all, and other statically
@@ -205,7 +226,11 @@ match expr:
 ```
 
 A bare identifier in payload position binds a new arm-local name; it does not
-need to match the payload field's declaration name. A literal pattern requires
+need to match the payload field's declaration name. The compiler emits
+`variant-binding-name-mismatch` when a positional bare binding equals a
+different payload field's name in that same variant—for example, binding
+`else_value` in the `then_value` position. Use named patterns to make an
+intentional reorder explicit. A literal pattern requires
 an equal value. An enum variant pattern may use `.Variant` when its subject or
 enclosing payload position fixes one enum type; otherwise it uses the qualified
 `Enum.Variant` form. The shorthand has the same exhaustiveness and GADT
@@ -254,6 +279,47 @@ Inside a trailing callback block, `return` completes the generated callback,
 not the function containing the call. hd-lang has no non-local return from a
 closure.
 
+## Deferred Cleanup
+
+`defer:` registers a synchronous cleanup suite on the innermost executing
+lexical block. Reaching the statement does not run its suite. Registered suites
+run once in last-in, first-out order when that block exits normally, through
+`return`, `break`, or `continue`, or because postfix `?` propagates. Each loop
+iteration has its own body block, so its registered suites run before the next
+iteration begins.
+
+Cleanup scopes are function and closure bodies, loop bodies, each selected
+`if` or `else` suite, match arms, provider scopes, trailing callback blocks,
+and test bodies. Module top level and declaration bodies that do not execute
+are not cleanup scopes; a `defer` there is a
+`defer-outside-cleanup-scope` error.
+
+```text
+fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
+    let handle: mut FileHandle = $.use(Files).open!(path)?
+    defer:
+        _ := handle.close()
+    handle.read!()
+```
+
+A value-producing block evaluates and saves its result before running its
+registered suites. Likewise, a `return` or `break` operand and a value being
+propagated by `?` are evaluated before cleanup begins. A cleanup suite observes
+captured lexical storage at cleanup time.
+
+A `defer` suite must produce `void`. It cannot bang-call, otherwise suspend,
+propagate with `?`, or transfer control with `return`, `break`, or `continue`.
+A bang call or other suspending operation in the suite is a
+`suspending-defer` error. Direct or transitive use of `std.task.block_on` is a
+`suspension-forbidden-context` error, as specified in
+[Requirements and Suspension](11-requirements-and-suspension.md#suspending-functions).
+
+A runtime panic does not run pending `defer` suites because core hd-lang has no
+panic unwinding. If a cleanup suite itself panics, the instance is poisoned and
+no remaining cleanup suite is guaranteed to run. `defer` does not stop an alias
+to a closed handle from escaping; ownership and alias-escape prevention remain
+[open design work](../future-work/OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
+
 ## Unreachable Code
 
 Statements following an unconditional `return`, `break`, or `continue` in the
@@ -278,7 +344,20 @@ runtime must report at least a stable failure category and source location when
 one is available. Its Wasm trap, host error, and diagnostic encoding are ABI
 details.
 
-## Unsupported Control-Flow Extensions
+One program instance is the instantiated module graph and execution state
+defined in [Modules and Packages](10-modules.md#module-initialization). A panic
+poisons that instance: the host must not invoke it again and must discard it
+after reporting the failure.
+Hosts that require invocation isolation create a separate instance per
+invocation. Stable panic categories are exactly `annotation-reference-unresolved`,
+`annotation-resolution-reentry`, `assertion-failed`, `explicit-panic`,
+`integer-overflow`,
+`integer-division-by-zero`, `invalid-shift`, `failed-checked-cast`,
+`index-out-of-bounds`, `iterator-invalidated`, `suspension-competing-driver`,
+`suspension-nested-driver`, `suspension-reentrant-poll`,
+`suspension-invalid-state`, and `stack-exhausted`.
 
-Match guards are not part of the language. Filtering that depends on additional
-conditions belongs in the selected arm body or in an enclosing conditional.
+The prelude function `panic(message: string) -> never` explicitly causes an
+`explicit-panic` failure. Because `never` is assignable to every type, a panic or
+other abrupt expression is valid in any value-producing arm without affecting
+the compatible result type of reachable normal arms.

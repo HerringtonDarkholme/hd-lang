@@ -1,0 +1,3 @@
+# expect-error: nonfinal-positional-value-pack
+fn invalid[Ts...](values: Ts..., tail: i32) -> void:
+    pass

@@ -4,8 +4,17 @@ trait Database:
 trait Logger:
     fn write(self, message: string) -> void
 
+trait Cache
+trait Metrics
+
+fn keep_waker(waker: Waker) -> Waker:
+    waker
+
 data User:
     id: string
+
+data UserId:
+    value: string
 
 data DbError:
     message: string
@@ -24,8 +33,18 @@ fn load_user!(id: string) -> Result[User?, DbError] $ Database:
     db := $.use(Database)
     db.get_user!(id)
 
+fn fetch_user!(id: UserId) -> Result[User, DbError]:
+    panic("fixture has no user source")
+
+fn demo!() -> Result[User?, DbError] $ Cache:
+    $.with(Database=MockDatabase {}):
+        load_user!(UserId("user_123").value)
+
+fn prod_context(metrics: Metrics, cache: Cache) -> $.Context[Metrics + Cache]:
+    $.context(Metrics=metrics, Cache=cache)
+
 fn consume!(loader: fn!(string) -> Result[User?, DbError] $ Database) -> void $ Database:
-    result := loader!("user-1")
+    _ := loader!("user-1")
     pass
 
 fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
@@ -36,13 +55,18 @@ fn log_message(message: string) -> void $ Logger:
     logger := $.use(Logger)
     logger.write(message)
 
+fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+    [for item in items => f(item)]
+
 loader := fn!(id: string) -> Result[User?, DbError] $ Database:
     load_user!(id)
 
-mock_database := MockDatabase {}
-context := $.context(Database=mock_database)
-$.with(...context):
-    pending := loader("user-1")
-    result := loader!("user-1")
+pub fn main!() -> void:
+    mock_database := MockDatabase {}
+    context := $.context(Database=mock_database)
+    $.with(...context):
+        pending := loader("user-1")
+        _ := pending!()
+        _ := loader!("user-1")
 
-provide_logger(log_message)
+    provide_logger(log_message)

@@ -1,0 +1,8 @@
+trait Logger
+trait Clock
+
+data Job[r]:
+    run: fn() -> void $ r
+
+fn pure(job: Job[$()]) -> void: pass
+fn observed(job: Job[Logger + Clock]) -> void: pass

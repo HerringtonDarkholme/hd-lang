@@ -1,6 +1,9 @@
 type UserId(string)
 type UserName = string
 
+data PostId:
+    value: string
+
 pub data User:
     pub id: UserId
     name: UserName
@@ -9,11 +12,11 @@ enum Lookup:
     Found(user: User)
     Missing(id: UserId)
 
-trait Display:
-    fn display(self) -> string
+trait Describe:
+    fn describe(self) -> string
 
-impl Display for User:
-    fn display(self) -> string:
+impl Describe for User:
+    fn describe(self) -> string:
         self.name
 
 impl User:

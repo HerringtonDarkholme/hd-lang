@@ -1,0 +1,20 @@
+data SaveError:
+    message: string
+
+fn save() -> Result[i32, SaveError]:
+    Err(SaveError { message: "failed" })
+
+fn ignore_failure() -> void:
+    _ := save()
+
+fn ignore_in_discarding_suites(values: list[i32], ready: bool) -> void:
+    for value in values:
+        _ := save()
+    if ready:
+        _ := save()
+
+test "explicitly discards the final result":
+    _ := save()
+
+fn complete() -> Result[void, SaveError]:
+    Ok()

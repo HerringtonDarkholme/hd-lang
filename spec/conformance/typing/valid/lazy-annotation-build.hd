@@ -1,0 +1,12 @@
+data Marker: pass
+
+impl Annotation for Marker:
+    type Info = i32
+
+impl TypeAnnotator for Marker:
+    fn build(self, target: TypeShape) -> i32:
+        1
+
+annotate Marker for string: pass
+
+value := Marker::annotation(string)

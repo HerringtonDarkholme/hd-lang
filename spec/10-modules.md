@@ -99,7 +99,7 @@ or a dependency.
 Use a single public declaration or a module namespace:
 
 ```text
-use std.cmp.PartialEq
+use std.time.Duration
 use pkg.user.types
 use pkg.user.types as user_types
 ```
@@ -121,7 +121,96 @@ declarations rather than module namespace aliases.
 Use declarations introduce names for the whole module and are resolved before
 type checking.
 
+## Prelude
+
+Every module implicitly has the following public standard-library names in
+scope. This implicit scope is called the prelude; it is equivalent to fixed
+`use` declarations and does not create ambient host authority. A module
+declaration, use, type parameter, parameter, or local binding may not shadow a
+prelude name; every conflict is a `prelude-name-shadow` error. This includes a
+redundant `use` that names the same declaration already supplied by the
+prelude: prelude names are used directly and are not re-imported.
+
+| Origin module | Implicit names |
+| --- | --- |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `list`, `map`, `Any`, `Reference`, `Result`, `Ok`, `Err`, `panic` |
+| `std.format` | `Display` |
+| `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
+| `std.hash` | `Hash`, `Hasher` |
+| `std.iter` | `Iterator`, `Iterable` |
+| `std.console` | `Console`, `ConsoleError`, `println` |
+| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
+| `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape` |
+
+The prelude functions have these signatures: `panic(message: string) ->
+never` and `println[T: Display](value: T) -> void $ Console`. The standard
+console surface includes:
+
+```text
+trait Console:
+    fn write_line!(self, text: string) -> Result[void, ConsoleError]
+```
+
+`Console` is a host capability trait, and `ConsoleError` is its standard
+boundary-safe error type; `ConsoleError` implements `Display`. Thus `println`
+is convenient to name but not a global
+host API: each call must be covered by a `Console` requirement row or a
+lexical provider scope.
+
+`Reference` is a sealed marker trait implemented by data values, stored enum
+values, lists, maps, dynamic trait values, `Any`, closures, suspensions, and
+runtime handles that have identity, and payload-free enum values with canonical
+variant identity. It is not implemented by primitives, tuples, or optionals.
+User code cannot implement it.
+
+The following built-in methods are normative. Lengths and scalar positions use
+`i32`.
+
+| Receiver | Methods |
+| --- | --- |
+| `string` | `len(self) -> i32`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> list[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
+| `list[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]`; `map[U](self, transform: fn(T) -> U) -> list[U]` |
+| `mut list[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
+| `map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
+| `mut map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
+| `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
+| `Display` | `to_string(self) -> string` |
+
+`list.map` and optional `map` are non-suspending and evaluate the transform in
+source order. No `set` type is part of the core prelude.
+
+String methods operate on Unicode scalar-value strings without locale. `lower`
+uses Unicode Default Case Conversion with full mappings. `trim` removes the
+Unicode `White_Space` property at both ends. `split(separator)` retains empty
+pieces between adjacent separators and at either end; an empty separator
+splits into one-scalar strings, with an empty input producing an empty list.
+`replace` replaces non-overlapping matches from left to right, and an empty
+`old` inserts the replacement at scalar boundaries. `starts_with` compares
+scalar sequences exactly and performs no normalization or case folding.
+
+## Standard Testing
+
+`std.testing` exports these normative assertion functions:
+
+```text
+fn assert(condition: bool, reason: string) -> void
+fn assert_equal[T: PartialEq](actual: T, expected: T, reason: string) -> void
+```
+
+`reason` is required and must explain the checked condition. A failed assertion
+reports test failure when called from a test and otherwise causes an
+`assertion-failed` runtime panic. `assert_equal` uses `PartialEq.eq`; it does not
+grant implicit equality to its argument type.
+
 ## Module Initialization
+
+A **script** is an entry module whose top-level executable statements are the
+entry behavior and which has no `main` declaration. An **entry module** is the
+selected root module of an executable package. If it contains both top-level
+statements and `main`, its top-level statements initialize the module first and
+then the runtime invokes `main`; that form is an executable entry module, not a
+script. A **program instance** is one instantiated Wasm module graph together
+with its module storage, provider bindings, and execution state.
 
 Before execution, the compiler resolves the acyclic use graph reachable from
 the selected script or executable entry module. Every reachable module is
@@ -136,12 +225,25 @@ execute as statements. Top-level bindings are initialized at their statement,
 before later function bodies may access them. Their storage remains available
 to functions in that module for the lifetime of the program instance. A module
 with no top-level executable statements has no observable initialization step.
+Before accepting a top-level executable statement, the compiler verifies that
+every top-level binding in the transitive read set of each referenced function
+or closure is already initialized. References passed as values and functions
+reached by trait dispatch, interpolation, iteration, or another implicit call
+are included. This definite-initialization check covers the whole module
+value-flow and call graph.
 
 After dependency initialization, a script executes its top-level statements as
 that module's initialization. An executable package then invokes `main` after
 its entry module has initialized. Test runners initialize the test module and
 the modules it uses before invoking discovered test blocks; test block bodies
 are not part of module initialization.
+
+Top-level code in a non-entry module must be pure initialization. It may not
+use `$.use`, enter a provider scope, or make a bang call. A script module may
+use requirements and suspension only through an inferred entry requirement row,
+which the compiler reports alongside `main!` rows for host configuration. A
+script's top level is not itself a suspension driver; bang calls must occur in
+a suspending entry function or another specified driver context.
 
 This rule governs one program instance. Interactive cell re-execution and
 durable replay have separate runtime histories described in
@@ -187,7 +289,8 @@ implementation additionally requires its target type to be visible.
 A public declaration's complete source-level signature must not expose a
 module-private declaration. This check recursively covers function parameters
 and results, data fields, enum constructor data and payloads, alias/newtype
-underlying types, trait bounds, supertraits, and public generic arguments. A
+underlying types, trait bounds, supertraits, public generic arguments, and every
+requirement-row key. A
 private implementation detail may occur in a public function body but not in
 its public typed interface.
 
@@ -200,7 +303,14 @@ declaration's identity.
 
 A package must not access another package except through declarations reachable
 from that package's public module surface. Implementations may compile packages
-separately as long as exported type identities and signatures remain stable.
+separately. A package interface must contain exported declaration identities
+and complete signatures; visibility; generic kinds, variance, bounds, and
+reification; requirement rows; associated types; callable purity summaries;
+every ordinary, local, and annotation implementation head needed for
+coherence; and the bodies of generic, pack, and reified code needed for
+downstream specialization. Coherence is checked at link time over the complete
+set of resolved interface files, so linking may reject a graph even when each
+package compiled independently.
 
 ## Executable Entry Point
 
@@ -212,7 +322,11 @@ pub fn main() -> void:
 ```
 
 It may instead return `Result[void, E]`, in which case `Err` reports invocation
-failure through the runtime adapter. `main` has no source-level arguments;
+failure through the runtime adapter and requires `E: Display`; an error type
+without that implementation is an `entry-error-not-display` error. The host
+renders the error with `Display.to_string` and exits with status 1. A panic exits with a
+distinct nonzero status selected by the runtime profile and poisons the program
+instance. `main` has no source-level arguments;
 process arguments, console access, environment, and other host facilities are
 requirements supplied by the runtime through the requirement model.
 
@@ -220,9 +334,23 @@ A suspending entry point is spelled `main!`.
 
 ## Wasm Boundary
 
+A **runtime profile** is a named compile-time set of host capability traits,
+their boundary adapters, and runtime choices such as panic exit statuses. The
+compiler receives the selected profile as build configuration. The default
+profile contains at least the prelude `Console` trait; another profile may add
+or omit host traits explicitly.
+
 `pub` is module visibility, not Wasm export registration. A tool, workflow, or
 other host-callable function becomes visible only through explicit registration
 provided by its library or annotation facet.
+
+Every registered boundary function is an entry point for provider checking.
+Its registration contract selects a runtime profile and declares which
+requirement traits that profile can bind, including application traits such as
+`Database` when the adapter explicitly supports them. Every key in the
+registered function's row must be in that bindable set, and the host must bind
+all of them before invocation; otherwise registration or startup fails before
+user code executes.
 
 Registered boundaries initially allow recursively structural values:
 
@@ -233,16 +361,45 @@ Registered boundaries initially allow recursively structural values:
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
 Mutable types, dynamic trait values, closures, and live runtime handles are not
-boundary-safe. Context requirements are host bindings and are not serialized
+boundary-safe. Requirement-row entries are host bindings and are not serialized
 parameters.
 
+Boundary values have tree semantics. Encoding a cycle is a boundary error;
+when an acyclic graph shares a node, each incoming path encodes a duplicate
+tree value and decoding does not restore sharing. Every field and enum payload
+that crosses a boundary must be `pub`, so a host cannot construct private
+state. Decoding a map invokes the key type's ordinary `Eq` and `Hash`
+implementations. If either panics, the adapter reports
+`boundary-decoder-panic`, does not enter the registered function, and treats the
+event as an ordinary poisoning panic: the program instance must be discarded.
+
+One program instance executes on one thread and has no shared-memory
+parallelism or source-level atomics. Hosts may run multiple Wasm instances in
+parallel only by exchanging boundary-safe values; their heaps, mutable globals,
+suspension drivers, and annotation registries are disjoint.
+
 The official compiler targets Wasm only. The official runtime uses Wasm GC for
-managed language values and WASI-compatible host integration where applicable.
-Every host facility is injected through an ordinary requirement trait; the
-official runtime is expected to provide the standard capability traits.
+managed language values and a WASI-compatible host boundary. Authority-bearing
+providers originate at that boundary. Every host facility is injected through
+an ordinary requirement trait; the eventual standard capability-trait set is
+runtime and library work.
 
 The exact component-model ABI and registration APIs are runtime and library
 specification work.
+
+Closable runtime handles use `std.resource.ResourceError[E]`:
+
+```text
+enum ResourceError[E]:
+    Operation(error: E)
+    Disposed
+```
+
+An operation whose ordinary error type is `E` returns
+`Result[T, ResourceError[E]]`. Once the handle has been closed, every further
+operation returns `Err(ResourceError.Disposed)` and must not trap or access the
+host resource. Closing is itself an operation and a repeated close returns the
+same `Disposed` error. This checked behavior applies through every alias.
 
 ## Tooling, ABI, And Unsupported Extensions
 

@@ -1,4 +1,4 @@
-# expect-error: const-edge
+# expect-error: readonly-edge
 
 data Child:
     name: string

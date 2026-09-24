@@ -3,7 +3,6 @@ data Validation: pass
 data Validator: pass
 data FieldValidator: pass
 data Opaque: pass
-type Dict[K, V] = map[K, V]
 
 impl Annotation for Validation:
     type Info = Validator
@@ -20,8 +19,8 @@ impl DataAnnotator for Validation:
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, FieldValidator],
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
     ) -> Validator:
         Validator {}
 

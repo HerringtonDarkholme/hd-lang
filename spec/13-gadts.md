@@ -23,14 +23,14 @@ enum Expr[T]:
 Enum variants use this grammar:
 
 ```ebnf
-enum_variant = identifier, [ generic_params ],
-               [ variant_parameter_clause ],
+enum_variant = { decorator_line }, identifier, [ generic_params ], [ variant_parameter_clause ],
                [ "->", variant_result ], NEWLINE ;
 
 variant_result = named_type, [ argument_clause ] ;
 ```
 
-The result's outer named type must be the enclosing enum. Its type arguments
+The result's outer named type must be the enclosing enum; any other outer type
+is a `variant-result-owner` error. Its type arguments
 may refine declaration parameters to concrete types or variant-local generic
 parameters. The optional argument clause initializes shared enum constructor
 data.
@@ -80,6 +80,7 @@ fn eval[T](expr: Expr[T]) -> T:
         Expr.BoolLit(value) => value
         Expr.Add(left, right) => eval(left) + eval(right)
         Expr.Sub(left, right) => eval(left) - eval(right)
+        Expr.Scale(value, factor) => eval(value) * factor
         Expr.If(cond, then_value, else_value) =>
             if eval(cond):
                 eval(then_value)
@@ -89,7 +90,7 @@ fn eval[T](expr: Expr[T]) -> T:
 
 Refinement is arm-local. It affects payload binding types, nested calls, and the
 arm result check, then disappears after the arm. The complete match still has
-the result type required by its surrounding context.
+the result type required by its expected type.
 
 An arm whose variant result cannot unify with the subject type is rejected as
 statically impossible. Exhaustiveness is

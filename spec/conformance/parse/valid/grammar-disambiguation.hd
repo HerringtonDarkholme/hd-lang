@@ -1,0 +1,15 @@
+fn use_types(callback: fn() -> i32?, optional_callback: (fn() -> i32)?) -> void:
+    nested := ((1, 2), 3)
+    first := nested.0.1
+    match first:
+        -1 => return
+        value => pass
+
+fn apply(callback: fn(i32) -> i32) -> i32: callback(1)
+
+result := apply(fn(value: i32): if value > 0: value else: 0)
+
+fn pair() -> (i32, i32): (1, 2)
+
+_ := (left, right := pair())
+tuple_with_binding := (left, (copy := right))

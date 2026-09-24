@@ -1,0 +1,6 @@
+# expect-panic: integer-overflow
+fn overflow() -> i32:
+    let minimum: i32 = -2147483648
+    minimum / -1
+
+overflow()

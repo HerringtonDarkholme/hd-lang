@@ -1,0 +1,3 @@
+# expect-error: unsupported-string-indexing
+fn first(value: string) -> char:
+    value[0]

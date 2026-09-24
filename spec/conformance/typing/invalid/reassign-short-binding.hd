@@ -1,4 +1,4 @@
-# expect-error: immutable-binding
+# expect-error: non-reassignable-binding
 
 fn invalid() -> void:
     name := "Ada"

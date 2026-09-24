@@ -1,4 +1,4 @@
-# expect-error: const-root
+# expect-error: readonly-root
 
 data Child:
     name: string

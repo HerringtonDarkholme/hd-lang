@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+fn keys(values: map[string, i32]) -> list[string]:
+    let result: mut list[string] = []
+    for key, value in values:
+        result.append(key)
+    result
+
+test "map insertion order":
+    values := {"first": 1, "second": 2, "third": 3}
+    assert_equal(keys(values), ["first", "second", "third"], reason="maps iterate by insertion")

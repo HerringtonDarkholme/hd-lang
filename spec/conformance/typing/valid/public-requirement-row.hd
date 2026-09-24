@@ -1,0 +1,4 @@
+pub trait Database
+
+pub fn query() -> void $ Database:
+    pass

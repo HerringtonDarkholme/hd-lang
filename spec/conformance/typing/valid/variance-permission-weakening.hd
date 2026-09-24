@@ -1,0 +1,18 @@
+data User:
+    name: string
+
+data Producer[+T]:
+    produce: fn() -> T
+
+data Consumer[-T]:
+    consume: fn(T) -> void
+
+data Cell[T]:
+    value: T
+
+fn readonly(value: Producer[mut User]) -> Producer[User]:
+    value
+
+fn strengthen(value: Consumer[User]) -> fn(mut User) -> void:
+    let converted: Consumer[mut User] = value
+    converted.consume

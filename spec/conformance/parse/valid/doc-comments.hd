@@ -1,0 +1,11 @@
+## A user record.
+data User:
+    ## A stable identifier.
+    id: string
+
+## Fetch a user.
+fn get_user(
+    ## The stable identifier to fetch.
+    id: string,
+) -> User:
+    User { id: id }

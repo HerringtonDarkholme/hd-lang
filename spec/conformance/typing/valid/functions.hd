@@ -1,6 +1,29 @@
 data User:
     name: string
 
+data UserId:
+    value: string
+
+data DbError:
+    message: string
+
+trait Database:
+    fn load_user!(self, id: UserId) -> Result[User, DbError]
+
+fn add(a: i32, b: i32) -> i32:
+    a + b
+
+fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
+    $.use(Database).load_user!(id)
+
+fn new_user() -> User: User { name: "Ada" }
+fn new_mutable_user() -> mut User: User { name: "Ada" }
+
+fn inspect(user: User) -> string: user.name
+
+fn rename(user: mut User, name: string) -> void:
+    user.name = name
+
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
         nil
@@ -8,7 +31,12 @@ fn first[T](items: list[T]) -> T?:
         items[0]
 
 fn connect(host: string, port: i32 = 443, tls: bool = true) -> string:
-    host + string(port) + string(tls)
+    "${host}${port}${tls}"
+
+fn resize(width: i32, height: i32 = 480) -> (i32, i32):
+    (width, height)
+
+inc := fn(x: i32) -> i32: x + 1
 
 fn sum(values: i32...) -> i32:
     let total: i32 = 0
@@ -19,7 +47,8 @@ fn sum(values: i32...) -> i32:
 fn with_user(callback: fn() -> User) -> User:
     callback()
 
-fn example(users: list[User]) -> User?:
+fn example(users: list[User]) -> User? $ Console:
+    _ := resize(640, height=480)
     value := first[User](users)
     total := sum(1, 2, 3)
     println(connect("localhost", port=8080))
@@ -27,3 +56,7 @@ fn example(users: list[User]) -> User?:
     with_user:
         User { name: "Ada" }
     value
+
+names := ["Ada", "Grace"]
+_ := first(names)
+_ := first[string](names)

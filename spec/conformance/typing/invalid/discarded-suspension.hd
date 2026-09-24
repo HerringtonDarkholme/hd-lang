@@ -1,0 +1,6 @@
+# expect-error: discarded-must-use-value
+fn load!() -> i32: 1
+
+fn caller() -> void:
+    load()
+    pass

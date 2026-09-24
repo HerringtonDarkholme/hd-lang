@@ -1,4 +1,4 @@
-# expect-error: predeclared-name-conflict
+# expect-error: prelude-name-shadow
 
 data i32:
     value: string

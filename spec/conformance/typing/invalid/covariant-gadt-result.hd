@@ -1,0 +1,6 @@
+# expect-error: invalid-variance
+data User:
+    name: string
+
+enum Witness[+T]:
+    IsMutUser -> Witness[mut User]

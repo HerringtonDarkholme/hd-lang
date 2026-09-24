@@ -1,15 +1,37 @@
 # expect-error: duplicate-annotation-impl
 data Validation: pass
 data Validator: pass
+data FieldValidator: pass
 data User: pass
 
 impl Annotation for Validation:
     type Info = Validator
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
+    ) -> Validator:
+        Validator {}
 
 impl Annotate[Validation] for User:
     fn info() -> Validator:
         Validator {}
 
 annotate Validation for User:
-    fn build(self, shape: DataShape) -> Validator:
+    fn build(
+        self,
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
+    ) -> Validator:
         Validator {}

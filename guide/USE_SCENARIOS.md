@@ -52,9 +52,12 @@ describe:
 8. explicit runtime registration.
 
 ```text
+trait Database:
+    fn get_user!(self, id: UserId) -> Result[User, ToolError]
+
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
     db := $.use(Database)
-    db.get_user!(id)?
+    Ok(db.get_user!(id)?)
 
 annotate Tool for get_user: pass
 tool_registry.register(Tool::annotation(get_user))
@@ -75,7 +78,7 @@ authority visible. They should support:
 4. capability checks before tool execution;
 5. generated dependency and capability reports;
 6. sandboxed execution by default;
-7. higher-order functions that propagate requirement-row variables and remove
+7. higher-order functions that propagate row parameters and remove
    requirements they satisfy locally;
 8. interactive resumption without silently gaining new authority.
 
@@ -138,7 +141,7 @@ Generated code should expose important obligations at its boundaries:
 2. unhandled errors are rejected;
 3. dependencies appear in requirement rows;
 4. missing providers are rejected;
-5. callback requirements propagate through explicit row variables;
+5. callback requirements propagate through explicit row parameters;
 6. error and requirement paths remain readable during review;
 7. diagnostics provide structured context for automated repair;
 8. dependency and capability graphs can be generated for audit.
@@ -258,13 +261,14 @@ Retention uses the annotation model rather than standalone syntax:
 ```text
 data User:
     id: UserId
+    deleted: bool
 
 data Post:
     id: PostId
     userId: UserId
 
 annotate Post:
-    userId = [retention_owner(User), delete_when(User.deleted)]
+    userId = [retention_owner(shape(User)), delete_when(shape(User.deleted))]
 
 annotate Retention for Post: pass
 ```

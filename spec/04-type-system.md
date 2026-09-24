@@ -26,6 +26,11 @@ The type forms are:
 - transparent aliases and nominal newtypes;
 - mutable-access types `mut T`.
 
+`never` is the uninhabited bottom type. It is assignable to every type and no
+ordinary value is assignable to it. Expressions that complete abruptly—an
+unconditional `return`, `break`, `continue`, propagation that exits the current
+body, and a call to `panic`—have type `never` on that control-flow path.
+
 `Suspend[T]` is the dynamic one-shot computation protocol. GADT refinements are
 arm-local type equalities rather than additional runtime type forms.
 
@@ -53,6 +58,18 @@ empty tuple value is `()`. Both carry no information, but they serve different
 source-level roles: `void` describes the absence of a useful function or
 statement result, while `()` is a tuple value and tuple type. They are distinct
 types and there is no implicit conversion between them.
+
+### Strings
+
+A `string` is a sequence of Unicode scalar values whose contents cannot be
+mutated. Source text and
+runtime operations do not perform Unicode normalization. Equality and ordering
+compare scalar values in sequence; canonically equivalent but differently
+encoded scalar sequences are distinct. `string.len()` counts scalar values.
+The core type has no integer-indexing or slicing operation with an O(1)
+guarantee; libraries may provide explicit scalar, byte, or grapheme traversal.
+At every Wasm host boundary, strings are encoded as UTF-8, including embedded
+U+0000 scalar values.
 
 ## Literal Types
 
@@ -83,9 +100,10 @@ a unit. This makes `let minimum: i8 = -128` valid even though positive `128`
 does not fit in `i8`. A negated literal is invalid for an unsigned expected
 type, and values below the signed minimum remain errors.
 
-A floating-point literal with no expected type has type `f64`. When an expected
-`f32` or `f64` type is available, the literal is converted directly to that
-type and must be representable under its IEEE 754 rounding rules.
+A floating-point literal with no expected type has type `f64` and must be
+representable as a finite `f64` value. When an expected `f32` or `f64` type is
+available, the literal is converted directly to that type and must be
+representable as a finite value under its IEEE 754 rounding rules.
 
 `true` and `false` have type `bool`. A string literal has type `string`, and a
 character literal has type `char`.
@@ -113,9 +131,14 @@ same arity and pairwise-equal element types. One-element tuples require a
 trailing comma; `()` is the empty tuple.
 
 Function types are structural when their parameter types, result type,
-mutability, suspension marker, and normalized requirement row match. Function types
-are invariant in every parameter and the result; there are no implicit
-function-type variance conversions.
+mutability, suspension marker, and normalized requirement row match. Function
+types are invariant in every parameter and the result; there are no standalone
+implicit function-type variance conversions. A function value read through a
+representation-preserving variance conversion of its containing value is
+viewed at the converted field type. The only component change this can
+introduce is `mut U -> U` in a positive position or `U -> mut U` in a negative
+position. This is field access through the converted container, not a general
+conversion between function values.
 
 ## Transparent Aliases And Newtypes
 
@@ -144,6 +167,10 @@ n := i32(m)
 
 No implicit conversion exists in either direction.
 
+A newtype does not inherit trait implementations from its underlying type. In
+particular, it is not a valid map key until it explicitly implements or derives
+both `Eq` and `Hash`.
+
 ## Optional Types
 
 `T?` is an optional type containing either a `T` or `nil`. `T` and `T?` are
@@ -168,14 +195,18 @@ the optional's declared contained type `T`, including `mut U` when
 `Any` does not include `nil`. An optional value may be erased to `Any?`, not to
 `Any`.
 
-Optional is covariant in its contained type for a read-only outer value.
-`Result[T, E]` is likewise covariant in both `T` and `E` for a read-only outer
+Optional is covariant in its contained type for a readonly outer value.
+`Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer
 value. As with every generic composite, a mutable outer view is invariant.
 
 ## Result Types
 
 Recoverable errors use the ordinary generic type `Result[T, E]`. Values are
 constructed with `Ok(value)` and `Err(error)`.
+
+When `T` is `void`, the success constructor is written `Ok()` and has type
+`Result[void, E]` under an expected result type. `Ok(pass)` is not the source
+spelling for this case.
 
 Postfix `?` on `Result[T, E]` either produces the success value or immediately
 returns the error from the nearest function. The enclosing function must return
@@ -204,7 +235,8 @@ cast.
 For a binary numeric operator, an untyped literal first adopts the compatible
 type expected from the other operand. Otherwise, operands within one integer
 signedness family widen to the wider operand type, and the result has that
-type. `f32` and `f64` operands widen to `f64`. Signed and unsigned integers do
+type. `f32 op f32` produces `f32`; when one operand is `f64`, an `f32` operand
+widens and the result is `f64`. Signed and unsigned integers do
 not mix implicitly, and integers do not mix implicitly with floating-point
 values. The user must cast one operand explicitly in those cases.
 
@@ -217,7 +249,7 @@ narrow := i16(wide)
 
 A narrowing integer cast must range-check at runtime when the compiler cannot
 prove it safe. An out-of-range cast causes a checked runtime failure; the exact
-panic reporting ABI belongs to the runtime specification. Libraries may
+panic reporting ABI is deferred to runtime design. Libraries may
 provide separate fallible conversion functions returning `Result`.
 
 The core numeric cast rules are:
@@ -242,6 +274,19 @@ exponents, and division errors cause checked runtime failure unless an explicit
 wrapping or fallible library operation is used. Integer division truncates
 toward zero, and integer remainder has the sign of the dividend. A shift count
 must be non-negative and smaller than the bit width of the shifted value.
+Right shift of a signed integer is arithmetic and sign-extending. For every
+signed width, `MIN / -1` panics with `integer-overflow`, while `MIN % -1`
+produces zero.
+
+`Display` formats integers in base ten and floating values with the shortest
+round-trip decimal digits. Finite floats use fixed notation when the normalized
+decimal exponent is in `[-6, 21)` and lowercase scientific notation otherwise;
+scientific exponents always include `+` or `-` and no leading zeroes. Fixed
+notation always contains a decimal point and at least one fractional digit, so
+`1.0` remains visibly floating. Negative zero is `-0.0`; infinities are `inf`
+and `-inf`; every NaN is `NaN`. Before hashing, boundary serialization, or
+`Display`, every NaN is replaced with the one canonical quiet-NaN value for its
+width; NaN comparison continues to follow IEEE 754.
 
 ## Assignability And Coercion
 
@@ -251,8 +296,8 @@ one of these rules applies:
 1. `S` and `T` are identical after expanding transparent aliases.
 2. `S` is an integer type with a value-preserving widening conversion to `T`.
 3. `S` is `f32` and `T` is `f64`.
-4. `S` is `mut T` and the target requests the const view `T`.
-5. A declared generic variance conversion permits the read-only outer type to
+4. `S` is `mut T` and the target requests the readonly view `T`.
+5. A declared generic variance conversion permits the readonly outer type to
    change its type arguments.
 6. `S` explicitly implements trait `T`, allowing construction of a dynamic
    trait value.
@@ -275,10 +320,14 @@ multiple aliases to one composite value.
 
 For a composite type `T`:
 
-- `T` is a const reference view. It permits observation but not mutation
+- `T` is a readonly reference view. It permits observation but not mutation
   through that reference.
 - `mut T` is a mutable reference view. It permits operations that mutate the
   referenced value.
+
+Throughout the specification, **readonly view** is the single term for `T`
+access to a composite value; it does not imply deep immutability. A binding is
+described separately as **non-reassignable** when its name cannot be rebound.
 
 `mut` expresses access permission, not ownership, uniqueness, or a deep freeze
 of the object. A readonly `T` reference cannot reassign its fields. A direct
@@ -288,6 +337,12 @@ generic data field declared `field: P` retains its substituted type even when
 permission rules below. A `mut T` may be viewed as `T`; a `T` must never be
 upgraded to `mut T`.
 
+A readonly root blocks reassignment of its fields and mutation through a direct
+`mut U` field. It is not a deep authority boundary: a `mut U` nested inside an
+optional, tuple, collection, or other generic argument keeps its permission when
+that nested value is extracted. APIs that require a deep no-mutation guarantee
+must not expose mutable references through such nested field types.
+
 ```text
 let user: mut User = User { name: "Ada" }
 readonly := user
@@ -295,7 +350,7 @@ user.name = "Grace"
 println(readonly.name)  # observes "Grace"
 ```
 
-The const alias prevents mutation through `readonly`; it does not freeze the
+The readonly alias prevents mutation through `readonly`; it does not freeze the
 underlying object against other mutable aliases. Readonly access does not
 guarantee that repeated reads return the same values, that the object is a
 stable cache input, or that independently held mutable aliases cannot change
@@ -308,7 +363,7 @@ mutable reference according to its declared result type.
 A fresh data or copy-update expression, stored enum construction, tuple
 expression, list expression, or map expression produces mutable access to its
 new outer object. This permission may be weakened immediately by an expected
-const type. Freshness does not recursively upgrade composite values stored in
+readonly type. Freshness does not recursively upgrade composite values stored in
 the new object; each field or element keeps the permission of the supplied
 expression and declared edge.
 
@@ -320,7 +375,7 @@ unannotated `let` infers readonly `T` when any such direct field is supplied
 only `U`. A generic field declared `field: P` still requires its substituted
 type, including `mut U` when `P = mut U`.
 
-`:=` always exposes a const composite view, even when its initializer creates a
+`:=` always exposes a readonly composite view, even when its initializer creates a
 fresh value:
 
 ```text
@@ -335,7 +390,7 @@ let user: mut User = User { name: "Ada" }
 
 An unannotated `let` infers the initializer's access type. A fresh composite
 construction may infer `mut T`; an existing `T` remains `T`, and inference
-never upgrades const access. Passing through a function also follows the
+never upgrades readonly access. Passing through a function also follows the
 declared result type rather than recovering freshness. Consequently, a fresh
 literal may be passed directly to a `mut T` parameter, but a call declared to
 return `T` cannot, even when its implementation constructs a fresh value.
@@ -359,7 +414,7 @@ account.profile.display_name = "Ada"
 Given a `mut T` root, every field may be reassigned with a value assignable to
 its declared type, whether the field is `field: U` or `field: mut U`. Replacing
 a field does not mutate the old referenced value. An ordinary field `field: U`
-is a const edge: reading it yields only `U`, so its child cannot be mutated
+is a readonly edge: reading it yields only `U`, so its child cannot be mutated
 through that path. A direct field `field: mut U` preserves mutable access when
 read through a mutable root. That access permits assigning the child's fields
 and calling its `mut self` methods. A mutable root must store `mut U` in that
@@ -398,11 +453,11 @@ because the callable was reached through a readonly value.
 
 ### Parameters And Results
 
-`value: T` accepts const composite access. `value: mut T` requires mutable
+`value: T` accepts readonly composite access. `value: mut T` requires mutable
 access. `mut self` is shorthand for `self: mut Self`.
 
 A function that returns mutable access must declare `-> mut T`. A declared
-result of `T` exposes only const access, even when the function creates a fresh
+result of `T` exposes only readonly access, even when the function creates a fresh
 object internally:
 
 ```text
@@ -434,10 +489,21 @@ are not permitted. In a named generic-function reference, `_` may occupy a
 slot in the complete list and requests inference for that argument; it is not
 itself a type and is invalid in ordinary type applications.
 
-Function generic parameters are erased at runtime by default. A parameter
-marked `reified` carries runtime type metadata and may be used by operations
+Function generic parameters are erased with dictionary passing and a uniform
+`anyref` runtime representation. Primitive values are boxed in generic
+positions. Trait bounds pass dictionaries containing the selected operations;
+associated types are represented through those dictionaries. Pack functions
+and calls with `reified` parameters are specialized, while ordinary erased
+calls are not required to be specialized. Package interfaces therefore carry
+the bodies of generic and pack functions needed by downstream compilation.
+
+A parameter marked `reified` carries runtime type metadata and may be used by operations
 such as `shape(T)` or passed to another reified operation. An erased parameter
 must not be used where runtime type identity is required.
+
+Identity comparison `is` on a type parameter is permitted only with the sealed
+`T: Reference` bound. An unconstrained type parameter may be primitive after
+substitution and therefore cannot be used with `is`.
 
 Reification is part of the function's public type and ABI, but its descriptor
 is not a source-level value argument. A backend may specialize a reified call
@@ -471,15 +537,22 @@ data Cell[T]:
 ```
 
 The compiler verifies each declared parameter against its use on the type's
-read-only public surface. That surface includes data fields, enum shared data
+readonly public surface. That surface includes data fields, enum shared data
 and variant payloads, trait method signatures, and every inherent method
 available with the nominal type. A separate trait implementation does not alter
 the nominal type declaration's variance; its own instantiated signatures must
 still type-check.
 
+Each declaration parameter whose argument position in an explicit GADT variant
+result is not exactly that parameter is invariant. For example,
+`IsMutUser -> Witness[mut User]` makes `T` invariant in `Witness[T]`; declaring
+that `Witness[+T]` is rejected. This prevents a variance conversion from making
+an arm-local GADT equality upgrade a readonly value or reinterpret a value's
+runtime representation.
+
 Polarity is computed as follows:
 
-- a returned value and an ordinary read-only field are positive positions;
+- a returned value and an ordinary readonly field are positive positions;
 - a function or method parameter is a negative position;
 - entering a function parameter reverses polarity, while entering a function
   result preserves it;
@@ -494,15 +567,21 @@ A declared `+T` is rejected if any occurrence is negative or invariant. A
 declared `-T` is rejected if any occurrence is positive or invariant. An
 unmarked invariant parameter may occur in any position.
 
-Variance conversion applies only to a read-only outer view. Every `mut G[T]`
+Variance conversion applies only to a readonly outer view. Every `mut G[T]`
 view is invariant in all generic arguments because the mutable view may replace
 stored values. The built-in `list` declares a covariant element parameter for
-its read-only view. Read-only `map[K, V]` is invariant in `K`, because keys are
+its readonly view. Readonly `map[K, V]` is invariant in `K`, because keys are
 both accepted for lookup and exposed during traversal, and covariant in `V`.
 
-Direct composition of permission weakening and variance, such as converting
-`mut Cell[Cat]` directly to `Cell[Animal]`, remains in the design backlog and is
-not a core conversion.
+A variance conversion `G[S] -> G[T]` requires a representation-preserving
+`S -> T` conversion for each covariant argument and a
+representation-preserving `T -> S` conversion for each contravariant argument.
+Permission weakening `mut U -> U` is representation-preserving. Numeric
+widening such as `i8 -> i64`, construction of a trait value such as
+`i32 -> Display` or `User -> Display`, child-dynamic-trait to supertrait
+widening, and optional injection `U -> U?` are not. Variance never inserts
+element wrappers, metadata rewrapping, boxing, copies, or per-access
+conversions.
 
 ## Trait Values And `Any`
 
@@ -524,7 +603,9 @@ remain valid for static generic bounds and explicit implementations.
 A dynamic child-trait value exposes methods declared by the child and all of
 its transitive supertraits. It may be widened implicitly to a dynamic
 supertrait value; that conversion discards access to child-only methods and
-cannot be reversed without an unsupported downcast.
+cannot be reversed without an unsupported downcast. This direct widening may
+rewrap dispatch metadata and is therefore not representation-preserving for a
+variance conversion.
 
 `Any` is the built-in universal empty trait. Every non-optional value type
 satisfies it automatically. As a value type, `Any` erases the concrete type.
@@ -538,15 +619,22 @@ satisfies it automatically. As a value type, `Any` erases the concrete type.
 `Hash` is a standard-library trait in `std.hash`; user-defined data and enum
 types can become keys by explicitly implementing or deriving both traits. Standard-library
 implementations cover eligible built-in scalar types and their supported
-compositions, including tuples and optionals. Floating-point types do not
-implement `Eq` because of NaN.
+compositions: `bool`, integers, `char`, `string`, payload-free enums, tuples of
+hashable elements, and optionals of hashable elements. Lists, maps,
+floating-point values, functions, suspensions, dynamic trait values, and `Any`
+do not have built-in `Hash`; user data and stored enums require an explicit or
+derived implementation. Floating-point types do not implement `Eq` because of
+NaN. Consequently maps have no built-in hash and impose no order-independent
+map-hash obligation.
 
 Map lookup and duplicate-key replacement use `Eq` for key comparison and
 `Hash` for indexing. The language does not check or impose a law connecting
 these two implementations. If an implementation hashes values differently
 that `Eq` considers equal, lookup and duplicate-key behavior are not
-guaranteed. Map iteration order and hash values are not part of map value
-semantics.
+guaranteed. Map iteration follows insertion order. Replacing the value for an
+existing key does not move that entry; removing and later reinserting a key
+places it at the end. Hash values remain outside map value semantics, and map
+equality remains independent of insertion order.
 
 A readonly key view does not freeze the object. If another mutable alias
 changes a stored key's equality or hash after insertion, the map does not

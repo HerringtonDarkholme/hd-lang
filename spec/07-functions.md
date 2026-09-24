@@ -37,12 +37,12 @@ overloading; one name resolves to one declaration in its scope.
 A same-line body is permitted when it contains one simple statement:
 
 ```text
-fn test() -> void: println("hi")
+fn test() -> void $ Console: println("hi")
 ```
 
 A named function may also be declared inside an executable block suite. Its
 name is visible from that declaration onward and within its own body; it can
-capture enclosing local values under the same read-only capture rules as a
+capture enclosing local values under the same readonly capture rules as a
 plain closure. It cannot be marked `pub` or used from another module:
 
 ```text
@@ -59,8 +59,8 @@ fn total_with_bonus(values: list[i32], bonus: i32) -> i32:
 ## Parameters
 
 Parameters are evaluated and initialized from left to right after argument
-mapping. Parameters are immutable bindings: their names cannot be reassigned.
-For composite parameters, `T` permits const access and `mut T` requires mutable
+mapping. Parameters are non-reassignable bindings: their names cannot be reassigned.
+For composite parameters, `T` permits readonly access and `mut T` requires mutable
 access:
 
 ```text
@@ -104,9 +104,14 @@ all explicit argument expressions have been evaluated. A default may refer to
 earlier parameters but not later parameters.
 
 A default expression must be pure: it must not mutate a parameter or capture,
-call a mutable function, require injected context, or suspend. It may evaluate
-ordinary expressions and call other pure functions. The compiler verifies this
-transitively from function signatures and bodies available to it.
+reassign a top-level `let`, call a `mut fn` value, pass non-fresh mutable access
+to any call, require an injected provider, call `std.task.block_on`, or suspend. It may evaluate ordinary
+expressions and call other pure functions. The compiler verifies this
+transitively from available function bodies and exported purity summaries. A
+call through a function value or dynamic trait method is rejected in a
+purity-checked context because its current type cannot prove purity; named
+callables with verified summaries remain usable. The containing default reports
+its ordinary context-specific impurity diagnostic.
 
 Purity permits allocation and mutation of newly created local values when those
 values and mutable aliases do not escape the default expression. This is local
@@ -170,7 +175,7 @@ The resulting value has an ordinary monomorphic function type. A reified
 instantiation captures the required runtime type descriptors in that value.
 
 A value of type `fn!(A) -> T $ R` constructs `mut Suspend[T]` when called normally
-and may be bang-called inside a suspending context. It may be weakened to the
+and may be bang-called inside a suspending body. It may be weakened to the
 lowered constructor type `fn(A) -> mut Suspend[T] $ R`; the reverse conversion is
 not implicit.
 
@@ -215,13 +220,21 @@ type could supply it.
 ### Captures
 
 A closure captures local bindings that it references from enclosing lexical
-scopes. A plain `fn(...) -> T` closure may read captures but must not mutate
-them.
+scopes. It also captures, when created, every lexical provider from an
+enclosing `$.with` scope that its body uses. Those provider values remain bound
+to the closure after the provider scope ends, exactly as providers captured by
+a suspension frame remain bound after construction.
 
-Reading a captured mutable reference and returning it with a `mut T` result
-type is permitted; a readonly reference to the closure does not weaken its
-declared result. Calling a `mut fn` closure still requires mutable access to
-the closure itself.
+A plain `fn(...) -> T` closure may read captures but must not mutate through
+them. Within a plain closure, captured mutable access `mut T` is viewed as
+readonly `T`. A closure must be `mut fn` when it assigns captured `let` storage
+or obtains mutable access from a capture—for example, by calling a `mut self`
+method on a captured list or on a captured mutable child.
+
+Returning mutable access obtained from a capture therefore also requires a
+`mut fn` closure. A callable's declared `mut T` result is not itself weakened
+when the callable is read through a readonly reference. Calling a `mut fn`
+closure still requires mutable access to the closure itself.
 
 A closure that mutates captured state has type `mut fn(...) -> T` and uses the
 same marker in its literal:
@@ -359,7 +372,7 @@ impl User:
 label := user.tagged[string]("admin")
 ```
 
-`self` is const access to the receiver. `mut self` is shorthand for
+`self` is readonly access to the receiver. `mut self` is shorthand for
 `self: mut Self`. There is no reference sigil or ownership-taking receiver form.
 Receiverless members are associated functions and are called with qualified
 `Type::function(...)` or `Trait::function(...)` syntax.

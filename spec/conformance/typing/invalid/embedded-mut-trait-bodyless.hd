@@ -1,0 +1,15 @@
+# expect-error: promoted-mutable-requirement
+trait Resettable:
+    fn reset(mut self) -> void
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn reset(mut self) -> void:
+        self.value = 0
+
+data Page:
+    Counter
+
+impl Resettable for Page

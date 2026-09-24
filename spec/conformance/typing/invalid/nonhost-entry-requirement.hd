@@ -1,0 +1,5 @@
+# expect-error: nonhost-entry-requirement
+trait Database
+
+pub fn main() -> void $ Database:
+    pass

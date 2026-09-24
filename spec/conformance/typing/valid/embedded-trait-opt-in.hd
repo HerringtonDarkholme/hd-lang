@@ -1,0 +1,16 @@
+trait Describe:
+    fn describe(self) -> string
+
+data Label:
+    text: string
+
+impl Label:
+    fn describe(self) -> string: self.text
+
+data Page:
+    Label
+
+impl Describe for Page
+
+fn show(page: Page) -> string:
+    page.describe()

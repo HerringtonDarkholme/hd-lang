@@ -1,0 +1,5 @@
+fn invoke[r](callback: fn() -> void $ r) -> void $ r:
+    callback()
+
+fn report() -> void $ Console:
+    invoke(fn() -> void: println("ready"))

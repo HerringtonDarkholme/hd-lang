@@ -1,11 +1,20 @@
 enum Expr[T]:
     IntLit(value: i64) -> Expr[i64]
     BoolLit(value: bool) -> Expr[bool]
+    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]
+    Scale(value: Expr[i64], factor: i64) -> Expr[i64]
+    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]
 
 fn eval[T](expr: Expr[T]) -> T:
     match expr:
         Expr.IntLit(value) => value
         Expr.BoolLit(value) => value
+        Expr.Add(left, right) => eval(left) + eval(right)
+        Expr.Sub(left, right) => eval(left) - eval(right)
+        Expr.Scale(value, factor) => eval(value) * factor
+        Expr.If(cond, then_value, else_value) =>
+            if eval(cond): eval(then_value) else: eval(else_value)
 
 enum Box[T](contents: T):
     IntBox(n: i64) -> Box[i64](n)

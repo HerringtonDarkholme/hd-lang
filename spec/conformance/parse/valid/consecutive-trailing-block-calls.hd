@@ -1,0 +1,4 @@
+result := when(a, b):
+    compute_result()
+transaction:
+    save_user()

@@ -8,3 +8,29 @@ impl Identity:
 identity := Identity { name: "identity" }
 explicit := identity.pair[string, i32]("left", 1)
 inferred := identity.pair[_, i32]("left", 1)
+
+fn convert[From, To](value: From) -> To:
+    panic("fixture does not convert")
+
+data Parser: pass
+
+impl Parser:
+    fn parse[T](self, text: string) -> T:
+        panic("fixture does not parse")
+
+parser := Parser {}
+parsed := parser.parse[Identity]("identity")
+converted := convert[_, Identity](identity)
+
+data User:
+    email: string
+
+impl User:
+    fn domain(self) -> string:
+        self.email.split("@")[1]
+
+    fn tagged[T](self, value: T) -> T:
+        value
+
+user := User { email: "ada@example.com" }
+label := user.tagged[string]("admin")

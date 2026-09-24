@@ -3,9 +3,22 @@ data User:
     name: string
     active: bool
 
-fn collections(users: list[User]) -> map[string, User]:
+data Entry:
+    name: string
+    score: i32
+
+data Link:
+    id: string
+    owner_id: string
+
+fn collections(users: list[User]) -> map[string, User] $ Console:
+    empty := ()
+    single := (1,)
     point := (10, 20)
     x, y := point
+    entry := Entry { name: "Ada", score: 10 }
+    let entry_name, score = (entry.name, entry.score)
+    scores := {"Ada": 10, "Grace": 12}
     names := [for user in users if user.active => user.name]
     labels := [
         for user in users
@@ -14,5 +27,11 @@ fn collections(users: list[User]) -> map[string, User]:
     ]
     pairs := [for left in names for right in labels => (left, right)]
     by_id := {for user in users if user.active => user.id: user}
-    println((x, y, pairs))
+    println("$x,$y")
+    println("${entry_name}${score}")
+    _ := empty
+    _ := single
     by_id
+
+fn related(xs: list[Link], ys: list[Link]) -> list[(Link, Link)]:
+    [for x in xs for y in ys if x.id == y.owner_id => (x, y)]

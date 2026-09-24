@@ -1,0 +1,4 @@
+fn remaining[T](iterator: mut Iterator[T]) -> void:
+    _ := iterator.next()
+    for item in iterator:
+        _ := item

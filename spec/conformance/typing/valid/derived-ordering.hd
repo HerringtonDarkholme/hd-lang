@@ -18,8 +18,8 @@ test "derived ordering follows declaration order":
     a := Key { first: 1, second: 9 }
     b := Key { first: 2, second: 0 }
     c := Key { first: 1, second: 10 }
-    assert_equal(a < b, true)
-    assert_equal(a < c, true)
-    assert_equal(Priority.Low(99) < Priority.High(0), true)
-    assert_equal(Priority.Low(2) < Priority.Low(3), true)
-    assert_equal(Measurement { value: 1.0 } < Measurement { value: 2.0 }, true)
+    assert_equal(a < b, true, reason="first field orders first")
+    assert_equal(a < c, true, reason="second field breaks ties")
+    assert_equal(Priority.Low(99) < Priority.High(0), true, reason="variant order")
+    assert_equal(Priority.Low(2) < Priority.Low(3), true, reason="payload order")
+    assert_equal(Measurement { value: 1.0 } < Measurement { value: 2.0 }, true, reason="partial float order")

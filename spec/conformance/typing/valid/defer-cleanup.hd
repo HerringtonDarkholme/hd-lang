@@ -1,0 +1,17 @@
+use std.resource.ResourceError
+
+data FileError:
+    message: string
+
+trait FileHandle:
+    fn close(mut self) -> Result[void, ResourceError[FileError]]
+    fn read!(mut self) -> Result[string, ResourceError[FileError]]
+
+trait Files:
+    fn open!(self, path: string) -> Result[mut FileHandle, ResourceError[FileError]]
+
+fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
+    let handle: mut FileHandle = $.use(Files).open!(path)?
+    defer:
+        _ := handle.close()
+    handle.read!()

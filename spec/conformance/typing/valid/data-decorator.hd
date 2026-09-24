@@ -2,7 +2,6 @@ data Validation: pass
 data Validator: pass
 data FieldValidator: pass
 
-type Dict[K, V] = map[K, V]
 
 data MaxLen:
     value: i32
@@ -13,6 +12,10 @@ impl FieldMetadata[string] for MaxLen
 
 impl Annotation for Validation:
     type Info = Validator
+
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        panic("exact annotation supplies build")
 
 impl DataAnnotator for Validation:
     type FieldTarget = FieldValidator
@@ -26,13 +29,13 @@ impl DataAnnotator for Validation:
 
     fn build(
         self,
-        shape: DataShape,
-        fields: Dict[string, FieldValidator],
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
     ) -> Validator:
         Validator {}
 
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator {}
 
 @Validation

@@ -4,6 +4,6 @@ data Child:
 data Parent:
     child: mut Child
 
-immutable := Child { name: "Ada" }
-let parent: Parent = Parent { child: immutable }
+readonly_child := Child { name: "Ada" }
+let parent: Parent = Parent { child: readonly_child }
 copy := Parent { ...parent }

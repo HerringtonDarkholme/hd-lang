@@ -14,11 +14,11 @@ fn rename(child: mut Child, name: string) -> void:
 fn get[T](box: Box[T]) -> T:
     box.value
 
-immutable := Child { name: "Ada" }
+readonly_child := Child { name: "Ada" }
 let editable: mut Child = Child { name: "Grace" }
 
 let mixed: Mixed[mut Child] = Mixed {
-    direct: immutable,
+    direct: readonly_child,
     generic: editable,
 }
 rename(mixed.generic, "Grace Hopper")

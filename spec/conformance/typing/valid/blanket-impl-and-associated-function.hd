@@ -1,0 +1,16 @@
+trait Notifier:
+    fn notify(self, message: string) -> void
+
+impl[N: Notifier] Notifier for list[N]:
+    fn notify(self, message: string) -> void:
+        for notifier in self:
+            notifier.notify(message)
+
+data Duration:
+    day_count: i32
+
+impl Duration:
+    fn days(count: i32) -> Duration:
+        Duration { day_count: count }
+
+month := Duration::days(30)

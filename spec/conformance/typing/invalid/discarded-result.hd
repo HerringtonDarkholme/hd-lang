@@ -1,0 +1,17 @@
+# expect-error: discarded-must-use-value
+data SaveError:
+    message: string
+
+fn save() -> Result[i32, SaveError]:
+    Err(SaveError { message: "failed" })
+
+fn save_all(values: list[i32]) -> void:
+    for value in values:
+        save()
+
+fn maybe_save(ready: bool) -> void:
+    if ready:
+        save()
+
+test "must use the final result":
+    save()

@@ -45,18 +45,24 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
     case "$expectation" in
         reject:*)
             code=${expectation#reject:}
-            grep -Fq "# expect-error: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare expect-error $code"
+            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-error: $code" ] ||
+                fail "fixture $path does not declare expect-error $code on line 1"
+            grep -Fq "\`$code\`" "$spec_dir/README.md" ||
+                fail "fixture $path uses unknown error category $code"
             ;;
         warn:*)
             code=${expectation#warn:}
-            grep -Fq "# expect-warning: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare expect-warning $code"
+            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-warning: $code" ] ||
+                fail "fixture $path does not declare expect-warning $code on line 1"
+            grep -Fq "\`$code\`" "$spec_dir/README.md" ||
+                fail "fixture $path uses unknown warning category $code"
             ;;
         panic:*)
             code=${expectation#panic:}
-            grep -Fq "# expect-panic: $code" "$spec_dir/conformance/$path" ||
-                fail "fixture $path does not declare expect-panic $code"
+            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-panic: $code" ] ||
+                fail "fixture $path does not declare expect-panic $code on line 1"
+            grep -Fq "\`$code\`" "$spec_dir/06-control-flow.md" ||
+                fail "fixture $path uses unknown panic category $code"
             ;;
     esac
 done
@@ -66,6 +72,9 @@ find "$spec_dir/conformance" -type f -name '*.hd' | sort | while IFS= read -r fi
     count=$(awk -F "$tab" -v path="$relative" 'NR > 1 && $1 == path { count += 1 } END { print count + 0 }' "$manifest")
     [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"
 done
+
+python3 "$spec_dir/reference_parser.py" "$manifest" "$spec_dir/conformance"
+python3 "$spec_dir/check_spec_anchors.py" "$spec_dir" "$manifest"
 
 awk -F "$tab" '
     NR == 1 {
@@ -131,13 +140,15 @@ tail -n +2 "$examples" | while IFS="$tab" read -r specification block classifica
                     fail "missing example fixture $fixture for $specification block $block"
             done
             ;;
-        lexical-inventory|type-relation|type-fragment|pattern-fragment|expression-fragment|filesystem-layout)
+        lexical-inventory|type-relation|type-fragment|pattern-fragment|expression-fragment|filesystem-layout|illustrative-pseudocode)
             [ "$fixtures" = "-" ] ||
                 fail "$classification entry must use '-' for $specification block $block"
             ;;
         *) fail "unknown example classification '$classification'" ;;
     esac
 done
+
+python3 "$spec_dir/check_example_overlap.py" "$spec_dir" "$examples"
 
 if grep -R -n -E 'let[[:space:]]+mut([[:space:]]|$)|fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \

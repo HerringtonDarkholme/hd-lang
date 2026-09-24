@@ -1,0 +1,5 @@
+fn scalar_length(value: string) -> i32:
+    value.len()
+
+fn scalar_order(left: string, right: string) -> bool:
+    left < right

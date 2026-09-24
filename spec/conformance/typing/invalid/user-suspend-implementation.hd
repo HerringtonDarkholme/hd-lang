@@ -1,0 +1,6 @@
+# expect-error: sealed-trait-implementation
+data Replay: pass
+
+impl Suspend[i32] for Replay:
+    fn poll(mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)
+    fn cancel(mut self) -> void: pass

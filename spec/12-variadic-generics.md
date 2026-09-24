@@ -39,8 +39,8 @@ For `Ts... = User, i32, bool`:
 - `mut Suspend[Ts]...` expands to parameter types `mut Suspend[User]`,
   `mut Suspend[i32]`, and `mut Suspend[bool]`;
 - `(Ts...)` expands to `(User, i32, bool)`;
-- a value pattern such as `start(tasks)...` repeats `start(task)` once for each
-  corresponding value.
+- a value pattern such as `start(tasks)...` expands to
+  `start(tasks_0), start(tasks_1), ...`.
 
 Expansion is permitted in:
 
@@ -53,11 +53,21 @@ Expansion is permitted in:
 The consolidated grammar exposes expansion positions directly:
 
 ```ebnf
-type_argument = type, [ "..." ] ;
+type_argument = type, [ "..." ]
+              | row_type_argument
+              ;
 type_element = type, [ "..." ] ;
-value_parameter = identifier, ":", type, [ "=" , expression ], [ "..." ] ;
+value_parameter = identifier, ":", type, [ "=", expression ], [ "..." ] ;
 positional_argument = expression, [ "..." ] ;
 ```
+
+A function signature may contain at most one value-pack parameter that accepts
+positional arguments. Because the current language has no named-only parameter
+separator, this means a signature may contain at most one value-pack parameter.
+Like an ordinary homogeneous vararg, that value-pack parameter must be the
+final positional parameter; a later positional parameter is a
+`nonfinal-positional-value-pack` error. Calls never guess a partition between
+positional packs or between a pack and a later fixed parameter.
 
 An ellipsis is a pack expansion when the preceding subtree contains at least
 one pack reference. Otherwise, parameter and argument ellipses retain their
@@ -73,16 +83,17 @@ substituted into repetition `i`.
 
 ```text
 fn zip_apply[As..., Bs..., Rs...](
+    pairs: ((As, Bs)...),
     funcs: fn(As, Bs) -> Rs...,
-    left: As...,
-    right: Bs...,
 ) -> (Rs...):
     ...
 ```
 
 This example is valid only when the three inferred packs have the same length.
-The `funcs` parameter expands the complete function-type subtree once per
-position. No additional grouping is required.
+The ordinary `pairs` parameter carries a tuple whose repeated element type uses
+the same packs. The final `funcs` parameter is the signature's single
+positional value-pack parameter and expands the complete function-type subtree
+once per position.
 
 ## Pack Mapping
 

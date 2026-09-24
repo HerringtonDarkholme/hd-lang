@@ -5,4 +5,4 @@ enum Status:
 
 fn invalid() -> void:
     status := .Queued
-    println(status)
+    pass

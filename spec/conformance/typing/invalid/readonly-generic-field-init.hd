@@ -6,5 +6,5 @@ data Child:
 data Box[T]:
     value: T
 
-immutable := Child { name: "Ada" }
-let box: Box[mut Child] = Box { value: immutable }
+readonly_child := Child { name: "Ada" }
+let box: Box[mut Child] = Box { value: readonly_child }

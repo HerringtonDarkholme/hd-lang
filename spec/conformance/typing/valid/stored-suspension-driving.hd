@@ -1,0 +1,18 @@
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+fn drive_inside!() -> i32:
+    let stored: mut Suspend[i32] = ready()
+    stored!()
+
+fn drive_outside() -> i32:
+    let stored: mut Suspend[i32] = ready()
+    block_on(stored)
+
+pub fn main() -> void:
+    _ := drive_outside()
+
+test "test blocks drive suspensions":
+    value := ready!()
+    _ := value

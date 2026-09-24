@@ -1,0 +1,10 @@
+fn make_appender(items: mut list[i32]) -> mut fn(i32) -> void:
+    mut fn(value: i32) -> void:
+        items.append(value)
+
+fn counter() -> mut fn() -> i32:
+    let count: i32 = 0
+    let next: mut fn() -> i32 = mut fn() -> i32:
+        count = count + 1
+        count
+    next

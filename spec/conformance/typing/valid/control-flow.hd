@@ -12,3 +12,12 @@ fn label(score: i32) -> string:
         "passing"
     else:
         "needs work"
+
+fn first_prefix(names: list[string], prefix: string) -> string?:
+    let index: i32 = 0
+    while index < names.len():
+        if names[index].starts_with(prefix):
+            break names[index]
+        index = index + 1
+    else:
+        nil

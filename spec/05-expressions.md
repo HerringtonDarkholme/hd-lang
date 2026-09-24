@@ -45,7 +45,7 @@ An identifier expression evaluates the declaration or local binding selected
 by lexical name resolution. A qualified name selects a declaration or enum
 variant through a module or type namespace.
 
-`.Variant` selects a variant only when the expression has a contextual expected
+`.Variant` selects a variant only when the expression has an expected
 type that fixes one nominal enum. It has the same construction and argument
 rules as `Enum.Variant`; a payload-bearing variant still requires a call.
 The compiler does not search all visible enums for a matching variant name.
@@ -65,6 +65,13 @@ is no fallback conversion through `Any`, runtime reflection, or debug output.
 The standard library provides `Display` implementations for ordinary
 printable primitive types and `string`. Optional and user-defined values are
 displayable only when the corresponding type implements `Display`.
+
+The canonical signature is:
+
+```text
+trait Display:
+    fn to_string(self) -> string
+```
 
 Raw strings never interpolate. A string with no interpolation segments is an
 ordinary constant value and performs no `Display` calls.
@@ -107,7 +114,8 @@ scores := {"Ada": 10, "Grace": 12}
 ```
 
 If two evaluated entries have equal keys, the later value replaces the earlier
-value. Map iteration order is not specified and is not part of map equality.
+value without changing that key's first insertion position. Map iteration is
+in insertion order and is not part of map equality.
 Key validity and equality/hash requirements are defined in
 [Type System](04-type-system.md#map-key-types).
 
@@ -118,8 +126,10 @@ When an expected `list[T]` or `map[K, V]` type is available, each literal
 element is checked directly against the corresponding expected type. Without
 an expected type, the compiler computes a unique least common type using only
 the implicit conversions in [Type System](04-type-system.md). Numeric widening,
-permission weakening, and declared read-only variance may contribute. If no
-unique least type exists, inference fails and the user must add an expected
+permission weakening, and declared readonly variance may contribute, but
+least-common-type inference never combines permission weakening with a
+variance step for the same candidate conversion. If no unique least type
+exists, inference fails and the user must add an expected
 type. The compiler never falls back to `Any` merely to make a heterogeneous
 literal type-check. Unconstrained inference also does not introduce a dynamic
 trait-value conversion, because a concrete type may satisfy multiple unrelated
@@ -232,8 +242,8 @@ first[string](names)
 
 The complete generic argument list must be supplied; partial explicit lists are
 not supported. In hd-lang, explicit arguments may specialize a named module
-function or qualified function introduced by a use declaration. Generic
-methods rely on inference; explicit method type arguments are not supported.
+function or qualified function introduced by a use declaration. The same
+explicit-list rules apply to generic methods; see [Functions](07-functions.md).
 
 Suspension calls with `!` construct and drive a child suspension as specified in
 [Requirements and Suspension](11-requirements-and-suspension.md). The callee and
@@ -308,11 +318,15 @@ reported as arithmetic overflow.
 For an integer base, `**` requires an integer exponent. A negative exponent
 panics, and exponentiation uses checked multiplication in the base's result
 type. For a floating-point base, the exponent must be floating point after
-ordinary floating widening, and the operation follows IEEE 754 power behavior.
-Integer and floating operands do not mix without an explicit cast.
+ordinary floating widening. Floating `**` computes IEEE 754-2019 `pow` as
+specified in clause 9.2, including its special cases, and rounds the result
+correctly to the destination format. Integer and floating operands do not mix
+without an explicit cast; a mixed power expression is a
+`mixed-numeric-types` error.
 
-Floating `+`, `-`, `*`, `/`, and `**` follow IEEE 754, including infinities,
-signed zero, and NaN. `%` is integer-only.
+Floating `+`, `-`, `*`, and `/` use the corresponding required IEEE 754 basic
+operation, including infinities, signed zero, and NaN. Floating `**` uses the
+`pow` rule above. `%` is integer-only.
 
 `not` requires `bool`. `and` and `or` require `bool` operands and produce
 `bool`. They evaluate the right operand only when needed.
@@ -326,20 +340,36 @@ comparable: the author must explicitly implement or request derivation of
 the trait. Equality never
 silently falls back to reference identity. Floating-point equality follows
 IEEE 754, so NaN is unequal even to itself.
+Function and closure values do not implement `PartialEq`; applying `==` or
+`!=` to them is an `unsupported-equality` error.
 
 `<`, `<=`, `>`, and `>=` use `PartialOrd.partial_cmp`. The standard library
 implements it for compatible numeric values, characters by Unicode scalar
-value, and strings lexicographically. Users can implement comparison traits
-for their own types. `Ord` is the total-order refinement; floating-point
+value, strings lexicographically by scalar value, tuples and lists
+lexicographically, and optionals with `nil` before every present value.
+Composite ordering is available when the corresponding elements implement the
+comparison trait, and it stops at the first unequal or unordered element.
+Users can implement comparison traits for their own types. `Ord` is the total-order refinement; floating-point
 types have `PartialOrd` but not `Ord` because NaN is unordered. An unordered
 comparison makes all four relational operators false.
 
-`is` compares the identity of two references to the same composite object,
-regardless of any `PartialEq` implementation. Both operands must have
-compatible composite reference types; access permission (`mut`) does not
-change identity. Primitive values, `nil`, and optional values must not be
-compared with `is`. Use `not (a is b)` for distinct identities. Identity
-comparison never invokes user code.
+`is` compares identity without invoking user code. Data values, stored enum
+payloads, lists, maps, and other heap composites have allocation identity;
+access permission (`mut`) does not change it. Converting such a value to a
+trait value or `Any` preserves the underlying identity. Each evaluation of a
+closure expression creates one closure identity, retained by aliases. A
+conversion of a primitive, tuple, or optional value to a dynamic trait value or
+`Any` allocates one fresh immutable box; the resulting trait or `Any` value has
+that box's identity, and aliases of the converted value share it. Repeating the
+conversion allocates a distinct box even when the source values compare equal.
+A direct conversion of a heap composite continues to preserve the composite's
+underlying identity and does not allocate an identity wrapper. A
+payload-free enum value is canonical for its variant, so two occurrences of
+that same value have the same identity. Tuples have no identity and using `is`
+with a tuple is rejected even if it contains references. Primitive values,
+`nil`, and optional values likewise cannot be compared with `is`. Both operands
+must otherwise have compatible composite reference types. Use `not (a is b)`
+for distinct identities.
 
 Arithmetic and bitwise operators are built in for the numeric types specified
 by this chapter and [Type System](04-type-system.md). `string + string`

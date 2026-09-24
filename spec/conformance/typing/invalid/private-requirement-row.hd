@@ -1,0 +1,5 @@
+# expect-error: private-type-leak
+trait Database
+
+pub fn query() -> void $ Database:
+    pass
