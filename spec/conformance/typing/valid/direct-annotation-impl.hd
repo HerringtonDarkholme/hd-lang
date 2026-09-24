@@ -1,0 +1,15 @@
+data Validation: pass
+data Validator: pass
+data Foreign: pass
+
+data User:
+    foreign: Foreign
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl Annotate[Validation] for User:
+    fn info() -> Validator:
+        Validator {}
+
+validator := Validation::annotation(User)

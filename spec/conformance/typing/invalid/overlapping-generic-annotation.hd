@@ -1,0 +1,14 @@
+# expect-error: overlapping-annotation-impl
+data Validation: pass
+data Validator: pass
+
+impl Annotation for Validation:
+    type Info = Validator
+
+annotate[T] Validation for list[T]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator {}
+
+annotate Validation for list[i32]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator {}

@@ -740,7 +740,8 @@ annotation_decl = member_metadata_decl | facet_annotation_decl ;
 member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
-facet_annotation_decl = "annotate", annotation_facet, "for", annotation_target, ":",
+facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
+                        "for", annotation_target, [ where_clause ], ":",
                         facet_annotation_suite ;
 
 annotation_facet = type | expression ;
@@ -770,6 +771,11 @@ expression form is evaluated as a configured facet
 value; its static type is the facet type used for coherence and
 `Annotate[Facet]` generation. The syntactic overlap between a named type and a
 name expression is resolved by ordinary name and type resolution.
+
+Generic parameters and an optional `where` clause follow the same rules as a
+generic `impl`. A generic annotation target denotes a family of concrete
+targets; coherence and overlap are checked as if it were the lowered generic
+`impl Annotate[Facet] for Target`.
 
 ## Pack Expansion
 

@@ -257,12 +257,17 @@ annotate Validation for string:
 annotate Validation for Email:
     fn build(self, shape: TypeShape) -> Validator:
         Validator.Email
+
+annotate[T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.List(Validation::annotation_ref(T))
 ```
 
-Annotation facets are open across exact target types. There is no wildcard
-`annotate Validation for type` fallback. A generic family can be implemented
-with an ordinary generic `impl Annotate[Validation] for list[T]`; the
-structure-aware `annotate` sugar itself always names one exact target.
+Annotation facets are open across exact targets and generic target families.
+A generic `annotate` declaration uses the same generic binders, bounds,
+coherence, and overlap rules as its lowered generic `impl`. There is no
+unconstrained wildcard `annotate Validation for type` fallback; a family names
+a concrete type pattern such as `list[T]`.
 
 ## Grammar
 
@@ -274,7 +279,8 @@ annotation_decl = member_metadata_decl | facet_annotation_decl ;
 member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
-facet_annotation_decl = "annotate", annotation_facet, "for", annotation_target, ":",
+facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
+                        "for", annotation_target, [ where_clause ], ":",
                         facet_annotation_suite ;
 
 annotation_facet = type | expression ;
@@ -311,6 +317,12 @@ from a function target. `annotate Target` metadata
 assignments apply to data fields, enum variants, or module-level function
 parameters. Function annotators read the resulting parameter shapes and may
 replace the complete `build`.
+
+Generic parameters and `where` predicates have the same meaning as on an
+ordinary generic implementation. For example,
+`annotate[T] Validation for list[T]` occupies the same coherence region as
+`impl[T] Annotate[Validation] for list[T]`; an overlapping exact annotation is
+rejected under the normal implementation-overlap rules.
 
 ## Aggregate Annotators
 
@@ -408,7 +420,10 @@ A local `fn build` definition replaces aggregate `build` for that exact
 facet/target pair. It receives the completed uniform map and may rewrite the
 whole result. Other map steps still occur. A local `build` replaces aggregate
 assembly, not member mapping; hd-lang has no separate full-derivation
-replacement hook.
+replacement hook. To bypass child annotation resolution and every mapping step,
+write a direct `impl Annotate[Facet] for Target`. That implementation produces
+`Facet::Info` itself and occupies the same coherence slot as an `annotate`
+declaration for the pair.
 
 An assignment in `annotate Function` attaches parameter metadata; it does not
 replace that parameter's `ParamTarget`. Exact function-parameter result

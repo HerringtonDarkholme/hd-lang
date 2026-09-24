@@ -219,10 +219,13 @@ Other pack operations are outside the current design.
 - **Discuss:** decorators on embedded fields.
 - **Accepted:** `@derive(PartialEq, Eq)` uses the compiler-intrinsic path, not
   annotation lowering. No equality is derived implicitly.
-- **Discuss:** wildcard or generic-family annotation derivation syntax beyond
-  ordinary generic `impl Annotate[A] for Target` declarations.
-- **Discuss:** replacing an entire derivation rather than overriding aggregate
-  `build` after member mapping.
+- **Accepted:** generic-family `annotate` declarations use generic binders and
+  optional `where` clauses, lowering to ordinary generic `Annotate` impls with
+  the same coherence and overlap rules. No unconstrained wildcard target is
+  introduced.
+- **Retain exclusion:** a separate whole-derivation replacement hook inside
+  `annotate`. Use direct `impl Annotate[Facet] for Target` to bypass child
+  resolution, member mapping, and aggregate `build` entirely.
 - **Retain exclusion:** exact function-parameter `ParamTarget` result
   overrides inside `annotate Facet for Function`; parameter metadata remains
   available through `annotate Function` and prefix decorators.

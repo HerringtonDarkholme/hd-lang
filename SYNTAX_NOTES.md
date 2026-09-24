@@ -2165,7 +2165,17 @@ annotate Validation for string:
         ...
 ```
 
-There is no wildcard `annotate Facet for type` fallback. Each block contributes one exact type target. Generic annotation-target syntax such as a reusable case for every `list[T]` remains undesigned; until then, examples can annotate concrete instantiations such as `list[Entry]`.
+Generic annotation families use ordinary generic binders and bounds:
+
+```text
+annotate[T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.List(Validation::annotation_ref(T))
+```
+
+This lowers to the corresponding generic `Annotate` implementation and uses
+its coherence and overlap rules. There is no unconstrained wildcard
+`annotate Facet for type` fallback.
 
 ### Annotation Lowering Model
 
@@ -2228,7 +2238,7 @@ A stronger model in which arbitrary traits directly inspect an implementation ta
 
 Annotation derivation follows one strict composition direction:
 
-1. An exact type annotation produces the type's metadata.
+1. An exact or generic-family type annotation produces the type's metadata.
 2. A field annotation combines that type metadata with annotations attached to the field, producing field metadata.
 3. An enum variant combines its payload-field metadata with annotations attached to the variant, producing variant metadata.
 4. A data type combines its field metadata with annotations attached to the type, producing aggregate metadata.
@@ -2320,7 +2330,7 @@ annotate DatabaseSchema for User:
 
 A second `annotate DatabaseSchema for User` block in the same package is a compile-time error. Therefore field-level merge rules and duplicate `build` rules are not needed for same-package annotations.
 
-Annotation facets are open across target types: `annotate Validation for i32`, `annotate Validation for string`, and `annotate Validation for Email` are independent exact cases. There is still at most one block for each exact facet/target pair.
+Annotation facets are open across target types: `annotate Validation for i32`, `annotate Validation for string`, and `annotate Validation for Email` are independent exact cases. Generic-family cases participate in ordinary implementation overlap checking; after resolution, there is still one applicable annotation for each concrete facet/target pair.
 
 Annotation blocks are global within a package. Any module in the package can request the materialized annotation value:
 
@@ -2504,6 +2514,11 @@ annotate Tool for get_user:
             name: "get_user",
         }
 ```
+
+This replaces only aggregate assembly after all parameters are mapped. There
+is no `annotate` hook that skips the complete derivation pipeline. A direct
+`impl Annotate[Facet] for Target` performs that full replacement and occupies
+the same coherence slot as structural `annotate` sugar.
 
 Direct parameter metadata and exact mapped-result overrides are distinct:
 
@@ -2748,7 +2763,7 @@ impl EnumAnnotator for Validation:
         Validator.Enum(name=shape.name, variants=variants)
 ```
 
-The Validation facet is open because each exact type annotation is independent. `Validation::annotation_ref(type)` enters the same cycle-aware resolver and returns an `AnnotationRef[Validator]`. Conceptually, resolution dispatches as follows:
+The Validation facet is open because exact and generic-family annotations use ordinary implementation coherence. `Validation::annotation_ref(type)` enters the same cycle-aware resolver and returns an `AnnotationRef[Validator]`. Conceptually, resolution dispatches as follows:
 
 ```text
 resolve(Validation, target):
@@ -2825,7 +2840,7 @@ This follows the same target-specific annotation model throughout:
 2. `Folder.name` expects `list[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
 3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation: EnumAnnotator`.
 4. `Entry.File` expects `list[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
-5. `annotate Validation for list[Entry]` adds the exact collection type needed by `Folder.entries`; it explicitly references the `Entry` validator.
+5. `annotate[T: Annotate[Validation]] Validation for list[T]` supplies reusable collection validation and resolves the concrete `Entry` validator for `Folder.entries`.
 
 No `Validation` metadata is placed directly on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. Putting `Validation` into a field metadata list is rejected because it does not implement `FieldMetadata[string]`:
 
@@ -2900,7 +2915,9 @@ annotate Document:
 Open concerns:
 
 1. The exact aggregate method names are not settled: `map_field`, `map_variant`, `map_param`, and `build` still need naming review.
-2. Reusable generic target syntax for cases such as every `list[T]` remains open. The current example uses the exact target `list[Entry]` rather than inventing generic annotation syntax.
+2. Generic target families use `annotate[T: Bound] Facet for Family[T]` and
+   ordinary generic-implementation coherence; unconstrained wildcard targets
+   are not supported.
 3. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.
 4. `build` receives dictionaries keyed by field, variant, or parameter name. If output ordering matters, `build` should use the original `shape` ordering.
 5. Function parameter metadata is attached before `map_param`; exact

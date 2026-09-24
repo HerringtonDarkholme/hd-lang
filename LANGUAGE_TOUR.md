@@ -2089,9 +2089,33 @@ annotate Validation for string:
         Validator.String
 ```
 
-There is no wildcard `annotate Validation for type` fallback. Each block contributes one exact target to the open facet.
+Generic target families use the same binders and bounds as generic
+implementations:
+
+```text
+annotate[T: Annotate[Validation]] Validation for list[T]:
+    fn build(self, shape: TypeShape) -> Validator:
+        Validator.List(Validation::annotation_ref(T))
+```
+
+This occupies the same coherence region as the corresponding generic
+`impl Annotate[Validation] for list[T]`. There is no unconstrained wildcard
+`annotate Validation for type` fallback.
 
 Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same trait-coherence slot. `@derive` is the compiler-intrinsic exception.
+
+A local `build` in `annotate Facet for Target` replaces only aggregate assembly;
+child resolution and member mapping still happen first. To replace the entire
+derivation pipeline, implement the conformance directly:
+
+```text
+impl Annotate[Validation] for User:
+    fn info() -> Validator:
+        Validator.Custom(...)
+```
+
+The direct implementation and structural `annotate` form cannot coexist for
+the same facet and target.
 
 An annotator for a data type maps each field and then builds one result for the complete type:
 
@@ -2193,8 +2217,8 @@ customizes `map_param` but does not directly replace its `ParamTarget` result.
 aggregate mapping and building.
 
 Shape values and annotator methods follow the definitions in the annotation
-chapter. Generic families use ordinary generic `impl Annotate[A] for Target`;
-the structure-aware `annotate` sugar names exact targets. Type and aggregate
+chapter. Generic families may use generic `annotate` declarations or ordinary
+generic `impl Annotate[A] for Target`; both occupy the same coherence region. Type and aggregate
 information share `Annotation::Info`. A child with no facet implementation
 requires an exact field or variant result override; otherwise derivation fails
 at compile time.

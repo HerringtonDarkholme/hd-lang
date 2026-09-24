@@ -150,3 +150,7 @@ typing/invalid/parameter-decorator-type.hd	type	reject:invalid-parameter-metadat
 typing/valid/configured-facet.hd	type	accept	14-annotations.md#prefix-decorators
 typing/invalid/configured-facet-not-annotator.hd	type	reject:decorator-not-annotator	14-annotations.md#prefix-decorators
 parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	14-annotations.md#prefix-decorators
+typing/valid/generic-annotation-family.hd	type	accept	14-annotations.md#derived-facet-information
+typing/invalid/overlapping-generic-annotation.hd	type	reject:overlapping-annotation-impl	14-annotations.md#coherence-and-package-rules
+typing/valid/direct-annotation-impl.hd	type	accept	14-annotations.md#structural-overrides
+typing/invalid/duplicate-direct-annotation-impl.hd	type	reject:duplicate-annotation-impl	14-annotations.md#coherence-and-package-rules

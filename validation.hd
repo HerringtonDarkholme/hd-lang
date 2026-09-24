@@ -233,9 +233,9 @@ annotate Entry:
 annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
-annotate Validation for list[Entry]:
+annotate[T: Annotate[Validation]] Validation for list[T]:
     fn build(self, shape: TypeShape) -> Validator:
-        Validator.List(Validation::annotation_ref(Entry))
+        Validator.List(Validation::annotation_ref(T))
 
 fn materialize_validators() -> (Validator, Validator):
     folder_validator := Validation::annotation(Folder)
