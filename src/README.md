@@ -5,6 +5,11 @@ This directory contains the executable Wasm GC MVP described in
 deliberately incremental: accepted programs compile to validated Wasm GC, and
 features outside the current slice receive stable diagnostics.
 
+Small pipeline stages remain direct modules such as `lexer.ts`, `ast.ts`,
+`hir.ts`, and `wasm.ts`. Larger stages use same-named folders (`parser/`,
+`checker/`, and `emitter/`). Each folder exposes its public surface only from
+`index.ts`; consumers do not import its internal files.
+
 ## Run It
 
 The repository pins Node 24.19.0 and npm dependencies through
@@ -13,6 +18,8 @@ The repository pins Node 24.19.0 and npm dependencies through
 ```sh
 npm install
 npm run toolchain:gate
+npm run lint
+npm run format:check
 npm run hd -- check examples/core.hd
 npm run hd -- build --wat examples/core.hd
 npm run hd -- run examples/core.hd
@@ -43,6 +50,10 @@ linked through npm.
   same `list[T]` ABI;
 - a recursive-descent declaration/statement parser and Pratt expression parser;
 - named functions, forward calls, typed parameters, typed results, and locals;
+- source-ordered module bindings backed by typed Wasm globals, including
+  function reads and reassignment of top-level `let` bindings, binding-point
+  visibility, and transitive initialization checks through referenced
+  functions and closures;
 - top-level `pub` visibility metadata for functions and nominal types, with
   private-signature leak checks and an MVP `Console` host-capability profile
   for public `main` entry points;

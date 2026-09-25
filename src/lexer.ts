@@ -35,11 +35,55 @@ export interface LexResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
+interface Delimiter {
+  readonly text: string;
+  readonly span: SourceSpan;
+}
+
+interface InterpolationScanResult {
+  readonly source: string;
+  readonly text: string;
+  readonly end: SourcePosition;
+  readonly terminated: boolean;
+}
+
 const KEYWORDS = new Set([
-  "Self", "and", "annotate", "as", "break", "continue", "data", "defer",
-  "else", "enum", "false", "fn", "for", "if", "impl", "in", "is", "let",
-  "match", "mut", "nil", "not", "or", "pass", "pub", "reified", "return",
-  "self", "shape", "super", "trait", "true", "type", "use", "where", "while",
+  "Self",
+  "and",
+  "annotate",
+  "as",
+  "break",
+  "continue",
+  "data",
+  "defer",
+  "else",
+  "enum",
+  "false",
+  "fn",
+  "for",
+  "if",
+  "impl",
+  "in",
+  "is",
+  "let",
+  "match",
+  "mut",
+  "nil",
+  "not",
+  "or",
+  "pass",
+  "pub",
+  "reified",
+  "return",
+  "self",
+  "shape",
+  "super",
+  "trait",
+  "true",
+  "type",
+  "use",
+  "where",
+  "while",
 ]);
 
 const MULTI_SYMBOLS = ["...", ":=", "->", "=>", "::", "==", "!=", "<=", ">=", "<<", ">>", "**"];
@@ -56,7 +100,7 @@ class Scanner {
   private readonly tokens: Token[] = [];
   private readonly diagnostics: Diagnostic[] = [];
   private readonly indents = [0];
-  private readonly delimiters: Array<{ text: string; span: SourceSpan }> = [];
+  private readonly delimiters: Delimiter[] = [];
   private offset = 0;
   private line = 1;
   private column = 1;
@@ -73,7 +117,12 @@ class Scanner {
       if (this.lineStart && this.delimiters.length === 0 && this.scanIndentation()) continue;
       const value = this.peek();
       if (value === " " || value === "\t") {
-      if (value === "\t") this.report("tab-whitespace", "tab characters are not permitted as whitespace", this.position());
+        if (value === "\t")
+          this.report(
+            "tab-whitespace",
+            "tab characters are not permitted as whitespace",
+            this.position(),
+          );
         this.advance();
       } else if (value === "#") {
         if (this.peek(1) === "#" && !this.lineHasToken) this.scanDocComment();
@@ -92,7 +141,11 @@ class Scanner {
       } else if (value === "\uFEFF") {
         const start = this.position();
         this.advance();
-        this.report("unexpected-bom", "a byte-order mark is only allowed at the start of a file", start);
+        this.report(
+          "unexpected-bom",
+          "a byte-order mark is only allowed at the start of a file",
+          start,
+        );
       } else if (value === '"' || value === "'" || (value === "r" && this.peek(1) === '"')) {
         this.scanQuoted();
       } else if (isDigit(value)) {
@@ -104,7 +157,11 @@ class Scanner {
       }
     }
 
-    if (this.lineHasToken && this.tokens.at(-1)?.kind !== "newline" && this.delimiters.length === 0) {
+    if (
+      this.lineHasToken &&
+      this.tokens.at(-1)?.kind !== "newline" &&
+      this.delimiters.length === 0
+    ) {
       this.emit("newline", "", this.position(), this.position());
     }
     for (const delimiter of this.delimiters) {
@@ -135,7 +192,12 @@ class Scanner {
       this.report("tab-whitespace", "indentation must contain spaces only", tab);
       while (this.peek() === " " || this.peek() === "\t") this.advance();
     }
-    if ((this.peek() === "#" && this.peek(1) !== "#") || this.peek() === "\n" || this.peek() === "\r" || this.done()) {
+    if (
+      (this.peek() === "#" && this.peek(1) !== "#") ||
+      this.peek() === "\n" ||
+      this.peek() === "\r" ||
+      this.done()
+    ) {
       return false;
     }
 
@@ -149,7 +211,11 @@ class Scanner {
         this.emit("dedent", "", start, this.position());
       }
       if (width !== this.indents.at(-1)) {
-        this.report("inconsistent-dedent", `column ${width + 1} is not an active indentation level`, start);
+        this.report(
+          "inconsistent-dedent",
+          `column ${width + 1} is not an active indentation level`,
+          start,
+        );
       }
     }
     this.lineStart = false;
@@ -208,7 +274,12 @@ class Scanner {
       const clean = text.replaceAll("_", "");
       const digits = text.slice(2);
       const radix = text[1]!.toLowerCase();
-      const validDigits = radix === "b" ? /^[01](?:_?[01])*$/ : radix === "o" ? /^[0-7](?:_?[0-7])*$/ : /^[0-9a-fA-F](?:_?[0-9a-fA-F])*$/;
+      const validDigits =
+        radix === "b"
+          ? /^[01](?:_?[01])*$/
+          : radix === "o"
+            ? /^[0-7](?:_?[0-7])*$/
+            : /^[0-9a-fA-F](?:_?[0-9a-fA-F])*$/;
       const validPrefixed = digits.startsWith("_")
         ? validDigits.test(digits.slice(1))
         : validDigits.test(digits);
@@ -237,12 +308,27 @@ class Scanner {
       if (this.peek() === "+" || this.peek() === "-") text += this.advance();
       while (isDigit(this.peek()) || this.peek() === "_") text += this.advance();
     }
-    if (text.startsWith("_") || text.endsWith("_") || text.includes("__") || /_\.|\._|_[eE]|[eE]_|[+-]_/.test(text)) {
-      this.report(floating ? "invalid-float-literal" : "invalid-integer-literal", `invalid numeric literal '${text}'`, start);
+    if (
+      text.startsWith("_") ||
+      text.endsWith("_") ||
+      text.includes("__") ||
+      /_\.|\._|_[eE]|[eE]_|[+-]_/.test(text)
+    ) {
+      this.report(
+        floating ? "invalid-float-literal" : "invalid-integer-literal",
+        `invalid numeric literal '${text}'`,
+        start,
+      );
       return;
     }
     const clean = text.replaceAll("_", "");
-    this.emit(floating ? "float" : "integer", text, start, this.position(), floating ? Number(clean) : BigInt(clean));
+    this.emit(
+      floating ? "float" : "integer",
+      text,
+      start,
+      this.position(),
+      floating ? Number(clean) : BigInt(clean),
+    );
   }
 
   private scanQuoted(): void {
@@ -277,7 +363,16 @@ class Scanner {
       if (current === "\\" && !raw) {
         const escaped = this.advance();
         text += escaped;
-        const escapes: Readonly<Record<string, string>> = { "0": "\0", n: "\n", r: "\r", t: "\t", "\\": "\\", '"': '"', "'": "'", "$": "$" };
+        const escapes: Readonly<Record<string, string>> = {
+          "0": "\0",
+          n: "\n",
+          r: "\r",
+          t: "\t",
+          "\\": "\\",
+          '"': '"',
+          "'": "'",
+          $: "$",
+        };
         if (escaped === "u" && this.peek() === "{") {
           text += this.advance();
           let digits = "";
@@ -287,8 +382,14 @@ class Scanner {
             text += digit;
           }
           if (this.peek() === "}") text += this.advance();
-          const codePoint = digits.length >= 1 && digits.length <= 6 ? Number.parseInt(digits, 16) : -1;
-          if (codePoint < 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff) || !text.endsWith("}")) {
+          const codePoint =
+            digits.length >= 1 && digits.length <= 6 ? Number.parseInt(digits, 16) : -1;
+          if (
+            codePoint < 0 ||
+            codePoint > 0x10ffff ||
+            (codePoint >= 0xd800 && codePoint <= 0xdfff) ||
+            !text.endsWith("}")
+          ) {
             this.report("invalid-escape", "invalid Unicode escape sequence", start);
           } else {
             value += String.fromCodePoint(codePoint);
@@ -299,7 +400,15 @@ class Scanner {
           value += escapes[escaped];
         }
       } else if (current === "$" && !raw && quote === '"') {
-        if (value.length > 0) segments.push({ kind: "text", value, span: { start: segmentStart, end: { ...this.position(), offset: this.offset - 1, column: this.column - 1 } } });
+        if (value.length > 0)
+          segments.push({
+            kind: "text",
+            value,
+            span: {
+              start: segmentStart,
+              end: { ...this.position(), offset: this.offset - 1, column: this.column - 1 },
+            },
+          });
         value = "";
         if (isIdentifierStart(this.peek())) {
           const expressionStart = this.position();
@@ -310,7 +419,11 @@ class Scanner {
             source += next;
             text += next;
           }
-          segments.push({ kind: "expression", source, span: { start: expressionStart, end: this.position() } });
+          segments.push({
+            kind: "expression",
+            source,
+            span: { start: expressionStart, end: this.position() },
+          });
           segmentStart = this.position();
         } else if (this.peek() === "{") {
           text += this.advance();
@@ -318,14 +431,26 @@ class Scanner {
           const source = this.scanInterpolationExpression();
           text += source.text;
           if (source.terminated) {
-            segments.push({ kind: "expression", source: source.source, span: { start: expressionStart, end: source.end } });
+            segments.push({
+              kind: "expression",
+              source: source.source,
+              span: { start: expressionStart, end: source.end },
+            });
             segmentStart = this.position();
           } else {
-            this.report("unterminated-string-interpolation", "unterminated '${...}' interpolation", expressionStart);
+            this.report(
+              "unterminated-string-interpolation",
+              "unterminated '${...}' interpolation",
+              expressionStart,
+            );
             break;
           }
         } else {
-          this.report("invalid-string-interpolation", "an unescaped '$' must be followed by an identifier or '{'", start);
+          this.report(
+            "invalid-string-interpolation",
+            "an unescaped '$' must be followed by an identifier or '{'",
+            start,
+          );
           segmentStart = this.position();
         }
       } else {
@@ -334,17 +459,22 @@ class Scanner {
     }
     if (!terminated) this.report("unterminated-string", "unterminated literal", start);
     if (quote === "'" && [...value].length !== 1) {
-      this.report("invalid-character-literal", "a character literal must contain one Unicode scalar value", start);
+      this.report(
+        "invalid-character-literal",
+        "a character literal must contain one Unicode scalar value",
+        start,
+      );
     }
     if (segments.length > 0) {
-      if (value.length > 0) segments.push({ kind: "text", value, span: { start: segmentStart, end: this.position() } });
+      if (value.length > 0)
+        segments.push({ kind: "text", value, span: { start: segmentStart, end: this.position() } });
       this.emit("string", text, start, this.position(), { kind: "interpolated-string", segments });
     } else {
       this.emit(quote === "'" ? "character" : "string", text, start, this.position(), value);
     }
   }
 
-  private scanInterpolationExpression(): { readonly source: string; readonly text: string; readonly end: SourcePosition; readonly terminated: boolean } {
+  private scanInterpolationExpression(): InterpolationScanResult {
     const stack = ["}"];
     let source = "";
     let text = "";
@@ -406,14 +536,21 @@ class Scanner {
 
   private scanSymbol(): void {
     const start = this.position();
-    const symbol = MULTI_SYMBOLS.find((candidate) => this.source.startsWith(candidate, this.offset)) ?? this.peek();
+    const symbol =
+      MULTI_SYMBOLS.find((candidate) => this.source.startsWith(candidate, this.offset)) ??
+      this.peek();
     if (!SINGLE_SYMBOLS.has(symbol[0]!) && !MULTI_SYMBOLS.includes(symbol)) {
       this.advance();
       this.report("unexpected-character", `unexpected character '${symbol}'`, start);
       return;
     }
     for (let index = 0; index < symbol.length; index += 1) this.advance();
-    if (symbol === ";") this.report("reserved-semicolon", "semicolon is reserved and cannot separate statements", start);
+    if (symbol === ";")
+      this.report(
+        "reserved-semicolon",
+        "semicolon is reserved and cannot separate statements",
+        start,
+      );
     if (symbol in OPEN_TO_CLOSE) {
       this.delimiters.push({ text: symbol, span: { start, end: this.position() } });
     } else if (symbol in CLOSE_TO_OPEN) {
@@ -428,7 +565,13 @@ class Scanner {
     this.emit("symbol", symbol, start, this.position(), symbol);
   }
 
-  private emit(kind: TokenKind, text: string, start: SourcePosition, end: SourcePosition, value?: Token["value"]): void {
+  private emit(
+    kind: TokenKind,
+    text: string,
+    start: SourcePosition,
+    end: SourcePosition,
+    value?: Token["value"],
+  ): void {
     this.tokens.push({ kind, text, value, span: { start, end } });
     if (!(["newline", "indent", "dedent", "eof"] as TokenKind[]).includes(kind)) {
       this.lineHasToken = true;

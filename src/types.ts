@@ -17,6 +17,17 @@ export interface NominalGenericParts {
   readonly arguments: readonly ValueType[];
 }
 
+export interface SuspensionParts {
+  readonly functionIndex: number;
+  readonly result: ValueType;
+}
+
+export interface TraitSuspensionParts {
+  readonly traitIndex: number;
+  readonly methodIndex: number;
+  readonly result: ValueType;
+}
+
 export function mutableInner(type: ValueType): ValueType | undefined {
   return type.startsWith("mut:") ? type.slice("mut:".length) : undefined;
 }
@@ -116,7 +127,6 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
   for (let index = 3; index < type.length; index += 1) {
     const character = type[index];
     if (character === "(" || character === "[") depth += 1;
-    else if (character === "[") depth += 1;
     else if (character === "]") depth -= 1;
     else if (character === ")" && depth === 0) {
       close = index;
@@ -151,9 +161,13 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
     }
   }
   const result = requirementStart < 0 ? tail : tail.slice(0, requirementStart);
-  const requirements = requirementStart < 0
-    ? []
-    : tail.slice(requirementStart + 1).split("+").filter(Boolean);
+  const requirements =
+    requirementStart < 0
+      ? []
+      : tail
+          .slice(requirementStart + 1)
+          .split("+")
+          .filter(Boolean);
   const variadic = renderedParameters.at(-1)?.endsWith("...") === true;
   const parameters = renderedParameters.map((parameter, index) => {
     if (!variadic || index !== renderedParameters.length - 1) return parameter;
@@ -162,7 +176,12 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
   return { parameters, variadic, result, requirements };
 }
 
-export function functionType(parameters: readonly ValueType[], result: ValueType, requirements: readonly string[] = [], variadic = false): ValueType {
+export function functionType(
+  parameters: readonly ValueType[],
+  result: ValueType,
+  requirements: readonly string[] = [],
+  variadic = false,
+): ValueType {
   const row = [...new Set(requirements)].sort();
   const rendered = parameters.map((parameter, index) => {
     if (!variadic || index !== parameters.length - 1) return parameter;
@@ -173,7 +192,9 @@ export function functionType(parameters: readonly ValueType[], result: ValueType
 }
 
 export function contextKeys(type: ValueType): readonly string[] | undefined {
-  return type.startsWith("context:") ? type.slice("context:".length).split("+").filter(Boolean) : undefined;
+  return type.startsWith("context:")
+    ? type.slice("context:".length).split("+").filter(Boolean)
+    : undefined;
 }
 
 export function contextType(keys: readonly string[]): ValueType {
@@ -184,16 +205,22 @@ export function suspensionType(functionIndex: number, result: ValueType): ValueT
   return `suspend(${functionIndex}):${result}`;
 }
 
-export function suspensionParts(type: ValueType): { functionIndex: number; result: ValueType } | undefined {
+export function suspensionParts(type: ValueType): SuspensionParts | undefined {
   const match = /^suspend\((\d+)\):(.*)$/s.exec(type);
   return match ? { functionIndex: Number(match[1]), result: match[2]! } : undefined;
 }
 
-export function traitSuspensionType(traitIndex: number, methodIndex: number, result: ValueType): ValueType {
+export function traitSuspensionType(
+  traitIndex: number,
+  methodIndex: number,
+  result: ValueType,
+): ValueType {
   return `trait-suspend(${traitIndex},${methodIndex}):${result}`;
 }
 
-export function traitSuspensionParts(type: ValueType): { traitIndex: number; methodIndex: number; result: ValueType } | undefined {
+export function traitSuspensionParts(type: ValueType): TraitSuspensionParts | undefined {
   const match = /^trait-suspend\((\d+),(\d+)\):(.*)$/s.exec(type);
-  return match ? { traitIndex: Number(match[1]), methodIndex: Number(match[2]), result: match[3]! } : undefined;
+  return match
+    ? { traitIndex: Number(match[1]), methodIndex: Number(match[2]), result: match[3]! }
+    : undefined;
 }

@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 
 import type { Diagnostic } from "./diagnostics.ts";
 import { DiagnosticError } from "./diagnostics.ts";
-import { check } from "./checker.ts";
-import { emitWat } from "./emitter.ts";
+import { check } from "./checker/index.ts";
+import { emitWat } from "./emitter/index.ts";
 import type { HirProgram } from "./hir.ts";
-import { parse } from "./parser.ts";
+import { parse } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 
 export interface Compilation extends WasmArtifact {
@@ -60,16 +60,23 @@ export function compile(source: string): Compilation {
   return { ...artifact, hir: analysis.hir, diagnostics: analysis.diagnostics };
 }
 
-export async function instantiate(source: string, options: InstantiateOptions = {}): Promise<{ compilation: Compilation; instance: WebAssembly.Instance; replay: ReplaySession }> {
+export async function instantiate(
+  source: string,
+  options: InstantiateOptions = {},
+): Promise<{ compilation: Compilation; instance: WebAssembly.Instance; replay: ReplaySession }> {
   const compilation = compile(source);
-  const functionNames = new Map(compilation.hir.functions.map((declaration) => [declaration.index, declaration.name]));
-  const functionCodeIds = new Map(compilation.hir.functions.map((declaration) => [
-    declaration.index,
-    createHash("sha256")
-      .update(source.slice(declaration.span.start.offset, declaration.span.end.offset))
-      .digest("hex")
-      .slice(0, 16),
-  ]));
+  const functionNames = new Map(
+    compilation.hir.functions.map((declaration) => [declaration.index, declaration.name]),
+  );
+  const functionCodeIds = new Map(
+    compilation.hir.functions.map((declaration) => [
+      declaration.index,
+      createHash("sha256")
+        .update(source.slice(declaration.span.start.offset, declaration.span.end.offset))
+        .digest("hex")
+        .slice(0, 16),
+    ]),
+  );
   const configurationId = options.providerConfigurationId ?? "default";
   const consoleBytes: number[] = [];
   const consoleByte = (provider: unknown, byte: number): void => {
@@ -89,19 +96,24 @@ export async function instantiate(source: string, options: InstantiateOptions = 
     const expected = options.replay?.[replayIndex];
     if (options.replay) {
       if (!expected) throw new Error(`replay exhausted before suspension site ${siteId}`);
-      if (expected.siteId !== siteId
-        || expected.functionName !== functionName
-        || expected.functionCodeId !== functionCodeId
-        || expected.providerKey !== "$runtime"
-        || expected.operation !== "poll"
-        || expected.encodedArguments[0] !== pollCount) {
-        const reason = expected.functionCodeId !== functionCodeId
-          ? `function code identity '${functionCodeId}'`
-          : `suspension site ${siteId}`;
+      if (
+        expected.siteId !== siteId ||
+        expected.functionName !== functionName ||
+        expected.functionCodeId !== functionCodeId ||
+        expected.providerKey !== "$runtime" ||
+        expected.operation !== "poll" ||
+        expected.encodedArguments[0] !== pollCount
+      ) {
+        const reason =
+          expected.functionCodeId !== functionCodeId
+            ? `function code identity '${functionCodeId}'`
+            : `suspension site ${siteId}`;
         throw new Error(`replay event ${replayIndex} does not match ${reason}`);
       }
       if (expected.providerConfigurationId !== configurationId) {
-        throw new Error(`replay provider configuration '${expected.providerConfigurationId}' does not match '${configurationId}'`);
+        throw new Error(
+          `replay provider configuration '${expected.providerConfigurationId}' does not match '${configurationId}'`,
+        );
       }
       replayIndex += 1;
       return expected.encodedResult === "pending" ? 1 : 0;
@@ -129,7 +141,9 @@ export async function instantiate(source: string, options: InstantiateOptions = 
     },
   });
   const replay: ReplaySession = {
-    get consumed() { return replayIndex; },
+    get consumed() {
+      return replayIndex;
+    },
     assertComplete() {
       if (options.replay && replayIndex !== options.replay.length) {
         throw new Error(`replay has ${options.replay.length - replayIndex} unconsumed event(s)`);

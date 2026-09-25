@@ -14,7 +14,9 @@ fn main() -> i32 $ Clock: middle() + 1
   const analysis = analyze(source);
   assert.deepEqual(analysis.diagnostics, []);
   const explanations = explainRequirements(analysis.hir!);
-  assert.deepEqual(explanations[2]?.paths, [{ key: "Clock", path: ["main", "middle", "read", "$.use(Clock)"] }]);
+  assert.deepEqual(explanations[2]?.paths, [
+    { key: "Clock", path: ["main", "middle", "read", "$.use(Clock)"] },
+  ]);
 });
 
 test("lexical overrides explain their actual outer provider dependency", () => {

@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  buildToolchainGate,
-  runToolchainGate,
-  TOOLCHAIN_GATE_WAT,
-} from "../src/toolchain-gate.ts";
+import { buildToolchainGate, runToolchainGate, TOOLCHAIN_GATE_WAT } from "../src/toolchain-gate.ts";
 
 test("the toolchain gate contains each required Wasm GC operation", () => {
   for (const operation of [

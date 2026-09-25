@@ -1,9 +1,7 @@
 import binaryen from "binaryen";
 
 export const WASM_FEATURES =
-  binaryen.Features.MutableGlobals |
-  binaryen.Features.ReferenceTypes |
-  binaryen.Features.GC;
+  binaryen.Features.MutableGlobals | binaryen.Features.ReferenceTypes | binaryen.Features.GC;
 
 export interface WasmArtifact {
   readonly wat: string;
@@ -22,9 +20,7 @@ export function assembleWat(wat: string): WasmArtifact {
   try {
     module = binaryen.parseText(wat);
   } catch (error) {
-    throw new WasmValidationError(
-      `Binaryen could not parse generated WAT: ${String(error)}`,
-    );
+    throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);
   }
 
   try {

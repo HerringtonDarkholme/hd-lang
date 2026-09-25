@@ -10,7 +10,10 @@ const execute = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
 const entrypoint = resolve(root, "bin/hd.js");
 
-async function hd(args: readonly string[], cwd = root): Promise<{ stdout: string; stderr: string }> {
+async function hd(
+  args: readonly string[],
+  cwd = root,
+): Promise<{ stdout: string; stderr: string }> {
   return execute(process.execPath, [entrypoint, ...args], {
     cwd,
     encoding: "utf8",
@@ -50,7 +53,10 @@ test("documented CLI commands work end to end", async () => {
 
     const recorded = await hd(["record", replaySource]);
     const replayPath = `${replaySource}.replay.json`;
-    assert.match(recorded.stdout, new RegExp(`${basename(replayPath).replaceAll(".", "\\.")}[\\s\\S]*42`));
+    assert.match(
+      recorded.stdout,
+      new RegExp(`${basename(replayPath).replaceAll(".", "\\.")}[\\s\\S]*42`),
+    );
     const events = JSON.parse(await readFile(replayPath, "utf8")) as unknown[];
     assert.ok(events.length > 0);
 

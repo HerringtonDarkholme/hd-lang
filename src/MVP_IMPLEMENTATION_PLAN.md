@@ -63,6 +63,10 @@ code as entry functions. The
 curated gate asserts stable diagnostics for the syntax
 and type errors it currently covers and executes supported manifest panic cases
 through Wasm GC.
+Module execution bindings now lower to typed Wasm globals. Their source-order
+visibility is enforced for function bodies, and top-level initializers are
+checked for transitive reads through referenced functions and closures before
+the corresponding global has been initialized.
 The remaining interpolation boundary is the canonical prelude `Display`
 dictionary: unsupported embedded types receive `missing-display` until that
 standard trait and floating-point formatting are executable.

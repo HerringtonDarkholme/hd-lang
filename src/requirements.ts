@@ -11,8 +11,12 @@ export interface FunctionRequirementExplanation {
   readonly paths: readonly RequirementPath[];
 }
 
-export function explainRequirements(program: HirProgram): readonly FunctionRequirementExplanation[] {
-  const functions = new Map(program.functions.map((declaration) => [declaration.index, declaration]));
+export function explainRequirements(
+  program: HirProgram,
+): readonly FunctionRequirementExplanation[] {
+  const functions = new Map(
+    program.functions.map((declaration) => [declaration.index, declaration]),
+  );
   return program.functions.map((declaration) => ({
     functionName: declaration.name,
     declared: declaration.requirements,
@@ -61,6 +65,8 @@ function visitStatements(
         break;
       case "binding":
       case "assignment":
+      case "global-binding":
+      case "global-assignment":
       case "discard":
         visitExpression(statement.value, key, path, active, functions, output);
         break;
@@ -93,20 +99,42 @@ function visitExpression(
       if (expression.key === key) output.push([...path, `$.use(${key})`]);
       return;
     case "provider-pack":
-      expression.bases.forEach((base) => visitExpression(base, key, path, active, functions, output));
-      expression.providers.forEach((provider) => visitExpression(provider, key, path, active, functions, output));
+      expression.bases.forEach((base) =>
+        visitExpression(base, key, path, active, functions, output),
+      );
+      expression.providers.forEach((provider) =>
+        visitExpression(provider, key, path, active, functions, output),
+      );
       return;
     case "call":
     case "suspend-construct": {
-      expression.arguments.forEach((argument) => visitExpression(argument, key, path, active, functions, output));
-      expression.bounds?.forEach((bound) => visitExpression(bound, key, path, active, functions, output));
+      expression.arguments.forEach((argument) =>
+        visitExpression(argument, key, path, active, functions, output),
+      );
+      expression.bounds?.forEach((bound) =>
+        visitExpression(bound, key, path, active, functions, output),
+      );
       const callee = functions.get(expression.functionIndex);
       if (!callee) return;
       expression.providers.forEach((provider, index) => {
         if (provider.kind === "provider-use" && provider.key === key) {
-          visitFunction(callee, callee.requirements[index]!, [...path, callee.name], active, functions, output);
+          visitFunction(
+            callee,
+            callee.requirements[index]!,
+            [...path, callee.name],
+            active,
+            functions,
+            output,
+          );
         } else if (provider.kind === "provider-pack" && provider.keys.includes(key)) {
-          visitFunction(callee, callee.requirements[index]!, [...path, callee.name], active, functions, output);
+          visitFunction(
+            callee,
+            callee.requirements[index]!,
+            [...path, callee.name],
+            active,
+            functions,
+            output,
+          );
         }
       });
       return;
@@ -119,14 +147,21 @@ function visitExpression(
       return;
     case "trait-suspend-construct":
       visitExpression(expression.receiver, key, path, active, functions, output);
-      expression.arguments.forEach((argument) => visitExpression(argument, key, path, active, functions, output));
-      expression.providers.forEach((provider) => visitExpression(provider, key, path, active, functions, output));
+      expression.arguments.forEach((argument) =>
+        visitExpression(argument, key, path, active, functions, output),
+      );
+      expression.providers.forEach((provider) =>
+        visitExpression(provider, key, path, active, functions, output),
+      );
       return;
     case "variant-wrap":
-      if (expression.payload) visitExpression(expression.payload, key, path, active, functions, output);
+      if (expression.payload)
+        visitExpression(expression.payload, key, path, active, functions, output);
       return;
     case "list":
-      expression.elements.forEach((element) => visitExpression(element, key, path, active, functions, output));
+      expression.elements.forEach((element) =>
+        visitExpression(element, key, path, active, functions, output),
+      );
       return;
     case "map":
       expression.entries.forEach((entry) => {
@@ -145,12 +180,18 @@ function visitExpression(
       visitExpression(expression.right, key, path, active, functions, output);
       return;
     case "closure":
-      expression.captures.forEach((capture) => visitExpression(capture, key, path, active, functions, output));
+      expression.captures.forEach((capture) =>
+        visitExpression(capture, key, path, active, functions, output),
+      );
       return;
     case "closure-call":
       visitExpression(expression.callee, key, path, active, functions, output);
-      expression.arguments.forEach((argument) => visitExpression(argument, key, path, active, functions, output));
-      expression.providers.forEach((provider) => visitExpression(provider, key, path, active, functions, output));
+      expression.arguments.forEach((argument) =>
+        visitExpression(argument, key, path, active, functions, output),
+      );
+      expression.providers.forEach((provider) =>
+        visitExpression(provider, key, path, active, functions, output),
+      );
       return;
     case "trait-wrap":
       visitExpression(expression.value, key, path, active, functions, output);
@@ -163,19 +204,30 @@ function visitExpression(
       return;
     case "trait-call":
       visitExpression(expression.receiver, key, path, active, functions, output);
-      expression.arguments.forEach((argument) => visitExpression(argument, key, path, active, functions, output));
-      expression.providers.forEach((provider) => visitExpression(provider, key, path, active, functions, output));
+      expression.arguments.forEach((argument) =>
+        visitExpression(argument, key, path, active, functions, output),
+      );
+      expression.providers.forEach((provider) =>
+        visitExpression(provider, key, path, active, functions, output),
+      );
       return;
     case "provider-context":
-      expression.entries.forEach((entry) => visitExpression(entry.value, key, path, active, functions, output));
+      expression.entries.forEach((entry) =>
+        visitExpression(entry.value, key, path, active, functions, output),
+      );
       return;
     case "provider-with":
-      expression.entries.forEach((entry) => visitExpression(entry.value, key, path, active, functions, output));
+      expression.entries.forEach((entry) =>
+        visitExpression(entry.value, key, path, active, functions, output),
+      );
       visitStatements(expression.body, key, path, active, functions, output);
       return;
     case "data":
-      if (expression.spread) visitExpression(expression.spread, key, path, active, functions, output);
-      expression.fields.forEach((field) => visitExpression(field, key, path, active, functions, output));
+      if (expression.spread)
+        visitExpression(expression.spread, key, path, active, functions, output);
+      expression.fields.forEach((field) =>
+        visitExpression(field, key, path, active, functions, output),
+      );
       return;
     case "enum":
       expression.fields.forEach((field) => {
@@ -228,6 +280,7 @@ function visitExpression(
     case "character":
     case "boolean":
     case "local":
+    case "global":
     case "capture":
       return;
   }
