@@ -1,0 +1,4 @@
+# test: parser lowers multi-provider use to an ordered tuple
+# expect: parse
+
+fn use_both() -> void $ Clock + Logger: _ := $.use(Clock, Logger)

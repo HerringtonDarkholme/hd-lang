@@ -1,0 +1,18 @@
+# test: generics / functions / inference and boxing
+# expect-result: main = 42
+# expect-result: float_value = 3.5
+
+data Box:
+    value: i32
+
+fn identity[T](value: T) -> T: value
+
+fn choose[T](left: T, right: T) -> T: left
+
+fn float_value() -> f64: identity(3.5)
+
+fn main() -> i32:
+    number := identity(40)
+    text := identity("hd")
+    box := identity(Box { value: 2 })
+    choose(number + box.value, 42) + text.len() - 2

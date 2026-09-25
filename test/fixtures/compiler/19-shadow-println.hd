@@ -1,0 +1,3 @@
+# test: prelude println cannot be shadowed
+
+fn println() -> void: pass  # diagnostic: prelude-name-shadow

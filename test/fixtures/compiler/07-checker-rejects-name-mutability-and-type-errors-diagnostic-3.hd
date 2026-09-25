@@ -1,0 +1,3 @@
+# test: checker rejects name, mutability, and type errors
+
+fn main() -> i32: true  # diagnostic: type-mismatch

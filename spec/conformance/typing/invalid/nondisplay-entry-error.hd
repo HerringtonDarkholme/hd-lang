@@ -1,5 +1,4 @@
-# expect-error: entry-error-not-display
 data HiddenError: pass
 
-pub fn main() -> Result[void, HiddenError]:
+pub fn main() -> Result[void, HiddenError]:  # diagnostic: entry-error-not-display
     Err(HiddenError {})

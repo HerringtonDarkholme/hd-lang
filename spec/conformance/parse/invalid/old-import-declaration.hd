@@ -1,3 +1,2 @@
-# expect-error: old-import-declaration
 
-import pkg.user.types.{User}
+import pkg.user.types.{User}  # diagnostic: old-import-declaration

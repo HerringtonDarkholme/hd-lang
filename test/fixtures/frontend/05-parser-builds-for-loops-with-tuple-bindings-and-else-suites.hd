@@ -1,0 +1,8 @@
+# test: parser builds for loops with tuple bindings and else suites
+# expect: parse
+
+fn first(entries: map[string, i32]) -> i32:
+    for key, value in entries:
+        break value
+    else:
+        0

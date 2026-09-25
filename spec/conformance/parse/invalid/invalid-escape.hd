@@ -1,3 +1,2 @@
-# expect-error: invalid-escape
 
-value := "bad\xescape"
+value := "bad\xescape"  # diagnostic: invalid-escape

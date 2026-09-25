@@ -1,0 +1,8 @@
+# test: imported assert_equal compares supported structural values
+# expect-result: main = 42
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    assert_equal((1, ["a", "b"]), (1, ["a", "b"]), reason="same structure")
+    42

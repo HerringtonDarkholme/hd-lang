@@ -1,0 +1,5 @@
+# test: expected function types infer inline closure parameters and results
+
+fn main() -> i32:
+    closure := fn(value) -> i32: value  # diagnostic: closure-parameter-needs-annotation
+    0

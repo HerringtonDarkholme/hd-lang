@@ -1,9 +1,8 @@
-# expect-error: generic-requirement-key-collision
 trait Repo[T]
 
 fn choose[T, U](first: Repo[T], second: Repo[U]) -> void:
     $.with(Repo[T]=first):
-        $.with(Repo[U]=second):
+        $.with(Repo[U]=second):  # diagnostic: generic-requirement-key-collision
             pass
 
 data User: pass

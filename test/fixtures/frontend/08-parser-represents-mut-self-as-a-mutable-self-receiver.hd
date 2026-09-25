@@ -1,0 +1,5 @@
+# test: parser represents mut self as a mutable Self receiver
+# expect: parse
+
+trait Counter:
+    fn add(mut self, value: i32) -> void

@@ -1,0 +1,3 @@
+# test: identity / references / unbounded generic
+
+fn same[T](left: T, right: T) -> bool: left is right  # diagnostic: identity-needs-reference-bound

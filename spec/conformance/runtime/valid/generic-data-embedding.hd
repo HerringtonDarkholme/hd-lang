@@ -1,0 +1,19 @@
+use std.testing.assert_equal
+
+data Box[T]:
+    value: T
+
+data Shipment[T]:
+    Box[T]
+    id: string
+
+test "explicit generic construction promotes embedded fields":
+    shipment := Shipment[i32] {
+        Box: Box[i32] { value: 40 },
+        id: "hd",
+    }
+    assert_equal(
+        shipment.value + shipment.id.len(),
+        42,
+        reason="embedded fields preserve their instantiated types",
+    )

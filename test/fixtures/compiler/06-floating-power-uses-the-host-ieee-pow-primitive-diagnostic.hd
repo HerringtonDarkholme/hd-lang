@@ -1,0 +1,3 @@
+# test: floating power uses the host IEEE pow primitive
+
+fn main() -> f64: 2 ** 2.0  # diagnostic: mixed-numeric-types

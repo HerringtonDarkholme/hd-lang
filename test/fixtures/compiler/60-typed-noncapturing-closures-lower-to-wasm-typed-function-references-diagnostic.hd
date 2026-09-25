@@ -1,0 +1,5 @@
+# test: typed noncapturing closures lower to Wasm typed function references
+
+fn main() -> i32:
+    apply := fn(value: i32) -> i32: value
+    apply(true)  # diagnostic: type-mismatch

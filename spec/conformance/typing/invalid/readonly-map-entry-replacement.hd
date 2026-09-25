@@ -1,7 +1,5 @@
-# expect-error: readonly-root
-
 data Child:
     name: string
 
 fn invalid(children: map[string, mut Child], replacement: mut Child) -> void:
-    children["id"] = replacement
+    children["id"] = replacement  # diagnostic: readonly-root

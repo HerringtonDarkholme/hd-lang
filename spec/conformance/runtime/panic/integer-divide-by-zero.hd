@@ -1,4 +1,2 @@
-# expect-panic: integer-division-by-zero
-
 let divisor: i32 = 0
-result := 10 / divisor
+result := 10 / divisor  # panic: integer-division-by-zero

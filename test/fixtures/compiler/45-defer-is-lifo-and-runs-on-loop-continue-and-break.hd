@@ -1,0 +1,22 @@
+# test: defer is LIFO and runs on loop continue and break
+# expect-result: main = 1221
+
+fn main() -> i32:
+    let value: i32 = 0
+    if true:
+        defer:
+            value = value * 10 + 1
+        defer:
+            value = value * 10 + 2
+        pass
+    let iterations: i32 = 0
+    while iterations < 2:
+        defer:
+            value = value + 100
+        iterations = iterations + 1
+        continue
+    while true:
+        defer:
+            value = value + 1000
+        break
+    value

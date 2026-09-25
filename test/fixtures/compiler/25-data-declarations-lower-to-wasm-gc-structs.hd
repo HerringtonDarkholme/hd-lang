@@ -1,0 +1,12 @@
+# test: data declarations lower to Wasm GC structs
+# expect-result: main = 42
+
+data Point:
+    x: i32
+    y: i32
+
+fn sum(point: Point) -> i32: point.x + point.y
+
+fn main() -> i32:
+    point := Point { y: 22, x: 20 }
+    sum(point)

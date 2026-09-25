@@ -1,0 +1,10 @@
+# test: match checking rejects missing payload patterns
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:
+        Flag.On => 1  # diagnostic: pattern-arity
+        Flag.Off => 0

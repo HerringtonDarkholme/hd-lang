@@ -1,7 +1,5 @@
-# expect-error: readonly-root
-
 data Child:
     name: string
 
 fn invalid(children: list[mut Child], replacement: mut Child) -> void:
-    children[0] = replacement
+    children[0] = replacement  # diagnostic: readonly-root

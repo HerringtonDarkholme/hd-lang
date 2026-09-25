@@ -1,7 +1,4 @@
-# expect-error: private-type-leak
-
 data Secret:
     value: string
-
-pub fn reveal() -> Secret:
+pub fn reveal() -> Secret:  # diagnostic: private-type-leak
     Secret { value: "hidden" }

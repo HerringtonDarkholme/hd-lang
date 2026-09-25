@@ -1,0 +1,20 @@
+# test: CFG suspension lowering installs providers produced after resumption
+# expect-result: main = 42
+
+trait Clock
+
+data MockClock:
+    value: i32
+
+impl Clock for MockClock
+
+fn make_clock!(value: i32) -> Clock:
+    MockClock { value: value }
+
+fn read() -> i32 $ Clock:
+    _ := $.use(Clock)
+    42
+
+fn main!() -> i32:
+    $.with(Clock=make_clock!(1)):
+        read()

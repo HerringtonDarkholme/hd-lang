@@ -1,0 +1,6 @@
+# test: requirements / abi
+# expect-result: main = 42
+
+fn read() -> i32 $ Clock: 40
+fn middle() -> i32 $ Clock: read() + 1
+fn main() -> i32 $ Clock: middle() + 1

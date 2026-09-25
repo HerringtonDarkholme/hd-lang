@@ -1,0 +1,22 @@
+# test: traits / embedded fields
+# expect-result: main = 42
+
+trait Describe:
+    fn describe(self) -> i32
+
+data Label:
+    value: i32
+
+impl Label:
+    fn describe(self) -> i32: self.value
+
+data Page:
+    Label
+
+impl Describe for Page
+
+fn show(value: Describe) -> i32: value.describe()
+
+fn main() -> i32:
+    page := Page { Label: Label { value: 21 } }
+    page.describe() + show(page)

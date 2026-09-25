@@ -1,0 +1,6 @@
+# test: defer rejects escaping control flow
+
+fn main() -> i32:
+    defer:
+        return 1  # diagnostic: defer-control-flow
+    0

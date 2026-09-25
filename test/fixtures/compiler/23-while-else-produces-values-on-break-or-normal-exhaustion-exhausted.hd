@@ -1,0 +1,11 @@
+# test: while else produces values on break or normal exhaustion
+# expect-result: main = 42
+
+fn main() -> i32:
+    let index: i32 = 0
+    value := while index < 2:
+        index = index + 1
+        continue
+    else:
+        40
+    value + index

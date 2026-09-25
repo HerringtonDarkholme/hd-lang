@@ -1,4 +1,3 @@
-# expect-error: prelude-name-shadow
 
-data i32:
+data i32:  # diagnostic: prelude-name-shadow
     value: string

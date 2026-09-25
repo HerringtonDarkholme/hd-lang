@@ -1,0 +1,4 @@
+# test: floating power uses the host IEEE pow primitive
+# expect-result: main = 3
+
+fn main() -> f64: 9.0 ** 0.5

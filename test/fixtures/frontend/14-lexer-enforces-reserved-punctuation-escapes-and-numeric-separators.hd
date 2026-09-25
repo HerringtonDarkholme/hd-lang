@@ -1,0 +1,3 @@
+# test: lexer enforces reserved punctuation, escapes, and numeric separators
+
+value := 1;  # diagnostic: reserved-semicolon

@@ -1,5 +1,3 @@
-# expect-error: readonly-argument-to-mutable-parameter
-
 data User:
     name: string
 
@@ -10,4 +8,4 @@ fn rename(user: mut User) -> void:
     user.name = "Grace"
 
 fn invalid() -> void:
-    rename(new_user())
+    rename(new_user())  # diagnostic: readonly-argument-to-mutable-parameter

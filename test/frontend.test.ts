@@ -5,17 +5,9 @@ import test from "node:test";
 
 import { lex } from "../src/lexer.ts";
 import { parse } from "../src/parser/index.ts";
+import { fixtureBody } from "./fixture.ts";
 
-const CORE_PROGRAM = `fn choose(flag: bool, left: i32, right: i32) -> i32:
-    if flag:
-        left + 1
-    else:
-        right * 2
-
-fn main() -> i32:
-    base := 20
-    choose(base < 30, base, 0)
-`;
+const CORE_PROGRAM = fixtureBody("frontend/00-core-program");
 
 test("lexer emits layout tokens and source positions", () => {
   const result = lex(CORE_PROGRAM);
@@ -49,9 +41,7 @@ test("core AST shape matches its checked-in snapshot", () => {
 });
 
 test("parser builds value-producing while else", () => {
-  const result = parse(
-    "fn main() -> void:\n    while true:\n        pass\n    else:\n        pass\n",
-  );
+  const result = parse(fixtureBody("frontend/04-parser-builds-value-producing-while-else"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   assert.equal(statement?.kind, "expression");
@@ -62,7 +52,7 @@ test("parser builds value-producing while else", () => {
 
 test("parser builds for loops with tuple bindings and else suites", () => {
   const result = parse(
-    "fn first(entries: map[string, i32]) -> i32:\n    for key, value in entries:\n        break value\n    else:\n        0\n",
+    fixtureBody("frontend/05-parser-builds-for-loops-with-tuple-bindings-and-else-suites"),
   );
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
@@ -79,7 +69,7 @@ test("parser builds for loops with tuple bindings and else suites", () => {
 
 test("parser lowers named local functions to typed closure bindings", () => {
   const result = parse(
-    "fn outer(bonus: i32) -> i32:\n    fn add(value: i32) -> i32:\n        value + bonus\n    add(1)\n",
+    fixtureBody("frontend/06-parser-lowers-named-local-functions-to-typed-closure-bindings"),
   );
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
@@ -94,42 +84,40 @@ test("parser lowers named local functions to typed closure bindings", () => {
 
 test("parser retains mutable permission types and field assignments", () => {
   const result = parse(
-    'data User:\n    name: string\nfn rename(user: mut User) -> mut User:\n    user.name = "Grace"\n    user\n',
+    fixtureBody("frontend/07-parser-retains-mutable-permission-types-and-field-assignments"),
   );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "mut:User");
   assert.equal(result.program?.functions[0]?.result.name, "mut:User");
   assert.equal(result.program?.functions[0]?.body[0]?.kind, "field-assignment");
   assert.equal(
-    parse("fn set(values: mut list[i32]) -> void: values[0] = 1\n").program?.functions[0]?.body[0]
-      ?.kind,
+    parse(
+      fixtureBody("frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2"),
+    ).program?.functions[0]?.body[0]?.kind,
     "index-assignment",
   );
 });
 
 test("parser represents mut self as a mutable Self receiver", () => {
-  const result = parse("trait Counter:\n    fn add(mut self, value: i32) -> void\n");
+  const result = parse(
+    fixtureBody("frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver"),
+  );
   assert.deepEqual(result.diagnostics, []);
   const receiver = result.program?.traits[0]?.methods[0]?.parameters[0];
   assert.equal(receiver?.name, "self");
   assert.equal(receiver?.type.name, "mut:Self");
 
   assert.equal(
-    parse("trait Invalid:\n    fn add(mut value: i32) -> void\n").diagnostics[0]?.code,
+    parse(fixtureBody("frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver-2"))
+      .diagnostics[0]?.code,
     "expected-token",
   );
 });
 
 test("parser distinguishes inherent and trait implementation blocks", () => {
-  const result = parse(`data User:
-    value: i32
-trait Read:
-    fn read(self) -> i32
-impl User:
-    fn read(self) -> i32: self.value
-impl Read for User:
-    fn read(self) -> i32: self.value
-`);
+  const result = parse(
+    fixtureBody("frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks"),
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.implementations[0]?.targetName, "User");
   assert.equal(result.program?.implementations[0]?.traitName, undefined);
@@ -137,7 +125,9 @@ impl Read for User:
 });
 
 test("parser marks bare data members as embedded fields", () => {
-  const result = parse("data Box[T]:\n    value: T\ndata Pair:\n    Box[i32]\n    name: string\n");
+  const result = parse(
+    fixtureBody("frontend/10-parser-marks-bare-data-members-as-embedded-fields"),
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.data[1]?.fields[0]?.name, "Box");
   assert.equal(result.program?.data[1]?.fields[0]?.type.name, "Box[i32]");
@@ -145,7 +135,9 @@ test("parser marks bare data members as embedded fields", () => {
 });
 
 test("parser retains explicit generic arguments and trailing callbacks", () => {
-  const generic = parse('value := pair[_, i32]("left", 1)\n');
+  const generic = parse(
+    fixtureBody("frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks"),
+  );
   assert.deepEqual(generic.diagnostics, []);
   const binding = generic.program?.statements[0];
   if (binding?.kind === "binding" && binding.value.kind === "call") {
@@ -157,7 +149,9 @@ test("parser retains explicit generic arguments and trailing callbacks", () => {
     assert.fail("expected a generic call binding");
   }
 
-  const trailing = parse("fn main() -> i32:\n    apply:\n        42\n");
+  const trailing = parse(
+    fixtureBody("frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2"),
+  );
   assert.deepEqual(trailing.diagnostics, []);
   const statement = trailing.program?.functions[0]?.body[0];
   assert.equal(statement?.kind === "expression" && statement.expression.kind, "call");
@@ -167,7 +161,7 @@ test("parser retains explicit generic arguments and trailing callbacks", () => {
 });
 
 test("parser retains explicit generic data arguments", () => {
-  const result = parse("value := Box[i32] { value: 1 }\n");
+  const result = parse(fixtureBody("frontend/12-parser-retains-explicit-generic-data-arguments"));
   assert.deepEqual(result.diagnostics, []);
   const binding = result.program?.statements[0];
   assert.equal(binding?.kind, "binding");
@@ -181,28 +175,71 @@ test("parser retains explicit generic data arguments", () => {
 });
 
 test("tabs and inconsistent dedents are rejected by the lexer", () => {
-  assert.equal(lex("fn f() -> i32:\n\t1\n").diagnostics[0]?.code, "tab-whitespace");
+  assert.equal(
+    lex(fixtureBody("frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer"))
+      .diagnostics[0]?.code,
+    "tab-whitespace",
+  );
   assert.ok(
-    lex("fn f() -> i32:\n    1\n  2\n").diagnostics.some(
-      (item) => item.code === "inconsistent-dedent",
-    ),
+    lex(
+      fixtureBody("frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer-2"),
+    ).diagnostics.some((item) => item.code === "inconsistent-dedent"),
   );
 });
 
 test("lexer enforces reserved punctuation, escapes, and numeric separators", () => {
-  assert.equal(lex("value := 1;\n").diagnostics[0]?.code, "reserved-semicolon");
-  assert.equal(lex("value := 1__0\n").diagnostics[0]?.code, "invalid-integer-literal");
-  assert.equal(lex("value := 0b102\n").diagnostics[0]?.code, "invalid-integer-literal");
-  assert.deepEqual(lex('value := "$name"\n').diagnostics, []);
-  assert.equal(lex('value := "price: $"\n').diagnostics[0]?.code, "invalid-string-interpolation");
   assert.equal(
-    lex('value := "\\u{1F600}"\n').tokens.find((token) => token.kind === "string")?.value,
+    lex(
+      fixtureBody("frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators"),
+    ).diagnostics[0]?.code,
+    "reserved-semicolon",
+  );
+  assert.equal(
+    lex(
+      fixtureBody(
+        "frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-2",
+      ),
+    ).diagnostics[0]?.code,
+    "invalid-integer-literal",
+  );
+  assert.equal(
+    lex(
+      fixtureBody(
+        "frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-3",
+      ),
+    ).diagnostics[0]?.code,
+    "invalid-integer-literal",
+  );
+  assert.deepEqual(
+    lex(
+      fixtureBody(
+        "frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4",
+      ),
+    ).diagnostics,
+    [],
+  );
+  assert.equal(
+    lex(
+      fixtureBody(
+        "frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-5",
+      ),
+    ).diagnostics[0]?.code,
+    "invalid-string-interpolation",
+  );
+  assert.equal(
+    lex(
+      fixtureBody(
+        "frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-6",
+      ),
+    ).tokens.find((token) => token.kind === "string")?.value,
     "😀",
   );
 });
 
 test("parser retains string interpolation expressions and raw dollars", () => {
-  const result = parse('fn label(name: string, count: i32) -> string: "Hi $name: ${count + 1}"\n');
+  const result = parse(
+    fixtureBody("frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars"),
+  );
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "interpolated-string") {
@@ -223,29 +260,41 @@ test("parser retains string interpolation expressions and raw dollars", () => {
   } else {
     assert.fail("expected an interpolated string");
   }
-  const raw = parse('value := r"$name ${count}"\n');
+  const raw = parse(
+    fixtureBody("frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars-2"),
+  );
   const rawStatement = raw.program?.statements[0];
   assert.equal(rawStatement?.kind === "binding" && rawStatement.value.kind, "string");
 });
 
 test("parser rejects comparison chaining", () => {
-  assert.equal(parse("value := 0 < other < 10\n").diagnostics[0]?.code, "comparison-chaining");
+  assert.equal(
+    parse(fixtureBody("frontend/16-parser-rejects-comparison-chaining")).diagnostics[0]?.code,
+    "comparison-chaining",
+  );
 });
 
 test("parser retains named call labels and enforces argument ordering", () => {
-  const result = parse("value := resize(width=640, height=480)\n");
+  const result = parse(
+    fixtureBody("frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering"),
+  );
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.statements[0];
   assert.equal(statement?.kind, "binding");
   if (statement?.kind === "binding" && statement.value.kind === "call") {
     assert.deepEqual(statement.value.argumentNames, ["width", "height"]);
   }
-  assert.equal(parse("value := resize(width=640, 480)\n").diagnostics[0]?.code, "argument-order");
+  assert.equal(
+    parse(
+      fixtureBody("frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering-2"),
+    ).diagnostics[0]?.code,
+    "argument-order",
+  );
 });
 
 test("parser retains vararg and positional spread markers", () => {
   const result = parse(
-    "fn apply(callback: fn(i32...) -> i32) -> i32: callback()\nfn sum(values: i32...) -> i32: 0\nresult := sum(values...)\n",
+    fixtureBody("frontend/18-parser-retains-vararg-and-positional-spread-markers"),
   );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "fn(i32...)->i32");
@@ -256,28 +305,32 @@ test("parser retains vararg and positional spread markers", () => {
   } else {
     assert.fail("expected a call binding");
   }
-  assert.deepEqual(parse('result := tagged(values..., tag="score")\n').diagnostics, []);
+  assert.deepEqual(
+    parse(fixtureBody("frontend/18-parser-retains-vararg-and-positional-spread-markers-2"))
+      .diagnostics,
+    [],
+  );
   assert.equal(
-    parse("result := sum(values..., 3)\n").diagnostics[0]?.code,
+    parse(fixtureBody("frontend/18-parser-retains-vararg-and-positional-spread-markers-3"))
+      .diagnostics[0]?.code,
     "nonfinal-positional-spread",
   );
 });
 
 test("parser retains function parameter defaults", () => {
-  const result = parse(
-    "fn connect(host: string, port: i32 = 443, secure: bool = true) -> string: host\n",
-  );
+  const result = parse(fixtureBody("frontend/19-parser-retains-function-parameter-defaults"));
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.functions[0]?.parameters[1]?.default?.kind, "integer");
   assert.equal(result.program?.functions[0]?.parameters[2]?.default?.kind, "boolean");
   assert.equal(
-    parse("fn bad(values: i32... = [1]) -> i32: 0\n").diagnostics[0]?.code,
+    parse(fixtureBody("frontend/19-parser-retains-function-parameter-defaults-2")).diagnostics[0]
+      ?.code,
     "vararg-default",
   );
 });
 
 test("parser retains a leading data copy-update spread", () => {
-  const result = parse('copy := User { ...source, name: "Ada" }\n');
+  const result = parse(fixtureBody("frontend/20-parser-retains-a-leading-data-copy-update-spread"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.statements[0];
   assert.equal(statement?.kind, "binding");
@@ -291,16 +344,14 @@ test("parser retains a leading data copy-update spread", () => {
     assert.fail("expected a data copy-update binding");
   }
   assert.equal(
-    parse('copy := User { name: "Ada", ...source }\n').diagnostics[0]?.code,
+    parse(fixtureBody("frontend/20-parser-retains-a-leading-data-copy-update-spread-2"))
+      .diagnostics[0]?.code,
     "data-spread-position",
   );
 });
 
 test("parser retains named enum payload pattern labels", () => {
-  const result = parse(`fn choose(value: Choice) -> i32:
-    match value:
-        Choice.Pair(right=b, left=a) => a + b
-`);
+  const result = parse(fixtureBody("frontend/21-parser-retains-named-enum-payload-pattern-labels"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "match") {
@@ -316,9 +367,7 @@ test("parser retains named enum payload pattern labels", () => {
 });
 
 test("parser retains nested Result payload patterns", () => {
-  const result = parse(
-    "fn main(value: Result[i32, Error]) -> void:\n    match value:\n        Err(Error.Disposed) => pass\n        _ => pass\n",
-  );
+  const result = parse(fixtureBody("frontend/22-parser-retains-nested-result-payload-patterns"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "match") {
@@ -332,11 +381,7 @@ test("parser retains nested Result payload patterns", () => {
 });
 
 test("parser retains literal enum payload patterns", () => {
-  const result = parse(`fn evaluate(value: Expr) -> i32:
-    match value:
-        Expr.Scale(left, factor=2) => left * 2
-        Expr.Scale(left, factor) => left * factor
-`);
+  const result = parse(fixtureBody("frontend/23-parser-retains-literal-enum-payload-patterns"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "match") {
@@ -349,9 +394,9 @@ test("parser retains literal enum payload patterns", () => {
 });
 
 test("parser retains shared enum fields, defaults, and variant results", () => {
-  const result = parse(`enum Status(code: i32, phrase: string = "unknown"):
-    Known -> Status(200, phrase="known")
-`);
+  const result = parse(
+    fixtureBody("frontend/24-parser-retains-shared-enum-fields-defaults-and-variant-results"),
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
     result.program?.enums[0]?.sharedFields.map((field) => field.name),
@@ -362,7 +407,7 @@ test("parser retains shared enum fields, defaults, and variant results", () => {
 });
 
 test("parser retains decimal numeric member selectors", () => {
-  const result = parse("first := nested.0.1\n");
+  const result = parse(fixtureBody("frontend/25-parser-retains-decimal-numeric-member-selectors"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.statements[0];
   assert.equal(statement?.kind, "binding");
@@ -378,7 +423,9 @@ test("parser retains decimal numeric member selectors", () => {
 
 test("parser distinguishes grouped expressions from tuple types and literals", () => {
   const result = parse(
-    'fn pair(value: (i32, string)) -> (i32,): (value.0,)\nempty := ()\nleft, right := (1, 2)\nlet name, score: (string, i32) = ("Ada", 10)\n',
+    fixtureBody(
+      "frontend/26-parser-distinguishes-grouped-expressions-from-tuple-types-and-literals",
+    ),
   );
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.functions[0]?.parameters[0]?.type.name, "(i32,string)");
@@ -401,18 +448,9 @@ test("parser distinguishes grouped expressions from tuple types and literals", (
 });
 
 test("documentation comments attach to AST declarations and members", () => {
-  const source = `## A point.
-## Stored in two dimensions.
-data Point:
-    ## Horizontal coordinate.
-    x: i32
-
-## Read one coordinate.
-fn read(
-    ## Point to inspect.
-    point: Point,
-) -> i32: point.x
-`;
+  const source = fixtureBody(
+    "frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source",
+  );
   const result = parse(source);
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.data[0]?.doc, "A point.\nStored in two dimensions.");
@@ -420,19 +458,14 @@ fn read(
   assert.equal(result.program?.functions[0]?.doc, "Read one coordinate.");
   assert.equal(result.program?.functions[0]?.parameters[0]?.doc, "Point to inspect.");
   assert.equal(
-    parse("fn run() -> void:\n    ## Not a declaration.\n    value := 1\n").diagnostics[0]?.code,
+    parse(fixtureBody("frontend/27-documentation-comments-attach-to-ast-declarations-and-members"))
+      .diagnostics[0]?.code,
     "doc-comment-without-target",
   );
 });
 
 test("parser retains top-level public visibility", () => {
-  const result = parse(`pub trait Service
-pub data Token: pass
-pub enum State:
-    Ready
-pub fn run() -> void:
-    pass
-`);
+  const result = parse(fixtureBody("frontend/28-parser-retains-top-level-public-visibility"));
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.traits[0]?.public, true);
   assert.equal(result.program?.data[0]?.public, true);
@@ -441,16 +474,16 @@ pub fn run() -> void:
 });
 
 test("parser retains named test blocks", () => {
-  const result = parse(`test "checks a value":
-    _ := 42
-`);
+  const result = parse(fixtureBody("frontend/29-parser-retains-named-test-blocks"));
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.tests[0]?.name, "checks a value");
   assert.equal(result.program?.tests[0]?.body[0]?.kind, "discard");
 });
 
 test("parser lowers multi-provider use to an ordered tuple", () => {
-  const result = parse("fn use_both() -> void $ Clock + Logger: _ := $.use(Clock, Logger)\n");
+  const result = parse(
+    fixtureBody("frontend/30-parser-lowers-multi-provider-use-to-an-ordered-tuple"),
+  );
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "discard" && statement.value.kind === "tuple") {
@@ -466,9 +499,9 @@ test("parser lowers multi-provider use to an ordered tuple", () => {
 });
 
 test("parser retains single and grouped use declarations", () => {
-  const result = parse(`use std.task.block_on
-use std.testing.{assert, assert_equal as equal,}
-`);
+  const result = parse(
+    fixtureBody("frontend/31-parser-retains-single-and-grouped-use-declarations"),
+  );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(
     result.program?.uses.map((declaration) => ({

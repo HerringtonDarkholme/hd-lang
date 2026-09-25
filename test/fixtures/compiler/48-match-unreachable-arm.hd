@@ -1,0 +1,10 @@
+# test: match checking rejects arms after a catch-all
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:
+        _ => 1
+        Flag.Off => 0  # diagnostic: unreachable-match-arm

@@ -2,6 +2,7 @@ import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
+  HirCapture,
   HirData,
   HirEnum,
   HirFunction,
@@ -353,7 +354,7 @@ export abstract class CheckerContext {
   protected readonly inferredRequirements: string[] = [];
   protected inferredReturnType?: ValueType;
   protected readonly closureIndex: number;
-  protected readonly captures = new Map<string, { source: HirLocal; fieldIndex: number }>();
+  protected readonly captures = new Map<string, HirCapture>();
   protected readonly providerScopes: Map<string, HirLocal>[] = [new Map()];
   protected readonly diagnostics: Diagnostic[] = [];
   protected readonly scopes: Map<string, HirLocal>[] = [new Map()];
@@ -576,6 +577,72 @@ export abstract class CheckerContext {
       }
     }
     return value;
+  }
+
+  protected displayValue(value: HirExpression, span: SourceSpan): HirExpression {
+    const type = readonlyType(value.type);
+    if (type === "string") return value;
+    if (["i32", "f64", "bool", "char"].includes(type)) {
+      return { kind: "display", operand: value, type: "string", span };
+    }
+    const trait = this.traitTypes.get("Display")!;
+    const generic = genericTypeName(type);
+    const boundIndex = generic
+      ? this.signature.genericBounds.findIndex(
+          (bound) => bound.parameter === generic && bound.traitName === trait.name,
+        )
+      : -1;
+    if (boundIndex >= 0) {
+      const receiver: HirExpression = {
+        kind: "trait-bound",
+        value,
+        traitIndex: trait.index,
+        boundIndex,
+        type: "trait:Display",
+        span,
+      };
+      return {
+        kind: "trait-call",
+        receiver,
+        traitIndex: trait.index,
+        methodIndex: 0,
+        arguments: [],
+        providers: [],
+        type: "string",
+        span,
+      };
+    }
+    if (traitTypeName(type) === trait.name) {
+      return {
+        kind: "trait-call",
+        receiver: value,
+        traitIndex: trait.index,
+        methodIndex: 0,
+        arguments: [],
+        providers: [],
+        type: "string",
+        span,
+      };
+    }
+    const implementation = this.implementations.find(
+      (candidate) => candidate.traitIndex === trait.index && candidate.targetType === type,
+    );
+    const mapping = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+    const signature = mapping
+      ? [...this.signatures.values()].find(({ index }) => index === mapping.functionIndex)
+      : undefined;
+    if (signature) {
+      return {
+        kind: "call",
+        functionIndex: signature.index,
+        functionName: signature.name,
+        arguments: [this.coerce(value, type, span)],
+        providers: [],
+        type: "string",
+        span,
+      };
+    }
+    return this.fail("missing-display", `type '${value.type}' does not implement Display`, span);
   }
 
   protected blockType(statements: readonly HirStatement[]): ValueType {

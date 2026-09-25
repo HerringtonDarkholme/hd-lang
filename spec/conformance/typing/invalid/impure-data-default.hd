@@ -1,4 +1,3 @@
-# expect-error: impure-data-default
 let sequence: i32 = 0
 
 fn next() -> i32:
@@ -8,4 +7,4 @@ fn next() -> i32:
 let callback: fn() -> i32 = next
 
 data Counter:
-    value: i32 = callback()
+    value: i32 = callback()  # diagnostic: impure-data-default

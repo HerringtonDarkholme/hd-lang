@@ -1,3 +1,2 @@
-# expect-error: mixed-numeric-types
 fn invalid_power(base: f64, exponent: i32) -> f64:
-    base ** exponent
+    base ** exponent  # diagnostic: mixed-numeric-types

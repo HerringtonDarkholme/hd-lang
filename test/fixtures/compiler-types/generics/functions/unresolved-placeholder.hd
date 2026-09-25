@@ -1,0 +1,4 @@
+# test: generics / functions / unresolved placeholder
+
+fn missing[T]() -> i32: 1
+fn main() -> i32: missing()  # diagnostic: unresolved-generic-placeholder

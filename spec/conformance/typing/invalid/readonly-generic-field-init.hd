@@ -1,5 +1,3 @@
-# expect-error: mutable-upgrade
-
 data Child:
     name: string
 
@@ -7,4 +5,4 @@ data Box[T]:
     value: T
 
 readonly_child := Child { name: "Ada" }
-let box: Box[mut Child] = Box { value: readonly_child }
+let box: Box[mut Child] = Box { value: readonly_child }  # diagnostic: mutable-upgrade

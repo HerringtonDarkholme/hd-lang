@@ -1,0 +1,3 @@
+# test: while, break, and continue lower to structured Wasm control flow
+
+fn main() -> void: break  # diagnostic: break-outside-loop

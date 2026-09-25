@@ -1,3 +1,2 @@
-# expect-error: argument-order
 
-resize(width=640, 480)
+resize(width=640, 480)  # diagnostic: argument-order

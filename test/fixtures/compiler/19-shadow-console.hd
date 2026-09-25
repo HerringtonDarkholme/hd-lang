@@ -1,0 +1,3 @@
+# test: prelude Console cannot be shadowed
+
+fn consume(Console: i32) -> i32: Console  # diagnostic: prelude-name-shadow

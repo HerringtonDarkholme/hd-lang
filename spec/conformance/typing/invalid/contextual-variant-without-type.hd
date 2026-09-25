@@ -1,8 +1,6 @@
-# expect-error: missing-contextual-enum-type
-
 enum Status:
     Queued
 
 fn invalid() -> void:
-    status := .Queued
+    status := .Queued  # diagnostic: missing-contextual-enum-type
     pass

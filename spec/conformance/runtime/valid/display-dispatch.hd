@@ -1,0 +1,19 @@
+use std.testing.assert_equal
+
+data Label:
+    value: string
+
+impl Display for Label:
+    fn to_string(self) -> string: self.value
+
+fn render_generic[T: Display](value: T) -> string:
+    "generic=$value"
+
+fn render_dynamic(value: Display) -> string:
+    "dynamic=$value"
+
+test "display dispatches for concrete generic and dynamic values":
+    label := Label { value: "Ada" }
+    assert_equal("label=$label", "label=Ada", reason="concrete Display implementation")
+    assert_equal(render_generic(label), "generic=Ada", reason="generic Display dictionary")
+    assert_equal(render_dynamic(label), "dynamic=Ada", reason="dynamic Display dispatch")

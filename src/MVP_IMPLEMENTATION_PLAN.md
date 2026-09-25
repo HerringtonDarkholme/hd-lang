@@ -32,8 +32,11 @@ contextual enum construction, guarded literal and recursive data
 patterns, named enum-payload pattern bindings, literal, nested-data, and
 nested-enum payload constraints, value-producing while loops, checked integer
 and floating power, characters, UTF-8 string concatenation and ordering,
-interpreted-string segments with intrinsic `string`, `i32`, `bool`, and `char`
-display conversion in source order. The same temporary display surface powers
+interpreted-string segments using the canonical prelude `Display` trait in
+source order. Primitive `i32`, `f64`, `bool`, `char`, and `string` values use
+standard implementations, including shortest-round-trip floating formatting;
+concrete user implementations, generic bounds, and dynamic `Display` values
+reuse the ordinary trait dispatch paths. The same display surface powers
 `println`, which statically resolves a lexical `Console` provider and streams
 UTF-8 bytes from its Wasm GC string to a narrow host callback,
 numeric access to unnamed shared enum fields, and reference identity through
@@ -67,9 +70,8 @@ Module execution bindings now lower to typed Wasm globals. Their source-order
 visibility is enforced for function bodies, and top-level initializers are
 checked for transitive reads through referenced functions and closures before
 the corresponding global has been initialized.
-The remaining interpolation boundary is the canonical prelude `Display`
-dictionary: unsupported embedded types receive `missing-display` until that
-standard trait and floating-point formatting are executable.
+Unsupported interpolated values receive `missing-display` unless their type
+implements the canonical trait.
 S2 has concrete-row normalization, hidden
 provider threading, lookup, lexical overrides, reusable GC-backed contexts,
 ordered multi-provider tuple lookup, left-to-right context spreads,
@@ -129,13 +131,14 @@ require mutable paths through static, dynamic, default-method, and bounded
 generic calls. Imported `std.resource.ResourceError[E]` lowers as a canonical
 generic `Operation(E) | Disposed` Wasm GC enum. Inherent `impl Type:` methods
 share the direct function ABI, including mutable and suspending receivers;
-bare embedded data fields promote unambiguous inherent methods, and bodyless
+bare embedded data fields promote unambiguous direct fields and inherent
+methods, substituting generic arguments through the embedded edge, and bodyless
 explicit trait implementations may forward one compatible readonly promoted
 method while rejecting mutable promotion through the readonly edge;
 associated functions and generic methods remain deferred. Associated trait
 members remain. Generic data declarations now
-use one erased GC layout,
-infer their type arguments at construction, preserve instantiated types in HIR,
+use one erased GC layout, accept inferred or complete explicit type arguments
+at construction, preserve instantiated types in HIR,
 and box or unbox exact generic fields at storage boundaries. Generic enums use
 the same rule for payloads and recursive fields. Homogeneous `list[T]` values
 use a growable GC vector with typed literals, indexing, `len()`, mutable
@@ -318,16 +321,22 @@ Diagnostics are implemented with the slice that introduces their behavior;
 they are not postponed to a separate compiler phase. Every diagnostic has a
 stable code and a fixture.
 
-The MVP uses a curated case index drawn from `spec/conformance/cases.tsv`.
-Coverage expands with each slice. One command runs the curated cases, relevant
-example blocks, and `spec/check.sh`. Full conformance becomes a milestone only
-after the semantic MVP has answered its critical design questions.
+The MVP uses the implementation-neutral `.hd` fixtures under
+`spec/conformance/`. `test/portable/cases.tsv` selects the implemented subset,
+and `test/run-portable.ts` invokes it through the public CLI rather than through
+TypeScript compiler imports. Coverage expands with each slice. TypeScript tests
+are reserved for AST, HIR, WAT, host integration, trace, and replay details.
+One command runs the portable cases, backend-specific checks, relevant example
+blocks, and `spec/check.sh`. Full conformance becomes a milestone only after the
+semantic MVP has answered its critical design questions.
 
 Useful development commands should include:
 
 ```text
+hd parse FILE
 hd run FILE
 hd check FILE
+hd test FILE
 hd build --wat FILE
 hd dump-hir FILE
 hd explain-requirements FILE

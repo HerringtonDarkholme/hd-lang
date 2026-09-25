@@ -4,23 +4,38 @@ import { pathToFileURL } from "node:url";
 
 import { analyze, compile, instantiate, type ReplayEvent } from "./compiler.ts";
 import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
+import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 
 function usage(): never {
   console.error(
-    "usage: hd <run|trace|record|replay|check|build|dump-hir|explain-requirements> [--wat] FILE",
+    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] FILE",
   );
   process.exit(2);
 }
 
 export async function main(args = process.argv.slice(2)): Promise<number> {
   const command = args.shift();
-  const wat = args[0] === "--wat" ? Boolean(args.shift()) : false;
+  let wat = false;
+  let entryName = "main";
+  while (args[0]?.startsWith("--")) {
+    const option = args.shift();
+    if (option === "--wat") wat = true;
+    else if (option === "--entry") entryName = args.shift() ?? usage();
+    else usage();
+  }
   const file = args.shift();
   if (!command || !file || args.length > 0) usage();
+  if (entryName !== "main" && command !== "run") usage();
   const path = resolve(file);
   const source = await readFile(path, "utf8");
   try {
+    if (command === "parse") {
+      const result = parse(source);
+      if (!result.program) throw new DiagnosticError(result.diagnostics);
+      console.log(`${file}: ok`);
+      return 0;
+    }
     if (command === "check") {
       const result = analyze(source);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
@@ -58,7 +73,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       }
       return 0;
     }
-    if (command === "run" || command === "trace" || command === "record" || command === "replay") {
+    if (
+      command === "test" ||
+      command === "run" ||
+      command === "trace" ||
+      command === "record" ||
+      command === "replay"
+    ) {
       const functionNames = new Map<number, string>();
       const eventNames = [
         "construct",
@@ -92,20 +113,36 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       compilation.hir.functions.forEach((declaration) =>
         functionNames.set(declaration.index, declaration.name),
       );
-      const entry = instance.exports.main;
-      if (typeof entry !== "function") throw new Error("program has no exported main function");
-      const mainFunction = compilation.hir.functions.find(
-        (declaration) => declaration.name === "main",
-      );
-      if (!mainFunction || mainFunction.parameters.length > 0)
-        throw new Error("main must not declare ordinary parameters");
-      const result = entry(...mainFunction.requirements.map((requirement) => ({ requirement })));
+      const selected = compilation.hir.functions.filter((declaration) => {
+        if (command === "test")
+          return declaration.name === "main" || /^\$test\.\d+$/.test(declaration.name);
+        return declaration.name === entryName;
+      });
+      if (selected.length === 0)
+        throw new Error(
+          command === "test"
+            ? "program has no main function or test blocks"
+            : `program has no exported ${entryName} function`,
+        );
+      let result: unknown;
+      for (const declaration of selected) {
+        if (declaration.parameters.length > 0)
+          throw new Error(`${declaration.name} must not declare ordinary parameters`);
+        const exportName = /^\$test\.\d+$/.test(declaration.name)
+          ? `__hd_test_${declaration.name.slice(6)}`
+          : declaration.name;
+        const entry = instance.exports[exportName];
+        if (typeof entry !== "function")
+          throw new Error(`${declaration.name} has no runnable export`);
+        result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
+      }
       replay.assertComplete();
       if (command === "record") {
         await writeFile(replayPath, JSON.stringify(recorded, null, 2) + "\n");
         console.log(replayPath);
       }
-      if (result !== undefined) console.log(result);
+      if (command === "test") console.log(`${file}: ${selected.length} passed`);
+      else if (result !== undefined) console.log(result);
       return 0;
     }
     usage();

@@ -1,2 +1,1 @@
-# expect-error: float-literal-range
-large_exponent := 1.5e1_000
+large_exponent := 1.5e1_000  # diagnostic: float-literal-range

@@ -11,6 +11,8 @@ parse/valid/data-embedding.hd	parse	accept	08-data-and-enums.md#data-embedding
 parse/invalid/mutable-field-modifier.hd	parse	reject:mutable-field-modifier	08-data-and-enums.md#data-declarations
 parse/invalid/mutable-embedded-field.hd	parse	reject:mutable-embedded-field	08-data-and-enums.md#data-embedding
 typing/valid/generic-data-embedding.hd	type	accept	08-data-and-enums.md#data-embedding
+runtime/valid/display-dispatch.hd	runtime	accept	05-expressions.md#literals
+runtime/valid/float-display.hd	runtime	accept	04-type-system.md#numeric-types
 typing/invalid/duplicate-generic-embedded-name.hd	type	reject:duplicate-embedded-field	08-data-and-enums.md#data-embedding
 parse/invalid/old-struct-declaration.hd	parse	reject:old-struct-declaration	08-data-and-enums.md#data-declarations
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
@@ -263,3 +265,4 @@ typing/invalid/defer-suspends.hd	type	reject:suspending-defer	06-control-flow.md
 typing/invalid/defer-block-on.hd	type	reject:suspension-forbidden-context	06-control-flow.md#deferred-cleanup
 runtime/valid/defer-order.hd	runtime	accept	06-control-flow.md#deferred-cleanup
 runtime/valid/cancellation-runs-defer.hd	runtime	accept	11-requirements-and-suspension.md#cancellation
+runtime/valid/generic-data-embedding.hd	runtime	accept	08-data-and-enums.md#data-embedding

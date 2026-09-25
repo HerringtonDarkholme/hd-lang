@@ -1,0 +1,15 @@
+# test: imported ResourceError is a generic Wasm GC enum
+# expect-result: main = 42
+
+use std.resource.ResourceError
+
+data Failure:
+    code: i32
+
+fn make() -> ResourceError[Failure]:
+    ResourceError.Operation(Failure { code: 42 })
+
+fn main() -> i32:
+    match make():
+        ResourceError.Operation(error) => error.code
+        ResourceError.Disposed => 0

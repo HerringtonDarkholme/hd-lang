@@ -1,0 +1,7 @@
+# test: match guards see pattern bindings and do not contribute coverage
+# expect: accept
+
+fn classify(value: bool) -> i32:
+    match value:
+        candidate if candidate => 1
+        _ => 0

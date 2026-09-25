@@ -1,0 +1,4 @@
+# test: function parameter defaults enforce order, type, and purity
+
+fn wait!() -> i32: 1
+fn bad(value: i32 = wait!()) -> i32: value  # diagnostic: impure-parameter-default

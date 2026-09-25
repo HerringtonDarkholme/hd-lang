@@ -1,0 +1,4 @@
+# test: imported assert_equal compares supported structural values
+
+use std.testing.assert_equal
+fn main() -> void: assert_equal([1], [2], reason="different")  # panic: runtime-error

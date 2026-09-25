@@ -1,5 +1,3 @@
-# expect-error: nonexhaustive-match
-
 fn label(value: bool) -> string:
-    match value:
+    match value:  # diagnostic: nonexhaustive-match
         true => "yes"

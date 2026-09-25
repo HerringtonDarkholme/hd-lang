@@ -1,0 +1,3 @@
+# test: optional and Result context errors have stable diagnostics
+
+value := Ok(1)  # diagnostic: result-constructor-needs-context

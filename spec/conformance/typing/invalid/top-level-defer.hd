@@ -1,3 +1,2 @@
-# expect-error: defer-outside-cleanup-scope
-defer:
+defer:  # diagnostic: defer-outside-cleanup-scope
     pass

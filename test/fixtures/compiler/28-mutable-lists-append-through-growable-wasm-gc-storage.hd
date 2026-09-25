@@ -1,0 +1,12 @@
+# test: mutable lists append through growable Wasm GC storage
+# expect-result: main = 42
+
+fn main() -> i32:
+    let values: mut list[i32] = []
+    values.append(1)
+    values.append(2)
+    values.append(3)
+    values.append(4)
+    values.append(5)
+    values.append(36)
+    values.len() + values[5]

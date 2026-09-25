@@ -88,6 +88,26 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       span: declaration.span,
     });
   });
+  traitTypes.set("Display", {
+    name: "Display",
+    index: program.traits.length,
+    genericParameters: [],
+    methods: [
+      {
+        name: "to_string",
+        index: 0,
+        suspending: false,
+        receiverMutable: false,
+        parameters: [],
+        parameterNames: [],
+        variadic: false,
+        result: "string",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
   let nextEnumIndex = program.enums.length;
   for (const [localName, importedName] of imports) {
     if (importedName !== "std.resource.ResourceError") continue;

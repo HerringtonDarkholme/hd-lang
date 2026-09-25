@@ -178,6 +178,10 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
       case "display": {
         const operand = this.emitExpression(expression.operand);
         if (expression.operand.type === "i32") return `(call $hd.i32_to_string ${operand})`;
+        if (expression.operand.type === "f64") {
+          this.floatDisplay = true;
+          return `(call $hd.f64_to_string ${operand})`;
+        }
         if (expression.operand.type === "char") return `(call $hd.char_to_string ${operand})`;
         if (expression.operand.type === "bool") {
           return `(if (result (ref null $hd.bytes)) ${operand} (then (array.new_fixed $hd.bytes 4 (i32.const 116) (i32.const 114) (i32.const 117) (i32.const 101))) (else (array.new_fixed $hd.bytes 5 (i32.const 102) (i32.const 97) (i32.const 108) (i32.const 115) (i32.const 101))))`;

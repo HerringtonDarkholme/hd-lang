@@ -56,15 +56,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             };
           }
           const operand = this.checkExpression(segment.expression);
-          if (operand.type === "string") return operand;
-          if (!["i32", "bool", "char"].includes(operand.type)) {
-            this.fail(
-              "missing-display",
-              `type '${operand.type}' does not implement Display in the executable MVP`,
-              segment.span,
-            );
-          }
-          return { kind: "display", operand, type: "string", span: segment.span };
+          return this.displayValue(operand, segment.span);
         });
         return { kind: "string-build", segments, type: "string", span: expression.span };
       }

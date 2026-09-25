@@ -1,0 +1,12 @@
+# test: else if chains preserve value typing and selection order
+# expect-result: main = 42
+
+fn label(score: i32) -> i32:
+    if score >= 90:
+        40
+    else if score >= 70:
+        2
+    else:
+        0
+
+fn main() -> i32: label(95) + label(75)

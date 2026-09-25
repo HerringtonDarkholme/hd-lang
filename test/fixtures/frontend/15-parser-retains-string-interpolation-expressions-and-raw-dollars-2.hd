@@ -1,0 +1,4 @@
+# test: parser retains string interpolation expressions and raw dollars
+# expect: parse
+
+value := r"$name ${count}"

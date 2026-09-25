@@ -1,3 +1,2 @@
-# expect-error: invalid-map-key
 
-let values: map[f64, string] = {}
+let values: map[f64, string] = {}  # diagnostic: invalid-map-key

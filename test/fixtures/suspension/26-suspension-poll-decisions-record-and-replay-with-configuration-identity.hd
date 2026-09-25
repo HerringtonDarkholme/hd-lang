@@ -1,0 +1,7 @@
+# test: suspension poll decisions record and replay with configuration identity
+# expect-result: main = 42
+
+fn child!() -> i32: 2
+fn main!() -> i32:
+    value := child!()
+    value + 40

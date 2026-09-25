@@ -1,0 +1,5 @@
+# test: for loops iterate lists and maps with continue, destructuring, and else values
+
+fn bad() -> void:
+    for value in 1:  # diagnostic: not-iterable
+        pass

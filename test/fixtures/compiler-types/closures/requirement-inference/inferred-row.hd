@@ -1,0 +1,8 @@
+# test: closures / requirement inference / inferred row
+# expect-result: main = 42
+
+fn main() -> i32 $ Clock:
+    reader := fn() -> i32:
+        _ := $.use(Clock)
+        42
+    reader()

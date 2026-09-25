@@ -1,0 +1,10 @@
+# test: explicitly typed local closures recurse through their current environment
+# expect-result: main = 42
+
+fn main() -> i32:
+    sum := fn(value: i32) -> i32:
+        if value == 0:
+            0
+        else:
+            value + sum(value - 1)
+    sum(9) - 3

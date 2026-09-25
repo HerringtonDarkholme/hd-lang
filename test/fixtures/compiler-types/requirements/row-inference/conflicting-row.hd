@@ -1,0 +1,7 @@
+# test: requirements / row inference / conflicting row
+
+fn combine[r](left: fn() -> i32 $ r, right: fn() -> i32 $ r) -> i32 $ r:
+    left() + right()
+fn clock() -> i32 $ Clock: 20
+fn logger() -> i32 $ Logger: 22
+fn main() -> i32 $ Clock + Logger: combine(clock, logger)  # diagnostic: generic-type-mismatch

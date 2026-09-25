@@ -1,4 +1,3 @@
-# expect-error: duplicate-trait-member
 trait Named:
     fn name(self) -> string
-    fn name(self) -> string
+    fn name(self) -> string  # diagnostic: duplicate-trait-member

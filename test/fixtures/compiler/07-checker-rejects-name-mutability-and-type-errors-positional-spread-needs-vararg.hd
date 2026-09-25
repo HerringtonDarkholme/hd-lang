@@ -1,0 +1,4 @@
+# test: checker rejects name, mutability, and type errors
+
+fn fixed(value: i32) -> i32: value
+fn main(values: list[i32]) -> i32: fixed(values...)  # diagnostic: positional-spread-needs-vararg

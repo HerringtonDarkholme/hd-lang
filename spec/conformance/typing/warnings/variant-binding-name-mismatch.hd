@@ -1,7 +1,6 @@
-# expect-warning: variant-binding-name-mismatch
 enum Choice:
     Pair(then_value: i32, else_value: i32)
 
 fn swapped(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(else_value, then_value) => then_value - else_value
+        Choice.Pair(else_value, then_value) => then_value - else_value  # warning: variant-binding-name-mismatch

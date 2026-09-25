@@ -1,7 +1,5 @@
-# expect-error: nonfinal-positional-spread
-
 fn sum(values: i32...) -> i32:
     0
 
 values := [1, 2]
-result := sum(values..., 3)
+result := sum(values..., 3)  # diagnostic: nonfinal-positional-spread

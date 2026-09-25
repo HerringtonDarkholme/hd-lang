@@ -1,0 +1,17 @@
+# test: requirements / row multi forwarding
+# expect-result: main = 45
+
+fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+    callback()
+
+fn forward[s, t](left: fn() -> i32 $ s, right: fn() -> i32 $ t, callback: fn() -> i32 $ s + t) -> i32 $ s + t:
+    a := left()
+    b := right()
+    a + b + invoke(callback)
+
+fn tick() -> i32 $ Clock: 1
+fn log() -> i32 $ Logger: 2
+fn read() -> i32 $ Clock + Logger: 42
+
+fn main() -> i32 $ Clock + Logger:
+    forward(tick, log, read)

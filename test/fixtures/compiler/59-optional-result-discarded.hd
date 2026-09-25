@@ -1,0 +1,5 @@
+# test: optional values are must-use
+
+fn maybe() -> i32?: nil
+
+fn main() -> void: maybe()  # diagnostic: discarded-must-use-value

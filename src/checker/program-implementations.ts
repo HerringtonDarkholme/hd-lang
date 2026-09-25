@@ -188,7 +188,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     const methods: ImplementationMethodPreparation[] = [];
     for (const required of trait.methods) {
       const suppliedMethod = supplied.get(required.name);
-      const defaultMethod = program.traits[trait.index]!.methods[required.index];
+      const defaultMethod = program.traits[trait.index]?.methods[required.index];
       let method = suppliedMethod ?? (defaultMethod?.body ? defaultMethod : undefined);
       if (!method) {
         const target = dataTypes.get(implementation.targetName);

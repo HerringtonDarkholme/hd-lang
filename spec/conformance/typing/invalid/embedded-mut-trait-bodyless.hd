@@ -1,4 +1,3 @@
-# expect-error: promoted-mutable-requirement
 trait Resettable:
     fn reset(mut self) -> void
 
@@ -12,4 +11,4 @@ impl Counter:
 data Page:
     Counter
 
-impl Resettable for Page
+impl Resettable for Page  # diagnostic: promoted-mutable-requirement

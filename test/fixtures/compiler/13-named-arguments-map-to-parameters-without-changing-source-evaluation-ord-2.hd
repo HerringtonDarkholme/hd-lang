@@ -1,0 +1,6 @@
+# test: named arguments map to parameters without changing source evaluation order
+# expect-result: main = 42
+
+fn combine(first: i32, second: i32) -> i32: first * 10 + second
+fn identity[T](value: T, fallback: T) -> T: value
+fn main() -> i32: combine(second=2, first=4) + identity(fallback=0, value=0)

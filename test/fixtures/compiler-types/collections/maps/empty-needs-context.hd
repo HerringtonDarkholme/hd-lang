@@ -1,0 +1,4 @@
+# test: collections / maps / empty needs context
+
+fn main() -> void:
+    values := {}  # diagnostic: empty-map-needs-context

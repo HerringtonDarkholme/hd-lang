@@ -1,0 +1,3 @@
+# test: parser rejects comparison chaining
+
+value := 0 < other < 10  # diagnostic: comparison-chaining

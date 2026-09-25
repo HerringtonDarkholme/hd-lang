@@ -1,0 +1,6 @@
+# test: requirements / row inference / inferred empty row
+# expect-result: main = 42
+
+fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r: callback()
+fn pure() -> i32: 42
+fn main() -> i32: invoke(pure)

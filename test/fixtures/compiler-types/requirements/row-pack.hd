@@ -1,0 +1,13 @@
+# test: requirements / row pack
+# expect-result: main = 42
+
+fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+    callback()
+
+fn read() -> i32 $ Clock + Logger:
+    _ := $.use(Clock)
+    _ := $.use(Logger)
+    42
+
+fn main() -> i32 $ Clock + Logger:
+    invoke(read)

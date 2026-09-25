@@ -1,0 +1,9 @@
+# test: traits / mutable errors / readonly dynamic
+
+trait Add:
+    fn add(mut self) -> void
+data Counter:
+    value: i32
+impl Add for Counter:
+    fn add(mut self) -> void: pass
+fn invalid(value: Add) -> void: value.add()  # diagnostic: mutable-receiver-required

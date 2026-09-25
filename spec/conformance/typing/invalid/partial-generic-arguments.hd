@@ -1,5 +1,4 @@
-# expect-error: partial-generic-arguments
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-value := pair[string]("left", 1)
+value := pair[string]("left", 1)  # diagnostic: partial-generic-arguments

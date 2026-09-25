@@ -1,0 +1,13 @@
+# test: contextual enum variant patterns use the subject type
+# expect-result: main = 42
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn read(flag: Flag) -> i32:
+    match flag:
+        .On(value) => value
+        .Off => 0
+
+fn main() -> i32: read(Flag.On(42))

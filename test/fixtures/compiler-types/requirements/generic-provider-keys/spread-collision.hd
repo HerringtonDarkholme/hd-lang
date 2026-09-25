@@ -1,0 +1,6 @@
+# test: requirements / generic provider keys / spread collision
+
+trait Repo[T]
+fn choose[T, U](first: Repo[T], second: Repo[U]) -> void:
+    base := $.context(Repo[T]=first)
+    _ := $.context(...base, Repo[U]=second)  # diagnostic: generic-requirement-key-collision

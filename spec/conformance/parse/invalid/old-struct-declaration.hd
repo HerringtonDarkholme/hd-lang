@@ -1,3 +1,2 @@
-# expect-error: old-struct-declaration
 
-struct Legacy: pass
+struct Legacy: pass  # diagnostic: old-struct-declaration

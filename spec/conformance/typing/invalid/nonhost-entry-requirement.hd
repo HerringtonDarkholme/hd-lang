@@ -1,5 +1,4 @@
-# expect-error: nonhost-entry-requirement
 trait Database
 
-pub fn main() -> void $ Database:
+pub fn main() -> void $ Database:  # diagnostic: nonhost-entry-requirement
     pass

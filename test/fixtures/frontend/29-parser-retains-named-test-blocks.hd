@@ -1,0 +1,5 @@
+# test: parser retains named test blocks
+# expect: parse
+
+test "checks a value":
+    _ := 42

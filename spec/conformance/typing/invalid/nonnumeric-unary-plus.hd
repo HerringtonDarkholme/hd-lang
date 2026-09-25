@@ -1,3 +1,2 @@
-# expect-error: nonnumeric-unary-plus
 
-invalid := +"hello"
+invalid := +"hello"  # diagnostic: nonnumeric-unary-plus

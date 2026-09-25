@@ -1,0 +1,6 @@
+# test: branch scopes do not leak and may shadow each other
+
+fn main() -> i32:
+    if true:
+        hidden := 1
+    hidden  # diagnostic: unknown-name

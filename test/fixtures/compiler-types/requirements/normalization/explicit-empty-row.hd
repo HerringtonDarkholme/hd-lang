@@ -1,0 +1,8 @@
+# test: requirements / normalization / explicit empty row
+# expect: accept
+
+fn invoke(callback: fn() -> void $()) -> void: callback()
+
+fn main() -> void:
+    callback := fn() -> void $(): pass
+    invoke(callback)

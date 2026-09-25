@@ -1,0 +1,15 @@
+# test: enums use tagged GC structs and match binds payloads
+# expect-result: main = 42
+
+enum Outcome:
+    Value(value: i32)
+    Failure(code: i32)
+    Empty
+
+fn read(outcome: Outcome) -> i32:
+    match outcome:
+        Outcome.Value(value) => value
+        Outcome.Failure(code) => -code
+        Outcome.Empty => 0
+
+fn main() -> i32: read(Outcome.Value(42))

@@ -1,0 +1,4 @@
+# test: module bindings lower to Wasm globals shared with declared functions
+
+answer := 41
+fn change() -> void: answer = 42  # diagnostic: non-reassignable-binding

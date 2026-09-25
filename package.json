@@ -12,7 +12,8 @@
     "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
-    "test": "node --test --experimental-strip-types 'test/**/*.test.ts'",
+    "test": "npm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts'",
+    "test:portable": "node --experimental-strip-types test/run-portable.ts",
     "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
     "hd": "node --experimental-strip-types src/cli.ts"
   },

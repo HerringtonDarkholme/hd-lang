@@ -1,0 +1,7 @@
+# test: while else produces values on break or normal exhaustion
+
+fn main() -> i32:
+    while true:
+        break  # diagnostic: break-value-context
+    else:
+        1

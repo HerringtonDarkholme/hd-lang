@@ -1,0 +1,7 @@
+# test: explicit mutable suspension bindings are one-shot
+
+fn ready!() -> i32: 42
+fn main!() -> i32:  # panic: runtime-error
+    let pending: mut Suspend[i32] = ready()
+    _ := pending!()
+    pending!()

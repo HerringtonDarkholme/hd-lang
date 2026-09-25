@@ -1,0 +1,4 @@
+# test: data field defaults are type checked and purity checked
+
+data Bad:
+    value: i32 = true  # diagnostic: type-mismatch

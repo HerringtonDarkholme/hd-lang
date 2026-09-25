@@ -1,0 +1,10 @@
+# test: match checking rejects bare enum variant patterns
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:
+        On => 1  # diagnostic: bare-variant-pattern
+        .Off => 0

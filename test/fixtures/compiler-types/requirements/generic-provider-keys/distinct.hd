@@ -1,0 +1,15 @@
+# test: requirements / generic provider keys / distinct
+# expect: accept
+
+trait Repo[T]
+data User: pass
+data Post: pass
+fn choose(first: Repo[User], second: Repo[Post]) -> void:
+    $.with(Repo[User]=first, Repo[Post]=second):
+        pass
+fn consume[T](repo: Repo[T]) -> i32 $ Repo[T]:
+    _ := $.use(Repo[T])
+    1
+fn run(repo: Repo[User]) -> i32:
+    $.with(Repo[User]=repo):
+        consume(repo)

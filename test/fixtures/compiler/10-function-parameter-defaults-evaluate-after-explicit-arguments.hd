@@ -1,0 +1,12 @@
+# test: function parameter defaults evaluate after explicit arguments
+# expect-result: main = 1438
+
+fn combine(first: i32 = 10, second: i32 = first + 1, third: i32 = second + 1) -> i32:
+    first * 100 + second * 10 + third
+
+fn choose[T](value: T, fallback: T = value) -> T: fallback
+
+fn load!(base: i32, extra: i32 = 2) -> i32: base + extra
+
+fn main!() -> i32:
+    combine() + combine(third=4, first=2) + choose(40) + load!(40)

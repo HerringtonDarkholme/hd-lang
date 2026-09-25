@@ -1,4 +1,3 @@
-# expect-error: non-reassignable-parameter-binding
 fn normalize(value: i32) -> i32:
-    value = 0
+    value = 0  # diagnostic: non-reassignable-parameter-binding
     value

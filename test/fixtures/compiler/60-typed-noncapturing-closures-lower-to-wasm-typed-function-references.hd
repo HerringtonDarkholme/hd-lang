@@ -1,0 +1,9 @@
+# test: typed noncapturing closures lower to Wasm typed function references
+# expect-result: main = 42
+
+fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
+    transform(value)
+
+fn main() -> i32:
+    increment := fn(value: i32) -> i32: value + 1
+    apply(41, increment)

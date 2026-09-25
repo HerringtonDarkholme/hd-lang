@@ -1,5 +1,3 @@
-# expect-error: missing-return-value
-
 fn invalid(flag: bool) -> i32:
-    if flag:
+    if flag:  # diagnostic: missing-return-value
         return 1

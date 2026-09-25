@@ -1,6 +1,5 @@
-# expect-error: missing-partial-eq
 data User:
     id: string
 
 fn same(left: User, right: User) -> bool:
-    left == right
+    left == right  # diagnostic: missing-partial-eq

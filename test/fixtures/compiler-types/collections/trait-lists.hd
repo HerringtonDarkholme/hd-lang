@@ -1,0 +1,15 @@
+# test: collections / trait lists
+# expect-result: main = 42
+
+trait Value:
+    fn get(self) -> i32
+
+data Number:
+    value: i32
+
+impl Value for Number:
+    fn get(self) -> i32: self.value
+
+fn main() -> i32:
+    let values: list[Value] = [Number { value: 20 }, Number { value: 22 }]
+    values[0].get() + values[1].get()

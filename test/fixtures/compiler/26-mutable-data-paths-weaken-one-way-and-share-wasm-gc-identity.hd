@@ -1,0 +1,23 @@
+# test: mutable data paths weaken one way and share Wasm GC identity
+# expect-result: main = 42
+
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+    snapshot: Child
+
+fn rename(parent: mut Parent) -> void:
+    parent.child.name = "Grace"
+    parent.snapshot = Child { name: "updated" }
+
+fn main() -> i32:
+    let child: mut Child = Child { name: "Ada" }
+    let parent: mut Parent = Parent { child: child, snapshot: Child { name: "old" } }
+    readonly := parent
+    rename(parent)
+    if readonly.child.name == "Grace" and readonly.snapshot.name == "updated":
+        42
+    else:
+        0

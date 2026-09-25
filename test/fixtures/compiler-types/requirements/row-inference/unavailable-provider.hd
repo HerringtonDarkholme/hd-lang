@@ -1,0 +1,5 @@
+# test: requirements / row inference / unavailable provider
+
+fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r: callback()
+fn read() -> i32 $ Clock + Logger: 42
+fn main() -> i32 $ Clock: invoke(read)  # diagnostic: missing-requirement

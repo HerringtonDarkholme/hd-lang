@@ -1,0 +1,5 @@
+# test: while else produces values on break or normal exhaustion
+
+fn main() -> void:
+    while true:
+        break 1  # diagnostic: break-value-context

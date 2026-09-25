@@ -1,0 +1,5 @@
+# test: optional and Result context errors have stable diagnostics
+
+fn main() -> i32:
+    value := 1
+    value?  # diagnostic: invalid-result-propagation

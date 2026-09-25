@@ -1,9 +1,7 @@
-# expect-error: duplicate-field
-
 data User:
     name: string
 
 user := User {
     name: "Ada",
-    name: "Grace",
+    name: "Grace",  # diagnostic: duplicate-field
 }

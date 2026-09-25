@@ -1,7 +1,6 @@
-# expect-error: bare-variant-pattern
 enum State:
     Ready
 
 fn inspect(state: State) -> string:
     match state:
-        Ready => "ready"
+        Ready => "ready"  # diagnostic: bare-variant-pattern

@@ -1,0 +1,7 @@
+# test: named enum payload patterns resolve bindings by field name
+
+enum Choice:
+    Pair(left: i32, right: i32)
+fn bad(choice: Choice) -> i32:
+    match choice:
+        Choice.Pair(missing=value, right=other) => value  # diagnostic: unknown-variant-pattern-field

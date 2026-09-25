@@ -1,0 +1,12 @@
+# test: closures / provider captures
+# expect-result: main = 42
+
+fn make_reader() -> (fn() -> i32) $ Backup:
+    $.with(Clock=$.use(Backup)):
+        fn() -> i32:
+            _ := $.use(Clock)
+            42
+
+fn main() -> i32 $ Backup:
+    reader := make_reader()
+    reader()

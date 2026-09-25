@@ -1,0 +1,26 @@
+# test: traits / mutable receivers
+# expect-result: main = 42
+
+trait Add:
+    fn add(mut self, value: i32) -> void
+    fn twice(mut self, value: i32) -> void:
+        self.add(value)
+        self.add(value)
+
+data Counter:
+    value: i32
+
+impl Add for Counter:
+    fn add(mut self, value: i32) -> void:
+        self.value = self.value + value
+
+fn bounded[T: Add](value: mut T, amount: i32) -> void:
+    value.add(amount)
+
+fn main() -> i32:
+    let counter: mut Counter = Counter { value: 0 }
+    counter.add(10)
+    let dynamic: mut Add = counter
+    dynamic.twice(5)
+    bounded(counter, 22)
+    counter.value

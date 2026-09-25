@@ -1,0 +1,5 @@
+# test: generics / functions / unsaturated function value
+
+fn identity[T](value: T) -> T: value
+fn main() -> void:
+    value := identity  # diagnostic: generic-function-value-needs-arguments

@@ -1,0 +1,3 @@
+# test: checker rejects name, mutability, and type errors
+
+fn bad(first: i32..., second: i32) -> i32: second  # diagnostic: nonfinal-vararg

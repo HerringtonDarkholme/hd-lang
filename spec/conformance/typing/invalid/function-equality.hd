@@ -1,4 +1,2 @@
-# expect-error: unsupported-equality
-
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
-    left == right
+    left == right  # diagnostic: unsupported-equality

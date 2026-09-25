@@ -1,5 +1,3 @@
-# expect-error: ambiguous-method
-
 trait LeftLabel:
     fn label(self) -> string
 
@@ -16,4 +14,4 @@ impl RightLabel for User:
     fn label(self) -> string: self.name
 
 fn invalid(user: User) -> string:
-    user.label()
+    user.label()  # diagnostic: ambiguous-method

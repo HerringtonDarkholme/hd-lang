@@ -1,3 +1,2 @@
-# expect-error: comparison-chaining
 
-inside := 0 < value < 10
+inside := 0 < value < 10  # diagnostic: comparison-chaining

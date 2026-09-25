@@ -1,0 +1,7 @@
+# test: numeric, character, and string literal patterns require a catch-all
+
+fn classify(value: char) -> i32:
+    match value:
+        'x' => 1
+        'x' => 2  # diagnostic: unreachable-match-arm
+        _ => 0

@@ -1,4 +1,3 @@
-# expect-error: discarded-must-use-value
 data SaveError:
     message: string
 
@@ -7,8 +6,7 @@ fn save() -> Result[i32, SaveError]:
 
 fn save_all(values: list[i32]) -> void:
     for value in values:
-        save()
-
+        save()  # diagnostic: discarded-must-use-value
 fn maybe_save(ready: bool) -> void:
     if ready:
         save()

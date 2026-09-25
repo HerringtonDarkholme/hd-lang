@@ -1,5 +1,4 @@
-# expect-error: private-type-leak
 trait Database
 
-pub fn query() -> void $ Database:
+pub fn query() -> void $ Database:  # diagnostic: private-type-leak
     pass

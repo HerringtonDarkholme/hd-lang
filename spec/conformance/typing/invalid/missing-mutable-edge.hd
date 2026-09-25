@@ -1,5 +1,3 @@
-# expect-error: readonly-edge
-
 data Profile:
     name: string
 
@@ -7,4 +5,4 @@ data Account:
     profile: Profile
 
 fn invalid(account: mut Account) -> void:
-    account.profile.name = "Grace"
+    account.profile.name = "Grace"  # diagnostic: readonly-edge

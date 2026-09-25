@@ -1,0 +1,17 @@
+# test: traits / suspending defaults
+# expect-result: main = 42
+
+trait Named:
+    fn value(self) -> i32
+    fn load!(self) -> i32:
+        self.value()
+
+data Number:
+    value: i32
+
+impl Named for Number:
+    fn value(self) -> i32: self.value
+
+fn main!() -> i32:
+    let named: Named = Number { value: 42 }
+    named.load!()

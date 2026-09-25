@@ -1,5 +1,3 @@
-# expect-warning: unreachable-code
-
 fn example() -> i32:
     return 1
-    2
+    2  # warning: unreachable-code

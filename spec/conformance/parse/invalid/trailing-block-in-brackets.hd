@@ -1,5 +1,4 @@
-# expect-error: trailing-block-position
 fn run(callback: fn() -> i32) -> i32: callback()
 
-values := [run:
+values := [run:  # diagnostic: trailing-block-position
     1]

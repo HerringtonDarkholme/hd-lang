@@ -752,16 +752,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
         this.fail("argument-count", "println expects one value argument", expression.span);
       this.resolveArgumentMapping(expression, ["value"], "println");
       const operand = this.checkExpression(expression.arguments[0]!);
-      const value: HirExpression =
-        operand.type === "string"
-          ? operand
-          : ["i32", "bool", "char"].includes(operand.type)
-            ? { kind: "display", operand, type: "string", span: operand.span }
-            : this.fail(
-                "missing-display",
-                `type '${operand.type}' does not implement Display in the executable MVP`,
-                operand.span,
-              );
+      const value = this.displayValue(operand, operand.span);
       const provider = this.resolveProvider("Console", expression.span);
       if (!provider) this.fail("missing-requirement", "println requires Console", expression.span);
       return { kind: "console-print", provider, value, type: "void", span: expression.span };

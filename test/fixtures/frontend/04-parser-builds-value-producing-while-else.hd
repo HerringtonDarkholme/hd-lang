@@ -1,0 +1,8 @@
+# test: parser builds value-producing while else
+# expect: parse
+
+fn main() -> void:
+    while true:
+        pass
+    else:
+        pass

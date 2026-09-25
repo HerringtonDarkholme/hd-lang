@@ -1,0 +1,3 @@
+# test: function parameter defaults enforce order, type, and purity
+
+fn bad(value: i32 = true) -> i32: value  # diagnostic: type-mismatch

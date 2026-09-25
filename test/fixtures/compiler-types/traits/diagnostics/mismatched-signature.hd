@@ -1,0 +1,8 @@
+# test: traits / diagnostics / mismatched signature
+
+trait Named:
+    fn name(self) -> string
+data User:
+    value: i32
+impl Named for User:
+    fn name(self) -> i32: 0  # diagnostic: trait-method-signature

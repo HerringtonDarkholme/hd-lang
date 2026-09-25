@@ -1,6 +1,5 @@
-# expect-error: duplicate-inherent-member
 data User: pass
 
 impl User:
     fn name(self) -> string: "first"
-    fn name(self) -> string: "second"
+    fn name(self) -> string: "second"  # diagnostic: duplicate-inherent-member

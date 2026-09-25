@@ -1,0 +1,8 @@
+# test: println requires Console and streams displayed UTF-8 through the host boundary
+# expect: accept
+
+fn main() -> i32 $ Console:
+    println("value ${42}")
+    println(true)
+    println('λ')
+    42

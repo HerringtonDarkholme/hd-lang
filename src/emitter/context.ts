@@ -58,6 +58,7 @@ export class EmitterContext {
   protected readonly cleanupFrames: CleanupFrame[] = [];
   protected readonly temporaryTypes: ValueType[] = [];
   protected floatPower = false;
+  protected floatDisplay = false;
   protected consoleOutput = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
@@ -127,6 +128,10 @@ export class EmitterContext {
 
   get requiresFloatPower(): boolean {
     return this.floatPower;
+  }
+
+  get requiresFloatDisplay(): boolean {
+    return this.floatDisplay;
   }
 
   get requiresConsoleOutput(): boolean {

@@ -2,15 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, instantiate, type ReplayEvent } from "../src/compiler.ts";
+import { fixture } from "./fixture.ts";
 
 test("suspending functions construct GC frames and bang calls drive them", async () => {
-  const source = `fn add_two!(value: i32) -> i32 $ Clock:
-    _ := $.use(Clock)
-    value + 2
-
-fn main!() -> i32 $ Clock:
-    add_two!(40)
-`;
+  const source = fixture(
+    "suspension/01-suspending-functions-construct-gc-frames-and-bang-calls-drive-them",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$s0 \(struct/);
   assert.match(compilation.wat, /\(func \$f0 .*\(result \(ref null \$s0\)\)/);
@@ -20,14 +17,9 @@ fn main!() -> i32 $ Clock:
 });
 
 test("generic suspending functions box frame arguments and unbox direct or stored results", async () => {
-  const source = `fn echo![T](value: T) -> T: value
-
-fn main!() -> i32:
-    let pending: mut Suspend[i32] = echo(20)
-    left := pending!()
-    right := echo!(22)
-    left + right
-`;
+  const source = fixture(
+    "suspension/02-generic-suspending-functions-box-frame-arguments-and-unbox-direct-or-sto",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /struct\.new \$hd\.box-i32/);
   assert.match(compilation.wat, /ref\.cast \(ref \$hd\.box-i32\)/);
@@ -35,24 +27,9 @@ fn main!() -> i32:
 });
 
 test("generic suspension frames retain trait dictionaries across child polls", async () => {
-  const source = `trait Score:
-    fn score(self) -> i32
-
-data Value:
-    amount: i32
-
-impl Score for Value:
-    fn score(self) -> i32: self.amount
-
-fn pause!() -> void: pass
-
-fn read![T: Score](value: T) -> i32:
-    pause!()
-    value.score()
-
-fn main!() -> i32:
-    read!(Value { amount: 42 })
-`;
+  const source = fixture(
+    "suspension/03-generic-suspension-frames-retain-trait-dictionaries-across-child-polls",
+  );
   const { instance, compilation } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -62,55 +39,63 @@ fn main!() -> i32:
 });
 
 test("ordinary suspending calls are cold values and bang calls need a driver", () => {
-  const cold = analyze("fn work!() -> i32: 42\nfn main() -> void:\n    pending := work()\n");
+  const cold = analyze(
+    fixture(
+      "suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic",
+    ),
+  );
   assert.equal(cold.diagnostics[0]?.code, "unused-local-binding");
   assert.equal(cold.hir?.functions[1]?.locals[0]?.type, "suspend(0):i32");
   assert.equal(
-    analyze("fn work!() -> i32: 42\nfn main() -> i32: work!()\n").diagnostics[0]?.code,
+    analyze(
+      fixture(
+        "suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-2",
+      ),
+    ).diagnostics[0]?.code,
     "bang-call-outside-suspension",
   );
   assert.equal(
-    analyze("fn plain() -> i32: 42\nfn main!() -> i32: plain!()\n").diagnostics[0]?.code,
+    analyze(
+      fixture(
+        "suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3",
+      ),
+    ).diagnostics[0]?.code,
     "not-suspending",
   );
   assert.equal(
-    analyze("fn work!() -> i32: 42\nfn main!() -> i32:\n    pending := work()\n    pending!()\n")
-      .diagnostics[0]?.code,
+    analyze(
+      fixture(
+        "suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-4",
+      ),
+    ).diagnostics[0]?.code,
     "mutable-receiver-required",
   );
 });
 
 test("unresolved standard task combinators have a dedicated boundary diagnostic", () => {
-  const source = `fn ready!() -> i32: 42
-fn main!() -> i32: all!(ready(), ready())
-`;
+  const source = fixture(
+    "suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti",
+  );
   assert.equal(analyze(source).diagnostics[0]?.code, "unsupported-task-combinator");
   assert.equal(
-    analyze(source.replace("all!", "race!")).diagnostics[0]?.code,
+    analyze(fixture("suspension/05-unresolved-race-task-combinator")).diagnostics[0]?.code,
     "unsupported-task-combinator",
   );
 
-  const userDefined = `fn all!(left: i32, right: i32) -> i32: left + right
-fn main!() -> i32: all!(20, 22)
-`;
+  const userDefined = fixture(
+    "suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined",
+  );
   assert.deepEqual(analyze(userDefined).diagnostics, []);
 });
 
 test("explicit mutable suspension bindings are one-shot", async () => {
-  const valid = `fn ready!() -> i32: 42
-fn main!() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    pending!()
-`;
+  const valid = fixture("suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid");
   const { instance } = await instantiate(valid);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 
-  const secondDrive = `fn ready!() -> i32: 42
-fn main!() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    _ := pending!()
-    pending!()
-`;
+  const secondDrive = fixture(
+    "suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive",
+  );
   const second = await instantiate(secondDrive);
   assert.throws(
     () => (second.instance.exports.main as CallableFunction)(),
@@ -119,13 +104,9 @@ fn main!() -> i32:
 });
 
 test("cold suspension cancellation is synchronous and idempotent", async () => {
-  const source = `fn ready!() -> i32: 42
-fn main() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    pending.cancel()
-    pending.cancel()
-    42
-`;
+  const source = fixture(
+    "suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(func \$cancel0/);
   assert.match(compilation.wat, /i32\.const 3/);
@@ -133,37 +114,28 @@ fn main() -> i32:
 });
 
 test("cancelled suspensions cannot be driven and readonly values cannot be cancelled", async () => {
-  const cancelled = `fn ready!() -> i32: 42
-fn main!() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    pending.cancel()
-    pending!()
-`;
+  const cancelled = fixture(
+    "suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled",
+  );
   const execution = await instantiate(cancelled);
   assert.throws(
     () => (execution.instance.exports.main as CallableFunction)(),
     WebAssembly.RuntimeError,
   );
 
-  const readonly =
-    "fn ready!() -> i32: 42\nfn main() -> void:\n    pending := ready()\n    pending.cancel()\n";
+  const readonly = fixture("suspension/08-readonly-suspension-cancel");
   assert.equal(analyze(readonly).diagnostics[0]?.code, "mutable-receiver-required");
 });
 
 test("defer suites cannot suspend", () => {
-  const source = `fn ready!() -> void: pass
-fn main!() -> void:
-    defer:
-        ready!()
-    pass
-`;
+  const source = fixture("suspension/09-defer-suites-cannot-suspend");
   assert.equal(analyze(source).diagnostics[0]?.code, "suspending-defer");
 });
 
 test("suspension state transitions are observable through the trace ABI", async () => {
-  const source = `fn child!() -> i32: 42
-fn main!() -> i32: child!()
-`;
+  const source = fixture(
+    "suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi",
+  );
   const events: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -180,7 +152,7 @@ fn main!() -> i32: child!()
 });
 
 test("host fixtures can keep a GC frame pending across deterministic polls", async () => {
-  const source = "fn main!() -> i32: 42\n";
+  const source = fixture("suspension/11-deterministic-host-pending");
   const events: Array<[number, number]> = [];
   const polls: number[] = [];
   const { instance, compilation } = await instantiate(source, {
@@ -207,8 +179,9 @@ test("host fixtures can keep a GC frame pending across deterministic polls", asy
 });
 
 test("development drivers reject competing and reentrant suspension control", async () => {
-  const source = `fn main!() -> i32: 42
-`;
+  const source = fixture(
+    "suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control",
+  );
 
   const competing = await instantiate(source, { pending: () => true });
   (competing.instance.exports.__hd_start as CallableFunction)();
@@ -255,12 +228,9 @@ test("development drivers reject competing and reentrant suspension control", as
 });
 
 test("child pending propagates through the parent frame and restores locals", async () => {
-  const source = `fn child!() -> i32: 2
-fn main!() -> i32:
-    base := 40
-    value := child!()
-    base + value
-`;
+  const source = fixture(
+    "suspension/13-child-pending-propagates-through-the-parent-frame-and-restores-locals",
+  );
   const events: Array<[number, number]> = [];
   const { instance, compilation } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -283,7 +253,7 @@ fn main!() -> i32:
     [1, 2],
   ]);
 
-  const nested = "fn child!() -> i32: 41\nfn main!() -> i32: child!() + 1\n";
+  const nested = fixture("suspension/13-nested-pending-frame");
   const nestedResult = await instantiate(nested, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -291,13 +261,9 @@ fn main!() -> i32:
 });
 
 test("started-frame cancellation cancels the child and runs registered cleanup", async () => {
-  const source = `fn child!() -> i32: 2
-fn main!() -> i32:
-    defer:
-        pass
-    value := child!()
-    value
-`;
+  const source = fixture(
+    "suspension/14-started-frame-cancellation-cancels-the-child-and-runs-registered-cleanup",
+  );
   const events: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -326,23 +292,7 @@ fn main!() -> i32:
 });
 
 test("cancellation unwinds child frames before parent cleanup", async () => {
-  const source = `fn wait!() -> void: pass
-
-fn leaf!() -> void:
-    defer:
-        pass
-    wait!()
-
-fn middle!() -> void:
-    defer:
-        pass
-    leaf!()
-
-fn main!() -> void:
-    defer:
-        pass
-    middle!()
-`;
+  const source = fixture("suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup");
   const events: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -363,15 +313,9 @@ fn main!() -> void:
 });
 
 test("linear suspension frames resume across multiple child sites", async () => {
-  const source = `fn left!(value: i32) -> i32: value
-fn right!(value: i32) -> i32: value
-fn main!() -> i32:
-    base := 1
-    left_value := left!(20)
-    middle := 1
-    right_value := right!(20)
-    base + left_value + middle + right_value
-`;
+  const source = fixture(
+    "suspension/16-linear-suspension-frames-resume-across-multiple-child-sites",
+  );
   const { instance, compilation } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex < 2 && pollCount === 1,
   });
@@ -381,11 +325,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering preserves nested expression evaluation", async () => {
-  const source = `fn value!(input: i32) -> i32: input
-
-fn main!() -> i32:
-    value!(20) + value!(22)
-`;
+  const source = fixture(
+    "suspension/17-cfg-suspension-lowering-preserves-nested-expression-evaluation",
+  );
   const { instance, compilation } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -394,12 +336,7 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering preserves nested argument order", async () => {
-  const source = `fn value!(input: i32) -> i32: input
-fn add!(left: i32, right: i32) -> i32: left + right
-
-fn main!() -> i32:
-    add!(value!(20), value!(22))
-`;
+  const source = fixture("suspension/18-cfg-suspension-lowering-preserves-nested-argument-order");
   const polls: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     pending: (functionIndex, pollCount) => {
@@ -432,16 +369,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering branches and short-circuits around child frames", async () => {
-  const source = `fn value!(input: i32) -> i32: input
-
-fn choose!(flag: bool) -> i32:
-    if flag and value!(1) == 1:
-        value!(20) + value!(22)
-    else:
-        value!(99)
-
-fn main!() -> i32: choose!(true)
-`;
+  const source = fixture(
+    "suspension/19-cfg-suspension-lowering-branches-and-short-circuits-around-child-frames",
+  );
   const polls: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     pending: (functionIndex, pollCount) => {
@@ -464,24 +394,9 @@ fn main!() -> i32: choose!(true)
 });
 
 test("CFG suspension lowering preserves loops, continue, break values, and cleanup", async () => {
-  const source = `fn step!(value: i32) -> i32: value
-
-fn main!() -> i32:
-    let index: i32 = 0
-    let total: i32 = 0
-    value := while index < 5:
-        defer:
-            total = total + 10
-        index = step!(index + 1)
-        if index == 2:
-            continue
-        total = total + step!(index)
-        if index == 4:
-            break total
-    else:
-        0
-    value + total - 44
-`;
+  const source = fixture(
+    "suspension/20-cfg-suspension-lowering-preserves-loops-continue-break-values-and-cleanu",
+  );
   const { instance } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -489,19 +404,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering preserves match bindings and suspending guards", async () => {
-  const source = `enum Number:
-    Value(value: i32)
-    Empty
-
-fn number!(value: Number) -> Number: value
-fn probe!(value: i32) -> i32: value
-
-fn main!() -> i32:
-    match number!(Number.Value(20)):
-        Number.Value(value) if probe!(value) == 20 => probe!(value) + 22
-        Number.Value(value) => value
-        Number.Empty => 0
-`;
+  const source = fixture(
+    "suspension/21-cfg-suspension-lowering-preserves-match-bindings-and-suspending-guards",
+  );
   const { instance } = await instantiate(source, {
     pending: (_functionIndex, pollCount) => pollCount === 1,
   });
@@ -509,27 +414,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering propagates Result failures after child completion", async () => {
-  const source = `data ParseError:
-    code: i32
-
-fn parse!(ok: bool) -> Result[i32, ParseError]:
-    if ok:
-        Ok(40)
-    else:
-        Err(ParseError { code: 7 })
-
-fn lifted!(ok: bool) -> Result[i32, ParseError]:
-    value := parse!(ok)?
-    Ok(value + 2)
-
-fn inspect(value: Result[i32, ParseError]) -> i32:
-    match value:
-        Ok(actual) => actual
-        Err(error) => -error.code
-
-fn main!() -> i32:
-    inspect(lifted!(true)) + inspect(lifted!(false))
-`;
+  const source = fixture(
+    "suspension/22-cfg-suspension-lowering-propagates-result-failures-after-child-completio",
+  );
   const { instance } = await instantiate(source, {
     pending: (_functionIndex, pollCount) => pollCount === 1,
   });
@@ -537,16 +424,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension cancellation cancels the active child and runs scoped cleanup", async () => {
-  const source = `fn child!() -> i32: 2
-
-fn main!() -> i32:
-    if true:
-        defer:
-            pass
-        child!() + 40
-    else:
-        0
-`;
+  const source = fixture(
+    "suspension/23-cfg-suspension-cancellation-cancels-the-active-child-and-runs-scoped-cle",
+  );
   const events: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -573,24 +453,9 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering installs providers produced after resumption", async () => {
-  const source = `trait Clock
-
-data MockClock:
-    value: i32
-
-impl Clock for MockClock
-
-fn make_clock!(value: i32) -> Clock:
-    MockClock { value: value }
-
-fn read() -> i32 $ Clock:
-    _ := $.use(Clock)
-    42
-
-fn main!() -> i32:
-    $.with(Clock=make_clock!(1)):
-        read()
-`;
+  const source = fixture(
+    "suspension/24-cfg-suspension-lowering-installs-providers-produced-after-resumption",
+  );
   const { instance, compilation } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -599,21 +464,7 @@ fn main!() -> i32:
 });
 
 test("CFG suspension lowering nests dynamic trait suspensions", async () => {
-  const source = `trait Reader:
-    fn read!(self, value: i32) -> i32
-
-data FixedReader:
-    offset: i32
-
-impl Reader for FixedReader:
-    fn read!(self, value: i32) -> i32: self.offset + value
-
-fn combine!(reader: Reader) -> i32:
-    reader.read!(20) + reader.read!(22)
-
-fn main!() -> i32:
-    combine!(FixedReader { offset: 0 })
-`;
+  const source = fixture("suspension/25-cfg-suspension-lowering-nests-dynamic-trait-suspensions");
   const { instance } = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
   });
@@ -621,11 +472,9 @@ fn main!() -> i32:
 });
 
 test("suspension poll decisions record and replay with configuration identity", async () => {
-  const source = `fn child!() -> i32: 2
-fn main!() -> i32:
-    value := child!()
-    value + 40
-`;
+  const source = fixture(
+    "suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity",
+  );
   const events: ReplayEvent[] = [];
   const recorded = await instantiate(source, {
     pending: (functionIndex, pollCount) => functionIndex === 0 && pollCount === 1,
@@ -659,10 +508,13 @@ fn main!() -> i32:
     /provider configuration/,
   );
 
-  const reordered = await instantiate(`fn unused() -> i32: 0\n${source}`, {
-    replay: events,
-    providerConfigurationId: "fixture-a",
-  });
+  const reordered = await instantiate(
+    fixture("suspension/26-replay-survives-unrelated-declaration"),
+    {
+      replay: events,
+      providerConfigurationId: "fixture-a",
+    },
+  );
   assert.equal((reordered.instance.exports.main as CallableFunction)(), 42);
   reordered.replay.assertComplete();
   assert.notEqual(
@@ -670,13 +522,10 @@ fn main!() -> i32:
     events[1]?.functionIndex,
   );
 
-  const changed = await instantiate(
-    source.replace("fn child!() -> i32: 2", "fn child!() -> i32: 3"),
-    {
-      replay: events,
-      providerConfigurationId: "fixture-a",
-    },
-  );
+  const changed = await instantiate(fixture("suspension/26-replay-rejects-function-code-change"), {
+    replay: events,
+    providerConfigurationId: "fixture-a",
+  });
   assert.throws(
     () => (changed.instance.exports.main as CallableFunction)(),
     /function code identity/,
@@ -684,12 +533,9 @@ fn main!() -> i32:
 });
 
 test("println requires Console and streams displayed UTF-8 through the host boundary", async () => {
-  const source = `fn main() -> i32 $ Console:
-    println("value \${42}")
-    println(true)
-    println('λ')
-    42
-`;
+  const source = fixture(
+    "suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo",
+  );
   const lines: string[] = [];
   const providers: unknown[] = [];
   const provider = { name: "test-console" };
@@ -706,117 +552,77 @@ test("println requires Console and streams displayed UTF-8 through the host boun
   assert.match(compilation.wat, /func \$hd\.console_print/);
 
   assert.ok(
-    analyze(`fn main() -> void:
-    println("missing")
-`).diagnostics.some((diagnostic) => diagnostic.code === "missing-requirement"),
+    analyze(
+      fixture(
+        "suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo-missing-requirement",
+      ),
+    ).diagnostics.some((diagnostic) => diagnostic.code === "missing-requirement"),
   );
 });
 
 test("multi-provider use preserves requested tuple order through Wasm GC", async () => {
-  const source = `trait Left:
-    fn value(self) -> i32
-
-trait Right:
-    fn value(self) -> i32
-
-data Number:
-    value: i32
-
-impl Left for Number:
-    fn value(self) -> i32: self.value
-
-impl Right for Number:
-    fn value(self) -> i32: self.value
-
-fn main() -> i32:
-    $.with(Left=Number { value: 20 }, Right=Number { value: 22 }):
-        left, right := $.use(Left, Right)
-        left.value() + right.value()
-`;
+  const source = fixture(
+    "suspension/28-multi-provider-use-preserves-requested-tuple-order-through-wasm-gc",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /array\.new_fixed \$hd\.list 2/);
 });
 
 test("imported block_on drives stored suspensions and rejects nested drivers", async () => {
-  const source = `use std.task.block_on
-
-fn ready!() -> i32: 42
-
-fn main() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    block_on(pending)
-`;
+  const source = fixture(
+    "suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /global \$hd\.driver-active/);
 
-  const nested = `use std.task.block_on
-
-fn ready!() -> i32: 42
-
-fn helper() -> i32:
-    let pending: mut Suspend[i32] = ready()
-    block_on(pending)
-
-fn main!() -> void:
-    _ := helper()
-`;
+  const nested = fixture(
+    "suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested",
+  );
   const nestedExecution = await instantiate(nested);
   assert.throws(
     () => (nestedExecution.instance.exports.main as CallableFunction)(),
     WebAssembly.RuntimeError,
   );
 
-  const forbidden = analyze(`use std.task.block_on
-fn ready!() -> i32: 42
-fn main() -> void:
-    let pending: mut Suspend[i32] = ready()
-    defer:
-        _ := block_on(pending)
-`);
+  const forbidden = analyze(
+    fixture(
+      "suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-suspension-forbidden-context",
+    ),
+  );
   assert.ok(
     forbidden.diagnostics.some((diagnostic) => diagnostic.code === "suspension-forbidden-context"),
   );
 });
 
 test("imported assert_equal compares supported structural values", async () => {
-  const source = `use std.testing.assert_equal
-
-fn main() -> i32:
-    assert_equal((1, ["a", "b"]), (1, ["a", "b"]), reason="same structure")
-    42
-`;
+  const source = fixture(
+    "suspension/30-imported-assert-equal-compares-supported-structural-values",
+  );
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 
-  const failure = await instantiate(`use std.testing.assert_equal
-fn main() -> void: assert_equal([1], [2], reason="different")
-`);
+  const failure = await instantiate(
+    fixture("suspension/30-imported-assert-equal-compares-supported-structural-values-failure"),
+  );
   assert.throws(
     () => (failure.instance.exports.main as CallableFunction)(),
     WebAssembly.RuntimeError,
   );
 
-  const unsupported = analyze(`use std.testing.assert_equal
-data Value: pass
-fn main() -> void: assert_equal(Value {}, Value {}, reason="not derived")
-`);
+  const unsupported = analyze(
+    fixture(
+      "suspension/30-imported-assert-equal-compares-supported-structural-values-missing-partial-eq",
+    ),
+  );
   assert.ok(unsupported.diagnostics.some((diagnostic) => diagnostic.code === "missing-partial-eq"));
 });
 
 test("module bindings lower to Wasm globals shared with declared functions", async () => {
-  const source = `let count: i32 = 0
-label := "requests"
-
-fn increment() -> void:
-    count = count + 1
-
-fn value() -> i32:
-    count
-
-increment()
-`;
+  const source = fixture(
+    "suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions",
+  );
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(
     compilation.hir.globals.map((global) => [global.name, global.type, global.mutable]),
@@ -829,9 +635,11 @@ increment()
   assert.equal((instance.exports.main as CallableFunction)(), undefined);
   assert.equal((instance.exports.value as CallableFunction)(), 1);
 
-  const immutable = analyze(`answer := 41
-fn change() -> void: answer = 42
-`);
+  const immutable = analyze(
+    fixture(
+      "suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions-non-reassignable-binding",
+    ),
+  );
   assert.ok(
     immutable.diagnostics.some((diagnostic) => diagnostic.code === "non-reassignable-binding"),
   );

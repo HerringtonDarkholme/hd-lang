@@ -1,0 +1,10 @@
+# test: data copy-update supplies omitted fields without running defaults
+# expect-result: main = 42
+
+data Counter:
+    value: i32 = panic("copy-update evaluated a default")
+
+fn main() -> i32:
+    original := Counter { value: 42 }
+    copied := Counter { ...original }
+    copied.value

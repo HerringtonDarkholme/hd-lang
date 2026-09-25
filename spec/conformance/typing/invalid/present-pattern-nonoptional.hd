@@ -1,5 +1,4 @@
-# expect-error: optional-pattern-requires-optional
 fn nonoptional(value: i32) -> i32:
     match value:
-        present? => present
+        present? => present  # diagnostic: optional-pattern-requires-optional
         _ => 0

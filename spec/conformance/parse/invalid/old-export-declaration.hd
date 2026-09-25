@@ -1,3 +1,2 @@
-# expect-error: old-export-declaration
 
-export pkg.user.types.{User}
+export pkg.user.types.{User}  # diagnostic: old-export-declaration

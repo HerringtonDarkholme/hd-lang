@@ -1,5 +1,4 @@
-# expect-error: top-level-read-before-initialization
-first := apply(first_name)
+first := apply(first_name)  # diagnostic: top-level-read-before-initialization
 let names: list[string] = ["Ada"]
 
 fn apply(callback: fn() -> string) -> string:

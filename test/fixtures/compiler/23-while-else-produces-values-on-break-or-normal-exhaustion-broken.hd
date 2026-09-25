@@ -1,0 +1,12 @@
+# test: while else produces values on break or normal exhaustion
+# expect-result: main = 42
+
+fn main() -> i32:
+    let cleanup: i32 = 0
+    value := while true:
+        defer:
+            cleanup = cleanup + 1
+        break 41
+    else:
+        0
+    value + cleanup

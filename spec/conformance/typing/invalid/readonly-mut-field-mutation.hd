@@ -1,5 +1,3 @@
-# expect-error: readonly-root
-
 data Child:
     name: string
 
@@ -7,4 +5,4 @@ data Parent:
     child: mut Child
 
 fn invalid(parent: Parent) -> void:
-    parent.child.name = "new"
+    parent.child.name = "new"  # diagnostic: readonly-root

@@ -1,8 +1,7 @@
-# expect-error: suspending-defer
 fn cleanup!() -> void:
     pass
 
 fn invalid!() -> void:
     defer:
-        cleanup!()
+        cleanup!()  # diagnostic: suspending-defer
     pass

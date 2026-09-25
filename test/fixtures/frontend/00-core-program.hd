@@ -1,0 +1,12 @@
+# test: core program
+# expect: parse
+
+fn choose(flag: bool, left: i32, right: i32) -> i32:
+    if flag:
+        left + 1
+    else:
+        right * 2
+
+fn main() -> i32:
+    base := 20
+    choose(base < 30, base, 0)

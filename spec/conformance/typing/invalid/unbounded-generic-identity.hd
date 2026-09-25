@@ -1,3 +1,2 @@
-# expect-error: identity-needs-reference-bound
 fn same[T](left: T, right: T) -> bool:
-    left is right
+    left is right  # diagnostic: identity-needs-reference-bound

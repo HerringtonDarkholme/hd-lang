@@ -20,7 +20,11 @@ npm install
 npm run toolchain:gate
 npm run lint
 npm run format:check
+npm run test:portable
+npm test
+npm run hd -- parse spec/conformance/parse/valid/layout.hd
 npm run hd -- check examples/core.hd
+npm run hd -- test spec/conformance/runtime/valid/defer-order.hd
 npm run hd -- build --wat examples/core.hd
 npm run hd -- run examples/core.hd
 npm run hd -- trace examples/suspension.hd
@@ -73,8 +77,10 @@ linked through npm.
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
 - interpreted `$name` and `${expression}` string segments with left-to-right
-  built-in display conversion for `string`, `i32`, `bool`, and `char`;
-- `println` with the same built-in display surface, statically requiring a
+  canonical `Display` dispatch for concrete implementations, generic bounds,
+  dynamic trait values, and the standard `string`, `i32`, `f64`, `bool`, and
+  `char` implementations;
+- `println` with the same display surface, statically requiring a
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
   the narrow host byte callback;
 - value-producing `if`, statement `if`, `while`, value-producing `while ...
@@ -132,8 +138,9 @@ linked through npm.
 - inherent `impl Type:` methods lowered to direct typed functions, including
   named arguments, mutable receivers, suspending calls, and duplicate-member
   diagnostics;
-- embedded data fields with direct method promotion and bodyless explicit
-  trait opt-in for one compatible readonly promoted method; mutable promoted
+- embedded data fields with direct field and method promotion, including
+  generic substitution through the embedded edge, plus bodyless explicit trait
+  opt-in for one compatible readonly promoted method; mutable promoted
   requirements are rejected at the embedded readonly edge;
 - default trait methods with target-specific lowering, dynamic method-table
   entries, and explicit override precedence;
@@ -143,9 +150,9 @@ linked through npm.
   trait bounds, dictionary forwarding, method dispatch on values produced
   inside generic bodies, and concrete call-site recovery for returned `T`
   values;
-- generic data declarations with inferred construction arguments, precise
-  instantiated member types, and uniform `anyref` field erasure in one Wasm GC
-  layout per declaration;
+- generic data declarations with inferred or complete explicit construction
+  arguments, precise instantiated member types, and uniform `anyref` field
+  erasure in one Wasm GC layout per declaration;
 - generic enums with inferred and contextual construction, recursive
   instantiations, precise pattern bindings, and uniform `anyref` payload
   erasure in one Wasm GC layout per declaration;
@@ -188,10 +195,11 @@ linked through npm.
   indexed or `get()` lookup, `len()`, growable indexed insertion and
   `remove()` through `mut map[K, V]`, and erased Wasm GC key/value storage;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and
-- a curated frontend conformance gate tied to `spec/conformance/cases.tsv`,
-  including stable rejection diagnostics, Wasm runtime panic cases, complete
-  prelude-name shadow protection, and non-fatal unreachable-code, unused-local,
-  and variant-binding-name-mismatch warnings.
+- an implementation-neutral conformance gate tied to
+  `spec/conformance/cases.tsv`, invoked through the public CLI by a concurrent
+  TypeScript runner, including stable rejection diagnostics, Wasm runtime panic cases,
+  complete prelude-name shadow protection, and non-fatal unreachable-code,
+  unused-local, and variant-binding-name-mismatch warnings.
 
 The active boundary is intentionally narrower than the language specification.
 Task combinator intrinsics, associated and generic trait members, provider-call
@@ -199,15 +207,15 @@ replay, and annotations remain in later MVP slices. The compiler
 rejects syntax it recognizes from those slices rather than assigning placeholder
 semantics; unresolved `all!` and `race!` calls report
 `unsupported-task-combinator`.
-Interpolation and `println` report `missing-display` for other displayed types until the
-canonical prelude `Display` dictionary and floating-point formatting are part
-of the executable standard-library trait slice.
+Interpolation and `println` report `missing-display` when the displayed type
+does not implement the canonical prelude trait.
 
 ## Layout
 
-- `lexer.ts`, `parser.ts`, and `ast.ts` implement the source frontend.
-- `checker.ts` resolves names and produces the typed nodes in `hir.ts`.
-- `emitter.ts` lowers HIR to readable WAT.
+- `lexer.ts` and `ast.ts` define the small source-frontend stages.
+- `parser/` builds the AST and exposes its public API from `parser/index.ts`.
+- `checker/` resolves names and produces the typed nodes in `hir.ts`.
+- `emitter/` lowers HIR to readable WAT and exposes only `emitter/index.ts`.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.
@@ -215,4 +223,7 @@ of the executable standard-library trait slice.
 - `cli.ts` implements the current command-line interface.
 - `toolchain-gate.ts` proves the required Wasm GC operations independently of
   the language frontend.
+- `../test/portable/cases.tsv` selects portable `.hd` conformance fixtures;
+  `../test/run-portable.ts` runs them through `hd parse`, `hd check`, and
+  `hd test` without importing compiler internals.
 - `../test/cli.test.ts` exercises the packaged CLI surface end to end.

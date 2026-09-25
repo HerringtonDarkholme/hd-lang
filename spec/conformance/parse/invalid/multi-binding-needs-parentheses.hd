@@ -1,4 +1,3 @@
-# expect-error: multi-binding-needs-parentheses
 fn pair() -> (i32, i32): (1, 2)
 
-values := [a, b := pair()]
+values := [a, b := pair()]  # diagnostic: multi-binding-needs-parentheses

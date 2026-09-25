@@ -1,0 +1,9 @@
+# test: match checking requires every enum variant
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:  # diagnostic: nonexhaustive-match
+        Flag.On(value) => value

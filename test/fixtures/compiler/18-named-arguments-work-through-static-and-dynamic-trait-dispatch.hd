@@ -1,0 +1,20 @@
+# test: named arguments work through static and dynamic trait dispatch
+# expect-result: main = 42
+
+trait Mixer:
+    fn blend(self, left: i32, right: i32) -> i32
+    fn load!(self, left: i32, right: i32) -> i32
+
+data Calculator: pass
+
+impl Mixer for Calculator:
+    fn blend(self, left: i32, right: i32) -> i32: left * 10 + right
+    fn load!(self, left: i32, right: i32) -> i32: left * 10 + right
+
+fn main!() -> i32:
+    calculator := Calculator {}
+    static := calculator.blend(right=2, left=4)
+    let dynamic: Mixer = calculator
+    direct := dynamic.blend(right=0, left=0)
+    suspended := dynamic.load!(right=0, left=0)
+    static + direct + suspended

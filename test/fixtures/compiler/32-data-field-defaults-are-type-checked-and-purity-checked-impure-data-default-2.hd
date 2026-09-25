@@ -1,0 +1,5 @@
+# test: data field defaults are type checked and purity checked
+
+fn wait!() -> i32: 1
+data Bad:
+    value: i32 = wait!()  # diagnostic: impure-data-default

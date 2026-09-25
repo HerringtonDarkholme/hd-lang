@@ -1,0 +1,4 @@
+# test: ordinary suspending calls are cold values and bang calls need a driver
+
+fn work!() -> i32: 42
+fn main() -> i32: work!()  # diagnostic: bang-call-outside-suspension

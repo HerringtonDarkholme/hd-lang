@@ -1,6 +1,4 @@
-# expect-error: binding-not-yet-visible
-
 fn read_count() -> i32:
-    count
+    count  # diagnostic: binding-not-yet-visible
 
 let count: i32 = 0

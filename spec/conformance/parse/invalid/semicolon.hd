@@ -1,3 +1,2 @@
-# expect-error: reserved-semicolon
 
-name := "Ada";
+name := "Ada";  # diagnostic: reserved-semicolon

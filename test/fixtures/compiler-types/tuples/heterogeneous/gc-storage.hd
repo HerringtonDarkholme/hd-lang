@@ -1,0 +1,14 @@
+# test: tuples / heterogeneous / gc storage
+# expect-result: main = 42
+
+fn load!() -> i32: 36
+fn pair[T](left: T, right: i32) -> (T, i32): (left, right)
+
+fn main!() -> i32:
+    loaded, text := (load!(), "界")
+    nested := ((1, 2),)
+    single := (1,)
+    generic := pair("value", 1)
+    let first, second: (i32, i32) = (1, 2)
+    first = 2
+    loaded + text.len() + nested.0.0 + single.0 + generic.1 + first + second - second

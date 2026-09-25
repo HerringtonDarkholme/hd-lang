@@ -1,0 +1,21 @@
+# test: varargs work in suspending and trait method calls
+# expect-result: main = 108
+
+data Box:
+    base: i32
+
+trait Sum:
+    fn add(self, values: i32...) -> i32
+    fn add_async!(self, values: i32...) -> i32
+
+impl Sum for Box:
+    fn add(self, values: i32...) -> i32: self.base + values[0] + values[1]
+    fn add_async!(self, values: i32...) -> i32: self.base + values[0]
+
+fn use_dynamic(value: Sum) -> i32: value.add(1, 2)
+fn use_dynamic_async!(value: Sum) -> i32: value.add_async!(4)
+
+fn main!() -> i32:
+    value := Box { base: 30 }
+    items := [5, 6]
+    value.add(items...) + use_dynamic(value) + use_dynamic_async!(value)

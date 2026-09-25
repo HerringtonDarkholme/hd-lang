@@ -1,0 +1,8 @@
+# test: requirement explanations traverse closure providers
+# expect: accept
+
+fn main() -> i32 $ Clock:
+    callback := fn() -> i32 $ Clock:
+        _ := $.use(Clock)
+        42
+    callback()

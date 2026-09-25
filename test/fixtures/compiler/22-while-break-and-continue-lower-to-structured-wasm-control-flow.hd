@@ -1,0 +1,12 @@
+# test: while, break, and continue lower to structured Wasm control flow
+# expect-result: main = 7
+
+fn main() -> i32:
+    let value: i32 = 0
+    while value < 10:
+        value = value + 1
+        if value == 3:
+            continue
+        if value == 7:
+            break
+    value

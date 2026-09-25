@@ -1,4 +1,2 @@
-# expect-error: trait-method-visibility
-
 pub trait Display:
-    pub fn to_string(self) -> string
+    pub fn to_string(self) -> string  # diagnostic: trait-method-visibility

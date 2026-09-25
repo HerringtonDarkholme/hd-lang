@@ -1,0 +1,5 @@
+# test: match guards see pattern bindings and do not contribute coverage
+
+fn classify(value: bool) -> i32:
+    match value:  # diagnostic: nonexhaustive-match
+        _ if true => 1

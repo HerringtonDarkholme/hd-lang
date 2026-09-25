@@ -1,0 +1,37 @@
+# test: identity / references / gc identity
+# expect-result: main = 42
+
+data Box:
+    value: i32
+
+trait Value:
+    fn get(self) -> i32
+
+impl Value for Box:
+    fn get(self) -> i32: self.value
+
+enum Status:
+    Ready
+    Code(value: i32)
+
+fn same[T: Reference](left: T, right: T) -> bool: left is right
+fn as_value(value: Value) -> Value: value
+fn pending!() -> i32: 1
+
+fn main() -> i32:
+    box := Box { value: 1 }
+    alias := box
+    other := Box { value: 1 }
+    callback := fn() -> i32: 1
+    callback_alias := callback
+    other_callback := fn() -> i32: 1
+    values := [1]
+    values_alias := values
+    first_trait := as_value(box)
+    second_trait := as_value(box)
+    suspension := pending()
+    suspension_alias := suspension
+    if same(box, alias) and not (box is other) and callback is callback_alias and not (callback is other_callback) and values is values_alias and first_trait is second_trait and suspension is suspension_alias and Status.Ready is Status.Ready and not (Status.Code(1) is Status.Code(1)):
+        42
+    else:
+        0

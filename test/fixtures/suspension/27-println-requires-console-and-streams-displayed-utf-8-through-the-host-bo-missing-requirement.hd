@@ -1,0 +1,4 @@
+# test: println requires Console and streams displayed UTF-8 through the host boundary
+
+fn main() -> void:
+    println("missing")  # diagnostic: missing-requirement

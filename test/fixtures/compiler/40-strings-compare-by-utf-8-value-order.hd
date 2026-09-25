@@ -1,0 +1,8 @@
+# test: strings compare by UTF-8 value order
+# expect-result: main = 42
+
+fn main() -> i32:
+    if "same" == "same" and "a" < "é" and "é" < "界" and "abc" < "abcd" and "界面".starts_with("界") and "abc".starts_with("") and not "a".starts_with("ab"):
+        42
+    else:
+        0

@@ -1,0 +1,6 @@
+# test: data initialization rejects unknown fields
+
+data Point:
+    x: i32
+
+fn main() -> i32: Point { y: 1 }.x  # diagnostic: unknown-data-field

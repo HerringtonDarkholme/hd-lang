@@ -1027,7 +1027,12 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 }
 
-import { CONSOLE_RUNTIME_WAT, MAP_RUNTIME_WAT, RUNTIME_WAT } from "./runtime/index.ts";
+import {
+  CONSOLE_RUNTIME_WAT,
+  FLOAT_RUNTIME_WAT,
+  MAP_RUNTIME_WAT,
+  RUNTIME_WAT,
+} from "./runtime/index.ts";
 
 interface CollectedModuleTypes {
   readonly signatureNames: Map<ValueType, number>;
@@ -1350,11 +1355,14 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     emitter.requiresFloatPower
       ? `  (import "hd" "pow_f64" (func $hd.pow_f64 (param f64 f64) (result f64)))`
       : "",
+    emitter.requiresFloatDisplay
+      ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))`
+      : "",
     emitter.requiresConsoleOutput
       ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
       : "",
   ]
     .filter(Boolean)
     .join("\n");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${MAP_RUNTIME_WAT}${emitter.requiresConsoleOutput ? "\n\n" + CONSOLE_RUNTIME_WAT : ""}${declarations}\n${functions}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${MAP_RUNTIME_WAT}${emitter.requiresFloatDisplay ? "\n\n" + FLOAT_RUNTIME_WAT : ""}${emitter.requiresConsoleOutput ? "\n\n" + CONSOLE_RUNTIME_WAT : ""}${declarations}\n${functions}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}\n)`;
 }

@@ -1,0 +1,5 @@
+# test: unresolved standard task combinators have a dedicated boundary diagnostic
+# expect-result: main = 42
+
+fn all!(left: i32, right: i32) -> i32: left + right
+fn main!() -> i32: all!(20, 22)

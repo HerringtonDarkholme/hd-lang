@@ -1,0 +1,7 @@
+# test: closures / captures
+# expect-result: main = 42
+
+fn main() -> i32:
+    base := 40
+    add := fn(value: i32) -> i32: base + value
+    add(2)

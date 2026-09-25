@@ -1,0 +1,8 @@
+# test: enums / generic / context required
+
+enum Maybe[T]:
+    Some(value: T)
+    None
+
+fn main() -> void:
+    value := Maybe.None  # diagnostic: generic-enum-needs-context

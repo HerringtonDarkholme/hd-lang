@@ -1,9 +1,7 @@
-# expect-error: missing-requirement
-
 trait Database
 
 fn query() -> void $ Database:
     pass
 
 fn invalid() -> void:
-    query()
+    query()  # diagnostic: missing-requirement

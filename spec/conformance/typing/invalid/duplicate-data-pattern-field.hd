@@ -1,8 +1,6 @@
-# expect-error: duplicate-data-pattern-field
-
 data User:
     name: string
 
 fn invalid(user: User) -> string:
     match user:
-        User { name, name=alias } => alias
+        User { name, name=alias } => alias  # diagnostic: duplicate-data-pattern-field

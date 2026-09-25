@@ -45,22 +45,28 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
     case "$expectation" in
         reject:*)
             code=${expectation#reject:}
-            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-error: $code" ] ||
-                fail "fixture $path does not declare expect-error $code on line 1"
+            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-error: $code" ]; then
+                grep -Fq "# diagnostic: $code" "$spec_dir/conformance/$path" ||
+                    fail "fixture $path does not declare diagnostic $code"
+            fi
             grep -Fq "\`$code\`" "$spec_dir/README.md" ||
                 fail "fixture $path uses unknown error category $code"
             ;;
         warn:*)
             code=${expectation#warn:}
-            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-warning: $code" ] ||
-                fail "fixture $path does not declare expect-warning $code on line 1"
+            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-warning: $code" ]; then
+                grep -Fq "# warning: $code" "$spec_dir/conformance/$path" ||
+                    fail "fixture $path does not declare warning $code"
+            fi
             grep -Fq "\`$code\`" "$spec_dir/README.md" ||
                 fail "fixture $path uses unknown warning category $code"
             ;;
         panic:*)
             code=${expectation#panic:}
-            [ "$(sed -n '1p' "$spec_dir/conformance/$path")" = "# expect-panic: $code" ] ||
-                fail "fixture $path does not declare expect-panic $code on line 1"
+            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-panic: $code" ]; then
+                grep -Fq "# panic: $code" "$spec_dir/conformance/$path" ||
+                    fail "fixture $path does not declare panic $code"
+            fi
             grep -Fq "\`$code\`" "$spec_dir/06-control-flow.md" ||
                 fail "fixture $path uses unknown panic category $code"
             ;;

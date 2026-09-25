@@ -1,4 +1,3 @@
-# expect-error: doc-comment-without-target
 fn run() -> void:
-    ## This cannot document an executable statement.
+    ## This cannot document an executable statement.  # diagnostic: doc-comment-without-target
     value := 1

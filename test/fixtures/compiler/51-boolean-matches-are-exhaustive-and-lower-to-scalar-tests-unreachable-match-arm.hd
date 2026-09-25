@@ -1,0 +1,7 @@
+# test: boolean matches are exhaustive and lower to scalar tests
+
+fn choose(flag: bool) -> i32:
+    match flag:
+        true => 1
+        true => 2  # diagnostic: unreachable-match-arm
+        false => 0

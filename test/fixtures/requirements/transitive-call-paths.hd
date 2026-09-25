@@ -1,0 +1,8 @@
+# test: requirement explanations include transitive call paths
+# expect: accept
+
+fn read() -> i32 $ Clock:
+    _ := $.use(Clock)
+    40
+fn middle() -> i32 $ Clock: read() + 1
+fn main() -> i32 $ Clock: middle() + 1

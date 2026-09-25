@@ -1,3 +1,2 @@
-# expect-error: enum-default-order
-enum Status(code: i32 = 0, phrase: string):
+enum Status(code: i32 = 0, phrase: string):  # diagnostic: enum-default-order
     Unknown -> Status(phrase="unknown")

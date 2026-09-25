@@ -1,0 +1,33 @@
+# test: traits / multiple bounds / duplicate bound
+
+trait Describe:
+    fn describe(self) -> i32
+
+trait Named:
+    fn name(self) -> i32
+
+data Number:
+    value: i32
+    extra: i32
+
+impl Describe for Number:
+    fn describe(self) -> i32: self.value
+
+impl Named for Number:
+    fn name(self) -> i32: self.extra
+
+fn describe_one[T: Describe](value: T) -> i32:
+    value.describe()
+
+fn inspect[T: Describe + Describe](value: T) -> i32:  # diagnostic: duplicate-trait-bound
+    describe_one(value) + value.name()
+
+fn inspect_first[T: Describe](values: list[T]) -> i32:
+    values[0].describe()
+
+fn identity[T: Describe + Describe](value: T) -> T:
+    value
+
+fn main() -> i32:
+    number := identity(Number { value: 20, extra: 2 })
+    inspect(number) + inspect_first([Number { value: 20, extra: 0 }])

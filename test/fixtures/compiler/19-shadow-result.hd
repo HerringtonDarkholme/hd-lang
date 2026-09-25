@@ -1,0 +1,3 @@
+# test: prelude Result cannot be shadowed
+
+fn identity[Result](value: Result) -> Result: value  # diagnostic: prelude-name-shadow

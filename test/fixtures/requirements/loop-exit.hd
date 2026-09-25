@@ -1,0 +1,9 @@
+# test: requirement explanations traverse loop exits
+# expect: accept
+
+fn read() -> i32 $ Clock: 42
+fn main() -> i32 $ Clock:
+    while true:
+        break read()
+    else:
+        0

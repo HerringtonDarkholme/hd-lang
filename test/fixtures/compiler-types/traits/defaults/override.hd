@@ -1,0 +1,20 @@
+# test: traits / defaults / override
+# expect-result: main = 41
+
+trait Named:
+    fn name(self) -> i32
+    fn label(self) -> i32:
+        self.name() + 2
+
+data Number:
+    value: i32
+
+impl Named for Number:
+    fn name(self) -> i32: self.value
+    fn label(self) -> i32: 41
+
+fn show(value: Named) -> i32:
+    value.label()
+
+fn main() -> i32:
+    show(Number { value: 40 })

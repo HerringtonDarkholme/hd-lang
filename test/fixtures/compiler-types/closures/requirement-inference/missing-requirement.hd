@@ -1,0 +1,7 @@
+# test: closures / requirement inference / missing requirement
+
+fn main() -> i32:
+    reader := fn() -> i32:
+        _ := $.use(Clock)
+        42
+    reader()  # diagnostic: missing-requirement

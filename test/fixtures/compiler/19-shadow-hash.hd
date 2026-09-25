@@ -1,0 +1,5 @@
+# test: prelude Hash cannot be shadowed
+
+fn main() -> i32:
+    let Hash: i32 = 42  # diagnostic: prelude-name-shadow
+    Hash

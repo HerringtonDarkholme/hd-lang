@@ -1,0 +1,9 @@
+# test: closures / nested captures
+# expect-result: main = 42
+
+fn main() -> i32:
+    base := 40
+    make := fn(delta: i32) -> fn(i32) -> i32:
+        fn(value: i32) -> i32: base + delta + value
+    add := make(1)
+    add(1)

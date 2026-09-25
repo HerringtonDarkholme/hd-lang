@@ -1,6 +1,5 @@
-# expect-error: missing-partial-ord
 data Score:
     value: i32
 
 fn higher(left: Score, right: Score) -> bool:
-    left > right
+    left > right  # diagnostic: missing-partial-ord

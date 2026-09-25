@@ -1,2 +1,1 @@
-# expect-error: prelude-name-shadow
-data Display: pass
+data Display: pass  # diagnostic: prelude-name-shadow

@@ -1,0 +1,10 @@
+# test: generics / callable adapter
+# expect-result: main = 42
+
+fn apply[T](value: T, transform: fn(T) -> T) -> T:
+    transform(value)
+
+fn increment(value: i32) -> i32: value + 1
+
+fn main() -> i32:
+    apply(40, increment) + apply(0, fn(value): value + 1)

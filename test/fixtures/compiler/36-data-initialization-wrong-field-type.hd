@@ -1,0 +1,6 @@
+# test: data initialization rejects mismatched field values
+
+data Point:
+    x: i32
+
+fn main() -> i32: Point { x: true }.x  # diagnostic: type-mismatch

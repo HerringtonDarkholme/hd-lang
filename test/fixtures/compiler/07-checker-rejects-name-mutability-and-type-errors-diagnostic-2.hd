@@ -1,0 +1,6 @@
+# test: checker rejects name, mutability, and type errors
+
+fn main() -> i32:
+    x := 1
+    x = 2  # diagnostic: non-reassignable-binding
+    x

@@ -1,0 +1,12 @@
+use std.testing.assert_equal
+
+test "float display follows the canonical text format":
+    assert_equal("${1.0}", "1.0", reason="integral floats retain a decimal point")
+    assert_equal("${-0.0}", "-0.0", reason="negative zero retains its sign")
+    assert_equal("${0.000001}", "0.000001", reason="the lower fixed boundary is inclusive")
+    assert_equal("${0.0000001}", "1e-7", reason="small values use scientific notation")
+    assert_equal("${100000000000000000000.0}", "100000000000000000000.0", reason="large fixed values retain a decimal point")
+    assert_equal("${1e21}", "1e+21", reason="the upper scientific boundary is exclusive")
+    assert_equal("${1.0 / 0.0}", "inf", reason="positive infinity has canonical spelling")
+    assert_equal("${-1.0 / 0.0}", "-inf", reason="negative infinity has canonical spelling")
+    assert_equal("${0.0 / 0.0}", "NaN", reason="NaN has canonical spelling")

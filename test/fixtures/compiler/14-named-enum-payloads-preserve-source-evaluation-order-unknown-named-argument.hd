@@ -1,0 +1,5 @@
+# test: named enum payloads preserve source evaluation order
+
+enum Pair:
+    Value(first: i32, second: i32)
+fn main() -> Pair: Pair.Value(missing=1, first=2)  # diagnostic: unknown-named-argument

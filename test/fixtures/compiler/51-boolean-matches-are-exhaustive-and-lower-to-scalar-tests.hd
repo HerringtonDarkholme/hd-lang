@@ -1,0 +1,9 @@
+# test: boolean matches are exhaustive and lower to scalar tests
+# expect-result: main = 42
+
+fn choose(flag: bool) -> i32:
+    match flag:
+        true => 42
+        false => 0
+
+fn main() -> i32: choose(true) + choose(false)

@@ -1,0 +1,11 @@
+# test: callbacks / requirement function values
+# expect-result: main = 42
+
+fn read() -> i32 $ Clock:
+    _ := $.use(Clock)
+    42
+
+fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
+    callback()
+
+fn main() -> i32 $ Clock: invoke(read)

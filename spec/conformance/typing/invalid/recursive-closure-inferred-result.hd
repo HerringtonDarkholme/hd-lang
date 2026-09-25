@@ -1,6 +1,5 @@
-# expect-error: recursive-closure-needs-result-type
 fn sum_to(limit: i32) -> i32:
-    sum := fn(n: i32):
+    sum := fn(n: i32):  # diagnostic: recursive-closure-needs-result-type
         if n == 0: 0
         else: n + sum(n - 1)
     sum(limit)

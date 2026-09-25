@@ -1,0 +1,7 @@
+# test: suspension replay rejects function code changes
+# expect-result: main = 43
+
+fn child!() -> i32: 3
+fn main!() -> i32:
+    value := child!()
+    value + 40

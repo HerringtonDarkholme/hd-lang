@@ -1,4 +1,3 @@
-# expect-warning: requirement-subtract-absent
 trait Logger:
     fn write(self, message: string) -> void
 trait Clock
@@ -15,4 +14,4 @@ fn redundant[r](callback: fn() -> void $ r) -> void $ (r - Logger):
 fn tick() -> void $ Clock: pass
 
 fn run() -> void $ Clock:
-    redundant(tick)
+    redundant(tick)  # warning: requirement-subtract-absent

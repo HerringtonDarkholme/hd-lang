@@ -1,0 +1,12 @@
+# test: CFG suspension cancellation cancels the active child and runs scoped cleanup
+# expect-result: main = 42
+
+fn child!() -> i32: 2
+
+fn main!() -> i32:
+    if true:
+        defer:
+            pass
+        child!() + 40
+    else:
+        0

@@ -1,0 +1,9 @@
+# test: collections / lists / erased storage
+# expect-result: main = 42
+
+fn first[T](items: list[T]) -> T:
+    items[0]
+
+fn main() -> i32:
+    numbers := [40, 2]
+    first(numbers) + numbers.len()

@@ -1,5 +1,3 @@
-# expect-error: non-reassignable-binding
-
 fn invalid() -> void:
     name := "Ada"
-    name = "Grace"
+    name = "Grace"  # diagnostic: non-reassignable-binding

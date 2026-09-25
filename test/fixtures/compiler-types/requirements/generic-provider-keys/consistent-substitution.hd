@@ -1,0 +1,7 @@
+# test: requirements / generic provider keys / consistent substitution
+# expect: accept
+
+trait Pair[A, B]
+fn safe[T](same: Pair[T, T], mixed: Pair[i32, string]) -> void:
+    $.with(Pair[T, T]=same, Pair[i32, string]=mixed):
+        pass

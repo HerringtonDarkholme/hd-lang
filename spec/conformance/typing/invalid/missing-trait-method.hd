@@ -1,6 +1,5 @@
-# expect-error: missing-trait-method
 trait Named:
     fn name(self) -> string
 
 data User: pass
-impl Named for User
+impl Named for User  # diagnostic: missing-trait-method

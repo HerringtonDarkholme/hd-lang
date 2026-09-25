@@ -1,0 +1,4 @@
+# test: parser represents mut self as a mutable Self receiver
+
+trait Invalid:
+    fn add(mut value: i32) -> void  # diagnostic: expected-token

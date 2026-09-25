@@ -1,7 +1,5 @@
-# expect-error: readonly-root
-
 data User:
     name: string
 
 fn invalid(user: User) -> void:
-    user.name = "Grace"
+    user.name = "Grace"  # diagnostic: readonly-root

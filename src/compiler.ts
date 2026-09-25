@@ -46,6 +46,21 @@ export interface InstantiateOptions {
   readonly providerConfigurationId?: string;
 }
 
+export interface Instantiation {
+  readonly compilation: Compilation;
+  readonly instance: WebAssembly.Instance;
+  readonly replay: ReplaySession;
+}
+
+function displayF64(value: number): string {
+  if (Number.isNaN(value)) return "NaN";
+  if (value === Infinity) return "inf";
+  if (value === -Infinity) return "-inf";
+  if (Object.is(value, -0)) return "-0.0";
+  const rendered = value.toString();
+  return !rendered.includes(".") && !rendered.includes("e") ? `${rendered}.0` : rendered;
+}
+
 export function analyze(source: string): Analysis {
   const parsed = parse(source);
   if (!parsed.program) return { diagnostics: parsed.diagnostics };
@@ -63,7 +78,7 @@ export function compile(source: string): Compilation {
 export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
-): Promise<{ compilation: Compilation; instance: WebAssembly.Instance; replay: ReplaySession }> {
+): Promise<Instantiation> {
   const compilation = compile(source);
   const functionNames = new Map(
     compilation.hir.functions.map((declaration) => [declaration.index, declaration.name]),
@@ -79,6 +94,7 @@ export async function instantiate(
   );
   const configurationId = options.providerConfigurationId ?? "default";
   const consoleBytes: number[] = [];
+  const textEncoder = new TextEncoder();
   const consoleByte = (provider: unknown, byte: number): void => {
     if (byte !== -1) {
       consoleBytes.push(byte);
@@ -137,6 +153,10 @@ export async function instantiate(
       trace: options.trace ?? (() => undefined),
       pending,
       pow_f64: Math.pow,
+      format_f64: (value: number, index: number) => {
+        const bytes = textEncoder.encode(displayF64(value));
+        return index < 0 ? bytes.length : bytes[index]!;
+      },
       console_byte: consoleByte,
     },
   });

@@ -1,0 +1,7 @@
+# test: lexical overrides explain their actual outer provider dependency
+# expect: accept
+
+fn read() -> i32 $ Clock: 42
+fn main() -> i32 $ Backup:
+    $.with(Clock=$.use(Backup)):
+        read()
