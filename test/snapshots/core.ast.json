@@ -1,0 +1,143 @@
+{
+  "uses": [],
+  "data": [],
+  "enums": [],
+  "traits": [],
+  "implementations": [],
+  "functions": [
+    {
+      "kind": "function",
+      "name": "choose",
+      "suspending": false,
+      "genericParameters": [],
+      "genericBounds": [],
+      "parameters": [
+        {
+          "name": "flag",
+          "type": {
+            "name": "bool"
+          }
+        },
+        {
+          "name": "left",
+          "type": {
+            "name": "i32"
+          }
+        },
+        {
+          "name": "right",
+          "type": {
+            "name": "i32"
+          }
+        }
+      ],
+      "result": {
+        "name": "i32"
+      },
+      "requirements": [],
+      "body": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "if",
+            "condition": {
+              "kind": "name",
+              "name": "flag"
+            },
+            "thenBody": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "+",
+                  "left": {
+                    "kind": "name",
+                    "name": "left"
+                  },
+                  "right": {
+                    "kind": "integer",
+                    "value": "1n"
+                  }
+                }
+              }
+            ],
+            "elseBody": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "operator": "*",
+                  "left": {
+                    "kind": "name",
+                    "name": "right"
+                  },
+                  "right": {
+                    "kind": "integer",
+                    "value": "2n"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "function",
+      "name": "main",
+      "suspending": false,
+      "genericParameters": [],
+      "genericBounds": [],
+      "parameters": [],
+      "result": {
+        "name": "i32"
+      },
+      "requirements": [],
+      "body": [
+        {
+          "kind": "binding",
+          "name": "base",
+          "mutable": false,
+          "value": {
+            "kind": "integer",
+            "value": "20n"
+          }
+        },
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "call",
+            "callee": {
+              "kind": "name",
+              "name": "choose"
+            },
+            "arguments": [
+              {
+                "kind": "binary",
+                "operator": "<",
+                "left": {
+                  "kind": "name",
+                  "name": "base"
+                },
+                "right": {
+                  "kind": "integer",
+                  "value": "30n"
+                }
+              },
+              {
+                "kind": "name",
+                "name": "base"
+              },
+              {
+                "kind": "integer",
+                "value": "0n"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "tests": [],
+  "statements": []
+}

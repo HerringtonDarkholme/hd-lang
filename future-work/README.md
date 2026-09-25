@@ -9,5 +9,7 @@ language specification:
   surveys possible foundations for future lifetime and resource-safety work.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
+- [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
+  chosen fast-iteration compiler plan and its deliberately limited slices.
 
 Accepted language behavior belongs in the [formal specification](../spec/README.md).

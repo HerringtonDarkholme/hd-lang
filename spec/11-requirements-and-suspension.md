@@ -132,6 +132,13 @@ those host providers is a pre-execution host configuration error. `$.use` is
 non-suspending and performs no dynamic handler search that can fail at runtime
 below that boundary.
 
+A provider value returned by `$.use` is an ordinary value of its trait type. It
+may flow anywhere an ordinary value of that type may flow, including fields,
+collections, closure captures, return values, and suspension frames, and it
+remains usable after its provider scope ends. A requirement row therefore
+records unresolved provider lookup, not every authority a callable can
+exercise through values it holds.
+
 `$` is a special context namespace, not an ordinary value. Requirement keys in
 its operations are type-level keys rather than named argument labels.
 
@@ -449,8 +456,13 @@ parent is cancelled. `race!` also synchronously cancels losing children before
 returning the first completed value. A retry combinator in `std.task` cancels
 its active attempt and starts no further attempt after parent cancellation.
 
-These combinators are library guidance, not first-class control-flow syntax;
-their concrete generic signatures remain standard-library API design.
+The standard polling combinators in `std.task`, including `all!` and `race!`,
+are compiler intrinsics. Each is imported and bang-called like an ordinary
+`fn!` function and has an ordinary `fn!` signature, but the compiler supplies
+its frame and polling behavior. They are not first-class control-flow syntax.
+Because `Suspend[T]` is sealed, user code cannot define an equivalent polling
+combinator; it composes the standard intrinsics instead. The concrete
+signatures and the complete intrinsic set remain standard-library API design.
 
 ## Requirement Polymorphism
 

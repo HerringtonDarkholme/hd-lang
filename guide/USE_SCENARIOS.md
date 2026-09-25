@@ -10,6 +10,11 @@ language specification. Accepted syntax and semantics live in the
 [formal specification](../spec/README.md), while unresolved work lives in
 [Open Issues](../future-work/OPEN_ISSUES.md).
 
+Each need is stated as an outcome a developer, reviewer, or operator can
+observe. *Mechanism* notes are non-normative: they trace an outcome to the
+current design so that alternative designs can be compared against the same
+outcome.
+
 ## Scenario 1: Interactive Scripts And AI-Agent Tool Calls
 
 The language should make short scripts easy to write while keeping tool inputs,
@@ -27,20 +32,21 @@ libraries should support:
 4. shared types referenced across files and tools;
 5. field-level validation and composable validators;
 6. custom validators written as ordinary functions;
-7. lightweight member metadata and richer `annotate Validation for Target`
-   derivation;
+7. validation rules attached to individual fields, and a whole-type
+   validator derived from them;
 8. generated JSON Schema, OpenAPI, MCP descriptions, TypeScript definitions,
    and documentation for external ecosystems.
 
-Validation metadata does not create a distinct static subtype. Domain identity
-uses an ordinary nominal type; annotations attach validation or presentation
-information to that type.
+*Mechanism:* member metadata and `annotate Validation for Target` derivation
+([Annotations](../spec/14-annotations.md)). Validation metadata does not create
+a distinct static subtype. Domain identity uses an ordinary nominal type;
+annotations attach validation or presentation information to that type.
 
 ### Tool Interfaces And Registration
 
-Tools should remain ordinary typed functions with library-defined metadata,
-not loose wrappers or a separate declaration kind. A tool interface should
-describe:
+A reviewer should be able to read a tool's complete interface at its
+declaration, and an agent host should receive the same description in machine
+form. A tool interface should describe:
 
 1. input and output types;
 2. explicit `Result` error behavior;
@@ -63,25 +69,33 @@ annotate Tool for get_user: pass
 tool_registry.register(Tool::annotation(get_user))
 ```
 
-The same registration model should extend to service endpoints, jobs,
-workflows, and host-callable Wasm functions.
+*Mechanism:* a tool is an ordinary typed function, not a wrapper or a
+separate declaration kind. Its metadata is a library-defined `Tool` annotation
+facet, and registration is an explicit runtime call. The same registration
+model should extend to service endpoints, jobs, workflows, and host-callable
+Wasm functions.
 
 ### Dependencies, Capabilities, And Sandboxing
 
-Requirement rows and provider contexts should make tool dependencies and
-authority visible. They should support:
+A reviewer should be able to list every external system a tool requires from
+its signature, and a host should refuse to run a tool it has not granted those
+systems. The design should support:
 
-1. database, network, clock, filesystem, secret, subprocess, authentication,
-   and other explicit requirements;
-2. compiler verification that every required provider is available;
+1. explicit database, network, clock, filesystem, secret, subprocess,
+   authentication, and other dependencies;
+2. rejection before execution when a required dependency is unavailable;
 3. test, mock, production, and restricted provider implementations;
 4. capability checks before tool execution;
-5. generated dependency and capability reports;
+5. generated dependency reports listing the providers each tool requires;
+   provider values that escape through ordinary value flow are outside these
+   reports until non-escapability is designed;
 6. sandboxed execution by default;
-7. higher-order functions that propagate row parameters and remove
-   requirements they satisfy locally;
+7. higher-order helpers whose signatures show their callbacks' dependencies
+   and hide only the ones the helper satisfies itself;
 8. interactive resumption without silently gaining new authority.
 
+*Mechanism:* requirement rows, `$.use`, `$.with`, row parameters, and row
+subtraction ([Requirements and Suspension](../spec/11-requirements-and-suspension.md)).
 Normal errors use `Result`; requirements describe dependencies; `fn!` and
 `Suspend[T]` describe one-shot suspension. These mechanisms replace the older
 single “effects and handlers” model.
@@ -91,16 +105,16 @@ single “effects and handlers” model.
 Agent tooling should be able to exercise tools over generated inputs and
 produce repairable failures. It should support:
 
-1. unit-test blocks and ordinary `std.testing` assertions;
-2. generated valid inputs from types and annotation metadata;
+1. tests written beside the code they check, using ordinary assertions;
+2. generated valid inputs from types and their validation metadata;
 3. checked examples attached to tool metadata;
 4. mocked providers;
 5. reproducible property-test failures and shrinking;
 6. structured, machine-readable diagnostics;
 7. source links from failures to declarations and metadata.
 
-Invalid-input generation is useful for negative testing but is not an initial
-requirement.
+*Mechanism:* `test` blocks, `std.testing`, and substitute providers. Invalid-input
+generation is useful for negative testing but is not an initial requirement.
 
 ### Interactive Execution And Observability
 
@@ -137,16 +151,18 @@ access.
 
 Generated code should expose important obligations at its boundaries:
 
-1. expected failures appear in `Result` types;
-2. unhandled errors are rejected;
-3. dependencies appear in requirement rows;
-4. missing providers are rejected;
-5. callback requirements propagate through explicit row parameters;
+1. a reviewer can see every expected failure of a function from its
+   signature;
+2. an ignored expected failure is rejected;
+3. a reviewer can see every dependency of a function from its signature;
+4. a missing dependency is rejected before execution;
+5. a callback's dependencies stay visible through higher-order helpers;
 6. error and requirement paths remain readable during review;
 7. diagnostics provide structured context for automated repair;
 8. dependency and capability graphs can be generated for audit.
 
-Function contracts and type invariants are outside the language. Preconditions,
+*Mechanism:* `Result` and `?`, requirement rows, and row parameters. Function
+contracts and type invariants are outside the language. Preconditions,
 postconditions, and output checks should instead use types, validation,
 ordinary functions, tests, and structured runtime diagnostics.
 
@@ -163,22 +179,26 @@ Typed data definitions should support:
 7. lifecycle checking against concrete storage backends;
 8. links from runtime values and operational signals back to source types.
 
-Schema, validation, persistence, UI, and lifecycle descriptions should share
-the general annotation model rather than introduce separate declaration
+*Mechanism:* schema, validation, persistence, UI, and lifecycle descriptions
+share the general annotation model rather than introduce separate declaration
 systems.
 
 ### Correctness And Property Testing
 
 Correctness tooling should be part of ordinary development:
 
-1. built-in `test` blocks and `std.testing` assertions;
-2. dependency injection through requirement traits and provider contexts;
-3. property testing implemented as a `std.testing` library;
+1. tests written beside the code they check, without a separate framework;
+2. replacing any dependency with a test implementation without changing the
+   code under test;
+3. property testing from the standard test library;
 4. generated data derived from types and metadata;
 5. reproducible seeds and failure artifacts;
 6. shrinking of failing cases;
 7. integration with mock providers;
 8. machine-readable reports that agents can use to repair code.
+
+*Mechanism:* `test` blocks, `std.testing`, and provider contexts that bind
+requirement traits to test implementations.
 
 ### Observability And Controlled Inspection
 
@@ -195,9 +215,9 @@ Generated systems should expose:
 
 ### Durable Workflows And Recovery
 
-Durable workflows should be runtime and standard-library facilities built on
-one-shot suspension, explicit requirements, and deterministic replay. They
-should support:
+A long-running process should survive interruption without repeating
+external actions it already completed, and an operator should see which work
+was replayed. Durable workflows should support:
 
 1. durable progress and persisted state;
 2. retry policy and idempotency boundaries;
@@ -208,7 +228,9 @@ should support:
 7. compensation or cleanup policies;
 8. integration with observability and data-retention rules.
 
-Interactive session recovery and durable workflow replay share infrastructure
+*Mechanism:* runtime and standard-library facilities built on one-shot
+suspension, explicit requirements, and deterministic replay. Interactive
+session recovery and durable workflow replay share infrastructure
 but have different semantics. Tooling must clearly distinguish replayed work
 from newly executed external actions.
 
@@ -256,7 +278,10 @@ It should support:
 
 ### Declarative Data Retention
 
-Retention uses the annotation model rather than standalone syntax:
+A developer should be able to state a record's lifecycle policy next to its
+type and have that policy checked against the storage it uses.
+
+*Mechanism:* retention uses the annotation model rather than standalone syntax:
 
 ```text
 data User:

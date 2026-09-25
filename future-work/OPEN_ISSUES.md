@@ -8,48 +8,6 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
-### Provider Escape And Authority Visibility
-
-**Problem.** A value obtained through `$.use(K)` is an ordinary value today. It
-can escape into a global, field, closure, return value, or suspension frame. In
-addition, a closure created inside `$.with` currently captures each lexical
-provider its body uses, as specified by the closure capture rule. A callable's
-row therefore records unresolved provider lookup rather than all authority the
-callable can exercise. This limits capability auditing.
-
-**Options.** (1) Make provider values second-class and forbid storing or
-capturing them unless the enclosing callable row contains the key. (2) Put
-capture rows on closure and `Suspend` types, following capture-set systems.
-(3) Keep ordinary values, reword the claim, and require a compiler value-flow
-report for authority audits.
-
-**Recommendation.** Prototype option 1 first and move to option 2 if useful
-provider-carrying abstractions cannot be expressed. Do not rely on wording
-alone.
-
-**Unblocks.** Sound per-tool capability reports, sandbox review, provider
-escape diagnostics, and an end-to-end “no ambient authority” claim.
-
-### Purity In Function Types
-
-**Problem.** Purity checks for defaults, annotation
-materialization, replay, and `std.incremental` cannot validate an indirect
-function value or dynamic trait dispatch from its current type. The accepted
-interim rule rejects such calls in purity-checked contexts unless a named
-callable has a verified summary; this is sound but restricts higher-order APIs.
-
-**Options.** (1) Make plain `fn` pure and use `mut fn` for all externally
-observable effects. (2) Add an explicit `pure` qualifier to function and trait
-method types. (3) Define purity solely from visible signature properties and
-reject indirect calls whose signature cannot prove it.
-
-**Recommendation.** Add an explicit `pure` qualifier. It communicates intent,
-works for dynamic dispatch, and avoids changing the established meaning of
-`mut fn` as mutable capture access.
-
-**Unblocks.** Sound default arguments, annotation builders, deterministic
-workflow checking, and safe incremental callbacks across package boundaries.
-
 ### Replay Determinism And Durable Workflows
 
 **Problem.** Cold suspensions and provider capture do
@@ -72,6 +30,15 @@ calls before a suspension point when the provider contract exposes that fact.
 **Unblocks.** Crash recovery, workflow upgrades, deterministic replay tests,
 and durable orchestration as a defining use case.
 
+**Status.** The first experiment in the
+[Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) records frame-poll
+events with function-name identities, per-function source identities, and a
+provider-configuration identity. It demonstrates that replay can tolerate an
+unrelated declaration insertion while rejecting a changed executed function or
+provider configuration. The issue remains open for explicit source labels,
+suspending provider-call interception, durable argument/result encoding, and
+the determinism checks between provider calls.
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Problem.** Current shapes describe declarations but
@@ -93,25 +60,6 @@ target-indexed output. Generate boundary adapters in the compiler and include
 **Unblocks.** Serializers, property generators, schema-backed RPC/tool
 invocation, validation at the boundary, and reliable secret redaction. These
 are language-design tasks, not merely library work.
-
-### Task Combinator Extensibility
-
-**Problem.** Sealed `Suspend[T]` keeps one-shot checks enforceable, but ordinary
-source cannot implement polling combinators such as heterogeneous `all!`,
-`race!`, timeout, or select, and the current bang-call form applies only to
-declared suspending functions.
-
-**Options.** (1) Make the standard combinators compiler-known intrinsics with
-`fn!` signatures. (2) Permit bang calls on any function returning
-`mut Suspend[T]`. (3) Expose a safe user combinator protocol without unsealing
-the low-level frame contract.
-
-**Recommendation.** Start with option 1 and require user code to compose the
-standard primitives; consider option 3 only after concrete combinator use cases
-show that composition is insufficient.
-
-**Unblocks.** Implementable standard scheduling, explicit user-library limits,
-and portable timeout and racing behavior.
 
 ### Complete Runtime Shape Coverage
 
@@ -169,33 +117,21 @@ ordinary providers. The hook must honor `Secret[T]`/`Redact` once defined.
 **Unblocks.** Trace propagation across suspension, workflow event correlation,
 structured metrics, and enforceable redaction.
 
-### Stable Hashing
-
-**Problem.** `Hash` is intentionally process- and runtime-dependent, so
-it cannot safely identify persisted cache entries, workflow inputs, or code.
-
-**Options.** (1) Add `StableHash` in `std.fingerprint` with a fixed algorithm
-and canonical field encoding. (2) Version the algorithm in every digest and
-permit several standard algorithms. (3) Leave stable encoding entirely to
-applications.
-
-**Recommendation.** Option 2 with one mandatory default algorithm. Include the
-algorithm/version identifier in every fingerprint and define evolution rules.
-
-**Unblocks.** Persistent caches, idempotency keys, content-addressed code, and
-cross-runtime replay validation.
-
-### Access Control And Tenancy
+### Access Control And Tenancy Expressibility
 
 **Problem.** Requirement rows show which service is reachable, not the
 principal, tenant, delegation, or attenuation under which it is used.
 
-**Options.** (1) Make `$ Principal` an explicit requirement key. (2) Require
-provider attenuation such as `db.for_tenant(tenant)`. (3) Combine an explicit
-principal requirement with typed attenuated provider views.
+**Direction.** Access control and tenancy are modeled in hd-lang code, such as
+requirement traits, provider values, and library types, rather than by
+dedicated language features. The concrete library design is deferred.
 
-**Recommendation.** Option 3. A worked tool example must show authentication,
-principal lookup, tenant attenuation, a database call, and redacted output.
+**Open question.** Whether the current language can express the needed
+patterns without new features: an explicit principal requirement, attenuated
+provider views such as `db.for_tenant(tenant)`, delegation, and redacted
+output. A worked tool example should show authentication, principal lookup,
+tenant attenuation, a database call, and redacted output. Any gap it exposes
+becomes a separate language issue.
 
 **Unblocks.** Multi-tenant tools, least-privilege review, delegated authority,
 and access-control testing.
@@ -217,12 +153,17 @@ documented experiments.
 
 **Recommendation.** Option 2 unless a concrete requirement justifies each
 feature. Select two distinguishing outcomes—recommended: durable replay and
-per-tool capability reports—specify them end to end, mark the rest as initial
+per-tool requirement reports—specify them end to end, mark the rest as initial
 release non-goals in `USE_SCENARIOS.md`, and add chapter 11 fixtures before
 expanding other chapters.
 
 **Unblocks.** A smaller compiler, clearer teaching material, faster
 conformance, and evidence that complexity serves the language thesis.
+
+**Status.** Still open. The first
+[Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) deliberately does
+not implement these features, but they are planned for implementation soon
+after it rather than treated as removed.
 
 ### Annotation Locality And Inspection
 
@@ -230,68 +171,114 @@ conformance, and evidence that complexity serves the language thesis.
 across distant files and dependencies, making review and provenance difficult
 even with global coherence.
 
-**Options.** (1) Require `annotate X` in `X`'s defining module, with an explicit
-foreign-target form. (2) Permit any module in the owning package. (3) Keep
-global placement and rely on an inspection command.
+**Direction.** An annotation for `X` must be declared in `X`'s defining module,
+with an explicit form for foreign targets. The compiler provides a command that
+prints the complete materialized `Info` plan and its provenance for a target
+without executing effectful code. Until the rule is specified, the existing
+package-global placement rules in
+[Annotations](../spec/14-annotations.md#coherence-and-package-rules) stay in
+force.
 
-**Recommendation.** Option 1 plus a compiler command that prints the complete
-materialized `Info` plan and provenance for a target without executing
-effectful code.
+**Open questions.**
+
+1. Where a foreign-target annotation may appear. Candidates: the facet's
+   defining module, mirroring the trait orphan rule at module granularity, and
+   the root application package's existing orphan exception.
+2. How a foreign-target annotation is marked. Candidates: no marker when the
+   facet's module declares it, and an explicit marker only for the root
+   orphan case, or one marker for every foreign target.
+3. Whether the locality rule applies equally to an explicit
+   `impl Annotate[Facet] for Target`, which occupies the same coherence slot.
+   Without that, the rule could be bypassed.
 
 **Unblocks.** Local review, understandable generated schemas, annotation
 debugging, and safer dependency upgrades.
 
-### Requirement Sigils
+### Runtime Type Identity And `reified`
 
-**Problem.** `$`, `$.use`, `!`, and overloaded `?` produce dense syntax
-and collide with strong conventions from other languages, increasing errors in
-generated code.
+**Problem.** `Any` and dynamic trait values erase the concrete type, and the
+only runtime type test is the sealed `ShapeMetadata.metadata[reified M]()`.
+Error-chain inspection, plugin registries, and typed extension maps all need
+to recover a concrete type from an erased value.
 
-**Options.** (1) Keep the sigils and improve diagnostics/formatting. (2) Spell
-rows as `requires Database + Clock` and bind declared requirements by name.
-(3) Keep `!`/`?` but replace only `$` and `$.use` with keywords.
+**Direction.**
 
-**Recommendation.** Prototype option 3 in the parser and AI-writing study
-before changing source syntax. Do not implement a migration until the study
-shows a material error-rate improvement.
+1. The target of a type test needs a runtime descriptor, and that descriptor
+   comes from `reified`.
+2. Runtime identity comes from a new trait, `Inspectable`, whose method
+   returns the value's runtime type object. Most types implement it
+   automatically, and the compiler supplies the implementation as an
+   intrinsic, as Rust does for `TypeId`. User code cannot write or override
+   it, so a value cannot claim another type's identity.
+3. Opting in happens at the use site. Erasing a value to `Any` stays one-way;
+   a value that should be recoverable is erased to `Inspectable`, or to a
+   trait that extends it. The separate trait makes runtime inspection a
+   visible, deliberate choice and discourages casual use.
+4. A generic type's runtime type object contains its type arguments, so
+   `Box[User]` and `Box[Post]` are distinguishable.
+5. A type test is a downcast method, `value.downcast[T]() -> T?`, with `T`
+   reified. It works on a dynamic `Inspectable` value and on a parameter
+   bounded by `T: Inspectable`. `downcast` is not a trait method: like Rust's
+   `downcast_ref` on `dyn Any`, it is defined outside `Inspectable` on top of
+   the trait's non-generic runtime-type method. The dynamic-safety rule is
+   unchanged, and trait methods on trait values still take no generic
+   parameters.
+6. An erased, unbounded type parameter never supports a type test, so a bare
+   `fn f[T](x: T)` cannot branch on `T`.
+7. Go-style trait-to-trait assertions are ruled out. Testing whether a value
+   also implements another trait could recover authority that an attenuated
+   provider view deliberately hides, such as `FileWrite` behind a `FileRead`
+   view.
+8. A downcast preserves permission (`mut` to `mut`, never readonly to `mut`),
+   and its target type must be nameable at the call site, so a private type
+   cannot be recovered outside its module.
 
-**Unblocks.** A data-backed syntax decision, simpler tool examples, and a
-possible reduction in model repair loops.
+9. Closures, function values, and suspension frames do not implement
+   `Inspectable`, because they may carry requirements, and a recovered
+   callable could not be called soundly. Local declarations and
+   `NonEscapable` values do not implement it either.
+10. The runtime type object supports equality and a printable name. It never
+    answers whether a type implements a trait, which would reintroduce the
+    ruled-out assertions.
+11. Erasing a value to `Inspectable` needs its full type, including generic
+    arguments, at the erasure site. Erasing an erased parameter `x: T`
+    therefore needs the descriptor from a `T: Inspectable` dictionary or from
+    `reified T`. Whether generic objects also store their arguments per object
+    is an implementation choice.
+12. The standard error trait extends `Inspectable`, so error chains are
+    inspectable.
 
-### Requirements Vocabulary
+**Open questions.**
 
-**Problem.** Several `USE_SCENARIOS` requirements are phrased as chosen
-mechanisms—annotation syntax and row operations—rather than user or reviewer
-outcomes, making traceability circular.
+1. Where `downcast` is declared. Candidates: inherent methods on a trait value
+   type, which would be a new kind of `impl` target, or a compiler-provided
+   method limited to `Inspectable`.
+2. Calling static (receiverless) functions. Under a bound, `T::create()` with
+   `T: Factory` could be served by the bound's dictionary, but the
+   specification only shows concrete `Type::function(...)` calls. Through a
+   runtime type object, calling a trait's static function first requires
+   knowing the type implements that trait, which conflicts with the
+   no-conformance-query rule.
+3. The matching `TypeShape` case, shared with
+   [Complete Runtime Shape Coverage](#complete-runtime-shape-coverage), and
+   the checked-downcast option in
+   [Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
 
-**Options.** (1) Rewrite every need as an observable reviewer/developer
-outcome and map mechanisms separately. (2) Keep both an outcome statement and
-a non-normative mechanism note. (3) Retain mechanism-shaped requirements.
+**Unblocks.** Error-chain inspection, plugin registries, typed extension maps,
+and a reviewable parametricity guarantee for erased generics.
 
-**Recommendation.** Option 2. For example: “a reviewer can list every external
-system a tool can touch from its signature,” followed by a trace to requirement
-rows.
+### Confirmed Deferred Type Features
 
-**Unblocks.** Honest feature prioritization, alternative-design comparison,
-and acceptance tests independent of syntax.
+**Problem.** Two surfaces remain intentionally unsupported and must be
+diagnosed: first-class bound methods, and direct permission weakening combined
+with generic variance. General runtime type tests have their own issue,
+[Runtime Type Identity And `reified`](#runtime-type-identity-and-reified).
 
-### Confirmed Deferred Type And Task Features
-
-**Problem.** Four surfaces remain
-intentionally incomplete: first-class bound methods, general runtime type tests
-beyond `ShapeMetadata.metadata[M]()`, direct permission weakening combined with
-generic variance, and a higher-level `Task[T]` API.
-
-**Options.** (1) Keep all four unsupported and diagnose their syntax/typing.
-(2) Design them together with closure capture, reflection, and suspension
-work. (3) Standardize each independently as use cases appear.
-
-**Recommendation.** Option 1 for now, then option 3 only with a motivating
-requirement. Bound methods must settle receiver capture; downcasts must preserve
-permission; weakening/variance must preserve representation; `Task[T]` must not
-weaken one-shot `Suspend[T]` semantics. Negative implementations and additional
-pack operations are likewise confirmed future work rather than implicit
-extensions.
+**Direction.** Keep bound methods and weakening with variance deferred, and
+design each only with a motivating requirement. Bound methods must settle
+receiver capture; weakening with variance must preserve representation.
+Negative implementations and additional pack operations are likewise confirmed
+future work rather than implicit extensions.
 
 **Unblocks.** Implementer certainty today and a checklist for future proposals.
 
@@ -309,14 +296,18 @@ a binary marker. (2) Add affine/owned handle types with borrow checking. (3)
 Add a scoped callback protocol whose handle cannot escape. (4) Keep unrestricted
 aliasing and rely on checked `ResourceError.Disposed` results.
 
-**Recommendation.** Prototype option 1 alongside the accepted `defer` behavior,
-following the locality direction in
-[Ownership and Escape Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md), before
-committing to a full ownership system. Retain checked disposal errors under
-every option.
+**Direction.** Option 1 is chosen, with `defer` as the cleanup mechanism.
+A suspension frame may hold a `NonEscapable` value across a suspension point;
+the frame is then itself non-escapable (Shape B in
+[Ownership and Escape Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md#shape-b-kotlin-style-locality-plus-a-suspension-exception)).
+Still open: the propagation rules, dependent-return provenance, whether
+provider values can be `NonEscapable`, and asynchronous or fallible cleanup.
+Retain checked disposal errors.
 
 **Unblocks.** Leak-resistant files/sockets, safe cancellation, fallible cleanup
-design, and stronger sandbox guarantees.
+design, stronger sandbox guarantees, and possibly complete per-tool authority
+reports: provider values are ordinary values that may escape today, and a
+`NonEscapable` provider category is the likely way to close that gap.
 
 ## Runtime, Library, ABI, And Tooling Work
 
@@ -324,6 +315,9 @@ These items remain required but do not currently require new core syntax:
 
 - weak-reference runtime representation and whether user-visible finalizers
   should ever be exposed;
+- the mandatory default algorithm, canonical field encoding, and evolution
+  rules for `std.fingerprint`, whose digests always carry an algorithm/version
+  identifier;
 - the complete `hd.toml` schema, executable-main selection, lockfile, version
   constraints, dependency resolver, and the concrete host binding for
   capabilities such as `Console`;
@@ -331,8 +325,11 @@ These items remain required but do not currently require new core syntax:
   and runtime-profile panic status codes;
 - property-testing strategies, shrinking, replay artifacts, and correlated or
   stateful generators in `std.testing`;
-- final `std.task` signatures and behavior for racing, retry, timeout, and
-  heterogeneous scheduling combinators;
+- final signatures, behavior, and the complete intrinsic set for the
+  compiler-intrinsic `std.task` combinators, such as racing, retry, timeout,
+  and heterogeneous scheduling;
+- a higher-level `std.task.Task[T]` API, which must not weaken one-shot
+  `Suspend[T]` semantics;
 - the complete standard host capability-trait catalog and provider
   configuration format;
 - exporter configuration, sampling, storage, and operational privacy policy

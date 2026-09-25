@@ -1,0 +1,14 @@
+data Counter:
+    value: i32
+
+fn adjust(counter: Counter, enabled: bool) -> i32:
+    if enabled:
+        counter.value + 1
+    else:
+        counter.value
+
+fn main() -> i32:
+    let total: i32 = 0
+    while total < 6:
+        total = total + 1
+    adjust(Counter { value: total }, true)

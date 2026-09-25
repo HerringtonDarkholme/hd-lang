@@ -2128,6 +2128,11 @@ This is the smallest surface and directly addresses the common close-file case. 
 
 ### Shape B: Kotlin-Style Locality Plus A Suspension Exception
 
+**Chosen direction (2026-09-24).** Shape B is the selected direction: a
+suspension frame may carry a `NonEscapable` value across a suspension point,
+and the frame then becomes non-escapable. The precise alias account remains
+open in [Open Issues](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
+
 - Shape A remains the default.
 - Dependent result lifetimes allow values to remain tied to caller-visible inputs.
 - `Suspend[T]` may receive a compiler-intrinsic stored-capture and invalidation rule.

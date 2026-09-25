@@ -69,8 +69,8 @@ constructed, then runs at most once when driven.
 
 This separation prevents ambient provider lookup and requirement-row erasure
 at call sites without treating ordinary errors as effects. Provider values are
-still ordinary values; the limits of auditing authority that escapes through
-value flow are recorded as future work.
+ordinary values that may escape their provider scope, so a requirement row
+does not audit authority that flows through values.
 
 ### Typed annotations
 

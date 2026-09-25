@@ -1039,7 +1039,7 @@ fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connectio
     ...      # invalid: default value suspends and requires a capability
 ```
 
-Until purity is represented in function types, a default cannot call through a
+Function types do not carry purity, so a default cannot call through a
 function value or dynamic trait method; a named callable must have a verified
 purity summary.
 
@@ -1603,7 +1603,7 @@ fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
 
 For `Ts... = User, i32, bool`, `mut Suspend[Ts]...` expands to three parameter types, `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, while `(Ts...)` becomes the result tuple `(User, i32, bool)`. Expression patterns can expand in argument-list positions too: a value pattern such as `start(tasks)...` expands to `start(tasks_0), start(tasks_1), ...`. Pattern expansion happens at compile time and does not allocate a runtime collection.
 
-Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. A library `all!` driver can use `pack.map((tasks...), make_slot)` to turn the heterogeneous task pack into a tuple of typed slots, `pack.map_list(slots, poll_slot, context)` to gather homogeneous readiness flags, and `pack.map(slots, take_ready)` to recover the result tuple. Each mapper is a named generic function instantiated for each tuple element; mapping is compiler-supported, while scheduling and cancellation remain library behavior. Filtering, indexing, splitting, and pack arithmetic remain unsupported.
+The standard `std.task.all!` has this shape, but it is a compiler intrinsic: the compiler supplies its polling and cancellation behavior, because user code cannot implement the sealed `Suspend[T]` protocol. Multiple packs in one repeated pattern expand positionally in lockstep and must have equal lengths. `pack.map(values, mapper)` applies a named generic function to each tuple element and returns the mapped tuple; `pack.map_list(values, mapper, arg)` gathers homogeneous mapper results into a list. Each mapper is instantiated for each tuple element. Filtering, indexing, splitting, and pack arithmetic remain unsupported.
 
 Traits describe behavior, but trait implementation is explicit. A type does not satisfy a trait just because it has matching methods:
 

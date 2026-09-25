@@ -109,8 +109,10 @@ to any call, require an injected provider, call `std.task.block_on`, or suspend.
 expressions and call other pure functions. The compiler verifies this
 transitively from available function bodies and exported purity summaries. A
 call through a function value or dynamic trait method is rejected in a
-purity-checked context because its current type cannot prove purity; named
-callables with verified summaries remain usable. The containing default reports
+purity-checked context because function types do not carry purity; named
+callables with verified summaries remain usable. Purity here restricts
+observable writes, provider access, and suspension; it does not claim
+referential transparency. The containing default reports
 its ordinary context-specific impurity diagnostic.
 
 Purity permits allocation and mutation of newly created local values when those

@@ -81,7 +81,7 @@ pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     Ok()
 ```
 
-The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. Because provider values are ordinary values, this list is not claimed to be a complete audit of authority that has escaped through value flow; that question remains open in [Open Issues](OPEN_ISSUES.md#provider-escape-and-authority-visibility).
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
 
 Every host-backed standard-library service is exposed as a trait requirement rather than a global API. `$`, `$.use`, `$.with`, and `$.Context[...]` are therefore the single mechanism for standard filesystem, network, clock, randomness, observability, workflow, and similar runtime services. Pure operations such as collection transforms, arithmetic, and in-memory parsing remain ordinary functions and require no context.
 
@@ -412,9 +412,9 @@ distinct from both a persistent function cache and durable replay:
 
 The computation callback is intended to be pure: a plain non-suspending `fn`,
 not `mut fn` or `fn!`, with no `$` requirements, mutable parameters, or mutable
-captures. Ordinary function types cannot yet prove that property through every
-indirect call; the required type-system choice remains in
-[Open Issues](OPEN_ISSUES.md#purity-in-function-types).
+captures. hd-lang does not track purity in function types or prove
+referential transparency, so the library cannot rely on the compiler for this
+property through indirect calls.
 Mutation of fresh, non-escaping local values remains permitted. A readonly
 reference is not a snapshot or stable value: another mutable alias can change
 what it observes between reads. Changing shared state must therefore enter
@@ -453,6 +453,12 @@ persistent reuse. TTL and manual invalidation are freshness policies, not
 substitutes for dependency correctness. Workflow replay never consults
 incremental cache freshness, and invalidating a node never repeats an external
 workflow action.
+
+Persisted identities use `std.fingerprint` rather than `Hash`, which stays
+process- and runtime-dependent. A fingerprint always records its algorithm and
+version identifier. Several standard algorithms may exist, but one is the
+mandatory default, and the evolution rules define how a runtime treats a
+fingerprint from an older or unknown algorithm.
 
 Human and AI tooling must be able to inspect node/code identity, source
 location, value type, dependencies and dependents, external versions,

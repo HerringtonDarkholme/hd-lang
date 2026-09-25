@@ -133,17 +133,18 @@ fn poll_slot[T](slot: mut Slot[T], context: PollContext) -> bool:
 fn take_ready[T](slot: mut Slot[T]) -> T:
     ...
 
-# Inside the standard-library all! driver, with Ts... inferred from its tasks:
+# Illustrative typed steps of an all!-style driver, with Ts... from its tasks:
 slots := pack.map((tasks...), make_slot)     # (mut Slot[Ts]...)
 ready := pack.map_list(slots, poll_slot, context)  # list[bool]
 results := pack.map(slots, take_ready)        # (Ts...)
 ```
 
-The sketch shows only the typed transformations. The library driver retains
+The sketch shows only the typed transformations. Such a driver retains
 `slots` across polls, checks `ready`, and returns `results` only after all
 slots complete; suspension, waking, and cancellation follow the `Suspend[T]`
-protocol. `all!` remains a library combinator, not special control-flow
-syntax. The exact private driver representation is not specified here.
+protocol. The standard `std.task.all!` is a compiler intrinsic with this
+signature shape, not special control-flow syntax; its driver representation is
+not specified here.
 The child inputs are mutable `Suspend[T]` views so the driver can poll and
 cancel them; an ordinary cold `fn!` call supplies such a view.
 

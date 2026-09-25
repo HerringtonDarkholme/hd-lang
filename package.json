@@ -1,0 +1,26 @@
+{
+  "name": "hd-lang",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "hd": "./bin/hd.js"
+  },
+  "engines": {
+    "node": "24.19.0"
+  },
+  "scripts": {
+    "check": "npm run check:types && npm test && bash spec/check.sh",
+    "check:types": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types 'test/**/*.test.ts'",
+    "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
+    "hd": "node --experimental-strip-types src/cli.ts"
+  },
+  "dependencies": {
+    "binaryen": "132.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "typescript": "7.0.2"
+  }
+}

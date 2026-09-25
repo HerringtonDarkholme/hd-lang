@@ -648,8 +648,8 @@ phase is not unrestricted compiler evaluation. Builders and metadata must be
 pure, deterministic, non-suspending, and dependency-free: no provider access,
 bang calls, IO, clock, randomness, network, database, top-level binding reads,
 top-level `let` reassignment, or escaping mutation. A call through a function
-value or dynamic trait method is rejected here because its current type cannot
-prove purity; a named callable requires an available verified purity summary.
+value or dynamic trait method is rejected here because function types do not
+carry purity; a named callable requires an available verified purity summary.
 A panic is an ordinary panic reported at the first
 request site; it does not occur merely because the annotated declaration is
 loaded.

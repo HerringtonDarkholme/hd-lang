@@ -11,3 +11,8 @@ is intended to satisfy. Forward-looking material is grouped under
 [Future Work](future-work/README.md), including the broader
 [Runtime and Library Design](future-work/RUNTIME_AND_LIBRARY.md) and the single
 [Open Issues](future-work/OPEN_ISSUES.md) backlog.
+
+The executable compiler is under [src](src/README.md). It emits genuine Wasm GC
+from its first supported slice; run `npm run toolchain:gate` to verify the local
+Binaryen and V8 toolchain, or `npm run hd -- run examples/core.hd` to compile and
+execute the current core example.
