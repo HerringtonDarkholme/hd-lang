@@ -7,6 +7,7 @@ import {
   nominalGenericParts,
   optionalInner,
   resultParts,
+  storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
@@ -433,13 +434,8 @@ export abstract class StatementChecker extends CheckerContext {
         statement.span,
       );
     }
-    const mutableSuspensionResult = statement.annotation?.name.startsWith("mut-suspend:")
-      ? statement.annotation.name.slice("mut-suspend:".length)
-      : undefined;
-    const annotation =
-      statement.annotation && mutableSuspensionResult === undefined
-        ? this.resolveType(statement.annotation)
-        : undefined;
+    const annotation = statement.annotation ? this.resolveType(statement.annotation) : undefined;
+    const storedSuspension = annotation ? storedSuspensionParts(annotation) : undefined;
     let recursiveLocal: HirLocal | undefined;
     let recursiveGlobal: HirGlobal | undefined;
     const recursiveClosure =
@@ -468,6 +464,8 @@ export abstract class StatementChecker extends CheckerContext {
           statement.value.parameters.map((parameter) => this.resolveType(parameter.type!)),
           this.resolveType(statement.value.result),
           statement.value.requirements ?? [],
+          false,
+          statement.value.suspending === true,
         );
       }
       if (recursiveType) {
@@ -500,7 +498,7 @@ export abstract class StatementChecker extends CheckerContext {
     try {
       value = this.checkExpression(
         statement.value,
-        annotation ?? recursiveLocal?.type ?? recursiveGlobal?.type,
+        storedSuspension?.result ?? annotation ?? recursiveLocal?.type ?? recursiveGlobal?.type,
       );
     } finally {
       this.pendingRecursiveClosure = previousRecursiveClosure;
@@ -513,18 +511,7 @@ export abstract class StatementChecker extends CheckerContext {
           : this.requireCoercion(value, readonly, statement.value.span);
       }
     }
-    const suspension = suspensionParts(value.type) ?? traitSuspensionParts(value.type);
-    if (
-      mutableSuspensionResult !== undefined &&
-      (!suspension || suspension.result !== mutableSuspensionResult)
-    ) {
-      this.fail(
-        "type-mismatch",
-        `expected mut Suspend[${mutableSuspensionResult}], found ${value.type}`,
-        statement.value.span,
-      );
-    }
-    const type = mutableSuspensionResult !== undefined ? value.type : (annotation ?? value.type);
+    const type = annotation ?? value.type;
     if (type === "never")
       this.fail(
         "uninhabited-binding",
@@ -540,7 +527,7 @@ export abstract class StatementChecker extends CheckerContext {
         type,
         index: this.globals.size,
         mutable: statement.mutable,
-        drivable: mutableSuspensionResult !== undefined,
+        drivable: storedSuspension?.mutable,
         span: statement.span,
       };
       if (!recursiveGlobal) this.globals.set(statement.name, global);
@@ -551,7 +538,7 @@ export abstract class StatementChecker extends CheckerContext {
       type,
       index: this.locals.length,
       mutable: statement.mutable,
-      drivable: mutableSuspensionResult !== undefined,
+      drivable: storedSuspension?.mutable,
       parameter: false,
       span: statement.span,
     };

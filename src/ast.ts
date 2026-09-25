@@ -38,10 +38,19 @@ export interface FunctionDecl {
 export interface MethodDecl {
   readonly name: string;
   readonly suspending: boolean;
+  readonly genericParameters: readonly string[];
+  readonly genericBounds: readonly GenericBound[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
   readonly body?: readonly Statement[];
+  readonly doc?: string;
+  readonly span: SourceSpan;
+}
+
+export interface AssociatedTypeDecl {
+  readonly name: string;
+  readonly value?: TypeRef;
   readonly doc?: string;
   readonly span: SourceSpan;
 }
@@ -51,6 +60,8 @@ export interface TraitDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  readonly supertraits: readonly TypeRef[];
+  readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;
   readonly span: SourceSpan;
@@ -58,8 +69,11 @@ export interface TraitDecl {
 
 export interface ImplDecl {
   readonly kind: "impl";
+  readonly genericParameters: readonly string[];
+  readonly genericBounds: readonly GenericBound[];
   readonly traitName?: string;
   readonly targetName: string;
+  readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;
   readonly span: SourceSpan;
@@ -180,6 +194,21 @@ export interface MapEntry {
   readonly span: SourceSpan;
 }
 
+export interface ComprehensionForClause {
+  readonly kind: "for";
+  readonly bindings: readonly BindingName[];
+  readonly iterable: Expression;
+  readonly span: SourceSpan;
+}
+
+export interface ComprehensionIfClause {
+  readonly kind: "if";
+  readonly condition: Expression;
+  readonly span: SourceSpan;
+}
+
+export type ComprehensionClause = ComprehensionForClause | ComprehensionIfClause;
+
 export interface DataExpressionField {
   readonly name: string;
   readonly value: Expression;
@@ -275,7 +304,19 @@ export type Expression =
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "boolean"; readonly value: boolean; readonly span: SourceSpan }
   | { readonly kind: "nil"; readonly span: SourceSpan }
+  | {
+      readonly kind: "binding-expression";
+      readonly bindings: readonly BindingName[];
+      readonly value: Expression;
+      readonly span: SourceSpan;
+    }
   | { readonly kind: "list"; readonly elements: readonly Expression[]; readonly span: SourceSpan }
+  | {
+      readonly kind: "list-comprehension";
+      readonly clauses: readonly ComprehensionClause[];
+      readonly value: Expression;
+      readonly span: SourceSpan;
+    }
   | { readonly kind: "tuple"; readonly elements: readonly Expression[]; readonly span: SourceSpan }
   | {
       readonly kind: "map";
@@ -283,7 +324,22 @@ export type Expression =
       readonly span: SourceSpan;
     }
   | {
+      readonly kind: "map-comprehension";
+      readonly clauses: readonly ComprehensionClause[];
+      readonly key: Expression;
+      readonly value: Expression;
+      readonly span: SourceSpan;
+    }
+  | {
       readonly kind: "name";
+      readonly name: string;
+      readonly typeArguments?: readonly TypeRef[];
+      readonly span: SourceSpan;
+    }
+  | {
+      readonly kind: "qualified-name";
+      readonly owner: string;
+      readonly ownerTypeArguments?: readonly TypeRef[];
       readonly name: string;
       readonly typeArguments?: readonly TypeRef[];
       readonly span: SourceSpan;
@@ -332,6 +388,7 @@ export type Expression =
       readonly kind: "member";
       readonly receiver: Expression;
       readonly name: string;
+      readonly typeArguments?: readonly TypeRef[];
       readonly span: SourceSpan;
     }
   | {
@@ -343,6 +400,7 @@ export type Expression =
   | { readonly kind: "propagate"; readonly operand: Expression; readonly span: SourceSpan }
   | {
       readonly kind: "closure";
+      readonly suspending?: boolean;
       readonly parameters: readonly ClosureParameter[];
       readonly result?: TypeRef;
       readonly requirements?: readonly string[];

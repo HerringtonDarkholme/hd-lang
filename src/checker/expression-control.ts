@@ -1,4 +1,4 @@
-import type { Expression } from "../ast.ts";
+import type { Expression, Statement } from "../ast.ts";
 import type {
   HirData,
   HirEnum,
@@ -12,17 +12,22 @@ import type {
 import {
   type NominalGenericParts,
   type ResultParts,
+  mutableInner,
   nominalGenericParts,
   optionalInner,
-  readonlyType,
   resultParts,
   tupleParts,
-  tupleType,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { genericTypeName, substituteGenericType } from "./shared.ts";
+import {
+  type BindingExpressionFlow,
+  bindingExpressionFlow,
+  genericTypeName,
+  iterableInfo,
+  substituteGenericType,
+} from "./shared.ts";
 
-import { ExpressionDataChecker } from "./expression-data.ts";
+import { ExpressionComprehensionChecker } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
 type MatchBinding = HirMatchArm["bindings"][number];
@@ -44,7 +49,7 @@ interface MatchContext {
   resultType?: ValueType;
 }
 
-export abstract class ExpressionControlChecker extends ExpressionDataChecker {
+export abstract class ExpressionControlChecker extends ExpressionComprehensionChecker {
   protected checkControlExpression(
     expression: Expression,
     expected?: ValueType,
@@ -53,10 +58,15 @@ export abstract class ExpressionControlChecker extends ExpressionDataChecker {
       case "if": {
         const condition = this.checkExpression(expression.condition);
         this.requireType(condition.type, "bool", condition.span);
-        const thenBody = this.checkStatements(expression.thenBody, true, expected);
+        const bindingFlow = this.applyConditionBindingFlow(expression.condition);
+        const thenBody = this.checkConditionalSuite(
+          expression.thenBody,
+          bindingFlow.whenTrue,
+          expected,
+        );
         const elseBody =
           expression.elseBody.length > 0
-            ? this.checkStatements(expression.elseBody, true, expected)
+            ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected)
             : [];
         if (elseBody.length === 0) {
           return { kind: "if", condition, thenBody, elseBody, type: "void", span: expression.span };
@@ -75,22 +85,21 @@ export abstract class ExpressionControlChecker extends ExpressionDataChecker {
       }
       case "for": {
         const iterable = this.checkExpression(expression.iterable);
-        const nominal = nominalGenericParts(readonlyType(iterable.type));
-        let iteratorKind: "list" | "map";
-        let yieldType: ValueType;
-        if (nominal?.name === "list" && nominal.arguments.length === 1) {
-          iteratorKind = "list";
-          yieldType = nominal.arguments[0]!;
-        } else if (nominal?.name === "map" && nominal.arguments.length === 2) {
-          iteratorKind = "map";
-          yieldType = tupleType(nominal.arguments);
-        } else {
+        const info = iterableInfo(iterable, this.implementations);
+        if (info?.iteratorKind === "trait" && mutableInner(iterable.type) === undefined)
+          this.fail(
+            "mutable-receiver-required",
+            "iteration requires mutable access to an Iterator implementation",
+            expression.iterable.span,
+          );
+        if (!info) {
           this.fail(
             "not-iterable",
             `type '${iterable.type}' does not implement the MVP iteration protocol`,
             expression.iterable.span,
           );
         }
+        const { iteratorKind, iteratorFunctionIndex, yieldType } = info;
         const bindingTypes = expression.bindings.length === 1 ? [yieldType] : tupleParts(yieldType);
         if (!bindingTypes || bindingTypes.length !== expression.bindings.length) {
           this.fail(
@@ -145,6 +154,7 @@ export abstract class ExpressionControlChecker extends ExpressionDataChecker {
           kind: "for",
           iterable,
           iteratorKind,
+          iteratorFunctionIndex,
           yieldType,
           bindings,
           body,
@@ -156,15 +166,16 @@ export abstract class ExpressionControlChecker extends ExpressionDataChecker {
       case "while": {
         const condition = this.checkExpression(expression.condition);
         this.requireType(condition.type, "bool", condition.span);
+        const bindingFlow = this.applyConditionBindingFlow(expression.condition);
         const elseBody =
           expression.elseBody.length > 0
-            ? this.checkStatements(expression.elseBody, true, expected)
+            ? this.checkConditionalSuite(expression.elseBody, bindingFlow.whenFalse, expected)
             : [];
         const result = elseBody.length > 0 ? this.blockType(elseBody) : undefined;
         this.loopResults.push(result);
         let body: readonly HirStatement[];
         try {
-          body = this.checkStatements(expression.body, true);
+          body = this.checkConditionalSuite(expression.body, bindingFlow.whenTrue);
         } finally {
           this.loopResults.pop();
         }
@@ -179,6 +190,35 @@ export abstract class ExpressionControlChecker extends ExpressionDataChecker {
       }
       default:
         return undefined;
+    }
+  }
+
+  private applyConditionBindingFlow(expression: Expression): BindingExpressionFlow {
+    const flow = bindingExpressionFlow(expression);
+    for (const name of flow.all) {
+      const local = this.currentScope().get(name);
+      if (!local) continue;
+      if (flow.always.has(name)) this.unavailableBindingLocals.delete(local.index);
+      else this.unavailableBindingLocals.add(local.index);
+    }
+    return flow;
+  }
+
+  private checkConditionalSuite(
+    statements: readonly Statement[],
+    availableNames: ReadonlySet<string>,
+    expected?: ValueType,
+  ): HirStatement[] {
+    const previous = new Set(this.allowedConditionalBindingLocals);
+    for (const name of availableNames) {
+      const local = this.resolveLocal(name);
+      if (local) this.allowedConditionalBindingLocals.add(local.index);
+    }
+    try {
+      return this.checkStatements(statements, true, expected);
+    } finally {
+      this.allowedConditionalBindingLocals.clear();
+      previous.forEach((index) => this.allowedConditionalBindingLocals.add(index));
     }
   }
 

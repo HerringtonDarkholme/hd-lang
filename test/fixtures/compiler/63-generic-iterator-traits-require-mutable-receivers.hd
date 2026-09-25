@@ -1,0 +1,10 @@
+# test: generic Iterator traits require mutable receivers
+
+data Counter:
+    current: i32
+
+impl Iterator[i32] for Counter:
+    fn next(mut self) -> i32?: nil
+
+fn main(counter: Counter) -> list[i32]:
+    [for value in counter => value]  # diagnostic: mutable-receiver-required

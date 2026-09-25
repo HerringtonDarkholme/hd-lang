@@ -1,4 +1,3 @@
-# expect-error: annotation-build-signature
 data Validation: pass
 data Validator: pass
 data FieldValidator: pass
@@ -19,6 +18,6 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: map[string, FieldValidator],
+        fields: map[string, FieldValidator],  # diagnostic: annotation-build-signature
     ) -> Validator:
         Validator {}

@@ -1,0 +1,36 @@
+# test: trait associated functions use implementing type qualification
+# expect-result: guest_length = 5
+# expect-result: default_value = 42
+# expect-result: converted_value = 42
+
+trait Factory:
+    fn create() -> string
+
+data UserFactory: pass
+
+impl Factory for UserFactory:
+    fn create() -> string: "guest"
+
+trait DefaultFactory:
+    fn create() -> i32: 42
+
+data DefaultValue: pass
+
+impl DefaultFactory for DefaultValue
+
+fn guest_length() -> i32:
+    UserFactory::create().len()
+
+fn default_value() -> i32:
+    DefaultValue::create()
+
+trait Convert[T]:
+    fn convert(value: T) -> T
+
+data IntConverter: pass
+
+impl Convert[i32] for IntConverter:
+    fn convert(value: i32) -> i32: value
+
+fn converted_value() -> i32:
+    IntConverter::convert(42)

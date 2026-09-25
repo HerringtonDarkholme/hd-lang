@@ -1,4 +1,3 @@
-# expect-error: suspension-forbidden-context
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -10,5 +9,5 @@ fn wait_now() -> i32:
 
 fn invalid() -> void:
     defer:
-        _ := wait_now()
+        _ := wait_now()  # diagnostic: suspension-forbidden-context
     pass

@@ -1,8 +1,7 @@
-# expect-error: overlapping-impl
 data Counter:
     value: i32
 
 trait Marker
 
 impl Marker for Counter
-impl Marker for mut Counter
+impl Marker for mut Counter  # diagnostic: overlapping-impl

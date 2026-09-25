@@ -2,6 +2,8 @@ import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
   HirExpression,
+  HirEqualityDispatch,
+  HirEqualityStrategy,
   HirCapture,
   HirData,
   HirEnum,
@@ -9,13 +11,22 @@ import type {
   HirGenericBound,
   HirGlobal,
   HirLocal,
+  HirOrderingStrategy,
   HirProgram,
   HirStatement,
   HirTrait,
+  HirTraitDictionaryPlan,
   HirTraitImplementation,
   ValueType,
 } from "../hir.ts";
-import { genericTypeName, resolveGenericType, resolveTraitType, traitTypeName } from "./shared.ts";
+import {
+  genericTypeName,
+  matchTraitImplementation,
+  resolveGenericType,
+  resolveTraitType,
+  substituteGenericType,
+  traitTypeName,
+} from "./shared.ts";
 import {
   contextKeys,
   functionParts,
@@ -26,6 +37,9 @@ import {
   optionalInner,
   readonlyType,
   resultParts,
+  storedSuspensionParts,
+  suspensionParts,
+  traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
 
@@ -54,6 +68,7 @@ export interface Signature {
 export interface InherentMethod {
   readonly targetType: ValueType;
   readonly name: string;
+  readonly associated: boolean;
   readonly receiverMutable: boolean;
   readonly parameters: readonly ValueType[];
   readonly parameterNames: readonly string[];
@@ -69,6 +84,11 @@ export interface PlannedArgument {
   readonly parameterIndex: number;
   readonly argumentIndices: readonly number[];
   readonly kind: "single" | "vararg-elements";
+}
+
+export interface ResolvedTraitPath {
+  readonly arguments: readonly ValueType[];
+  readonly trait: HirTrait;
 }
 
 export interface FunctionCheckResult {
@@ -98,7 +118,6 @@ const TYPE_NAMES = new Set<ValueType>([
   "void",
   "ConsoleError",
 ]);
-export const MVP_HOST_CAPABILITIES = new Set(["Console"]);
 export const PRELUDE_NAMES = new Set([
   "never",
   "bool",
@@ -170,25 +189,31 @@ export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
   return undefined;
 }
 
-export function supportsMvpEquality(type: ValueType): boolean {
-  const readonly = readonlyType(type);
-  if (["i32", "bool", "f64", "char", "string"].includes(readonly)) return true;
-  const tuple = tupleParts(readonly);
-  if (tuple !== undefined) return tuple.every(supportsMvpEquality);
-  const nominal = nominalGenericParts(readonly);
-  return Boolean(
-    nominal?.name === "list" &&
-    nominal.arguments.length === 1 &&
-    supportsMvpEquality(nominal.arguments[0]!),
-  );
-}
-
 export function isPermissionWeakening(actual: ValueType, expected: ValueType): boolean {
   const mutable = mutableInner(actual);
   if (mutable !== undefined)
     return mutable === expected || isPermissionWeakening(mutable, expected);
   const actualNominal = nominalGenericParts(actual);
   const expectedNominal = nominalGenericParts(expected);
+  const actualCallable = functionParts(actual);
+  const expectedCallable = functionParts(expected);
+  if (
+    actualCallable?.suspending &&
+    expectedCallable &&
+    !expectedCallable.suspending &&
+    actualCallable.variadic === expectedCallable.variadic &&
+    actualCallable.parameters.length === expectedCallable.parameters.length &&
+    actualCallable.parameters.every(
+      (parameter, index) => parameter === expectedCallable.parameters[index],
+    ) &&
+    actualCallable.requirements.length === expectedCallable.requirements.length &&
+    actualCallable.requirements.every(
+      (requirement, index) => requirement === expectedCallable.requirements[index],
+    )
+  ) {
+    const stored = storedSuspensionParts(expectedCallable.result);
+    return stored?.mutable === true && stored.result === actualCallable.result;
+  }
   if (
     actualNominal?.name === "list" &&
     expectedNominal?.name === "list" &&
@@ -275,6 +300,19 @@ export function isKnownType(
     );
   const nominal = nominalGenericParts(type);
   if (nominal) {
+    if (nominal.name === "Suspend") {
+      return (
+        nominal.arguments.length === 1 &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
+      );
+    }
+    if (nominal.name === "Iterator") {
+      return (
+        nominal.arguments.length === 1 &&
+        nominal.arguments[0] !== "void" &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
+      );
+    }
     if (nominal.name === "list") {
       return (
         nominal.arguments.length === 1 &&
@@ -360,6 +398,8 @@ export abstract class CheckerContext {
   protected readonly scopes: Map<string, HirLocal>[] = [new Map()];
   protected readonly locals: HirLocal[] = [];
   protected readonly loopResults: Array<ValueType | undefined> = [];
+  protected readonly unavailableBindingLocals = new Set<number>();
+  protected readonly allowedConditionalBindingLocals = new Set<number>();
   protected deferDepth = 0;
 
   constructor(
@@ -463,6 +503,14 @@ export abstract class CheckerContext {
           name: this.declaration.name,
           index: this.signature.index,
           suspending: this.declaration.suspending,
+          ...(this.declaration.suspending && this.insideClosure
+            ? {
+                suspensionIndex:
+                  Math.max(-1, ...[...this.signatures.values()].map(({ index }) => index)) +
+                  1 +
+                  this.closureIndex,
+              }
+            : {}),
           variadic: this.signature.variadic,
           genericParameters: this.signature.genericParameters,
           genericBounds: this.signature.genericBounds,
@@ -538,16 +586,61 @@ export abstract class CheckerContext {
     if (isPermissionWeakening(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
+    const storedSuspension = storedSuspensionParts(expected);
+    const concreteSuspension = suspensionParts(value.type) ?? traitSuspensionParts(value.type);
+    if (storedSuspension && concreteSuspension?.result === storedSuspension.result) {
+      return {
+        kind: "suspension-wrap",
+        suspension: value,
+        type: expected,
+        span,
+      };
+    }
     const traitName = traitTypeName(expected);
     const trait = traitName && this.traitTypes.get(traitName);
     if (trait) {
       const mutableTrait = mutableInner(expected) !== undefined;
       if (mutableTrait && mutableInner(value.type) === undefined) return value;
+      const expectedTraitKey = readonlyType(expected).slice("trait:".length);
+      const expectedTraitArguments = nominalGenericParts(expectedTraitKey)?.arguments ?? [];
+      const sourceTraitName = traitTypeName(value.type);
+      const sourceTrait = sourceTraitName && this.traitTypes.get(sourceTraitName);
+      const sourceTraitKey = sourceTrait
+        ? readonlyType(value.type).slice("trait:".length)
+        : undefined;
+      const sourceTraitArguments = sourceTraitKey
+        ? (nominalGenericParts(sourceTraitKey)?.arguments ?? [])
+        : [];
+      const supertraitPath = sourceTrait
+        ? this.findSupertraitPath(
+            sourceTrait,
+            sourceTraitArguments,
+            trait.index,
+            expectedTraitArguments,
+          )
+        : undefined;
+      if (sourceTrait && supertraitPath) {
+        return {
+          kind: "trait-upcast",
+          value,
+          sourceTraitIndex: sourceTrait.index,
+          targetTraitIndex: trait.index,
+          supertraitPath,
+          type: expected,
+          span,
+        };
+      }
       const implementationType = readonlyType(value.type);
-      const implementation = this.implementations.find(
-        (candidate) =>
-          candidate.traitIndex === trait.index && candidate.targetType === implementationType,
-      );
+      const implementation = this.implementations.find((candidate) => {
+        return Boolean(
+          matchTraitImplementation(
+            candidate,
+            trait.index,
+            implementationType,
+            expectedTraitArguments,
+          ),
+        );
+      });
       if (implementation) {
         const receiverType = mutableTrait ? mutableType(implementationType) : implementationType;
         const wrappedValue =
@@ -556,7 +649,12 @@ export abstract class CheckerContext {
           kind: "trait-wrap",
           value: wrappedValue,
           traitIndex: trait.index,
-          implementationIndex: implementation.index,
+          dictionary: this.traitDictionaryPlan(
+            implementation,
+            implementationType,
+            expectedTraitArguments,
+            span,
+          ),
           type: expected,
           span,
         };
@@ -577,6 +675,170 @@ export abstract class CheckerContext {
       }
     }
     return value;
+  }
+
+  private findSupertraitPath(
+    trait: HirTrait,
+    traitArguments: readonly ValueType[],
+    targetIndex: number,
+    targetArguments: readonly ValueType[],
+    seen: ReadonlySet<number> = new Set(),
+  ): readonly number[] | undefined {
+    if (seen.has(trait.index)) return undefined;
+    const next = new Set([...seen, trait.index]);
+    for (const [fieldIndex, supertrait] of trait.supertraits.entries()) {
+      const substitutions = new Map(
+        trait.genericParameters.map(
+          (parameter, index) => [parameter, traitArguments[index]!] as const,
+        ),
+      );
+      const arguments_ = supertrait.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      if (
+        supertrait.traitIndex === targetIndex &&
+        arguments_.length === targetArguments.length &&
+        arguments_.every((argument, index) => argument === targetArguments[index])
+      )
+        return [fieldIndex];
+      const parent = [...this.traitTypes.values()].find(
+        (candidate) => candidate.index === supertrait.traitIndex,
+      );
+      const rest =
+        parent && this.findSupertraitPath(parent, arguments_, targetIndex, targetArguments, next);
+      if (rest) return [fieldIndex, ...rest];
+    }
+    return undefined;
+  }
+
+  protected resolveTraitPath(
+    trait: HirTrait,
+    traitArguments: readonly ValueType[],
+    path: readonly number[],
+  ): ResolvedTraitPath {
+    let currentTrait = trait;
+    let currentArguments = traitArguments;
+    for (const fieldIndex of path) {
+      const supertrait = currentTrait.supertraits[fieldIndex]!;
+      const substitutions = new Map(
+        currentTrait.genericParameters.map(
+          (parameter, index) => [parameter, currentArguments[index]!] as const,
+        ),
+      );
+      currentArguments = supertrait.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      currentTrait = [...this.traitTypes.values()].find(
+        (candidate) => candidate.index === supertrait.traitIndex,
+      )!;
+    }
+    return { arguments: currentArguments, trait: currentTrait };
+  }
+
+  protected traitDictionaryPlan(
+    implementation: HirTraitImplementation,
+    targetType: ValueType,
+    traitArguments: readonly ValueType[],
+    span: SourceSpan,
+    seen: ReadonlySet<string> = new Set(),
+  ): HirTraitDictionaryPlan {
+    const key = `${implementation.index}:${targetType}:${traitArguments.join(",")}`;
+    if (seen.has(key))
+      this.fail(
+        "recursive-trait-dictionary",
+        `constructing the trait dictionary for '${targetType}' requires itself`,
+        span,
+      );
+    const substitutions = matchTraitImplementation(
+      implementation,
+      implementation.traitIndex,
+      targetType,
+      traitArguments,
+    );
+    if (!substitutions)
+      throw new Error(`implementation ${implementation.index} does not match ${targetType}`);
+    const next = new Set([...seen, key]);
+    const bounds = implementation.genericBounds.map((bound) =>
+      this.boundDictionaryExpression(bound, substitutions, span, next),
+    );
+    const trait = this.traitTypes.get(implementation.traitName)!;
+    const specializedTraitArguments = implementation.traitArguments.map((argument) =>
+      substituteGenericType(argument, substitutions),
+    );
+    const traitSubstitutions = new Map(
+      trait.genericParameters.map(
+        (parameter, index) => [parameter, specializedTraitArguments[index]!] as const,
+      ),
+    );
+    const supertraits = implementation.supertraitImplementations.map((parentIndex, index) => {
+      const parent = this.implementations[parentIndex]!;
+      const parentArguments = trait.supertraits[index]!.traitArguments.map((argument) =>
+        substituteGenericType(argument, traitSubstitutions),
+      );
+      return this.traitDictionaryPlan(parent, targetType, parentArguments, span, next);
+    });
+    return { bounds, implementationIndex: implementation.index, supertraits };
+  }
+
+  private boundDictionaryExpression(
+    bound: HirGenericBound,
+    substitutions: ReadonlyMap<string, ValueType>,
+    span: SourceSpan,
+    seen: ReadonlySet<string>,
+  ): HirExpression {
+    const actual = substitutions.get(bound.parameter);
+    if (!actual)
+      this.fail(
+        "unresolved-generic-placeholder",
+        `could not infer implementation parameter ${bound.parameter}`,
+        span,
+      );
+    const traitArguments = bound.traitArguments.map((argument) =>
+      substituteGenericType(argument, substitutions),
+    );
+    const traitKey =
+      traitArguments.length > 0
+        ? nominalGenericType(bound.traitName, traitArguments)
+        : bound.traitName;
+    const forwarded = genericTypeName(actual);
+    if (forwarded) {
+      const boundIndex = this.signature.genericBounds.findIndex(
+        (candidate) =>
+          candidate.parameter === forwarded &&
+          candidate.traitIndex === bound.traitIndex &&
+          candidate.traitArguments.length === traitArguments.length &&
+          candidate.traitArguments.every((argument, index) => argument === traitArguments[index]),
+      );
+      if (boundIndex < 0)
+        this.fail(
+          "missing-trait-implementation",
+          `generic parameter '${forwarded}' does not satisfy ${bound.traitName}`,
+          span,
+        );
+      return {
+        kind: "trait-bound-dictionary",
+        traitIndex: bound.traitIndex,
+        boundIndex,
+        type: `trait:${traitKey}`,
+        span,
+      };
+    }
+    const nested = this.implementations.find((candidate) =>
+      Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
+    );
+    if (!nested)
+      this.fail(
+        "missing-trait-implementation",
+        `type '${actual}' does not implement ${bound.traitName}`,
+        span,
+      );
+    return {
+      kind: "trait-dictionary",
+      traitIndex: bound.traitIndex,
+      dictionary: this.traitDictionaryPlan(nested, actual, traitArguments, span, seen),
+      type: `trait:${traitKey}`,
+      span,
+    };
   }
 
   protected displayValue(value: HirExpression, span: SourceSpan): HirExpression {
@@ -643,6 +905,109 @@ export abstract class CheckerContext {
       };
     }
     return this.fail("missing-display", `type '${value.type}' does not implement Display`, span);
+  }
+
+  protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
+    return this.traitMethodDispatch(type, "PartialEq");
+  }
+
+  protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {
+    const comparedType = readonlyType(type);
+    if (["i32", "bool", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
+    const tuple = tupleParts(comparedType);
+    if (tuple !== undefined) {
+      const elements = tuple.map((element) => this.equalityStrategy(element));
+      return elements.every((element) => element !== undefined)
+        ? { kind: "tuple", elements: elements as HirEqualityStrategy[] }
+        : undefined;
+    }
+    const optional = optionalInner(comparedType);
+    if (optional !== undefined) {
+      const value = this.equalityStrategy(optional);
+      return value ? { kind: "optional", value } : undefined;
+    }
+    const result = resultParts(comparedType);
+    if (result) {
+      const ok = this.equalityStrategy(result.ok);
+      const error = this.equalityStrategy(result.error);
+      return ok && error ? { kind: "result", ok, error } : undefined;
+    }
+    const nominal = nominalGenericParts(comparedType);
+    if (nominal?.name === "list" && nominal.arguments.length === 1) {
+      const element = this.equalityStrategy(nominal.arguments[0]!);
+      return element ? { kind: "list", element } : undefined;
+    }
+    if (
+      nominal?.name === "map" &&
+      nominal.arguments.length === 2 &&
+      mapKeyKind(nominal.arguments[0]!) !== undefined
+    ) {
+      const value = this.equalityStrategy(nominal.arguments[1]!);
+      return value ? { kind: "map", value } : undefined;
+    }
+    const dispatch = this.equalityDispatch(comparedType);
+    return dispatch ? { kind: "dispatch", dispatch } : undefined;
+  }
+
+  private traitMethodDispatch(type: ValueType, traitName: string): HirEqualityDispatch | undefined {
+    const comparedType = readonlyType(type);
+    const trait = this.traitTypes.get(traitName)!;
+    const generic = genericTypeName(comparedType);
+    const boundIndex = generic
+      ? this.signature.genericBounds.findIndex(
+          (bound) => bound.parameter === generic && bound.traitName === trait.name,
+        )
+      : -1;
+    if (boundIndex >= 0) {
+      return { kind: "bound", traitIndex: trait.index, methodIndex: 0, boundIndex };
+    }
+    const implementation = this.implementations.find(
+      (candidate) => candidate.traitIndex === trait.index && candidate.targetType === comparedType,
+    );
+    const mapping = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+    return mapping ? { kind: "function", functionIndex: mapping.functionIndex } : undefined;
+  }
+
+  protected orderingStrategy(type: ValueType): HirOrderingStrategy | undefined {
+    const comparedType = readonlyType(type);
+    if (["i32", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
+    const tuple = tupleParts(comparedType);
+    if (tuple !== undefined) {
+      const elements = tuple.map((element) => this.orderingStrategy(element));
+      return elements.every((element) => element !== undefined)
+        ? { kind: "tuple", elements: elements as HirOrderingStrategy[] }
+        : undefined;
+    }
+    const optional = optionalInner(comparedType);
+    if (optional !== undefined) {
+      const value = this.orderingStrategy(optional);
+      return value ? { kind: "optional", value } : undefined;
+    }
+    const nominal = nominalGenericParts(comparedType);
+    if (nominal?.name === "list" && nominal.arguments.length === 1) {
+      const element = this.orderingStrategy(nominal.arguments[0]!);
+      return element ? { kind: "list", element } : undefined;
+    }
+    const dispatch = this.traitMethodDispatch(comparedType, "PartialOrd");
+    return dispatch ? { kind: "dispatch", dispatch } : undefined;
+  }
+
+  protected equalityExpression(
+    left: HirExpression,
+    right: HirExpression,
+    span: SourceSpan,
+  ): HirExpression | undefined {
+    const strategy = this.equalityStrategy(left.type);
+    if (!strategy) return undefined;
+    return {
+      kind: "value-equality",
+      left,
+      right,
+      valueType: left.type,
+      strategy,
+      type: "bool",
+      span,
+    };
   }
 
   protected blockType(statements: readonly HirStatement[]): ValueType {

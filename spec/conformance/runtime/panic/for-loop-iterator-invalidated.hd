@@ -1,0 +1,4 @@
+let values: mut list[i32] = [1, 2]
+
+for value in values:  # panic: iterator-invalidated
+    values.append(value)

@@ -2,5 +2,5 @@
 
 fn main() -> i32:
     defer:
-        panic("cleanup must not run")  # panic: runtime-error
+        panic("cleanup must not run")  # panic: explicit-panic
     panic("boom")

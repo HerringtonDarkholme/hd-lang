@@ -1,6 +1,12 @@
 import type { Expression } from "../ast.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
-import { suspensionParts, suspensionType, traitSuspensionParts } from "../types.ts";
+import {
+  functionParts,
+  storedSuspensionParts,
+  suspensionParts,
+  suspensionType,
+  traitSuspensionParts,
+} from "../types.ts";
 import { substituteGenericType } from "./shared.ts";
 
 import { ExpressionCallChecker } from "./expression-calls.ts";
@@ -21,10 +27,11 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
             expression.span,
           );
         }
-        if (expression.callee.kind === "member") {
+        if (expression.callee.kind === "member" || expression.callee.kind === "qualified-name") {
           const suspension = this.checkExpression({
             kind: "call",
             callee: expression.callee,
+            typeArguments: expression.typeArguments,
             arguments: expression.arguments,
             argumentNames: expression.argumentNames,
             argumentSpreads: expression.argumentSpreads,
@@ -32,10 +39,14 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
           });
           if (suspension.kind === "suspend-construct") {
             const result = suspensionParts(suspension.type)!.result;
+            const signature = [...this.signatures.values()].find(
+              (candidate) => candidate.index === suspension.functionIndex,
+            );
             return {
               kind: "suspend-drive",
               functionIndex: suspension.functionIndex,
               suspension,
+              erasedResultType: signature?.genericParameters.length ? signature.result : undefined,
               type: result,
               span: expression.span,
             };
@@ -165,6 +176,25 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
             span: expression.span,
           };
         }
+        const callable = functionParts(this.checkExpression(expression.callee).type);
+        if (callable) {
+          if (!callable.suspending)
+            this.fail("not-suspending", "function value is not suspending", expression.span);
+          const suspension = this.checkExpression({
+            kind: "call",
+            callee: expression.callee,
+            arguments: expression.arguments,
+            argumentNames: expression.argumentNames,
+            argumentSpreads: expression.argumentSpreads,
+            span: expression.span,
+          });
+          return {
+            kind: "suspension-drive",
+            suspension,
+            type: callable.result,
+            span: expression.span,
+          };
+        }
         if (expression.arguments.length !== 0)
           this.fail(
             "argument-count",
@@ -173,6 +203,22 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
           );
         this.requireDrivableSuspension(expression.callee);
         const suspension = this.checkExpression(expression.callee);
+        const storedParts = storedSuspensionParts(suspension.type);
+        if (storedParts) {
+          if (!storedParts.mutable) {
+            this.fail(
+              "mutable-receiver-required",
+              "driving a stored suspension requires mut Suspend[T]",
+              expression.callee.span,
+            );
+          }
+          return {
+            kind: "suspension-drive",
+            suspension,
+            type: storedParts.result,
+            span: expression.span,
+          };
+        }
         const parts = suspensionParts(suspension.type);
         if (parts) {
           const signature = [...this.signatures.values()].find(

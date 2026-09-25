@@ -8,42 +8,43 @@ import type {
   HirPatternPathStep,
   HirProviderContextEntry,
   HirStatement,
+  HirTraitDictionaryPlan,
   ValueType,
 } from "../hir.ts";
 import {
-  contextKeys,
   functionParts,
-  isErasedVariant,
-  mutableInner,
   nominalGenericParts,
-  readonlyType,
+  nominalGenericType,
+  substituteTypeParameters,
   suspensionParts,
   traitSuspensionParts,
-  tupleParts,
 } from "../types.ts";
-import { EmitterContext, type CleanupFrame } from "./context.ts";
+import type { CleanupFrame, EmittedArguments } from "./context.ts";
 import {
   functionName,
   globalName,
   indent,
+  containsGenericValueType,
   isGenericValueType,
   isRowRequirement,
   localName,
+  suspensionWrapperCancelAdapterName,
+  suspensionWrapperPollAdapterName,
+  suspensionWrapperResultAdapterName,
   traitSuspensionCancelName,
   traitSuspensionDriveName,
   traitSuspensionName,
   traitSuspensionPollName,
   traitSuspensionResultName,
+  traitSuspensionWrapperCancelAdapterName,
+  traitSuspensionWrapperPollAdapterName,
+  traitSuspensionWrapperResultAdapterName,
   traitTypeBase,
   type LinearSuspensionSite,
 } from "./shared.ts";
+import { IteratorEmitter } from "./iterator.ts";
 
-interface EmittedArguments {
-  readonly setup: readonly string[];
-  readonly values: readonly string[];
-}
-
-export abstract class FunctionBodyEmitter extends EmitterContext {
+export abstract class FunctionBodyEmitter extends IteratorEmitter {
   protected abstract emitLinearContinuation(
     declaration: HirFunction,
     sites: readonly LinearSuspensionSite[],
@@ -191,6 +192,30 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
       case "console-print":
         this.consoleOutput = true;
         return `(call $hd.console_print ${this.emitExpression(expression.provider)} ${this.emitExpression(expression.value)})`;
+      case "value-equality":
+        return this.emitValueEquality(
+          this.emitExpression(expression.left),
+          this.emitExpression(expression.right),
+          expression.valueType,
+          expression.strategy,
+        );
+      case "value-ordering": {
+        const temporary = this.allocateTemporary("i32");
+        const ordering = `(local.get ${temporary})`;
+        const comparisons: Readonly<Record<typeof expression.operator, string>> = {
+          "<": `(i32.eq ${ordering} (i32.const -1))`,
+          "<=": `(i32.le_s ${ordering} (i32.const 0))`,
+          ">": `(i32.eq ${ordering} (i32.const 1))`,
+          ">=": `(i32.and (i32.ge_s ${ordering} (i32.const 0)) (i32.le_s ${ordering} (i32.const 1)))`,
+        };
+        const compared = this.emitValueOrdering(
+          this.emitExpression(expression.left),
+          this.emitExpression(expression.right),
+          expression.valueType,
+          expression.strategy,
+        );
+        return `(block (result i32) (local.set ${temporary} ${compared}) ${comparisons[expression.operator]})`;
+      }
       case "assert-equal": {
         const values = Array.from({ length: 3 }, () => "");
         const setup = expression.arguments.map((argument, argumentIndex) => {
@@ -202,26 +227,50 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           values[parameterIndex] = `(local.get ${temporary})`;
           return `(local.set ${temporary} ${this.emitExpression(argument)})`;
         });
+        const equality = this.emitValueEquality(
+          values[0]!,
+          values[1]!,
+          expression.valueType,
+          expression.strategy,
+        );
         return [
           `(block`,
           ...setup.map((line) => `  ${line}`),
-          `  (if (i32.eqz ${this.emitValueEquality(values[0]!, values[1]!, expression.valueType)})`,
-          `    (then unreachable))`,
+          `  (if (i32.eqz ${equality})`,
+          `    (then ${this.emitRuntimePanic("assertion-failed")}))`,
+          `)`,
+        ].join("\n");
+      }
+      case "assert": {
+        const values = Array.from({ length: 2 }, () => "");
+        const setup = expression.arguments.map((argument, argumentIndex) => {
+          const parameterIndex =
+            expression.argumentParameterIndices?.[argumentIndex] ?? argumentIndex;
+          const temporary = this.allocateTemporary(parameterIndex === 0 ? "bool" : "string");
+          values[parameterIndex] = `(local.get ${temporary})`;
+          return `(local.set ${temporary} ${this.emitExpression(argument)})`;
+        });
+        return [
+          `(block`,
+          ...setup.map((line) => `  ${line}`),
+          `  (if (i32.eqz ${values[0]}) (then ${this.emitRuntimePanic("assertion-failed")}))`,
           `)`,
         ].join("\n");
       }
       case "permission-weaken":
-        return this.emitExpression(expression.operand);
+        return this.emitPermissionWeakening(expression);
       case "character":
         return `(i32.const ${expression.value})`;
       case "boolean":
         return `(i32.const ${expression.value ? 1 : 0})`;
+      case "binding-expression":
+        return this.emitBindingExpression(expression);
       case "list":
         return `(struct.new $hd.vector (i32.const ${expression.elements.length}) ${
           expression.elements.length === 0
             ? `(array.new_default $hd.list (i32.const 0))`
             : `(array.new_fixed $hd.list ${expression.elements.length} ${expression.elements.map((element) => this.boxValue(element, expression.elementType)).join(" ")})`
-        })`;
+        } (i32.const 0))`;
       case "tuple":
         return expression.elements.length === 0
           ? `(array.new_default $hd.list (i32.const 0))`
@@ -236,7 +285,8 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           `      (i32.const ${expression.keyKind})`,
           `      (i32.const 0)`,
           `      (array.new_default $hd.list (i32.const ${capacity}))`,
-          `      (array.new_default $hd.list (i32.const ${capacity}))))`,
+          `      (array.new_default $hd.list (i32.const ${capacity}))`,
+          `      (i32.const 0)))`,
           ...expression.entries.map((entry) =>
             [
               `  (call $hd.map_insert`,
@@ -262,6 +312,13 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
             : `(ref.null any)`;
         return `(struct.new $hd.variant (i32.const ${tags[expression.variant]}) ${payload})`;
       }
+      case "variant-tag":
+        return `(struct.get $hd.variant $hd.variant-tag (ref.as_non_null ${this.emitExpression(expression.receiver)}))`;
+      case "variant-payload":
+        return this.unboxValue(
+          `(struct.get $hd.variant $hd.variant-payload (ref.as_non_null ${this.emitExpression(expression.receiver)}))`,
+          expression.payloadType,
+        );
       case "propagate": {
         const temporary = this.allocateTemporary(expression.operand.type);
         const result =
@@ -323,12 +380,14 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           }
           return `(call $hd.pow_i32 ${left} ${right})`;
         }
+        if (expression.operator === "==" || expression.operator === "!=") {
+          const equality = this.emitValueEquality(left, right, expression.left.type);
+          return expression.operator === "==" ? equality : `(i32.eqz ${equality})`;
+        }
         if (expression.left.type === "string") {
           if (expression.operator === "+") return `(call $hd.string_concat ${left} ${right})`;
           const comparison = `(call $hd.string_compare ${left} ${right})`;
           const operators: Readonly<Record<string, string>> = {
-            "==": `(i32.eqz ${comparison})`,
-            "!=": `(i32.ne ${comparison} (i32.const 0))`,
             "<": `(i32.lt_s ${comparison} (i32.const 0))`,
             "<=": `(i32.le_s ${comparison} (i32.const 0))`,
             ">": `(i32.gt_s ${comparison} (i32.const 0))`,
@@ -350,6 +409,32 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         if (expression.left.type === "i32" && checked[expression.operator]) {
           return `(call ${checked[expression.operator]} ${left} ${right})`;
         }
+        if (
+          expression.left.type === "i32" &&
+          (expression.operator === "/" || expression.operator === "%")
+        ) {
+          const leftTemporary = this.allocateTemporary("i32");
+          const rightTemporary = this.allocateTemporary("i32");
+          const overflow =
+            expression.operator === "/"
+              ? [
+                  `  (if (i32.and`,
+                  `    (i32.eq (local.get ${leftTemporary}) (i32.const -2147483648))`,
+                  `    (i32.eq (local.get ${rightTemporary}) (i32.const -1)))`,
+                  `    (then ${this.emitRuntimePanic("integer-overflow")}))`,
+                ]
+              : [];
+          return [
+            `(block (result i32)`,
+            `  (local.set ${leftTemporary} ${left})`,
+            `  (local.set ${rightTemporary} ${right})`,
+            `  (if (i32.eqz (local.get ${rightTemporary}))`,
+            `    (then ${this.emitRuntimePanic("integer-division-by-zero")}))`,
+            ...overflow,
+            `  (i32.${expression.operator === "/" ? "div_s" : "rem_s"} (local.get ${leftTemporary}) (local.get ${rightTemporary}))`,
+            `)`,
+          ].join("\n");
+        }
         const prefix = expression.left.type === "f64" ? "f64" : "i32";
         const suffixes: Readonly<Record<string, string>> = {
           "+": "add",
@@ -360,8 +445,6 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           "&": "and",
           "|": "or",
           "^": "xor",
-          "==": "eq",
-          "!=": "ne",
           "<": prefix === "f64" ? "lt" : "lt_s",
           "<=": prefix === "f64" ? "le" : "le_s",
           ">": prefix === "f64" ? "gt" : "gt_s",
@@ -372,6 +455,36 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
       default:
         return undefined;
     }
+  }
+
+  private emitPermissionWeakening(
+    expression: Extract<HirExpression, { kind: "permission-weaken" }>,
+  ): string {
+    const actual = functionParts(expression.operand.type);
+    const formal = functionParts(expression.type);
+    return actual && formal
+      ? this.emitCallableAdaptation(expression.operand, expression.type, expression.operand.type)
+      : this.emitExpression(expression.operand);
+  }
+
+  private emitBindingExpression(
+    expression: Extract<HirExpression, { kind: "binding-expression" }>,
+  ): string {
+    const value = this.allocateTemporary(expression.value.type);
+    const valueReference = `(local.get ${value})`;
+    const bind = expression.elementTypes
+      ? expression.bindings.map(
+          (binding, index) =>
+            `(local.set ${localName(binding.index)} ${this.unboxValue(`(array.get $hd.list (ref.as_non_null ${valueReference}) (i32.const ${index}))`, expression.elementTypes![index]!)})`,
+        )
+      : [`(local.set ${localName(expression.bindings[0]!.index)} ${valueReference})`];
+    return [
+      `(block (result ${this.watType(expression.type)})`,
+      `  (local.set ${value} ${this.emitExpression(expression.value)})`,
+      ...bind.map((line) => `  ${line}`),
+      `  ${valueReference}`,
+      `)`,
+    ].join("\n");
   }
 
   private emitCallExpression(expression: HirExpression): string | undefined {
@@ -430,18 +543,69 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
               `)`,
             ].join("\n");
       }
+      case "suspension-wrap": {
+        const suspension = suspensionParts(expression.suspension.type);
+        const traitSuspension = traitSuspensionParts(expression.suspension.type);
+        if (!suspension && !traitSuspension)
+          throw new Error(`cannot wrap suspension type '${expression.suspension.type}'`);
+        const adapters = suspension
+          ? [
+              suspensionWrapperPollAdapterName(suspension.functionIndex),
+              suspensionWrapperCancelAdapterName(suspension.functionIndex),
+              suspensionWrapperResultAdapterName(suspension.functionIndex),
+            ]
+          : [
+              traitSuspensionWrapperPollAdapterName(
+                traitSuspension!.traitIndex,
+                traitSuspension!.methodIndex,
+              ),
+              traitSuspensionWrapperCancelAdapterName(
+                traitSuspension!.traitIndex,
+                traitSuspension!.methodIndex,
+              ),
+              traitSuspensionWrapperResultAdapterName(
+                traitSuspension!.traitIndex,
+                traitSuspension!.methodIndex,
+              ),
+            ];
+        return `(struct.new $hd.suspension ${this.emitExpression(expression.suspension)} ${adapters.map((adapter) => `(ref.func ${adapter})`).join(" ")})`;
+      }
       case "suspend-drive": {
         const call = `(call $drive${expression.functionIndex} ${this.emitExpression(expression.suspension)})`;
-        return expression.erasedResultType && isGenericValueType(expression.erasedResultType)
-          ? this.unboxValue(call, expression.type)
+        const rawType =
+          expression.erasedResultType && isGenericValueType(expression.erasedResultType)
+            ? expression.erasedResultType
+            : expression.type;
+        const guarded = expression.blockOn
+          ? `(block${rawType === "void" ? "" : ` (result ${this.watType(rawType)})`} (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
           : call;
+        return expression.erasedResultType && isGenericValueType(expression.erasedResultType)
+          ? this.unboxValue(guarded, expression.type)
+          : guarded;
       }
       case "suspend-cancel":
         return `(call $cancel${expression.functionIndex} ${this.emitExpression(expression.suspension)})`;
-      case "trait-suspend-drive":
-        return `(call ${traitSuspensionDriveName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
+      case "trait-suspend-drive": {
+        const erased = this.traitMethodErasesResult(expression.traitIndex, expression.methodIndex);
+        const call = `(call ${traitSuspensionDriveName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
+        const guarded = expression.blockOn
+          ? `(block${expression.type === "void" ? "" : ` (result ${erased ? "anyref" : this.watType(expression.type)})`} (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
+          : call;
+        return erased ? this.unboxValue(guarded, expression.type) : guarded;
+      }
       case "trait-suspend-cancel":
         return `(call ${traitSuspensionCancelName(expression.traitIndex, expression.methodIndex)} ${this.emitExpression(expression.suspension)})`;
+      case "suspension-drive": {
+        const call = `(call $hd.suspension_drive ${this.emitExpression(expression.suspension)})`;
+        const guarded = expression.blockOn
+          ? `(block (result anyref) (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-nested-driver")})) ${call})`
+          : call;
+        return expression.type === "void"
+          ? `(drop ${guarded})`
+          : this.unboxValue(guarded, expression.type);
+      }
+      case "suspension-cancel":
+        return `(call $hd.suspension_cancel ${this.emitExpression(expression.suspension)})`;
       case "function-value":
         return `(struct.new $closure${this.functionSignatures.get(expression.type)} (ref.func $fv${expression.functionIndex}) (ref.null any))`;
       case "closure-self":
@@ -463,20 +627,23 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         ].join("\n");
       }
       case "trait-wrap": {
-        const trait = this.traitsByIndex.get(expression.traitIndex)!;
-        const implementation = this.implementationsByIndex.get(expression.implementationIndex)!;
-        const adapters = trait.methods.map(
-          (method) => `(ref.func $tadapt${implementation.index}_${method.index})`,
-        );
-        return `(struct.new $trait${trait.index} ${this.boxWatValue(this.emitExpression(expression.value), expression.value.type)}${adapters.length ? " " : ""}${adapters.join(" ")})`;
+        const temporary = this.allocateTemporary(expression.value.type);
+        return `(block (result ${this.watType(expression.type)})
+  (local.set ${temporary} ${this.emitExpression(expression.value)})
+  ${this.emitTraitDictionaryPlan(expression.dictionary, this.boxWatValue(`(local.get ${temporary})`, expression.value.type))}
+)`;
+      }
+      case "trait-upcast": {
+        const sourceTrait = this.traitsByIndex.get(expression.sourceTraitIndex)!;
+        const targetTrait = this.traitsByIndex.get(expression.targetTraitIndex)!;
+        const temporary = this.allocateTemporary(expression.value.type);
+        return `(block (result ${this.watType(expression.type)})
+  (local.set ${temporary} ${this.emitExpression(expression.value)})
+  ${this.emitTraitUpcast(sourceTrait, targetTrait, expression.supertraitPath, `(local.get ${temporary})`)}
+)`;
       }
       case "trait-dictionary": {
-        const trait = this.traitsByIndex.get(expression.traitIndex)!;
-        const implementation = this.implementationsByIndex.get(expression.implementationIndex)!;
-        const adapters = trait.methods.map(
-          (method) => `(ref.func $tadapt${implementation.index}_${method.index})`,
-        );
-        return `(struct.new $trait${trait.index} (ref.null any)${adapters.length ? " " : ""}${adapters.join(" ")})`;
+        return this.emitTraitDictionaryPlan(expression.dictionary, "(ref.null any)");
       }
       case "trait-bound-dictionary":
         return `(local.get $bound${expression.boundIndex})`;
@@ -487,25 +654,43 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           (method) =>
             `(struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dictionary})`,
         );
-        return `(struct.new $trait${trait.index} ${this.boxValue(expression.value, expression.value.type)}${methods.length ? " " : ""}${methods.join(" ")})`;
+        const parents = trait.supertraits.map(
+          (_, index) =>
+            `(struct.get $trait${trait.index} $trait${trait.index}s${index} ${dictionary})`,
+        );
+        const fields = [...methods, ...parents];
+        return `(struct.new $trait${trait.index} ${this.boxValue(expression.value, expression.value.type)} (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary})${fields.length ? " " : ""}${fields.join(" ")})`;
       }
       case "trait-call": {
         const trait = this.traitsByIndex.get(expression.traitIndex)!;
         const method = trait.methods[expression.methodIndex]!;
         const temporary = this.allocateTemporary(expression.receiver.type);
+        const receiver = `(local.get ${temporary})`;
+        const dispatch = this.traitDictionaryPath(
+          expression.receiver.type,
+          expression.supertraitPath,
+          receiver,
+        );
+        const receiverTrait = this.traitsByName.get(traitTypeBase(expression.receiver.type))!;
         const ordered = this.emitOrderedArguments(
           expression.arguments,
           expression.argumentParameterIndices,
+          expression.erasedParameterTypes,
         );
+        const call = [
+          `(call_ref $tsig${trait.index}_${method.index}`,
+          `  (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
+          `  ${dispatch.dictionary}`,
+          ...ordered.values.map((argument) => `  ${argument}`),
+          ...expression.providers.map((provider) => `  ${this.emitExpression(provider)}`),
+          `  (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
+        ].join("\n");
+        const result = expression.erasedResultType ? this.unboxValue(call, expression.type) : call;
         return [
           `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
           `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
           ...ordered.setup.map((line) => `  ${line}`),
-          `  (call_ref $tsig${trait.index}_${method.index}`,
-          `    (struct.get $trait${trait.index} $trait${trait.index}value (local.get ${temporary}))`,
-          ...ordered.values.map((argument) => `    ${argument}`),
-          ...expression.providers.map((provider) => `    ${this.emitExpression(provider)}`),
-          `    (struct.get $trait${trait.index} $trait${trait.index}m${method.index} (local.get ${temporary})))`,
+          `  ${result}`,
           `)`,
         ].join("\n");
       }
@@ -513,19 +698,33 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         const trait = this.traitsByIndex.get(expression.traitIndex)!;
         const method = trait.methods[expression.methodIndex]!;
         const temporary = this.allocateTemporary(expression.receiver.type);
+        const receiver = `(local.get ${temporary})`;
+        const dispatch = this.traitDictionaryPath(
+          expression.receiver.type,
+          expression.supertraitPath,
+          receiver,
+        );
+        const receiverTrait = this.traitsByName.get(traitTypeBase(expression.receiver.type))!;
         const ordered = this.emitOrderedArguments(
           expression.arguments,
           expression.argumentParameterIndices,
+          expression.erasedParameterTypes,
+          undefined,
+          undefined,
+          undefined,
+          true,
         );
         return [
           `(block (result (ref null ${traitSuspensionName(trait.index, method.index)}))`,
           `  (local.set ${temporary} ${this.emitExpression(expression.receiver)})`,
           ...ordered.setup.map((line) => `  ${line}`),
+          `  (global.set $hd.host-call-site (i32.const ${expression.span.start.offset}))`,
           `  (call_ref $tsig${trait.index}_${method.index}`,
-          `    (struct.get $trait${trait.index} $trait${trait.index}value (local.get ${temporary}))`,
+          `    (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
+          `    ${dispatch.dictionary}`,
           ...ordered.values.map((argument) => `    ${argument}`),
           ...expression.providers.map((provider) => `    ${this.emitExpression(provider)}`),
-          `    (struct.get $trait${trait.index} $trait${trait.index}m${method.index} (local.get ${temporary})))`,
+          `    (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
           `)`,
         ].join("\n");
       }
@@ -664,10 +863,22 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
       }
       case "string-length":
         return `(call $hd.string_len ${this.emitExpression(expression.receiver)})`;
+      case "string-transform":
+        this.stringTransforms = true;
+        return `(call $hd.string_${expression.operation} ${this.emitExpression(expression.receiver)})`;
+      case "string-split":
+        this.stringSplit = true;
+        return `(call $hd.string_split ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.separator)})`;
       case "string-starts-with":
         return `(call $hd.string_starts_with ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.prefix)})`;
       case "list-length":
         return `(struct.get $hd.vector $hd.vector-size (ref.as_non_null ${this.emitExpression(expression.receiver)}))`;
+      case "list-iterator":
+        return this.emitListIterator(expression.receiver);
+      case "iterator-next":
+        return this.emitIteratorNext(expression.receiver, expression.elementType);
+      case "map-iterator":
+        return this.emitMapIterator(expression.receiver);
       case "list-index":
         return this.unboxValue(
           `(call $hd.vector_get (ref.as_non_null ${this.emitExpression(expression.receiver)}) ${this.emitExpression(expression.index)})`,
@@ -701,7 +912,7 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           expression.valueType,
         );
       case "panic":
-        return `(block (drop ${this.emitExpression(expression.message)}) unreachable)`;
+        return `(block (drop ${this.emitExpression(expression.message)}) ${this.emitRuntimePanic("explicit-panic")})`;
       default:
         return undefined;
     }
@@ -725,84 +936,11 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           `)`,
         ].join("\n");
       }
-      case "for": {
-        const id = this.loopCounter++;
-        const labels = {
-          breakLabel: `$break${id}`,
-          continueLabel: `$continue${id}`,
-          result: expression.elseBody.length > 0 ? expression.type : undefined,
-        };
-        const iterable = this.allocateTemporary(expression.iterable.type);
-        const index = this.allocateTemporary("i32");
-        const yielded = this.allocateTemporary(expression.yieldType);
-        const iterableValue = `(local.get ${iterable})`;
-        const indexValue = `(local.get ${index})`;
-        const length =
-          expression.iteratorKind === "list"
-            ? `(struct.get $hd.vector $hd.vector-size (ref.as_non_null ${iterableValue}))`
-            : `(struct.get $hd.map $hd.map-size (ref.as_non_null ${iterableValue}))`;
-        const nextValue =
-          expression.iteratorKind === "list"
-            ? this.unboxValue(
-                `(call $hd.vector_get (ref.as_non_null ${iterableValue}) ${indexValue})`,
-                expression.yieldType,
-              )
-            : `(array.new_fixed $hd.list 2 (array.get $hd.list (struct.get $hd.map $hd.map-keys (ref.as_non_null ${iterableValue})) ${indexValue}) (array.get $hd.list (struct.get $hd.map $hd.map-values (ref.as_non_null ${iterableValue})) ${indexValue}))`;
-        const bind =
-          expression.bindings.length === 1
-            ? [`(local.set ${localName(expression.bindings[0]!.index)} (local.get ${yielded}))`]
-            : expression.bindings.map(
-                (binding, bindingIndex) =>
-                  `(local.set ${localName(binding.index)} ${this.unboxValue(`(array.get $hd.list (ref.as_non_null (local.get ${yielded})) (i32.const ${bindingIndex}))`, binding.type)})`,
-              );
-        this.loops.push(labels);
-        const body = this.emitBlock(expression.body, "void", true);
-        this.loops.pop();
-        const iteration = [
-          `(local.set ${yielded} ${nextValue})`,
-          ...bind,
-          `(block ${labels.continueLabel}`,
-          indent(body, 2),
-          `)`,
-          `(local.set ${index} (i32.add ${indexValue} (i32.const 1)))`,
-          `(br $loop${id})`,
-        ];
-        if (expression.elseBody.length > 0) {
-          const result =
-            expression.type === "void" || expression.type === "never"
-              ? ""
-              : ` (result ${this.watType(expression.type)})`;
-          const elseBody = this.emitBlock(expression.elseBody, expression.type);
-          return [
-            `(block ${labels.breakLabel}${result}`,
-            `  (local.set ${iterable} ${this.emitExpression(expression.iterable)})`,
-            `  (local.set ${index} (i32.const 0))`,
-            `  (loop $loop${id}`,
-            `    (if (i32.lt_u ${indexValue} ${length})`,
-            `      (then`,
-            indent(iteration.join("\n"), 8),
-            `      )`,
-            `      (else`,
-            indent(elseBody, 8),
-            `        (br ${labels.breakLabel})`,
-            `      )`,
-            `    )`,
-            `  )`,
-            `  unreachable`,
-            `)`,
-          ].join("\n");
-        }
-        return [
-          `(block ${labels.breakLabel}`,
-          `  (local.set ${iterable} ${this.emitExpression(expression.iterable)})`,
-          `  (local.set ${index} (i32.const 0))`,
-          `  (loop $loop${id}`,
-          `    (br_if ${labels.breakLabel} (i32.ge_u ${indexValue} ${length}))`,
-          indent(iteration.join("\n"), 4),
-          `  )`,
-          `)`,
-        ].join("\n");
-      }
+      case "for":
+        return this.emitForExpression(expression);
+      case "list-comprehension":
+      case "map-comprehension":
+        return this.emitComprehensionExpression(expression);
       case "while": {
         const id = this.loopCounter++;
         const labels = {
@@ -896,12 +1034,6 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
     return emitted;
   }
 
-  protected allocateTemporary(type: ValueType): string {
-    const index = this.temporaryTypes.length;
-    this.temporaryTypes.push(type);
-    return `$tmp${index}`;
-  }
-
   protected emitOrderedArguments(
     arguments_: readonly HirExpression[],
     parameterIndices?: readonly number[],
@@ -909,6 +1041,7 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
     defaultArguments?: readonly HirDefaultArgument[],
     parameterTypes?: readonly ValueType[],
     defaultBounds?: readonly HirExpression[],
+    stage = false,
   ): EmittedArguments {
     const emitValue = (argument: HirExpression, parameterIndex: number): string => {
       const formal = erasedParameterTypes?.[parameterIndex];
@@ -924,7 +1057,7 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         ? this.boxValue(argument, argument.type)
         : this.emitExpression(argument);
     };
-    if (!parameterIndices && !defaultArguments?.length) {
+    if (!stage && !parameterIndices && !defaultArguments?.length) {
       return { setup: [], values: arguments_.map((argument, index) => emitValue(argument, index)) };
     }
     const setup: string[] = [];
@@ -954,82 +1087,8 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
     return { setup, values };
   }
 
-  protected emitValueEquality(left: string, right: string, type: ValueType): string {
-    const readonly = readonlyType(type);
-    if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
-    if (readonly === "f64") return `(f64.eq ${left} ${right})`;
-    if (readonly === "i32" || readonly === "bool" || readonly === "char")
-      return `(i32.eq ${left} ${right})`;
-    const tuple = tupleParts(readonly);
-    if (tuple !== undefined) {
-      if (tuple.length === 0) return `(i32.const 1)`;
-      const comparisons = tuple.map((elementType, index) =>
-        this.emitValueEquality(
-          this.unboxValue(
-            `(array.get $hd.list (ref.as_non_null ${left}) (i32.const ${index}))`,
-            elementType,
-          ),
-          this.unboxValue(
-            `(array.get $hd.list (ref.as_non_null ${right}) (i32.const ${index}))`,
-            elementType,
-          ),
-          elementType,
-        ),
-      );
-      return comparisons
-        .slice(1)
-        .reduce((combined, comparison) => `(i32.and ${combined} ${comparison})`, comparisons[0]!);
-    }
-    const nominal = nominalGenericParts(readonly);
-    if (nominal?.name === "list" && nominal.arguments.length === 1) {
-      const elementType = nominal.arguments[0]!;
-      const leftTemporary = this.allocateTemporary(readonly);
-      const rightTemporary = this.allocateTemporary(readonly);
-      const indexTemporary = this.allocateTemporary("i32");
-      const label = `$equality${this.loopCounter++}`;
-      const leftElement = this.unboxValue(
-        `(call $hd.vector_get (ref.as_non_null (local.get ${leftTemporary})) (local.get ${indexTemporary}))`,
-        elementType,
-      );
-      const rightElement = this.unboxValue(
-        `(call $hd.vector_get (ref.as_non_null (local.get ${rightTemporary})) (local.get ${indexTemporary}))`,
-        elementType,
-      );
-      return [
-        `(block ${label} (result i32)`,
-        `  (local.set ${leftTemporary} ${left})`,
-        `  (local.set ${rightTemporary} ${right})`,
-        `  (if (i32.ne`,
-        `      (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${leftTemporary})))`,
-        `      (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${rightTemporary}))))`,
-        `    (then (br ${label} (i32.const 0))))`,
-        `  (loop $${label.slice(1)}loop`,
-        `    (br_if ${label} (i32.const 1)`,
-        `      (i32.ge_u (local.get ${indexTemporary}) (struct.get $hd.vector $hd.vector-size (ref.as_non_null (local.get ${leftTemporary})))))`,
-        `    (if (i32.eqz ${this.emitValueEquality(leftElement, rightElement, elementType)})`,
-        `      (then (br ${label} (i32.const 0))))`,
-        `    (local.set ${indexTemporary} (i32.add (local.get ${indexTemporary}) (i32.const 1)))`,
-        `    (br $${label.slice(1)}loop))`,
-        `  (i32.const 1)`,
-        `)`,
-      ].join("\n");
-    }
-    throw new Error(`cannot emit PartialEq for '${type}'`);
-  }
-
   protected boxValue(expression: HirExpression, type: ValueType): string {
     return this.boxWatValue(this.emitExpression(expression), type);
-  }
-
-  protected boxWatValue(value: string, type: ValueType): string {
-    const mutable = mutableInner(type);
-    if (mutable !== undefined) return this.boxWatValue(value, mutable);
-    if (isGenericValueType(type)) return value;
-    if (type === "i32" || type === "bool" || type === "char")
-      return `(struct.new $hd.box-i32 ${value})`;
-    if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
-    if (type === "void") return `(ref.null any)`;
-    return value;
   }
 
   protected emitCallableAdaptation(
@@ -1060,7 +1119,11 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         const providers = formal.requirements.map(
           (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
         );
-        const result = formal.result === "void" ? "" : ` (result ${this.watType(formal.result)})`;
+        const result = formal.suspending
+          ? ` (result (ref null $hd.suspension))`
+          : formal.result === "void"
+            ? ""
+            : ` (result ${this.watType(formal.result)})`;
         const closure = `(ref.cast (ref $closure${actualSignature}) (local.get $env))`;
         const arguments_ = formal.parameters.map((parameter, index) => {
           const value = `(local.get $a${index})`;
@@ -1095,18 +1158,39 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
           );
         });
         const call = `(call_ref $sig${actualSignature} (struct.get $closure${actualSignature} $closure${actualSignature}env ${closure})${arguments_.length ? " " : ""}${arguments_.join(" ")}${actualProviders.length ? " " : ""}${actualProviders.join(" ")} (struct.get $closure${actualSignature} $closure${actualSignature}fn ${closure}))`;
-        const body = isGenericValueType(formal.result)
-          ? this.boxWatValue(call, actual.result)
-          : call;
+        const body =
+          !formal.suspending && isGenericValueType(formal.result)
+            ? this.boxWatValue(call, actual.result)
+            : call;
         return `(func $adapt${adapter.index} (type $sig${formalSignature}) (param $env anyref) ${[...parameters, ...providers].join(" ")}${result}\n  ${body}\n)`;
       })
       .join("\n\n");
+  }
+
+  private emitTraitDictionaryPlan(plan: HirTraitDictionaryPlan, value: string): string {
+    const implementation = this.implementationsByIndex.get(plan.implementationIndex)!;
+    return this.emitTraitDictionary(
+      implementation,
+      value,
+      plan.bounds.map((bound) => this.emitExpression(bound)),
+      plan.supertraits.map((parent) => this.emitTraitDictionaryPlan(parent, value)),
+    );
   }
 
   emitTraitAdapters(): string {
     return [...this.implementationsByIndex.values()]
       .flatMap((implementation) => {
         const trait = this.traitsByIndex.get(implementation.traitIndex)!;
+        const traitSubstitutions = new Map([
+          ...trait.genericParameters.map(
+            (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
+          ),
+          ...trait.associatedTypes.map(
+            (associated, index) =>
+              [`Self::${associated.name}`, implementation.associatedTypes[index]!] as const,
+          ),
+          ["Self", implementation.targetType] as const,
+        ]);
         return implementation.methodFunctions.flatMap((mapping) => {
           const method = trait.methods[mapping.methodIndex]!;
           const parameters = method.parameters.map(
@@ -1116,25 +1200,59 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
             (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
           );
           const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
+          const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
+          const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
           const arguments_ = [
-            this.unboxValue(`(local.get $self)`, implementation.targetType),
-            ...method.parameters.map((_, index) => `(local.get $a${index})`),
+            ...(method.associated
+              ? []
+              : [this.unboxValue(`(local.get $self)`, implementation.targetType)]),
+            ...method.parameters.map((parameter, index) =>
+              parameter === "generic:Self"
+                ? this.unboxValue(`(local.get $a${index})`, implementation.targetType)
+                : containsGenericValueType(parameter)
+                  ? this.unboxValue(
+                      `(local.get $a${index})`,
+                      substituteTypeParameters(parameter, traitSubstitutions),
+                    )
+                  : `(local.get $a${index})`,
+            ),
+            ...implementation.genericBounds.map((bound, index) =>
+              this.unboxValue(
+                `(array.get $hd.list ${boundPack} (i32.const ${index}))`,
+                `trait:${
+                  bound.traitArguments.length > 0
+                    ? nominalGenericType(bound.traitName, bound.traitArguments)
+                    : bound.traitName
+                }`,
+              ),
+            ),
             ...method.requirements.map((_, index) => `(local.get $p${index})`),
           ];
           if (!method.suspending) {
+            const call = `(call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})`;
+            const body = containsGenericValueType(method.result)
+              ? this.boxWatValue(call, substituteTypeParameters(method.result, traitSubstitutions))
+              : call;
             return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) ${[...parameters, ...providers].join(" ")}${result}\n  (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n)`,
+              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...providers].join(" ")}${result}\n  ${body}\n)`,
             ];
           }
           const wrapper = traitSuspensionName(trait.index, method.index);
           const frame = `$s${mapping.functionIndex}`;
-          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) ${[...parameters, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
+          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
           const poll = `(func $tspolladapt${implementation.index}_${method.index} (type $tspollsig${trait.index}_${method.index}) (param $inner anyref) (result i32)\n  (call $poll${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
           const cancel = `(func $tscanceladapt${implementation.index}_${method.index} (type $tscancelsig${trait.index}_${method.index}) (param $inner anyref)\n  (call $cancel${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
           const resultBody =
             method.result === "void"
               ? ""
-              : `\n  (struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`;
+              : `\n  ${
+                  containsGenericValueType(method.result)
+                    ? this.boxWatValue(
+                        `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`,
+                        substituteTypeParameters(method.result, traitSubstitutions),
+                      )
+                    : `(struct.get ${frame} ${frame}result (ref.cast (ref null ${frame}) (local.get $inner)))`
+                }`;
           const resultAdapter = `(func $tsresultadapt${implementation.index}_${method.index} (type $tsresultsig${trait.index}_${method.index}) (param $inner anyref)${result}${resultBody}\n)`;
           return [constructor, poll, cancel, resultAdapter];
         });
@@ -1162,48 +1280,6 @@ export abstract class FunctionBodyEmitter extends EmitterContext {
         }),
       )
       .join("\n\n");
-  }
-
-  protected unboxValue(payload: string, type: ValueType): string {
-    const mutable = mutableInner(type);
-    if (mutable !== undefined) return this.unboxValue(payload, mutable);
-    if (isGenericValueType(type)) return payload;
-    if (type === "i32" || type === "bool" || type === "char") {
-      return `(struct.get $hd.box-i32 $hd.box-i32-value (ref.cast (ref $hd.box-i32) ${payload}))`;
-    }
-    if (type === "f64") {
-      return `(struct.get $hd.box-f64 $hd.box-f64-value (ref.cast (ref $hd.box-f64) ${payload}))`;
-    }
-    if (type === "string") return `(ref.cast (ref null $hd.bytes) ${payload})`;
-    if (type.startsWith("trait:"))
-      return `(ref.cast (ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index}) ${payload})`;
-    if (type.startsWith("provider-row:")) return `(ref.cast (ref null $hd.providers) ${payload})`;
-    if (contextKeys(type))
-      return `(ref.cast (ref null $context${this.contextNames.get(type)}) ${payload})`;
-    if (tupleParts(type) !== undefined) return `(ref.cast (ref null $hd.list) ${payload})`;
-    const suspension = suspensionParts(type);
-    if (suspension) return `(ref.cast (ref null $s${suspension.functionIndex}) ${payload})`;
-    const traitSuspension = traitSuspensionParts(type);
-    if (traitSuspension)
-      return `(ref.cast (ref null ${traitSuspensionName(traitSuspension.traitIndex, traitSuspension.methodIndex)}) ${payload})`;
-    if (isErasedVariant(type)) return `(ref.cast (ref null $hd.variant) ${payload})`;
-    const callable = functionParts(type);
-    if (callable)
-      return `(ref.cast (ref null $closure${this.functionSignatures.get(type)}) ${payload})`;
-    const data = this.dataByName.get(type);
-    const nominalData = nominalGenericParts(type);
-    if (nominalData?.name === "list" && nominalData.arguments.length === 1)
-      return `(ref.cast (ref null $hd.vector) ${payload})`;
-    if (nominalData?.name === "map" && nominalData.arguments.length === 2)
-      return `(ref.cast (ref null $hd.map) ${payload})`;
-    if (nominalData && this.dataByName.has(nominalData.name))
-      return `(ref.cast (ref null $d${this.dataByName.get(nominalData.name)!.index}) ${payload})`;
-    if (nominalData && this.enumByName.has(nominalData.name))
-      return `(ref.cast (ref null $e${this.enumByName.get(nominalData.name)!.index}) ${payload})`;
-    if (data) return `(ref.cast (ref null $d${data.index}) ${payload})`;
-    const enumType = this.enumByName.get(type);
-    if (enumType) return `(ref.cast (ref null $e${enumType.index}) ${payload})`;
-    throw new Error(`cannot unbox '${type}'`);
   }
 
   protected boxProvider(value: string, type: ValueType): string {

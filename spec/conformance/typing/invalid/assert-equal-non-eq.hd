@@ -1,4 +1,3 @@
-# expect-error: missing-partial-eq
 use std.testing.assert_equal
 
 data Error:
@@ -6,4 +5,4 @@ data Error:
 
 test "result equality needs PartialEq":
     let actual: Result[i32, Error] = Ok(1)
-    assert_equal(actual, Ok(1), reason="values match")
+    assert_equal(actual, Ok(1), reason="values match")  # diagnostic: missing-partial-eq

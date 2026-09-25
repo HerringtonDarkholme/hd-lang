@@ -1,7 +1,6 @@
-# expect-error: missing-derived-bound
 @derive(PartialEq)
 data Box[T]:
     value: T
 
 fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
-    left == right
+    left == right  # diagnostic: missing-derived-bound

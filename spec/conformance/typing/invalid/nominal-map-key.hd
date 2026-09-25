@@ -1,5 +1,4 @@
-# expect-error: invalid-map-key
 
 type UserId(string)
 
-let users: map[UserId, string] = {}
+let users: map[UserId, string] = {}  # diagnostic: invalid-map-key

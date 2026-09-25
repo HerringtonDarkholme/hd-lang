@@ -1,4 +1,3 @@
-# expect-error: annotation-top-level-read
 let seed: i32 = 1
 
 data Marker: pass
@@ -8,6 +7,6 @@ impl Annotation for Marker:
 
 impl TypeAnnotator for Marker:
     fn build(self, target: TypeShape) -> i32:
-        seed
+        seed  # diagnostic: annotation-top-level-read
 
 annotate Marker for string: pass

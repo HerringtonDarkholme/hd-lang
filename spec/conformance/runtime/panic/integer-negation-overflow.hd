@@ -1,0 +1,2 @@
+let minimum: i32 = -2147483648
+result := -minimum  # panic: integer-overflow

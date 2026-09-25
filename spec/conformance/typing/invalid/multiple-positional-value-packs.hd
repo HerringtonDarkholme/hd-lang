@@ -1,3 +1,2 @@
-# expect-error: multiple-positional-value-packs
-fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):
+fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):  # diagnostic: multiple-positional-value-packs
     ((left...), (right...))

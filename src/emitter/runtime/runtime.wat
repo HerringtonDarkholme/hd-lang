@@ -3,6 +3,12 @@
     (ref.null $hd.runtime))
 
   (global $hd.driver-active (mut i32) (i32.const 0))
+  (global $hd.host-call-site (mut i32) (i32.const -1))
+
+  ;; Stable numeric tags for runtime-panic.ts. The host reports their names.
+  (global $hd.panic-integer-overflow i32 (i32.const 2))
+  (global $hd.panic-invalid-shift i32 (i32.const 9))
+  (global $hd.panic-index-out-of-bounds i32 (i32.const 10))
 
   (func $hd.provider_get
     (param $providers (ref null $hd.providers))
@@ -45,7 +51,7 @@
     (param $index i32)
     (result anyref)
     (if (i32.ge_u (local.get $index) (struct.get $hd.vector $hd.vector-size (local.get $vector)))
-      (then unreachable))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
     (array.get $hd.list
       (struct.get $hd.vector $hd.vector-values (local.get $vector))
       (local.get $index)))
@@ -55,7 +61,7 @@
     (param $index i32)
     (param $value anyref)
     (if (i32.ge_u (local.get $index) (struct.get $hd.vector $hd.vector-size (local.get $vector)))
-      (then unreachable))
+      (then (call $hd.panic (global.get $hd.panic-index-out-of-bounds)) unreachable))
     (array.set $hd.list
       (struct.get $hd.vector $hd.vector-values (local.get $vector))
       (local.get $index)
@@ -96,7 +102,12 @@
       (local.get $value))
     (struct.set $hd.vector $hd.vector-size
       (local.get $vector)
-      (i32.add (local.get $size) (i32.const 1))))
+      (i32.add (local.get $size) (i32.const 1)))
+    (struct.set $hd.vector $hd.vector-version
+      (local.get $vector)
+      (i32.add
+        (struct.get $hd.vector $hd.vector-version (local.get $vector))
+        (i32.const 1))))
 
   (func $hd.add_i32 (param $left i32) (param $right i32) (result i32)
     (local $wide i64)
@@ -105,7 +116,7 @@
     (if (i32.or
       (i64.lt_s (local.get $wide) (i64.const -2147483648))
       (i64.gt_s (local.get $wide) (i64.const 2147483647)))
-      (then unreachable))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.wrap_i64 (local.get $wide)))
 
   (func $hd.sub_i32 (param $left i32) (param $right i32) (result i32)
@@ -115,7 +126,7 @@
     (if (i32.or
       (i64.lt_s (local.get $wide) (i64.const -2147483648))
       (i64.gt_s (local.get $wide) (i64.const 2147483647)))
-      (then unreachable))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.wrap_i64 (local.get $wide)))
 
   (func $hd.mul_i32 (param $left i32) (param $right i32) (result i32)
@@ -125,7 +136,7 @@
     (if (i32.or
       (i64.lt_s (local.get $wide) (i64.const -2147483648))
       (i64.gt_s (local.get $wide) (i64.const 2147483647)))
-      (then unreachable))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.wrap_i64 (local.get $wide)))
 
   (func $hd.pow_i32 (param $base i32) (param $exponent i32) (result i32)
@@ -144,15 +155,18 @@
     (local.get $result))
 
   (func $hd.neg_i32 (param $value i32) (result i32)
-    (if (i32.eq (local.get $value) (i32.const -2147483648)) (then unreachable))
+    (if (i32.eq (local.get $value) (i32.const -2147483648))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.sub (i32.const 0) (local.get $value)))
 
   (func $hd.shl_i32 (param $value i32) (param $count i32) (result i32)
-    (if (i32.ge_u (local.get $count) (i32.const 32)) (then unreachable))
+    (if (i32.ge_u (local.get $count) (i32.const 32))
+      (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
     (i32.shl (local.get $value) (local.get $count)))
 
   (func $hd.shr_i32 (param $value i32) (param $count i32) (result i32)
-    (if (i32.ge_u (local.get $count) (i32.const 32)) (then unreachable))
+    (if (i32.ge_u (local.get $count) (i32.const 32))
+      (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
     (i32.shr_s (local.get $value) (local.get $count)))
 
   (func $hd.string_len (param $value (ref null $hd.bytes)) (result i32)

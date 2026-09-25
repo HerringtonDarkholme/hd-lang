@@ -1,6 +1,13 @@
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic } from "../diagnostics.ts";
-import type { HirData, HirEnum, HirTrait, ValueType } from "../hir.ts";
+import type {
+  HirData,
+  HirEnum,
+  HirExpression,
+  HirTrait,
+  HirTraitImplementation,
+  ValueType,
+} from "../hir.ts";
 import {
   contextKeys,
   functionParts,
@@ -23,6 +30,161 @@ interface NamedParameter {
 interface TypeChildren {
   readonly head: string;
   readonly values: readonly ValueType[];
+}
+
+export interface BindingExpressionFlow {
+  readonly all: ReadonlySet<string>;
+  readonly always: ReadonlySet<string>;
+  readonly whenFalse: ReadonlySet<string>;
+  readonly whenTrue: ReadonlySet<string>;
+}
+
+export interface IterableInfo {
+  readonly iteratorFunctionIndex?: number;
+  readonly iteratorKind: "iterator" | "list" | "map" | "trait";
+  readonly yieldType: ValueType;
+}
+
+export function iterableInfo(
+  iterable: HirExpression,
+  implementations: readonly HirTraitImplementation[],
+): IterableInfo | undefined {
+  const nominal = nominalGenericParts(readonlyType(iterable.type));
+  if (nominal?.name === "list" && nominal.arguments.length === 1)
+    return { iteratorKind: "list", yieldType: nominal.arguments[0]! };
+  if (nominal?.name === "map" && nominal.arguments.length === 2)
+    return { iteratorKind: "map", yieldType: tupleType(nominal.arguments) };
+  if (
+    nominal?.name === "Iterator" &&
+    nominal.arguments.length === 1 &&
+    mutableInner(iterable.type) !== undefined
+  )
+    return { iteratorKind: "iterator", yieldType: nominal.arguments[0]! };
+  const implementation = implementations.find(
+    (candidate) =>
+      candidate.traitName === "Iterator" &&
+      readonlyType(candidate.targetType) === readonlyType(iterable.type) &&
+      candidate.traitArguments.length === 1,
+  );
+  const iteratorFunctionIndex = implementation?.methodFunctions.find(
+    (method) => method.methodIndex === 0,
+  )?.functionIndex;
+  if (!implementation || iteratorFunctionIndex === undefined) return undefined;
+  return {
+    iteratorKind: "trait",
+    iteratorFunctionIndex,
+    yieldType: implementation.traitArguments[0]!,
+  };
+}
+
+function unionNames(...sets: readonly ReadonlySet<string>[]): Set<string> {
+  return new Set(sets.flatMap((set) => [...set]));
+}
+
+function intersectNames(left: ReadonlySet<string>, right: ReadonlySet<string>): Set<string> {
+  return new Set([...left].filter((name) => right.has(name)));
+}
+
+function sequentialBindingFlow(expressions: readonly Expression[]): BindingExpressionFlow {
+  const flows = expressions.map(bindingExpressionFlow);
+  const all = unionNames(...flows.map((flow) => flow.all));
+  const always = unionNames(...flows.map((flow) => flow.always));
+  return { all, always, whenFalse: always, whenTrue: always };
+}
+
+export function bindingExpressionFlow(expression: Expression): BindingExpressionFlow {
+  if (expression.kind === "binding-expression") {
+    const nested = bindingExpressionFlow(expression.value);
+    const names = new Set(expression.bindings.map((binding) => binding.name));
+    return {
+      all: unionNames(nested.all, names),
+      always: unionNames(nested.always, names),
+      whenFalse: unionNames(nested.whenFalse, names),
+      whenTrue: unionNames(nested.whenTrue, names),
+    };
+  }
+  if (expression.kind === "unary" && expression.operator === "not") {
+    const operand = bindingExpressionFlow(expression.operand);
+    return { ...operand, whenFalse: operand.whenTrue, whenTrue: operand.whenFalse };
+  }
+  if (expression.kind === "binary" && expression.operator === "and") {
+    const left = bindingExpressionFlow(expression.left);
+    const right = bindingExpressionFlow(expression.right);
+    return {
+      all: unionNames(left.all, right.all),
+      always: intersectNames(left.whenFalse, unionNames(left.whenTrue, right.always)),
+      whenFalse: intersectNames(left.whenFalse, unionNames(left.whenTrue, right.whenFalse)),
+      whenTrue: unionNames(left.whenTrue, right.whenTrue),
+    };
+  }
+  if (expression.kind === "binary" && expression.operator === "or") {
+    const left = bindingExpressionFlow(expression.left);
+    const right = bindingExpressionFlow(expression.right);
+    return {
+      all: unionNames(left.all, right.all),
+      always: intersectNames(left.whenTrue, unionNames(left.whenFalse, right.always)),
+      whenFalse: unionNames(left.whenFalse, right.whenFalse),
+      whenTrue: intersectNames(left.whenTrue, unionNames(left.whenFalse, right.whenTrue)),
+    };
+  }
+  return sequentialBindingFlow(eagerExpressionChildren(expression));
+}
+
+function eagerExpressionChildren(expression: Expression): readonly Expression[] {
+  switch (expression.kind) {
+    case "interpolated-string":
+      return expression.segments.flatMap((segment) =>
+        segment.kind === "expression" ? [segment.expression] : [],
+      );
+    case "list":
+    case "tuple":
+      return expression.elements;
+    case "map":
+      return expression.entries.flatMap((entry) => [entry.key, entry.value]);
+    case "unary":
+    case "propagate":
+      return [expression.operand];
+    case "binary":
+      return [expression.left, expression.right];
+    case "call":
+    case "suspend-call":
+      return [expression.callee, ...expression.arguments];
+    case "data":
+      return [
+        ...(expression.spread ? [expression.spread] : []),
+        ...expression.fields.map((field) => field.value),
+      ];
+    case "member":
+      return [expression.receiver];
+    case "index":
+      return [expression.receiver, expression.index];
+    case "provider-context":
+      return expression.entries.map((entry) => entry.value);
+    case "provider-with":
+      return expression.entries.map((entry) => entry.value);
+    case "if":
+    case "while":
+      return [expression.condition];
+    case "for":
+      return [expression.iterable];
+    case "match":
+      return [expression.subject];
+    case "integer":
+    case "float":
+    case "string":
+    case "character":
+    case "boolean":
+    case "nil":
+    case "name":
+    case "qualified-name":
+    case "contextual-variant":
+    case "closure":
+    case "list-comprehension":
+    case "map-comprehension":
+    case "binding-expression":
+    case "provider-use":
+      return [];
+  }
 }
 
 const TYPE_NAMES = new Set<ValueType>([
@@ -88,6 +250,19 @@ export function isKnownType(
     );
   const nominal = nominalGenericParts(type);
   if (nominal) {
+    if (nominal.name === "Suspend") {
+      return (
+        nominal.arguments.length === 1 &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
+      );
+    }
+    if (nominal.name === "Iterator") {
+      return (
+        nominal.arguments.length === 1 &&
+        nominal.arguments[0] !== "void" &&
+        isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
+      );
+    }
     if (nominal.name === "list") {
       return (
         nominal.arguments.length === 1 &&
@@ -241,6 +416,13 @@ export function expressionIsPure(
         : true;
     case "name":
       return locals.has(expression.name) || pureFunctions.has(expression.name);
+    case "qualified-name":
+      return false;
+    case "binding-expression": {
+      if (!expressionIsPure(expression.value, locals, pureFunctions, program)) return false;
+      if (locals instanceof Set) expression.bindings.forEach((binding) => locals.add(binding.name));
+      return true;
+    }
     case "list":
       return expression.elements.every((element) =>
         expressionIsPure(element, locals, pureFunctions, program),
@@ -255,6 +437,27 @@ export function expressionIsPure(
           expressionIsPure(entry.key, locals, pureFunctions, program) &&
           expressionIsPure(entry.value, locals, pureFunctions, program),
       );
+    case "list-comprehension":
+    case "map-comprehension": {
+      const comprehensionLocals = new Set(locals);
+      for (const clause of expression.clauses) {
+        if (clause.kind === "for") {
+          if (!expressionIsPure(clause.iterable, comprehensionLocals, pureFunctions, program))
+            return false;
+          clause.bindings.forEach((binding) => comprehensionLocals.add(binding.name));
+        } else if (
+          !expressionIsPure(clause.condition, comprehensionLocals, pureFunctions, program)
+        ) {
+          return false;
+        }
+      }
+      if (expression.kind === "list-comprehension")
+        return expressionIsPure(expression.value, comprehensionLocals, pureFunctions, program);
+      return (
+        expressionIsPure(expression.key, comprehensionLocals, pureFunctions, program) &&
+        expressionIsPure(expression.value, comprehensionLocals, pureFunctions, program)
+      );
+    }
     case "unary":
     case "propagate":
       return expressionIsPure(expression.operand, locals, pureFunctions, program);
@@ -392,6 +595,7 @@ export function substituteGenericType(
           : [requirement];
       }),
       callable.variadic,
+      callable.suspending,
     );
   }
   const generic = genericTypeName(type);
@@ -564,6 +768,7 @@ export function inferGenericType(
   if (
     formalCallable &&
     actualCallable &&
+    formalCallable.suspending === actualCallable.suspending &&
     formalCallable.variadic === actualCallable.variadic &&
     formalCallable.parameters.length === actualCallable.parameters.length
   ) {
@@ -592,6 +797,79 @@ export function inferGenericType(
     );
   }
   return undefined;
+}
+
+export function matchGenericTypePattern(
+  pattern: ValueType,
+  actual: ValueType,
+  substitutions: Map<string, ValueType>,
+): boolean {
+  const generic = genericTypeName(pattern);
+  if (generic) {
+    const existing = substitutions.get(generic);
+    if (existing) return existing === actual;
+    substitutions.set(generic, actual);
+    return true;
+  }
+  if (pattern === actual) return true;
+  const patternMutable = mutableInner(pattern);
+  const actualMutable = mutableInner(actual);
+  if (patternMutable !== undefined || actualMutable !== undefined)
+    return (
+      patternMutable !== undefined &&
+      actualMutable !== undefined &&
+      matchGenericTypePattern(patternMutable, actualMutable, substitutions)
+    );
+  const patternTuple = tupleParts(pattern);
+  const actualTuple = tupleParts(actual);
+  if (patternTuple !== undefined || actualTuple !== undefined)
+    return Boolean(
+      patternTuple &&
+      actualTuple &&
+      patternTuple.length === actualTuple.length &&
+      patternTuple.every((element, index) =>
+        matchGenericTypePattern(element, actualTuple[index]!, substitutions),
+      ),
+    );
+  const patternNominal = nominalGenericParts(pattern);
+  const actualNominal = nominalGenericParts(actual);
+  return Boolean(
+    patternNominal &&
+    actualNominal &&
+    patternNominal.name === actualNominal.name &&
+    patternNominal.arguments.length === actualNominal.arguments.length &&
+    patternNominal.arguments.every((argument, index) =>
+      matchGenericTypePattern(argument, actualNominal.arguments[index]!, substitutions),
+    ),
+  );
+}
+
+interface TraitImplementationPattern {
+  readonly targetType: ValueType;
+  readonly traitArguments: readonly ValueType[];
+  readonly trait?: { readonly index: number };
+  readonly traitIndex?: number;
+}
+
+export function matchTraitImplementation(
+  implementation: TraitImplementationPattern,
+  traitIndex: number,
+  targetType: ValueType,
+  traitArguments: readonly ValueType[],
+): Map<string, ValueType> | undefined {
+  if (
+    (implementation.traitIndex ?? implementation.trait?.index) !== traitIndex ||
+    implementation.traitArguments.length !== traitArguments.length
+  )
+    return undefined;
+  const substitutions = new Map<string, ValueType>();
+  if (!matchGenericTypePattern(implementation.targetType, targetType, substitutions))
+    return undefined;
+  return implementation.traitArguments.every((argument, index) =>
+    matchGenericTypePattern(argument, traitArguments[index]!, substitutions),
+  )
+    ? substitutions
+    : undefined;
 }
 
 export function rowParameterName(requirement: string): string | undefined {
@@ -688,6 +966,7 @@ export function functionTypeMatchesRowPattern(
     !formal ||
     !actual ||
     formal.variadic !== actual.variadic ||
+    formal.suspending !== actual.suspending ||
     formal.parameters.length !== actual.parameters.length
   )
     return false;
@@ -705,6 +984,8 @@ export function resolveGenericType(
   rowParameters: ReadonlySet<string> = new Set(),
 ): ValueType {
   if (genericParameters.has(type)) return `generic:${type}`;
+  const projection = /^([^:]+)::([A-Za-z_][A-Za-z0-9_]*)$/.exec(type);
+  if (projection && genericParameters.has(projection[1]!)) return `generic:${type}`;
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutableType(resolveGenericType(mutable, genericParameters, rowParameters));
@@ -738,6 +1019,7 @@ export function resolveGenericType(
         resolveGenericRequirement(requirement, rowParameters),
       ),
       callable.variadic,
+      callable.suspending,
     );
   }
   return type;
@@ -844,6 +1126,15 @@ export function typeName(
     resolveGenericType(type.name, genericParameters, rowParameters),
     traitTypes,
   );
+  const dynamicTraitName = traitTypeName(resolved);
+  const dynamicTrait = dynamicTraitName && traitTypes.get(dynamicTraitName);
+  if (dynamicTrait && !traitIsDynamicallySafe(dynamicTrait, traitTypes)) {
+    diagnostics.push({
+      code: "trait-not-dynamically-safe",
+      message: `trait '${dynamicTrait.name}' cannot be used as a dynamic value`,
+      span: type.span,
+    });
+  }
   const nominal = nominalGenericParts(resolved);
   if (
     nominal?.name === "map" &&
@@ -870,6 +1161,32 @@ export function typeName(
   return resolved;
 }
 
+function traitIsDynamicallySafe(
+  trait: HirTrait,
+  traitTypes: ReadonlyMap<string, HirTrait>,
+  seen: ReadonlySet<number> = new Set(),
+): boolean {
+  if (seen.has(trait.index)) return true;
+  if (
+    trait.associatedTypes.length > 0 ||
+    trait.methods.some(
+      (method) =>
+        method.associated ||
+        method.genericParameters.length > 0 ||
+        method.parameters.some((parameter) => parameter.includes("generic:Self")) ||
+        method.result.includes("generic:Self"),
+    )
+  )
+    return false;
+  const next = new Set([...seen, trait.index]);
+  return trait.supertraits.every((supertrait) => {
+    const parent = [...traitTypes.values()].find(
+      (candidate) => candidate.index === supertrait.traitIndex,
+    );
+    return !parent || traitIsDynamicallySafe(parent, traitTypes, next);
+  });
+}
+
 export function resolveTraitType(
   type: ValueType,
   traitTypes: ReadonlyMap<string, HirTrait>,
@@ -889,6 +1206,10 @@ export function resolveTraitType(
   if (nominal) {
     const arguments_ = nominal.arguments.map((argument) => resolveTraitType(argument, traitTypes));
     const resolved = nominalGenericType(nominal.name, arguments_);
+    // Iterator[T] is also the concrete cursor type returned by the MVP list and
+    // map runtime. Keep type annotations nominal while implementations still
+    // resolve Iterator as the synthesized protocol trait.
+    if (nominal.name === "Iterator") return resolved;
     return traitTypes.has(nominal.name) ? `trait:${resolved}` : resolved;
   }
   const callable = functionParts(type);
@@ -898,6 +1219,7 @@ export function resolveTraitType(
       resolveTraitType(callable.result, traitTypes),
       callable.requirements,
       callable.variadic,
+      callable.suspending,
     );
   return type;
 }

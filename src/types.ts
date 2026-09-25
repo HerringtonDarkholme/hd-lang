@@ -7,6 +7,7 @@ export interface ResultParts {
 
 export interface FunctionParts {
   readonly parameters: readonly ValueType[];
+  readonly suspending: boolean;
   readonly variadic: boolean;
   readonly result: ValueType;
   readonly requirements: readonly string[];
@@ -25,6 +26,11 @@ export interface SuspensionParts {
 export interface TraitSuspensionParts {
   readonly traitIndex: number;
   readonly methodIndex: number;
+  readonly result: ValueType;
+}
+
+export interface StoredSuspensionParts {
+  readonly mutable: boolean;
   readonly result: ValueType;
 }
 
@@ -69,6 +75,7 @@ export function tupleType(elements: readonly ValueType[]): ValueType {
 }
 
 export function nominalGenericParts(type: ValueType): NominalGenericParts | undefined {
+  if (type.startsWith("fn(") || type.startsWith("fn!(")) return undefined;
   const open = type.indexOf("[");
   if (open <= 0 || !type.endsWith("]")) return undefined;
   const name = type.slice(0, open);
@@ -121,10 +128,12 @@ export function isErasedVariant(type: ValueType): boolean {
 }
 
 export function functionParts(type: ValueType): FunctionParts | undefined {
-  if (!type.startsWith("fn(") || !type.includes(")->")) return undefined;
+  const suspending = type.startsWith("fn!(");
+  if ((!suspending && !type.startsWith("fn(")) || !type.includes(")->")) return undefined;
+  const prefixLength = suspending ? 4 : 3;
   let depth = 0;
   let close = -1;
-  for (let index = 3; index < type.length; index += 1) {
+  for (let index = prefixLength; index < type.length; index += 1) {
     const character = type[index];
     if (character === "(" || character === "[") depth += 1;
     else if (character === "]") depth -= 1;
@@ -134,7 +143,7 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
     } else if (character === ")") depth -= 1;
   }
   if (close < 0 || type.slice(close, close + 3) !== ")->") return undefined;
-  const parameterText = type.slice(3, close);
+  const parameterText = type.slice(prefixLength, close);
   const renderedParameters: string[] = [];
   let start = 0;
   depth = 0;
@@ -173,7 +182,7 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
     if (!variadic || index !== renderedParameters.length - 1) return parameter;
     return nominalGenericType("list", [parameter.slice(0, -3)]);
   });
-  return { parameters, variadic, result, requirements };
+  return { parameters, suspending, variadic, result, requirements };
 }
 
 export function functionType(
@@ -181,6 +190,7 @@ export function functionType(
   result: ValueType,
   requirements: readonly string[] = [],
   variadic = false,
+  suspending = false,
 ): ValueType {
   const row = [...new Set(requirements)].sort();
   const rendered = parameters.map((parameter, index) => {
@@ -188,7 +198,40 @@ export function functionType(
     const nominal = nominalGenericParts(parameter);
     return `${nominal?.name === "list" && nominal.arguments.length === 1 ? nominal.arguments[0] : parameter}...`;
   });
-  return `fn(${rendered.join(",")})->${result}${row.length ? `$${row.join("+")}` : ""}`;
+  return `fn${suspending ? "!" : ""}(${rendered.join(",")})->${result}${row.length ? `$${row.join("+")}` : ""}`;
+}
+
+export function substituteTypeParameters(
+  type: ValueType,
+  substitutions: ReadonlyMap<string, ValueType>,
+): ValueType {
+  const mutable = mutableInner(type);
+  if (mutable !== undefined) return mutableType(substituteTypeParameters(mutable, substitutions));
+  const tuple = tupleParts(type);
+  if (tuple !== undefined)
+    return tupleType(tuple.map((element) => substituteTypeParameters(element, substitutions)));
+  const optional = optionalInner(type);
+  if (optional !== undefined) return `${substituteTypeParameters(optional, substitutions)}?`;
+  const result = resultParts(type);
+  if (result)
+    return `Result[${substituteTypeParameters(result.ok, substitutions)},${substituteTypeParameters(result.error, substitutions)}]`;
+  const nominal = nominalGenericParts(type);
+  if (nominal)
+    return nominalGenericType(
+      nominal.name,
+      nominal.arguments.map((argument) => substituteTypeParameters(argument, substitutions)),
+    );
+  const callable = functionParts(type);
+  if (callable)
+    return functionType(
+      callable.parameters.map((parameter) => substituteTypeParameters(parameter, substitutions)),
+      substituteTypeParameters(callable.result, substitutions),
+      callable.requirements,
+      callable.variadic,
+      callable.suspending,
+    );
+  const generic = /^generic:([^?[\](),]+)$/.exec(type)?.[1];
+  return generic ? (substitutions.get(generic) ?? type) : type;
 }
 
 export function contextKeys(type: ValueType): readonly string[] | undefined {
@@ -222,5 +265,13 @@ export function traitSuspensionParts(type: ValueType): TraitSuspensionParts | un
   const match = /^trait-suspend\((\d+),(\d+)\):(.*)$/s.exec(type);
   return match
     ? { traitIndex: Number(match[1]), methodIndex: Number(match[2]), result: match[3]! }
+    : undefined;
+}
+
+export function storedSuspensionParts(type: ValueType): StoredSuspensionParts | undefined {
+  const mutable = mutableInner(type);
+  const nominal = nominalGenericParts(mutable ?? type);
+  return nominal?.name === "Suspend" && nominal.arguments.length === 1
+    ? { mutable: mutable !== undefined, result: nominal.arguments[0]! }
     : undefined;
 }

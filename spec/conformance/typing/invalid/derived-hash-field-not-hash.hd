@@ -1,7 +1,6 @@
-# expect-error: field-not-hash
 
 data Opaque: pass
 
 @derive(Hash)
 data Key:
-    value: Opaque
+    value: Opaque  # diagnostic: field-not-hash

@@ -1,4 +1,3 @@
-# expect-error: pack-length-mismatch
 
 fn zip_apply[As..., Bs..., Rs...](
     pairs: ((As, Bs)...),
@@ -9,5 +8,5 @@ fn zip_apply[As..., Bs..., Rs...](
 result := zip_apply(
     ((1, 2),),
     fn(a: i32, b: i32) -> i32: a + b,
-    fn(a: string, b: string) -> string: a + b,
+    fn(a: string, b: string) -> string: a + b,  # diagnostic: pack-length-mismatch
 )

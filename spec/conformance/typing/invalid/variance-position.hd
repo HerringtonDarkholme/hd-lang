@@ -1,4 +1,3 @@
-# expect-error: invalid-variance
 
 data InvalidProducer[+T]:
-    consume: fn(T) -> void
+    consume: fn(T) -> void  # diagnostic: invalid-variance

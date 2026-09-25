@@ -97,10 +97,7 @@ test("explicit mutable suspension bindings are one-shot", async () => {
     "suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive",
   );
   const second = await instantiate(secondDrive);
-  assert.throws(
-    () => (second.instance.exports.main as CallableFunction)(),
-    WebAssembly.RuntimeError,
-  );
+  assert.throws(() => (second.instance.exports.main as CallableFunction)());
 });
 
 test("cold suspension cancellation is synchronous and idempotent", async () => {
@@ -118,10 +115,7 @@ test("cancelled suspensions cannot be driven and readonly values cannot be cance
     "suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled",
   );
   const execution = await instantiate(cancelled);
-  assert.throws(
-    () => (execution.instance.exports.main as CallableFunction)(),
-    WebAssembly.RuntimeError,
-  );
+  assert.throws(() => (execution.instance.exports.main as CallableFunction)());
 
   const readonly = fixture("suspension/08-readonly-suspension-cancel");
   assert.equal(analyze(readonly).diagnostics[0]?.code, "mutable-receiver-required");
@@ -186,10 +180,7 @@ test("development drivers reject competing and reentrant suspension control", as
   const competing = await instantiate(source, { pending: () => true });
   (competing.instance.exports.__hd_start as CallableFunction)();
   assert.equal((competing.instance.exports.__hd_poll as CallableFunction)(), 0);
-  assert.throws(
-    () => (competing.instance.exports.main as CallableFunction)(),
-    WebAssembly.RuntimeError,
-  );
+  assert.throws(() => (competing.instance.exports.main as CallableFunction)());
   (competing.instance.exports.__hd_cancel as CallableFunction)();
 
   let pollingInstance: WebAssembly.Instance;
@@ -207,7 +198,7 @@ test("development drivers reject competing and reentrant suspension control", as
   pollingInstance = polling.instance;
   (pollingInstance.exports.__hd_start as CallableFunction)();
   assert.equal((pollingInstance.exports.__hd_poll as CallableFunction)(), 1);
-  assert.ok(nestedPollError instanceof WebAssembly.RuntimeError);
+  assert.ok(nestedPollError instanceof Error);
 
   let cancellingInstance: WebAssembly.Instance;
   let nestedCancelError: unknown;
@@ -224,7 +215,7 @@ test("development drivers reject competing and reentrant suspension control", as
   cancellingInstance = cancelling.instance;
   (cancellingInstance.exports.__hd_start as CallableFunction)();
   assert.equal((cancellingInstance.exports.__hd_poll as CallableFunction)(), 1);
-  assert.ok(nestedCancelError instanceof WebAssembly.RuntimeError);
+  assert.ok(nestedCancelError instanceof Error);
 });
 
 test("child pending propagates through the parent frame and restores locals", async () => {
@@ -288,7 +279,7 @@ test("started-frame cancellation cancels the child and runs registered cleanup",
   ]);
   cancel();
   assert.deepEqual(events.at(-1), [1, 3]);
-  assert.throws(() => poll(), WebAssembly.RuntimeError);
+  assert.throws(() => poll());
 });
 
 test("cancellation unwinds child frames before parent cleanup", async () => {
@@ -449,7 +440,7 @@ test("CFG suspension cancellation cancels the active child and runs scoped clean
     [0, 3],
     [1, 7],
   ]);
-  assert.throws(() => poll(), WebAssembly.RuntimeError);
+  assert.throws(() => poll());
 });
 
 test("CFG suspension lowering installs providers produced after resumption", async () => {
@@ -532,6 +523,181 @@ test("suspension poll decisions record and replay with configuration identity", 
   );
 });
 
+test("host provider polls record and replay", async () => {
+  const source = fixture("suspension/32-host-provider-polls-record-and-replay");
+  const events: ReplayEvent[] = [];
+  let providerPolls = 0;
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Gate"],
+    hostSuspensionPending: () => {
+      providerPolls += 1;
+      return providerPolls === 1;
+    },
+    providerConfigurationId: "gate-a",
+    record: (event) => events.push(event),
+  });
+  assert.equal((recorded.instance.exports.main as CallableFunction)({ name: "gate" }), undefined);
+  assert.equal((recorded.instance.exports.recorded_result as CallableFunction)(), 42);
+  const providerEvents = events.filter((event) => event.operation === "provider-poll");
+  assert.deepEqual(
+    providerEvents.map((event) => event.encodedResult),
+    ["pending", "ready"],
+  );
+  assert.match(providerEvents[0]!.siteId, /^wait_once:provider:Gate\.wait:/);
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Gate"],
+    hostSuspensionPending: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    pending: () => {
+      throw new Error("live runtime poll must not run during replay");
+    },
+    providerConfigurationId: "gate-a",
+    replay: events,
+  });
+  assert.equal((replayed.instance.exports.main as CallableFunction)({ name: "gate" }), undefined);
+  assert.equal((replayed.instance.exports.recorded_result as CallableFunction)(), 42);
+  replayed.replay.assertComplete();
+});
+
+test("host provider scalar arguments and results record and replay", async () => {
+  const source = fixture("suspension/33-host-provider-scalar-arguments-and-results");
+  const events: ReplayEvent[] = [];
+  let providerPolls = 0;
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Counter"],
+    hostSuspensionInvoke: ({ arguments: values }) => {
+      providerPolls += 1;
+      return providerPolls === 1
+        ? { pending: true }
+        : { pending: false, value: Number(values[0]) + Number(values[1]) };
+    },
+    providerConfigurationId: "counter-a",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "counter" });
+  assert.equal((recorded.instance.exports.recorded_result as CallableFunction)(), 42);
+  const providerEvents = events.filter((event) => event.operation === "provider-poll");
+  assert.deepEqual(
+    providerEvents.map(({ encodedArguments, encodedResult, encodedValue }) => ({
+      encodedArguments,
+      encodedResult,
+      encodedValue,
+    })),
+    [
+      {
+        encodedArguments: [
+          { kind: "i32", value: 20 },
+          { kind: "i32", value: 22 },
+        ],
+        encodedResult: "pending",
+        encodedValue: undefined,
+      },
+      {
+        encodedArguments: [
+          { kind: "i32", value: 20 },
+          { kind: "i32", value: 22 },
+        ],
+        encodedResult: "ready",
+        encodedValue: { kind: "i32", value: 42 },
+      },
+    ],
+  );
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Counter"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    pending: () => {
+      throw new Error("live runtime poll must not run during replay");
+    },
+    providerConfigurationId: "counter-a",
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "counter" });
+  assert.equal((replayed.instance.exports.recorded_result as CallableFunction)(), 42);
+  replayed.replay.assertComplete();
+});
+
+test("host provider f64 replay encoding preserves non-JSON numbers", async () => {
+  const source = fixture("suspension/35-host-provider-f64-values-use-durable-bit-encoding");
+  const events: ReplayEvent[] = [];
+  let providerPolls = 0;
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["FloatCell"],
+    hostSuspensionInvoke: () => {
+      providerPolls += 1;
+      return providerPolls === 1 ? { pending: true } : { pending: false, value: Number.NaN };
+    },
+    providerConfigurationId: "float-a",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "float" });
+  assert.ok(Number.isNaN((recorded.instance.exports.recorded_result as CallableFunction)()));
+  const providerEvents = events.filter((event) => event.operation === "provider-poll");
+  assert.deepEqual(providerEvents[0]?.encodedArguments, [
+    { bits: "8000000000000000", kind: "f64" },
+  ]);
+  assert.equal(providerEvents[1]?.encodedValue?.kind, "f64");
+  assert.match(
+    providerEvents[1]?.encodedValue?.kind === "f64" ? providerEvents[1].encodedValue.bits : "",
+    /^[0-9a-f]{16}$/,
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(providerEvents)), providerEvents);
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["FloatCell"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "float-a",
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "float" });
+  assert.ok(Number.isNaN((replayed.instance.exports.recorded_result as CallableFunction)()));
+  replayed.replay.assertComplete();
+});
+
+test("host provider string arguments and results use durable UTF-8 replay encoding", async () => {
+  const source = fixture("suspension/36-host-provider-strings-use-utf8-boundary");
+  const events: ReplayEvent[] = [];
+  const calls: Array<readonly (number | string)[]> = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["TextBridge"],
+    hostSuspensionInvoke: (call) => {
+      calls.push(call.arguments);
+      return { pending: false, value: `${call.arguments[0]}${call.arguments[1]}` };
+    },
+    providerConfigurationId: "text-a",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "text" });
+  assert.deepEqual(calls, [["host: ", "λ🙂"]]);
+  const providerEvent = events.find((event) => event.operation === "provider-poll");
+  assert.deepEqual(providerEvent?.encodedArguments, [
+    { kind: "string", utf8: "686f73743a20" },
+    { kind: "string", utf8: "cebbf09f9982" },
+  ]);
+  assert.deepEqual(providerEvent?.encodedValue, {
+    kind: "string",
+    utf8: "686f73743a20cebbf09f9982",
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(events)), events);
+
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["TextBridge"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "text-a",
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "text" });
+  replayed.replay.assertComplete();
+});
+
 test("println requires Console and streams displayed UTF-8 through the host boundary", async () => {
   const source = fixture(
     "suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo",
@@ -581,10 +747,7 @@ test("imported block_on drives stored suspensions and rejects nested drivers", a
     "suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested",
   );
   const nestedExecution = await instantiate(nested);
-  assert.throws(
-    () => (nestedExecution.instance.exports.main as CallableFunction)(),
-    WebAssembly.RuntimeError,
-  );
+  assert.throws(() => (nestedExecution.instance.exports.main as CallableFunction)());
 
   const forbidden = analyze(
     fixture(
@@ -606,10 +769,7 @@ test("imported assert_equal compares supported structural values", async () => {
   const failure = await instantiate(
     fixture("suspension/30-imported-assert-equal-compares-supported-structural-values-failure"),
   );
-  assert.throws(
-    () => (failure.instance.exports.main as CallableFunction)(),
-    WebAssembly.RuntimeError,
-  );
+  assert.throws(() => (failure.instance.exports.main as CallableFunction)());
 
   const unsupported = analyze(
     fixture(

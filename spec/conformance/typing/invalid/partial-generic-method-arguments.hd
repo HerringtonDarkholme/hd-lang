@@ -1,4 +1,3 @@
-# expect-error: partial-generic-arguments
 data Identity:
     name: string
 
@@ -7,4 +6,4 @@ impl Identity:
         (left, right)
 
 identity := Identity { name: "identity" }
-value := identity.pair[string]("left", 1)
+value := identity.pair[string]("left", 1)  # diagnostic: partial-generic-arguments

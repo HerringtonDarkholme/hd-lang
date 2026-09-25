@@ -1,0 +1,24 @@
+use std.testing.assert
+
+test "map equality ignores insertion order":
+    left := {"ada": 1, "grace": 2}
+    reordered := {"grace": 2, "ada": 1}
+    changed := {"ada": 1, "grace": 3}
+    assert(left == reordered, reason="equal maps may use different insertion orders")
+    assert(left != changed, reason="map values participate in equality")
+
+test "optional and Result equality compares tags and payloads":
+    let present: i32? = 42
+    let same_present: i32? = 42
+    let absent: i32? = nil
+    let same_absent: i32? = nil
+    let ok: Result[i32, string] = Ok(42)
+    let same_ok: Result[i32, string] = Ok(42)
+    let error: Result[i32, string] = Err("failed")
+    let same_error: Result[i32, string] = Err("failed")
+    assert(present == same_present, reason="present optional payloads compare")
+    assert(present != absent, reason="optional tags compare")
+    assert(absent == same_absent, reason="absent optionals compare without a payload")
+    assert(ok == same_ok, reason="Ok payloads compare")
+    assert(ok != error, reason="Result tags compare")
+    assert(error == same_error, reason="Err payloads compare")

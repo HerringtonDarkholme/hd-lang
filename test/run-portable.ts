@@ -13,7 +13,10 @@ interface ConformanceCase {
   readonly expectation: string;
   readonly line?: number;
   readonly path: string;
+  readonly pendingFunction?: string;
   readonly phase: "parse" | "runtime" | "type";
+  readonly profile?: string;
+  readonly scenario?: string;
 }
 
 interface Directive {
@@ -26,6 +29,7 @@ interface FixtureCase {
   readonly directives: readonly Directive[];
   readonly name: string;
   readonly path: string;
+  readonly profile?: string;
 }
 
 interface Options {
@@ -143,7 +147,17 @@ async function readConformanceCases(): Promise<ConformanceCase[]> {
         throw new Error(`${portableManifest} has an invalid row: ${row}`);
       const sourceLines = (await readFile(resolve(conformanceRoot, path), "utf8")).split("\n");
       const markers: Array<{ expectation: string; line: number }> = [];
+      let pendingFunction: string | undefined;
+      let profile: string | undefined;
+      let scenario: string | undefined;
       for (const [index, sourceLine] of sourceLines.entries()) {
+        const pendingMarker =
+          /^# fixture-runtime-pending-function: ([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(sourceLine);
+        if (pendingMarker) pendingFunction = pendingMarker[1];
+        const profileMarker = /^# fixture-runtime-profile: ([a-z0-9-]+)\s*$/.exec(sourceLine);
+        if (profileMarker) profile = profileMarker[1];
+        const scenarioMarker = /^# fixture-runtime-scenario: ([a-z0-9-]+)\s*$/.exec(sourceLine);
+        if (scenarioMarker) scenario = scenarioMarker[1];
         const marker = /# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/.exec(sourceLine);
         if (!marker) continue;
         const prefix =
@@ -156,7 +170,10 @@ async function readConformanceCases(): Promise<ConformanceCase[]> {
         expectation: markers[0]?.expectation ?? "accept",
         line: markers[0]?.line,
         path,
+        pendingFunction,
         phase: phase as ConformanceCase["phase"],
+        profile,
+        scenario,
       };
     }),
   );
@@ -168,14 +185,25 @@ async function runConformanceCase(
 ): Promise<string | undefined> {
   const path = resolve(conformanceRoot, testCase.path);
   if (testCase.phase === "runtime") {
-    const checked = await invoke(command, "check", path);
+    const profileOptions = testCase.profile ? ["--profile", testCase.profile] : [];
+    const checked = await invoke(command, "check", path, profileOptions);
     if (checked.code !== 0)
       return failure(testCase.path, "runtime fixture did not type-check", checked);
-    const result = await invoke(command, "test", path);
+    const runtimeOptions = [
+      ...(testCase.scenario ? ["--scenario", testCase.scenario] : []),
+      ...(testCase.pendingFunction ? ["--pending-function", testCase.pendingFunction] : []),
+      ...profileOptions,
+    ];
+    const result = await invoke(command, "test", path, runtimeOptions);
     if (testCase.expectation === "accept")
       return result.code === 0 ? undefined : failure(testCase.path, "expected success", result);
-    if (testCase.expectation.startsWith("panic:"))
-      return result.code !== 0 ? undefined : failure(testCase.path, "expected a panic", result);
+    if (testCase.expectation.startsWith("panic:")) {
+      const code = testCase.expectation.slice("panic:".length);
+      if (result.code === 0) return failure(testCase.path, `expected panic ${code}`, result);
+      return containsCode(result, code)
+        ? undefined
+        : failure(testCase.path, `missing runtime panic ${code}`, result);
+    }
     return `${testCase.path}: invalid runtime expectation ${testCase.expectation}`;
   }
   const result = await invoke(command, testCase.phase === "parse" ? "parse" : "check", path);
@@ -216,9 +244,12 @@ async function fixturePaths(directory: string): Promise<string[]> {
 async function readFixtureCase(path: string): Promise<FixtureCase> {
   const lines = (await readFile(path, "utf8")).split("\n");
   let name: string | undefined;
+  let profile: string | undefined;
   const directives: Directive[] = [];
   for (const [index, line] of lines.entries()) {
     if (line.startsWith("# test: ")) name = line.slice("# test: ".length).trim();
+    if (line.startsWith("# fixture-runtime-profile: "))
+      profile = line.slice("# fixture-runtime-profile: ".length).trim();
     for (const kind of ["expect", "expect-result"] as const) {
       const prefix = `# ${kind}: `;
       if (line.startsWith(prefix))
@@ -234,7 +265,7 @@ async function readFixtureCase(path: string): Promise<FixtureCase> {
   }
   if (!name) throw new Error(`${path}: missing '# test:' directive`);
   if (directives.length === 0) throw new Error(`${path}: missing expectation directive`);
-  return { directives, name, path };
+  return { directives, name, path, profile };
 }
 
 async function runFixtureCase(
@@ -244,13 +275,18 @@ async function runFixtureCase(
   const kinds = new Set(testCase.directives.map(({ kind }) => kind));
   if (kinds.size !== 1) return `${testCase.name}: cannot mix expectation directive kinds`;
   const kind = testCase.directives[0]!.kind;
+  const profileOptions = testCase.profile ? ["--profile", testCase.profile] : [];
   if (kind === "expect-result") {
     for (const directive of testCase.directives) {
       const separator = directive.value.indexOf(" = ");
       if (separator < 1) return `${testCase.name}: expected '# expect-result: ENTRY = VALUE'`;
       const entry = directive.value.slice(0, separator);
       const expected = directive.value.slice(separator + 3);
-      const result = await invoke(command, "run", testCase.path, ["--entry", entry]);
+      const result = await invoke(command, "run", testCase.path, [
+        "--entry",
+        entry,
+        ...profileOptions,
+      ]);
       if (result.code !== 0) return failure(testCase.name, `${entry} failed`, result);
       if (result.stdout.trim() !== expected)
         return failure(
@@ -263,13 +299,14 @@ async function runFixtureCase(
   }
   if (kind === "expect") {
     const directive = testCase.directives[0]!;
-    const action = directive.value === "parse" ? "parse" : "check";
-    if (directive.value !== "parse" && directive.value !== "accept")
-      return `${testCase.name}: expected '# expect: accept' or '# expect: parse'`;
-    const result = await invoke(command, action, testCase.path);
+    const action =
+      directive.value === "parse" ? "parse" : directive.value === "test" ? "test" : "check";
+    if (!["accept", "parse", "test"].includes(directive.value))
+      return `${testCase.name}: expected '# expect: accept', '# expect: parse', or '# expect: test'`;
+    const result = await invoke(command, action, testCase.path, profileOptions);
     return result.code === 0 ? undefined : failure(testCase.name, "expected acceptance", result);
   }
-  const checked = await invoke(command, "check", testCase.path);
+  const checked = await invoke(command, "check", testCase.path, profileOptions);
   let result = checked;
   if (kind === "diagnostic" && checked.code === 0)
     return failure(testCase.name, "expected rejection", checked);
@@ -277,7 +314,7 @@ async function runFixtureCase(
     return failure(testCase.name, "expected warning, but compilation failed", checked);
   if (kind === "panic") {
     if (checked.code !== 0) return failure(testCase.name, "panic fixture did not compile", checked);
-    result = await invoke(command, "run", testCase.path);
+    result = await invoke(command, "run", testCase.path, profileOptions);
     if (result.code === 0) return failure(testCase.name, "expected a runtime panic", result);
   }
   const missing = testCase.directives.filter((directive) => {

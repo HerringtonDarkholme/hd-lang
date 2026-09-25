@@ -19,6 +19,7 @@ export class FunctionChecker extends ExpressionControlChecker {
       this.checkSuspendingCallExpression(expression, expected) ??
       this.checkDataExpression(expression, expected) ??
       this.checkAccessExpression(expression, expected) ??
+      this.checkComprehensionExpression(expression, expected) ??
       this.checkControlExpression(expression, expected) ??
       this.checkMatchExpression(expression, expected) ??
       this.checkClosureExpression(expression, expected);
@@ -73,6 +74,14 @@ export class FunctionChecker extends ExpressionControlChecker {
       }
       case "closure": {
         const expectedCallable = expected ? functionParts(expected) : undefined;
+        const suspending = expression.suspending === true;
+        if (expectedCallable && expectedCallable.suspending !== suspending) {
+          this.fail(
+            "type-mismatch",
+            `expected ${expected}, found a ${suspending ? "suspending" : "non-suspending"} closure`,
+            expression.span,
+          );
+        }
         if (
           expectedCallable &&
           expectedCallable.parameters.length !== expression.parameters.length
@@ -113,7 +122,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         const baseDeclaration: FunctionDecl = {
           kind: "function",
           name: `$closure${closureIndex}`,
-          suspending: false,
+          suspending,
           genericParameters: [],
           genericBounds: [],
           parameters,
@@ -127,7 +136,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           const discoverySignature: Signature = {
             name: baseDeclaration.name,
             index: closureIndex,
-            suspending: false,
+            suspending,
             genericParameters: [],
             genericBounds: [],
             rowParameters: [],
@@ -184,7 +193,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         const signature: Signature = {
           name: declaration.name,
           index: closureIndex,
-          suspending: false,
+          suspending,
           genericParameters: [],
           genericBounds: [],
           rowParameters: [],
@@ -226,7 +235,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         const captures = checked.function.captures.map((capture) =>
           this.captureValue(capture.source, expression.span),
         );
-        const type = functionType(parameterTypes, result, requirements);
+        const type = functionType(parameterTypes, result, requirements, false, suspending);
         if (expected && expected !== type && !functionTypeMatchesRowPattern(expected, type)) {
           this.fail("type-mismatch", `expected ${expected}, found ${type}`, expression.span);
         }

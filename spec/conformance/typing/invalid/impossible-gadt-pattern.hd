@@ -1,4 +1,3 @@
-# expect-error: impossible-gadt-pattern
 
 enum Expr[T]:
     IntLit(value: i64) -> Expr[i64]
@@ -7,4 +6,4 @@ enum Expr[T]:
 fn invalid(expr: Expr[i64]) -> i64:
     match expr:
         Expr.IntLit(value) => value
-        Expr.BoolLit(value) => 0
+        Expr.BoolLit(value) => 0  # diagnostic: impossible-gadt-pattern

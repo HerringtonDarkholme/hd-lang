@@ -176,8 +176,16 @@ function visitExpression(
       visitExpression(expression.operand, key, path, active, functions, output);
       return;
     case "binary":
+    case "value-equality":
+    case "value-ordering":
       visitExpression(expression.left, key, path, active, functions, output);
       visitExpression(expression.right, key, path, active, functions, output);
+      return;
+    case "assert-equal":
+    case "assert":
+      expression.arguments.forEach((argument) =>
+        visitExpression(argument, key, path, active, functions, output),
+      );
       return;
     case "closure":
       expression.captures.forEach((capture) =>
@@ -236,8 +244,13 @@ function visitExpression(
       return;
     case "member":
     case "enum-member":
+    case "variant-tag":
+    case "variant-payload":
     case "string-length":
     case "list-length":
+    case "list-iterator":
+    case "iterator-next":
+    case "map-iterator":
     case "map-length":
       visitExpression(expression.receiver, key, path, active, functions, output);
       return;

@@ -8,5 +8,5 @@ fn helper() -> i32:
     let pending: mut Suspend[i32] = ready()
     block_on(pending)
 
-fn main!() -> void:  # panic: runtime-error
+fn main!() -> void:  # panic: suspension-nested-driver
     _ := helper()

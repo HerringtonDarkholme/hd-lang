@@ -1,6 +1,5 @@
-# expect-error: variance-representation-change
 data Consumer[-T]:
     consume: fn(T) -> void
 
 fn narrow(value: Consumer[Display]) -> Consumer[i32]:
-    value
+    value  # diagnostic: variance-representation-change

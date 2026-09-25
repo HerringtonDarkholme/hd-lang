@@ -23,7 +23,8 @@ source once, then explicit replacements in source order, and constructs a fresh
 Wasm GC struct without invoking defaults for copied fields. The executable S1 core covers functions
 and named function values, nested and recursive
 closures with type inference and transitive captures, named local functions
-sharing the closure representation, explicit generic call lists with `_`
+sharing the closure representation across ordinary and suspending calls,
+including recursive captures and requirement forwarding, explicit generic call lists with `_`
 inference, contextually typed trailing callback blocks, and stored callable
 fields whose result permissions survive readonly outer access, GC data and enums,
 including fieldless data as empty GC structs and shared enum constructor data
@@ -36,7 +37,9 @@ interpreted-string segments using the canonical prelude `Display` trait in
 source order. Primitive `i32`, `f64`, `bool`, `char`, and `string` values use
 standard implementations, including shortest-round-trip floating formatting;
 concrete user implementations, generic bounds, and dynamic `Display` values
-reuse the ordinary trait dispatch paths. The same display surface powers
+reuse the ordinary trait dispatch paths. `string.split` uses a pure WAT
+implementation that preserves empty pieces and splits an empty separator at
+Unicode scalar boundaries. The same display surface powers
 `println`, which statically resolves a lexical `Console` provider and streams
 UTF-8 bytes from its Wasm GC string to a narrow host callback,
 numeric access to unnamed shared enum fields, and reference identity through
@@ -47,9 +50,15 @@ direct-versus-generic field rule during construction and access, and lowers
 field writes through mutable Wasm GC struct fields. Heterogeneous tuple literals and types retain exact
 element types in HIR and use erased Wasm GC array storage; simultaneous tuple
 bindings stage the initializer once before introducing their names;
+single and grouped tuple binding expressions evaluate once, bind in the
+enclosing executable scope, preserve readonly inferred views, and diagnose
+uses that remain conditional after short-circuit evaluation;
 list and map `for` loops evaluate their iterable once, preserve map insertion
 order, support tuple entry bindings, and share the existing loop-else and
-suspension-CFG semantics; mutable list and map roots support checked indexed
+suspension-CFG semantics. Eager list and map comprehensions lower through the
+same cursors with left-to-right nested clauses, conditional filters, lexical
+bindings, and duplicate map-key replacement; suspension calls receive the
+specified forbidden-context diagnostic. Mutable list and map roots support checked indexed
 replacement while readonly roots retain their nested generic element
 permissions;
 optional/result propagation, panic, and non-suspending cleanup. S1 conformance
@@ -69,7 +78,9 @@ through Wasm GC.
 Module execution bindings now lower to typed Wasm globals. Their source-order
 visibility is enforced for function bodies, and top-level initializers are
 checked for transitive reads through referenced functions and closures before
-the corresponding global has been initialized.
+the corresponding global has been initialized. A dedicated Wasm start function
+runs the module body exactly once before a script entry or a separately
+declared `main`.
 Unsupported interpolated values receive `missing-display` unless their type
 implements the canonical trait.
 S2 has concrete-row normalization, hidden
@@ -87,27 +98,64 @@ canonical instantiated keys, substitute through generic calls, accept distinct
 concrete keys, and reject key expressions that can collide under substitution.
 Trait-backed provider examples with methods remain coupled to S4. The current surface and commands are tracked in
 [README.md](README.md).
+The runtime-profile bridge admits fixture-defined host capability traits and
+wraps opaque host providers in Wasm GC dynamic-trait values. Suspending methods
+can pass `i32`, `f64`, `bool`, `char`, and UTF-8 `string` arguments and return
+the same boundary types or `void`; poll, result retrieval, and cancellation
+cross the host boundary while frame state and cleanup remain in Wasm. Strings
+cross through explicit length-and-byte imports and are rebuilt as Wasm GC byte
+arrays, so GC references never escape to JavaScript. Each invocation has an
+opaque host token, so concurrent calls from the same source site stay distinct.
+Structural values remain part of a later provider ABI slice.
 S3 now has cold GC-frame construction, construction-time provider capture,
 direct and stored bang driving, one-shot state checks, synchronous
 cancellation, and invalid-state traps. Module `use` declarations retain their
 imported names, and `std.task.block_on` drives an explicitly mutable stored
 suspension from non-suspending code. A per-instance driver guard rejects
 nested and competing drivers, and polling state rejects reentrant poll or
-cancel calls through the host boundary. Linear sequential bang calls lower to
+cancel calls through the host boundary. Source-level `Suspend[T]` values use a
+uniform Wasm GC wrapper containing the concrete frame and poll, cancel, and
+boxed-result function references. The wrapper preserves frame identity through
+fields, optionals, generic function parameters, and aliases, including a
+portable case that cancels the root through an alias while that root is polling.
+Suspending callable types retain `fn!` in typed IR. Named functions and
+capturing suspending closures are first-class values: ordinary calls construct
+uniform stored suspensions, bang calls construct and drive them, callable
+requirement rows reach the generated frame, and `fn!(A) -> T` weakens one way
+to `fn(A) -> mut Suspend[T]` through a typed Wasm GC callable adapter.
+The prelude `Waker` boundary is represented as a sealed dynamic trait value;
+the chapter-11 requirements-and-suspension fixture now type-checks and executes
+after aligning its data construction and mutable stored-suspension binding with
+the normative rules.
+Linear sequential bang calls lower to
 explicit child-frame continuation states: child `Pending` propagates to the
 parent, live locals spill into the parent frame, and later polls resume the
 child before continuing. General suspension CFG lowering preserves
 left-to-right evaluation through nested call arguments, short-circuiting,
 branches, loops, pattern guards, propagation, provider scopes, and scoped
 cleanup. Started cancellation cancels the active child and runs registered
-`defer` suites. A deterministic host fixture controls pending polls, and the
-trace ABI exposes state and cleanup transitions. The `all!` and `race!`
+`defer` suites. A portable runtime scenario holds a named nested frame at a
+deterministic poll, cancels the root, and checks the source-defined cleanup
+result through the public CLI. The trace ABI exposes state and cleanup
+transitions. The original `pending-gate` conformance fixture also runs through
+the named host profile and observes provider-backed pending and cancellation.
+The `all!` and `race!`
 intrinsics remain blocked on their unresolved standard signatures and receive
 the dedicated `unsupported-task-combinator` diagnostic.
 
-The first imported standard testing intrinsic, `assert_equal`, executes
-structural equality for the MVP scalar, string, tuple, and list surface and
-retains the `PartialEq` boundary for unsupported nominal values.
+The imported standard testing intrinsics execute inside named test blocks:
+`assert` preserves source argument order and traps on a false condition, while
+`assert_equal` executes structural equality for the MVP scalar, string, tuple,
+list, optional, `Result`, and map surface, including order-independent map
+comparison. It dispatches explicit nominal implementations and generic
+`T: PartialEq` dictionaries through the canonical prelude trait. Both require
+the specified reason argument.
+
+Supported checked runtime failures now cross the host boundary with their
+stable categories: explicit panic, assertion failure, integer overflow and
+division by zero, invalid shifts, list index bounds, iterator invalidation, and
+suspension driver or state violations. The portable panic fixtures compare the
+exact category instead of treating an arbitrary Wasm trap as success.
 
 S4 has begun with inferred erased generic functions, `anyref` ABI lowering,
 primitive Wasm GC boxing, and substitution through optional and `Result`
@@ -135,28 +183,77 @@ bare embedded data fields promote unambiguous direct fields and inherent
 methods, substituting generic arguments through the embedded edge, and bodyless
 explicit trait implementations may forward one compatible readonly promoted
 method while rejecting mutable promotion through the readonly edge;
-associated functions and generic methods remain deferred. Associated trait
-members remain. Generic data declarations now
+inherent methods now support erased method-level generics, complete explicit
+argument lists with `_` inference, inferred calls, and bound dictionaries.
+Receiverless inherent associated functions use qualified static calls and the
+same generic and suspension machinery. Generic trait implementations accept
+bounded target patterns and specialize their direct static calls. Explicit
+trait qualification selects one concrete implementation even when dot lookup
+is ambiguous, including generic trait instantiations and blanket targets.
+Trait-level generic parameters use erased Wasm adapters for dynamic values and
+bound dictionaries. Blanket implementations materialize those dictionaries for
+dynamic values and generic bounds, including suspending methods and
+implementations whose parameter is inferred only from the trait arguments.
+Bounded blanket dictionaries capture their nested dictionaries in the Wasm GC
+trait object, including dictionaries forwarded from an enclosing generic bound
+and dictionaries retained by a parent supertrait.
+Receiverless trait functions dispatch through implementing type qualification,
+and associated type bindings specialize `Self::Item` and generic `T::Item`
+projections, including projections supplied by blanket targets. Mutable bounds
+preserve root access and reject readonly arguments. Supertrait declarations
+reject cycles and require the parent implementation before the child
+implementation. Child dictionaries retain their blanket or concrete parent
+dictionaries, inherited methods substitute generic parent arguments through
+generic bounds and dynamic child values, and child values widen only to the
+matching parent instantiation while preserving the erased receiver. Generic data declarations now
 use one erased GC layout, accept inferred or complete explicit type arguments
 at construction, preserve instantiated types in HIR,
 and box or unbox exact generic fields at storage boundaries. Generic enums use
 the same rule for payloads and recursive fields. Homogeneous `list[T]` values
 use a growable GC vector with typed literals, indexing, `len()`, mutable
-`append()`, and erased element storage in HIR. `map[K, V]` uses a GC object
+`append()`, and erased element storage in HIR. Built-in list and map iterators
+are mutable Wasm GC cursors: `next()` yields `T?`, remains exhausted after the
+end, and captures a structural version. Replacement remains visible without
+invalidation; list growth and map insertion or removal report
+`iterator-invalidated`. Ordinary and suspending `for` loops use that same
+cursor protocol, including when continuing a partly consumed iterator.
+Concrete user types may also implement the prelude `Iterator[T]` trait; loops
+and comprehensions resolve its specialized mutable `next()` implementation and
+lower direct calls without allocating a built-in cursor wrapper.
+`map[K, V]` uses a GC object
 with insertion-ordered erased arrays,
 growable insertion, duplicate replacement, optional indexed or `get()` lookup,
 mutable `remove()`, and built-in scalar or string keys.
+The comparison slice now lowers `==` and `!=` through explicit `PartialEq`
+implementations for nominal values and through erased dictionaries for bounded
+generic values. Built-in composite equality covers tuples, lists, optionals,
+`Result`, and maps with comparable contents. Types without that implementation
+continue to receive `missing-partial-eq`; data and enum declarations do not
+acquire equality implicitly.
+`PartialOrd.partial_cmp` follows the same concrete and generic dictionary paths
+through the canonical `Ordering?` result. Built-in tuple and list ordering is
+lexicographic, optional ordering places `nil` first, and unordered floating
+components make all four relational operators false. Both comparison paths
+carry nested strategies through erased composites, so a `list[T]`, tuple,
+optional, `Result`, or map can invoke explicit element implementations and
+generic bound dictionaries recursively.
 
 S5 has begun with record/replay at the deterministic suspension poll boundary.
 Each event carries a function-name-based site identity that survives unrelated
 declaration insertion, a source-derived function code identity, runtime
 provider key, encoded poll argument and result, and provider-configuration
 identity. Replay bypasses live pending decisions, rejects changed executed
-functions and incompatible configurations, and is available from the Node API and
-`hd record`/`hd replay` sidecar commands. Explicit source labels and
-provider-method
-arguments and results will join the same log when suspending host-provider
-dispatch lands.
+functions and incompatible configurations, and is available from the Node API
+and `hd record`/`hd replay` sidecar commands. Host-provider suspensions join
+that stream with a function-relative call-site identity,
+provider and method key, pending or ready result, and provider-configuration
+identity. Replay bypasses the live provider callback. Scalar and string
+provider arguments and results are encoded in that stream and replay restores
+ready results without invoking the host. Integer-like values carry their source
+scalar type, `f64` uses an exact JSON-safe IEEE-754 bit string that preserves
+negative zero, infinities, and NaN, and strings use exact hex-encoded UTF-8
+bytes. Explicit source labels, structural provider values, and determinism
+checks remain for the broader host ABI.
 
 Every development command listed below is covered through the packaged `hd`
 entrypoint, including WAT and binary builds, HIR and requirement inspection,
@@ -185,13 +282,13 @@ MVP goals.
 
 ## Toolchain
 
-| Piece | Initial choice | Reason |
-| --- | --- | --- |
-| Compiler | TypeScript on Node | Keeps compilation, validation, execution, and host providers in one process. |
-| Wasm emission | Generate WAT and parse it with pinned `binaryen.js` | WAT is readable and diffable; Binaryen validates and emits the binary. |
-| Development runtime | Node's V8 | Runs Wasm GC and makes fixture providers ordinary JavaScript imports. |
-| Parser | Hand-written recursive descent with Pratt expression parsing | Produces a useful AST directly and keeps diagnostics under compiler control. |
-| Syntax oracle | `spec/reference_parser.py` | Detects disagreement with the normative chapter-02 grammar and lexical rules. |
+| Piece               | Initial choice                                               | Reason                                                                                                    |
+| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Compiler            | TypeScript on Node                                           | Keeps compilation, validation, execution, and host providers in one process.                              |
+| Wasm emission       | Generate WAT and parse it with pinned `binaryen.js`          | WAT is readable and diffable; Binaryen validates and emits the binary.                                    |
+| Development runtime | Node's V8                                                    | Runs Wasm GC and makes fixture providers ordinary JavaScript imports.                                     |
+| Parser              | Hand-written recursive descent with Pratt expression parsing | Produces a useful AST directly and keeps diagnostics under compiler control.                              |
+| Syntax oracle       | `spec/reference-parser/index.ts`                             | Detects disagreement with the normative chapter-02 grammar and lexical rules using a bounded worker pool. |
 
 The implementation must pin the Node and Binaryen versions. `wasm-tools` and
 Wasmtime are compatibility checks and later runtime candidates, not required
@@ -226,7 +323,8 @@ constructors for Wasm GC structs or arrays.
   dictionary passing. Primitive values are boxed in erased positions.
 - Development suspension frames store every local. Liveness analysis is
   deferred.
-- A panic emits `unreachable`; the runner discards the poisoned instance.
+- A structured runtime panic reports its stable code through the development
+  host and then emits `unreachable`; the runner discards the poisoned instance.
 - Development builds run no optimizer. Binaryen optimization is reserved for
   explicit release and size experiments.
 - Wasm stack switching is not used. Suspending functions lower to explicit,
@@ -324,7 +422,9 @@ stable code and a fixture.
 The MVP uses the implementation-neutral `.hd` fixtures under
 `spec/conformance/`. `test/portable/cases.tsv` selects the implemented subset,
 and `test/run-portable.ts` invokes it through the public CLI rather than through
-TypeScript compiler imports. Coverage expands with each slice. TypeScript tests
+TypeScript compiler imports. A bounded TypeScript worker pool uses the available
+CPU parallelism with an explicit `HD_TEST_JOBS` override. Coverage expands with
+each slice. TypeScript tests
 are reserved for AST, HIR, WAT, host integration, trace, and replay details.
 One command runs the portable cases, backend-specific checks, relevant example
 blocks, and `spec/check.sh`. Full conformance becomes a milestone only after the

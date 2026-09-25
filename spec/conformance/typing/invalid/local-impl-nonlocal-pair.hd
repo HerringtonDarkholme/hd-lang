@@ -1,4 +1,3 @@
-# expect-error: local-impl-nonlocal-pair
 
 trait Label:
     fn label(self) -> string
@@ -7,7 +6,7 @@ data Entry:
     name: string
 
 fn describe(entry: Entry) -> string:
-    impl Label for Entry:
+    impl Label for Entry:  # diagnostic: local-impl-nonlocal-pair
         fn label(self) -> string: self.name
 
     entry.label()

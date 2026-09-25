@@ -28,6 +28,7 @@ awk -F "$tab" '
 
 tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section; do
     [ -f "$spec_dir/conformance/$path" ] || fail "missing fixture $path"
+    marker_count=$(awk '/# (diagnostic|warning|panic): [a-z0-9-]+[[:space:]]*$/ { count += 1 } END { print count + 0 }' "$spec_dir/conformance/$path")
 
     case "$phase" in
         parse|type|runtime) ;;
@@ -35,7 +36,12 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
     esac
 
     case "$expectation" in
-        accept|reject:*|warn:*|panic:*) ;;
+        accept)
+            [ "$marker_count" -eq 0 ] || fail "accept fixture $path declares an error marker"
+            ;;
+        reject:*|warn:*|panic:*)
+            [ "$marker_count" -eq 1 ] || fail "fixture $path must declare exactly one expectation marker"
+            ;;
         *) fail "unknown expectation '$expectation' for $path" ;;
     esac
 
@@ -45,33 +51,31 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
     case "$expectation" in
         reject:*)
             code=${expectation#reject:}
-            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-error: $code" ]; then
-                grep -Fq "# diagnostic: $code" "$spec_dir/conformance/$path" ||
-                    fail "fixture $path does not declare diagnostic $code"
-            fi
+            grep -Fq "# diagnostic: $code" "$spec_dir/conformance/$path" ||
+                fail "fixture $path does not declare diagnostic $code"
             grep -Fq "\`$code\`" "$spec_dir/README.md" ||
                 fail "fixture $path uses unknown error category $code"
             ;;
         warn:*)
             code=${expectation#warn:}
-            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-warning: $code" ]; then
-                grep -Fq "# warning: $code" "$spec_dir/conformance/$path" ||
-                    fail "fixture $path does not declare warning $code"
-            fi
+            grep -Fq "# warning: $code" "$spec_dir/conformance/$path" ||
+                fail "fixture $path does not declare warning $code"
             grep -Fq "\`$code\`" "$spec_dir/README.md" ||
                 fail "fixture $path uses unknown warning category $code"
             ;;
         panic:*)
             code=${expectation#panic:}
-            if [ "$(sed -n '1p' "$spec_dir/conformance/$path")" != "# expect-panic: $code" ]; then
-                grep -Fq "# panic: $code" "$spec_dir/conformance/$path" ||
-                    fail "fixture $path does not declare panic $code"
-            fi
+            grep -Fq "# panic: $code" "$spec_dir/conformance/$path" ||
+                fail "fixture $path does not declare panic $code"
             grep -Fq "\`$code\`" "$spec_dir/06-control-flow.md" ||
                 fail "fixture $path uses unknown panic category $code"
             ;;
     esac
 done
+
+if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --include='*.hd'; then
+    fail "legacy file-level fixture expectations found"
+fi
 
 find "$spec_dir/conformance" -type f -name '*.hd' | sort | while IFS= read -r file; do
     relative=${file#"$spec_dir/conformance/"}
@@ -79,8 +83,8 @@ find "$spec_dir/conformance" -type f -name '*.hd' | sort | while IFS= read -r fi
     [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"
 done
 
-python3 "$spec_dir/reference_parser.py" "$manifest" "$spec_dir/conformance"
-python3 "$spec_dir/check_spec_anchors.py" "$spec_dir" "$manifest"
+node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
+node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
 
 awk -F "$tab" '
     NR == 1 {
@@ -154,7 +158,7 @@ tail -n +2 "$examples" | while IFS="$tab" read -r specification block classifica
     esac
 done
 
-python3 "$spec_dir/check_example_overlap.py" "$spec_dir" "$examples"
+node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir" "$examples"
 
 if grep -R -n -E 'let[[:space:]]+mut([[:space:]]|$)|fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \

@@ -9,14 +9,14 @@ specification.
 - `parse/valid`: must parse under the core grammar.
 - `parse/invalid`: must be rejected during lexing or parsing.
 - `typing/valid`: must parse and type-check.
-- `typing/invalid`: must parse, then fail with the diagnostic category named in
-  the file's first `# expect-error:` comment.
-- `typing/warnings`: must parse and type-check, then emit the category named in
-  the file's first `# expect-warning:` comment.
+- `typing/invalid`: must parse, then fail with the diagnostic category in an
+  inline `# diagnostic: CODE` comment on the rejected source line.
+- `typing/warnings`: must parse and type-check, then emit the category in an
+  inline `# warning: CODE` comment on the warned source line.
 - `runtime/valid`: must parse and type-check, then complete successfully when
   executed by its declared fixture environment.
-- `runtime/panic`: must parse and type-check, then panic with the category named
-  in the file's first `# expect-panic:` comment when executed.
+- `runtime/panic`: must parse and type-check, then panic with the category in an
+  inline `# panic: CODE` comment on the triggering source line when executed.
 
 An implementation test runner should accept one primary `.hd` file at a time.
 Files may rely on primitive types and ordinary prelude names, but should declare
@@ -47,8 +47,14 @@ provider from the `pending-gate` profile, whose `wait!` remains pending, poll
 the fixture-declared `Gate` trait a host capability admitted on the entry
 requirement row.
 
-Exact diagnostic wording is not normative. The category after
-`# expect-error:` is stable enough for a future structured diagnostic code.
+For fixtures that exercise the same cancellation protocol without a host
+capability, `# fixture-runtime-pending-function: NAME` makes the deterministic
+development runtime hold that named suspending function at its next poll. The
+`cancellation-cleanup` scenario then cancels the root frame and requires the
+fixture's `cleanup_ran()` function to return `true`.
+
+Exact diagnostic wording is not normative. Marker codes and their source lines
+are stable conformance expectations.
 
 ## Coverage
 

@@ -1,6 +1,5 @@
-# expect-error: pack-map-mapper-mismatch
 
 fn double(value: i32) -> i32:
     value * 2
 
-let values: (i32, i32) = pack.map((1, "x"), double)
+let values: (i32, i32) = pack.map((1, "x"), double)  # diagnostic: pack-map-mapper-mismatch

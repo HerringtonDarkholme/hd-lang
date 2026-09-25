@@ -1,5 +1,4 @@
-# expect-error: prelude-name-shadow
-use std.format.Display
+use std.format.Display  # diagnostic: prelude-name-shadow
 
 fn render(value: Display) -> string:
     value.to_string()

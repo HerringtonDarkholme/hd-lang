@@ -1,0 +1,36 @@
+use std.testing.{assert, assert_equal}
+
+data User:
+    id: string
+
+impl PartialEq for User:
+    fn eq(self, other: Self) -> bool:
+        self.id == other.id
+
+fn same[T: PartialEq](left: T, right: T) -> bool:
+    left == right
+
+fn same_list[T: PartialEq](left: list[T], right: list[T]) -> bool:
+    left == right
+
+test "PartialEq dispatches for concrete and bounded values":
+    ada := User { id: "ada" }
+    same_ada := User { id: "ada" }
+    grace := User { id: "grace" }
+    assert(ada == same_ada, reason="concrete equality dispatch")
+    assert(ada != grace, reason="inequality negates PartialEq.eq")
+    assert(same(ada, same_ada), reason="generic bound dictionary dispatch")
+    assert(same_list([ada], [same_ada]), reason="nested list equality uses its element dictionary")
+    assert_equal(ada, same_ada, reason="assert_equal uses PartialEq.eq")
+    assert_equal((ada, grace), (same_ada, grace), reason="tuple fields use explicit implementations")
+    assert_equal({"user": ada}, {"user": same_ada}, reason="map values use explicit implementations")
+
+test "optional and Result equality use explicit payload implementations":
+    ada := User { id: "ada" }
+    same_ada := User { id: "ada" }
+    let left: User? = ada
+    let right: User? = same_ada
+    let left_result: Result[User, string] = Ok(ada)
+    let right_result: Result[User, string] = Ok(same_ada)
+    assert_equal(left, right, reason="optional payload equality dispatch")
+    assert_equal(left_result, right_result, reason="Result payload equality dispatch")

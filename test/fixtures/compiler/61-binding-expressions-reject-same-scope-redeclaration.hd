@@ -1,0 +1,5 @@
+# test: binding expressions reject same-scope redeclaration
+
+fn main() -> i32:
+    value := 1
+    (value := 2)  # diagnostic: duplicate-binding

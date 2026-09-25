@@ -1,5 +1,4 @@
-# expect-error: generic-kind-mismatch
 data Box[T]:
     value: T
 
-fn invalid(value: Box[$()]) -> void: pass
+fn invalid(value: Box[$()]) -> void: pass  # diagnostic: generic-kind-mismatch

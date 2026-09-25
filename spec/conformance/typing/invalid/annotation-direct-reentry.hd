@@ -1,4 +1,3 @@
-# expect-error: annotation-resolution-reentry
 data Validation: pass
 data Validator: pass
 data Node: pass
@@ -8,6 +7,6 @@ impl Annotation for Validation:
 
 impl TypeAnnotator for Validation:
     fn build(self, target: TypeShape) -> Validator:
-        Validation::annotation(Node)
+        Validation::annotation(Node)  # diagnostic: annotation-resolution-reentry
 
 annotate Validation for Node: pass

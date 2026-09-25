@@ -38,7 +38,7 @@ fn fetch_user!(id: UserId) -> Result[User, DbError]:
 
 fn demo!() -> Result[User?, DbError] $ Cache:
     $.with(Database=MockDatabase {}):
-        load_user!(UserId("user_123").value)
+        load_user!(UserId { value: "user_123" }.value)
 
 fn prod_context(metrics: Metrics, cache: Cache) -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
@@ -65,7 +65,7 @@ pub fn main!() -> void:
     mock_database := MockDatabase {}
     context := $.context(Database=mock_database)
     $.with(...context):
-        pending := loader("user-1")
+        let pending: mut Suspend[Result[User?, DbError]] = loader("user-1")
         _ := pending!()
         _ := loader!("user-1")
 

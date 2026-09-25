@@ -35,9 +35,14 @@ and durable orchestration as a defining use case.
 events with function-name identities, per-function source identities, and a
 provider-configuration identity. It demonstrates that replay can tolerate an
 unrelated declaration insertion while rejecting a changed executed function or
-provider configuration. The issue remains open for explicit source labels,
-suspending provider-call interception, durable argument/result encoding, and
-the determinism checks between provider calls.
+provider configuration. A second experiment intercepts suspending host-provider
+calls with scalar or string arguments and scalar, string, or void results. It records their
+function-relative site, provider and method key, encoded arguments, readiness,
+and optional result; replay restores the result while bypassing the live
+provider. Its scalar wire values are JSON-safe and type-tagged; `f64` values
+use exact IEEE-754 bit strings, while strings use hex-encoded UTF-8 bytes. The
+issue remains open for explicit source labels, durable structural host values,
+and determinism checks between provider calls.
 
 ### Typed Derivation, Tool Adapters, And Secrets
 

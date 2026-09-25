@@ -40,6 +40,8 @@ export interface HirEnum {
 export interface HirTraitMethod {
   readonly name: string;
   readonly index: number;
+  readonly associated: boolean;
+  readonly genericParameters: readonly string[];
   readonly suspending: boolean;
   readonly receiverMutable: boolean;
   readonly parameters: readonly ValueType[];
@@ -50,10 +52,24 @@ export interface HirTraitMethod {
   readonly span: SourceSpan;
 }
 
+export interface HirAssociatedType {
+  readonly name: string;
+  readonly index: number;
+  readonly span: SourceSpan;
+}
+
+export interface HirSupertrait {
+  readonly traitIndex: number;
+  readonly traitName: string;
+  readonly traitArguments: readonly ValueType[];
+}
+
 export interface HirTrait {
   readonly name: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
+  readonly supertraits: readonly HirSupertrait[];
+  readonly associatedTypes: readonly HirAssociatedType[];
   readonly methods: readonly HirTraitMethod[];
   readonly span: SourceSpan;
 }
@@ -67,9 +83,20 @@ export interface HirTraitImplementation {
   readonly index: number;
   readonly traitIndex: number;
   readonly traitName: string;
+  readonly traitArguments: readonly ValueType[];
   readonly targetType: ValueType;
+  readonly associatedTypes: readonly ValueType[];
+  readonly genericBounds: readonly HirGenericBound[];
+  readonly genericParameters: readonly string[];
+  readonly supertraitImplementations: readonly number[];
   readonly methodFunctions: readonly HirTraitMethodFunction[];
   readonly span: SourceSpan;
+}
+
+export interface HirTraitDictionaryPlan {
+  readonly bounds: readonly HirExpression[];
+  readonly implementationIndex: number;
+  readonly supertraits: readonly HirTraitDictionaryPlan[];
 }
 
 export interface HirPatternPathStep {
@@ -146,12 +173,15 @@ export interface HirGenericBound {
   readonly parameter: string;
   readonly traitName: string;
   readonly traitIndex: number;
+  readonly traitArguments: readonly ValueType[];
+  readonly mutable: boolean;
 }
 
 export interface HirFunction {
   readonly name: string;
   readonly index: number;
   readonly suspending: boolean;
+  readonly suspensionIndex?: number;
   readonly variadic: boolean;
   readonly genericParameters: readonly string[];
   readonly genericBounds: readonly HirGenericBound[];
@@ -175,6 +205,8 @@ export interface HirProgram {
   readonly globals: readonly HirGlobal[];
   readonly functions: readonly HirFunction[];
   readonly closures: readonly HirFunction[];
+  readonly hostCapabilities: readonly string[];
+  readonly initializer?: number;
 }
 
 export type HirProviderContextEntry =
@@ -206,6 +238,92 @@ export interface HirDefaultArgument {
   readonly parameterIndex: number;
   readonly functionIndex: number;
 }
+
+export type HirEqualityDispatch =
+  | { readonly kind: "function"; readonly functionIndex: number }
+  | {
+      readonly kind: "bound";
+      readonly traitIndex: number;
+      readonly methodIndex: number;
+      readonly boundIndex: number;
+    };
+
+export interface HirBuiltinEqualityStrategy {
+  readonly kind: "builtin";
+}
+
+export interface HirDispatchEqualityStrategy {
+  readonly kind: "dispatch";
+  readonly dispatch: HirEqualityDispatch;
+}
+
+export interface HirTupleEqualityStrategy {
+  readonly kind: "tuple";
+  readonly elements: readonly HirEqualityStrategy[];
+}
+
+export interface HirOptionalEqualityStrategy {
+  readonly kind: "optional";
+  readonly value: HirEqualityStrategy;
+}
+
+export interface HirResultEqualityStrategy {
+  readonly kind: "result";
+  readonly ok: HirEqualityStrategy;
+  readonly error: HirEqualityStrategy;
+}
+
+export interface HirListEqualityStrategy {
+  readonly kind: "list";
+  readonly element: HirEqualityStrategy;
+}
+
+export interface HirMapEqualityStrategy {
+  readonly kind: "map";
+  readonly value: HirEqualityStrategy;
+}
+
+export type HirEqualityStrategy =
+  | HirBuiltinEqualityStrategy
+  | HirDispatchEqualityStrategy
+  | HirTupleEqualityStrategy
+  | HirOptionalEqualityStrategy
+  | HirResultEqualityStrategy
+  | HirListEqualityStrategy
+  | HirMapEqualityStrategy;
+
+export type HirOrderingOperator = "<" | "<=" | ">" | ">=";
+
+export interface HirBuiltinOrderingStrategy {
+  readonly kind: "builtin";
+}
+
+export interface HirDispatchOrderingStrategy {
+  readonly kind: "dispatch";
+  readonly dispatch: HirEqualityDispatch;
+}
+
+export interface HirTupleOrderingStrategy {
+  readonly kind: "tuple";
+  readonly elements: readonly HirOrderingStrategy[];
+}
+
+export interface HirOptionalOrderingStrategy {
+  readonly kind: "optional";
+  readonly value: HirOrderingStrategy;
+}
+
+export interface HirListOrderingStrategy {
+  readonly kind: "list";
+  readonly element: HirOrderingStrategy;
+}
+
+export type HirOrderingStrategy =
+  | HirBuiltinOrderingStrategy
+  | HirDispatchOrderingStrategy
+  | HirTupleOrderingStrategy
+  | HirOptionalOrderingStrategy
+  | HirListOrderingStrategy;
 
 export type HirStatement =
   | { readonly kind: "defer"; readonly body: readonly HirStatement[]; readonly span: SourceSpan }
@@ -245,6 +363,24 @@ interface HirExpressionBase {
   readonly span: SourceSpan;
 }
 
+export interface HirComprehensionForClause {
+  readonly kind: "for";
+  readonly iterable: HirExpression;
+  readonly iteratorKind: "iterator" | "list" | "map" | "trait";
+  readonly iteratorFunctionIndex?: number;
+  readonly yieldType: ValueType;
+  readonly bindings: readonly HirLocal[];
+  readonly span: SourceSpan;
+}
+
+export interface HirComprehensionIfClause {
+  readonly kind: "if";
+  readonly condition: HirExpression;
+  readonly span: SourceSpan;
+}
+
+export type HirComprehensionClause = HirComprehensionForClause | HirComprehensionIfClause;
+
 export type HirExpression =
   | (HirExpressionBase & { readonly kind: "integer"; readonly value: number })
   | (HirExpressionBase & { readonly kind: "float"; readonly value: number })
@@ -255,6 +391,16 @@ export type HirExpression =
     })
   | (HirExpressionBase & { readonly kind: "display"; readonly operand: HirExpression })
   | (HirExpressionBase & {
+      readonly kind: "string-transform";
+      readonly operation: "lower" | "trim";
+      readonly receiver: HirExpression;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "string-split";
+      readonly receiver: HirExpression;
+      readonly separator: HirExpression;
+    })
+  | (HirExpressionBase & {
       readonly kind: "console-print";
       readonly provider: HirExpression;
       readonly value: HirExpression;
@@ -264,13 +410,46 @@ export type HirExpression =
       readonly arguments: readonly HirExpression[];
       readonly argumentParameterIndices?: readonly number[];
       readonly valueType: ValueType;
+      readonly strategy: HirEqualityStrategy;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "value-equality";
+      readonly left: HirExpression;
+      readonly right: HirExpression;
+      readonly valueType: ValueType;
+      readonly strategy: HirEqualityStrategy;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "assert";
+      readonly arguments: readonly HirExpression[];
+      readonly argumentParameterIndices?: readonly number[];
+    })
+  | (HirExpressionBase & {
+      readonly kind: "value-ordering";
+      readonly left: HirExpression;
+      readonly right: HirExpression;
+      readonly valueType: ValueType;
+      readonly strategy: HirOrderingStrategy;
+      readonly operator: HirOrderingOperator;
     })
   | (HirExpressionBase & { readonly kind: "permission-weaken"; readonly operand: HirExpression })
   | (HirExpressionBase & { readonly kind: "character"; readonly value: number })
   | (HirExpressionBase & { readonly kind: "boolean"; readonly value: boolean })
   | (HirExpressionBase & {
+      readonly kind: "binding-expression";
+      readonly bindings: readonly HirLocal[];
+      readonly value: HirExpression;
+      readonly elementTypes?: readonly ValueType[];
+    })
+  | (HirExpressionBase & {
       readonly kind: "list";
       readonly elements: readonly HirExpression[];
+      readonly elementType: ValueType;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "list-comprehension";
+      readonly clauses: readonly HirComprehensionClause[];
+      readonly value: HirExpression;
       readonly elementType: ValueType;
     })
   | (HirExpressionBase & {
@@ -286,10 +465,25 @@ export type HirExpression =
       readonly keyKind: 0 | 1;
     })
   | (HirExpressionBase & {
+      readonly kind: "map-comprehension";
+      readonly clauses: readonly HirComprehensionClause[];
+      readonly key: HirExpression;
+      readonly value: HirExpression;
+      readonly keyType: ValueType;
+      readonly valueType: ValueType;
+      readonly keyKind: 0 | 1;
+    })
+  | (HirExpressionBase & {
       readonly kind: "variant-wrap";
       readonly variant: "optional-present" | "optional-absent" | "result-ok" | "result-error";
       readonly payload?: HirExpression;
       readonly payloadType?: ValueType;
+    })
+  | (HirExpressionBase & { readonly kind: "variant-tag"; readonly receiver: HirExpression })
+  | (HirExpressionBase & {
+      readonly kind: "variant-payload";
+      readonly receiver: HirExpression;
+      readonly payloadType: ValueType;
     })
   | (HirExpressionBase & {
       readonly kind: "propagate";
@@ -342,10 +536,20 @@ export type HirExpression =
       readonly erasedParameterTypes?: readonly ValueType[];
     })
   | (HirExpressionBase & {
+      readonly kind: "suspension-wrap";
+      readonly suspension: HirExpression;
+    })
+  | (HirExpressionBase & {
       readonly kind: "suspend-drive";
       readonly functionIndex: number;
       readonly suspension: HirExpression;
       readonly erasedResultType?: ValueType;
+      readonly blockOn?: boolean;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "suspension-drive";
+      readonly suspension: HirExpression;
+      readonly blockOn?: boolean;
     })
   | (HirExpressionBase & {
       readonly kind: "suspend-cancel";
@@ -357,20 +561,27 @@ export type HirExpression =
       readonly receiver: HirExpression;
       readonly traitIndex: number;
       readonly methodIndex: number;
+      readonly supertraitPath?: readonly number[];
       readonly arguments: readonly HirExpression[];
       readonly argumentParameterIndices?: readonly number[];
       readonly providers: readonly HirExpression[];
+      readonly erasedParameterTypes?: readonly ValueType[];
     })
   | (HirExpressionBase & {
       readonly kind: "trait-suspend-drive";
       readonly traitIndex: number;
       readonly methodIndex: number;
       readonly suspension: HirExpression;
+      readonly blockOn?: boolean;
     })
   | (HirExpressionBase & {
       readonly kind: "trait-suspend-cancel";
       readonly traitIndex: number;
       readonly methodIndex: number;
+      readonly suspension: HirExpression;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "suspension-cancel";
       readonly suspension: HirExpression;
     })
   | (HirExpressionBase & {
@@ -394,12 +605,19 @@ export type HirExpression =
       readonly kind: "trait-wrap";
       readonly value: HirExpression;
       readonly traitIndex: number;
-      readonly implementationIndex: number;
+      readonly dictionary: HirTraitDictionaryPlan;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "trait-upcast";
+      readonly value: HirExpression;
+      readonly sourceTraitIndex: number;
+      readonly targetTraitIndex: number;
+      readonly supertraitPath: readonly number[];
     })
   | (HirExpressionBase & {
       readonly kind: "trait-dictionary";
       readonly traitIndex: number;
-      readonly implementationIndex: number;
+      readonly dictionary: HirTraitDictionaryPlan;
     })
   | (HirExpressionBase & {
       readonly kind: "trait-bound-dictionary";
@@ -417,9 +635,12 @@ export type HirExpression =
       readonly receiver: HirExpression;
       readonly traitIndex: number;
       readonly methodIndex: number;
+      readonly supertraitPath?: readonly number[];
       readonly arguments: readonly HirExpression[];
       readonly argumentParameterIndices?: readonly number[];
       readonly providers: readonly HirExpression[];
+      readonly erasedParameterTypes?: readonly ValueType[];
+      readonly erasedResultType?: ValueType;
     })
   | (HirExpressionBase & {
       readonly kind: "provider-use";
@@ -510,6 +731,21 @@ export type HirExpression =
     })
   | (HirExpressionBase & { readonly kind: "list-length"; readonly receiver: HirExpression })
   | (HirExpressionBase & {
+      readonly kind: "list-iterator";
+      readonly receiver: HirExpression;
+      readonly elementType: ValueType;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "iterator-next";
+      readonly receiver: HirExpression;
+      readonly elementType: ValueType;
+    })
+  | (HirExpressionBase & {
+      readonly kind: "map-iterator";
+      readonly receiver: HirExpression;
+      readonly elementType: ValueType;
+    })
+  | (HirExpressionBase & {
       readonly kind: "list-index";
       readonly receiver: HirExpression;
       readonly index: HirExpression;
@@ -558,7 +794,8 @@ export type HirExpression =
   | (HirExpressionBase & {
       readonly kind: "for";
       readonly iterable: HirExpression;
-      readonly iteratorKind: "list" | "map";
+      readonly iteratorKind: "iterator" | "list" | "map" | "trait";
+      readonly iteratorFunctionIndex?: number;
       readonly yieldType: ValueType;
       readonly bindings: readonly HirLocal[];
       readonly body: readonly HirStatement[];

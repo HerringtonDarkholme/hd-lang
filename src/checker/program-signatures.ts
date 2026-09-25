@@ -1,7 +1,7 @@
 import type { FunctionDecl } from "../ast.ts";
 import type { ValueType } from "../hir.ts";
-import { nominalGenericParts, nominalGenericType, resultParts } from "../types.ts";
-import { MVP_HOST_CAPABILITIES, PRELUDE_NAMES, type Signature } from "./context.ts";
+import { mutableInner, nominalGenericParts, nominalGenericType, resultParts } from "../types.ts";
+import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
@@ -17,7 +17,7 @@ export function createProgramSignatures(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
 ): Map<string, Signature> {
-  const { program, diagnostics, dataTypes, enumTypes, traitTypes } = context;
+  const { program, diagnostics, dataTypes, enumTypes, traitTypes, hostCapabilities } = context;
   const signatures = new Map<string, Signature>();
   declarations.forEach((declaration, index) => {
     if (PRELUDE_NAMES.has(declaration.name)) {
@@ -83,20 +83,25 @@ export function createProgramSignatures(
         return [];
       }
       const seen = new Set<string>();
-      return bound.traits.flatMap((traitName) => {
-        if (seen.has(traitName)) {
+      return bound.traits.flatMap((sourceTraitName) => {
+        const mutable = mutableInner(sourceTraitName) !== undefined;
+        const traitKey = mutableInner(sourceTraitName) ?? sourceTraitName;
+        const application = nominalGenericParts(traitKey);
+        const traitName = application?.name ?? traitKey;
+        if (seen.has(traitKey)) {
           diagnostics.push({
             code: "duplicate-trait-bound",
-            message: `trait '${traitName}' bounds '${bound.parameter}' more than once`,
+            message: `trait '${traitKey}' bounds '${bound.parameter}' more than once`,
             span: bound.span,
           });
           return [];
         }
-        seen.add(traitName);
+        seen.add(traitKey);
         if (traitName === "Reference") {
           referenceParameters.add(bound.parameter);
           return [];
         }
+        if (traitName === "Any") return [];
         const trait = traitTypes.get(traitName);
         if (!trait) {
           diagnostics.push({
@@ -106,7 +111,26 @@ export function createProgramSignatures(
           });
           return [];
         }
-        return [{ parameter: bound.parameter, traitName: trait.name, traitIndex: trait.index }];
+        const traitArguments = (application?.arguments ?? []).map((argument) =>
+          resolveGenericType(argument, new Set(typeParameters), new Set(rowParameters)),
+        );
+        if (traitArguments.length !== trait.genericParameters.length) {
+          diagnostics.push({
+            code: "generic-arity",
+            message: `trait '${trait.name}' expects ${trait.genericParameters.length} type arguments`,
+            span: bound.span,
+          });
+          return [];
+        }
+        return [
+          {
+            parameter: bound.parameter,
+            traitName: trait.name,
+            traitIndex: trait.index,
+            traitArguments,
+            mutable,
+          },
+        ];
       });
     });
     if (declaration.genericParameters.length > 0 && declaration.name === "main") {
@@ -196,8 +220,7 @@ export function createProgramSignatures(
       }
       if (declaration.name === "main") {
         const nonhost = requirements.find(
-          (requirement) =>
-            !rowParameterName(requirement) && !MVP_HOST_CAPABILITIES.has(requirement),
+          (requirement) => !rowParameterName(requirement) && !hostCapabilities.has(requirement),
         );
         if (nonhost) {
           diagnostics.push({

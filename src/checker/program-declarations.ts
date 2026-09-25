@@ -287,17 +287,9 @@ export function createProgramDeclarations(
     ...inherentDeclarations,
   ];
   if (program.statements.length > 0) {
-    if (declarations.some((declaration) => declaration.name === "main")) {
-      diagnostics.push({
-        code: "main-conflict",
-        message: "top-level statements conflict with a declared main function",
-        span: program.statements[0]!.span,
-      });
-      return undefined;
-    }
     declarations.push({
       kind: "function",
-      name: "main",
+      name: "$module-initializer",
       suspending: false,
       genericParameters: [],
       genericBounds: [],
@@ -307,6 +299,20 @@ export function createProgramDeclarations(
       body: program.statements,
       span: program.span,
     });
+    if (!declarations.some((declaration) => declaration.name === "main")) {
+      declarations.push({
+        kind: "function",
+        name: "main",
+        suspending: false,
+        genericParameters: [],
+        genericBounds: [],
+        parameters: [],
+        result: { name: "void", span: program.span },
+        requirements: [],
+        body: [],
+        span: program.span,
+      });
+    }
   }
   for (const implementation of implementationPreparations) {
     for (const method of implementation.methods) declarations.push(method.declaration);

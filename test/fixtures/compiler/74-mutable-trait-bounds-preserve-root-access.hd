@@ -1,0 +1,20 @@
+# test: mutable trait bounds preserve root access through dictionary dispatch
+# expect-result: cleared_value = 0
+
+trait Clear:
+    fn clear(mut self) -> void
+
+data Counter:
+    value: i32
+
+impl Clear for Counter:
+    fn clear(mut self) -> void:
+        self.value = 0
+
+fn clear_value[T: mut Clear](value: T) -> void:
+    value.clear()
+
+fn cleared_value() -> i32:
+    let counter: mut Counter = Counter { value: 42 }
+    clear_value(counter)
+    counter.value

@@ -1,6 +1,13 @@
 import type { Expression } from "../ast.ts";
-import type { HirExpression, ValueType } from "../hir.ts";
-import { functionType, functionParts, nominalGenericParts } from "../types.ts";
+import type { HirExpression, HirLocal, ValueType } from "../hir.ts";
+import {
+  functionType,
+  functionParts,
+  mutableInner,
+  nominalGenericParts,
+  tupleParts,
+} from "../types.ts";
+import { PRELUDE_NAMES } from "./context.ts";
 import { genericTypeName } from "./shared.ts";
 
 import { ExpressionLiteralChecker } from "./expression-literals.ts";
@@ -10,9 +17,22 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     _expected?: ValueType,
   ): HirExpression | undefined {
     switch (expression.kind) {
+      case "binding-expression":
+        return this.checkBindingExpression(expression);
       case "name": {
         const local = this.resolveLocal(expression.name);
-        if (local) return { kind: "local", local, type: local.type, span: expression.span };
+        if (local) {
+          if (
+            this.unavailableBindingLocals.has(local.index) &&
+            !this.allowedConditionalBindingLocals.has(local.index)
+          )
+            this.fail(
+              "possibly-uninitialized-binding",
+              `binding '${local.name}' may not have been initialized on this path`,
+              expression.span,
+            );
+          return { kind: "local", local, type: local.type, span: expression.span };
+        }
         const source = this.availableCaptures.get(expression.name);
         if (source) {
           if (source === this.selfClosureLocal) {
@@ -46,7 +66,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           );
         }
         const signature = this.signatures.get(expression.name);
-        if (signature && !signature.suspending) {
+        if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             this.fail(
               "generic-function-value-needs-arguments",
@@ -63,6 +83,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               signature.result,
               signature.requirements,
               signature.variadic,
+              signature.suspending,
             ),
             span: expression.span,
           };
@@ -142,6 +163,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         }
         const logical = expression.operator === "and" || expression.operator === "or";
         const comparison = ["==", "!=", "<", "<=", ">", ">="].includes(expression.operator);
+        const equality = expression.operator === "==" || expression.operator === "!=";
         const bitwise = ["&", "|", "^", "<<", ">>"].includes(expression.operator);
         const remainder = expression.operator === "%";
         const stringConcatenation = expression.operator === "+" && left.type === "string";
@@ -170,20 +192,61 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             expression.span,
           );
         }
-        if (comparison && this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type)) {
-          const equality = expression.operator === "==" || expression.operator === "!=";
-          this.fail(
-            equality ? "missing-partial-eq" : "missing-partial-ord",
-            `type '${left.type}' does not implement ${equality ? "PartialEq" : "PartialOrd"}`,
-            expression.span,
-          );
-        }
         if (comparison && functionParts(left.type)) {
           this.fail(
             "unsupported-equality",
             `function values do not support operator '${expression.operator}'`,
             expression.span,
           );
+        }
+        if (equality) {
+          const compared = this.equalityExpression(left, right, expression.span);
+          if (compared) {
+            return expression.operator === "=="
+              ? compared
+              : {
+                  kind: "unary",
+                  operator: "not",
+                  operand: compared,
+                  type: "bool",
+                  span: expression.span,
+                };
+          }
+          if (
+            genericTypeName(left.type) ||
+            this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
+            this.enumTypes.has(nominalGenericParts(left.type)?.name ?? left.type)
+          ) {
+            this.fail(
+              "missing-partial-eq",
+              `type '${left.type}' does not implement PartialEq`,
+              expression.span,
+            );
+          }
+        }
+        if (comparison && !equality) {
+          const strategy = this.orderingStrategy(left.type);
+          if (strategy)
+            return {
+              kind: "value-ordering",
+              left,
+              right,
+              valueType: left.type,
+              strategy,
+              operator: expression.operator as "<" | "<=" | ">" | ">=",
+              type: "bool",
+              span: expression.span,
+            };
+          if (
+            this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
+            this.enumTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||
+            genericTypeName(left.type)
+          )
+            this.fail(
+              "missing-partial-ord",
+              `type '${left.type}' does not implement PartialOrd`,
+              expression.span,
+            );
         }
         if (bitwise && left.type !== "i32")
           this.fail(
@@ -235,5 +298,62 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       default:
         return undefined;
     }
+  }
+
+  private checkBindingExpression(
+    expression: Extract<Expression, { kind: "binding-expression" }>,
+  ): HirExpression {
+    const value = this.checkExpression(expression.value);
+    if (value.type === "never")
+      this.fail(
+        "uninhabited-binding",
+        "an inferred binding cannot have type never",
+        expression.span,
+      );
+    if (value.type === "void")
+      this.fail("void-binding", "a binding cannot store a void value", expression.span);
+    const elementTypes = expression.bindings.length === 1 ? undefined : tupleParts(value.type);
+    if (expression.bindings.length > 1 && elementTypes?.length !== expression.bindings.length)
+      this.fail(
+        "tuple-binding-arity",
+        `binding has ${expression.bindings.length} names but '${value.type}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
+        expression.span,
+      );
+    const seen = new Set<string>();
+    const bindings = expression.bindings.map((binding, index) => {
+      if (seen.has(binding.name) || this.currentScope().has(binding.name))
+        this.fail(
+          "duplicate-binding",
+          `binding '${binding.name}' already exists in this scope`,
+          binding.span,
+        );
+      seen.add(binding.name);
+      if (PRELUDE_NAMES.has(binding.name))
+        this.fail(
+          "prelude-name-shadow",
+          `binding expression '${binding.name}' shadows a prelude name`,
+          binding.span,
+        );
+      const sourceType = elementTypes?.[index] ?? value.type;
+      const local: HirLocal = {
+        name: binding.name,
+        type: mutableInner(sourceType) ?? sourceType,
+        index: this.locals.length,
+        mutable: false,
+        parameter: false,
+        span: binding.span,
+      };
+      this.locals.push(local);
+      this.currentScope().set(binding.name, local);
+      return local;
+    });
+    return {
+      kind: "binding-expression",
+      bindings,
+      value,
+      elementTypes,
+      type: value.type,
+      span: expression.span,
+    };
   }
 }

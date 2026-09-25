@@ -14,6 +14,7 @@ import {
   nominalGenericParts,
   optionalInner,
   resultParts,
+  storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
@@ -38,6 +39,9 @@ import {
   suspensionCancel,
   suspensionFrameTypeName,
   suspensionPoll,
+  suspensionWrapperCancelAdapterName,
+  suspensionWrapperPollAdapterName,
+  suspensionWrapperResultAdapterName,
   testExportName,
   traitSuspensionName,
   traitSuspensionResultName,
@@ -46,6 +50,17 @@ import {
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
+import { emitHostProviders } from "./host-providers.ts";
+import {
+  emitStoredSuspensionAdapters,
+  STORED_SUSPENSION_RUNTIME,
+  STORED_SUSPENSION_TYPES,
+  storedSuspensionAdapterReferences,
+} from "./stored-suspension.ts";
+
+function suspensionIndex(declaration: HirFunction): number {
+  return declaration.suspensionIndex ?? declaration.index;
+}
 
 class FunctionEmitter extends FunctionBodyEmitter {
   emit(declaration: HirFunction): string {
@@ -93,21 +108,23 @@ class FunctionEmitter extends FunctionBodyEmitter {
       declaration.parameters.every((parameter) => this.hostSafe(parameter.type)) &&
       this.hostSafe(declaration.result);
     const exportClause = exported ? ` (export ${exportName(declaration.name)})` : "";
-    const internalName = declaration.closure
-      ? `$c${declaration.index}`
-      : declaration.suspending
-        ? `$body${declaration.index}`
-        : functionName(declaration.index);
-    const signature = declaration.closure
-      ? ` (type $sig${this.functionSignatures.get(
-          functionType(
-            declaration.parameters.map((parameter) => parameter.type),
-            declaration.result,
-            declaration.requirements,
-            declaration.variadic,
-          ),
-        )})`
-      : "";
+    const internalName = declaration.suspending
+      ? `$body${suspensionIndex(declaration)}`
+      : declaration.closure
+        ? `$c${declaration.index}`
+        : functionName(suspensionIndex(declaration));
+    const signature =
+      declaration.closure && !declaration.suspending
+        ? ` (type $sig${this.functionSignatures.get(
+            functionType(
+              declaration.parameters.map((parameter) => parameter.type),
+              declaration.result,
+              declaration.requirements,
+              declaration.variadic,
+              declaration.suspending,
+            ),
+          )})`
+        : "";
     return [
       `(func ${internalName}${signature}${exportClause}${allParameters ? " " + allParameters : ""}${result}`,
       ...locals,
@@ -118,7 +135,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 
   emitSuspensionSupport(declaration: HirFunction): string {
-    const plan = this.suspensionPlans.get(declaration.index);
+    const plan = this.suspensionPlans.get(suspensionIndex(declaration));
     if (plan) return this.emitCfgSuspensionSupport(declaration, plan);
     const resumableSites = linearSuspensionSites(declaration);
     if (resumableSites.length > 0)
@@ -132,100 +149,110 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const providerParameters = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
     );
-    const allParameters = [parameters, ...boundParameters, ...providerParameters]
+    const allParameters = [
+      ...(declaration.closure ? ["(param $env anyref)"] : []),
+      parameters,
+      ...boundParameters,
+      ...providerParameters,
+    ]
       .filter(Boolean)
       .join(" ");
     const constructor = [
-      `(func ${functionName(declaration.index)}${allParameters ? " " + allParameters : ""} (result (ref null $s${declaration.index}))`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 0))`,
-      `  (struct.new $s${declaration.index} (i32.const 0) (i32.const 0)${declaration.parameters.map((parameter) => ` (local.get ${localName(parameter.index)})`).join("")}${declaration.genericBounds.map((_, index) => ` (local.get $bound${index})`).join("")}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")}${declaration.result === "void" ? "" : ` ${this.defaultValue(declaration.result)}`})`,
+      `(func ${functionName(suspensionIndex(declaration))}${allParameters ? " " + allParameters : ""} (result (ref null $s${suspensionIndex(declaration)}))`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 0))`,
+      `  (struct.new $s${suspensionIndex(declaration)} (i32.const 0) (i32.const 0)${declaration.closure ? " (local.get $env)" : ""}${declaration.parameters.map((parameter) => ` (local.get ${localName(parameter.index)})`).join("")}${declaration.genericBounds.map((_, index) => ` (local.get $bound${index})`).join("")}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")}${declaration.result === "void" ? "" : ` ${this.defaultValue(declaration.result)}`})`,
       `)`,
     ].join("\n");
     const result =
       declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
-    const bodyCall = `(call $body${declaration.index}${declaration.parameters.length || declaration.genericBounds.length || declaration.requirements.length ? " " : ""}${[
+    const bodyCall = `(call $body${suspensionIndex(declaration)}${declaration.closure || declaration.parameters.length || declaration.genericBounds.length || declaration.requirements.length ? " " : ""}${[
+      ...(declaration.closure
+        ? [
+            `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}env (local.get $frame))`,
+          ]
+        : []),
       ...declaration.parameters.map(
         (_, index) =>
-          `(struct.get $s${declaration.index} $s${declaration.index}a${index} (local.get $frame))`,
+          `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}a${index} (local.get $frame))`,
       ),
       ...declaration.genericBounds.map(
         (_, index) =>
-          `(struct.get $s${declaration.index} $s${declaration.index}b${index} (local.get $frame))`,
+          `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}b${index} (local.get $frame))`,
       ),
       ...declaration.requirements.map(
         (_, index) =>
-          `(struct.get $s${declaration.index} $s${declaration.index}p${index} (local.get $frame))`,
+          `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}p${index} (local.get $frame))`,
       ),
     ].join(" ")})`;
     const poll = [
-      `(func $poll${declaration.index} (param $frame (ref null $s${declaration.index})) (result i32)`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 1))`,
-      `  (if (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 1))`,
-      `    (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `(func $poll${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)})) (result i32)`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 1))`,
+      `  (if (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 1))`,
+      `    (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       `  (if (i32.or`,
-      `        (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 2))`,
-      `        (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 3)))`,
-      `    (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 5)) unreachable))`,
-      `  (struct.set $s${declaration.index} $s${declaration.index}polls (local.get $frame)`,
-      `    (i32.add (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)) (i32.const 1)))`,
-      `  (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
+      `        (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 2))`,
+      `        (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 3)))`,
+      `    (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 5)) ${this.emitRuntimePanic("suspension-invalid-state")}))`,
+      `  (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)`,
+      `    (i32.add (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)) (i32.const 1)))`,
+      `  (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
       `  (if (call $hd.pending`,
-      `        (i32.const ${declaration.index})`,
-      `        (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)))`,
+      `        (i32.const ${suspensionIndex(declaration)})`,
+      `        (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)))`,
       `    (then`,
-      `      (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 4))`,
-      `      (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+      `      (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 4))`,
+      `      (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
       `      (return (i32.const 0))))`,
-      `  (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
+      `  (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
       declaration.result === "void"
         ? `  ${bodyCall}`
-        : `  (struct.set $s${declaration.index} $s${declaration.index}result (local.get $frame) ${bodyCall})`,
-      `  (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 2))`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 2))`,
+        : `  (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame) ${bodyCall})`,
+      `  (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 2))`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 2))`,
       `  (i32.const 1)`,
       `)`,
     ]
       .filter(Boolean)
       .join("\n");
     const drive = [
-      `(func $drive${declaration.index} (param $frame (ref null $s${declaration.index}))${result}`,
-      `  (if (global.get $hd.driver-active) (then unreachable))`,
+      `(func $drive${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))${result}`,
+      `  (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-competing-driver")}))`,
       `  (global.set $hd.driver-active (i32.const 1))`,
       `  (block $ready`,
       `    (loop $drive`,
-      `      (br_if $ready (i32.eq (call $poll${declaration.index} (local.get $frame)) (i32.const 1)))`,
+      `      (br_if $ready (i32.eq (call $poll${suspensionIndex(declaration)} (local.get $frame)) (i32.const 1)))`,
       `      (br $drive)))`,
       `  (global.set $hd.driver-active (i32.const 0))`,
       declaration.result === "void"
         ? ""
-        : `  (struct.get $s${declaration.index} $s${declaration.index}result (local.get $frame))`,
+        : `  (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame))`,
       `)`,
     ]
       .filter(Boolean)
       .join("\n");
     const cancel = [
-      `(func $cancel${declaration.index} (param $frame (ref null $s${declaration.index}))`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 3))`,
-      `  (if (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 1))`,
-      `    (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `(func $cancel${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 3))`,
+      `  (if (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 1))`,
+      `    (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       `  (if (i32.or`,
-      `        (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 0))`,
-      `        (i32.eq (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)) (i32.const 4)))`,
-      `    (then (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 3))))`,
+      `        (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 0))`,
+      `        (i32.eq (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)) (i32.const 4)))`,
+      `    (then (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))))`,
       `)`,
     ].join("\n");
     const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryProviderParameters = this.entryProviderParameters(declaration);
+    const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
       ? [
-          `(func $entry${declaration.index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${result}`,
-          `  (call $drive${declaration.index} (call ${functionName(declaration.index)}${declaration.requirements.length ? " " : ""}${declaration.requirements.map((_, index) => `(local.get $provider${index})`).join(" ")}))`,
+          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
+          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
           `)`,
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main"
-        ? this.emitSuspensionDevelopmentDriver(declaration, providerParameters)
-        : "";
+      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
@@ -244,7 +271,12 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const providerParameters = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
     );
-    const allParameters = [parameters, ...boundParameters, ...providerParameters]
+    const allParameters = [
+      ...(declaration.closure ? ["(param $env anyref)"] : []),
+      parameters,
+      ...boundParameters,
+      ...providerParameters,
+    ]
       .filter(Boolean)
       .join(" ");
     const storedLocals = [
@@ -254,6 +286,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const constructorValues = [
       `(i32.const 0)`,
       `(i32.const 0)`,
+      ...(declaration.closure ? ["(local.get $env)"] : []),
       ...declaration.parameters.map((parameter) => `(local.get ${localName(parameter.index)})`),
       ...declaration.genericBounds.map((_, index) => `(local.get $bound${index})`),
       ...declaration.requirements.map((_, index) => `(local.get $provider${index})`),
@@ -262,16 +295,16 @@ class FunctionEmitter extends FunctionBodyEmitter {
       ...(declaration.result === "void" ? [] : [this.defaultValue(declaration.result)]),
     ];
     const constructor = [
-      `(func ${functionName(declaration.index)}${allParameters ? " " + allParameters : ""} (result (ref null $s${declaration.index}))`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 0))`,
-      `  (struct.new $s${declaration.index} ${constructorValues.join(" ")})`,
+      `(func ${functionName(suspensionIndex(declaration))}${allParameters ? " " + allParameters : ""} (result (ref null $s${suspensionIndex(declaration)}))`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 0))`,
+      `  (struct.new $s${suspensionIndex(declaration)} ${constructorValues.join(" ")})`,
       `)`,
     ].join("\n");
 
     const loadFrame = this.emitSuspensionFrameLoads(declaration, storedLocals);
     const storeFrame = this.emitSuspensionFrameStores(declaration, storedLocals);
     const resumeDispatch = plan.sites.reduceRight((otherwise, site) => {
-      const child = `(struct.get $s${declaration.index} $s${declaration.index}child${site.siteIndex} (local.get $frame))`;
+      const child = `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${site.siteIndex} (local.get $frame))`;
       const ready: string[] = [];
       if (site.resultLocal)
         ready.push(
@@ -284,8 +317,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
         `    (if (i32.eqz ${suspensionPoll(site.drive, child)})`,
         `      (then`,
         ...storeFrame.map((line) => `        ${line}`),
-        `        (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (local.get $resume-state))`,
-        `        (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+        `        (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (local.get $resume-state))`,
+        `        (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
         `        (return (i32.const 0))))`,
         ...ready.map((line) => `    ${line}`),
         `  )`,
@@ -305,25 +338,25 @@ class FunctionEmitter extends FunctionBodyEmitter {
       ].join("\n"),
     );
     const pollBody = [
-      `(call $hd.trace (i32.const ${declaration.index}) (i32.const 1))`,
-      `(local.set $resume-state (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)))`,
+      `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 1))`,
+      `(local.set $resume-state (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)))`,
       `(if (i32.eq (local.get $resume-state) (i32.const 1))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       `(if (i32.or (i32.eq (local.get $resume-state) (i32.const 2)) (i32.eq (local.get $resume-state) (i32.const 3)))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 5)) unreachable))`,
-      `(struct.set $s${declaration.index} $s${declaration.index}polls (local.get $frame)`,
-      `  (i32.add (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)) (i32.const 1)))`,
-      `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
-      `(if (call $hd.pending (i32.const ${declaration.index}) (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 5)) ${this.emitRuntimePanic("suspension-invalid-state")}))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)`,
+      `  (i32.add (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)) (i32.const 1)))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
+      `(if (call $hd.pending (i32.const ${suspensionIndex(declaration)}) (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)))`,
       `  (then`,
-      `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame)`,
+      `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)`,
       `      (if (result i32) (i32.eq (local.get $resume-state) (i32.const 0))`,
       `        (then (i32.const 4))`,
       `        (else (local.get $resume-state))))`,
-      `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+      `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
       `    (return (i32.const 0))))`,
       ...loadFrame,
-      `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
       `(if (i32.le_u (local.get $resume-state) (i32.const 4))`,
       `  (then (local.set $pc (i32.const ${plan.entry})))`,
       `  (else`,
@@ -339,31 +372,32 @@ class FunctionEmitter extends FunctionBodyEmitter {
       [
         `(if (i32.eq (local.get $resume-state) (i32.const ${5 + site.siteIndex}))`,
         `  (then`,
-        `    ${suspensionCancel(site.drive, `(struct.get $s${declaration.index} $s${declaration.index}child${site.siteIndex} (local.get $frame))`)}`,
+        `    ${suspensionCancel(site.drive, `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${site.siteIndex} (local.get $frame))`)}`,
         ...[...site.cleanups]
           .reverse()
           .flatMap((cleanup) => [
-            `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 7))`,
+            `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 7))`,
             indent(this.emitBlock(cleanup, "void"), 4),
           ]),
-        `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 3))`,
+        `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))`,
         `    (return)))`,
       ].join("\n"),
     );
     const cancelBody = [
-      `(call $hd.trace (i32.const ${declaration.index}) (i32.const 3))`,
-      `(local.set $resume-state (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)))`,
+      `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 3))`,
+      `(local.set $resume-state (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)))`,
       `(if (i32.eq (local.get $resume-state) (i32.const 1))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       ...loadFrame,
       ...cancellationBranches,
       `(if (i32.or (i32.eq (local.get $resume-state) (i32.const 0)) (i32.eq (local.get $resume-state) (i32.const 4)))`,
-      `  (then (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 3))))`,
+      `  (then (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))))`,
     ];
 
     const localDeclarations = [...declaration.locals, ...plan.temporaries].map(
       (local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`,
     );
+    const environmentLocals = declaration.closure ? [`  (local $env anyref)`] : [];
     const boundLocals = declaration.genericBounds.map(
       (bound, index) => `  (local $bound${index} (ref null $trait${bound.traitIndex}))`,
     );
@@ -374,9 +408,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
     const poll = [
-      `(func $poll${declaration.index} (param $frame (ref null $s${declaration.index})) (result i32)`,
+      `(func $poll${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)})) (result i32)`,
       `  (local $resume-state i32)`,
       `  (local $pc i32)`,
+      ...environmentLocals,
       ...localDeclarations,
       ...boundLocals,
       ...providerLocals,
@@ -385,8 +420,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
       `)`,
     ].join("\n");
     const cancel = [
-      `(func $cancel${declaration.index} (param $frame (ref null $s${declaration.index}))`,
+      `(func $cancel${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))`,
       `  (local $resume-state i32)`,
+      ...environmentLocals,
       ...localDeclarations,
       ...boundLocals,
       ...providerLocals,
@@ -397,33 +433,33 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const result =
       declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
     const drive = [
-      `(func $drive${declaration.index} (param $frame (ref null $s${declaration.index}))${result}`,
-      `  (if (global.get $hd.driver-active) (then unreachable))`,
+      `(func $drive${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))${result}`,
+      `  (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-competing-driver")}))`,
       `  (global.set $hd.driver-active (i32.const 1))`,
       `  (block $ready`,
       `    (loop $drive`,
-      `      (br_if $ready (i32.eq (call $poll${declaration.index} (local.get $frame)) (i32.const 1)))`,
+      `      (br_if $ready (i32.eq (call $poll${suspensionIndex(declaration)} (local.get $frame)) (i32.const 1)))`,
       `      (br $drive)))`,
       `  (global.set $hd.driver-active (i32.const 0))`,
       declaration.result === "void"
         ? ""
-        : `  (struct.get $s${declaration.index} $s${declaration.index}result (local.get $frame))`,
+        : `  (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame))`,
       `)`,
     ]
       .filter(Boolean)
       .join("\n");
     const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryProviderParameters = this.entryProviderParameters(declaration);
+    const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
       ? [
-          `(func $entry${declaration.index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${result}`,
-          `  (call $drive${declaration.index} (call ${functionName(declaration.index)}${declaration.requirements.length ? " " : ""}${declaration.requirements.map((_, index) => `(local.get $provider${index})`).join(" ")}))`,
+          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
+          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
           `)`,
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main"
-        ? this.emitSuspensionDevelopmentDriver(declaration, providerParameters)
-        : "";
+      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
@@ -481,14 +517,14 @@ class FunctionEmitter extends FunctionBodyEmitter {
       case "match-test":
         return `(if ${this.emitCfgMatchCondition(terminator.subject, terminator.representation, terminator.enumIndex, terminator.arm)}\n  (then (local.set $pc (i32.const ${terminator.thenTarget})))\n  (else (local.set $pc (i32.const ${terminator.elseTarget}))))\n(br $cfg)`;
       case "suspend": {
-        const child = `(struct.get $s${declaration.index} $s${declaration.index}child${terminator.siteIndex} (local.get $frame))`;
+        const child = `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${terminator.siteIndex} (local.get $frame))`;
         return [
-          `(struct.set $s${declaration.index} $s${declaration.index}child${terminator.siteIndex} (local.get $frame) ${this.emitExpression(terminator.drive.suspension)})`,
+          `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${terminator.siteIndex} (local.get $frame) ${this.emitExpression(terminator.drive.suspension)})`,
           `(if (i32.eqz ${suspensionPoll(terminator.drive, child)})`,
           `  (then`,
           ...storeFrame.map((line) => `    ${line}`),
-          `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const ${5 + terminator.siteIndex}))`,
-          `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+          `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const ${5 + terminator.siteIndex}))`,
+          `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
           `    (return (i32.const 0))))`,
           terminator.resultLocal
             ? `(local.set ${localName(terminator.resultLocal.index)} ${this.emitSuspensionResult(terminator.drive, child)})`
@@ -511,11 +547,11 @@ class FunctionEmitter extends FunctionBodyEmitter {
           ...(declaration.result === "void"
             ? []
             : [
-                `(struct.set $s${declaration.index} $s${declaration.index}result (local.get $frame) ${operand})`,
+                `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame) ${operand})`,
               ]),
           ...[...terminator.cleanups].reverse().map((cleanup) => this.emitBlock(cleanup, "void")),
-          `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 2))`,
-          `(call $hd.trace (i32.const ${declaration.index}) (i32.const 2))`,
+          `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 2))`,
+          `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 2))`,
           `(return (i32.const 1))`,
         ];
         return `(if (i32.eq (struct.get $hd.variant $hd.variant-tag ${operand}) (i32.const ${terminator.successTag}))\n  (then\n${indent(success.join("\n"), 4)}\n  )\n  (else\n${indent(failure.join("\n"), 4)}\n  ))`;
@@ -526,9 +562,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
             ? terminator.value
               ? this.emitExpression(terminator.value)
               : ""
-            : `(struct.set $s${declaration.index} $s${declaration.index}result (local.get $frame) ${this.emitExpression(terminator.value!)})`,
-          `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 2))`,
-          `(call $hd.trace (i32.const ${declaration.index}) (i32.const 2))`,
+            : `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame) ${this.emitExpression(terminator.value!)})`,
+          `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 2))`,
+          `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 2))`,
           `(return (i32.const 1))`,
         ]
           .filter(Boolean)
@@ -539,15 +575,19 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 
   private emitSuspensionResult(drive: HirSuspendDrive, child: string): string {
+    if (drive.kind === "suspension-drive")
+      return this.unboxValue(`(call $hd.suspension_result ${child})`, drive.type);
     const raw =
       drive.kind === "suspend-drive"
         ? `(struct.get $s${drive.functionIndex} $s${drive.functionIndex}result ${child})`
         : `(call ${traitSuspensionResultName(drive.traitIndex, drive.methodIndex)} ${child})`;
-    return drive.kind === "suspend-drive" &&
-      drive.erasedResultType &&
-      isGenericValueType(drive.erasedResultType)
-      ? this.unboxValue(raw, drive.type)
-      : raw;
+    const erased =
+      (drive.kind === "suspend-drive" &&
+        drive.erasedResultType &&
+        isGenericValueType(drive.erasedResultType)) ||
+      (drive.kind === "trait-suspend-drive" &&
+        this.traitMethodErasesResult(drive.traitIndex, drive.methodIndex));
+    return erased ? this.unboxValue(raw, drive.type) : raw;
   }
 
   private emitCfgMatchBindings(
@@ -646,13 +686,19 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const providerParameters = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
     );
-    const allParameters = [parameters, ...boundParameters, ...providerParameters]
+    const allParameters = [
+      ...(declaration.closure ? ["(param $env anyref)"] : []),
+      parameters,
+      ...boundParameters,
+      ...providerParameters,
+    ]
       .filter(Boolean)
       .join(" ");
     const storedLocals = declaration.locals.filter((local) => !local.parameter);
     const constructorValues = [
       `(i32.const 0)`,
       `(i32.const 0)`,
+      ...(declaration.closure ? ["(local.get $env)"] : []),
       ...declaration.parameters.map((parameter) => `(local.get ${localName(parameter.index)})`),
       ...declaration.genericBounds.map((_, index) => `(local.get $bound${index})`),
       ...declaration.requirements.map((_, index) => `(local.get $provider${index})`),
@@ -661,9 +707,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
       ...(declaration.result === "void" ? [] : [this.defaultValue(declaration.result)]),
     ];
     const constructor = [
-      `(func ${functionName(declaration.index)}${allParameters ? " " + allParameters : ""} (result (ref null $s${declaration.index}))`,
-      `  (call $hd.trace (i32.const ${declaration.index}) (i32.const 0))`,
-      `  (struct.new $s${declaration.index} ${constructorValues.join(" ")})`,
+      `(func ${functionName(suspensionIndex(declaration))}${allParameters ? " " + allParameters : ""} (result (ref null $s${suspensionIndex(declaration)}))`,
+      `  (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 0))`,
+      `  (struct.new $s${suspensionIndex(declaration)} ${constructorValues.join(" ")})`,
       `)`,
     ].join("\n");
 
@@ -683,25 +729,25 @@ class FunctionEmitter extends FunctionBodyEmitter {
     );
     const loadFrame = this.emitSuspensionFrameLoads(declaration, storedLocals);
     const pollBody = [
-      `(call $hd.trace (i32.const ${declaration.index}) (i32.const 1))`,
-      `(local.set $resume-state (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)))`,
+      `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 1))`,
+      `(local.set $resume-state (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)))`,
       `(if (i32.eq (local.get $resume-state) (i32.const 1))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       `(if (i32.or (i32.eq (local.get $resume-state) (i32.const 2)) (i32.eq (local.get $resume-state) (i32.const 3)))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 5)) unreachable))`,
-      `(struct.set $s${declaration.index} $s${declaration.index}polls (local.get $frame)`,
-      `  (i32.add (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)) (i32.const 1)))`,
-      `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
-      `(if (call $hd.pending (i32.const ${declaration.index}) (struct.get $s${declaration.index} $s${declaration.index}polls (local.get $frame)))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 5)) ${this.emitRuntimePanic("suspension-invalid-state")}))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)`,
+      `  (i32.add (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)) (i32.const 1)))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
+      `(if (call $hd.pending (i32.const ${suspensionIndex(declaration)}) (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}polls (local.get $frame)))`,
       `  (then`,
-      `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame)`,
+      `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)`,
       `      (if (result i32) (i32.eq (local.get $resume-state) (i32.const 0))`,
       `        (then (i32.const 4))`,
       `        (else (local.get $resume-state))))`,
-      `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+      `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
       `    (return (i32.const 0))))`,
       ...loadFrame,
-      `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 1))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 1))`,
       `(if (i32.le_u (local.get $resume-state) (i32.const 4))`,
       `  (then`,
       indent(cold, 4),
@@ -715,31 +761,32 @@ class FunctionEmitter extends FunctionBodyEmitter {
       [
         `(if (i32.eq (local.get $resume-state) (i32.const ${5 + site.index}))`,
         `  (then`,
-        `    ${suspensionCancel(site.drive, `(struct.get $s${declaration.index} $s${declaration.index}child${site.index} (local.get $frame))`)}`,
+        `    ${suspensionCancel(site.drive, `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${site.index} (local.get $frame))`)}`,
         ...[...site.cleanups]
           .reverse()
           .flatMap((cleanup) => [
-            `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 7))`,
+            `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 7))`,
             indent(this.emitBlock(cleanup, "void"), 4),
           ]),
-        `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 3))`,
+        `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))`,
         `    (return)))`,
       ].join("\n"),
     );
     const cancelBody = [
-      `(call $hd.trace (i32.const ${declaration.index}) (i32.const 3))`,
-      `(local.set $resume-state (struct.get $s${declaration.index} $s${declaration.index}state (local.get $frame)))`,
+      `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 3))`,
+      `(local.set $resume-state (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame)))`,
       `(if (i32.eq (local.get $resume-state) (i32.const 1))`,
-      `  (then (call $hd.trace (i32.const ${declaration.index}) (i32.const 4)) unreachable))`,
+      `  (then (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 4)) ${this.emitRuntimePanic("suspension-reentrant-poll")}))`,
       ...loadFrame,
       ...cancellationBranches,
       `(if (i32.or (i32.eq (local.get $resume-state) (i32.const 0)) (i32.eq (local.get $resume-state) (i32.const 4)))`,
-      `  (then (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 3))))`,
+      `  (then (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))))`,
     ];
 
     const localDeclarations = declaration.locals.map(
       (local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`,
     );
+    const environmentLocals = declaration.closure ? [`  (local $env anyref)`] : [];
     const boundLocals = declaration.genericBounds.map(
       (bound, index) => `  (local $bound${index} (ref null $trait${bound.traitIndex}))`,
     );
@@ -750,8 +797,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
     const poll = [
-      `(func $poll${declaration.index} (param $frame (ref null $s${declaration.index})) (result i32)`,
+      `(func $poll${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)})) (result i32)`,
       `  (local $resume-state i32)`,
+      ...environmentLocals,
       ...localDeclarations,
       ...boundLocals,
       ...providerLocals,
@@ -760,8 +808,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
       `)`,
     ].join("\n");
     const cancel = [
-      `(func $cancel${declaration.index} (param $frame (ref null $s${declaration.index}))`,
+      `(func $cancel${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))`,
       `  (local $resume-state i32)`,
+      ...environmentLocals,
       ...localDeclarations,
       ...boundLocals,
       ...providerLocals,
@@ -772,73 +821,69 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const result =
       declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
     const drive = [
-      `(func $drive${declaration.index} (param $frame (ref null $s${declaration.index}))${result}`,
-      `  (if (global.get $hd.driver-active) (then unreachable))`,
+      `(func $drive${suspensionIndex(declaration)} (param $frame (ref null $s${suspensionIndex(declaration)}))${result}`,
+      `  (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-competing-driver")}))`,
       `  (global.set $hd.driver-active (i32.const 1))`,
       `  (block $ready`,
       `    (loop $drive`,
-      `      (br_if $ready (i32.eq (call $poll${declaration.index} (local.get $frame)) (i32.const 1)))`,
+      `      (br_if $ready (i32.eq (call $poll${suspensionIndex(declaration)} (local.get $frame)) (i32.const 1)))`,
       `      (br $drive)))`,
       `  (global.set $hd.driver-active (i32.const 0))`,
       declaration.result === "void"
         ? ""
-        : `  (struct.get $s${declaration.index} $s${declaration.index}result (local.get $frame))`,
+        : `  (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame))`,
       `)`,
     ]
       .filter(Boolean)
       .join("\n");
     const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryProviderParameters = this.entryProviderParameters(declaration);
+    const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
       ? [
-          `(func $entry${declaration.index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${result}`,
-          `  (call $drive${declaration.index} (call ${functionName(declaration.index)}${declaration.requirements.length ? " " : ""}${declaration.requirements.map((_, index) => `(local.get $provider${index})`).join(" ")}))`,
+          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
+          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
           `)`,
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main"
-        ? this.emitSuspensionDevelopmentDriver(declaration, providerParameters)
-        : "";
+      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
   }
 
-  private emitSuspensionDevelopmentDriver(
-    declaration: HirFunction,
-    providerParameters: readonly string[],
-  ): string {
+  private emitSuspensionDevelopmentDriver(declaration: HirFunction): string {
     if (declaration.parameters.length > 0) return "";
-    const frame = `$hd.dev-frame${declaration.index}`;
-    const providerArguments = declaration.requirements.map(
-      (_, index) => `(local.get $provider${index})`,
-    );
+    const frame = `$hd.dev-frame${suspensionIndex(declaration)}`;
+    const providerParameters = this.entryProviderParameters(declaration);
+    const providerArguments = this.entryProviderArguments(declaration);
     const start = [
-      `(global ${frame} (mut (ref null $s${declaration.index})) (ref.null $s${declaration.index}))`,
+      `(global ${frame} (mut (ref null $s${suspensionIndex(declaration)})) (ref.null $s${suspensionIndex(declaration)}))`,
       `(func (export "__hd_start")${providerParameters.length ? " " + providerParameters.join(" ") : ""}`,
-      `  (if (global.get $hd.driver-active) (then unreachable))`,
+      `  (if (global.get $hd.driver-active) (then ${this.emitRuntimePanic("suspension-competing-driver")}))`,
       `  (global.set $hd.driver-active (i32.const 1))`,
-      `  (global.set ${frame} (call ${functionName(declaration.index)}${providerArguments.length ? " " : ""}${providerArguments.join(" ")}))`,
+      `  (global.set ${frame} (call ${functionName(suspensionIndex(declaration))}${providerArguments.length ? " " : ""}${providerArguments.join(" ")}))`,
       `)`,
     ].join("\n");
     const poll = [
       `(func (export "__hd_poll") (result i32)`,
       `  (local $ready i32)`,
-      `  (local.set $ready (call $poll${declaration.index} (global.get ${frame})))`,
+      `  (local.set $ready (call $poll${suspensionIndex(declaration)} (global.get ${frame})))`,
       `  (if (local.get $ready) (then (global.set $hd.driver-active (i32.const 0))))`,
       `  (local.get $ready)`,
       `)`,
     ].join("\n");
     const cancel = [
       `(func (export "__hd_cancel")`,
-      `  (call $cancel${declaration.index} (global.get ${frame}))`,
+      `  (call $cancel${suspensionIndex(declaration)} (global.get ${frame}))`,
       `  (global.set $hd.driver-active (i32.const 0))`,
       `)`,
     ].join("\n");
     const result =
       declaration.result === "void"
         ? ""
-        : `(func (export "__hd_result") (result ${this.watType(declaration.result)}) (struct.get $s${declaration.index} $s${declaration.index}result (global.get ${frame})))`;
+        : `(func (export "__hd_result") (result ${this.watType(declaration.result)}) (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (global.get ${frame})))`;
     return [start, poll, cancel, result].filter(Boolean).join("\n");
   }
 
@@ -847,21 +892,26 @@ class FunctionEmitter extends FunctionBodyEmitter {
     storedLocals: readonly HirLocal[],
   ): string[] {
     return [
+      ...(declaration.closure
+        ? [
+            `(local.set $env (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}env (local.get $frame)))`,
+          ]
+        : []),
       ...declaration.parameters.map(
         (parameter, index) =>
-          `(local.set ${localName(parameter.index)} (struct.get $s${declaration.index} $s${declaration.index}a${index} (local.get $frame)))`,
+          `(local.set ${localName(parameter.index)} (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}a${index} (local.get $frame)))`,
       ),
       ...declaration.genericBounds.map(
         (_, index) =>
-          `(local.set $bound${index} (struct.get $s${declaration.index} $s${declaration.index}b${index} (local.get $frame)))`,
+          `(local.set $bound${index} (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}b${index} (local.get $frame)))`,
       ),
       ...declaration.requirements.map(
         (_, index) =>
-          `(local.set $provider${index} (struct.get $s${declaration.index} $s${declaration.index}p${index} (local.get $frame)))`,
+          `(local.set $provider${index} (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}p${index} (local.get $frame)))`,
       ),
       ...storedLocals.map(
         (local) =>
-          `(local.set ${localName(local.index)} (struct.get $s${declaration.index} $s${declaration.index}l${local.index} (local.get $frame)))`,
+          `(local.set ${localName(local.index)} (struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}l${local.index} (local.get $frame)))`,
       ),
     ];
   }
@@ -907,34 +957,23 @@ class FunctionEmitter extends FunctionBodyEmitter {
     start: boolean,
     cleanups: readonly (readonly HirStatement[])[],
   ): string {
-    const child = `(struct.get $s${declaration.index} $s${declaration.index}child${site.index} (local.get $frame))`;
+    const child = `(struct.get $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${site.index} (local.get $frame))`;
     const lines: string[] = [];
     if (start) {
       lines.push(
-        `(struct.set $s${declaration.index} $s${declaration.index}child${site.index} (local.get $frame) ${this.emitExpression(site.drive.suspension)})`,
+        `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}child${site.index} (local.get $frame) ${this.emitExpression(site.drive.suspension)})`,
       );
     }
     lines.push(
       `(if (i32.eqz ${suspensionPoll(site.drive, child)})`,
       `  (then`,
       ...this.emitSuspensionFrameStores(declaration).map((line) => `    ${line}`),
-      `    (struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const ${5 + site.index}))`,
-      `    (call $hd.trace (i32.const ${declaration.index}) (i32.const 6))`,
+      `    (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const ${5 + site.index}))`,
+      `    (call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 6))`,
       `    (return (i32.const 0))))`,
     );
-    const rawValue =
-      site.drive.type === "void"
-        ? undefined
-        : site.drive.kind === "suspend-drive"
-          ? `(struct.get $s${site.drive.functionIndex} $s${site.drive.functionIndex}result ${child})`
-          : `(call ${traitSuspensionResultName(site.drive.traitIndex, site.drive.methodIndex)} ${child})`;
     const value =
-      rawValue &&
-      site.drive.kind === "suspend-drive" &&
-      site.drive.erasedResultType &&
-      isGenericValueType(site.drive.erasedResultType)
-        ? this.unboxValue(rawValue, site.drive.type)
-        : rawValue;
+      site.drive.type === "void" ? undefined : this.emitSuspensionResult(site.drive, child);
     const final = site.statementIndex === declaration.body.length - 1;
     if (site.statement.kind === "binding" || site.statement.kind === "assignment") {
       lines.push(`(local.set ${localName(site.statement.local.index)} ${value})`);
@@ -965,7 +1004,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   ): string[] {
     return storedLocals.map(
       (local) =>
-        `(struct.set $s${declaration.index} $s${declaration.index}l${local.index} (local.get $frame) (local.get ${localName(local.index)}))`,
+        `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}l${local.index} (local.get $frame) (local.get ${localName(local.index)}))`,
     );
   }
 
@@ -989,10 +1028,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
     return [
       declaration.result === "void"
         ? (value ?? "")
-        : `(struct.set $s${declaration.index} $s${declaration.index}result (local.get $frame) ${value})`,
+        : `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}result (local.get $frame) ${value})`,
       ...[...cleanups].reverse().map((cleanup) => this.emitBlock(cleanup, "void")),
-      `(struct.set $s${declaration.index} $s${declaration.index}state (local.get $frame) (i32.const 2))`,
-      `(call $hd.trace (i32.const ${declaration.index}) (i32.const 2))`,
+      `(struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 2))`,
+      `(call $hd.trace (i32.const ${suspensionIndex(declaration)}) (i32.const 2))`,
       `(return (i32.const 1))`,
     ]
       .filter(Boolean)
@@ -1005,6 +1044,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       declaration.result,
       declaration.requirements,
       declaration.variadic,
+      declaration.suspending,
     );
     const signature = this.functionSignatures.get(type);
     const parameters = declaration.parameters.map(
@@ -1013,15 +1053,24 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const providers = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
     );
-    const result =
-      declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
+    const result = declaration.suspending
+      ? ` (result (ref null $hd.suspension))`
+      : declaration.result === "void"
+        ? ""
+        : ` (result ${this.watType(declaration.result)})`;
     const arguments_ = [
+      ...(declaration.closure ? ["(local.get $env)"] : []),
       ...declaration.parameters.map((parameter) => `(local.get ${localName(parameter.index)})`),
       ...declaration.requirements.map((_, index) => `(local.get $provider${index})`),
     ];
+    const call = `(call ${functionName(suspensionIndex(declaration))}${arguments_.length ? " " : ""}${arguments_.join(" ")})`;
+    const value = declaration.suspending
+      ? `(struct.new $hd.suspension ${call} (ref.func ${suspensionWrapperPollAdapterName(suspensionIndex(declaration))}) (ref.func ${suspensionWrapperCancelAdapterName(suspensionIndex(declaration))}) (ref.func ${suspensionWrapperResultAdapterName(suspensionIndex(declaration))}))`
+      : call;
+    const wrapperName = declaration.closure ? `$c${declaration.index}` : `$fv${declaration.index}`;
     return [
-      `(func $fv${declaration.index} (type $sig${signature}) (param $env anyref) ${[...parameters, ...providers].join(" ")}${result}`,
-      `  (call ${functionName(declaration.index)}${arguments_.length ? " " : ""}${arguments_.join(" ")})`,
+      `(func ${wrapperName} (type $sig${signature}) (param $env anyref) ${[...parameters, ...providers].join(" ")}${result}`,
+      `  ${value}`,
       `)`,
     ].join("\n");
   }
@@ -1032,6 +1081,8 @@ import {
   FLOAT_RUNTIME_WAT,
   MAP_RUNTIME_WAT,
   RUNTIME_WAT,
+  STRING_SPLIT_RUNTIME_WAT,
+  STRING_TRANSFORM_RUNTIME_WAT,
 } from "./runtime/index.ts";
 
 interface CollectedModuleTypes {
@@ -1050,6 +1101,10 @@ function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
       return;
     }
     const nominal = nominalGenericParts(type);
+    if (storedSuspensionParts(type)) {
+      collectType(storedSuspensionParts(type)!.result);
+      return;
+    }
     if (nominal?.name === "list" && nominal.arguments.length === 1) {
       nominal.arguments.forEach(collectType);
       return;
@@ -1099,13 +1154,14 @@ function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
     declaration.parameters.forEach((parameter) => collectType(parameter.type));
     declaration.locals.forEach((local) => collectType(local.type));
     collectType(declaration.result);
-    if (!declaration.closure && !declaration.suspending) {
+    if (declaration.closure || declaration.genericParameters.length === 0) {
       collectType(
         functionType(
           declaration.parameters.map((parameter) => parameter.type),
           declaration.result,
           declaration.requirements,
           declaration.variadic,
+          declaration.suspending,
         ),
       );
     }
@@ -1130,9 +1186,11 @@ export function emitWat(program: HirProgram): string {
   const { signatureNames, contextNames } = collectModuleTypes(program);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
   const suspensionPlans = new Map(
-    program.functions
+    [...program.functions, ...program.closures]
       .filter((declaration) => declaration.suspending && needsSuspensionCfg(declaration))
-      .map((declaration) => [declaration.index, buildSuspensionPlan(declaration)] as const),
+      .map(
+        (declaration) => [suspensionIndex(declaration), buildSuspensionPlan(declaration)] as const,
+      ),
   );
   const emitter = new FunctionEmitter(
     program.data,
@@ -1143,7 +1201,9 @@ export function emitWat(program: HirProgram): string {
     program.traits,
     program.implementations,
     suspensionPlans,
+    program.hostCapabilities,
   );
+  const hostProviders = emitHostProviders(program);
   const signatureTypes = [...signatureNames]
     .map(([type, index]) => {
       const callable = functionParts(type)!;
@@ -1154,8 +1214,11 @@ export function emitWat(program: HirProgram): string {
           (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
         ),
       ].join(" ");
-      const result =
-        callable.result === "void" ? "" : ` (result ${emitter.watType(callable.result)})`;
+      const result = callable.suspending
+        ? ` (result (ref null $hd.suspension))`
+        : callable.result === "void"
+          ? ""
+          : ` (result ${emitter.watType(callable.result)})`;
       return `    (type $sig${index} (func${parameters ? " " + parameters : ""}${result}))`;
     })
     .join("\n");
@@ -1163,6 +1226,7 @@ export function emitWat(program: HirProgram): string {
     .flatMap((trait) =>
       trait.methods.map((method) => {
         const parameters = [
+          `(param anyref)`,
           `(param anyref)`,
           ...method.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
           ...method.requirements.map(
@@ -1194,16 +1258,23 @@ export function emitWat(program: HirProgram): string {
       }),
     )
     .join("\n");
-  const dataTypes = `\n  (rec\n${signatureTypes ? signatureTypes + "\n" : ""}${traitMethodTypes ? traitMethodTypes + "\n" : ""}${traitSuspensionTypes ? traitSuspensionTypes + "\n" : ""}    (type $hd.bytes (array (mut i8)))
+  const dataTypes = `\n  (rec\n${signatureTypes ? signatureTypes + "\n" : ""}${traitMethodTypes ? traitMethodTypes + "\n" : ""}${traitSuspensionTypes ? traitSuspensionTypes + "\n" : ""}${STORED_SUSPENSION_TYPES}\n    (type $hd.bytes (array (mut i8)))
     (type $hd.list (array (mut anyref)))
     (type $hd.vector (struct
       (field $hd.vector-size (mut i32))
-      (field $hd.vector-values (mut (ref $hd.list)))))
+      (field $hd.vector-values (mut (ref $hd.list)))
+      (field $hd.vector-version (mut i32))))
+    (type $hd.iterator (struct
+      (field $hd.iterator-list (ref null $hd.vector))
+      (field $hd.iterator-map (ref null $hd.map))
+      (field $hd.iterator-index (mut i32))
+      (field $hd.iterator-version i32)))
     (type $hd.map (struct
       (field $hd.map-key-kind i32)
       (field $hd.map-size (mut i32))
       (field $hd.map-keys (mut (ref $hd.list)))
-      (field $hd.map-values (mut (ref $hd.list)))))
+      (field $hd.map-values (mut (ref $hd.list)))
+      (field $hd.map-version (mut i32))))
     (type $hd.providers (struct
       (field $hd.provider-key i32)
       (field $hd.provider-value anyref)
@@ -1214,7 +1285,7 @@ export function emitWat(program: HirProgram): string {
       (field $hd.box-f64-value f64)))
     (type $hd.box-extern (struct
       (field $hd.box-extern-value externref)))
-    (type $hd.variant (struct
+${hostProviders.types ? hostProviders.types + "\n" : ""}    (type $hd.variant (struct
       (field $hd.variant-tag i32)
       (field $hd.variant-payload (mut anyref))))
 ${[...signatureNames]
@@ -1238,21 +1309,22 @@ ${[...contextNames]
 ${program.traits
   .map(
     (trait) => `    (type $trait${trait.index} (struct
-      (field $trait${trait.index}value anyref)${trait.methods.map((method) => `\n      (field $trait${trait.index}m${method.index} (ref $tsig${trait.index}_${method.index}))`).join("")}))`,
+      (field $trait${trait.index}value anyref)
+      (field $trait${trait.index}bounds (ref null $hd.list))${trait.methods.map((method) => `\n      (field $trait${trait.index}m${method.index} (ref $tsig${trait.index}_${method.index}))`).join("")}${trait.supertraits.map((supertrait, index) => `\n      (field $trait${trait.index}s${index} (ref null $trait${supertrait.traitIndex}))`).join("")}))`,
   )
   .join("\n")}
-${program.functions
+${[...program.functions, ...program.closures]
   .filter((declaration) => declaration.suspending)
   .map((declaration) => {
-    const plan = suspensionPlans.get(declaration.index);
+    const plan = suspensionPlans.get(suspensionIndex(declaration));
     const sites = plan?.sites ?? linearSuspensionSites(declaration);
     const storedLocals =
       sites.length > 0
         ? [...declaration.locals.filter((local) => !local.parameter), ...(plan?.temporaries ?? [])]
         : [];
-    return `    (type $s${declaration.index} (struct
-      (field $s${declaration.index}state (mut i32))
-      (field $s${declaration.index}polls (mut i32))${declaration.parameters.map((parameter, index) => `\n      (field $s${declaration.index}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${declaration.index}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${declaration.index}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${declaration.index}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${declaration.index}child${"siteIndex" in site ? site.siteIndex : site.index} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${declaration.index}result (mut ${emitter.watType(declaration.result)}))`}))`;
+    return `    (type $s${suspensionIndex(declaration)} (struct
+      (field $s${suspensionIndex(declaration)}state (mut i32))
+      (field $s${suspensionIndex(declaration)}polls (mut i32))${declaration.closure ? `\n      (field $s${suspensionIndex(declaration)}env anyref)` : ""}${declaration.parameters.map((parameter, index) => `\n      (field $s${suspensionIndex(declaration)}a${index} ${emitter.watType(parameter.type)})`).join("")}${declaration.genericBounds.map((bound, index) => `\n      (field $s${suspensionIndex(declaration)}b${index} (ref null $trait${bound.traitIndex}))`).join("")}${declaration.requirements.map((requirement, index) => `\n      (field $s${suspensionIndex(declaration)}p${index} ${providerWatType(requirement, traitsByName)})`).join("")}${storedLocals.map((local) => `\n      (field $s${suspensionIndex(declaration)}l${local.index} (mut ${emitter.watType(local.type)}))`).join("")}${sites.map((site) => `\n      (field $s${suspensionIndex(declaration)}child${"siteIndex" in site ? site.siteIndex : site.index} (mut (ref null ${suspensionFrameTypeName(site.drive)})))`).join("")}${declaration.result === "void" ? "" : `\n      (field $s${suspensionIndex(declaration)}result (mut ${emitter.watType(declaration.result)}))`}))`;
   })
   .join("\n")}
 ${program.closures.map((closure) => `    (type $env${closure.index} (struct${closure.captures.length ? "\n" + closure.captures.map((capture) => `      (field $env${closure.index}f${capture.fieldIndex} ${emitter.watType(capture.source.type)})`).join("\n") : ""}))`).join("\n")}\n${program.data
@@ -1298,13 +1370,13 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .map((declaration) =>
       [
         declaration.suspending &&
-        (suspensionPlans.has(declaration.index) || linearSuspensionSites(declaration).length > 0)
+        (suspensionPlans.has(suspensionIndex(declaration)) ||
+          linearSuspensionSites(declaration).length > 0)
           ? ""
           : indent(emitter.emit(declaration)),
         declaration.suspending ? indent(emitter.emitSuspensionSupport(declaration)) : "",
-        !declaration.closure &&
-        !declaration.suspending &&
-        declaration.genericParameters.length === 0
+        (!declaration.closure && declaration.genericParameters.length === 0) ||
+        (declaration.closure && declaration.suspending)
           ? indent(emitter.emitFunctionValueWrapper(declaration))
           : "",
       ]
@@ -1315,13 +1387,12 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
   const adapters = emitter.emitCallableAdapters();
   const traitAdapters = emitter.emitTraitAdapters();
   const traitSuspensionHelpers = emitter.emitTraitSuspensionHelpers();
+  const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
   const referenceableFunctions = [
     ...program.closures.map((closure) => `$c${closure.index}`),
     ...program.functions
-      .filter(
-        (declaration) => !declaration.suspending && declaration.genericParameters.length === 0,
-      )
-      .map((declaration) => `$fv${declaration.index}`),
+      .filter((declaration) => declaration.genericParameters.length === 0)
+      .map((declaration) => `$fv${suspensionIndex(declaration)}`),
     ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
     ...program.implementations.flatMap((implementation) =>
       implementation.methodFunctions.map(
@@ -1340,16 +1411,19 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
           : [],
       );
     }),
+    ...hostProviders.references,
+    ...storedSuspensionAdapterReferences(program),
   ];
   const declarations =
     referenceableFunctions.length > 0
       ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
       : "";
   const imports = [
-    program.functions.some((declaration) => declaration.suspending)
+    hostProviders.imports,
+    [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
       ? `  (import "hd" "trace" (func $hd.trace (param i32 i32)))`
       : "",
-    program.functions.some((declaration) => declaration.suspending)
+    [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
       ? `  (import "hd" "pending" (func $hd.pending (param i32 i32) (result i32)))`
       : "",
     emitter.requiresFloatPower
@@ -1358,11 +1432,29 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     emitter.requiresFloatDisplay
       ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))`
       : "",
+    emitter.requiresStringTransforms
+      ? [
+          `  (import "hd" "string_transform_begin" (func $hd.string_transform_begin (param i32)))`,
+          `  (import "hd" "string_transform_input" (func $hd.string_transform_input (param i32)))`,
+          `  (import "hd" "string_transform_output" (func $hd.string_transform_output (param i32) (result i32)))`,
+        ].join("\n")
+      : "",
+    `  (import "hd" "panic" (func $hd.panic (param i32)))`,
     emitter.requiresConsoleOutput
       ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
       : "",
   ]
     .filter(Boolean)
     .join("\n");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${MAP_RUNTIME_WAT}${emitter.requiresFloatDisplay ? "\n\n" + FLOAT_RUNTIME_WAT : ""}${emitter.requiresConsoleOutput ? "\n\n" + CONSOLE_RUNTIME_WAT : ""}${declarations}\n${functions}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}\n)`;
+  const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
+  const optionalRuntime = [
+    emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
+    emitter.requiresConsoleOutput ? CONSOLE_RUNTIME_WAT : "",
+    emitter.requiresStringSplit ? STRING_SPLIT_RUNTIME_WAT : "",
+    emitter.requiresStringTransforms ? STRING_TRANSFORM_RUNTIME_WAT : "",
+  ]
+    .filter(Boolean)
+    .map((runtime) => `\n\n${runtime}`)
+    .join("");
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }

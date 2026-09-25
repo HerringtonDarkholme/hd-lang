@@ -3,8 +3,35 @@ import type { HirFunction, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
+import { matchTraitImplementation, substituteGenericType } from "./shared.ts";
 
-import type { ProgramCheckContext } from "./program-context.ts";
+import type { ImplementationPreparation, ProgramCheckContext } from "./program-context.ts";
+
+function supertraitImplementationIndices(
+  implementation: ImplementationPreparation,
+  implementations: readonly ImplementationPreparation[],
+): number[] {
+  const traitSubstitutions = new Map(
+    implementation.trait.genericParameters.map(
+      (parameter, index) => [parameter, implementation.traitArguments[index]!] as const,
+    ),
+  );
+  return implementation.trait.supertraits.map((supertrait) => {
+    const expectedArguments = supertrait.traitArguments.map((argument) =>
+      substituteGenericType(argument, traitSubstitutions),
+    );
+    return implementations.findIndex((candidate) =>
+      Boolean(
+        matchTraitImplementation(
+          candidate,
+          supertrait.traitIndex,
+          implementation.targetType,
+          expectedArguments,
+        ),
+      ),
+    );
+  });
+}
 
 export function lowerCheckedProgram(
   context: ProgramCheckContext,
@@ -20,13 +47,29 @@ export function lowerCheckedProgram(
     traitTypes,
     implementationPreparations,
     inherentMethods,
+    hostCapabilities,
   } = context;
   const implementations: HirTraitImplementation[] = implementationPreparations.map(
     (implementation, index) => ({
       index,
       traitIndex: implementation.trait.index,
       traitName: implementation.trait.name,
+      traitArguments: implementation.traitArguments,
       targetType: implementation.targetType,
+      associatedTypes: implementation.associatedTypes,
+      genericParameters: implementation.declaration.genericParameters,
+      genericBounds:
+        implementation.methods.length === 0
+          ? []
+          : signatures
+              .get(implementation.methods[0]!.declaration.name)!
+              .genericBounds.filter((bound) =>
+                implementation.declaration.genericParameters.includes(bound.parameter),
+              ),
+      supertraitImplementations: supertraitImplementationIndices(
+        implementation,
+        implementationPreparations,
+      ),
       methodFunctions: implementation.methods.map((method) => ({
         methodIndex: method.methodIndex,
         functionIndex: signatures.get(method.declaration.name)!.index,
@@ -102,6 +145,10 @@ export function lowerCheckedProgram(
           globals: [...globals.values()],
           functions,
           closures,
+          hostCapabilities: [...hostCapabilities],
+          initializer: moduleDeclaration
+            ? signatures.get(moduleDeclaration.name)!.index
+            : undefined,
         },
         diagnostics,
       };

@@ -1,5 +1,4 @@
-# expect-error: trailing-block-position
 transaction:
     save_user()
-:
+:  # diagnostic: trailing-block-position
     save_again()

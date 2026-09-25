@@ -1,0 +1,15 @@
+use std.testing.assert
+
+test "tuples and lists compare lexicographically":
+    assert(("ada", 2) < ("grace", 0), reason="the first unequal tuple field decides")
+    assert(("ada", 1) < ("ada", 2), reason="later tuple fields break ties")
+    assert([1, 2] < [1, 3], reason="the first unequal list element decides")
+    assert([1, 2] < [1, 2, 0], reason="a shared-prefix shorter list sorts first")
+
+test "optional ordering places nil before present values":
+    let absent: i32? = nil
+    let one: i32? = 1
+    let two: i32? = 2
+    assert(absent < one, reason="nil sorts before every present value")
+    assert(one < two, reason="present optional payloads compare")
+    assert(two >= one, reason="greater-than-or-equal uses the same ordering")

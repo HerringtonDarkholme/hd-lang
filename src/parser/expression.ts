@@ -1,5 +1,6 @@
 import type {
   ClosureParameter,
+  ComprehensionClause,
   DataExpressionField,
   DataPatternField,
   Expression,
@@ -46,9 +47,28 @@ type NameExpression = Extract<Expression, { kind: "name" }>;
 
 export abstract class ExpressionParser extends ParserBase {
   protected parseExpression(minimumPrecedence = 0): Expression {
+    if (
+      minimumPrecedence === 0 &&
+      this.current().kind === "identifier" &&
+      this.peek(1).text === ":="
+    ) {
+      const name = this.advance();
+      this.advance();
+      const value = this.parseExpression();
+      return {
+        kind: "binding-expression",
+        bindings: [{ name: name.text, span: name.span }],
+        value,
+        span: { start: name.span.start, end: value.span.end },
+      };
+    }
     let left = this.parsePrefix();
     while (true) {
-      if (this.atText("[") && left.kind === "name" && this.typeArgumentsFollowedBySuffix()) {
+      if (
+        this.atText("[") &&
+        (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
+        this.typeArgumentsFollowedBySuffix()
+      ) {
         const start = left.span.start;
         this.advance();
         const typeArguments: TypeRef[] = [];
@@ -58,6 +78,19 @@ export abstract class ExpressionParser extends ParserBase {
         }
         const close = this.expectText("]");
         left = { ...left, typeArguments, span: { start, end: close.span.end } };
+        continue;
+      }
+      if (this.atText("::") && left.kind === "name") {
+        if (12 < minimumPrecedence) break;
+        this.advance();
+        const member = this.expectKind("identifier", "expected an associated function name");
+        left = {
+          kind: "qualified-name",
+          owner: left.name,
+          ownerTypeArguments: left.typeArguments,
+          name: member.text,
+          span: { start: left.span.start, end: member.span.end },
+        };
         continue;
       }
       if (this.atText("{") && left.kind === "name") {
@@ -154,6 +187,7 @@ export abstract class ExpressionParser extends ParserBase {
           return (
             next.text === "{" ||
             next.text === "(" ||
+            next.text === "::" ||
             (next.text === "!" && this.peek(distance + 2).text === "(")
           );
         }
@@ -228,9 +262,17 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "nil", span: token.span };
     }
     if (this.matchText("[")) {
+      if (this.atText("for")) return this.parseListComprehension(token);
       const elements: Expression[] = [];
       if (!this.atText("]")) {
         do {
+          const multiBinding = this.unparenthesizedMultiBindingOperator();
+          if (multiBinding)
+            this.fail(
+              "multi-binding-needs-parentheses",
+              "a multi-name binding inside delimiters must be parenthesized",
+              multiBinding.span,
+            );
           const element = this.parseExpression();
           if (this.atText(":="))
             this.fail(
@@ -251,6 +293,7 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "list", elements, span: { start: token.span.start, end: close.span.end } };
     }
     if (this.matchText("{")) {
+      if (this.atText("for")) return this.parseMapComprehension(token);
       const entries: MapEntry[] = [];
       if (!this.atText("}")) {
         do {
@@ -278,6 +321,8 @@ export abstract class ExpressionParser extends ParserBase {
           span: { start: token.span.start, end: close.span.end },
         };
       }
+      const groupedBinding = this.parseGroupedBindingExpression(token);
+      if (groupedBinding) return groupedBinding;
       const first = this.parseExpression();
       if (!this.matchText(",")) {
         this.expectText(")");
@@ -292,6 +337,38 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "tuple", elements, span: { start: token.span.start, end: close.span.end } };
     }
     this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
+  }
+
+  private parseGroupedBindingExpression(open: Token): Expression | undefined {
+    if (this.current().kind !== "identifier" || this.peek(1).text !== ",") return undefined;
+    let distance = 2;
+    while (this.peek(distance).kind === "identifier" && this.peek(distance + 1).text === ",")
+      distance += 2;
+    if (this.peek(distance).kind !== "identifier" || this.peek(distance + 1).text !== ":=")
+      return undefined;
+    const names = [this.advance()];
+    while (this.matchText(","))
+      names.push(this.expectKind("identifier", "expected a binding name after ','"));
+    this.expectText(":=");
+    const value = this.parseExpression();
+    const close = this.expectText(")");
+    return {
+      kind: "binding-expression",
+      bindings: names.map((name) => ({ name: name.text, span: name.span })),
+      value,
+      span: { start: open.span.start, end: close.span.end },
+    };
+  }
+
+  private unparenthesizedMultiBindingOperator(): Token | undefined {
+    if (this.current().kind !== "identifier" || this.peek(1).text !== ",") return undefined;
+    let distance = 2;
+    while (this.peek(distance).kind === "identifier") {
+      if (this.peek(distance + 1).text === ":=") return this.peek(distance + 1);
+      if (this.peek(distance + 1).text !== ",") return undefined;
+      distance += 2;
+    }
+    return undefined;
   }
 
   protected parseDataExpression(name: NameExpression): Expression {
@@ -333,9 +410,27 @@ export abstract class ExpressionParser extends ParserBase {
   }
 
   protected parseCall(callee: Expression, suspending = false): Expression {
-    const typeArguments = callee.kind === "name" ? callee.typeArguments : undefined;
+    const typeArguments =
+      callee.kind === "name" || callee.kind === "member" || callee.kind === "qualified-name"
+        ? callee.typeArguments
+        : undefined;
     if (typeArguments && callee.kind === "name")
       callee = { kind: "name", name: callee.name, span: callee.span };
+    if (typeArguments && callee.kind === "member")
+      callee = {
+        kind: "member",
+        receiver: callee.receiver,
+        name: callee.name,
+        span: callee.span,
+      };
+    if (typeArguments && callee.kind === "qualified-name")
+      callee = {
+        kind: "qualified-name",
+        owner: callee.owner,
+        ownerTypeArguments: callee.ownerTypeArguments,
+        name: callee.name,
+        span: callee.span,
+      };
     this.expectText("(");
     const args: Expression[] = [];
     const argumentNames: Array<string | undefined> = [];
@@ -441,6 +536,73 @@ export abstract class ExpressionParser extends ParserBase {
     };
   }
 
+  private parseListComprehension(open: Token): Expression {
+    const clauses = this.parseComprehensionClauses();
+    this.expectText("=>");
+    const value = this.parseExpression();
+    const close = this.expectText("]");
+    return {
+      kind: "list-comprehension",
+      clauses,
+      value,
+      span: { start: open.span.start, end: close.span.end },
+    };
+  }
+
+  private parseMapComprehension(open: Token): Expression {
+    const clauses = this.parseComprehensionClauses();
+    this.expectText("=>");
+    const key = this.parseExpression();
+    this.expectText(":");
+    const value = this.parseExpression();
+    const close = this.expectText("}");
+    return {
+      kind: "map-comprehension",
+      clauses,
+      key,
+      value,
+      span: { start: open.span.start, end: close.span.end },
+    };
+  }
+
+  private parseComprehensionClauses(): ComprehensionClause[] {
+    const clauses: ComprehensionClause[] = [];
+    while (!this.atText("=>")) {
+      const keyword = this.current();
+      if (this.matchText("for")) {
+        const names = [this.expectKind("identifier", "expected a comprehension binding name")];
+        while (this.matchText(","))
+          names.push(
+            this.expectKind("identifier", "expected a comprehension binding name after ','"),
+          );
+        this.expectText("in");
+        const iterable = this.parseExpression();
+        clauses.push({
+          kind: "for",
+          bindings: names.map((name) => ({ name: name.text, span: name.span })),
+          iterable,
+          span: { start: keyword.span.start, end: iterable.span.end },
+        });
+        continue;
+      }
+      if (this.matchText("if")) {
+        const condition = this.parseExpression();
+        clauses.push({
+          kind: "if",
+          condition,
+          span: { start: keyword.span.start, end: condition.span.end },
+        });
+        continue;
+      }
+      this.fail(
+        "expected-comprehension-clause",
+        "expected 'for', 'if', or '=>' in a comprehension",
+        keyword.span,
+      );
+    }
+    return clauses;
+  }
+
   protected parseMatch(keyword: Token): Expression {
     const subject = this.parseExpression();
     this.expectText(":");
@@ -484,6 +646,7 @@ export abstract class ExpressionParser extends ParserBase {
   }
 
   protected parseClosure(keyword: Token): Expression {
+    const suspending = this.matchText("!");
     this.expectText("(");
     const parameters: ClosureParameter[] = [];
     if (!this.atText(")")) {
@@ -503,6 +666,7 @@ export abstract class ExpressionParser extends ParserBase {
     const body = this.parseSuite();
     return {
       kind: "closure",
+      ...(suspending ? { suspending: true } : {}),
       parameters,
       result,
       requirements,
@@ -514,12 +678,7 @@ export abstract class ExpressionParser extends ParserBase {
   protected parseLocalFunction(): Statement {
     const start = this.expectText("fn").span.start;
     const name = this.expectKind("identifier", "expected a local function name");
-    if (this.matchText("!"))
-      this.fail(
-        "unsupported-local-suspending-function",
-        "suspending local functions are outside the current closure slice",
-        this.peek(-1).span,
-      );
+    const suspending = this.matchText("!");
     if (this.atText("["))
       this.fail(
         "unsupported-local-generic-function",
@@ -560,6 +719,7 @@ export abstract class ExpressionParser extends ParserBase {
     const end = body.at(-1)!.span.end;
     const closure: Expression = {
       kind: "closure",
+      ...(suspending ? { suspending: true } : {}),
       parameters,
       result,
       requirements,
@@ -571,7 +731,7 @@ export abstract class ExpressionParser extends ParserBase {
       name: name.text,
       mutable: false,
       annotation: {
-        name: `fn(${parameters.map((parameter) => parameter.type!.name).join(",")})->${result.name}${requirements.length ? `$${requirements.join("+")}` : ""}`,
+        name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => parameter.type!.name).join(",")})->${result.name}${requirements.length ? `$${requirements.join("+")}` : ""}`,
         span: { start: name.span.start, end: result.span.end },
       },
       value: closure,

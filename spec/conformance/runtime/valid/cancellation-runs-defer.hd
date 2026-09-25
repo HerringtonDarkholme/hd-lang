@@ -2,7 +2,7 @@
 # fixture-runtime-scenario: cancellation-cleanup
 let cleaned: bool = false
 
-trait Gate:
+pub trait Gate:
     fn wait!(self) -> void
 
 fn pending!() -> void $ Gate:

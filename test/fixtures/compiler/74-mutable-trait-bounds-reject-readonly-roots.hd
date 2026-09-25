@@ -1,0 +1,18 @@
+# test: mutable trait bounds reject readonly roots
+
+trait Clear:
+    fn clear(mut self) -> void
+
+data Counter:
+    value: i32
+
+impl Clear for Counter:
+    fn clear(mut self) -> void:
+        self.value = 0
+
+fn clear_value[T: mut Clear](value: T) -> void:
+    value.clear()
+
+fn reject_readonly() -> void:
+    counter := Counter { value: 42 }
+    clear_value(counter)  # diagnostic: mutable-bound-required

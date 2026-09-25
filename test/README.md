@@ -26,7 +26,12 @@ fn main() -> i32: 1 / 0  # panic: integer-division-by-zero
 
 Use `# warning: CODE` for non-fatal compiler diagnostics and
 `# expect-result: ENTRY = VALUE` for scalar exports. The portable harness checks
-both the diagnostic code and the annotated line number.
+both the diagnostic code and the annotated line number. A `# panic: CODE`
+fixture must fail with that exact runtime panic code; `runtime-error` is
+reserved for backend traps that do not yet have a structured code.
+`# expect: test` runs the fixture's `main` and named test blocks through the
+public test command. A `# fixture-runtime-profile: NAME` directive supplies the
+same named host profile to check and execution.
 
 Run the portable behavior suite with:
 
@@ -42,3 +47,7 @@ HD_TEST_COMMAND="other-hd" node --experimental-strip-types test/run-portable.ts
 
 The runner uses up to eight cores by default. Override that with
 `HD_TEST_JOBS=4` or `--jobs 4`.
+
+The specification grammar oracle is also TypeScript and parses fixtures in a
+worker-thread pool. It shares `HD_TEST_JOBS` by default; set `HD_SPEC_JOBS` to
+tune that gate independently.

@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+let initialized: i32 = 0
+initialized = initialized + 1
+
+pub fn main() -> void:
+    assert_equal(
+        initialized,
+        1,
+        reason="module initialization must run before main",
+    )

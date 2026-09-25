@@ -1,0 +1,19 @@
+# test: associated functions use qualified calls with ordinary and generic signatures
+# expect-result: month_days = 30
+# expect-result: selected = 42
+
+data Duration:
+    day_count: i32
+
+impl Duration:
+    fn days(count: i32) -> Self:
+        Duration { day_count: count }
+
+    fn choose[Value](value: Value) -> Value:
+        value
+
+fn month_days() -> i32:
+    Duration::days(30).day_count
+
+fn selected() -> i32:
+    Duration::choose[i32](42)

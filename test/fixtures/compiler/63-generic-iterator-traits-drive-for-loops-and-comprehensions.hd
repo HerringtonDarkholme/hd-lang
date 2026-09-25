@@ -1,0 +1,26 @@
+# test: generic Iterator traits drive for loops and comprehensions
+# expect-result: main = 42
+
+data Counter:
+    current: i32
+    end: i32
+
+impl Iterator[i32] for Counter:
+    fn next(mut self) -> i32?:
+        if self.current >= self.end:
+            return nil
+        value := self.current
+        self.current = self.current + 1
+        value
+
+fn main() -> i32:
+    let counter: mut Counter = Counter { current: 2, end: 5 }
+    values := [for value in counter => value * 10]
+    let second: mut Counter = Counter { current: 0, end: 3 }
+    let total: i32 = 0
+    for value in second:
+        total = total + value
+    if values.len() == 3 and values[0] == 20 and values[2] == 40 and counter.current == 5 and total == 3:
+        42
+    else:
+        0

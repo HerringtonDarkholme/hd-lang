@@ -1,0 +1,38 @@
+use std.testing.assert
+
+data Score:
+    value: i32
+
+impl PartialEq for Score:
+    fn eq(self, other: Self) -> bool:
+        self.value == other.value
+
+impl PartialOrd for Score:
+    fn partial_cmp(self, other: Self) -> Ordering?:
+        if self.value < other.value:
+            Ordering.Less
+        else if self.value > other.value:
+            Ordering.Greater
+        else:
+            Ordering.Equal
+
+fn lower[T: PartialOrd](left: T, right: T) -> bool:
+    left < right
+
+fn lower_list[T: PartialOrd](left: list[T], right: list[T]) -> bool:
+    left < right
+
+test "PartialOrd dispatches for concrete and bounded values":
+    low := Score { value: 1 }
+    same := Score { value: 1 }
+    high := Score { value: 2 }
+    assert(low < high, reason="concrete less-than dispatch")
+    assert(low <= same, reason="equal values satisfy less-than-or-equal")
+    assert(high > low, reason="concrete greater-than dispatch")
+    assert(high >= same, reason="greater values satisfy greater-than-or-equal")
+    assert(lower(low, high), reason="generic bound dictionary dispatch")
+    assert(lower_list([low], [high]), reason="nested list ordering uses its element dictionary")
+    assert((low, same) < (same, high), reason="tuple fields use explicit implementations")
+    let optional_low: Score? = low
+    let optional_high: Score? = high
+    assert(optional_low < optional_high, reason="optional payload ordering dispatch")

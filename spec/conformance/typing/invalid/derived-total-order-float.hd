@@ -1,5 +1,4 @@
-# expect-error: field-not-eq
 
 @derive(PartialEq, Eq, PartialOrd, Ord)
 data Measurement:
-    value: f64
+    value: f64  # diagnostic: field-not-eq

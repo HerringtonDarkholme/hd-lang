@@ -57,19 +57,27 @@ linked through npm.
 - source-ordered module bindings backed by typed Wasm globals, including
   function reads and reassignment of top-level `let` bindings, binding-point
   visibility, and transitive initialization checks through referenced
-  functions and closures;
+  functions and closures; a Wasm start function runs module initialization
+  exactly once before either a script entry or a declared `main`;
 - top-level `pub` visibility metadata for functions and nominal types, with
   private-signature leak checks and an MVP `Console` host-capability profile
-  for public `main` entry points;
+  for public `main` entry points; named runtime profiles can admit explicit
+  user trait capabilities;
 - named `test` blocks retained in the AST and checked as active driver bodies,
   including the same explicit-discard and must-use rules as functions, and
   emitted as internal `__hd_test_N` Wasm driver exports for the harness;
-- complete explicit generic call arguments with per-slot `_` inference, plus
-  indented zero-argument trailing callback blocks;
+- complete explicit generic call arguments with per-slot `_` inference for
+  functions and inherent methods, plus indented zero-argument trailing
+  callback blocks;
 - stored function fields remain callable through readonly data views and
   preserve their declared result permission;
+- first-class `fn!` values for named suspending functions and capturing
+  suspending closures, including ordinary construction, direct bang calls,
+  provider forwarding, and one-way weakening to `fn(...) -> mut Suspend[T]`;
+- the sealed prelude `Waker` trait is available as a dynamic value at the
+  suspension boundary, including retention through ordinary functions;
 - named local functions lowered through typed closure bindings, including
-  enclosing captures and recursion;
+  enclosing captures, recursion, suspension, and requirement forwarding;
 - `i32`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8 `string` values;
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed numeric selection, stored in erased Wasm GC arrays;
@@ -83,10 +91,21 @@ linked through npm.
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
   the narrow host byte callback;
+- suspending host capability methods with scalar and UTF-8 string arguments
+  and results, using opaque per-call tokens and a byte-stream bridge that keeps
+  Wasm GC references inside Wasm;
+- JSON-safe host-provider replay values with tagged integers, exact IEEE-754
+  `f64` bits, and exact hex-encoded UTF-8 bytes;
 - value-producing `if`, statement `if`, `while`, value-producing `while ...
-  else`, `break`, `break value`, and `continue`;
+else`, `break`, `break value`, and `continue`;
 - list and insertion-ordered map `for` iteration with tuple destructuring and
   value-producing `for ... else`;
+- eager list and map comprehensions with ordered nested clauses, conditional
+  filters, lexical clause bindings, duplicate map-key replacement, and a
+  compile-time ban on suspension calls;
+- right-associative single and tuple binding expressions with enclosing-scope
+  visibility, readonly inferred bindings, and flow-sensitive initialization
+  across short-circuit conditions;
 - lexical branch and loop scopes;
 - data declarations, literals, and field reads backed by Wasm GC structs,
   including pure per-construction field defaults evaluated after explicit
@@ -136,20 +155,35 @@ linked through npm.
   including `mut self` enforcement through static, dynamic, default, and
   generic-bound dispatch;
 - inherent `impl Type:` methods lowered to direct typed functions, including
-  named arguments, mutable receivers, suspending calls, and duplicate-member
-  diagnostics;
+  erased method-level generics with bounds, explicit or inferred type
+  arguments, named arguments, mutable receivers, suspending calls, and
+  duplicate-member diagnostics;
+- receiverless associated functions called through `Type::function`, including
+  `Self` substitution, method-level generics, and suspending calls;
+- blanket trait implementations over generic targets, with unified target and
+  trait-argument inference; their adapters materialize static, dynamic, and
+  bound dictionaries for ordinary and suspending methods; bounded blanket
+  dictionaries capture nested dictionaries, including when forwarded from a
+  caller or retained by a parent supertrait;
 - embedded data fields with direct field and method promotion, including
   generic substitution through the embedded edge, plus bodyless explicit trait
   opt-in for one compatible readonly promoted method; mutable promoted
   requirements are rejected at the embedded readonly edge;
 - default trait methods with target-specific lowering, dynamic method-table
   entries, and explicit override precedence;
+- generic supertraits substitute parent arguments through inherited calls and
+  checked trait-value widening; child dictionaries retain blanket or concrete
+  parent implementations;
 - suspending trait methods with typed dynamic GC-frame wrappers, trait-bound
   dispatch, stored driving, and cancellation forwarding;
 - erased generic parameters with independent GC dictionaries for multiple
   trait bounds, dictionary forwarding, method dispatch on values produced
   inside generic bodies, and concrete call-site recovery for returned `T`
   values;
+- concrete and bounded generic `PartialEq` and `PartialOrd` dispatch, with
+  structural equality for tuples, lists, optionals, `Result`, and maps and
+  lexicographic tuple/list plus nil-first optional ordering, recursively using
+  explicit implementations and erased bound dictionaries for nested values;
 - generic data declarations with inferred or complete explicit construction
   arguments, precise instantiated member types, and uniform `anyref` field
   erasure in one Wasm GC layout per declaration;
@@ -164,22 +198,37 @@ linked through npm.
   direct and stored bang driving, explicit `mut Suspend[T]` bindings,
   child-pending propagation, local spilling, synchronous cancellation, and
   one-shot, competing-driver, and reentrant poll/cancel state traps;
+- uniform Wasm GC `Suspend[T]` wrappers with concrete-frame poll, cancel, and
+  boxed-result references, preserving identity through data fields, optionals,
+  generic function parameters, and aliases;
 - module-level single and grouped `use` syntax, with executable
   `std.task.block_on` support, a per-instance active-driver guard, and nested
   driver traps;
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
-- executable `std.testing.assert_equal` for supported scalar, string, tuple,
-  and recursively nested list values, with `missing-partial-eq` at unsupported
-  types;
+- executable `std.testing.assert` with source-order argument evaluation, plus
+  `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
+  and order-independent map values and for explicit nominal or bounded generic
+  `PartialEq` implementations, with mandatory reasons and
+  `missing-partial-eq` at unsupported types;
 - suspension CFG lowering for bang calls nested in expressions, call
   arguments, short-circuiting, branches, loops, match guards, propagation, and
   provider scopes, with scoped cleanup and cancellation;
 - a frame-level poll ABI that returns readiness separately from the stored
   result, plus host-visible construction, poll, ready, cancellation, and
   invalid-state trace events;
-- deterministic host pending fixtures with poll counts and GC-frame resumption;
+- deterministic host pending fixtures with poll counts and GC-frame resumption,
+  including a portable CLI scenario that cancels a root while a named nested
+  frame is pending and checks its source-defined cleanup result;
+- a `pending-gate` runtime profile that wraps an opaque host provider as a Wasm
+  GC trait value, polls its suspending method, forwards cancellation, and
+  verifies the original provider-backed cleanup fixture;
+- scalar host-provider method arguments and results for `i32`, `f64`, `bool`,
+  and `char`, with an opaque per-invocation token and provider poll replay that
+  restores recorded readiness and scalar results without calling the live host;
+- JSON-safe tagged scalar replay values, with exact IEEE-754 bit strings for
+  `f64` values such as negative zero, infinities, and NaN;
 - started-frame cancellation that cancels the active child before registered
   top-level cleanup, plus scalar development start/poll/cancel exports;
 - suspension poll record/replay with function-name-based site identities that
@@ -187,6 +236,10 @@ linked through npm.
   identity, argument/result and provider configuration checks, and CLI sidecar
   commands;
 - strings backed by Wasm GC byte arrays, with scalar-counting `string.len()`;
+- Unicode `string.trim()` and default-case `string.lower()` through a bytewise
+  host bridge that reconstructs the result as a Wasm GC byte array;
+- `string.split()` implemented in WAT, retaining boundary empty pieces and
+  splitting an empty separator into Unicode scalar strings;
 - non-suspending `defer` on normal completion, return, break, and continue;
 - homogeneous `list[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
@@ -194,6 +247,11 @@ linked through npm.
 - insertion-ordered `map[K, V]` literals with duplicate replacement, optional
   indexed or `get()` lookup, `len()`, growable indexed insertion and
   `remove()` through `mut map[K, V]`, and erased Wasm GC key/value storage;
+- built-in list and map `iter()` values as mutable Wasm GC cursors whose
+  `next()` yields `T?`; explicit and `for`-loop iteration share exhaustion,
+  partly consumed cursor, replacement, and structural invalidation behavior;
+- explicit `Iterator[T]` implementations participate in ordinary `for` loops
+  and comprehensions through their mutable `next()` method;
 - typed HIR, readable WAT output, Binaryen validation, and V8 execution; and
 - an implementation-neutral conformance gate tied to
   `spec/conformance/cases.tsv`, invoked through the public CLI by a concurrent
@@ -201,12 +259,17 @@ linked through npm.
   complete prelude-name shadow protection, and non-fatal unreachable-code,
   unused-local, and variant-binding-name-mismatch warnings.
 
+Selected runtime failures cross the development host boundary with stable
+codes, including explicit panic, assertions, integer overflow and division,
+invalid shifts, list bounds, iterator invalidation, and suspension driver/state
+failures. Portable panic fixtures verify the declared code rather than
+accepting an arbitrary Wasm trap.
+
 The active boundary is intentionally narrower than the language specification.
-Task combinator intrinsics, associated and generic trait members, provider-call
-replay, and annotations remain in later MVP slices. The compiler
-rejects syntax it recognizes from those slices rather than assigning placeholder
-semantics; unresolved `all!` and `race!` calls report
-`unsupported-task-combinator`.
+Task combinator intrinsics, strings and structural values in the host-provider
+ABI, and annotations remain in later MVP slices. The compiler rejects syntax it
+recognizes from those slices rather than assigning placeholder semantics;
+unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
 Interpolation and `println` report `missing-display` when the displayed type
 does not implement the canonical prelude trait.
 

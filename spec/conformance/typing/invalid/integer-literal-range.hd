@@ -1,3 +1,2 @@
-# expect-error: integer-literal-range
 
-let bad: u8 = 300
+let bad: u8 = 300  # diagnostic: integer-literal-range

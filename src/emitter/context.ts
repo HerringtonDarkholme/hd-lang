@@ -13,12 +13,15 @@ import {
   isErasedVariant,
   mutableInner,
   nominalGenericParts,
+  storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
+import { runtimePanicCode, type RuntimePanicName } from "../runtime-panic.ts";
 import {
+  containsGenericValueType,
   isGenericValueType,
   providerWatType,
   traitSuspensionName,
@@ -34,6 +37,16 @@ interface LoopContext {
 export interface CleanupFrame {
   readonly cleanups: Array<readonly HirStatement[]>;
   readonly loopBoundary: boolean;
+}
+
+export interface EmittedArguments {
+  readonly setup: readonly string[];
+  readonly values: readonly string[];
+}
+
+interface TraitDictionaryPath {
+  readonly dictionary: string;
+  readonly trait: HirTrait;
 }
 
 interface CallableAdapter {
@@ -53,12 +66,15 @@ export class EmitterContext {
   protected readonly traitsByName: ReadonlyMap<string, HirTrait>;
   protected readonly implementationsByIndex: ReadonlyMap<number, HirTraitImplementation>;
   protected readonly suspensionPlans: ReadonlyMap<number, SuspensionPlan>;
+  protected readonly hostCapabilities: ReadonlySet<string>;
   protected loopCounter = 0;
   protected readonly loops: LoopContext[] = [];
   protected readonly cleanupFrames: CleanupFrame[] = [];
   protected readonly temporaryTypes: ValueType[] = [];
   protected floatPower = false;
   protected floatDisplay = false;
+  protected stringTransforms = false;
+  protected stringSplit = false;
   protected consoleOutput = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
@@ -73,6 +89,7 @@ export class EmitterContext {
     traits: readonly HirTrait[],
     implementations: readonly HirTraitImplementation[],
     suspensionPlans: ReadonlyMap<number, SuspensionPlan> = new Map(),
+    hostCapabilities: readonly string[] = [],
   ) {
     this.dataByName = new Map(data.map((declaration) => [declaration.name, declaration]));
     this.dataByIndex = new Map(data.map((declaration) => [declaration.index, declaration]));
@@ -86,6 +103,63 @@ export class EmitterContext {
       implementations.map((implementation) => [implementation.index, implementation]),
     );
     this.suspensionPlans = suspensionPlans;
+    this.hostCapabilities = new Set(hostCapabilities);
+  }
+
+  protected emitTraitDictionary(
+    implementation: HirTraitImplementation,
+    value: string,
+    bounds: readonly string[],
+    parents: readonly string[],
+  ): string {
+    const trait = this.traitsByIndex.get(implementation.traitIndex)!;
+    const adapters = trait.methods.map(
+      (method) => `(ref.func $tadapt${implementation.index}_${method.index})`,
+    );
+    const boundPack =
+      bounds.length > 0
+        ? `(array.new_fixed $hd.list ${bounds.length} ${bounds.join(" ")})`
+        : `(ref.null $hd.list)`;
+    const fields = [...adapters, ...parents];
+    return `(struct.new $trait${trait.index} ${value} ${boundPack}${fields.length > 0 ? ` ${fields.join(" ")}` : ""})`;
+  }
+
+  protected traitMethodErasesResult(traitIndex: number, methodIndex: number): boolean {
+    const method = this.traitsByIndex.get(traitIndex)?.methods[methodIndex];
+    return method !== undefined && containsGenericValueType(method.result);
+  }
+
+  protected traitDictionaryPath(
+    receiverType: ValueType,
+    path: readonly number[] | undefined,
+    receiver: string,
+  ): TraitDictionaryPath {
+    let trait = this.traitsByName.get(traitTypeBase(receiverType))!;
+    let dictionary = receiver;
+    for (const fieldIndex of path ?? []) {
+      const supertrait = trait.supertraits[fieldIndex]!;
+      dictionary = `(struct.get $trait${trait.index} $trait${trait.index}s${fieldIndex} ${dictionary})`;
+      trait = this.traitsByIndex.get(supertrait.traitIndex)!;
+    }
+    return { dictionary, trait };
+  }
+
+  protected emitTraitUpcast(
+    sourceTrait: HirTrait,
+    targetTrait: HirTrait,
+    path: readonly number[],
+    value: string,
+  ): string {
+    const { dictionary } = this.traitDictionaryPath(`trait:${sourceTrait.name}`, path, value);
+    const methods = targetTrait.methods.map(
+      (method) =>
+        `(struct.get $trait${targetTrait.index} $trait${targetTrait.index}m${method.index} ${dictionary})`,
+    );
+    const parents = targetTrait.supertraits.map(
+      (_, index) =>
+        `(struct.get $trait${targetTrait.index} $trait${targetTrait.index}s${index} ${dictionary})`,
+    );
+    return `(struct.new $trait${targetTrait.index} (struct.get $trait${sourceTrait.index} $trait${sourceTrait.index}value ${value}) (struct.get $trait${targetTrait.index} $trait${targetTrait.index}bounds ${dictionary}) ${[...methods, ...parents].join(" ")})`;
   }
 
   watType(type: ValueType): string {
@@ -101,6 +175,7 @@ export class EmitterContext {
       return `(ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index})`;
     if (contextKeys(type)) return `(ref null $context${this.contextNames.get(type)})`;
     if (tupleParts(type) !== undefined) return `(ref null $hd.list)`;
+    if (storedSuspensionParts(type)) return `(ref null $hd.suspension)`;
     const suspension = suspensionParts(type);
     if (suspension) return `(ref null $s${suspension.functionIndex})`;
     const traitSuspension = traitSuspensionParts(type);
@@ -112,6 +187,8 @@ export class EmitterContext {
     if (type === "void") return "";
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
+    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+      return `(ref null $hd.iterator)`;
     if (nominalData?.name === "list" && nominalData.arguments.length === 1)
       return `(ref null $hd.vector)`;
     if (nominalData?.name === "map" && nominalData.arguments.length === 2)
@@ -132,6 +209,18 @@ export class EmitterContext {
 
   get requiresFloatDisplay(): boolean {
     return this.floatDisplay;
+  }
+
+  get requiresStringTransforms(): boolean {
+    return this.stringTransforms;
+  }
+
+  get requiresStringSplit(): boolean {
+    return this.stringSplit;
+  }
+
+  protected emitRuntimePanic(name: RuntimePanicName): string {
+    return `(call $hd.panic (i32.const ${runtimePanicCode(name)})) unreachable`;
   }
 
   get requiresConsoleOutput(): boolean {
@@ -155,10 +244,86 @@ export class EmitterContext {
     return providerWatType(requirement, this.traitsByName);
   }
 
+  protected hostTrait(requirement: string): HirTrait | undefined {
+    if (!this.hostCapabilities.has(requirement)) return undefined;
+    return this.traitsByName.get(nominalGenericParts(requirement)?.name ?? requirement);
+  }
+
+  protected entryProviderParameters(declaration: HirFunction): readonly string[] {
+    return declaration.requirements.map((requirement, index) =>
+      this.hostTrait(requirement)
+        ? `(param $provider${index} externref)`
+        : `(param $provider${index} ${this.providerType(requirement)})`,
+    );
+  }
+
+  protected entryProviderArguments(declaration: HirFunction): readonly string[] {
+    return declaration.requirements.map((requirement, index) => {
+      const trait = this.hostTrait(requirement);
+      return trait
+        ? `(call $hd.host_trait${trait.index} (local.get $provider${index}))`
+        : `(local.get $provider${index})`;
+    });
+  }
+
   protected hostSafe(type: ValueType): boolean {
     return (
       type === "i32" || type === "bool" || type === "char" || type === "f64" || type === "void"
     );
+  }
+
+  protected boxWatValue(value: string, type: ValueType): string {
+    const mutable = mutableInner(type);
+    if (mutable !== undefined) return this.boxWatValue(value, mutable);
+    if (isGenericValueType(type)) return value;
+    if (type === "i32" || type === "bool" || type === "char")
+      return `(struct.new $hd.box-i32 ${value})`;
+    if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
+    if (type === "void") return `(ref.null any)`;
+    return value;
+  }
+
+  protected unboxValue(payload: string, type: ValueType): string {
+    const mutable = mutableInner(type);
+    if (mutable !== undefined) return this.unboxValue(payload, mutable);
+    if (isGenericValueType(type)) return payload;
+    if (type === "i32" || type === "bool" || type === "char")
+      return `(struct.get $hd.box-i32 $hd.box-i32-value (ref.cast (ref $hd.box-i32) ${payload}))`;
+    if (type === "f64")
+      return `(struct.get $hd.box-f64 $hd.box-f64-value (ref.cast (ref $hd.box-f64) ${payload}))`;
+    if (type === "string") return `(ref.cast (ref null $hd.bytes) ${payload})`;
+    if (type.startsWith("trait:"))
+      return `(ref.cast (ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index}) ${payload})`;
+    if (type.startsWith("provider-row:")) return `(ref.cast (ref null $hd.providers) ${payload})`;
+    if (contextKeys(type))
+      return `(ref.cast (ref null $context${this.contextNames.get(type)}) ${payload})`;
+    if (tupleParts(type) !== undefined) return `(ref.cast (ref null $hd.list) ${payload})`;
+    if (storedSuspensionParts(type)) return `(ref.cast (ref null $hd.suspension) ${payload})`;
+    const suspension = suspensionParts(type);
+    if (suspension) return `(ref.cast (ref null $s${suspension.functionIndex}) ${payload})`;
+    const traitSuspension = traitSuspensionParts(type);
+    if (traitSuspension)
+      return `(ref.cast (ref null ${traitSuspensionName(traitSuspension.traitIndex, traitSuspension.methodIndex)}) ${payload})`;
+    if (isErasedVariant(type)) return `(ref.cast (ref null $hd.variant) ${payload})`;
+    const callable = functionParts(type);
+    if (callable)
+      return `(ref.cast (ref null $closure${this.functionSignatures.get(type)}) ${payload})`;
+    const data = this.dataByName.get(type);
+    const nominalData = nominalGenericParts(type);
+    if (nominalData?.name === "list" && nominalData.arguments.length === 1)
+      return `(ref.cast (ref null $hd.vector) ${payload})`;
+    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+      return `(ref.cast (ref null $hd.iterator) ${payload})`;
+    if (nominalData?.name === "map" && nominalData.arguments.length === 2)
+      return `(ref.cast (ref null $hd.map) ${payload})`;
+    if (nominalData && this.dataByName.has(nominalData.name))
+      return `(ref.cast (ref null $d${this.dataByName.get(nominalData.name)!.index}) ${payload})`;
+    if (nominalData && this.enumByName.has(nominalData.name))
+      return `(ref.cast (ref null $e${this.enumByName.get(nominalData.name)!.index}) ${payload})`;
+    if (data) return `(ref.cast (ref null $d${data.index}) ${payload})`;
+    const enumType = this.enumByName.get(type);
+    if (enumType) return `(ref.cast (ref null $e${enumType.index}) ${payload})`;
+    throw new Error(`cannot unbox '${type}'`);
   }
 
   defaultValue(type: ValueType): string {
@@ -174,6 +339,7 @@ export class EmitterContext {
     if (type.startsWith("provider:")) return `(ref.null extern)`;
     if (contextKeys(type)) return `(ref.null $context${this.contextNames.get(type)})`;
     if (tupleParts(type) !== undefined) return `(ref.null $hd.list)`;
+    if (storedSuspensionParts(type)) return `(ref.null $hd.suspension)`;
     const suspension = suspensionParts(type);
     if (suspension) return `(ref.null $s${suspension.functionIndex})`;
     const traitSuspension = traitSuspensionParts(type);
@@ -184,6 +350,8 @@ export class EmitterContext {
     if (callable) return `(ref.null $closure${this.functionSignatures.get(type)})`;
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
+    if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
+      return `(ref.null $hd.iterator)`;
     if (nominalData?.name === "list" && nominalData.arguments.length === 1)
       return `(ref.null $hd.vector)`;
     if (nominalData?.name === "map" && nominalData.arguments.length === 2)

@@ -12,6 +12,8 @@ export interface ImplementationPreparation {
   readonly declaration: ImplDecl;
   readonly trait: HirTrait;
   readonly targetType: ValueType;
+  readonly traitArguments: readonly ValueType[];
+  readonly associatedTypes: readonly ValueType[];
   readonly methods: ImplementationMethodPreparation[];
 }
 
@@ -25,4 +27,5 @@ export interface ProgramCheckContext {
   readonly implementationPreparations: ImplementationPreparation[];
   readonly inherentMethods: InherentMethod[];
   readonly inherentDeclarations: FunctionDecl[];
+  readonly hostCapabilities: ReadonlySet<string>;
 }

@@ -7,6 +7,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  storedSuspensionParts,
   suspensionType,
 } from "../types.ts";
 import {
@@ -21,6 +22,7 @@ import {
   genericTypeName,
   inferGenericType,
   instantiateRowRequirement,
+  matchTraitImplementation,
   requirementExclusions,
   requirementKeysMayCollide,
   resolveGenericType,
@@ -205,6 +207,8 @@ export abstract class CallChecker extends StatementChecker {
     if (expression.kind !== "name") return;
     const local = this.resolveLocal(expression.name);
     const binding = local ?? this.resolveGlobal(expression.name);
+    const stored = binding && storedSuspensionParts(binding.type);
+    if (stored?.mutable) return;
     if (binding && !binding.drivable) {
       this.fail(
         "mutable-receiver-required",
@@ -371,6 +375,7 @@ export abstract class CallChecker extends StatementChecker {
     expression: Extract<Expression, { kind: "call" | "suspend-call" }>,
     receiver: HirExpression,
     method: InherentMethod,
+    expected?: ValueType,
   ): HirExpression {
     if (method.receiverMutable && mutableInner(receiver.type) === undefined) {
       this.fail(
@@ -383,24 +388,53 @@ export abstract class CallChecker extends StatementChecker {
       ? mutableType(method.targetType)
       : method.targetType;
     const methodReceiver = this.requireCoercion(receiver, receiverParameterType, receiver.span);
-    const checkedArguments = this.checkConcreteArguments(
+    const signature = this.signatures.get(method.functionName)!;
+    const callSignature: Signature = {
+      ...signature,
+      parameters: signature.parameters.slice(1),
+      parameterNames: signature.parameterNames.slice(1),
+      defaultFunctionNames: signature.defaultFunctionNames.slice(1),
+    };
+    const checkedArguments = this.checkSignatureArguments(
       expression,
-      method.parameters,
-      method.parameterNames,
-      method.variadic,
+      callSignature,
+      expected,
       `method '${method.name}'`,
     );
-    const signature = this.signatures.get(method.functionName)!;
-    const providers = signature.requirements.map((requirement) =>
-      this.resolveProvider(requirement, expression.span),
+    const { substitutions, rowSubstitutions } = checkedArguments;
+    const unresolved = signature.genericParameters.filter(
+      (parameter) => !substitutions.has(parameter),
     );
-    const missing = signature.requirements.filter((_, index) => !providers[index]);
+    if (unresolved.length > 0)
+      this.fail(
+        "unresolved-generic-placeholder",
+        `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
+        expression.span,
+      );
+    const unresolvedRows = signature.rowParameters.filter(
+      (parameter) => !rowSubstitutions.has(parameter),
+    );
+    if (unresolvedRows.length > 0)
+      this.fail(
+        "unresolved-generic-placeholder",
+        `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
+        expression.span,
+      );
+    this.warnAbsentRowSubtractions(signature.requirements, rowSubstitutions, expression.span);
+    const { providers, missing } = this.resolveCallProviders(
+      signature.requirements,
+      substitutions,
+      rowSubstitutions,
+      expression.span,
+    );
     if (missing.length > 0)
       this.fail(
         "missing-requirement",
         `method '${method.name}' requires ${missing.join(" + ")}`,
         expression.span,
       );
+    const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
+    const bounds = this.resolveBoundDictionaries(signature, substitutions, expression.span);
     const argumentParameterIndices = checkedArguments.parameterIndices
       ? [0, ...checkedArguments.parameterIndices.map((parameterIndex) => parameterIndex + 1)]
       : undefined;
@@ -411,8 +445,13 @@ export abstract class CallChecker extends StatementChecker {
           functionName: signature.name,
           arguments: [methodReceiver, ...checkedArguments.arguments],
           argumentParameterIndices,
-          providers: providers as HirExpression[],
-          type: suspensionType(signature.index, signature.result),
+          bounds,
+          providers,
+          erasedParameterTypes:
+            signature.genericParameters.length > 0 || signature.rowParameters.length > 0
+              ? signature.parameters
+              : undefined,
+          type: suspensionType(signature.index, resultType),
           span: expression.span,
         }
       : {
@@ -421,8 +460,14 @@ export abstract class CallChecker extends StatementChecker {
           functionName: signature.name,
           arguments: [methodReceiver, ...checkedArguments.arguments],
           argumentParameterIndices,
-          providers: providers as HirExpression[],
-          type: signature.result,
+          bounds,
+          providers,
+          erasedParameterTypes:
+            signature.genericParameters.length > 0 || signature.rowParameters.length > 0
+              ? signature.parameters
+              : undefined,
+          erasedResultType: signature.genericParameters.length > 0 ? signature.result : undefined,
+          type: resultType,
           span: expression.span,
         };
   }
@@ -478,8 +523,10 @@ export abstract class CallChecker extends StatementChecker {
     expression: Extract<Expression, { kind: "call" | "suspend-call" }>,
     signature: Signature,
     expected?: ValueType,
+    callable = `function '${signature.name}'`,
+    initialSubstitutions: ReadonlyMap<string, ValueType> = new Map(),
   ): CheckedSignatureArguments {
-    const substitutions = new Map<string, ValueType>();
+    const substitutions = new Map(initialSubstitutions);
     const rowSubstitutions = new Map<string, readonly string[]>();
     if (expression.typeArguments) {
       if (expression.typeArguments.length !== signature.genericParameters.length) {
@@ -489,7 +536,7 @@ export abstract class CallChecker extends StatementChecker {
             : "generic-argument-count";
         this.fail(
           code,
-          `function '${signature.name}' expects ${signature.genericParameters.length} type arguments, received ${expression.typeArguments.length}`,
+          `${callable} expects ${signature.genericParameters.length} type arguments, received ${expression.typeArguments.length}`,
           expression.span,
         );
       }
@@ -506,7 +553,7 @@ export abstract class CallChecker extends StatementChecker {
       expression,
       signature.parameterNames,
       signature.variadic,
-      `function '${signature.name}'`,
+      callable,
       defaultParameters,
     );
     const arguments_ = plan.map((entry): HirExpression => {
@@ -518,6 +565,19 @@ export abstract class CallChecker extends StatementChecker {
           source,
           containsGenericType(inferredFormal) ? undefined : inferredFormal,
         );
+        const formalGeneric = genericTypeName(formal);
+        if (
+          formalGeneric &&
+          signature.genericBounds.some(
+            (bound) => bound.parameter === formalGeneric && bound.mutable,
+          ) &&
+          mutableInner(checked.type) === undefined
+        )
+          this.fail(
+            "mutable-bound-required",
+            `generic parameter '${formalGeneric}' requires mutable-root access`,
+            source.span,
+          );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
         const inferredActual = weakenBoundedGenericActual(formal, checked.type, boundedParameters);
         const conflict = inferGenericType(formal, inferredActual, substitutions, rowSubstitutions);
@@ -737,11 +797,21 @@ export abstract class CallChecker extends StatementChecker {
           `could not infer generic parameter ${bound.parameter}`,
           span,
         );
+      const traitArguments = bound.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      const traitKey =
+        traitArguments.length > 0
+          ? nominalGenericType(bound.traitName, traitArguments)
+          : bound.traitName;
       const forwarded = genericTypeName(actual);
       if (forwarded) {
         const boundIndex = this.signature.genericBounds.findIndex(
           (candidate) =>
-            candidate.parameter === forwarded && candidate.traitIndex === bound.traitIndex,
+            candidate.parameter === forwarded &&
+            candidate.traitIndex === bound.traitIndex &&
+            candidate.traitArguments.length === traitArguments.length &&
+            candidate.traitArguments.every((argument, index) => argument === traitArguments[index]),
         );
         if (boundIndex < 0) {
           this.fail(
@@ -754,12 +824,12 @@ export abstract class CallChecker extends StatementChecker {
           kind: "trait-bound-dictionary",
           traitIndex: bound.traitIndex,
           boundIndex,
-          type: `trait:${bound.traitName}`,
+          type: `trait:${traitKey}`,
           span,
         };
       }
-      const implementation = this.implementations.find(
-        (candidate) => candidate.traitIndex === bound.traitIndex && candidate.targetType === actual,
+      const implementation = this.implementations.find((candidate) =>
+        Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
       );
       if (!implementation) {
         this.fail(
@@ -771,10 +841,64 @@ export abstract class CallChecker extends StatementChecker {
       return {
         kind: "trait-dictionary",
         traitIndex: bound.traitIndex,
-        implementationIndex: implementation.index,
-        type: `trait:${bound.traitName}`,
+        dictionary: this.traitDictionaryPlan(implementation, actual, traitArguments, span),
+        type: `trait:${traitKey}`,
         span,
       };
     });
+  }
+
+  protected resolveAssociatedTypeSubstitutions(
+    signature: Signature,
+    sourceSubstitutions: ReadonlyMap<string, ValueType>,
+  ): Map<string, ValueType> {
+    const substitutions = new Map(sourceSubstitutions);
+    for (const bound of signature.genericBounds) {
+      const trait = [...this.traitTypes.values()].find(
+        (candidate) => candidate.index === bound.traitIndex,
+      );
+      if (!trait || trait.associatedTypes.length === 0) continue;
+      const actual = substitutions.get(bound.parameter);
+      if (!actual) continue;
+      const forwarded = genericTypeName(actual);
+      if (forwarded) {
+        trait.associatedTypes.forEach((associated) =>
+          substitutions.set(
+            `${bound.parameter}::${associated.name}`,
+            `generic:${forwarded}::${associated.name}`,
+          ),
+        );
+        continue;
+      }
+      const traitArguments = bound.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      const implementation = this.implementations.find((candidate) =>
+        Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
+      );
+      if (!implementation) continue;
+      const implementationSubstitutions = matchTraitImplementation(
+        implementation,
+        bound.traitIndex,
+        actual,
+        traitArguments,
+      )!;
+      trait.associatedTypes.forEach((associated, index) => {
+        const key = `${bound.parameter}::${associated.name}`;
+        const resolved = substituteGenericType(
+          implementation.associatedTypes[index]!,
+          implementationSubstitutions,
+        );
+        const inferred = substitutions.get(key);
+        if (inferred !== undefined && inferred !== resolved)
+          this.fail(
+            "associated-type-mismatch",
+            `projection '${bound.parameter}::${associated.name}' resolves to '${resolved}', not '${inferred}'`,
+            signature.span,
+          );
+        substitutions.set(key, resolved);
+      });
+    }
+    return substitutions;
   }
 }

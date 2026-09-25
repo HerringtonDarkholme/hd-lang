@@ -1,6 +1,5 @@
-# expect-error: no-least-common-type
 data User:
     name: string
 
 fn combine(small: mut list[mut User], wide: list[User]) -> void:
-    both := [small, wide]
+    both := [small, wide]  # diagnostic: no-least-common-type

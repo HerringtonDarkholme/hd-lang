@@ -1,0 +1,1 @@
+panic("requested failure")  # panic: explicit-panic

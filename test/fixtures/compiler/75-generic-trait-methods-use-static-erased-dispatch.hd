@@ -1,0 +1,17 @@
+# test: generic trait methods use static erased dispatch
+# expect-result: selected_value = 42
+# expect-result: qualified_selected_value = 42
+
+trait Identity:
+    fn select[T](self, value: T) -> T
+
+data Picker: pass
+
+impl Identity for Picker:
+    fn select[T](self, value: T) -> T: value
+
+fn selected_value() -> i32:
+    Picker {}.select[i32](42)
+
+fn qualified_selected_value() -> i32:
+    Identity::select[i32](Picker {}, 42)

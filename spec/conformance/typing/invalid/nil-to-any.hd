@@ -1,3 +1,2 @@
-# expect-error: nil-to-nonoptional
 
-let invalid: Any = nil
+let invalid: Any = nil  # diagnostic: nil-to-nonoptional

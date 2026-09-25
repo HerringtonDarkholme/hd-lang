@@ -1,4 +1,3 @@
-# expect-error: implicit-narrowing
 
 fn invalid(value: i64) -> i16:
-    value
+    value  # diagnostic: implicit-narrowing

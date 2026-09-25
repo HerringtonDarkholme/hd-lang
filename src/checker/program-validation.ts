@@ -1,4 +1,9 @@
 import { PRELUDE_NAMES } from "./context.ts";
+import {
+  deferredDriverCalls,
+  driverStartingFunctionNames,
+  findDriverCall,
+} from "./program-effects.ts";
 import { expressionIsPure, pureFunctionNames } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
@@ -27,6 +32,22 @@ export function validateProgram(context: ProgramCheckContext): void {
       imports.set(localName, `${declaration.module}.${imported.name}`);
     }
   }
+  const driverFunctions = driverStartingFunctionNames(program, imports);
+  for (const call of deferredDriverCalls(program, driverFunctions, imports)) {
+    diagnostics.push({
+      code: "suspension-forbidden-context",
+      message: "a defer suite cannot transitively start a suspension driver",
+      span: call.span,
+    });
+  }
+  const topLevelDriverCall = findDriverCall(program.statements, driverFunctions, imports);
+  if (topLevelDriverCall) {
+    diagnostics.push({
+      code: "suspension-forbidden-context",
+      message: "module initialization cannot transitively start a suspension driver",
+      span: topLevelDriverCall.span,
+    });
+  }
   const pureFunctions = pureFunctionNames(program);
   for (const declaration of program.functions) {
     let sawDefault = false;
@@ -34,7 +55,16 @@ export function validateProgram(context: ProgramCheckContext): void {
     for (const parameter of declaration.parameters) {
       if (parameter.default) {
         sawDefault = true;
-        if (!expressionIsPure(parameter.default, earlierParameters, pureFunctions, program)) {
+        const driverCall = findDriverCall(parameter.default, driverFunctions, imports);
+        if (driverCall) {
+          diagnostics.push({
+            code: "suspension-forbidden-context",
+            message: `default for '${declaration.name}.${parameter.name}' cannot transitively start a suspension driver`,
+            span: driverCall.span,
+          });
+        } else if (
+          !expressionIsPure(parameter.default, earlierParameters, pureFunctions, program)
+        ) {
           diagnostics.push({
             code: "impure-parameter-default",
             message: `default for '${declaration.name}.${parameter.name}' is not compile-time pure`,
@@ -53,7 +83,15 @@ export function validateProgram(context: ProgramCheckContext): void {
   }
   for (const declaration of program.data) {
     for (const field of declaration.fields) {
-      if (field.default && !expressionIsPure(field.default, new Set(), pureFunctions, program)) {
+      if (!field.default) continue;
+      const driverCall = findDriverCall(field.default, driverFunctions, imports);
+      if (driverCall) {
+        diagnostics.push({
+          code: "suspension-forbidden-context",
+          message: `default for '${declaration.name}.${field.name}' cannot transitively start a suspension driver`,
+          span: driverCall.span,
+        });
+      } else if (!expressionIsPure(field.default, new Set(), pureFunctions, program)) {
         diagnostics.push({
           code: "impure-data-default",
           message: `default for '${declaration.name}.${field.name}' is not compile-time pure`,
@@ -68,7 +106,14 @@ export function validateProgram(context: ProgramCheckContext): void {
     for (const field of declaration.sharedFields) {
       if (field.default) {
         sawDefault = true;
-        if (!expressionIsPure(field.default, earlierFields, pureFunctions, program)) {
+        const driverCall = findDriverCall(field.default, driverFunctions, imports);
+        if (driverCall) {
+          diagnostics.push({
+            code: "suspension-forbidden-context",
+            message: `default for '${declaration.name}.${field.name}' cannot transitively start a suspension driver`,
+            span: driverCall.span,
+          });
+        } else if (!expressionIsPure(field.default, earlierFields, pureFunctions, program)) {
           diagnostics.push({
             code: "impure-enum-default",
             message: `default for '${declaration.name}.${field.name}' is not compile-time pure`,

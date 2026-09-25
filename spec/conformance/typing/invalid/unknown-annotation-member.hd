@@ -1,7 +1,6 @@
-# expect-error: unknown-annotation-member
 
 data User:
     name: string
 
 annotate User:
-    missing = []
+    missing = []  # diagnostic: unknown-annotation-member

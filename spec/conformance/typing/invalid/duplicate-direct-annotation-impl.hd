@@ -1,4 +1,3 @@
-# expect-error: duplicate-annotation-impl
 data Validation: pass
 data Validator: pass
 data FieldValidator: pass
@@ -28,7 +27,7 @@ impl Annotate[Validation] for User:
     fn info() -> Validator:
         Validator {}
 
-annotate Validation for User:
+annotate Validation for User:  # diagnostic: duplicate-annotation-impl
     fn build(
         self,
         target: DataShape,

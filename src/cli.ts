@@ -2,14 +2,119 @@ import { readFile, writeFile } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { analyze, compile, instantiate, type ReplayEvent } from "./compiler.ts";
+import {
+  analyze,
+  compile,
+  instantiate,
+  type CompileOptions,
+  type HostSuspensionCall,
+  type HostSuspensionOutcome,
+  type ReplayEvent,
+} from "./compiler.ts";
 import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
+import { RuntimePanicError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 
+type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
+type RuntimeProfileName =
+  | "pending-gate"
+  | "ready-counter"
+  | "ready-float"
+  | "ready-gate"
+  | "ready-text";
+
+interface RuntimeProfile {
+  readonly hostCapabilities: readonly string[];
+  readonly invoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
+  readonly pending?: (call: HostSuspensionCall) => boolean;
+}
+
+function pendingGate(call: HostSuspensionCall): boolean {
+  return call.providerKey === "Gate" && call.methodName === "wait";
+}
+
+function invokeCounter(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "Counter" || call.methodName !== "add")
+    throw new Error(`ready-counter cannot invoke ${call.providerKey}.${call.methodName}`);
+  return { pending: false, value: Number(call.arguments[0]) + Number(call.arguments[1]) };
+}
+
+function invokeFloat(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "FloatCell" || call.methodName !== "sample")
+    throw new Error(`ready-float cannot invoke ${call.providerKey}.${call.methodName}`);
+  return { pending: false, value: call.arguments[0]! };
+}
+
+function invokeText(call: HostSuspensionCall): HostSuspensionOutcome {
+  if (call.providerKey !== "TextBridge" || call.methodName !== "join")
+    throw new Error(`ready-text cannot invoke ${call.providerKey}.${call.methodName}`);
+  return { pending: false, value: `${call.arguments[0]}${call.arguments[1]}` };
+}
+
+const RUNTIME_PROFILES: Readonly<Record<RuntimeProfileName, RuntimeProfile>> = {
+  "pending-gate": { hostCapabilities: ["Gate"], pending: pendingGate },
+  "ready-counter": { hostCapabilities: ["Counter"], invoke: invokeCounter },
+  "ready-float": { hostCapabilities: ["FloatCell"], invoke: invokeFloat },
+  "ready-gate": { hostCapabilities: ["Gate"] },
+  "ready-text": { hostCapabilities: ["TextBridge"], invoke: invokeText },
+};
+
+function runtimeScenario(value: string | undefined): RuntimeScenario {
+  if (
+    value === "cancellation-cleanup" ||
+    value === "competing-drivers" ||
+    value === "reentrant-poll"
+  )
+    return value;
+  return usage();
+}
+
+function runtimeProfile(value: string | undefined): RuntimeProfileName {
+  if (
+    value === "pending-gate" ||
+    value === "ready-counter" ||
+    value === "ready-float" ||
+    value === "ready-gate" ||
+    value === "ready-text"
+  )
+    return value;
+  return usage();
+}
+
+function exportedFunction(instance: WebAssembly.Instance, name: string): CallableFunction {
+  const value = instance.exports[name];
+  if (typeof value !== "function") throw new Error(`program has no ${name} runtime export`);
+  return value;
+}
+
+function runRuntimeScenario(
+  scenario: RuntimeScenario,
+  instance: WebAssembly.Instance,
+  providers: readonly unknown[],
+): void {
+  const start = exportedFunction(instance, "__hd_start");
+  const poll = exportedFunction(instance, "__hd_poll");
+  start(...providers);
+  if (scenario === "cancellation-cleanup") {
+    if (poll() !== 0) throw new Error("cancellation-cleanup scenario did not suspend");
+    exportedFunction(instance, "__hd_cancel")();
+    if (exportedFunction(instance, "cleanup_ran")() !== 1)
+      throw new Error("cancellation-cleanup scenario did not run cleanup");
+    return;
+  }
+  if (scenario === "competing-drivers") {
+    if (poll() !== 0) throw new Error("competing-drivers scenario did not suspend");
+    exportedFunction(instance, "main")();
+  } else {
+    poll();
+  }
+  throw new Error(`${scenario} scenario completed without a runtime panic`);
+}
+
 function usage(): never {
   console.error(
-    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] FILE",
+    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE",
   );
   process.exit(2);
 }
@@ -18,17 +123,27 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   const command = args.shift();
   let wat = false;
   let entryName = "main";
+  let scenario: RuntimeScenario | undefined;
+  let pendingFunctionName: string | undefined;
+  let profileName: RuntimeProfileName | undefined;
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
     if (option === "--wat") wat = true;
     else if (option === "--entry") entryName = args.shift() ?? usage();
+    else if (option === "--scenario") scenario = runtimeScenario(args.shift());
+    else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
+    else if (option === "--profile") profileName = runtimeProfile(args.shift());
     else usage();
   }
   const file = args.shift();
   if (!command || !file || args.length > 0) usage();
   if (entryName !== "main" && command !== "run") usage();
+  if (scenario && command !== "test") usage();
+  if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
   const path = resolve(file);
   const source = await readFile(path, "utf8");
+  const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
+  const compileOptions: CompileOptions = { hostCapabilities: profile?.hostCapabilities };
   try {
     if (command === "parse") {
       const result = parse(source);
@@ -37,7 +152,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       return 0;
     }
     if (command === "check") {
-      const result = analyze(source);
+      const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       for (const diagnostic of result.diagnostics)
         console.error(formatDiagnostic(file, diagnostic));
@@ -45,13 +160,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       return 0;
     }
     if (command === "dump-hir") {
-      const result = analyze(source);
+      const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       console.log(JSON.stringify(result.hir, null, 2));
       return 0;
     }
     if (command === "explain-requirements") {
-      const result = analyze(source);
+      const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       for (const explanation of explainRequirements(result.hir)) {
         console.log(
@@ -63,7 +178,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       return 0;
     }
     if (command === "build") {
-      const result = compile(source);
+      const result = compile(source, compileOptions);
       if (wat) {
         console.log(result.wat);
       } else {
@@ -97,6 +212,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         command === "replay"
           ? (JSON.parse(await readFile(replayPath, "utf8")) as ReplayEvent[])
           : undefined;
+      let scenarioInstance: WebAssembly.Instance | undefined;
+      let pendingFunctionIndex: number | undefined;
       const { instance, compilation, replay } = await instantiate(source, {
         console: (text) => console.log(text),
         trace:
@@ -108,11 +225,44 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
             : undefined,
         record: command === "record" ? (event) => recorded.push(event) : undefined,
         replay: replayEvents,
+        pending:
+          scenario === "cancellation-cleanup"
+            ? (functionIndex) => functionIndex === pendingFunctionIndex
+            : scenario === "competing-drivers"
+              ? () => true
+              : scenario === "reentrant-poll"
+                ? () => {
+                    if (!scenarioInstance)
+                      throw new Error("runtime scenario instance is not ready");
+                    exportedFunction(scenarioInstance, "__hd_poll")();
+                    return false;
+                  }
+                : undefined,
         providerConfigurationId: "cli-default",
+        hostCapabilities: profile?.hostCapabilities,
+        hostSuspensionInvoke: profile?.invoke,
+        hostSuspensionPending: profile?.pending,
       });
+      scenarioInstance = instance;
+      if (pendingFunctionName) {
+        pendingFunctionIndex = compilation.hir.functions.find(
+          ({ name, suspending }) => name === pendingFunctionName && suspending,
+        )?.index;
+        if (pendingFunctionIndex === undefined)
+          throw new Error(`program has no suspending ${pendingFunctionName} function`);
+      }
       compilation.hir.functions.forEach((declaration) =>
         functionNames.set(declaration.index, declaration.name),
       );
+      const mainDeclaration = compilation.hir.functions.find(({ name }) => name === "main");
+      const scenarioProviders =
+        mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
+      if (scenario) {
+        runRuntimeScenario(scenario, instance, scenarioProviders);
+        replay.assertComplete();
+        console.log(`${file}: 1 passed`);
+        return 0;
+      }
       const selected = compilation.hir.functions.filter((declaration) => {
         if (command === "test")
           return declaration.name === "main" || /^\$test\.\d+$/.test(declaration.name);
@@ -149,6 +299,10 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   } catch (error) {
     if (error instanceof DiagnosticError) {
       for (const diagnostic of error.diagnostics) console.error(formatDiagnostic(file, diagnostic));
+      return 1;
+    }
+    if (error instanceof RuntimePanicError) {
+      console.error(`${error.code}: runtime panic`);
       return 1;
     }
     throw error;

@@ -1,4 +1,3 @@
-# expect-error: missing-child-annotation
 data Validation: pass
 data Validator: pass
 data FieldValidator: pass
@@ -27,4 +26,4 @@ impl DataAnnotator for Validation:
 data Record:
     opaque: Opaque
 
-annotate Validation for Record: pass
+annotate Validation for Record: pass  # diagnostic: missing-child-annotation

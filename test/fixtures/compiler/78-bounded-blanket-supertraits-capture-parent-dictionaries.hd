@@ -1,0 +1,36 @@
+# test: bounded blanket supertraits capture parent dictionaries
+# expect-result: dynamic_parent_dictionary = 42
+# expect-result: bounded_parent_dictionary = 42
+
+trait Score:
+    fn score(self) -> i32
+
+trait Measure:
+    fn measure(self) -> i32
+
+trait Scored: Measure:
+    fn marker(self) -> i32
+
+data Point:
+    value: i32
+
+impl Score for Point:
+    fn score(self) -> i32: self.value
+
+impl[Item: Score] Measure for list[Item]:
+    fn measure(self) -> i32: self[0].score()
+
+impl[Item: Score] Scored for list[Item]:
+    fn marker(self) -> i32: 0
+
+fn dynamic_parent_dictionary() -> i32:
+    let points: list[Point] = [Point { value: 42 }]
+    let dynamic: Scored = points
+    dynamic.measure()
+
+fn read_parent[T: Scored](value: T) -> i32:
+    value.measure()
+
+fn bounded_parent_dictionary() -> i32:
+    let points: list[Point] = [Point { value: 42 }]
+    read_parent(points)

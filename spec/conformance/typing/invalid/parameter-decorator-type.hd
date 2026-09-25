@@ -1,4 +1,3 @@
-# expect-error: invalid-parameter-metadata
 data MaxLen:
     value: i32
 
@@ -8,7 +7,7 @@ fn max_len(value: i32) -> MaxLen:
 impl FieldMetadata[string] for MaxLen
 
 fn retry(
-    @max_len(10)
+    @max_len(10)  # diagnostic: invalid-parameter-metadata
     count: i32,
 ) -> i32:
     count

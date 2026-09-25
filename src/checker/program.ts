@@ -12,8 +12,13 @@ import {
 } from "./program-types.ts";
 import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
+import { validateHostCapabilities } from "./host-capabilities.ts";
 
-export function check(program: Program): CheckResult {
+export interface CheckOptions {
+  readonly hostCapabilities?: readonly string[];
+}
+
+export function check(program: Program, options: CheckOptions = {}): CheckResult {
   const context: ProgramCheckContext = {
     program,
     diagnostics: [],
@@ -24,12 +29,14 @@ export function check(program: Program): CheckResult {
     implementationPreparations: [],
     inherentMethods: [],
     inherentDeclarations: [],
+    hostCapabilities: new Set(["Console", ...(options.hostCapabilities ?? [])]),
   };
   validateProgram(context);
   declareProgramTypes(context);
   defineProgramData(context);
   defineProgramEnums(context);
   defineProgramTraits(context);
+  validateHostCapabilities(context);
   prepareImplementations(context);
   const declarations = createProgramDeclarations(context);
   if (!declarations) return { diagnostics: context.diagnostics };

@@ -1,6 +1,5 @@
-# expect-error: variance-representation-change
 data Producer[+T]:
     value: T
 
 fn widen(value: Producer[i32]) -> Producer[Display]:
-    value
+    value  # diagnostic: variance-representation-change

@@ -1,5 +1,5 @@
 import type { HirExpression, HirFunction, HirStatement, HirTrait, ValueType } from "../hir.ts";
-import { nominalGenericParts } from "../types.ts";
+import { nominalGenericParts, readonlyType } from "../types.ts";
 
 export const indent = (text: string, spaces = 2): string => {
   const prefix = " ".repeat(spaces);
@@ -19,11 +19,12 @@ export const testExportName = (name: string): string | undefined => {
 };
 export const isGenericValueType = (type: ValueType): boolean =>
   /^generic:([^?[\](),]+)$/.test(type);
+export const containsGenericValueType = (type: ValueType): boolean => type.includes("generic:");
 export const isRowRequirement = (requirement: string): boolean => requirement.startsWith("row:");
 
 export type HirSuspendDrive = Extract<
   HirExpression,
-  { kind: "suspend-drive" | "trait-suspend-drive" }
+  { kind: "suspend-drive" | "trait-suspend-drive" | "suspension-drive" }
 >;
 
 export interface LinearSuspensionSite {
@@ -47,7 +48,9 @@ export function exactStatementDrive(statement: HirStatement): HirSuspendDrive | 
         : statement.kind === "expression"
           ? statement.expression
           : undefined;
-  return expression?.kind === "suspend-drive" || expression?.kind === "trait-suspend-drive"
+  return expression?.kind === "suspend-drive" ||
+    expression?.kind === "trait-suspend-drive" ||
+    expression?.kind === "suspension-drive"
     ? expression
     : undefined;
 }
@@ -62,23 +65,44 @@ export const traitSuspensionResultName = (traitIndex: number, methodIndex: numbe
   `$tsresult${traitIndex}_${methodIndex}`;
 export const traitSuspensionDriveName = (traitIndex: number, methodIndex: number): string =>
   `$tsdrive${traitIndex}_${methodIndex}`;
+export const suspensionWrapperPollAdapterName = (functionIndex: number): string =>
+  `$swpoll${functionIndex}`;
+export const suspensionWrapperCancelAdapterName = (functionIndex: number): string =>
+  `$swcancel${functionIndex}`;
+export const suspensionWrapperResultAdapterName = (functionIndex: number): string =>
+  `$swresult${functionIndex}`;
+export const traitSuspensionWrapperPollAdapterName = (
+  traitIndex: number,
+  methodIndex: number,
+): string => `$tswpoll${traitIndex}_${methodIndex}`;
+export const traitSuspensionWrapperCancelAdapterName = (
+  traitIndex: number,
+  methodIndex: number,
+): string => `$tswcancel${traitIndex}_${methodIndex}`;
+export const traitSuspensionWrapperResultAdapterName = (
+  traitIndex: number,
+  methodIndex: number,
+): string => `$tswresult${traitIndex}_${methodIndex}`;
 
 export function suspensionFrameTypeName(drive: HirSuspendDrive): string {
-  return drive.kind === "suspend-drive"
-    ? `$s${drive.functionIndex}`
-    : traitSuspensionName(drive.traitIndex, drive.methodIndex);
+  if (drive.kind === "suspend-drive") return `$s${drive.functionIndex}`;
+  if (drive.kind === "trait-suspend-drive")
+    return traitSuspensionName(drive.traitIndex, drive.methodIndex);
+  return "$hd.suspension";
 }
 
 export function suspensionPoll(drive: HirSuspendDrive, frame: string): string {
-  return drive.kind === "suspend-drive"
-    ? `(call $poll${drive.functionIndex} ${frame})`
-    : `(call ${traitSuspensionPollName(drive.traitIndex, drive.methodIndex)} ${frame})`;
+  if (drive.kind === "suspend-drive") return `(call $poll${drive.functionIndex} ${frame})`;
+  if (drive.kind === "trait-suspend-drive")
+    return `(call ${traitSuspensionPollName(drive.traitIndex, drive.methodIndex)} ${frame})`;
+  return `(call $hd.suspension_poll ${frame})`;
 }
 
 export function suspensionCancel(drive: HirSuspendDrive, frame: string): string {
-  return drive.kind === "suspend-drive"
-    ? `(call $cancel${drive.functionIndex} ${frame})`
-    : `(call ${traitSuspensionCancelName(drive.traitIndex, drive.methodIndex)} ${frame})`;
+  if (drive.kind === "suspend-drive") return `(call $cancel${drive.functionIndex} ${frame})`;
+  if (drive.kind === "trait-suspend-drive")
+    return `(call ${traitSuspensionCancelName(drive.traitIndex, drive.methodIndex)} ${frame})`;
+  return `(call $hd.suspension_cancel ${frame})`;
 }
 
 export function linearSuspensionSites(declaration: HirFunction): readonly LinearSuspensionSite[] {
@@ -111,6 +135,6 @@ export const providerWatType = (
 };
 
 export const traitTypeBase = (type: ValueType): string => {
-  const key = type.slice("trait:".length);
+  const key = readonlyType(type).slice("trait:".length);
   return nominalGenericParts(key)?.name ?? key;
 };

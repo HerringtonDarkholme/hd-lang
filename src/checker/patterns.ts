@@ -17,6 +17,7 @@ import {
   functionParts,
   nominalGenericParts,
   nominalGenericType,
+  storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
 } from "../types.ts";
@@ -36,6 +37,7 @@ export abstract class PatternChecker extends CallChecker {
     if (type.startsWith("trait:")) return true;
     if (
       functionParts(type) ||
+      storedSuspensionParts(type) ||
       suspensionParts(type) ||
       traitSuspensionParts(type) ||
       contextKeys(type)

@@ -1,4 +1,3 @@
-# expect-panic: suspension-reentrant-poll
 data Slot:
     task: (mut Suspend[i32])?
 
@@ -15,4 +14,4 @@ pub fn main!() -> void:
     let slot: mut Slot = Slot { task: nil }
     let pending: mut Suspend[i32] = outer(slot)
     slot.task = pending
-    _ := pending!()
+    _ := pending!()  # panic: suspension-reentrant-poll

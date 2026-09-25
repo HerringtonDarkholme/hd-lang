@@ -8,11 +8,11 @@ import type {
   HirStatement,
   ValueType,
 } from "../hir.ts";
-import { tupleParts } from "../types.ts";
+import { mutableType, nominalGenericType } from "../types.ts";
 
 export type HirSuspensionDrive = Extract<
   HirExpression,
-  { kind: "suspend-drive" | "trait-suspend-drive" }
+  { kind: "suspend-drive" | "trait-suspend-drive" | "suspension-drive" }
 >;
 
 export type SuspensionOperation =
@@ -98,12 +98,21 @@ interface LoweringContext {
 }
 
 type ValueContinuation = (value: HirExpression | undefined) => number;
+type HirSuspensionOperandExpression = Extract<
+  HirExpression,
+  { kind: "suspend-cancel" | "trait-suspend-cancel" | "suspension-cancel" | "suspension-wrap" }
+>;
 
 const containsDrive = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.some(containsDrive);
   if (!value || typeof value !== "object") return false;
   const node = value as Record<string, unknown>;
-  if (node.kind === "suspend-drive" || node.kind === "trait-suspend-drive") return true;
+  if (
+    node.kind === "suspend-drive" ||
+    node.kind === "trait-suspend-drive" ||
+    node.kind === "suspension-drive"
+  )
+    return true;
   return Object.entries(node).some(([key, child]) => key !== "span" && containsDrive(child));
 };
 
@@ -111,7 +120,12 @@ const driveCount = (value: unknown): number => {
   if (Array.isArray(value)) return value.reduce((count, item) => count + driveCount(item), 0);
   if (!value || typeof value !== "object") return 0;
   const node = value as Record<string, unknown>;
-  const self = node.kind === "suspend-drive" || node.kind === "trait-suspend-drive" ? 1 : 0;
+  const self =
+    node.kind === "suspend-drive" ||
+    node.kind === "trait-suspend-drive" ||
+    node.kind === "suspension-drive"
+      ? 1
+      : 0;
   return (
     self +
     Object.entries(node).reduce(
@@ -138,7 +152,9 @@ export function needsSuspensionCfg(declaration: HirFunction): boolean {
     if (!direct || !containsDrive(direct))
       return statement.kind === "defer" && containsDrive(statement.body);
     return (
-      (direct.kind !== "suspend-drive" && direct.kind !== "trait-suspend-drive") ||
+      (direct.kind !== "suspend-drive" &&
+        direct.kind !== "trait-suspend-drive" &&
+        direct.kind !== "suspension-drive") ||
       driveCount(direct) > 1
     );
   });
@@ -388,7 +404,15 @@ class SuspensionPlanBuilder {
           provider: provider!,
           value: value!,
         }));
+      case "value-equality":
+      case "value-ordering":
+        return lowerValues([expression.left, expression.right], ([left, right]) => ({
+          ...expression,
+          left: left!,
+          right: right!,
+        }));
       case "assert-equal":
+      case "assert":
         return lowerValues(expression.arguments, (arguments_) => ({
           ...expression,
           arguments: arguments_,
@@ -453,36 +477,15 @@ class SuspensionPlanBuilder {
       case "provider-use":
         return continuation(expression);
       case "propagate":
-        return this.lowerExpression(
-          expression.operand,
-          (operand) => {
-            if (!operand) throw new Error("propagation operand cannot be void");
-            const operandLocal = this.temporary(operand.type, operand.span, "propagate");
-            const successLocal =
-              expression.payloadType === "void"
-                ? undefined
-                : this.temporary(expression.payloadType, expression.span, "payload");
-            const successTarget = continuation(
-              successLocal ? this.local(successLocal, expression.span) : undefined,
-            );
-            return this.block([{ kind: "assign", local: operandLocal, value: operand }], {
-              kind: "propagate",
-              operand: this.local(operandLocal, operand.span),
-              payloadType: expression.payloadType,
-              successTag: expression.successTag,
-              successLocal,
-              successTarget,
-              cleanups: context.cleanups,
-            });
-          },
-          context,
-        );
+        return this.lowerPropagation(expression, continuation, context);
       case "unary":
         return this.lowerExpression(
           expression.operand,
           (operand) => continuation({ ...expression, operand: operand! }),
           context,
         );
+      case "binding-expression":
+        return this.lowerBindingExpression(expression, continuation, context);
       case "binary":
         if (expression.operator === "and" || expression.operator === "or")
           return this.lowerShortCircuit(expression, continuation, context);
@@ -516,6 +519,7 @@ class SuspensionPlanBuilder {
       }
       case "suspend-drive":
       case "trait-suspend-drive":
+      case "suspension-drive":
         return this.lowerExpression(
           expression.suspension,
           (suspension) => {
@@ -543,11 +547,9 @@ class SuspensionPlanBuilder {
         );
       case "suspend-cancel":
       case "trait-suspend-cancel":
-        return this.lowerExpression(
-          expression.suspension,
-          (suspension) => continuation({ ...expression, suspension: suspension! } as HirExpression),
-          context,
-        );
+      case "suspension-cancel":
+      case "suspension-wrap":
+        return this.lowerSuspensionOperand(expression, continuation, context);
       case "closure":
         return lowerValues(expression.captures, (captures) => ({ ...expression, captures }));
       case "closure-call":
@@ -638,12 +640,25 @@ class SuspensionPlanBuilder {
       case "member":
       case "enum-member":
       case "tuple-index":
+      case "variant-tag":
+      case "variant-payload":
       case "string-length":
+      case "string-transform":
       case "list-length":
+      case "list-iterator":
+      case "iterator-next":
+      case "map-iterator":
       case "map-length":
         return this.lowerExpression(
           expression.receiver,
           (receiver) => continuation({ ...expression, receiver: receiver! } as HirExpression),
+          context,
+        );
+      case "string-split":
+        return this.lowerValueList(
+          [expression.receiver, expression.separator],
+          ([receiver, separator]) =>
+            continuation({ ...expression, receiver: receiver!, separator: separator! }),
           context,
         );
       case "field-set":
@@ -711,6 +726,9 @@ class SuspensionPlanBuilder {
         );
       case "if":
         return this.lowerIf(expression, continuation, context);
+      case "list-comprehension":
+      case "map-comprehension":
+        return continuation(expression);
       case "for":
         return this.lowerFor(expression, continuation, context);
       case "while":
@@ -719,6 +737,86 @@ class SuspensionPlanBuilder {
         return this.lowerMatch(expression, continuation, context);
     }
     throw new Error(`unhandled aggregate expression '${expression.kind}'`);
+  }
+
+  private lowerPropagation(
+    expression: Extract<HirExpression, { kind: "propagate" }>,
+    continuation: ValueContinuation,
+    context: LoweringContext,
+  ): number {
+    return this.lowerExpression(
+      expression.operand,
+      (operand) => {
+        if (!operand) throw new Error("propagation operand cannot be void");
+        const operandLocal = this.temporary(operand.type, operand.span, "propagate");
+        const successLocal =
+          expression.payloadType === "void"
+            ? undefined
+            : this.temporary(expression.payloadType, expression.span, "payload");
+        const successTarget = continuation(
+          successLocal ? this.local(successLocal, expression.span) : undefined,
+        );
+        return this.block([{ kind: "assign", local: operandLocal, value: operand }], {
+          kind: "propagate",
+          operand: this.local(operandLocal, operand.span),
+          payloadType: expression.payloadType,
+          successTag: expression.successTag,
+          successLocal,
+          successTarget,
+          cleanups: context.cleanups,
+        });
+      },
+      context,
+    );
+  }
+
+  private lowerBindingExpression(
+    expression: Extract<HirExpression, { kind: "binding-expression" }>,
+    continuation: ValueContinuation,
+    context: LoweringContext,
+  ): number {
+    return this.lowerExpression(
+      expression.value,
+      (value) => {
+        if (!value) throw new Error("binding initializer cannot be void");
+        const result = this.temporary(value.type, value.span, "binding-value");
+        const resultValue = this.local(result, expression.span);
+        const operations: SuspensionOperation[] = [{ kind: "assign", local: result, value }];
+        if (expression.elementTypes) {
+          expression.bindings.forEach((binding, index) => {
+            operations.push({
+              kind: "assign",
+              local: binding,
+              value: {
+                kind: "tuple-index",
+                receiver: resultValue,
+                index,
+                elementType: expression.elementTypes![index]!,
+                type: expression.elementTypes![index]!,
+                span: binding.span,
+              },
+            });
+          });
+        } else {
+          operations.push({ kind: "assign", local: expression.bindings[0]!, value: resultValue });
+        }
+        const next = continuation(resultValue);
+        return this.block(operations, { kind: "jump", target: next });
+      },
+      context,
+    );
+  }
+
+  private lowerSuspensionOperand(
+    expression: HirSuspensionOperandExpression,
+    continuation: ValueContinuation,
+    context: LoweringContext,
+  ): number {
+    return this.lowerExpression(
+      expression.suspension,
+      (suspension) => continuation({ ...expression, suspension: suspension! } as HirExpression),
+      context,
+    );
   }
 
   private lowerValueList(
@@ -872,58 +970,26 @@ class SuspensionPlanBuilder {
         ? undefined
         : this.temporary(expression.type, expression.span, "for");
     const after = continuation(result ? this.local(result, expression.span) : undefined);
-    const iterable = this.temporary(expression.iterable.type, expression.iterable.span, "iterable");
-    const index = this.temporary("i32", expression.span, "index");
-    const iterableValue = this.local(iterable, expression.iterable.span);
-    const indexValue = this.local(index, expression.span);
-    const length: HirExpression =
-      expression.iteratorKind === "list"
-        ? { kind: "list-length", receiver: iterableValue, type: "i32", span: expression.span }
-        : { kind: "map-length", receiver: iterableValue, type: "i32", span: expression.span };
+    const iteratorType = mutableType(nominalGenericType("Iterator", [expression.yieldType]));
+    const iterator = this.temporary(iteratorType, expression.iterable.span, "iterator");
+    const next = this.temporary(`${expression.yieldType}?`, expression.span, "next");
+    const iteratorValue = this.local(iterator, expression.iterable.span);
+    const nextValue = this.local(next, expression.span);
     const condition: HirExpression = {
       kind: "binary",
-      operator: "<",
-      left: indexValue,
-      right: length,
+      operator: "==",
+      left: { kind: "variant-tag", receiver: nextValue, type: "i32", span: expression.span },
+      right: { kind: "integer", value: 1, type: "i32", span: expression.span },
       type: "bool",
       span: expression.span,
     };
-    const yielded: HirExpression =
-      expression.iteratorKind === "list"
-        ? {
-            kind: "list-index",
-            receiver: iterableValue,
-            index: indexValue,
-            elementType: expression.yieldType,
-            type: expression.yieldType,
-            span: expression.span,
-          }
-        : (() => {
-            const parts = tupleParts(expression.yieldType)!;
-            const key: HirExpression = {
-              kind: "map-entry-key",
-              receiver: iterableValue,
-              index: indexValue,
-              keyType: parts[0]!,
-              type: parts[0]!,
-              span: expression.span,
-            };
-            const value: HirExpression = {
-              kind: "map-entry-value",
-              receiver: iterableValue,
-              index: indexValue,
-              valueType: parts[1]!,
-              type: parts[1]!,
-              span: expression.span,
-            };
-            return {
-              kind: "tuple",
-              elements: [key, value],
-              elementTypes: parts,
-              type: expression.yieldType,
-              span: expression.span,
-            };
-          })();
+    const yielded: HirExpression = {
+      kind: "variant-payload",
+      receiver: nextValue,
+      payloadType: expression.yieldType,
+      type: expression.yieldType,
+      span: expression.span,
+    };
     const finishElse = (value: HirExpression | undefined): number =>
       this.block(result && value ? [{ kind: "assign", local: result, value }] : [], {
         kind: "jump",
@@ -934,30 +1000,13 @@ class SuspensionPlanBuilder {
         ? this.lowerSuite(expression.elseBody, expression.type, finishElse, context)
         : after;
     const head = this.reserveBlock();
-    const increment = this.block(
-      [
-        {
-          kind: "assign",
-          local: index,
-          value: {
-            kind: "binary",
-            operator: "+",
-            left: indexValue,
-            right: { kind: "integer", value: 1, type: "i32", span: expression.span },
-            type: "i32",
-            span: expression.span,
-          },
-        },
-      ],
-      { kind: "jump", target: head },
-    );
     const loop: LoopContext = {
       breakTarget: after,
-      continueTarget: increment,
+      continueTarget: head,
       resultLocal: result,
       cleanupDepth: context.cleanups.length,
     };
-    const bodyEntry = this.lowerSuite(expression.body, "void", () => increment, {
+    const bodyEntry = this.lowerSuite(expression.body, "void", () => head, {
       ...context,
       loop,
     });
@@ -989,17 +1038,49 @@ class SuspensionPlanBuilder {
       thenTarget: bindingEntry,
       elseTarget: elseEntry,
     });
-    this.setBlock(head, [], { kind: "jump", target: conditionEntry });
+    const nextEntry = this.block(
+      [
+        {
+          kind: "assign",
+          local: next,
+          value: {
+            kind: "iterator-next",
+            receiver: iteratorValue,
+            elementType: expression.yieldType,
+            type: `${expression.yieldType}?`,
+            span: expression.span,
+          },
+        },
+      ],
+      { kind: "jump", target: conditionEntry },
+    );
+    this.setBlock(head, [], { kind: "jump", target: nextEntry });
     return this.lowerExpression(
       expression.iterable,
       (value) =>
         this.block(
           [
-            { kind: "assign", local: iterable, value: value! },
             {
               kind: "assign",
-              local: index,
-              value: { kind: "integer", value: 0, type: "i32", span: expression.span },
+              local: iterator,
+              value:
+                expression.iteratorKind === "list"
+                  ? {
+                      kind: "list-iterator",
+                      receiver: value!,
+                      elementType: expression.yieldType,
+                      type: iteratorType,
+                      span: expression.span,
+                    }
+                  : expression.iteratorKind === "map"
+                    ? {
+                        kind: "map-iterator",
+                        receiver: value!,
+                        elementType: expression.yieldType,
+                        type: iteratorType,
+                        span: expression.span,
+                      }
+                    : value!,
             },
           ],
           { kind: "jump", target: head },

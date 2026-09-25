@@ -1,3 +1,2 @@
-# expect-error: direct-variant-use
 
-use pkg.status.{Status.Queued}
+use pkg.status.{Status.Queued}  # diagnostic: direct-variant-use

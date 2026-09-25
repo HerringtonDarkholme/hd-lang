@@ -1,5 +1,4 @@
-# expect-error: decorator-not-top-level
 fn run() -> void:
-    @Validation
+    @Validation  # diagnostic: decorator-not-top-level
     data Request:
         query: string

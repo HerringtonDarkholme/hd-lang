@@ -1,4 +1,3 @@
-# expect-error: orphan-impl
-impl Display for i32:
+impl Display for i32:  # diagnostic: orphan-impl
     fn to_string(self) -> string:
         "$self"

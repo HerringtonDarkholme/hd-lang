@@ -1,5 +1,4 @@
-# expect-error: unknown-shape-target
 data User:
     id: string
 
-missing := shape(User.deleted)
+missing := shape(User.deleted)  # diagnostic: unknown-shape-target

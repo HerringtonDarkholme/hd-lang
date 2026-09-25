@@ -1,0 +1,2 @@
+values := [1]
+result := values[1]  # panic: index-out-of-bounds

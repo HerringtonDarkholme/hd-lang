@@ -1,0 +1,31 @@
+use std.testing.assert
+
+test "list iterator yields values and remains exhausted":
+    let values: mut list[i32] = [20, 22]
+    let iterator: mut Iterator[i32] = values.iter()
+    let first: i32? = 20
+    let second: i32? = 22
+    let exhausted: i32? = nil
+    assert(iterator.next() == first, reason="the first call yields the first value")
+    assert(iterator.next() == second, reason="the second call yields the second value")
+    assert(iterator.next() == exhausted, reason="an exhausted iterator returns nil")
+    assert(iterator.next() == exhausted, reason="an exhausted iterator remains exhausted")
+
+test "element replacement preserves an iterator and changes a later yield":
+    let values: mut list[i32] = [1, 2]
+    let iterator: mut Iterator[i32] = values.iter()
+    let first: i32? = 1
+    let replacement: i32? = 42
+    assert(iterator.next() == first, reason="the iterator advances before replacement")
+    values[1] = 42
+    assert(iterator.next() == replacement, reason="replacement does not invalidate the iterator")
+
+test "for continues from a partly consumed mutable iterator":
+    let values: mut list[i32] = [20, 21, 22]
+    let iterator: mut Iterator[i32] = values.iter()
+    let first: i32? = 20
+    assert(iterator.next() == first, reason="the explicit call consumes the first value")
+    let total: i32 = 0
+    for value in iterator:
+        total = total + value
+    assert(total == 43, reason="for uses the same cursor without resetting it")

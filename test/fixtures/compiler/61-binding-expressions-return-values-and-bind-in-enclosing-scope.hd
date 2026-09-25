@@ -1,0 +1,17 @@
+# test: binding expressions return values and bind in the enclosing scope
+# expect-result: main = 42
+
+fn pair() -> (i32, i32): (10, 12)
+
+fn guarded(flag: bool) -> i32:
+    if flag and (inside := 1) > 0:
+        inside
+    else:
+        0
+
+fn main() -> i32:
+    if (value := 20) > 0:
+        pass
+    _ := (left, right := pair())
+    first := second := value
+    value + left + right - first + second + guarded(true) - 1

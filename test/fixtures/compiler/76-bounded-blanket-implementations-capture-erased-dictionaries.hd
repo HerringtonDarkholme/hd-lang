@@ -1,0 +1,35 @@
+# test: bounded blanket implementations capture nested erased dictionaries
+# expect-result: dynamic_score = 42
+# expect-result: bounded_score = 42
+# expect-result: forwarded_score = 42
+
+trait Score:
+    fn score(self) -> i32
+
+data Point:
+    value: i32
+
+impl Score for Point:
+    fn score(self) -> i32: self.value
+
+impl[Item: Score] Score for list[Item]:
+    fn score(self) -> i32: self[0].score()
+
+fn dynamic_score() -> i32:
+    let points: list[Point] = [Point { value: 42 }]
+    let dynamic: Score = points
+    dynamic.score()
+
+fn read_score[T: Score](value: T) -> i32:
+    value.score()
+
+fn bounded_score() -> i32:
+    let points: list[Point] = [Point { value: 42 }]
+    read_score(points)
+
+fn erase_scores[T: Score](values: list[T]) -> Score:
+    values
+
+fn forwarded_score() -> i32:
+    let points: list[Point] = [Point { value: 42 }]
+    erase_scores(points).score()

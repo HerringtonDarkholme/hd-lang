@@ -1,3 +1,3 @@
 # test: the minimum i32 literal forms through unary negation
 
-fn main() -> i32: -2147483648 / -1  # panic: runtime-error
+fn main() -> i32: -2147483648 / -1  # panic: integer-overflow

@@ -1,0 +1,17 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+let cleaned: bool = false
+
+fn wait!() -> void:
+    pass
+
+fn pending!() -> void:
+    defer:
+        cleaned = true
+    wait!()
+
+pub fn main!() -> void:
+    pending!()
+
+pub fn cleanup_ran() -> bool:
+    cleaned

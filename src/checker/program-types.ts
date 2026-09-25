@@ -1,7 +1,7 @@
 import type { HirData } from "../hir.ts";
-import { nominalGenericType } from "../types.ts";
+import { nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { typeName } from "./shared.ts";
+import { resolveGenericType, typeName } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
@@ -84,6 +84,8 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       name: declaration.name,
       index,
       genericParameters: declaration.genericParameters,
+      supertraits: [],
+      associatedTypes: [],
       methods: [],
       span: declaration.span,
     });
@@ -92,10 +94,14 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     name: "Display",
     index: program.traits.length,
     genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
     methods: [
       {
         name: "to_string",
         index: 0,
+        associated: false,
+        genericParameters: [],
         suspending: false,
         receiverMutable: false,
         parameters: [],
@@ -108,7 +114,117 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
+  traitTypes.set("PartialEq", {
+    name: "PartialEq",
+    index: program.traits.length + 1,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "eq",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: false,
+        parameters: ["generic:Self"],
+        parameterNames: ["other"],
+        variadic: false,
+        result: "bool",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
+  traitTypes.set("PartialOrd", {
+    name: "PartialOrd",
+    index: program.traits.length + 2,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "partial_cmp",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: false,
+        parameters: ["generic:Self"],
+        parameterNames: ["other"],
+        variadic: false,
+        result: "Ordering?",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
+  traitTypes.set("Waker", {
+    name: "Waker",
+    index: program.traits.length + 3,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "wake",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: false,
+        parameters: [],
+        parameterNames: [],
+        variadic: false,
+        result: "void",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
+  traitTypes.set("Iterator", {
+    name: "Iterator",
+    index: program.traits.length + 4,
+    genericParameters: ["T"],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "next",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: true,
+        parameters: [],
+        parameterNames: [],
+        variadic: false,
+        result: "generic:T?",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
   let nextEnumIndex = program.enums.length;
+  enumTypes.set("Ordering", {
+    name: "Ordering",
+    index: nextEnumIndex++,
+    genericParameters: [],
+    sharedFields: [],
+    variants: ["Less", "Equal", "Greater"].map((name, tag) => ({
+      name,
+      tag,
+      fields: [],
+      span: program.span,
+    })),
+    fields: [],
+    span: program.span,
+  });
   for (const [localName, importedName] of imports) {
     if (importedName !== "std.resource.ResourceError") continue;
     const declaration = program.uses.find((useDeclaration) =>
@@ -310,15 +426,58 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           span: declaration.span,
         });
     }
-    if (declaration.genericParameters.length > 0 && declaration.methods.length > 0) {
-      diagnostics.push({
-        code: "unsupported-generic-trait-method",
-        message: `generic trait '${declaration.name}' is currently supported only as a provider marker`,
-        span: declaration.span,
-      });
-      continue;
-    }
+    const genericParameters = new Set(declaration.genericParameters);
+    const supertraitNames = new Set<string>();
+    const supertraits = declaration.supertraits.flatMap((reference) => {
+      const resolved = resolveGenericType(reference.name, genericParameters);
+      const application = nominalGenericParts(resolved);
+      const name = application?.name ?? resolved;
+      const supertrait = traitTypes.get(name);
+      if (!supertrait) {
+        diagnostics.push({
+          code: "unknown-trait",
+          message: `unknown supertrait '${reference.name}'`,
+          span: reference.span,
+        });
+        return [];
+      }
+      if (supertraitNames.has(resolved)) {
+        diagnostics.push({
+          code: "duplicate-supertrait",
+          message: `supertrait '${reference.name}' is listed more than once`,
+          span: reference.span,
+        });
+        return [];
+      }
+      supertraitNames.add(resolved);
+      const traitArguments = application?.arguments ?? [];
+      if (traitArguments.length !== supertrait.genericParameters.length) {
+        diagnostics.push({
+          code: "generic-arity",
+          message: `trait '${supertrait.name}' expects ${supertrait.genericParameters.length} type arguments`,
+          span: reference.span,
+        });
+        return [];
+      }
+      return [
+        {
+          traitIndex: supertrait.index,
+          traitName: supertrait.name,
+          traitArguments,
+        },
+      ];
+    });
     const names = new Set<string>();
+    const associatedTypes = declaration.associatedTypes.map((associated, index) => {
+      if (names.has(associated.name))
+        diagnostics.push({
+          code: "duplicate-trait-member",
+          message: `trait member '${associated.name}' is declared more than once`,
+          span: associated.span,
+        });
+      names.add(associated.name);
+      return { name: associated.name, index, span: associated.span };
+    });
     const methods = declaration.methods.map((method, index) => {
       if (names.has(method.name))
         diagnostics.push({
@@ -327,13 +486,14 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           span: method.span,
         });
       names.add(method.name);
-      if (method.parameters[0]?.name !== "self")
-        diagnostics.push({
-          code: "unsupported-associated-function",
-          message: `trait method '${method.name}' requires a self receiver in the initial dictionary slice`,
-          span: method.span,
-        });
-      const sourceParameters = method.parameters.slice(1);
+      const associated = method.parameters[0]?.name !== "self";
+      const memberGenerics = new Set([
+        ...declaration.genericParameters,
+        ...method.genericParameters,
+        "Self",
+        ...associatedTypes.map((associated) => `Self::${associated.name}`),
+      ]);
+      const sourceParameters = associated ? method.parameters : method.parameters.slice(1);
       sourceParameters.forEach((parameter, parameterIndex) => {
         if (parameter.variadic && parameterIndex !== sourceParameters.length - 1) {
           diagnostics.push({
@@ -344,24 +504,24 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         }
       });
       const parameters = sourceParameters.map((parameter) => {
-        const type = typeName(parameter.type, dataTypes, enumTypes, traitTypes, diagnostics);
+        const type = typeName(
+          parameter.type,
+          dataTypes,
+          enumTypes,
+          traitTypes,
+          diagnostics,
+          memberGenerics,
+        );
         return type && parameter.variadic ? nominalGenericType("list", [type]) : type;
       });
-      if (
-        method.result.name === "Self" ||
-        method.parameters.slice(1).some((parameter) => parameter.type.name === "Self")
-      ) {
-        diagnostics.push({
-          code: "unsafe-dynamic-trait",
-          message: "Self may appear only as the receiver of a dynamic trait method",
-          span: method.span,
-        });
-      }
       const result =
-        typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics) ?? "void";
+        typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??
+        "void";
       return {
         name: method.name,
         index,
+        associated,
+        genericParameters: method.genericParameters,
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),
@@ -372,6 +532,36 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         span: method.span,
       };
     });
-    traitTypes.set(declaration.name, { ...trait, methods });
+    traitTypes.set(declaration.name, { ...trait, supertraits, associatedTypes, methods });
+  }
+  diagnoseSupertraitCycles(context);
+}
+
+function diagnoseSupertraitCycles(context: ProgramCheckContext): void {
+  const traitsByIndex = new Map(
+    [...context.traitTypes.values()].map((trait) => [trait.index, trait]),
+  );
+  const reaches = (current: number, target: number, seen: Set<number>): boolean => {
+    if (current === target) return true;
+    if (seen.has(current)) return false;
+    seen.add(current);
+    return (
+      traitsByIndex
+        .get(current)
+        ?.supertraits.some((supertrait) => reaches(supertrait.traitIndex, target, seen)) ?? false
+    );
+  };
+  for (const declaration of context.program.traits) {
+    const trait = context.traitTypes.get(declaration.name);
+    if (
+      trait?.supertraits.some((supertrait) =>
+        reaches(supertrait.traitIndex, trait.index, new Set([trait.index])),
+      )
+    )
+      context.diagnostics.push({
+        code: "supertrait-cycle",
+        message: `trait '${trait.name}' participates in a supertrait cycle`,
+        span: declaration.span,
+      });
   }
 }

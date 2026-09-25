@@ -1,5 +1,6 @@
 import type {
   Expression,
+  AssociatedTypeDecl,
   DataDecl,
   EnumDecl,
   FunctionDecl,
@@ -28,6 +29,11 @@ export interface ParseResult {
 interface FunctionTypeParameter {
   readonly type: TypeRef;
   readonly variadic: boolean;
+}
+
+interface ParsedGenericParameters {
+  readonly parameters: readonly string[];
+  readonly bounds: readonly GenericBound[];
 }
 
 class Parser extends ExpressionParser {
@@ -138,47 +144,11 @@ class Parser extends ExpressionParser {
     const start = this.expectText("fn").span.start;
     const name = this.expectKind("identifier", "expected a function name");
     const suspending = this.matchText("!");
-    const genericParameters: string[] = [];
-    const genericBounds: GenericBound[] = [];
-    if (this.matchText("[")) {
-      if (!this.atText("]")) {
-        do {
-          const parameter = this.expectKind("identifier", "expected a generic parameter name");
-          if (genericParameters.includes(parameter.text))
-            this.fail(
-              "duplicate-generic-parameter",
-              `generic parameter '${parameter.text}' is declared more than once`,
-              parameter.span,
-            );
-          genericParameters.push(parameter.text);
-          if (this.matchText(":")) {
-            const traits: string[] = [];
-            do {
-              if (this.matchText("mut"))
-                this.fail(
-                  "unsupported-mutable-trait-bound",
-                  "mutable trait bounds are introduced after the initial dictionary slice",
-                  this.peek(-1).span,
-                );
-              traits.push(this.expectKind("identifier", "expected a trait name after ':'").text);
-            } while (this.matchText("+"));
-            genericBounds.push({
-              parameter: parameter.text,
-              traits,
-              span: { start: parameter.span.start, end: this.peek(-1).span.end },
-            });
-          } else if (this.atText("...") || this.atText("=")) {
-            this.fail(
-              "unsupported-generic-parameter",
-              "bounds, packs, and defaults are introduced after the erased-generic MVP slice",
-              this.current().span,
-            );
-          }
-        } while (this.matchText(",") && !this.atText("]"));
-      }
-      this.expectText("]");
-    }
-    this.activeGenericParameters = new Set(genericParameters);
+    const parsedGenerics = this.parseGenericParameters();
+    const genericParameters = [...parsedGenerics.parameters];
+    const genericBounds = [...parsedGenerics.bounds];
+    const enclosingGenericParameters = this.activeGenericParameters;
+    this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");
     const parameters: Parameter[] = [];
     if (!this.atText(")")) {
@@ -234,6 +204,50 @@ class Parser extends ExpressionParser {
     };
   }
 
+  protected parseGenericParameters(): ParsedGenericParameters {
+    const parameters: string[] = [];
+    const bounds: GenericBound[] = [];
+    if (!this.matchText("[")) return { parameters, bounds };
+    if (!this.atText("]")) {
+      do {
+        const parameter = this.expectKind("identifier", "expected a generic parameter name");
+        if (parameters.includes(parameter.text))
+          this.fail(
+            "duplicate-generic-parameter",
+            `generic parameter '${parameter.text}' is declared more than once`,
+            parameter.span,
+          );
+        parameters.push(parameter.text);
+        if (this.matchText(":")) {
+          const traits = this.parseTraitBoundNames();
+          bounds.push({
+            parameter: parameter.text,
+            traits,
+            span: { start: parameter.span.start, end: this.peek(-1).span.end },
+          });
+        } else if (this.atText("...") || this.atText("=")) {
+          this.fail(
+            "unsupported-generic-parameter",
+            "packs and defaults are outside the current erased-generic slice",
+            this.current().span,
+          );
+        }
+      } while (this.matchText(",") && !this.atText("]"));
+    }
+    this.expectText("]");
+    return { parameters, bounds };
+  }
+
+  protected parseTraitBoundNames(): string[] {
+    const mutable = this.matchText("mut");
+    const traits: string[] = [];
+    do {
+      const trait = this.parseType();
+      traits.push(mutable ? `mut:${trait.name}` : trait.name);
+    } while (this.matchText("+"));
+    return traits;
+  }
+
   protected parseTest(doc?: string): TestDecl {
     if (doc)
       this.fail(
@@ -271,6 +285,12 @@ class Parser extends ExpressionParser {
       if (!this.atText("}")) {
         do {
           const name = this.expectKind("identifier", "expected an imported declaration name").text;
+          if (this.atText("."))
+            this.fail(
+              "direct-variant-use",
+              "enum variants cannot be imported directly",
+              this.current().span,
+            );
           const alias = this.matchText("as")
             ? this.expectKind("identifier", "expected an import alias").text
             : undefined;
@@ -316,18 +336,30 @@ class Parser extends ExpressionParser {
       this.expectText("]");
     }
     if (this.matchText(":")) {
-      if (!this.atKind("newline"))
-        this.fail(
-          "unsupported-supertrait",
-          "supertraits are introduced after the initial dictionary slice",
-          this.current().span,
-        );
+      const supertraits: TypeRef[] = [];
+      if (!this.atKind("newline")) {
+        do supertraits.push(this.parseType());
+        while (this.matchText("+"));
+        this.expectText(":");
+      }
       this.expectKind("newline", "expected a line ending after a trait header");
       this.expectKind("indent", "expected an indented trait body");
       const methods: MethodDecl[] = [];
+      const associatedTypes: AssociatedTypeDecl[] = [];
       while (!this.atKind("dedent") && !this.atKind("eof")) {
         if (this.matchKind("newline")) continue;
         const methodDoc = this.parseDocComments();
+        if (this.matchText("type")) {
+          const associatedName = this.expectKind("identifier", "expected an associated type name");
+          const end = this.expectKind("newline", "expected a line ending after an associated type")
+            .span.end;
+          associatedTypes.push({
+            name: associatedName.text,
+            doc: methodDoc,
+            span: { start: associatedName.span.start, end },
+          });
+          continue;
+        }
         if (!this.atText("fn") && !this.atText("pub"))
           this.fail(
             "doc-comment-without-target",
@@ -348,6 +380,8 @@ class Parser extends ExpressionParser {
         ...(public_ ? { public: true } : {}),
         name: name.text,
         genericParameters,
+        supertraits,
+        associatedTypes,
         methods,
         doc,
         span: { start, end: close.span.end },
@@ -359,6 +393,8 @@ class Parser extends ExpressionParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
+      supertraits: [],
+      associatedTypes: [],
       methods: [],
       doc,
       span: { start, end },
@@ -367,30 +403,43 @@ class Parser extends ExpressionParser {
 
   protected parseImpl(doc?: string): ImplDecl {
     const start = this.expectText("impl").span.start;
-    if (this.atText("["))
-      this.fail(
-        "unsupported-generic-impl",
-        "generic implementations are introduced after the initial dictionary slice",
-        this.current().span,
-      );
-    const first = this.expectKind("identifier", "expected an implementation target or trait name");
+    const parsedGenerics = this.parseGenericParameters();
+    const genericParameters = [...parsedGenerics.parameters];
+    const genericBounds = [...parsedGenerics.bounds];
+    const enclosingGenericParameters = this.activeGenericParameters;
+    this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
+    const first = this.parseType();
     const trait = this.matchText("for") ? first : undefined;
-    const target = trait
-      ? this.expectKind("identifier", "expected an implementation target type")
-      : first;
+    const target = trait ? this.parseType() : first;
+    if (this.matchText("where")) {
+      do {
+        const parameter = this.parseType();
+        this.expectText(":");
+        const traits = this.parseTraitBoundNames();
+        genericBounds.push({
+          parameter: parameter.name,
+          traits,
+          span: { start: parameter.span.start, end: this.peek(-1).span.end },
+        });
+      } while (this.matchText(",") && !this.atText(":"));
+    }
     if (!this.matchText(":")) {
       if (!trait)
         this.fail(
           "missing-impl-body",
-          `inherent implementation for '${target.text}' requires a body`,
+          `inherent implementation for '${target.name}' requires a body`,
           target.span,
         );
       const end = this.expectKind("newline", "expected a line ending after an implementation").span
         .end;
+      this.activeGenericParameters = enclosingGenericParameters;
       return {
         kind: "impl",
-        traitName: trait.text,
-        targetName: target.text,
+        genericParameters,
+        genericBounds,
+        traitName: trait.name,
+        targetName: target.name,
+        associatedTypes: [],
         methods: [],
         doc,
         span: { start, end },
@@ -399,9 +448,26 @@ class Parser extends ExpressionParser {
     this.expectKind("newline", "expected a line ending after an implementation header");
     this.expectKind("indent", "expected an indented implementation body");
     const methods: MethodDecl[] = [];
+    const associatedTypes: AssociatedTypeDecl[] = [];
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
       const methodDoc = this.parseDocComments();
+      if (this.matchText("type")) {
+        const associatedName = this.expectKind("identifier", "expected an associated type name");
+        this.expectText("=");
+        const value = this.parseType();
+        const end = this.expectKind(
+          "newline",
+          "expected a line ending after an associated type binding",
+        ).span.end;
+        associatedTypes.push({
+          name: associatedName.text,
+          value,
+          doc: methodDoc,
+          span: { start: associatedName.span.start, end },
+        });
+        continue;
+      }
       if (!this.atText("fn"))
         this.fail(
           "doc-comment-without-target",
@@ -411,10 +477,14 @@ class Parser extends ExpressionParser {
       methods.push(this.parseMethod(true, methodDoc));
     }
     const close = this.expectKind("dedent", "expected the end of the implementation body");
+    this.activeGenericParameters = enclosingGenericParameters;
     return {
       kind: "impl",
-      ...(trait ? { traitName: trait.text } : {}),
-      targetName: target.text,
+      genericParameters,
+      genericBounds,
+      ...(trait ? { traitName: trait.name } : {}),
+      targetName: target.name,
+      associatedTypes,
       methods,
       doc,
       span: { start, end: close.span.end },
@@ -425,12 +495,11 @@ class Parser extends ExpressionParser {
     const start = this.expectText("fn").span.start;
     const name = this.expectKind("identifier", "expected a method name");
     const suspending = this.matchText("!");
-    if (this.atText("["))
-      this.fail(
-        "unsupported-generic-method",
-        "generic methods are introduced after the initial dictionary slice",
-        this.current().span,
-      );
+    const parsedGenerics = this.parseGenericParameters();
+    const genericParameters = [...parsedGenerics.parameters];
+    const genericBounds = [...parsedGenerics.bounds];
+    const enclosingGenericParameters = this.activeGenericParameters;
+    this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");
     const parameters: Parameter[] = [];
     if (!this.atText(")")) {
@@ -486,9 +555,12 @@ class Parser extends ExpressionParser {
         );
       const end = this.expectKind("newline", "expected a line ending after a required method").span
         .end;
+      this.activeGenericParameters = enclosingGenericParameters;
       return {
         name: name.text,
         suspending,
+        genericParameters,
+        genericBounds,
         parameters,
         result,
         requirements,
@@ -497,9 +569,12 @@ class Parser extends ExpressionParser {
       };
     }
     const body = this.parseSuite();
+    this.activeGenericParameters = enclosingGenericParameters;
     return {
       name: name.text,
       suspending,
+      genericParameters,
+      genericBounds,
       parameters,
       result,
       requirements,
@@ -829,16 +904,15 @@ class Parser extends ExpressionParser {
     if (this.matchText("mut")) {
       const start = this.peek(-1).span.start;
       const inner = this.parseType();
-      if (inner.name.startsWith("mut:") || inner.name.startsWith("mut-suspend:")) {
+      if (inner.name.startsWith("mut:")) {
         this.fail(
           "duplicate-mutable-permission",
           "a type cannot apply 'mut' permission twice",
           inner.span,
         );
       }
-      const suspend = /^Suspend\[(.*)\]$/s.exec(inner.name);
       return {
-        name: suspend ? `mut-suspend:${suspend[1]}` : `mut:${inner.name}`,
+        name: `mut:${inner.name}`,
         span: { start, end: inner.span.end },
       };
     }
@@ -855,6 +929,7 @@ class Parser extends ExpressionParser {
     }
     if (this.matchText("fn")) {
       const start = this.peek(-1).span.start;
+      const suspending = this.matchText("!");
       this.expectText("(");
       const parameters: FunctionTypeParameter[] = [];
       if (!this.atText(")")) {
@@ -879,11 +954,13 @@ class Parser extends ExpressionParser {
       const end = hasRequirements ? this.peek(-1).span.end : result.span.end;
       const row = requirements.length ? `$${requirements.join("+")}` : "";
       return {
-        name: `fn(${parameters.map((parameter) => `${parameter.type.name}${parameter.variadic ? "..." : ""}`).join(",")})->${result.name}${row}`,
+        name: `fn${suspending ? "!" : ""}(${parameters.map((parameter) => `${parameter.type.name}${parameter.variadic ? "..." : ""}`).join(",")})->${result.name}${row}`,
         span: { start, end },
       };
     }
-    const name = this.expectKind("identifier", "expected a type name");
+    const name = this.atText("Self")
+      ? this.advance()
+      : this.expectKind("identifier", "expected a type name");
     let rendered = name.text;
     let end = name.span.end;
     if (this.matchText("[")) {
@@ -901,6 +978,11 @@ class Parser extends ExpressionParser {
         );
       rendered = `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
       end = close.span.end;
+    }
+    if (this.matchText("::")) {
+      const member = this.expectKind("identifier", "expected an associated type name");
+      rendered = `${rendered}::${member.text}`;
+      end = member.span.end;
     }
     while (this.matchText("?")) {
       rendered += "?";
@@ -934,6 +1016,12 @@ class Parser extends ExpressionParser {
 
   protected parseStatement(topOrInline: boolean): Statement {
     const start = this.current().span.start;
+    if (this.atText("@"))
+      this.fail(
+        "decorator-not-top-level",
+        "decorators are only valid on top-level declarations",
+        this.current().span,
+      );
     if (this.atKind("doc-comment")) {
       this.fail(
         "doc-comment-without-target",
@@ -1062,6 +1150,12 @@ class Parser extends ExpressionParser {
   protected parseTrailingBlockCall(callee: Expression): Expression {
     if (!this.atText(":")) return callee;
     const body = this.parseSuite();
+    if (this.atText(":"))
+      this.fail(
+        "trailing-block-position",
+        "a call accepts only one trailing callback block",
+        this.current().span,
+      );
     const callback: Expression = {
       kind: "closure",
       parameters: [],

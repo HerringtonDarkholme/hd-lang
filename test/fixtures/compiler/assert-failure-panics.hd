@@ -1,0 +1,6 @@
+# test: assert failure is a runtime panic
+
+use std.testing.assert
+
+fn main() -> void:
+    assert(false, reason="the condition is intentionally false")  # panic: assertion-failed
