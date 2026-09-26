@@ -149,7 +149,11 @@ read it, so prefer explicit, checkable rules and locality.
   suspension; only `Reference`-bounded method generics are allowed (G2).
 - **TQ-11, not yet applied.** Newtypes may carry `@derive(...)`; the derived
   implementations use the base type's behavior.
-- **TQ-12: any mix of derived and hand-written law partners stays allowed.**
+- **TQ-12 (revised), not yet applied.** Law partners may not mix derived and
+  hand-written implementations. Deriving `Hash`, `PartialOrd`, or `Ord`
+  requires its partners (`PartialEq`, and `PartialOrd` for `Ord`) to be
+  derived in the same list; if any partner is hand-written, all of them must
+  be hand-written.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
