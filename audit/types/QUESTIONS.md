@@ -248,6 +248,21 @@ read it, so prefer explicit, checkable rules and locality.
   existing `Post { ...p, title: x }` form. A prefix `...` therefore always
   means "copy named members".
 
+- **Embedding critique, second review (2026-09-26).** (1) Copy semantics
+  belong to the embedding position, not the type: accepted, because the use
+  site shows the difference (`...` copies shallowly; the part's ordinary
+  fields still reference the same data). (2) Rule VE-A stays:
+  `Post { Timestamps: ...readonly_ts }` yields a readonly post when the part
+  type has mutable edges, and a package adding a `mut` field breaking such
+  code downstream is intended; adding a mutable edge is a significant change.
+  (3, not yet applied) Prefix `...` means copy only; context spreads become
+  suffix spreads: `$.with(ctx...)`, `$.context(ctx...)`. (4) Exclusivity of
+  embedded parts is deliberately not guaranteed. (5) Copy-update copying
+  every embedded part is the intended semantics. (7) Embedding exists to
+  replace subtyping and class inheritance, not to provide trait
+  conformance. (8) Mandatory `...`, construction keys, and invariance are
+  not issues.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
