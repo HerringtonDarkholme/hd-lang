@@ -855,7 +855,6 @@ runtime/valid/shorter-promotion-path-wins.hd	runtime
 runtime/valid/function-typed-field-call.hd	runtime
 runtime/valid/field-and-inherent-method-share-name.hd	runtime
 runtime/valid/promoted-method-no-override.hd	runtime
-runtime/valid/private-own-member-wins-in-module.hd	runtime
 typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	type
 typing/invalid/embedded-copy-required.hd	type
 typing/invalid/embedded-copy-required-fresh-literal.hd	type

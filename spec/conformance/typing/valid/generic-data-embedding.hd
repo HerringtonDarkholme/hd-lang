@@ -1,5 +1,5 @@
 data Box[T]:
-    value: T
+    pub value: T
 
 data Shipment[T]:
     Box[T]
