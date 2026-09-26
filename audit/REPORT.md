@@ -275,8 +275,6 @@ four fuzzers, plus 1,000 cross-implementation cases:
 - 58.5% of `check` rejections carry one of 48 codes missing from the spec
   inventory (F-205).
 - Implementation bugs still open: F-308, F-310, F-311, F-316 (front end).
-- The grammar itself derives same-line-suite forms that layout cannot
-  produce (F-314).
 - Minimized findings are portable `.hd` fixtures in
   [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/); the ones the
   spec settles are now conformance cases.

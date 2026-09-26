@@ -1,0 +1,18 @@
+# test: associated functions take method-level type arguments after the member name
+# expect: test
+
+use std.testing.assert_equal
+
+data Duration:
+    day_count: i32
+
+impl Duration:
+    fn days(count: i32) -> Self:
+        Duration { day_count: count }
+
+    fn choose[Value](value: Value) -> Value:
+        value
+
+test "qualified associated calls with and without type arguments":
+    assert_equal(Duration::days(30).day_count, 30, reason="ordinary associated function")
+    assert_equal(Duration::choose[i32](42), 42, reason="explicit type argument after the name")

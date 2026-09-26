@@ -1,0 +1,16 @@
+# test: a trait-qualified call takes method-level type arguments after the method name
+# expect: test
+
+use std.testing.assert_equal
+
+trait Identity:
+    fn select[T](self, value: T) -> T
+
+data Picker: pass
+
+impl Identity for Picker:
+    fn select[T](self, value: T) -> T: value
+
+test "dot and trait-qualified calls with explicit type arguments":
+    assert_equal(Picker {}.select[i32](42), 42, reason="dot call with explicit type argument")
+    assert_equal(Identity::select[i32](Picker {}, 42), 42, reason="trait-qualified call with explicit type argument")

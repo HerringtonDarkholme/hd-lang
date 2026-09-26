@@ -28,6 +28,8 @@ The core place expressions are:
 - an index operation whose receiver and indexing protocol expose mutable
   storage.
 
+The receiver of a field or index place may be any expression of mutable
+composite type, including a call that returns mutable access.
 `:=` bindings, literals, calls, arithmetic, and temporary values are not places.
 A tuple element selection such as `pair.0` is not a place: tuples are
 immutable, and a changed tuple is built as a new tuple value.

@@ -299,7 +299,10 @@ sum := Add[Money]::add(left, right)
 The receiver is the first ordinary argument and must implement the named trait
 instantiation. Remaining arguments follow normal positional/named ordering.
 This form bypasses inherent and promoted-method lookup and selects exactly the
-named trait method.
+named trait method. A generic trait method takes its explicit type arguments
+after the method name, as in `Identity::select[i32](picker, 42)`; the trait's
+own type arguments stay before `::`. The list follows the rules of
+[Generic Functions](07-functions.md#generic-functions).
 
 ## Generic Bounds And Static Dispatch
 

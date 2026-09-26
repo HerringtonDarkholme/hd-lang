@@ -75,6 +75,12 @@ choice(
 )
 ```
 
+Inside brackets, a header may resume after such a suite: in
+`(if fn(): ...` the closure's indented body may be followed by a line that
+begins with the `if` header's `:`. Outside brackets, and in the statements of
+a nested suite, a header cannot end in an indented suite; the line after that
+suite cannot continue it ([Grammar](02-grammar.md#statements)).
+
 Layout recognition and parsing therefore cooperate at a suite-introducing
 colon; a lexer may implement this with parser feedback or with equivalent
 parser-state tracking. Ordinary colons in maps, data fields, named types, and

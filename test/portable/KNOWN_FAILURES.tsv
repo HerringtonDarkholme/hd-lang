@@ -146,3 +146,5 @@ typing/invalid/nil-without-expected-type.hd	MVP reports nil-needs-optional-type 
 typing/invalid/float-remainder.hd	MVP reports invalid-binary-operands instead of type-mismatch	F-205
 typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of missing-partial-ord	F-205
 typing/invalid/tuple-index-out-of-range.hd	MVP reports tuple-index-range instead of unknown-method	F-205
+parse/invalid/header-after-indented-suite.hd	MVP reports expected-newline at line 6 instead of syntax-error at line 4	F-205
+typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257

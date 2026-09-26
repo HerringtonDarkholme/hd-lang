@@ -244,6 +244,9 @@ them. Within a plain closure, captured mutable access `mut T` is viewed as
 readonly `T`. A closure must be `mut fn` when it assigns captured `let` storage
 or obtains mutable access from a capture—for example, by calling a `mut self`
 method on a captured list or on a captured mutable child.
+A plain closure that obtains mutable access from a capture reports
+`mutable-capture-requires-mut-fn`. This includes passing a captured `mut T`
+binding to a `mut T` parameter.
 
 Returning mutable access obtained from a capture therefore also requires a
 `mut fn` closure. A callable's declared `mut T` result is not itself weakened
@@ -361,6 +364,12 @@ The same explicit-list rules apply to generic methods:
 parser.parse[User](text)
 parser.convert[_, User](payload)
 ```
+
+They also apply to qualified calls of generic associated functions and trait
+methods. The method-level list follows the member name, as in
+`Type::name[T](...)`, `Trait::name[T](receiver, ...)`, and the suspending
+`Type::name[T]!(...)`. Type arguments of the qualifying type or trait stay
+before `::`, as in `Add[Money]::add(left, right)`.
 
 Name resolution distinguishes the brackets from an indexing operation. A
 generic method may still rely entirely on inference by omitting the list. Bare

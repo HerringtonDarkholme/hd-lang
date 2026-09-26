@@ -13,34 +13,12 @@ removed from this folder. What remains:
   the runs that back those findings. [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv)
   is the prototype's fix list, grouped by ID.
 - [`bench/`](bench/): the small benchmark set kept for future direction.
-- [`blind/fixtures/`](blind/fixtures/): two blind fixtures held back until
-  AMB-14 and AMB-16 are answered.
 
 ## Specification Follow-Ups
 
-- No chapter defines explicit type arguments in a qualified call
-  (`Type::name[T](...)`, `Trait::name[T](...)`), so the chapter 02 EBNF does
-  not derive them. Three held-back fixtures in `test/fixtures` wait on this.
 - 24 held-back fixtures in `test/fixtures` mark checker rejections that
   have no code in `spec/README.md` (F-205).
 - No code covers `is` between incompatible composite types (L7).
-- The EBNF derives a header that continues on the line after an indented
-  suite at delimiter depth zero, such as `if fn():` + body + `: x else: y`.
-  The reference lexer does not carry the header across that suite (F-314).
-
-## Readings to Confirm
-
-The conformance work read these blind-test ambiguities as settled by the
-current spec text and added fixtures for them. The owner has not confirmed
-the readings yet.
-
-| Tag | Reading | Fixture |
-| --- | ------- | ------- |
-| AMB-09 | Chapter 04's "shortest round-trip decimal digits" round-trips to the value's own width, so an `f32` displays as an `f32` even through generic code. | `runtime/valid/f32-display-width-through-generics.hd` |
-| AMB-10 | Chapter 10 gives the empty list only for an empty separator; splitting a string that lacks the separator yields one piece. | `runtime/valid/split-empty-input-nonempty-separator.hd` |
-| AMB-13 | Chapter 06: growth invalidates existing iterators, and their next `next` call panics, even after the iterator was exhausted. | `runtime/panic/exhausted-iterator-invalidated-by-growth.hd` |
-| AMB-18 | Chapter 05 place rules accept any mutable composite expression as a receiver, and a field assignment evaluates its receiver before the value. | `runtime/valid/assignment-place-before-value.hd` |
-| AMB-23 | Nothing forbids an ordinary method from assigning a top-level `let`. | `runtime/valid/interpolation-display-order.hd` |
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 
@@ -81,5 +59,3 @@ The Compiler Audit", under the same tags.
 | D3 | The provider-configuration identity ignores the runtime profile. | F-402 |
 | D4 | The entry driver busy-polls a pending host provider. | F-555 |
 | D6 | The host boundary uses `externref` handles and byte-at-a-time strings. | F-558 |
-| AMB-14 | Can `users[0].name = x` mutate through a readonly root when the generic argument is `mut`? | `blind/fixtures/a6-readonly-root-generic-path.hd` |
-| AMB-16 | Which code does a plain closure get for passing a captured `mut T` to a `mut T` parameter? | `blind/fixtures/a6-closure-capture-permission.hd` |

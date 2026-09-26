@@ -93,7 +93,9 @@ Those functions may read a top-level `:=` or `let` binding and may reassign a
 top-level `let` binding. Such bindings are not nameable by a `use` declaration and are
 not visible before their binding point, including from the body of a function
 declared earlier. A top-level executable statement may refer to a named module
-declaration regardless of that declaration's textual position.
+declaration regardless of that declaration's textual position. In this
+paragraph, a function also means an inherent or trait method, and a method's
+position is that of its `impl` block.
 
 Referring to such a declaration does not bypass initialization order. At every
 top-level executable statement, the compiler computes the transitive set of

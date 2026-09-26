@@ -619,3 +619,7 @@ runtime/valid/generic-partial-eq-bound-primitives.hd	runtime
 runtime/valid/nan-equality-through-generics.hd	runtime
 runtime/valid/signed-zero-and-infinity-through-generics.hd	runtime
 runtime/valid/nan-ordering-composites.hd	runtime
+runtime/valid/generic-associated-function-qualified-call.hd	runtime
+runtime/valid/generic-trait-method-qualified-call.hd	runtime
+runtime/valid/generic-suspending-associated-function-qualified-call.hd	runtime
+runtime/valid/readonly-root-generic-mutable-path.hd	runtime

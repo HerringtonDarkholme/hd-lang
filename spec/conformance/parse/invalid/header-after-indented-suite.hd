@@ -1,0 +1,6 @@
+# test: outside brackets, an if header cannot end in an indented closure body
+
+fn pick() -> i32:
+    if fn() -> bool:  # diagnostic: syntax-error
+        true
+    : 1 else: 2

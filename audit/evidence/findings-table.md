@@ -33,7 +33,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |
 | [F-311](../findings/F-311-continuation-suite-indentation.md) | minor | correctness | hd accepts a bracketed nested suite whose body is not indented past its header |  |
 | [F-312](../findings/F-312-decorators-misreported.md) | minor | correctness | Every decorator is rejected as `decorator-not-top-level`, even at top level | F-405 and F-250 |
-| [F-314](../findings/F-314-grammar-layout-mismatch.md) | note | spec | The EBNF derives same-line suite forms that layout processing cannot produce |  |
 | [F-315](../findings/F-315-grammar-valid-forms-generic-codes.md) | note | correctness | Grammar-valid forms are rejected at parse with generic codes, not unsupported diagnostics |  |
 | [F-316](../findings/F-316-pub-inherent-method-false-doc-comment.md) | minor | correctness | A `pub fn` inside an inherent `impl` is rejected with `doc-comment-without-target` |  |
 | [F-350](../findings/F-350-primitives-miss-display-bound-and-trait-values.md) | major | correctness | Primitives do not satisfy `T: Display` and cannot become `Display` trait values |  |
