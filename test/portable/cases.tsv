@@ -677,3 +677,6 @@ typing/invalid/indirect-supertrait-cycle.hd	type
 typing/invalid/inferred-mutable-upgrade.hd	type
 typing/invalid/signed-exponent.hd	type
 typing/invalid/signed-integer-exponent.hd	type
+runtime/valid/identity-ignores-permissions.hd	runtime
+typing/valid/identity-trait-value-operand.hd	type
+runtime/valid/copy-update-shallow.hd	runtime

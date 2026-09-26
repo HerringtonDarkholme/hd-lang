@@ -3,7 +3,6 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/reference-bounded-dynamic-method.hd	check fails: MVP rejects Reference-bounded method generics in dynamic traits (trait-not-dynamically-safe at lines 27 and 30)	G2
 runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 or i64 type (unknown-type)	F-253
-runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is between list[User] and mut list[mut User] (type-mismatch)	L7
 runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
@@ -22,11 +21,10 @@ parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` wi
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
 runtime/valid/boxed-primitive-identity.hd	check fails: unknown-type Any	F-255
-runtime/valid/composite-identity-and-views.hd	check fails: is rejects mut T operands; unknown-type Any	F-353
+runtime/valid/composite-identity-and-views.hd	check fails: unknown-type Any	F-255
 runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
 runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-352
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	F-705
-runtime/valid/copy-update-shallow.hd	check fails: is rejects mut Child operands (identity-requires-references)	F-353
 runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	F-704
 runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and keeps U+0085 (assertion-failed)	F-355
 runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	F-704
@@ -128,6 +126,5 @@ typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of m
 parse/invalid/header-after-indented-suite.hd	MVP reports expected-newline at line 6 instead of syntax-error at line 4	F-205
 typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
 typing/valid/duplicate-trait-bound.hd	check fails: MVP reports duplicate-trait-bound for a trait listed twice in one bound, which the spec allows	F-205
-typing/valid/identity-trait-value-operand.hd	check fails: MVP rejects is between User and a Named trait value (type-mismatch)	L7
 runtime/valid/println-suspending-call-argument.hd	run: stdout is empty; a bang call in a println argument drops the output of main!	F-708
 runtime/valid/println-around-suspending-provider-scope.hd	run: stdout is empty; a $.with block with a bang call drops the output of main!	F-709
