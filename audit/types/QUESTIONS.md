@@ -299,6 +299,28 @@ read it, so prefer explicit, checkable rules and locality.
   member of the receiver's type `S` when nothing visible is found; otherwise
   the use is `unknown-data-field` or `unknown-method`.
 
+- **Embedding simplification (Cut 2 and Rust-style trait lookup), not yet
+  applied.** Cut 1 (parts as references) was declined; value copies stay.
+  (Cut 2) Embedding flattens: the promoted fields are the visible fields of
+  every embedded part at any depth, and the promoted methods are their
+  visible inherent methods. Promoted field names must be unique among
+  themselves and must not clash with the outer type's own fields; promoted
+  method names likewise with its own inherent methods. A clash is an error at
+  the declaration, not at the use, so a dependency adding a clashing member
+  breaks the outer type in its own package. This replaces breadth-first
+  search, shortest path wins, same-depth ambiguity at the use, and the silent
+  switch. (Trait lookup, replacing Cut 3) As in Rust, a trait method is a
+  candidate only where its trait is in scope at the call, wherever the impl
+  is declared; a type's member table holds only fields and inherent methods
+  and is local to its package. At a call, an own inherent method wins;
+  otherwise the promoted inherent method and the in-scope trait methods of
+  the receiver's type are candidates, and more than one is `ambiguous-method`
+  (never a silent switch). A part's in-scope trait method with the name blocks
+  (it is never selected): alone it is `embedded-trait-method-not-promoted`,
+  beside another candidate it is ambiguous. An out-of-scope trait method is
+  invisible; the not-found message suggests the import. Supersedes E2's
+  un-imported-trait stop rule and the P3/P4 consequences.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
