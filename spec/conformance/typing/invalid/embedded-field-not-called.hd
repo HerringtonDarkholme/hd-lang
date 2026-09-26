@@ -1,6 +1,6 @@
 # test: an embedded type's function-typed field never answers a method call
 data Base:
-    run: fn() -> i32
+    pub run: fn() -> i32
 
 data Job:
     Base

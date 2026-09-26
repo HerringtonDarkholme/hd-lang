@@ -5,8 +5,8 @@ data Owner:
     name: string
 
 data Stamp:
-    at: i32
-    owner: Owner
+    pub at: i32
+    pub owner: Owner
 
 data Tagged:
     Stamp
@@ -17,7 +17,7 @@ data Note:
     text: string
 
 impl Stamp:
-    fn bump(mut self) -> void:
+    pub fn bump(mut self) -> void:
         self.at = self.at + 1
 
 test "construction copies the part":

@@ -1,22 +1,19 @@
-# test: a directly declared member hides a promoted member of the same name
-# Spec 03 Member Resolution: "Member access first considers members declared directly by the receiver
-# type, then members promoted from embedded data types. A directly declared member hides promoted
-# members of the same name." and "The same promotion rule applies to fields and methods."
+# test: a pub own member hides a promoted member of the same name, for fields and methods alike
 use std.testing.assert_equal
 
 data Base:
-    label: string
+    pub label: string
 
 impl Base:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "base"
 
 data Wrapper:
     Base
-    label: string
+    pub label: string
 
 impl Wrapper:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "wrapper"
 
 test "direct field hides promoted field":

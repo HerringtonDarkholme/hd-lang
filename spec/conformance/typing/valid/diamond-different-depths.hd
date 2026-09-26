@@ -1,9 +1,9 @@
 # test: one type embedded through two paths at different depths resolves to the shallower copy, with no conflict
 data Base:
-    id: string
+    pub id: string
 
 impl Base:
-    fn label(self) -> string:
+    pub fn label(self) -> string:
         self.id
 
 data Middle:

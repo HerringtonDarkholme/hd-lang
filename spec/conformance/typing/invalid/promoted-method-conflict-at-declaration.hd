@@ -3,14 +3,14 @@ data Logger:
     name: string
 
 impl Logger:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         self.name
 
 data Metrics:
     count: i32
 
 impl Metrics:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "metrics"
 
 data Service:

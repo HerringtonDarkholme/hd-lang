@@ -106,8 +106,6 @@ typing/valid/trait-argument-owner-impl.hd	check reports unknown-trait: the proto
 typing/invalid/orphan-impl-nested-trait-argument.hd	check reports unknown-trait instead of orphan-impl: the prototype has no Iterable trait	TQ-2
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
 typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2
-runtime/valid/invisible-outer-method-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-runtime/valid/invisible-outer-field-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
@@ -145,7 +143,7 @@ parse/valid/data-embedding.hd	parse reports expected-expression at line 15: the 
 typing/valid/generic-data-embedding.hd	check reports expected-expression at line 9: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/generic-data-embedding.hd	check reports expected-expression at line 12: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/embedded-field-satisfies-trait.hd	check reports expected-expression at line 23: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
-runtime/valid/direct-member-hides-promoted.hd	check reports expected-expression at line 23: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+runtime/valid/direct-member-hides-promoted.hd	check reports expected-expression at line 20: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/qualified-calls-beside-promoted-method.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/outer-field-beside-embedded-method.hd	check reports expected-expression at line 16: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/depth-two-promotion.hd	check reports expected-expression at line 18: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
@@ -154,7 +152,6 @@ runtime/valid/function-typed-field-call.hd	check reports expected-expression at 
 runtime/valid/field-and-inherent-method-share-name.hd	check reports expected-expression at line 19: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/embedded-trait-method-via-part.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/promoted-method-no-override.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
-runtime/valid/private-own-member-wins-in-module.hd	check reports expected-expression at line 20: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	check reports expected-expression at line 14: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/invalid/embedded-copy-required.hd	check accepts: the prototype does not check the embedded copy marker (VE-S not implemented)	VE
 typing/invalid/embedded-copy-required-fresh-literal.hd	check accepts: the prototype does not check the embedded copy marker (VE-S not implemented)	VE
@@ -163,6 +160,5 @@ typing/invalid/copy-into-ordinary-field.hd	check reports expected-expression at 
 typing/invalid/copy-assignment-ordinary-field.hd	check reports syntax-error at line 9: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 parse/valid/embedded-copy-syntax.hd	parse reports expected-expression at line 11: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/diamond-shallower-copy-wins.hd	check reports expected-expression at line 19: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
-typing/invalid/public-view-promoted-conflict.hd	check reports syntax-error at line 3: the prototype parser does not accept `pub` on a named field, and the prototype checks conflicts only in the declaring module's view	EMB-S
 runtime/valid/trait-delegation-forwards.hd	check reports expected-expression at line 33: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/valid/trait-delegation-mut-self.hd	check reports mutable-receiver-required at line 20: embedded fields are still readonly edges, so the generated forwarding call cannot reach the part through mut self (VE not implemented)	VE

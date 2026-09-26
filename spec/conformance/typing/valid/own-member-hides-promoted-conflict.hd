@@ -1,25 +1,25 @@
-# test: an own member hides same-depth promoted members of its name, so they do not conflict
+# test: a pub own member hides same-depth promoted members of its name, so they do not conflict
 data CreatedBySystem:
-    id: string
+    pub id: string
 
 impl CreatedBySystem:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "system"
 
 data CreatedByUser:
-    id: string
+    pub id: string
 
 impl CreatedByUser:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "user"
 
 data AuditEntry:
     CreatedBySystem
     CreatedByUser
-    id: string
+    pub id: string
 
 impl AuditEntry:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "entry"
 
 fn valid(entry: AuditEntry) -> string:

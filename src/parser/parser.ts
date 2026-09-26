@@ -560,13 +560,22 @@ class Parser extends ExpressionParser {
         });
         continue;
       }
-      if (!this.atText("fn"))
+      if (!this.atText("fn") && !this.atText("pub"))
         this.fail(
           "doc-comment-without-target",
           "documentation comments must attach to a declaration or member",
           this.current().span,
         );
-      methods.push(this.parseMethod(true, methodDoc));
+      // `pub` is permitted only in an inherent implementation (02 Traits And Implementations).
+      if (trait && this.atText("pub"))
+        this.fail(
+          "trait-method-visibility",
+          "trait methods inherit the trait's visibility and cannot be declared pub",
+          this.current().span,
+        );
+      const publicMethod = this.matchText("pub");
+      const method = this.parseMethod(true, methodDoc);
+      methods.push(publicMethod ? { public: true, ...method } : method);
     }
     const close = this.expectKind("dedent", "expected the end of the implementation body");
     this.activeGenericParameters = enclosingGenericParameters;
@@ -849,6 +858,7 @@ class Parser extends ExpressionParser {
         fields.push({ name, type, embedded: true, doc: fieldDoc, span: type.span });
         continue;
       }
+      const publicField = this.matchText("pub");
       const fieldName = this.expectKind("identifier", "expected a data field name");
       this.expectText(":");
       const type = this.parseType();
@@ -856,6 +866,7 @@ class Parser extends ExpressionParser {
       const end = defaultValue?.span.end ?? this.peek(-1).span.end;
       this.expectKind("newline", "expected a line ending after a data field");
       fields.push({
+        ...(publicField ? { public: true } : {}),
         name: fieldName.text,
         type,
         default: defaultValue,

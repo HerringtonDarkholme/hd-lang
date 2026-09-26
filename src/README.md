@@ -180,7 +180,7 @@ else`, `break`, `break value`, and `continue`;
   bound dictionaries for ordinary and suspending methods; bounded blanket
   dictionaries capture nested dictionaries, including when forwarded from a
   caller or retained by a parent supertrait;
-- embedded data fields with direct field and method promotion, including
+- embedded data fields with promotion of their `pub` fields and methods, including
   generic substitution through the embedded edge, plus bodyless explicit trait
   opt-in for one compatible readonly promoted method; mutable promoted
   requirements are rejected at the embedded readonly edge;

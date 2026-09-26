@@ -1,7 +1,7 @@
 # test: an embedded field read through a readonly value is readonly-root, not readonly-edge
 data Timestamps:
     created_at: i32
-    updated_at: i32
+    pub updated_at: i32
 
 impl Timestamps:
     fn touch(mut self, at: i32) -> void:

@@ -1,7 +1,7 @@
 use std.testing.assert_equal
 
 data Box[T]:
-    value: T
+    pub value: T
 
 data Shipment[T]:
     Box[T]

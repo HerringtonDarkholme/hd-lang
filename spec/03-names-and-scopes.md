@@ -374,72 +374,89 @@ in that module or marked `pub`
 method is **available** when its trait is available to dot-call lookup there
 ([Method Resolution](09-traits.md#method-resolution)). Embedded fields are
 always public
-([Data Declarations](08-data-and-enums.md#data-declarations)), so the path
-to a promoted member never affects its visibility: only the member's own
-visibility matters.
+([Data Declarations](08-data-and-enums.md#data-declarations)), and only
+`pub` members are promoted (below), so a promoted member is visible wherever
+its receiver's type is.
 
 **Depths and promoted members.** A **part** of `S` is a value reached from
 `S` through one or more embedded fields. Its **depth** is the number of
 embedded fields on its path: an embedded field of `S` holds a part at depth
 1, an embedded field of that part's type holds a part at depth 2, and so on,
 up to depth 3, the deepest that
-[Data Embedding](08-data-and-enums.md#data-embedding) allows. The own fields and inherent methods of `S` are at depth 0. Each field and
-inherent method of a part's type is a **promoted member** of `S` at the
-part's depth, reached through the part's path. Trait methods of a part's type
-are never promoted members, and they have no effect on lookup through `S`.
+[Data Embedding](08-data-and-enums.md#data-embedding) allows. The own fields and inherent methods of `S` are at depth 0. Each `pub` field and
+`pub` inherent method of a part's type is a **promoted member** of `S` at
+the part's depth, reached through the part's path. A private field or
+inherent method of a part's type is never promoted, even when the part's
+type is declared in the same module as `S`; it is reached only through an
+explicit path, as in `x.Part.secret`, where lookup starts at the part's type
+and the member's own visibility applies. Trait methods of a part's type are
+never promoted members, and they have no effect on lookup through `S`.
 
-For a use in a module `M`, the members of `S` that **take part** are:
+The members of `S` that **take part** in lookup are its own fields and
+inherent methods, whatever their visibility, and its promoted members. They
+are the same for every use, in every module: a type has a single view of its
+members, and each name resolves to the same member for every caller.
+Visibility decides only whether a caller may use the member that lookup
+finds. A private member of a part's type is invisible to lookup through `S`
+everywhere, so adding one never changes or breaks a use of `S`.
 
-- the own fields and inherent methods of `S` that are visible from `M`;
-- the promoted members that are marked `pub`, and, when `M` is the module
-  declaring `S`, also the promoted members declared in `M`.
+In each namespace, a member **hides** every member with the same name at a
+greater depth. Each type therefore decides its own names: a `pub` own member
+of `S` hides the promoted ones, and a `pub` member of a part's type hides the
+members promoted into that part. A **conflict** is two or more members with
+one name at the smallest depth where that name occurs, including one member
+reached through two different paths. A private own member of `S` that has
+the name of a promoted member in its namespace is also a conflict: a private
+member never shadows a promoted one.
 
-A member that does not take part is treated as absent. A type therefore has
-at most two **views**: the one from the module declaring it, and, for a
-public type, the one from every other module. Inside the declaring module,
-every own member takes part, so a private own member hides a promoted one;
-in another module, the same use reaches the public promoted member. A
-private member of a part's type takes part only in the module that declares
-both it and `S`. Adding a private member therefore never changes or breaks a
-use in another module. This is privacy-aware lookup as in Rust, and matches
-Go, where another package's unexported names never match.
-
-In each namespace, a member that takes part **hides** every member with the
-same name at a greater depth. Each type therefore decides its own names: an
-own member of `S` hides the promoted ones, and an own member of a part's type
-hides the members promoted into that part. A **conflict** is two or more
-members with one name at the smallest depth where that name takes part,
-including one member reached through two different paths.
-
-**Conflicts are declaration errors.** A conflict in either view of `S` is an
-`ambiguous-promoted-member` error at the data declaration of `S`, never at a
-use, so lookup never meets one. It is reported on the later of the two
+**Conflicts are declaration errors.** Every conflict is an
+`ambiguous-promoted-member` error at a declaration, never at a use, so
+lookup never meets one. Because every module sees the same members, one
+check of each data type covers every use. A conflict between promoted
+members is reported at the data declaration of `S`, on the later of the two
 embedded fields of `S` through which the conflicting members are reached.
 When both are reached through the same embedded field `E`, it is reported at
 `S` only when it is not also a conflict of `E`'s type, which reports it
 itself. The message names both paths, as in `Record.LeftBox.Left.id` and
-`Record.RightBox.Right.id`. Fields and methods conflict only within their own
-namespace. A data type reached through several paths needs no further rule:
-its members reached at different depths resolve to the shallower copy, and
-at the same depth they conflict, starting with its embedded field name. A
-package that adds a member to a type used as a part can therefore break the
-declarations of types that embed it, in their own packages, but never a use.
+`Record.RightBox.Right.id`. A conflict of a private own member is reported
+on that member: the field in the data declaration of `S`, or the method in
+its inherent implementation. Its message says that a private member cannot
+shadow a promoted one, and names the promoted member's path, as in
+`Record.Base.id`. Such a member is made `pub` or renamed. Fields and methods
+conflict only within their own namespace. A data type reached through
+several paths needs no further rule: its members reached at different depths
+resolve to the shallower copy, and at the same depth they conflict, starting
+with its embedded field name. A package that adds a `pub` member to a type
+used as a part can therefore break the declarations of types that embed it,
+in their own packages, but never a use.
 
-Note: an implementation may compute, for each view of each data type, one
-table of resolved members: its own members at depth 0 and its direct parts'
-resolved members one level deeper, where the shallower member replaces the
-deeper one. The rules above define only the result.
+Unlike Rust's and Go's privacy-aware lookup, where a private name does not
+match outside its module, the caller's module never changes which field or
+inherent method a name of `S` means. A private member is either the member
+every caller finds, when it is an own member, or absent from lookup through
+`S`, when it belongs to a part. Only trait methods depend on the caller,
+through trait availability: a caller that cannot see an own inherent method
+skips it, and may then select an available trait method of that name.
+
+Note: an implementation may compute, for each data type, one table of
+resolved members: its own members at depth 0 and the `pub` entries of its
+direct parts' tables one level deeper, where the shallower member replaces
+the deeper one. A part's private entry never replaces a deeper one, because
+that would be a conflict of the part's type. The rules above define only the
+result.
 
 **Field lookup** of `x.name` from a module `M` proceeds as follows:
 
 1. **Selection.** Among the fields of `S` that take part, the field named
    `name` at the smallest depth is selected. There is at most one, because
    a conflict is a declaration error.
-2. **Not found.** If no field named `name` takes part, the use is a
-   `private-member` error when `S` itself declares a field named `name`,
-   which is then not visible from `M`, and an `unknown-data-field` error
-   otherwise. A promoted field that does not take part never leads to
-   `private-member`.
+2. **Visibility.** When the selected field is an own field of `S` that is
+   not visible from `M`, the use is a `private-member` error. No visible
+   field can have its name, because a promoted field beside it would be a
+   conflict.
+3. **Not found.** If no field named `name` takes part, the use is an
+   `unknown-data-field` error. A private field of a part's type never leads
+   to `private-member`, even in the module that declares it.
 
 **Method lookup** of `x.name(args)` from a module `M` proceeds as follows:
 
@@ -448,7 +465,8 @@ deeper one. The rules above define only the result.
    name alone, whatever the method's arity or parameter types: a visible
    inherent method with the wrong signature is still selected, and the call
    is then checked against it. An inherent method that is not visible is
-   skipped.
+   skipped. No promoted method has its name, because that would be a
+   conflict, so only trait candidates remain.
 2. **Candidates.** Otherwise the candidates are:
    - the **promoted candidate**: among the promoted inherent methods that
      take part, the one named `name` at the smallest depth, if any;
@@ -470,23 +488,27 @@ deeper one. The rules above define only the result.
    method.
 3. **Not found.** With no candidate, the use is a `private-member` error
    when `S` itself has an inherent method named `name`, which is then not
-   visible from `M`, and an `unknown-method` error otherwise. A promoted
-   method that does not take part never leads to `private-member`. The
-   message should suggest a use declaration when `S` has a trait method named
-   `name` whose trait is not available at the call; the explicit path
-   `x.E1...Ek.name(args)` when a part's type has a trait method named `name`;
-   and `(x.name)(args)` when the receiver has a field named `name`.
+   visible from `M`, and an `unknown-method` error otherwise. A private
+   method of a part's type never leads to `private-member`, even in the
+   module that declares it. The message should suggest a use declaration
+   when `S` has a trait method named `name` whose trait is not available at
+   the call; the explicit path `x.E1...Ek.name(args)` when a part's type has
+   a trait method named `name`; and `(x.name)(args)` when the receiver has a
+   field named `name`.
 
 For example, if `Page` embeds `Label`, `Label` implements `Display` and
-embeds `Base`, and `Base` has an inherent `to_string`, then
+embeds `Base`, and `Base` has a `pub` inherent `to_string`, then
 `page.to_string()` calls `Base`'s `to_string`, the promoted candidate at
 depth 2: `Label`'s `Display` method is not promoted and does not hide it.
-`page.Label.to_string()` calls `Label`'s `Display` method, where lookup
-starts at `Label` and finds it as a trait method of the receiver. If `Page`
-also implemented `Display`, `page.to_string()` would be an `ambiguous-method`
-error, and `Page`'s method is called as `Display::to_string(page)`. Without
-`Base`, `page.to_string()` is an `unknown-method` error whose message should
-suggest `page.Label.to_string()`.
+`page.Label.to_string()` is an `ambiguous-method` error: lookup starts at
+`Label`, where `Label`'s `Display` method is a trait candidate and `Base`'s
+`to_string` is the promoted candidate at depth 1. `Label`'s method is called
+as `Display::to_string(page.Label)`, and `Base`'s as
+`page.Label.Base.to_string()`. If `Page` also implemented `Display`,
+`page.to_string()` would be an `ambiguous-method` error too, and `Page`'s
+method is called as `Display::to_string(page)`. Without `Base`,
+`page.to_string()` is an `unknown-method` error whose message should suggest
+`page.Label.to_string()`, which then calls `Label`'s `Display` method.
 
 When the selected member is promoted, `x.name` means the explicit path
 `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`, with the same

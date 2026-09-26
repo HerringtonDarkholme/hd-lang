@@ -1,0 +1,13 @@
+# test: a private member of a part declared in the same module is reached through the explicit path
+data Base:
+    secret: string
+
+impl Base:
+    fn reveal(self) -> string:
+        self.secret
+
+data Record:
+    Base
+
+fn valid(record: Record) -> string:
+    record.Base.secret + record.Base.reveal()

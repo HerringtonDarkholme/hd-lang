@@ -3,7 +3,7 @@ data Base:
     name: string
 
 impl Base:
-    fn to_string(self) -> string:
+    pub fn to_string(self) -> string:
         "base " + self.name
 
 data Label:

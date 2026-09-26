@@ -3,7 +3,7 @@ data Resetter:
     count: i32
 
 impl Resetter:
-    fn reset(self) -> i32:
+    pub fn reset(self) -> i32:
         0
 
 data Wrapper:
@@ -13,7 +13,7 @@ data Counter:
     value: i32
 
 impl Counter:
-    fn reset(mut self) -> void:
+    pub fn reset(mut self) -> void:
         self.value = 0
 
 data Page:

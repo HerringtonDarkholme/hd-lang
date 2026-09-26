@@ -1,9 +1,9 @@
 # test: two embedded types with a field of one name conflict at the outer declaration, whether or not the field is used
 data CreatedBySystem:
-    id: string
+    pub id: string
 
 data CreatedByUser:
-    id: string
+    pub id: string
 
 data AuditRecord:
     CreatedBySystem

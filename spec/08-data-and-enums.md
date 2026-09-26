@@ -37,8 +37,8 @@ lexical scope but does not implicitly bind other fields of the new value.
 Embedded fields have no default syntax.
 Named fields are module-private unless individually marked `pub`. A public
 data type does not make its unmarked fields public. An embedded field takes
-no marker and is always public: it is visible wherever its outer type is, so
-promoted members need only their own visibility
+no marker and is always public: it is visible wherever its outer type is.
+Only `pub` fields and inherent methods of an embedded type are promoted
 ([Member Resolution](03-names-and-scopes.md#member-resolution)). Embedding a
 module-private data type in a public data type is therefore a
 `private-type-leak` error
@@ -273,7 +273,7 @@ literal; neither choice is observable.
 
 ```text
 impl Timestamps:
-    fn touch(mut self, at: i64) -> void:
+    pub fn touch(mut self, at: i64) -> void:
         self.updated_at = at
 
 fn edit(post: mut Post, stamps: Timestamps) -> void:
@@ -291,17 +291,21 @@ position, because access through it follows the container: a covariant or
 contravariant parameter used in an embedded field's type is an
 `invalid-variance` error.
 
-Embedding promotes the embedded type's fields and inherent methods for
-convenient access. Which field `x.name` or method `x.name(args)` selects is
-defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
-the fields and inherent methods of every part, at any depth, are promoted;
-for each name the shallowest member hides deeper ones, so the receiver's own
-members come first and each embedded type decides its own names. Two members
-with one name at the same smallest depth, such as the embedded field name
-of a type embedded twice at one depth, are an `ambiguous-promoted-member`
-error at the outer type's declaration, never at a use. Members not visible
-from the calling module do not take part (a private member of an embedded
-type is never reported). An embedded type's trait methods are never promoted
+Embedding promotes the embedded type's `pub` fields and `pub` inherent
+methods for convenient access. Which field `x.name` or method `x.name(args)`
+selects is defined once in
+[Member Resolution](03-names-and-scopes.md#member-resolution): the `pub`
+fields and inherent methods of every part, at any depth, are promoted; for
+each name the shallowest member hides deeper ones, so the receiver's `pub`
+own members come first and each embedded type decides its own names. A
+private member of a part is never promoted, even in the module that declares
+it, and is reached through the explicit path, as in `post.Timestamps.secret`.
+Two members with one name at the same smallest depth, such as the embedded
+field name of a type embedded twice at one depth, are an
+`ambiguous-promoted-member` error at the outer type's declaration, never at
+a use. So is a private own member with the name of a promoted member: a
+private member never shadows a promoted one. Every module therefore sees the
+same members of a type. An embedded type's trait methods are never promoted
 and have no effect on lookup; such a method is called through the embedded
 field, as in `x.Label.to_string()`. A trait method of the receiver's type
 counts only where its trait is available, and a promoted method beside it is

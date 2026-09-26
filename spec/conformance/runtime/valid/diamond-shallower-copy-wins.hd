@@ -2,10 +2,10 @@
 use std.testing.assert_equal
 
 data Base:
-    id: string
+    pub id: string
 
 impl Base:
-    fn label(self) -> string:
+    pub fn label(self) -> string:
         "base " + self.id
 
 data Middle:

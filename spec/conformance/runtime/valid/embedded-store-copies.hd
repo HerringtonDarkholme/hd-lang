@@ -3,10 +3,10 @@ use std.testing.assert_equal
 
 data Timestamps:
     created_at: i32
-    updated_at: i32
+    pub updated_at: i32
 
 impl Timestamps:
-    fn touch(mut self, at: i32) -> void:
+    pub fn touch(mut self, at: i32) -> void:
         self.updated_at = at
 
 data Post:

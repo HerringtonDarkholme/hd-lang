@@ -1,0 +1,13 @@
+# test: a private inherent method of a part is not promoted, even when the part is declared in the same module
+data Base:
+    secret: string
+
+impl Base:
+    fn reveal(self) -> string:
+        self.secret
+
+data Record:
+    Base
+
+fn invalid(record: Record) -> string:
+    record.reveal()  # diagnostic: unknown-method

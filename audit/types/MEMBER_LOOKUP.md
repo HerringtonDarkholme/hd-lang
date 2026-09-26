@@ -49,14 +49,14 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5, M2, P2, private embedded members, Rust-style trait lookup, Cut 2 depth semantics, and ignored part traits)
+### hd today (after E1 to E5, M2, P2, private embedded members, Rust-style trait lookup, Cut 2 depth semantics, ignored part traits, and the single view)
 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
   `(x.callback)(args)`. A field and a method may share a name.
-- Embedding is a tree. Own members are at depth 0, and the fields and
-  inherent methods of every part are promoted at the part's depth. For each
-  name the shallowest member hides deeper ones, so every embedded type
+- Embedding is a tree. Own members are at depth 0, and the `pub` fields and
+  `pub` inherent methods of every part are promoted at the part's depth. For
+  each name the shallowest member hides deeper ones, so every embedded type
   decides its own names (Cut 2). Two members with one name at the same
   smallest depth are `ambiguous-promoted-member` at the outer type's
   declaration, never at a use; a type embedded twice at one depth always
@@ -74,14 +74,18 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   method of that name is selected, and a call that finds nothing is
   `unknown-method` with a message suggesting the import.
   `trait-not-in-scope` is gone.
-- Members not visible from the calling module do not take part, at every
-  depth, as in Rust's privacy-aware lookup. Outside the declaring module only
-  public members take part, so a public type's declaration is checked for
-  conflicts in that view too. `private-member` is reported only for an
-  invisible own member of the receiver's type, when nothing else matches.
-  Inside the defining module the private member wins. Embedded fields are
-  always public, so only a promoted member's own visibility matters, never
-  its path.
+- A type has a single view of its members: every name resolves to the same
+  member for every caller, and one declaration check covers every use. A
+  private member of a part is never promoted, even in the module that
+  declares it; it is reached through the explicit path, `x.Part.secret`.
+  Only a `pub` own member hides promoted members; a private own member with
+  the name of a promoted member is `ambiguous-promoted-member` at the
+  private member's declaration. `private-member` is reported for an own
+  member that the caller cannot see, when nothing visible matches (an
+  available trait method still can). Embedded fields are always public, so a
+  promoted member's path never affects its visibility. This replaces the
+  earlier two views (the declaring module's, and the one from other modules
+  of a public type), which followed Rust's privacy-aware lookup.
 - Embedded types offer fields and inherent methods only. Their trait
   methods neither promote nor block (E4, superseding TQ-31 revised): a call
   reaches a deeper inherent method as if they did not exist, and they are
@@ -126,7 +130,7 @@ Who can break or silently change a working call, and how:
 | A trait adds or renames a method | n/a | ambiguity errors only | ambiguity errors only; never collides with a field | ambiguity errors only; never collides with a field |
 | The type's package adds a method | local | inherent silently shadows a trait method | same as Rust, local to the type's owner | same as Rust, local to the type's owner |
 | An embedded type adds a shallower member | silent switch | n/a | silent switch (accepted in E3, P3) | silent switch (E3, P3) |
-| A type adds a private member | none | none (privacy-aware lookup) | none (skipped, P2) | none (skipped, P2) |
+| A type adds a private member | none | none (privacy-aware lookup) | none (skipped, P2) | a part's: none, never promoted; the type's own: an error at its declaration when a promoted member has the name, in its own package |
 | An embedded type adds a member at the depth of another | error at use | n/a | error at use | error at the outer type's declaration, in its own package |
 | A module imports a trait | n/a | can silently switch across `Deref` steps | no switch: presence counts known impls | no switch: a new candidate makes the call an error |
 | A package adds a trait impl for the type or an embedded type | n/a | can silently switch across `Deref` steps | the type's impl hides embedded members (P4) | for the type: ambiguity errors only, where the trait is in scope; for an embedded type: no effect |

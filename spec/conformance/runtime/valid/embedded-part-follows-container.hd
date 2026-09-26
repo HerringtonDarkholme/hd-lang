@@ -2,11 +2,11 @@
 use std.testing.assert_equal
 
 data Timestamps:
-    created_at: i64
-    updated_at: i64
+    pub created_at: i64
+    pub updated_at: i64
 
 impl Timestamps:
-    fn touch(mut self, at: i64) -> void:
+    pub fn touch(mut self, at: i64) -> void:
         self.updated_at = at
 
 data Post:

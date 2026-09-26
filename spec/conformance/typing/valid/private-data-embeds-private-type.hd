@@ -1,6 +1,6 @@
 # test: a module-private data type may embed a module-private data type, and a public one a public type
 data Timestamps:
-    created_at: i32
+    pub created_at: i32
 
 data Draft:
     Timestamps

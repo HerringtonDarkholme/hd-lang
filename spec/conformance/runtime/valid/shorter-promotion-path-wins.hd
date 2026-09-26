@@ -2,10 +2,10 @@
 use std.testing.assert_equal
 
 data Near:
-    name: string
+    pub name: string
 
 data Far:
-    name: string
+    pub name: string
 
 data FarBox:
     Far

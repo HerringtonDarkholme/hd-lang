@@ -656,8 +656,8 @@ Data embedding supports Go-style composition without inheritance. A bare type-na
 
 ```text
 data Timestamps:
-    created_at: i64
-    updated_at: i64
+    pub created_at: i64
+    pub updated_at: i64
 
 data Post:
     Timestamps
@@ -666,7 +666,7 @@ data Post:
     author_id: string
 ```
 
-Embedded data types are initialized with the embedded type name as the field key, followed by `...`, which copies the value into the part (see below). Their fields are still promoted for ordinary access:
+Embedded data types are initialized with the embedded type name as the field key, followed by `...`, which copies the value into the part (see below). Their `pub` fields and `pub` methods are promoted for ordinary access:
 
 ```text
 post := Post {
@@ -697,7 +697,7 @@ not copy it:
 
 ```text
 impl Timestamps:
-    fn touch(mut self, at: i64) -> void:
+    pub fn touch(mut self, at: i64) -> void:
         self.updated_at = at
 
 let draft: mut Post = Post { Timestamps: ...post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
@@ -714,7 +714,7 @@ is the type's final name, without arguments:
 
 ```text
 data Box[T]:
-    value: T
+    pub value: T
 
 data Shipment[T]:
     Box[T]
@@ -730,16 +730,16 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Embedding promotes the fields and inherent methods of every embedded part, at any depth, and for each name the shallowest member wins: the outer type's own members come first, and each embedded type decides its own names before its members are promoted further. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its fields and inherent methods, never its trait methods, which are called through the embedded field, as in `page.Label.to_string()`. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual. A private member of an embedded type is ignored entirely, and `private-member` is reported only for a private member of the outer type itself when nothing visible matches.
+Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Embedding promotes the `pub` fields and `pub` inherent methods of every embedded part, at any depth, and for each name the shallowest member wins: the outer type's own members come first, and each embedded type decides its own names before its members are promoted further. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its `pub` fields and inherent methods, never its trait methods, which are called through the embedded field, as in `page.Label.to_string()`. A private member of an embedded type is never promoted, even in its own module; reach it through the path, as in `post.Timestamps.secret`. A type has one view of its members, so a name means the same member in every module: a private member of the outer type is reported as `private-member` outside its module, and it may not share a name with a promoted member, because a private member never shadows one.
 
-If two embedded data types promote the same name at the same depth, the outer declaration is rejected, even before anything uses the name. The same holds for one type embedded twice at the same depth, whose embedded field name itself clashes. An own member of that name hides both, and each part stays reachable through its embedded field:
+If two embedded data types promote the same name at the same depth, the outer declaration is rejected, even before anything uses the name. The same holds for one type embedded twice at the same depth, whose embedded field name itself clashes. A `pub` own member of that name hides both, and each part stays reachable through its embedded field. A private own member of that name is rejected instead:
 
 ```text
 data CreatedBySystem:
-    id: string
+    pub id: string
 
 data CreatedByUser:
-    id: string
+    pub id: string
 
 data AuditRecord:
     CreatedBySystem
@@ -748,7 +748,11 @@ data AuditRecord:
 data AuditEntry:
     CreatedBySystem
     CreatedByUser
-    id: string                   # ok: the own field hides both
+    pub id: string               # ok: the pub own field hides both
+
+data AuditDraft:
+    CreatedBySystem
+    id: string                   # invalid: a private field cannot shadow a promoted one
 
 entry.id                         # the own field
 entry.CreatedByUser.id           # the part's field
@@ -1720,7 +1724,7 @@ service.describe()  # ok: one candidate, Service's Describe method
 
 Embedding never grants trait conformance, and a promoted method never fills a
 trait method: without `by`, `impl Describe for Service` must write
-`describe`. When the embedded type has `describe` only as an inherent
+`describe`. When the embedded type has `describe` only as a `pub` inherent
 method, forward by hand, as in `fn describe(self) -> string:
 self.Logger.describe()`. Where `Describe` is in scope, `service.describe()`
 is then ambiguous between `Service`'s `Describe` method and `Logger`'s

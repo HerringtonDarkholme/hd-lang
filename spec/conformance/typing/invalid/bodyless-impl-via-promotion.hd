@@ -6,7 +6,7 @@ data Label:
     text: string
 
 impl Label:
-    fn describe(self) -> string: self.text
+    pub fn describe(self) -> string: self.text
 
 data Page:
     Label
