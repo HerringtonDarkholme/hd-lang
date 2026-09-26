@@ -12,7 +12,7 @@ data User:
 fn main() -> i32:
     first := User { id: 1 }
     second := User { active: false, name: "Ada", id: 2 }
-    if first.name == "anonymous" and first.active and second.name == "Ada" and not second.active:
+    if first.name == "anonymous" && first.active && second.name == "Ada" && !second.active:
         first.id * 10 + second.id
     else:
         0

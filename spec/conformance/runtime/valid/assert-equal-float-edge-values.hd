@@ -3,7 +3,7 @@ use std.testing.{assert, assert_equal}
 test "NaN is unequal to itself":
     let nan: f64 = 0.0 / 0.0
     assert(nan != nan, reason="IEEE 754 equality makes NaN unequal to itself")
-    assert(not (nan == nan), reason="== on NaN is false")
+    assert(!(nan == nan), reason="== on NaN is false")
 
 test "negative zero equals positive zero":
     let negative_zero: f64 = -0.0

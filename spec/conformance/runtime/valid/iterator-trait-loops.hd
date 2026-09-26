@@ -21,7 +21,7 @@ fn main() -> i32:
     let total: i32 = 0
     for value in second:
         total = total + value
-    if values.len() == 3 and values[0] == 20 and values[2] == 40 and counter.current == 5 and total == 3:
+    if values.len() == 3 && values[0] == 20 && values[2] == 40 && counter.current == 5 && total == 3:
         42
     else:
         0

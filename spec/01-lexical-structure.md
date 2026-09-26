@@ -222,10 +222,10 @@ than lexically distinct tokens.
 The grammar uses these reserved words:
 
 ```text
-Self      and       annotate  as        break     continue
+Self      annotate  as        break     continue
 data      defer     else      enum      false     fn        for
 if        impl      in        is        let       match
-mut       nil       not       or        pass      pub
+mut       nil       pass      pub
 reified   return    self      shape     super     trait
 true      type      use       where     while
 ```
@@ -418,18 +418,21 @@ The lexer recognizes these operators and compound punctuation tokens:
 
 ```text
 +  -  *  /  %  **
-&  |  ^  ~  <<  >>
+&  |  ^  ~  <<  >>  &&  ||
 =  ==  !=  <  <=  >  >=
 :=  ->  =>  ?  !  $  @  ...  ::
 ```
 
 When two tokens share a prefix, the lexer uses the longest valid token. For
-example, `**` is one token rather than two `*` tokens, and `...` is one token
-rather than three `.` tokens.
+example, `**` is one token rather than two `*` tokens, `...` is one token
+rather than three `.` tokens, and `&&` and `||` are single tokens. The
+sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`,
+`g`; a suspension call needs `!` immediately followed by `(`.
 
 Operator precedence and semantics are defined in
-[Expressions](05-expressions.md). `$` and suspension-related uses of `!` are
-specified in [Requirements and Suspension](11-requirements-and-suspension.md).
+[Expressions](05-expressions.md), including prefix `!` as logical not. `$`
+and suspension-related uses of `!` are specified in
+[Requirements and Suspension](11-requirements-and-suspension.md).
 
 ## Lexical Token Grammar
 
@@ -457,7 +460,7 @@ delimiter = "(" | ")" | "[" | "]" | "{" | "}"
           ;
 
 operator = "+" | "-" | "*" | "/" | "%" | "**"
-         | "&" | "|" | "^" | "~" | "<<" | ">>"
+         | "&" | "|" | "^" | "~" | "<<" | ">>" | "&&" | "||"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
          | "..." | "::"

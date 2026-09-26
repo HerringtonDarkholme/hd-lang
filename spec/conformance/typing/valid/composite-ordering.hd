@@ -4,4 +4,4 @@ fn ordered(
     maybe_left: i32?,
     maybe_right: i32?,
 ) -> bool:
-    left < right and maybe_left < maybe_right
+    left < right && maybe_left < maybe_right

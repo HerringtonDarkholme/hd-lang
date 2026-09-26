@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn main() -> char:
-    if 'A' < '界' and '😀' == '\u{1F600}':
+    if 'A' < '界' && '😀' == '\u{1F600}':
         '😀'
     else:
         'x'

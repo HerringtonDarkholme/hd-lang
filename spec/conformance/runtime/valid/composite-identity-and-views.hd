@@ -17,7 +17,7 @@ test "mut and readonly views of one object are identical":
     let readonly: User = mutable
     twin := User { name: "Ada" }
     assert(mutable is readonly, reason="permission does not change identity")
-    assert(not (readonly is twin), reason="equal fields are different allocations")
+    assert(!(readonly is twin), reason="equal fields are different allocations")
     assert(same_ref(readonly, mutable), reason="Reference-bounded generic agrees")
 
 test "trait and Any conversions of a composite preserve its identity":
@@ -34,6 +34,6 @@ test "collections have allocation identity":
     alias := values
     other := [1, 2]
     assert(values is alias, reason="alias")
-    assert(not (values is other), reason="equal lists are distinct")
+    assert(!(values is other), reason="equal lists are distinct")
     entries := {"a": 1}
-    assert(not (entries is {"a": 1}), reason="equal maps are distinct")
+    assert(!(entries is {"a": 1}), reason="equal maps are distinct")

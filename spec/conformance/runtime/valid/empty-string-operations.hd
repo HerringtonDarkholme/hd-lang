@@ -9,7 +9,7 @@ test "empty string basics":
     assert_equal(empty.lower(), "", reason="lower of empty")
     assert(empty.starts_with(""), reason="empty prefix of empty")
     assert("abc".starts_with(empty), reason="empty prefix of anything")
-    assert(not empty.starts_with("a"), reason="nonempty prefix of empty")
+    assert(!empty.starts_with("a"), reason="nonempty prefix of empty")
     assert_equal(empty + empty, "", reason="concatenation")
     assert(empty < "a", reason="empty sorts first")
     assert_equal("[$empty]", "[]", reason="interpolating empty")

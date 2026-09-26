@@ -620,7 +620,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
 | postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
-| `-x`, `~x`, `not x` | unary operators |
+| `-x`, `~x`, `!x` | unary operators; `!` is logical not |
 | `*`, `/`, `%` | multiplicative |
 | `+`, `-` | additive |
 | `<<`, `>>` | shifts |
@@ -640,8 +640,8 @@ declaration order, then shared data and payload fields. No field is implicitly
 excluded. `is` checks composite reference identity
 without calling comparison methods. It cannot compare primitives, `nil`, or
 optional values.
-| `and` | logical and |
-| `or` | logical or |
+| `&&` | logical and |
+| `\|\|` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
@@ -2675,7 +2675,7 @@ fn validation_field(
         name: field.name,
         target: type_metadata,
         rules: FieldRules {
-            required: not field.type.is_optional(),
+            required: !field.type.is_optional(),
             min_len: field.metadata(MinLen).map(
                 fn(annotation: MinLen) -> i32: annotation.value
             ),

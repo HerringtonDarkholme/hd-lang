@@ -98,7 +98,12 @@ export function classify(line: string): Span[] {
     }
     if (isIdentifierStart(character)) {
       let end = index + 1;
-      while (end < line.length && isIdentifierPart(line[end]!)) end += 1;
+      while (
+        end < line.length &&
+        isIdentifierPart(line[end]!) &&
+        !(line[end] === "!" && line[end + 1] === "=")
+      )
+        end += 1;
       const word = line.slice(index, end);
       push(word, wordClass(word, line, end));
       index = end;

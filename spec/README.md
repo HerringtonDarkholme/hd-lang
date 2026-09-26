@@ -139,3 +139,12 @@ Unresolved decisions are recorded in [Open Issues](../future-work/OPEN_ISSUES.md
 draft is not complete until every issue required for parsing, type checking, or
 execution has either been specified or explicitly classified as unsupported or
 runtime and library work.
+
+## Revision Notes
+
+These notes record language changes that alter the meaning or validity of
+existing source. Each entry names the decision that made the change.
+
+- K3: the logical operators `and`, `or`, and `not` became `&&`, `||`, and
+  prefix `!` at the same precedence levels. The three words are now ordinary
+  identifiers.

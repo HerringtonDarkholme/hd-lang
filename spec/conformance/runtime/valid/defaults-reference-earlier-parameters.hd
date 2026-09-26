@@ -26,7 +26,7 @@ test "chained defaults see earlier defaults and explicit values":
     assert_equal(named_a, 240, reason="b sees the named a")
 
 test "defaults are evaluated for each call":
-    assert(not (fresh() is fresh()), reason="each call allocates a new default list")
+    assert(!(fresh() is fresh()), reason="each call allocates a new default list")
 
 test "function values do not inherit defaults":
     let call: fn(i32, i32) -> i32 = area

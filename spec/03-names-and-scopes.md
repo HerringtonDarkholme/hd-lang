@@ -205,7 +205,7 @@ uninitialized binding.
 
 A direct binding in an `if` or `while` condition is evaluated whenever that
 condition is evaluated. A binding inside the conditionally evaluated operand of
-`and` or `or`, an unselected branch or match arm, or a loop body is not thereby
+`&&` or `||`, an unselected branch or match arm, or a loop body is not thereby
 initialized on paths that skip it. Flow analysis may still prove it initialized
 inside a branch whose selection implies that the binding ran.
 

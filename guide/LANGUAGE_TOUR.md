@@ -239,7 +239,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `(expr)`, literals, list/map/data displays | atoms |
 | `x.y`, `x[i]`, `x(args)`, `x!(args)`, `x?` | postfix operations, left to right |
 | `**` | exponentiation, right-associative |
-| `+x`, `-x`, `~x`, `not x` | unary operators |
+| `+x`, `-x`, `~x`, `!x` | unary operators; `!` is logical not |
 | `*`, `/`, `%` | multiplicative |
 | `+`, `-` | additive |
 | `<<`, `>>` | shifts |
@@ -247,8 +247,8 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `^` | bitwise xor |
 | `|` | bitwise or |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
-| `and` | logical and |
-| `or` | logical or |
+| `&&` | logical and |
+| `\|\|` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
@@ -257,7 +257,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 the stronger total-equality and total-order contracts. Data and enums do not
 gain equality automatically: implement the trait or request explicit
 derivation. `is` checks whether two composite references point to the same
-object, independently of their values. `not (a is b)` checks distinct identity.
+object, independently of their values. `!(a is b)` checks distinct identity.
 
 ```text
 @derive(PartialEq, Eq, PartialOrd, Ord, Hash)

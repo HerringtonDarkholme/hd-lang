@@ -528,9 +528,9 @@ inline_suite_expression = inline_if_expression
                         ;
 
 logical_or_expression = logical_and_expression,
-                        { "or", logical_and_expression } ;
+                        { "||", logical_and_expression } ;
 logical_and_expression = comparison_expression,
-                         { "and", comparison_expression } ;
+                         { "&&", comparison_expression } ;
 
 comparison_expression = bitwise_or_expression,
                         [ comparison_operator, bitwise_or_expression ] ;
@@ -549,7 +549,7 @@ additive_expression = multiplicative_expression,
 multiplicative_expression = unary_expression,
                             { ( "*" | "/" | "%" ), unary_expression } ;
 
-unary_expression = ( "+" | "-" | "~" | "not" ), unary_expression
+unary_expression = ( "+" | "-" | "~" | "!" ), unary_expression
                  | power_expression
                  ;
 power_expression = postfix_expression, [ "**", unary_expression ] ;
@@ -577,7 +577,10 @@ it is never a tuple whose final element is a binding expression. A tuple that
 contains a binding must parenthesize that element separately, as in
 `(a, (b := value))`.
 
-`!(` begins a suspension call suffix at ordinary call precedence. Immediately
+`!(` after a completed operand begins a suspension call suffix at ordinary call
+precedence. A `!` at the start of an operand is the prefix logical-not operator
+of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
+`!=` is a single token by longest match: `f!=g` is the comparison `f != g`. Immediately
 after `.`, the lexer scans an integer tuple index using decimal digits only, so
 `t.0.1` is two tuple-index suffixes rather than a floating-point token.
 

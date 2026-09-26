@@ -49,7 +49,6 @@ interface InterpolationScanResult {
 
 export const KEYWORDS = new Set([
   "Self",
-  "and",
   "annotate",
   "as",
   "break",
@@ -69,8 +68,6 @@ export const KEYWORDS = new Set([
   "match",
   "mut",
   "nil",
-  "not",
-  "or",
   "pass",
   "pub",
   "reified",
@@ -86,7 +83,22 @@ export const KEYWORDS = new Set([
   "while",
 ]);
 
-const MULTI_SYMBOLS = ["...", ":=", "->", "=>", "::", "==", "!=", "<=", ">=", "<<", ">>", "**"];
+const MULTI_SYMBOLS = [
+  "...",
+  ":=",
+  "->",
+  "=>",
+  "::",
+  "==",
+  "!=",
+  "<=",
+  ">=",
+  "<<",
+  ">>",
+  "**",
+  "&&",
+  "||",
+];
 const SINGLE_SYMBOLS = new Set("+-*/%<>&|^~!?=.,:;()[]{}$@");
 const OPEN_TO_CLOSE: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
 const CLOSE_TO_OPEN: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}": "{" };

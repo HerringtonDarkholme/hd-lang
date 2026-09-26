@@ -1,0 +1,5 @@
+fn both(a: bool, b: bool) -> bool:
+    if a and b:  # diagnostic: syntax-error
+        true
+    else:
+        false

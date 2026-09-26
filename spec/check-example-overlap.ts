@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const stop = new Set(
-  "fn let mut pub data enum trait impl type use as for in if else match while return break continue pass true false nil self Self where reified annotate shape and or not is string bool void i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 list map Result Ok Err Any".split(
+  "fn let mut pub data enum trait impl type use as for in if else match while return break continue pass true false nil self Self where reified annotate shape is string bool void i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 list map Result Ok Err Any".split(
     " ",
   ),
 );

@@ -4,6 +4,7 @@ parse/valid/nested-layout.hd	parse	accept	01-lexical-structure.md#physical-and-l
 parse/valid/declarations.hd	parse	accept	02-grammar.md#declarations
 parse/valid/reserved-receiver-names.hd	parse	accept	02-grammar.md#primary-expressions
 parse/valid/expressions.hd	parse	accept	02-grammar.md#expressions
+parse/valid/logical-operator-words-are-identifiers.hd	parse	accept	01-lexical-structure.md#keywords-and-reserved-words
 parse/valid/grammar-disambiguation.hd	parse	accept	02-grammar.md#expressions
 parse/valid/functions-and-closures.hd	parse	accept	07-functions.md
 parse/valid/uses.hd	parse	accept	10-modules.md#use-forms
@@ -40,6 +41,9 @@ parse/invalid/old-import-declaration.hd	parse	reject:old-import-declaration	02-g
 parse/invalid/old-export-declaration.hd	parse	reject:old-export-declaration	02-grammar.md#use-declarations
 parse/invalid/pub-trait-method.hd	parse	reject:trait-method-visibility	02-grammar.md#traits-and-implementations
 parse/invalid/chained-comparison.hd	parse	reject:comparison-chaining	02-grammar.md#expressions
+parse/invalid/old-and-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
+parse/invalid/old-or-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
+parse/invalid/old-not-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
 parse/invalid/invalid-escape.hd	parse	reject:invalid-escape	01-lexical-structure.md#string-and-character-literals
 parse/invalid/named-pattern-before-positional.hd	parse	reject:pattern-order	02-grammar.md#patterns
 typing/invalid/bare-variant-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
@@ -660,6 +664,7 @@ runtime/valid/cancellation-skips-unreached-defer.hd	runtime	accept	06-control-fl
 runtime/valid/generic-partial-eq-bound-primitives.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime	accept	05-expressions.md#calls
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime	accept	05-expressions.md#evaluation-order
+runtime/valid/logical-operators.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/bang-call-arguments-before-body.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
 runtime/valid/operands-across-suspension-order.hd	runtime	accept	05-expressions.md#evaluation-order
 runtime/valid/assignment-place-before-value.hd	runtime	accept	05-expressions.md#expression-categories

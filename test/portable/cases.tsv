@@ -1,6 +1,7 @@
 path	phase
 parse/valid/functions-and-closures.hd	parse
 parse/valid/expressions.hd	parse
+parse/valid/logical-operator-words-are-identifiers.hd	parse
 parse/valid/layout.hd	parse
 parse/valid/unicode-identifiers.hd	parse
 parse/valid/doc-comments.hd	parse
@@ -522,6 +523,7 @@ runtime/panic/for-iterator-invalidated-via-helper.hd	runtime
 runtime/valid/cancellation-skips-unreached-defer.hd	runtime
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime
+runtime/valid/logical-operators.hd	runtime
 runtime/valid/bang-call-arguments-before-body.hd	runtime
 runtime/valid/operands-across-suspension-order.hd	runtime
 runtime/valid/assignment-place-before-value.hd	runtime

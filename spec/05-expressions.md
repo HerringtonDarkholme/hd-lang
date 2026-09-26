@@ -11,7 +11,7 @@ Unless a construct states otherwise, subexpressions are evaluated from left to
 right and exactly once. This rule applies to tuple and collection elements,
 data fields, call arguments, operands, and indexing expressions.
 
-`and`, `or`, `if`, `match`, loops, optional or result propagation with `?`, and
+`&&`, `||`, `if`, `match`, loops, optional or result propagation with `?`, and
 comprehension filters evaluate conditionally as described below. A compiler may
 reorder only when it can prove that the program's observable behavior is
 unchanged.
@@ -283,7 +283,7 @@ Operators are ordered from highest to lowest precedence:
 | --- | --- | --- |
 | Postfix | `.`, `[]`, `()`, `!()`, postfix `?` | left |
 | Power | `**` | right |
-| Unary | `+`, `-`, `~`, `not` | right |
+| Unary | `+`, `-`, `~`, prefix `!` | right |
 | Multiplicative | `*`, `/`, `%` | left |
 | Additive | `+`, `-` | left |
 | Shift | `<<`, `>>` | left |
@@ -291,17 +291,27 @@ Operators are ordered from highest to lowest precedence:
 | Bitwise XOR | `^` | left |
 | Bitwise OR | `|` | left |
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | non-associative |
-| Logical AND | `and` | left, short-circuiting |
-| Logical OR | `or` | left, short-circuiting |
+| Logical AND | `&&` | left, short-circuiting |
+| Logical OR | `\|\|` | left, short-circuiting |
 | Control and closure | `if`, `match`, `for`, `while`, `fn` | structural |
 | Binding | `:=` | right |
 
 Suspension-call postfix `!` has the same precedence as an ordinary call.
+Prefix `!` is logical negation. It is recognized only at the start of an
+operand, so it never conflicts with the suspension suffix `f!(args)` or the
+`fn!` type marker, which always follow a name or `fn`. The two forms may
+combine: inside a suspending function, `!fetch!(id)` negates the `bool` result
+of the suspending call `fetch!(id)`. By longest match, `f!=g` lexes as `f`,
+`!=`, `g` and is an inequality comparison, not a suspension call. `~` remains
+bitwise complement on integers.
+
+`a && !b || c` groups as `(a && (!b)) || c`: prefix `!` binds tighter than
+every binary operator except `**`, and `&&` binds tighter than `||`.
 
 Exponentiation binds less tightly on its right than unary negation, following
 the grammar: `2 ** -3` is valid, while `-2 ** 2` means `-(2 ** 2)`.
 
-Comparisons do not chain. Write `low <= value and value < high` rather than
+Comparisons do not chain. Write `low <= value && value < high` rather than
 `low <= value < high`.
 
 Arithmetic operators require compatible numeric operands. Mixed-width result
@@ -339,7 +349,7 @@ Floating `+`, `-`, `*`, and `/` use the corresponding required IEEE 754 basic
 operation, including infinities, signed zero, and NaN. Floating `**` uses the
 `pow` rule above. `%` is integer-only.
 
-`not` requires `bool`. `and` and `or` require `bool` operands and produce
+Prefix `!` requires `bool`. `&&` and `||` require `bool` operands and produce
 `bool`. They evaluate the right operand only when needed.
 
 `==` calls `PartialEq.eq` and `!=` negates that result. Standard-library
@@ -388,7 +398,7 @@ must otherwise have compatible composite reference types: after removing
 `Any` type that the other converts to. Permissions never affect identity, so
 `list[User]` and `mut list[mut User]` are compatible. Two composite reference
 operands that are not compatible, such as `list[User]` and `list[Order]`, are
-an `incompatible-identity-operands` error. Use `not (a is b)` for distinct
+an `incompatible-identity-operands` error. Use `!(a is b)` for distinct
 identities.
 
 Arithmetic and bitwise operators are built in for the numeric types specified

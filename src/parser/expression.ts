@@ -15,8 +15,8 @@ import type { InterpolatedStringValue, Token } from "../lexer.ts";
 import { ParserBase } from "./base.ts";
 
 const BINARY_PRECEDENCE: Readonly<Record<string, number>> = {
-  or: 1,
-  and: 2,
+  "||": 1,
+  "&&": 2,
   "==": 3,
   "!=": 3,
   is: 3,
@@ -35,6 +35,13 @@ const BINARY_PRECEDENCE: Readonly<Record<string, number>> = {
   "/": 10,
   "%": 10,
   "**": 11,
+};
+
+// The AST keeps the names "and", "or", and "not" for `&&`, `||`, and prefix `!`.
+const LOGICAL_OPERATOR_NAMES: Readonly<Record<string, string>> = {
+  "&&": "and",
+  "||": "or",
+  "!": "not",
 };
 
 interface PatternBindings {
@@ -165,7 +172,7 @@ export abstract class ExpressionParser extends ParserBase {
       const right = this.parseExpression(precedence + (operator.text === "**" ? 0 : 1));
       left = {
         kind: "binary",
-        operator: operator.text,
+        operator: LOGICAL_OPERATOR_NAMES[operator.text] ?? operator.text,
         left,
         right,
         span: { start: left.span.start, end: right.span.end },
@@ -197,12 +204,12 @@ export abstract class ExpressionParser extends ParserBase {
 
   protected parsePrefix(): Expression {
     const token = this.current();
-    if (["+", "-", "~", "not"].includes(token.text)) {
+    if (["+", "-", "~", "!"].includes(token.text)) {
       this.advance();
       const operand = this.parseExpression(11);
       return {
         kind: "unary",
-        operator: token.text,
+        operator: LOGICAL_OPERATOR_NAMES[token.text] ?? token.text,
         operand,
         span: { start: token.span.start, end: operand.span.end },
       };
