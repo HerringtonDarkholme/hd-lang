@@ -1,3 +1,0 @@
-# test: F01 right code wrong line
-# diagnostic: unknown-name
-fn main() -> i32: missing

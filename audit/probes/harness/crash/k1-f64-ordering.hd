@@ -1,7 +1,0 @@
-fn lt(a: f64, b: f64) -> bool: a < b
-
-fn main() -> i32:
-    if lt(1.0, 2.0):
-        1
-    else:
-        0

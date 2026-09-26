@@ -1,2 +1,0 @@
-fn f(s: string) -> i32:
-    s[0]

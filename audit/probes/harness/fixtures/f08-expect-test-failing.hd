@@ -1,6 +1,0 @@
-# test: F08 expect test with failing test block
-# expect: test
-use std.testing.assert
-
-test "planted failure":
-    assert(1 == 2, reason="planted failure must fail the case")

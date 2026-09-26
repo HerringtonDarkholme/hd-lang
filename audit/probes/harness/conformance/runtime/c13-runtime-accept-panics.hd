@@ -1,2 +1,0 @@
-values := [1]
-result := values[5]

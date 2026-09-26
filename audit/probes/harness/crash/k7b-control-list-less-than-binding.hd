@@ -1,7 +1,0 @@
-fn main() -> i32:
-    xs := [1, 2]
-    ys := [2]
-    if xs < ys:
-        1
-    else:
-        0

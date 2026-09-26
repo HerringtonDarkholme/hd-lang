@@ -1,5 +1,0 @@
-data User:
-    name: string
-
-fn invalid(user: User) -> void:
-    user.name = "Grace"  # diagnostc: readonly-root

@@ -11,8 +11,8 @@ The conformance fixture format and the command contract are defined in
 authoritative. The `test/fixtures` directives described below
 (`# expect-result:`, `# expect:` without a manifest row, and the
 `runtime-error` panic wildcard) belong only to this implementation's own
-fixtures. W6 of `audit/proposals/CONFORMANCE_PLAN.md` moved every promotable
-language fixture into `spec/conformance/`; the files that remain are listed in
+fixtures. Every promotable language fixture has moved into
+`spec/conformance/`; the files that remain are listed in
 [Held-Back Fixtures](#held-back-fixtures).
 
 The TypeScript tests cover implementation details that are intentionally not
@@ -77,7 +77,7 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `compiler-types/identity/references/missing-implementation.hd`: marks missing-trait-implementation (unsatisfied bound), which spec/README.md does not inventory (F-205).
 - `compiler-types/requirements/normalization/explicit-empty-row.hd`: uses `$()`, which chapter 02 prose defines but its EBNF (and the reference parser) does not derive.
 - `compiler-types/traits/generic-bounds/missing-implementation.hd`: marks missing-trait-implementation (unsatisfied bound), which spec/README.md does not inventory (F-205).
-- `compiler-types/traits/multiple-bounds/duplicate-bound.hd`: marks duplicate-trait-bound, which spec/README.md does not inventory (F-205); second duplicate bound removed (D5).
+- `compiler-types/traits/multiple-bounds/duplicate-bound.hd`: marks duplicate-trait-bound, which spec/README.md does not inventory (F-205); second duplicate bound removed so the case reports one error.
 - `compiler-types/tuples/heterogeneous/index-out-of-range.hd`: marks tuple-index-range, which spec/README.md does not inventory (F-205).
 - `compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-4.hd`: marks invalid-binary-operands (float %), which spec/README.md does not inventory (F-205).
 - `compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-5.hd`: marks invalid-binary-operands (bool <), which spec/README.md does not inventory (F-205).
@@ -109,9 +109,9 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `requirements/loop-exit.hd`: implementation detail: explain-requirements output.
 - `requirements/transitive-call-paths.hd`: implementation detail: explain-requirements output.
 - `suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3.hd`: marks not-suspending, which spec/README.md does not inventory (F-205).
-- `suspension/05-unresolved-race-task-combinator.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (D9).
+- `suspension/05-unresolved-race-task-combinator.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
 - `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd`: declares its own all!; whether that is allowed next to the all! intrinsic (L12) is not specified.
-- `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (D9).
+- `suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd`: marks unsupported-task-combinator; unsupported-* codes stay out of the inventory (the spec has no portable unsupported result).
 - `suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd`: implementation detail: trace ABI event order.
 - `suspension/11-deterministic-host-pending.hd`: implementation detail: host pending across polls, driven from TypeScript.
 - `suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd`: implementation detail: driver misuse through __hd_* exports.
@@ -119,8 +119,8 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `suspension/26-replay-survives-unrelated-declaration.hd`: implementation detail: replay stability, driven from TypeScript.
 - `suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd`: implementation detail: record and replay configuration identity.
 - `suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd`: claims console output; stdout expectations are deferred (N5).
-- `suspension/32-host-provider-polls-record-and-replay.hd`: implementation-only profile ready-gate (N2); D10: check moved into `main!`.
-- `suspension/33-host-provider-scalar-arguments-and-results.hd`: implementation-only profile ready-counter (N2); D10: check moved into `main!`.
-- `suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd`: implementation-only profile ready-float (N2); D10 and F-210: sign-sensitive check moved into `main!`.
-- `suspension/36-host-provider-strings-use-utf8-boundary.hd`: implementation-only profile ready-text (N2); D10: check moved into `main!`.
+- `suspension/32-host-provider-polls-record-and-replay.hd`: implementation-only profile ready-gate (N2); check moved into `main!`.
+- `suspension/33-host-provider-scalar-arguments-and-results.hd`: implementation-only profile ready-counter (N2); check moved into `main!`.
+- `suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd`: implementation-only profile ready-float (N2); sign-sensitive check moved into `main!`.
+- `suspension/36-host-provider-strings-use-utf8-boundary.hd`: implementation-only profile ready-text (N2); check moved into `main!`.
 - `suspension/42-suspending-associated-functions-preserve-generic-results.hd`: uses `Type::name[T]!(...)`, which the chapter-02 EBNF does not derive.

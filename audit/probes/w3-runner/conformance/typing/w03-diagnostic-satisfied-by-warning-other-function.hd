@@ -1,7 +1,0 @@
-# test: W03 (F12b) diagnostic marker satisfied by a warning in another function
-
-fn example() -> void:
-    unused := 1  # diagnostic: unused-local-binding
-    pass
-
-fn main() -> i32: missing

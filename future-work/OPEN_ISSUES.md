@@ -318,14 +318,12 @@ reports: provider values are ordinary values that may escape today, and a
 
 **Problem.** The 2026-09-25 audit of the Wasm GC compiler (commit `bd985d7`)
 found places where the specification leaves an outcome open. The owner
-decided most of them the same day
-([`audit/proposals/SPEC_DECISIONS.md`](../audit/proposals/SPEC_DECISIONS.md)
-and [`audit/proposals/DECISION_SHEET.md`](../audit/proposals/DECISION_SHEET.md)).
-The questions below remain. Each is a question for a specification decision,
-not a default to implement; evidence is in
-[`audit/evidence/07-spec-feedback/DECISION_LOG.md`](../audit/evidence/07-spec-feedback/DECISION_LOG.md)
-under the tag in parentheses. Fixtures affected by a question stay out of
-`spec/conformance/` until it is answered.
+decided most of them the same day, and those decisions are in the
+specification. The questions below remain. Each is a question for a
+specification decision, not a default to implement; evidence is in
+[`audit/README.md`](../audit/README.md) under the tag in parentheses.
+Fixtures affected by a question stay out of `spec/conformance/` until it is
+answered.
 
 **Conformance environments.**
 
@@ -337,11 +335,21 @@ under the tag in parentheses. Fixtures affected by a question stay out of
 - How are a competing second driver and a re-entrant poll expressed in
   source terms, so a runner can build them without an implementation hook?
   Should the specification define a test-driver interface instead of named
-  scenarios? (N3, A7)
+  scenarios? (N3)
 - Where do the sources of the synthetic packages `dep.validation` and
   `dep.models` live? (N4)
 - Should the fixture format gain a stdout expectation for console output?
   (N5)
+
+**Permissions.**
+
+- Section 04 Mutable Paths requires a mutable root expression, while its
+  permission table lets `list[mut User]` mutate its elements. Is
+  `users[0].name = x` or `box.value.name = x` legal through a readonly root
+  whose generic argument is `mut`? (AMB-14)
+- When a plain closure passes a captured `mut T` to a `mut T` parameter, is
+  the error `mutable-capture-requires-mut-fn` or
+  `readonly-argument-to-mutable-parameter`? (AMB-16)
 
 **Representation and performance.**
 

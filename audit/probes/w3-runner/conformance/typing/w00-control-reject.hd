@@ -1,3 +1,0 @@
-# test: W00 control: unmodified F00 copy
-
-fn main() -> i32: missing  # diagnostic: unknown-name

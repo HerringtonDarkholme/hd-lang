@@ -1,3 +1,0 @@
-# test: F05b runtime-error panic when program succeeds
-
-fn main() -> i32: 1  # panic: runtime-error

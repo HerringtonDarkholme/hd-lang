@@ -1,5 +1,0 @@
-# test: F03 extra unexpected error
-
-fn main() -> i32: missing  # diagnostic: unknown-name
-
-fn other() -> i32: "not an integer"

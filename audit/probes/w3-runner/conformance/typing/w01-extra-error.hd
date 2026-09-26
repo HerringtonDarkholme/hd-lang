@@ -1,5 +1,0 @@
-# test: W01 (F03) extra unexpected error in a reject case
-
-fn main() -> i32: missing  # diagnostic: unknown-name
-
-fn other() -> i32: "not an integer"

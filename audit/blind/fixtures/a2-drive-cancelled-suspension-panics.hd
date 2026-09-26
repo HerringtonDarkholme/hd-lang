@@ -1,8 +1,0 @@
-# test: driving a cancelled suspension panics with suspension-invalid-state
-fn ready!() -> i32:
-    42
-
-pub fn main!() -> void:
-    let pending: mut Suspend[i32] = ready()
-    pending.cancel()
-    _ := pending!()  # panic: suspension-invalid-state

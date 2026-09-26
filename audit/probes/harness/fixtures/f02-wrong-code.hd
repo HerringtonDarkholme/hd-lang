@@ -1,3 +1,0 @@
-# test: F02 wrong code right line
-
-fn main() -> i32: missing  # diagnostic: type-mismatch

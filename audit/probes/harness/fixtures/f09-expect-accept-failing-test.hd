@@ -1,6 +1,0 @@
-# test: F09 expect accept with failing test block
-# expect: accept
-use std.testing.assert
-
-test "planted failure":
-    assert(1 == 2, reason="planted failure")

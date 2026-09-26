@@ -16,27 +16,27 @@ typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait
 typing/invalid/parameter-default-later-parameter.hd	wrong code: MVP reports impure-parameter-default instead of binding-not-yet-visible	L10
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
-typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
-typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
+typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
+typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
 typing/invalid/provider-spread-of-non-context.hd	MVP reports context-spread-type instead of type-mismatch	F-205
-typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
+typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
 typing/invalid/signed-integer-exponent.hd	MVP accepts a signed integer exponent; L2 makes it type-mismatch	L2
-parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
+parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error	F-205
 parse/invalid/dedent-to-unused-column.hd	MVP reports inconsistent-dedent instead of invalid-dedent	F-205
 parse/invalid/double-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
 parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal instead of syntax-error	F-205
-parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error (S3)	F-205
+parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
 parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
-typing/valid/data-default-calls-function-value.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/valid/shared-enum-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/valid/parameter-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/invalid/suspending-parameter-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/invalid/suspending-data-field-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/invalid/parameter-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/invalid/data-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/invalid/enum-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
-typing/valid/default-calls-requirement-free-trait-method.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/valid/data-default-calls-function-value.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/valid/shared-enum-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/valid/parameter-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/invalid/suspending-parameter-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/invalid/suspending-data-field-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/invalid/parameter-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/invalid/data-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/invalid/enum-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
+typing/valid/default-calls-requirement-free-trait-method.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
 typing/invalid/result-ok-payload-type-mismatch.hd	check accepts an Ok payload that does not match the Result success type	F-304
 runtime/valid/discard-propagated-void-result.hd	test crashes: Binaryen cannot parse the WAT for `_ := f()?` on Result[void, E]	F-305
 runtime/valid/no-entry-point-no-tests.hd	test exits 1 without a located report: "program has no main function or test blocks"	F-306
@@ -67,7 +67,7 @@ runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a 
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with expected-token instead of reporting duplicate-binding	F-252
-parse/invalid/wildcard-use.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
+parse/invalid/wildcard-use.hd	MVP reports expected-token instead of syntax-error	F-205
 parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	F-702
 parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	F-703
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
@@ -148,7 +148,7 @@ typing/invalid/variant-result-owner.hd	MVP reports expected-token at line 2 inst
 typing/invalid/unrepresentable-type-shape.hd	MVP reports expected-expression at line 7 instead of unrepresentable-type-shape: expected an expression, found 'shape'	F-250
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
-parse/invalid/stray-dollar.hd	MVP reports invalid-string-interpolation instead of syntax-error (S3)	F-205
+parse/invalid/stray-dollar.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/same-line-suite-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
 parse/invalid/same-line-let-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
 parse/invalid/discard-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205

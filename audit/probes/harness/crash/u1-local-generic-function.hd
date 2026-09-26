@@ -1,3 +1,0 @@
-fn outer() -> i32:
-    fn inner[T](value: T) -> T: value
-    inner(1)

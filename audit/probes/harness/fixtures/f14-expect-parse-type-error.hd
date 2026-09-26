@@ -1,4 +1,0 @@
-# test: F14 expect parse with a type error
-# expect: parse
-
-fn main() -> i32: "not an integer"

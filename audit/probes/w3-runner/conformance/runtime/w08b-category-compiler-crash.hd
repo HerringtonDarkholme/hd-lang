@@ -1,5 +1,0 @@
-# test: W08b (F13) real panic category, but the compiler crashes
-
-fn less(left: f64, right: f64) -> bool: left < right
-
-fn main() -> bool: less(1.0, 2.0)  # panic: explicit-panic

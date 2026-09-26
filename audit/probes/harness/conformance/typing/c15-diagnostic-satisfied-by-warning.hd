@@ -1,5 +1,0 @@
-fn example() -> void:
-    unused := 1  # diagnostic: unused-local-binding
-    pass
-
-fn extra() -> i32: missing_name

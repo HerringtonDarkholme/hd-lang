@@ -1,5 +1,0 @@
-# test: F11 panic code satisfied by printed text
-
-fn main() -> void $ Console:
-    println("index-out-of-bounds: decoy")
-    panic("other")  # panic: index-out-of-bounds

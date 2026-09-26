@@ -1,5 +1,0 @@
-# test: W07 (F11) panic category only in program output
-
-fn main() -> void $ Console:
-    println("index-out-of-bounds: decoy")
-    panic("other")  # panic: index-out-of-bounds

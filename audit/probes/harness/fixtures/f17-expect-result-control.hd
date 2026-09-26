@@ -1,4 +1,0 @@
-# test: F17 expect-result control
-# expect-result: main = 42
-
-fn main() -> i32: 42

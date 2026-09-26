@@ -1,5 +1,0 @@
-typing/invalid/println-without-console.hd
-typing/invalid/call-missing-requirement.hd
-typing/invalid/closure-inferred-row-missing-requirement.hd
-typing/invalid/missing-requirement.hd
-typing/invalid/use-without-provider.hd

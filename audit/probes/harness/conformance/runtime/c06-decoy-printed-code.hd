@@ -1,3 +1,0 @@
-pub fn main() -> void $ Console:
-    println("index-out-of-bounds: decoy")
-    panic("other")  # panic: index-out-of-bounds

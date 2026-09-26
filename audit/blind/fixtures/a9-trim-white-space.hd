@@ -1,11 +1,0 @@
-# test: trim removes exactly the Unicode White_Space property at both ends
-# expect: test
-use std.testing.assert_equal
-
-test "trim removes non-ASCII White_Space":
-    assert_equal("　x ".trim(), "x", reason="ideographic space, NEL, paragraph separator")
-    assert_equal(" \t\n x y \r\n".trim(), "x y", reason="ASCII whitespace; inner space kept")
-
-test "trim keeps scalars that are not White_Space":
-    assert_equal("﻿x".trim(), "﻿x", reason="U+FEFF is not White_Space")
-    assert_equal("​x​".trim(), "​x​", reason="zero-width space is not White_Space")

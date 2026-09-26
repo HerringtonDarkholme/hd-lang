@@ -1,5 +1,0 @@
-fn sum(values: i32...) -> i32:
-    0
-
-result := sum(values..., 3)
-result := sum(values..., 3)

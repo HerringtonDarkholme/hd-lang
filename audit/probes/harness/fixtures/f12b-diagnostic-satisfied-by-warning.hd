@@ -1,7 +1,0 @@
-# test: F12b diagnostic satisfied by a warning in another function
-
-fn example() -> void:
-    unused := 1  # diagnostic: unused-local-binding
-    pass
-
-fn main() -> i32: missing

@@ -1,9 +1,0 @@
-typing/valid/data-default-calls-function-value.hd
-typing/valid/shared-enum-default-writes-state.hd
-typing/valid/parameter-default-writes-state.hd
-typing/invalid/suspending-parameter-default.hd
-typing/invalid/suspending-data-field-default.hd
-typing/invalid/parameter-default-requires-provider.hd
-typing/invalid/data-default-requires-provider.hd
-typing/invalid/enum-default-requires-provider.hd
-typing/valid/default-calls-requirement-free-trait-method.hd

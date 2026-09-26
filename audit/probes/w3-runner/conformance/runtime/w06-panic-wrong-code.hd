@@ -1,3 +1,0 @@
-# test: W06 (F10) panic with the wrong category
-
-fn main() -> i32: 2147483647 + 1  # panic: index-out-of-bounds

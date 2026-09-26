@@ -1,3 +1,0 @@
-# test: F10 panic with wrong code
-
-fn main() -> i32: 2147483647 + 1  # panic: index-out-of-bounds

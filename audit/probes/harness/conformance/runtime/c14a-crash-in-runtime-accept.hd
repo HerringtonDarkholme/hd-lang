@@ -1,6 +1,0 @@
-use std.testing.assert
-
-fn less(left: f64, right: f64) -> bool: left < right
-
-test "float ordering":
-    assert(less(1.0, 2.0), reason="one is less than two")

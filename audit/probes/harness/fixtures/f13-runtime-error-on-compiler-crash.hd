@@ -1,5 +1,0 @@
-# test: F13 runtime-error panic satisfied by a compiler crash
-
-fn less(left: f64, right: f64) -> bool: left < right
-
-fn main() -> bool: less(1.0, 2.0)  # panic: runtime-error

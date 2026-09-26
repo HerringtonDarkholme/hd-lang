@@ -1,3 +1,0 @@
-fn deep(n: i32) -> i32: deep(n + 1) + 1
-
-fn main() -> i32: deep(0)

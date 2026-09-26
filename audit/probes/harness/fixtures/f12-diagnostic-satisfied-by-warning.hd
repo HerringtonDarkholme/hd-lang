@@ -1,5 +1,0 @@
-# test: F12 diagnostic satisfied by a warning
-
-fn main() -> i32:
-    unused := 1  # diagnostic: unused-local-binding
-    missing
