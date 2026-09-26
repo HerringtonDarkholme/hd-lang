@@ -432,7 +432,7 @@ requirement_union = requirement_term, { "+", requirement_term } ;
 requirement_term = requirement_key
                  | "(", requirement_expression, ")"
                  ;
-requirement_key = trait_type ;
+requirement_key = [ "mut" ], trait_type ;
 ```
 
 When the corresponding generic parameter is row-kinded, a type argument may

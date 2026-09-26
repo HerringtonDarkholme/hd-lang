@@ -23,7 +23,11 @@ compiler metadata that a pure Wasm host cannot recover.
 
 ## Owner Decisions
 
-Decided 2026-09-26:
+Decided 2026-09-26. Applied 2026-09-26: items 1 to 6 are written into
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), the determinism clause is
+in [Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary),
+and [Open Issues](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) now
+lists only questions 2, 3, 4, 6, 7, 9, 10, 11, and 12.
 
 1. **Option B.** Durable replay is a runtime feature with a small
    specification and compiler contract; storage, runners, retry, and

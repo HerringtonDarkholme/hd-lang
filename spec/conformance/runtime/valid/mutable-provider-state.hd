@@ -1,0 +1,33 @@
+# test: requirements / mutable providers / state change through mut self
+
+use std.testing.assert_equal
+
+fn tick() -> i32 $ mut Counter:
+    $.use(mut Counter).bump()
+    $.use(Counter).count()
+
+fn keep() -> i32 $ mut Counter:
+    let counter: mut Counter = $.use(mut Counter)
+    counter.bump()
+    counter.count()
+
+test "a mutable provider changes its own state":
+    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+    $.with(mut Counter=counter):
+        _ := tick()
+        assert_equal(keep(), 2, reason="both calls bump the installed provider")
+    assert_equal(counter.value, 2, reason="the provider is the caller's value")
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1

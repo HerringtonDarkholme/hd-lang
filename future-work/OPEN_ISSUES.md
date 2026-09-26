@@ -10,45 +10,61 @@ and tooling work is listed separately at the end.
 
 ### Replay Determinism And Durable Workflows
 
-**Problem.** Cold suspensions and provider capture do
-not define durable event identity, replay interception, deterministic code
-between suspension points, or provider compatibility after a restart.
+**Decided.** Durable replay is a runtime feature with a small specification
+and compiler contract; storage, runners, retry, and workflow APIs are library
+work. Calls are intercepted at the host boundary only. Recording is opt-in per
+run. Runs are pinned to their artifact and reach new code through
+continue-as-new. Reaching the end of a history resumes live execution, and
+in-flight host calls follow a per-method runtime-profile policy. These rules
+are in [Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules); the determinism
+clause is in
+[Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary).
 
-**Options.** (1) Add a compiler/runtime workflow mode with stable suspension
-site IDs, an interception hook at each provider bang call, `Durable` result
-serialization, nondeterminism checks, and provider-configuration identity.
-(2) Expose only low-level event-log APIs and make libraries assign IDs and
-police determinism. (3) Treat durable replay as out of scope and support only
-in-memory suspension.
+**Problem.** The remaining questions are listed, with options and
+recommendations, in [Durable Replay](DURABLE_REPLAY.md#questions-for-the-owner):
 
-**Recommendation.** Option 1. Site IDs should derive from explicit stable
-labels when present and compiler-maintained source identity otherwise; resume
-must reject an incompatible provider configuration. Review tooling should
-render provider-call and suspension-point order and flag non-idempotent provider
-calls before a suspension point when the provider contract exposes that fact.
+- question 2: which host calls enter the history, and what each recording
+  level records;
+- question 3: whether the standard `Hasher` is deterministic within one code
+  identity and runtime profile;
+- question 4: whether code identity covers transitive dependencies and the
+  compiler's semantic version;
+- question 6: how events are matched to calls;
+- question 7: whether a `Durable` bound is needed or boundary-safe types
+  suffice;
+- question 9: whether weak references or finalizers may exist;
+- question 10: whether resource limits are part of configuration identity;
+- question 11: whether observability and replay share one hook;
+- question 12: how a panic is recorded in a history.
 
 **Unblocks.** Crash recovery, workflow upgrades, deterministic replay tests,
 and durable orchestration as a defining use case.
 
 **Status.** The first experiment in the
 [Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) records frame-poll
-events with function-name identities, per-function source identities, and a
-provider-configuration identity. It demonstrates that replay can tolerate an
-unrelated declaration insertion while rejecting a changed executed function or
-provider configuration. A second experiment intercepts suspending host-provider
-calls with scalar or string arguments and scalar, string, or void results. It records their
+events, per-function source identities, and a provider-configuration identity.
+A second experiment intercepts suspending host-provider calls with scalar or
+string arguments and scalar, string, or void results; it records a
 function-relative site, provider and method key, encoded arguments, readiness,
-and optional result; replay restores the result while bypassing the live
-provider. Its scalar wire values are JSON-safe and type-tagged; `f64` values
-use exact IEEE-754 bit strings, while strings use hex-encoded UTF-8 bytes. The
-issue remains open for explicit source labels, durable structural host values,
-and determinism checks between provider calls.
+and optional result, and replay restores the result while bypassing the live
+provider. Both experiments predate the decided rules: their identity is per
+function rather than per module, their site IDs contain byte offsets, and
+they stop at the end of a history instead of resuming.
 
-The owner has decided code identity, recording, end-of-history, and
-runtime-profile rules; they are in
-[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules). Code identity now covers
-the whole module, so the experiment's tolerance of an unrelated declaration
-insertion no longer holds.
+### Mutable Host Providers
+
+**Problem.** [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
+lets hd code install and retrieve a provider with `mut` access, but runtime
+profiles bind host providers readonly, so an entry-point row containing
+`mut K` is rejected with `mutable-upgrade`.
+
+**Options.** (1) Keep host providers readonly; host objects manage their own
+state behind readonly methods. (2) Let a runtime profile mark individual host
+traits as bound with `mut` access.
+
+**Recommendation.** Option 1 until a host trait needs `mut self` methods.
+
+**Unblocks.** Host capability traits whose methods take `mut self`.
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
@@ -139,9 +155,12 @@ specified point where suspension/provider activity can be instrumented without
 rewriting user code.
 
 **Options.** (1) Carry task-local storage in `PollContext` and expose one
-runtime hook shared with durable replay. (2) Model tracing only as explicit
-requirement providers. (3) Let hosts instrument Wasm calls without
-language-level correlation.
+runtime hook shared with durable replay. Replay now intercepts at the host
+boundary only, so a shared hook would sit there, below semantic boundaries
+such as registered tools. (2) Model tracing only as explicit requirement
+providers. (3) Let hosts instrument Wasm calls without language-level
+correlation. Whether observability shares the replay hook is
+[Durable Replay](DURABLE_REPLAY.md) question 11.
 
 **Recommendation.** Option 1, while keeping exporters and policy behind
 ordinary providers. The hook must honor `Secret[T]`/`Redact` once defined.

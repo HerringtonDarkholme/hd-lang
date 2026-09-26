@@ -1,0 +1,22 @@
+# test: requirements / mutable providers / readonly row entry
+
+fn tick() -> void $ Counter:
+    $.use(mut Counter).bump()  # diagnostic: mutable-upgrade
+
+pub fn main() -> void:
+    $.with(Counter=MemoryCounter { value: 0 }):
+        tick()
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1

@@ -1,0 +1,51 @@
+# test: requirements / mutable providers / rows, contexts, and subtraction
+
+fn bump_it() -> void $ mut Counter:
+    $.use(mut Counter).bump()
+
+fn read_it() -> i32 $ Counter:
+    $.use(Counter).count()
+
+fn both() -> i32 $ mut Counter + Counter:
+    bump_it()
+    read_it()
+
+fn inferred() -> void:
+    bump_it()
+
+fn read_only() -> void $ Counter:
+    _ := read_it()
+
+fn counters() -> $.Context[mut Counter]:
+    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+    $.context(mut Counter=counter)
+
+fn provide_mut[r](callback: fn() -> void $ r) -> void $ (r - mut Counter):
+    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+    $.with(mut Counter=counter):
+        callback()
+
+fn provide_readonly[r](callback: fn() -> void $ r) -> void $ (r - Counter):
+    $.with(Counter=MemoryCounter { value: 0 }):
+        callback()
+
+pub fn main() -> void:
+    $.with(...counters()):
+        _ := both()
+        inferred()
+    provide_mut(bump_it)
+    provide_readonly(read_only)
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
