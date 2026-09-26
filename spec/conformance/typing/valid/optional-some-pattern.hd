@@ -5,11 +5,11 @@ data User:
 
 fn display_name(user: User?) -> string:
     match user:
-        nil => "unknown"
-        value? => value.name
+        .None => "unknown"
+        .Some(value) => value.name
 
 test "plain values construct optionals and patterns extract them":
-    let user: User? = nil
-    assert_equal(display_name(user), "unknown", reason="nil case")
+    let user: User? = .None
+    assert_equal(display_name(user), "unknown", reason=".None case")
     user = User { name: "Ada" }
     assert_equal(display_name(user), "Ada", reason="present case")

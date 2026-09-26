@@ -7,11 +7,11 @@ enum Shape:
 fn circle_radius(value: Shape) -> i32?:
     match value:
         .Circle(radius) => radius
-        .Square(_) => nil
+        .Square(_) => .None
 
 fn square_side(value: Shape) -> i32?:
     match value:
-        .Circle(_) => nil
+        .Circle(_) => .None
         .Square(side) => side
 
 impl PartialEq for Shape:
@@ -30,7 +30,7 @@ fn is_ok(result: Result[i32, string]) -> bool:
 
 fn is_present(value: i32?) -> bool:
     match value:
-        nil => false
+        .None => false
         _ => true
 
 test "list equality agrees with length and element checks":

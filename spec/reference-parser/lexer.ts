@@ -20,7 +20,6 @@ const reserved = new Set([
   "let",
   "match",
   "mut",
-  "nil",
   "pass",
   "pub",
   "reified",
@@ -523,7 +522,6 @@ export function lexSource(source: string): LexResult {
       }
       let kinds: ReadonlySet<string>;
       if (word === "true" || word === "false") kinds = new Set([word, "boolean_literal"]);
-      else if (word === "nil") kinds = new Set([word, "nil_literal"]);
       else if (reserved.has(word)) kinds = new Set([word]);
       else kinds = new Set([word, "identifier"]);
       tokens.push(token(kinds, line, word));

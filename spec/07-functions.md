@@ -460,3 +460,21 @@ requirements with the ordinary `$` clause.
 hd-lang has no general recursive local binding facility, partial generic
 argument lists, shorthand-argument closures, or non-local
 returns from closures.
+
+Method values are confirmed deferred, and two spellings are reserved for
+them:
+
+- `Type::name` or `Trait::name`, with optional type arguments, not followed
+  by an argument clause, for the unbound method function, whose receiver is
+  its first parameter;
+- `x::name`, where `x` names a value rather than a type or trait, for the
+  bound method value that captures the receiver `x`, whether or not it is
+  called.
+
+Both are `deferred-method-value` errors. The first is outside the grammar, so
+it is reported during parsing; the second parses as a qualified call, as in
+`button::click()`, and is reported during type checking. A qualified call
+such as `User::guest()`, `Display::to_string(value)`, or
+`Add[Money]::add(left, right)` remains an ordinary call. An explicit closure,
+such as `fn(user: User) -> string: user.domain()`, adapts a method where a
+function value is needed.

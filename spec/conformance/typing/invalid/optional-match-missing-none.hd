@@ -1,0 +1,5 @@
+# test: an optional match must cover .None like any enum variant
+
+fn value_or_zero(value: i32?) -> i32:
+    match value:  # diagnostic: nonexhaustive-match
+        .Some(number) => number

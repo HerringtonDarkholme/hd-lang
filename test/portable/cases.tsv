@@ -58,7 +58,7 @@ typing/valid/host-entry-requirement.hd	type
 typing/valid/console-error-entry.hd	type
 typing/valid/public-requirement-row.hd	type
 typing/valid/explicit-discard-and-void-result.hd	type
-typing/valid/optional-present-pattern.hd	type
+typing/valid/optional-some-pattern.hd	type
 typing/valid/stored-suspension-driving.hd	type
 typing/valid/control-flow.hd	type
 typing/valid/collections.hd	type
@@ -113,7 +113,7 @@ typing/invalid/readonly-mut-field-method.hd	type
 typing/invalid/duplicate-inherent-member.hd	type
 typing/invalid/duplicate-generic-embedded-name.hd	type
 typing/invalid/duplicate-data-field.hd	type
-typing/invalid/present-pattern-nonoptional.hd	type
+typing/invalid/some-pattern-nonoptional.hd	type
 typing/invalid/missing-requirement.hd	type
 typing/invalid/bang-call-outside-suspension.hd	type
 typing/invalid/row-subtraction-unsound.hd	type
@@ -732,7 +732,7 @@ parse/invalid/stray-dollar.hd	parse
 parse/invalid/discard-binding-ends-in-suite.hd	parse
 parse/invalid/return-binding-ends-in-suite.hd	parse
 parse/invalid/repeated-numeric-separator.hd	parse
-typing/invalid/nil-without-expected-type.hd	type
+typing/invalid/none-without-expected-type.hd	type
 typing/invalid/float-remainder.hd	type
 typing/invalid/bool-ordering.hd	type
 parse/invalid/header-after-indented-suite.hd	parse
@@ -766,3 +766,18 @@ runtime/valid/impl-distinct-target-arguments.hd	runtime
 runtime/valid/tuple-impl-target.hd	runtime
 typing/invalid/overlapping-tuple-impl.hd	type
 typing/invalid/function-impl-target.hd	type
+typing/invalid/nil-is-unknown-name.hd	type
+runtime/valid/option-enum-spellings.hd	runtime
+runtime/valid/option-match-patterns.hd	runtime
+runtime/valid/nested-optional-layers.hd	runtime
+typing/invalid/nested-optional-needs-some.hd	type
+typing/invalid/optional-match-missing-none.hd	type
+typing/invalid/bare-none-pattern.hd	type
+runtime/valid/option-impl-target.hd	runtime
+typing/invalid/overlapping-option-impl.hd	type
+parse/invalid/optional-question-pattern.hd	parse
+parse/invalid/unbound-method-value.hd	parse
+parse/invalid/bound-method-value.hd	parse
+typing/invalid/bound-method-value-call.hd	type
+typing/invalid/trait-value-impl-target.hd	type
+typing/valid/trait-value-as-target-argument.hd	type

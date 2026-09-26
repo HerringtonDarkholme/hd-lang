@@ -18,7 +18,7 @@ A `data` declaration defines named, typed fields:
 data User:
     id: string
     email: string
-    display_name: string? = nil
+    display_name: string? = .None
 ```
 
 Field names must be unique within the data type. Every field has an explicit type.
@@ -335,20 +335,23 @@ scope and exhaustiveness are defined in [Control Flow](06-control-flow.md).
 
 ## Option And Result
 
-Optional `T?` and `Result[T, E]` behave as standard enum-like types, with
-language support for `nil` and postfix `?`. `Ok(value)` and `Err(error)` are the
-construction spellings for `Result`. In patterns, `Ok(pattern)` and
-`Err(pattern)` are the corresponding unqualified built-in spellings; they do
-not make ordinary enum variants directly nameable through `use`.
+Optional `T?` is sugar for the prelude enum
+`enum Option[T]: Some(value: T); None`
+([Optional Types](04-type-system.md#optional-types)). Its values are built
+with `.Some(value)`, `.None`, `Option.Some(value)`, and `Option.None`, and
+matched with the same spellings as patterns. The only language support beyond
+an ordinary enum is the `T?` spelling, the one-layer implicit wrap of a plain
+`T` value where `T?` is expected, and postfix `?`.
 
-Optional patterns include `nil`, `value?` for the present case, `_`, and a bare
-catch-all binding. The pattern `value?` binds the contained value; it is not a
-`Some` constructor. A plain `T` value constructs a present `T?` wherever that
-optional type is expected.
+`Result[T, E]` behaves as a standard enum-like type with language support for
+postfix `?`. `Ok(value)` and `Err(error)` are the construction spellings for
+`Result`. In patterns, `Ok(pattern)` and `Err(pattern)` are the corresponding
+unqualified built-in spellings; they do not make ordinary enum variants
+directly nameable through `use`.
 
-Whether these are literally user-definable standard-library enums or compiler
-intrinsics with equivalent semantics is an ABI decision, not a source-language
-difference.
+The representation of either type is an ABI decision, not a source-language
+difference. An implementation may, for example, represent `.None` as a null
+reference.
 
 ## Representation And Garbage Collection
 

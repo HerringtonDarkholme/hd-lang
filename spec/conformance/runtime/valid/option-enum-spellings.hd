@@ -1,0 +1,25 @@
+# test: T? is Option[T]; .None, Option.None, .Some, and Option.Some build optionals
+use std.testing.{assert, assert_equal}
+
+fn absent() -> Option[i32]:
+    .None
+
+fn qualified_absent() -> i32?:
+    Option.None
+
+fn present(value: i32) -> i32?:
+    Option.Some(value)
+
+fn contextual_present(value: i32) -> Option[i32]:
+    .Some(value)
+
+fn wrapped(value: i32) -> i32?:
+    value
+
+test "Option[T] and T? are one type":
+    let spelled: Option[i32] = wrapped(3)
+    let sugared: i32? = spelled
+    assert_equal(sugared, present(3), reason="both spellings hold the same value")
+    assert_equal(absent(), qualified_absent(), reason=".None and Option.None are equal")
+    assert(absent() != present(0), reason="absent differs from a present zero")
+    assert_equal(contextual_present(4), wrapped(4), reason=".Some matches the implicit wrap")

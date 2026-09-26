@@ -1,5 +1,5 @@
 # test: generic optional field default
 
 data Box[T]:
-    value: T? = nil
+    value: T? = .None
 fn make() -> Box[i32]: Box {}

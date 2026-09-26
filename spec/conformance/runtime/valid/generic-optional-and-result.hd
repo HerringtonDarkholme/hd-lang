@@ -11,8 +11,8 @@ fn keep_result[T, E](value: Result[T, E]) -> Result[T, E]: value
 
 fn inspect_optional(value: i32?) -> i32:
     match value:
-        actual? => actual
-        nil => 0
+        .Some(actual) => actual
+        .None => 0
 
 fn inspect_result(value: Result[i32, Failure]) -> i32:
     match value:

@@ -1,2 +1,0 @@
-
-let invalid: Any = nil  # diagnostic: nil-to-nonoptional

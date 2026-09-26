@@ -1,0 +1,10 @@
+# test: calling x::name is still the reserved bound method value, not a method call
+data User:
+    email: string
+
+impl User:
+    fn domain(self) -> string:
+        self.email
+
+fn invalid(user: User) -> string:
+    user::domain()  # diagnostic: deferred-method-value

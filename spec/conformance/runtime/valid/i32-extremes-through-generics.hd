@@ -8,7 +8,7 @@ fn pass_through[T](value: T) -> T:
 fn first[T](values: list[T]) -> T?:
     for value in values:
         return value
-    nil
+    .None
 
 test "extremes round-trip through erased positions":
     let maximum: i32 = 2147483647

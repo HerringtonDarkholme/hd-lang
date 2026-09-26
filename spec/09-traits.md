@@ -107,7 +107,7 @@ The standard library defines `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and
 `Ordering` in `std.cmp`. `PartialEq` requires
 `fn eq(self, other: Self) -> bool`; `Eq < PartialEq` is a marker asserting
 reflexive equality. `PartialOrd < PartialEq` requires
-`fn partial_cmp(self, other: Self) -> Ordering?`, where `nil` means unordered.
+`fn partial_cmp(self, other: Self) -> Ordering?`, where `.None` means unordered.
 `Ord < Eq + PartialOrd` requires
 `fn cmp(self, other: Self) -> Ordering`. `Ordering` has `Less`, `Equal`, and
 `Greater` cases. `Eq` and `Ord` implementations must agree with their partial
@@ -156,7 +156,7 @@ enums, distinct variants compare by variant declaration order; values of the
 same variant compare shared enum data in declaration order, followed by that
 variant's payload parameters in declaration order. Constructor argument order
 does not affect comparison. Derived `PartialOrd` requires every compared field
-to satisfy `PartialOrd` and returns `nil` if a field comparison is unordered
+to satisfy `PartialOrd` and returns `.None` if a field comparison is unordered
 before a comparison result is determined. Derived `Ord` requires every compared
 field to satisfy `Ord`.
 `@derive(Hash)` supports data and enums. It generates an ordinary `Hash`
@@ -213,7 +213,10 @@ constructor such as `i32`, `string`, `list`, or `map`; or a tuple
 constructor. Tuples have one built-in constructor per arity, so `(A, B)` is
 the two-element tuple constructor applied to `A` and `B`, and
 `impl Display for (i32, string)` is a valid target. Tuples of different
-arity never share a constructor. The constructor's arguments may be any
+arity never share a constructor. An optional target is the prelude enum
+`Option` applied to its contained type: `annotate Validation for string?`
+targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an
+implementation for `i32?`. The constructor's arguments may be any
 types, including implementation parameters, as in
 `impl[T < Display] Printable for Box[T]`. A target that is a bare type
 parameter, as in `impl[T] Describe for T`, is a `bare-parameter-impl-target`
@@ -223,6 +226,12 @@ revision may add them as a compatible extension.
 A function type is never an implementation target, whatever its parameter,
 result, or requirement types. `impl Marker for fn(i32) -> i32` is a
 `function-impl-target` error.
+
+A trait value type is never an implementation target either: `Display` used
+as a type names a dynamic trait value, not a type constructor.
+`impl Marker for Display` and `impl Marker for Any` are
+`trait-value-impl-target` errors. A trait value type may still be a
+constructor's argument, as in `impl Marker for list[Display]`.
 
 A target must not be written with an outer `mut`. `impl Marker for mut Counter`
 is a `mutable-impl-target` error. Permission belongs to method receivers
@@ -246,7 +255,10 @@ package that declares `Money` may write `impl Add[Money] for i32`, because it
 owns the trait argument `Money`. The third case never applies to a target that
 is a bare type parameter. Transparent aliases do not create ownership; nominal
 newtypes do. The standard library owns primitives, built-in collection type
-constructors, and tuple constructors.
+constructors, tuple constructors, and the prelude enum `Option`, so an
+implementation for `string?` needs the package of the trait or of a trait
+argument, as in `annotate Validation for string?` in the package that owns
+`Validation`.
 
 An inherent implementation may be declared only in the package that owns its
 target nominal type. It cannot target a trait value, primitive, tuple,
@@ -381,12 +393,17 @@ instantiation is a candidate. A candidate **fits** when the call's arguments
 check against its method's parameter types, with that instantiation's trait
 arguments substituted, and, when the call has an expected type, the method's
 result type is assignable to it. Exactly one fitting candidate is selected, so
-`price.add(5)` calls the `Add[i32]` method. Two or more fitting candidates are
-an `ambiguous-method` error, and a trait-qualified call such as
-`Add[i32]::add(price, 5)` resolves it. When no candidate fits, the call is a
-`type-mismatch` error. This choice applies only among instantiations of one
-trait; methods of two different traits stay `ambiguous-method` whatever the
-argument types.
+`price.add(5)` calls the `Add[i32]` method. When two or more candidates fit,
+and exactly one of them fits with every integer literal argument at `i32`
+and every floating-point literal argument at `f64`, the literals' default
+types, that candidate is selected: with `impl Add[i32] for Money` and
+`impl Add[i64] for Money`, `price.add(5)` calls the `Add[i32]` method.
+Otherwise two or more fitting candidates are an `ambiguous-method` error, and
+a trait-qualified call such as `Add[i64]::add(price, 5)` resolves it. When no
+candidate fits, the call is a `type-mismatch` error whose message lists the
+available instantiations. This choice applies only among instantiations of
+one trait; methods of two different traits stay `ambiguous-method` whatever
+the argument types.
 
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
@@ -531,7 +548,8 @@ Dynamic trait-value type tests and downcasts are not supported.
 automatically. As a value type, `Any` erases the concrete type and exposes no
 type-specific methods.
 
-`Any` excludes `nil`; `Any?` permits absence through ordinary optional typing.
+`Any` excludes optional values; `Any?` permits absence through ordinary
+optional typing.
 `mut Any` preserves mutable access to an erased composite value.
 
 ## Embedding And Trait Satisfaction

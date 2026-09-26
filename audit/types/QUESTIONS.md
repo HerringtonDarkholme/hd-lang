@@ -6,7 +6,7 @@ Decided 2026-09-26.
 
 Applied to the specification on 2026-09-26 (see the spec README revision
 notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6, E1 to E5, M1, and later M2, TQ-4,
-TQ-27 (partial), TQ-28, and TQ-29):
+TQ-27, TQ-28, TQ-29, and O1 to O3):
 
 - **TQ-1** (applied): impl targets start with a type constructor
   (`bare-parameter-impl-target`); overlap is decided by trait, unifying trait
@@ -69,11 +69,18 @@ read it, so prefer explicit, checkable rules and locality.
   ignored. Chapter 14 did not repeat the old wording.
 - **TQ-29, applied** to 06 For Loops. When a type implements both
   `Iterable[T]` and `Iterator[T]`, `for` and comprehensions use `Iterable`.
-- **TQ-27, tuple and function parts applied** to 09 Implementation Targets
-  and Implementation Ownership: tuples are targets (one standard-library
-  constructor per arity); a function type target is `function-impl-target`.
-  The `Option` part waits on O1 to O3.
-- **Optionals (O1 to O3) and TQ-27's `Option` part, not yet applied.** (O1) `T?` is exact
+- **TQ-27, applied** to 09 Implementation Targets and Implementation
+  Ownership: tuples are targets (one standard-library constructor per arity);
+  a function type target is `function-impl-target`; the `Option` part was
+  applied with O1 to O3.
+- **Optionals (O1 to O3) and TQ-27's `Option` part, applied** to 01 (30
+  reserved words, no `nil` literal), 02 (no `nil_literal`, no
+  `optional_pattern`), 04 Optional Types, Assignability, and Least Common
+  Type, 05, 06 Match Expressions, 08 Option And Result, 09 Implementation
+  Targets and Ownership, and 10 Prelude (`Option`). Codes
+  `nil-to-nonoptional` and `optional-pattern-requires-optional` were removed
+  in favor of `missing-contextual-enum-type`; `value?` and `nil` patterns
+  became `.Some(value)` and `.None`. (O1) `T?` is exact
   sugar for a prelude `enum Option[T]: Some(value: T); None`; `T??` is
   `Option[Option[T]]`; `nil` is removed as keyword and literal; the
   representation stays an implementation detail. (O2) The absent value is
@@ -113,7 +120,8 @@ read it, so prefer explicit, checkable rules and locality.
   trait imports changing `Deref` resolution. (P4) Accepted: a trait impl for
   `S` added in a third package gives `S` a depth-0 method that blocks an
   embedded member. (P5) TQ-31 stays: trait methods of embedded types are
-  never searched. (P6, not yet applied) `Type::name` and `x::name` are
+  never searched. (P6, applied to 02, 05 Member Access, and 07 Unsupported
+  Function Extensions with the code `deferred-method-value`) `Type::name` and `x::name` are
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
 
@@ -130,12 +138,13 @@ read it, so prefer explicit, checkable rules and locality.
   Aliasing out is allowed: `ts := post.Timestamps` on a `mut post` yields a
   `mut` alias; owned means access follows the container, not exclusivity.
 
-- **TQ-4 follow-ups, not yet applied.** When several instantiations fit only
+- **TQ-4 follow-ups, applied** to 09 Method Resolution. When several instantiations fit only
   because of an unsuffixed literal, prefer the literal's default type (`i32`,
   `f64`); otherwise ambiguous. When no instantiation fits, report
   `type-mismatch`, listing the available instantiations.
-- **Trait value types are not impl targets, not yet applied.**
-  `impl Marker for Display` is an error.
+- **Trait value types are not impl targets, applied** to 09 Implementation
+  Targets with the code `trait-value-impl-target` (settles TQ-22's target
+  half). `impl Marker for Display` is an error.
 - **Mutable provider install syntax confirmed.** `$.with(mut Clock=clock)`,
   `$.use(mut Clock)`, `$ mut Clock` (applied in chapter 11).
 

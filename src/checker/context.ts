@@ -147,6 +147,7 @@ export const PRELUDE_NAMES = new Set([
   "map",
   "Any",
   "Reference",
+  "Option",
   "Result",
   "Ok",
   "Err",
@@ -595,6 +596,7 @@ export abstract class CheckerContext {
     value: HirExpression,
     expected: ValueType | undefined,
     span: SourceSpan,
+    wrapOptional = true,
   ): HirExpression {
     if (!expected || value.type === expected || value.type === "never") return value;
     if (isPermissionWeakening(value.type, expected)) {
@@ -696,8 +698,9 @@ export abstract class CheckerContext {
       }
     }
     const inner = optionalInner(expected);
-    if (inner !== undefined) {
-      const payload = this.coerce(value, inner, span);
+    if (inner !== undefined && wrapOptional) {
+      // The implicit wrap adds one layer only: `T` is a `T?`, never a `T??`.
+      const payload = this.coerce(value, inner, span, false);
       if (payload.type === inner) {
         return {
           kind: "variant-wrap",

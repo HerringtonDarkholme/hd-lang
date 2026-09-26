@@ -1,4 +1,4 @@
 # test: an unused nested optional binding warns
 
 fn main() -> void:
-    let nested: string?? = nil  # warning: unused-local-binding
+    let nested: string?? = .None  # warning: unused-local-binding

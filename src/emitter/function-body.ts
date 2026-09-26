@@ -42,6 +42,8 @@ import {
   traitTypeBase,
   type LinearSuspensionSite,
   methodBoundParameters,
+  andThen,
+  matchTestTag,
 } from "./shared.ts";
 import { IteratorEmitter } from "./iterator.ts";
 
@@ -1395,7 +1397,7 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
             : test.literal!.type === "f64"
               ? `(f64.eq ${actual} ${expected})`
               : `(i32.eq ${actual} ${expected})`;
-      condition = condition ? `(i32.and ${condition} ${testCondition})` : testCondition;
+      condition = condition ? andThen(condition, testCondition) : testCondition;
     }
     if (!condition) return guardedBody;
     return [
@@ -1421,9 +1423,7 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
   ): string {
     if (test.accessPath) {
       const value = this.emitPatternAccess(subject, test.accessPath);
-      return test.tag !== undefined
-        ? `(struct.get $e${test.tagEnumIndex} $e${test.tagEnumIndex}tag ${value})`
-        : value;
+      return test.tag === undefined ? value : matchTestTag(test.tagEnumIndex!, value);
     }
     if (test.enumFieldIndex !== undefined) {
       return this.emitEnumPayloadAccess(

@@ -1,0 +1,5 @@
+# test: string? and Option[string] are one implementation target
+trait Marker
+
+impl Marker for string?
+impl Marker for Option[string]  # diagnostic: overlapping-impl

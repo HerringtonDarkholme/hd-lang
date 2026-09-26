@@ -139,7 +139,9 @@ else`, `break`, `break value`, and `continue`;
   nested-enum payload constraints;
 - erased optional and `Result` values, contextual constructors, exhaustive
   matching, recursive nominal payload patterns, must-use checking, and postfix
-  propagation;
+  propagation; `Option[T]` is `T?`, with `.None`, `.Some(value)`, and their
+  `Option.`-qualified forms as constructors and patterns over the erased
+  carrier;
 - named function values plus typed nested and recursive closures, expected-type
   parameter/result inference, result inference for nonrecursive closures, and
   GC environments for direct and transitive captures, including lexical
@@ -195,7 +197,7 @@ else`, `break`, `break value`, and `continue`;
   values;
 - concrete and bounded generic `PartialEq` and `PartialOrd` dispatch, with
   structural equality for tuples, lists, optionals, `Result`, and maps and
-  lexicographic tuple/list plus nil-first optional ordering, recursively using
+  lexicographic tuple/list plus `.None`-first optional ordering, recursively using
   explicit implementations and erased bound dictionaries for nested values;
   primitives and those built-in composites also satisfy `PartialEq` and
   `PartialOrd` bounds, and primitives satisfy `Display` bounds and become
