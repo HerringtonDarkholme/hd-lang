@@ -298,14 +298,16 @@ that binding to other modules. It does not create a new declaration identity.
 Cycles involving `use` or `pub use` are rejected.
 
 There is no package-private visibility modifier: another module in the same
-package can use only `pub` declarations. Fields and inherent methods are
-module-private unless individually marked `pub`; enum variants inherit their
-enum's visibility. Trait methods follow their trait's visibility; a usable
-implementation additionally requires its target type to be visible.
+package can use only `pub` declarations. Named fields and inherent methods
+are module-private unless individually marked `pub`; embedded fields take no
+marker and are always public; enum variants inherit their enum's visibility.
+Trait methods follow their trait's visibility; a usable implementation
+additionally requires its target type to be visible.
 
 A public declaration's complete source-level signature must not expose a
 module-private declaration. This check recursively covers function parameters
-and results, data fields, enum constructor data and payloads, alias/newtype
+and results, data fields (every embedded field included), enum constructor
+data and payloads, alias/newtype
 underlying types, trait bounds, supertraits, public generic arguments, and every
 requirement-row key. A
 private implementation detail may occur in a public function body but not in

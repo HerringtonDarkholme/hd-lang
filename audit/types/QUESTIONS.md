@@ -276,7 +276,11 @@ read it, so prefer explicit, checkable rules and locality.
   `page.to_string()` when `Label` implements `Display` and embeds `Base`).
   Removes the one lookup surprise that neither Go nor Rust has.
 
-- **Embedded fields are always public, not yet applied.** The `pub` marker on
+- **Embedded fields are always public, applied** to 02, 03 Member
+  Resolution, 08, 10, the tour, the members package, and both parsers and the
+  prototype checker (`private-type-leak` for a public data type embedding a
+  private one). Adding a `mut` field is recorded in 08 as a breaking change
+  for embedding types (VE-A). The `pub` marker on
   embedded fields is removed from the grammar; an embedded field is visible
   wherever its outer type is. Embedding a non-`pub` type into a `pub` data
   type is `private-type-leak`. Member lookup then checks only each member's

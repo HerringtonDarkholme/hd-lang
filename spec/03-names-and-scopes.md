@@ -372,9 +372,11 @@ declared in that module or marked `pub`
 method is **available** when its trait is available to dot-call lookup there
 ([Method Resolution](09-traits.md#method-resolution)). Both lookups search
 embedded fields the same way. An embedded field of `S` is at depth 1, an
-embedded field of that field's type is at depth 2, and so on. A member found
-through embedded fields is visible only when it and every embedded field on
-its path are visible, because the use means that explicit path (see below).
+embedded field of that field's type is at depth 2, and so on. Embedded fields
+are always public
+([Data Declarations](08-data-and-enums.md#data-declarations)), so the path
+to a promoted member never affects its visibility: only the member's own
+visibility matters.
 
 Lookup **skips** a field or inherent method that is not visible, as if it
 were absent, and keeps searching. It never stops at an invisible member, and

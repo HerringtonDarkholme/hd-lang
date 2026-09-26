@@ -352,3 +352,9 @@ existing source. Each entry names the decision that made the change.
   `page.Label.to_string()`; without `Base` it was `unknown-method`. An
   inherent method beside such a blocking type at the same depth, previously
   selected, is now `ambiguous-promoted-member`.
+- Embedded fields are always public: the `pub` marker on an embedded field
+  was removed from the grammar, so `pub Base` in a data body is now a
+  `syntax-error`, and an unmarked embedded field, previously module-private,
+  is visible wherever its outer type is. Embedding a module-private data type
+  in a public data type is now `private-type-leak`. A promoted member no
+  longer needs every embedded field on its path to be visible, only itself.

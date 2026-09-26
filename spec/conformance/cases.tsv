@@ -11,6 +11,7 @@ parse/valid/uses.hd	parse	accept	10-modules.md#use-forms
 parse/valid/data-embedding.hd	parse	accept	08-data-and-enums.md#data-embedding
 parse/invalid/mutable-field-modifier.hd	parse	reject:mutable-field-modifier	08-data-and-enums.md#data-declarations
 parse/invalid/mutable-embedded-field.hd	parse	reject:mutable-embedded-field	08-data-and-enums.md#data-embedding
+parse/invalid/pub-embedded-field.hd	parse	reject:syntax-error	02-grammar.md#data-types
 typing/valid/generic-data-embedding.hd	type	accept	08-data-and-enums.md#data-embedding
 runtime/valid/display-dispatch.hd	runtime	accept	05-expressions.md#literals
 runtime/valid/float-display.hd	runtime	accept	04-type-system.md#numeric-conversions
@@ -161,6 +162,8 @@ typing/invalid/unsafe-dynamic-trait.hd	type	reject:trait-not-dynamically-safe	09
 typing/invalid/orphan-impl.hd	type	reject:orphan-impl	09-traits.md#trait-implementations
 typing/invalid/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	09-traits.md#trait-implementations
 typing/invalid/private-type-leak.hd	type	reject:private-type-leak	10-modules.md#public-uses-and-visibility
+typing/invalid/private-type-embedded-in-public-data.hd	type	reject:private-type-leak	08-data-and-enums.md#data-declarations
+typing/valid/private-data-embeds-private-type.hd	type	accept	08-data-and-enums.md#data-declarations
 typing/invalid/variance-position.hd	type	reject:invalid-variance	04-type-system.md#variance
 typing/warnings/unreachable-code.hd	type	warn:unreachable-code	06-control-flow.md#unreachable-code
 typing/warnings/unused-local-binding.hd	type	warn:unused-local-binding	06-control-flow.md#blocks-and-completion

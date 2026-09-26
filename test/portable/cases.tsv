@@ -805,3 +805,6 @@ typing/valid/trait-value-as-target-argument.hd	type
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type
 typing/invalid/promoted-field-assignment-readonly.hd	type
 typing/invalid/embedded-part-readonly-alias.hd	type
+parse/invalid/pub-embedded-field.hd	parse
+typing/invalid/private-type-embedded-in-public-data.hd	type
+typing/valid/private-data-embeds-private-type.hd	type

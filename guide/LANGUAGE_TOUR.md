@@ -1867,7 +1867,7 @@ modules both use explicit use declarations.
 
 Cycles involving `use` or `pub use` are rejected.
 
-Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. There is no package-private visibility modifier.
+Declarations are module-private by default, and `pub` makes them public. Enum variants inherit the enum's visibility. Data fields and inherent methods remain private unless individually marked `pub`, even on a public data. Embedded fields take no marker and are always public, so a public data type may embed only public types. A public signature, including its `$` requirement row, cannot leak a module-private type or trait. There is no package-private visibility modifier.
 
 ## Program Entry Points
 

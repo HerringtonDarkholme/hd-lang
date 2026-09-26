@@ -35,8 +35,14 @@ default is evaluated separately for each
 construction, not when the data type is declared. It sees the declaration's
 lexical scope but does not implicitly bind other fields of the new value.
 Embedded fields have no default syntax.
-Fields, including embedded fields, are module-private unless individually
-marked `pub`. A public data type does not make its unmarked fields public. In
+Named fields are module-private unless individually marked `pub`. A public
+data type does not make its unmarked fields public. An embedded field takes
+no marker and is always public: it is visible wherever its outer type is, so
+promoted members need only their own visibility
+([Member Resolution](03-names-and-scopes.md#member-resolution)). Embedding a
+module-private data type in a public data type is therefore a
+`private-type-leak` error
+([Public Uses And Visibility](10-modules.md#public-uses-and-visibility)). In
 another module, a data literal may construct the type only when all its
 fields are public; private fields cannot be named, initialized, or carried
 through a copy-update literal there. A public factory function can construct
@@ -233,6 +239,12 @@ is the stored value, as
 where `mut Post` is required, such a literal is a `mutable-upgrade` error, and
 so is a store of such a copy. A copy's generic fields keep their substituted
 types, as generic fields always do.
+
+Adding a direct `mut U` field to a data type is therefore a breaking change
+for every type that embeds it, at any depth: the embedded type gains a
+mutable edge, a copy of a readonly value of it becomes readonly, and a literal
+elsewhere that fills the part from a readonly value and is used as `mut`
+becomes a `mutable-upgrade` error.
 
 The part is owned by the outer value only in this sense: the language copies
 it whenever a part is filled, so no two outer values receive the same part.

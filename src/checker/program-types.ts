@@ -1,7 +1,7 @@
 import type { HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { resolveGenericType, typeName } from "./shared.ts";
+import { firstPrivateSignatureType, resolveGenericType, typeName } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
@@ -290,6 +290,15 @@ export function defineProgramData(context: ProgramCheckContext): void {
         diagnostics.push({
           code: "void-data-field",
           message: "a data field cannot have type void",
+          span: field.span,
+        });
+      // An embedded field is always public (08-data-and-enums.md#data-declarations).
+      const leaked =
+        declaration.public && field.embedded ? firstPrivateSignatureType(type, program) : undefined;
+      if (leaked)
+        diagnostics.push({
+          code: "private-type-leak",
+          message: `public data '${declaration.name}' embeds private type '${leaked}'; embedded fields are always public`,
           span: field.span,
         });
       return {

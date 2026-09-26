@@ -1,0 +1,7 @@
+# test: an embedded field takes no pub marker; embedded fields are always public
+pub data Base:
+    id: string
+
+pub data Post:
+    pub Base  # diagnostic: syntax-error
+    pub title: string

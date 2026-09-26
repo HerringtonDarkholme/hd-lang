@@ -1,0 +1,7 @@
+# test: an embedded field is always public, so a public data type cannot embed a module-private data type
+data Timestamps:
+    created_at: i32
+
+pub data Post:
+    Timestamps  # diagnostic: private-type-leak
+    title: string

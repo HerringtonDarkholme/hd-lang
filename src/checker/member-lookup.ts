@@ -114,8 +114,9 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   /**
    * Spec 03 Member Resolution: a field or inherent method is visible when it is
-   * declared in the calling module or marked `pub`. The prototype compiles a
-   * single module, so every member is declared in the calling module.
+   * declared in the calling module or marked `pub`. Embedded fields are always
+   * public, so the path never matters. The prototype compiles a single module,
+   * so every member is declared in the calling module.
    */
   private memberVisible(_member: HirDataField | InherentMethod): boolean {
     return true;
@@ -171,8 +172,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       declaration: HirData;
       substitutions: ReadonlyMap<string, ValueType>;
       steps: readonly MemberStep[];
-      pathVisible: boolean;
-    }[] = [{ declaration, substitutions, steps: [], pathVisible: true }];
+    }[] = [{ declaration, substitutions, steps: [] }];
     for (let depth = 1; depth <= MAX_EMBEDDING_DEPTH && frontier.length > 0; depth += 1) {
       const next: typeof frontier = [];
       const matches: MemberSelection[] = [];
@@ -191,11 +191,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             ...node.steps,
             { declaration: node.declaration, field: embedded, substitutions: node.substitutions },
           ];
-          const pathVisible = node.pathVisible && this.memberVisible(embedded);
           const embeddedSubstitutions = this.dataSubstitutions(embeddedDeclaration, embeddedType);
           if (method) {
             const promotedMethod = this.findInherentMethod(embeddedType, name);
-            if (promotedMethod && pathVisible && this.memberVisible(promotedMethod))
+            if (promotedMethod && this.memberVisible(promotedMethod))
               matches.push({ kind: "inherent", steps, method: promotedMethod });
             else {
               if (promotedMethod) skipped = true;
@@ -206,7 +205,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             const promotedField = embeddedDeclaration.fields.find(
               (candidate) => candidate.name === name,
             );
-            if (promotedField && pathVisible && this.memberVisible(promotedField))
+            if (promotedField && this.memberVisible(promotedField))
               matches.push({
                 kind: "field",
                 steps,
@@ -222,7 +221,6 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             declaration: embeddedDeclaration,
             substitutions: embeddedSubstitutions,
             steps,
-            pathVisible,
           });
         }
       }

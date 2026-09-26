@@ -33,7 +33,9 @@ own members before promoted ones, breadth-first promotion with
 methods filling implementations. The revised TQ-31 is implemented: a method
 name an embedded type has only through a trait stops the search with
 `embedded-trait-method-not-promoted`, or `ambiguous-promoted-member` beside
-an inherent method at the same depth. Context spreads are suffix spreads
+an inherent method at the same depth. Embedded fields are always public:
+the prototype parser rejects `pub` on an embedded field, and a public data
+type embedding a private one is `private-type-leak`. Context spreads are suffix spreads
 (`$.with(ctx...)`) in the prototype parser, and the prefix form is a
 `syntax-error`. M2 replaces M1 and is implemented: separate
 field and method lookups, same-named fields and methods, and

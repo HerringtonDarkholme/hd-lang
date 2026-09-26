@@ -19,7 +19,7 @@ impl Inner:
         "inner audit"
 
 pub data Outer:
-    pub Inner
+    Inner
     code: string
     revision: i32
 

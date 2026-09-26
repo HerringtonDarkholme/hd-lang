@@ -818,6 +818,12 @@ class Parser extends ExpressionParser {
           candidate.span,
         );
       }
+      if (this.atText("pub") && this.peek(1).kind === "identifier" && this.peek(2).text !== ":")
+        this.fail(
+          "syntax-error",
+          "an embedded field takes no 'pub' marker: embedded fields are always public",
+          this.current().span,
+        );
       if (this.current().kind === "identifier" && this.peek(1).text !== ":") {
         const type = this.parseType();
         if (this.atText("="))

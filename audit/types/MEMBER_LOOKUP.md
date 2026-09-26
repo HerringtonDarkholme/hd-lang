@@ -63,7 +63,8 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   as in Rust's privacy-aware lookup; `private-member` is reported only when
   nothing visible matches. Inside the defining module the private member
   wins. An own trait method whose trait is not imported still stops the
-  search with `trait-not-in-scope` (P2).
+  search with `trait-not-in-scope` (P2). Embedded fields are always public,
+  so only a promoted member's own visibility matters, never its path.
 - Embedded types offer fields and inherent methods only. Trait methods are
   selected only on the receiver's own type (E4). A method name that an
   embedded type has only through a trait stops the search at that depth:

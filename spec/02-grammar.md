@@ -263,13 +263,15 @@ data_member = { decorator_line }, ( data_field | embedded_field ), NEWLINE
               ;
 
 data_field = [ "pub" ], identifier, ":", type, [ "=", closed_expression ] ;
-embedded_field = [ "pub" ], named_type ;
+embedded_field = named_type ;
 ```
 
 `mut` is not a data-member modifier: `mut name: string` and `mut Base` are
 invalid. A named field may instead declare a mutable type, as in
 `friend: mut User`. An embedded field must denote a data type and must not
-include `mut`. It may
+include `mut`. It takes no `pub` marker, because an embedded field is always
+public ([Data Declarations](08-data-and-enums.md#data-declarations)), so
+`pub Base` in a data body is a `syntax-error`. It may
 instantiate a generic data type. The type's final name, without its type
 arguments, is the embedded field name; duplicate embedded names are rejected.
 Data-field default expressions have the requirement-free constraint specified in
