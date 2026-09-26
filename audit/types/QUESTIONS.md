@@ -79,10 +79,12 @@ read it, so prefer explicit, checkable rules and locality.
   (`Point { x: 0, y }`, `Point { x: px }`); labels in `Type { }` use `:`,
   labels in `( )` use `=` (grammar Q5).
 - **Bound methods stay deferred.** Revisit later.
-- **Member namespace reopened.** The owner prefers separate field and method
-  namespaces, so a trait renaming a method cannot collide with a field in a
-  user package. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md) for the comparison
-  and the proposed rule.
+- **M2: separate field and method namespaces, not yet applied (replaces
+  M1).** `x.name` looks up fields only; `x.name(args)` looks up methods only;
+  a field and a method may share a name; a function-typed field is called as
+  `(x.callback)(args)`. A trait adding or renaming a method can never collide
+  with a user's field. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md). Trait-method
+  promotion (E4 versus Rust-style) is still under discussion.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
