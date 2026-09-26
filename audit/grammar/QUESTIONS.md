@@ -33,6 +33,14 @@ Each question stands alone. Findings with the evidence are in
 [FINDINGS.md](FINDINGS.md). The `shape`, `and`/`or`/`not`, and `where`
 questions were decided separately (K1 to K3).
 
+- **Q2 confirmed as applied.** `apply(fn(a):` then `    a + 1)` stays an
+  error: the closure body ends, then a line starting with `,` or a closing
+  delimiter no deeper than the header line.
+- **Q7 refinement, not yet applied.** A leading-dot continuation is allowed
+  only when no same-line suite is open on the logical line being continued;
+  with one open (for example `f := fn(x): x` then a deeper `.len()`), the
+  continuation line is a syntax error.
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
