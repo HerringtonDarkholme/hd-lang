@@ -338,6 +338,25 @@ read it, so prefer explicit, checkable rules and locality.
   invisible; the not-found message suggests the import. Supersedes E2's
   un-imported-trait stop rule and the P3/P4 consequences.
 
+- **Cut 2 final shape (depth semantics), not yet applied.** Replaces the flat
+  Cut 2. Each type's promoted members are its direct parts' resolved members
+  one level deeper: a type's own fields and inherent methods are at depth 0,
+  and for each name the shallower member replaces the deeper one, so every
+  intermediate type decides its own names. Two members with one name at the
+  same smallest depth are a conflict, reported at the outer type's
+  declaration (in each namespace). Diamonds need no special rule: copies at
+  different depths resolve to the shallower one; copies at the same depth
+  conflict. Per-type resolved tables are an implementation technique, not
+  specification text; the spec states only the semantics. The shallower-wins
+  switch when a dependency gains a shallower member stays accepted (P3).
+- **Parts' trait methods are ignored entirely.** An embedded type's trait
+  methods neither promote nor block; supersedes the TQ-31 stop rule, so in
+  the Label/Base example `page.to_string()` reaches `Base.to_string` when no
+  other candidate exists.
+- **TQ-36: ambiguous stays.** The receiver's own in-scope trait method and a
+  promoted inherent method with the same name make the call
+  `ambiguous-method`; a forwarding impl is called as `Trait::m(x)`.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
