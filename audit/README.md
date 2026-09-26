@@ -25,8 +25,13 @@ removed from this folder. What remains:
 
 G2, G3, L6, L7, L8, L9 are implemented; L2's remaining case
 (`unsigned-exponent.hd`) waits on sized numeric types and is tagged F-253.
+TQ-3 (inherent before trait methods), TQ-5 (`mutable-impl-target`), and TQ-6
+(supertrait member names) are implemented, as are the TQ-1 target and overlap
+checks and the TQ-2 ownership check.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |
 | -- | -------- |
 | K1 | `shape` is no longer a keyword: `shape[T]()` and `shape_of(f)` are prelude intrinsics, with typed `fields`/`variants` members on specialized shapes. The prototype has no shape intrinsics. |
+| TQ-1 | An impl target starts with a type constructor; overlap is decided by trait, unifying trait arguments, and target constructor; `for` accepts `Iterable[T]` or `Iterator[T]` directly. The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail. |
+| TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check is implemented, but its fixtures need `Iterable` or package roles (`--package-role`, `--dependency`), which the prototype lacks. |

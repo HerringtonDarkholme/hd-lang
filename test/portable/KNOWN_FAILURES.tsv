@@ -102,3 +102,9 @@ parse/invalid/same-line-suite-comma.hd	MVP parse accepts a comma at depth zero i
 parse/invalid/same-line-let-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
 parse/valid/raw-string-escaped-quote.hd	parse rejects a backslash-escaped quote inside a raw string (unexpected-character)	F-706
 typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
+typing/invalid/iterator-for-iterable-bound.hd	check reports unknown-trait: the prototype has no Iterable trait	TQ-1
+runtime/valid/user-iterable-for-loop.hd	check reports unknown-trait: the prototype has no Iterable trait, so a user impl cannot drive a for loop	TQ-1
+typing/valid/trait-argument-owner-impl.hd	check reports unknown-trait: the prototype has no Iterable trait (the trait-argument ownership check itself is implemented)	TQ-2
+typing/invalid/orphan-impl-nested-trait-argument.hd	check reports unknown-trait instead of orphan-impl: the prototype has no Iterable trait	TQ-2
+typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
+typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2

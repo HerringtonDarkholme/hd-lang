@@ -5,11 +5,13 @@ F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 F-252	6	The parser rejects core grammar forms
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
+TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-257	3	`mut fn` closure literals do not parse
 F-150	2	Two entry-point reject cases also report `private-type-leak`
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 F-704	2	`string.replace` is not implemented
 F-707	2	A comma at depth zero does not end a same-line suite
+TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
 F-258	1	Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 F-355	1	`string.trim()` removes U+FEFF and keeps U+0085

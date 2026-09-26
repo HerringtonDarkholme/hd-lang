@@ -396,7 +396,12 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
             message: "an enum payload cannot have type void",
             span: field.span,
           });
-        const checked = { name: field.name, type, index: allFields.length, span: field.span };
+        const checked = {
+          name: field.name,
+          type,
+          index: allFields.length,
+          span: field.span,
+        };
         allFields.push(checked);
         return checked;
       });
@@ -409,7 +414,12 @@ export function defineProgramEnums(context: ProgramCheckContext): void {
         span: variant.span,
       };
     });
-    enumTypes.set(declaration.name, { ...enumType, sharedFields, variants, fields: allFields });
+    enumTypes.set(declaration.name, {
+      ...enumType,
+      sharedFields,
+      variants,
+      fields: allFields,
+    });
   }
 }
 
@@ -561,9 +571,52 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         span: method.span,
       };
     });
-    traitTypes.set(declaration.name, { ...trait, supertraits, associatedTypes, methods });
+    traitTypes.set(declaration.name, {
+      ...trait,
+      supertraits,
+      associatedTypes,
+      methods,
+    });
   }
   diagnoseSupertraitCycles(context);
+  diagnoseSupertraitMemberNames(context);
+}
+
+// 09 Trait Declarations: a child trait must not declare a member name of any
+// transitive supertrait. Reported on the child's member.
+function diagnoseSupertraitMemberNames(context: ProgramCheckContext): void {
+  const traitsByIndex = new Map<number, HirTrait>();
+  for (const trait of context.traitTypes.values()) traitsByIndex.set(trait.index, trait);
+  const inheritedNames = (trait: HirTrait): Map<string, string> => {
+    const names = new Map<string, string>();
+    const seen = new Set<number>([trait.index]);
+    const pending = trait.supertraits.map((supertrait) => supertrait.traitIndex);
+    while (pending.length > 0) {
+      const index = pending.pop()!;
+      if (seen.has(index)) continue;
+      seen.add(index);
+      const supertrait = traitsByIndex.get(index);
+      if (!supertrait) continue;
+      for (const member of [...supertrait.associatedTypes, ...supertrait.methods])
+        if (!names.has(member.name)) names.set(member.name, supertrait.name);
+      pending.push(...supertrait.supertraits.map((parent) => parent.traitIndex));
+    }
+    return names;
+  };
+  for (const declaration of context.program.traits) {
+    const trait = context.traitTypes.get(declaration.name);
+    if (!trait || trait.supertraits.length === 0) continue;
+    const inherited = inheritedNames(trait);
+    for (const member of [...declaration.associatedTypes, ...declaration.methods]) {
+      const owner = inherited.get(member.name);
+      if (owner)
+        context.diagnostics.push({
+          code: "duplicate-trait-member",
+          message: `trait '${trait.name}' declares '${member.name}', which its supertrait '${owner}' already declares`,
+          span: member.span,
+        });
+    }
+  }
 }
 
 function diagnoseSupertraitCycles(context: ProgramCheckContext): void {

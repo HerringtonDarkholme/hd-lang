@@ -1,8 +1,20 @@
 import type { Diagnostic } from "../diagnostics.ts";
 import type { Expression, ImplDecl, Parameter, TypeRef } from "../ast.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
-import { mutableType, nominalGenericParts, nominalGenericType, readonlyType } from "../types.ts";
 import {
+  functionParts,
+  mutableInner,
+  mutableType,
+  nominalGenericParts,
+  nominalGenericType,
+  optionalInner,
+  readonlyType,
+  resultParts,
+  tupleParts,
+  tupleType,
+} from "../types.ts";
+import {
+  genericTypeName,
   isKnownType,
   matchTraitImplementation,
   requirementKeysMayCollide,
@@ -20,8 +32,38 @@ interface TraitSpecialization {
 }
 
 interface RegisteredImplementationTarget {
+  readonly genericParameters: readonly string[];
+  readonly traitArguments: readonly string[];
   readonly traitIndex: number;
   readonly targetType: string;
+}
+
+// The type constructor a target starts with. Two implementations of one trait
+// can overlap only when their targets share it (09 Overlap).
+function targetConstructor(type: string): string {
+  const tuple = tupleParts(type);
+  if (tuple !== undefined) return `tuple:${tuple.length}`;
+  if (optionalInner(type) !== undefined) return "optional";
+  if (resultParts(type)) return "Result";
+  const nominal = nominalGenericParts(type);
+  if (nominal) return nominal.name;
+  if (functionParts(type)) return "function";
+  return type;
+}
+
+function traitArgumentsMayUnify(
+  left: readonly string[],
+  right: readonly string[],
+  rightGenerics: readonly string[],
+): boolean {
+  if (left.length === 0) return true;
+  // Rename the other implementation's parameters apart before unifying.
+  const renamed = new Map(
+    rightGenerics.map((parameter) => [parameter, `generic:$other.${parameter}`] as const),
+  );
+  const leftKey = tupleType(left);
+  const rightKey = tupleType(right.map((argument) => substituteGenericType(argument, renamed)));
+  return leftKey === rightKey || requirementKeysMayCollide(leftKey, rightKey);
 }
 
 function specializeTrait(
@@ -61,48 +103,58 @@ function specializeTrait(
 function registerImplementationPair(
   implementation: ImplDecl,
   trait: HirTrait,
+  traitArguments: readonly string[],
   targetType: string,
-  pairs: Set<string>,
-  normalizedPairs: Set<string>,
   targets: RegisteredImplementationTarget[],
   diagnostics: Diagnostic[],
 ): boolean {
-  const pair = `${trait.index}:${targetType}`;
-  const normalizedPair = `${trait.index}:${readonlyType(targetType)}`;
-  if (pairs.has(pair)) {
-    diagnostics.push({
-      code: "duplicate-trait-impl",
-      message: `${implementation.targetName} implements ${trait.name} more than once`,
-      span: implementation.span,
-    });
-    return false;
-  }
-  if (normalizedPairs.has(normalizedPair)) {
-    diagnostics.push({
-      code: "overlapping-impl",
-      message: `${implementation.targetName} overlaps another ${trait.name} implementation after permission normalization`,
-      span: implementation.span,
-    });
-    return false;
-  }
-  const normalizedTarget = readonlyType(targetType);
+  const constructor = targetConstructor(readonlyType(targetType));
   if (
     targets.some(
       (candidate) =>
         candidate.traitIndex === trait.index &&
-        requirementKeysMayCollide(readonlyType(candidate.targetType), normalizedTarget),
+        targetConstructor(readonlyType(candidate.targetType)) === constructor &&
+        traitArgumentsMayUnify(
+          traitArguments,
+          candidate.traitArguments,
+          candidate.genericParameters,
+        ),
     )
   ) {
     diagnostics.push({
       code: "overlapping-impl",
-      message: `${implementation.targetName} can overlap another ${trait.name} implementation after generic substitution`,
+      message: `${implementation.targetName} overlaps another ${trait.name} implementation for the type constructor '${constructor}'`,
       span: implementation.span,
     });
     return false;
   }
-  pairs.add(pair);
-  normalizedPairs.add(normalizedPair);
-  targets.push({ traitIndex: trait.index, targetType });
+  targets.push({
+    genericParameters: implementation.genericParameters,
+    traitArguments,
+    traitIndex: trait.index,
+    targetType,
+  });
+  return true;
+}
+
+// 09 Implementation Targets: no outer `mut`, and no bare type parameter.
+function checkImplementationTarget(implementation: ImplDecl, diagnostics: Diagnostic[]): boolean {
+  if (mutableInner(implementation.targetName) !== undefined) {
+    diagnostics.push({
+      code: "mutable-impl-target",
+      message: `implementation target '${readonlyType(implementation.targetName)}' cannot be written with mut; permission belongs to receivers and bounds`,
+      span: implementation.span,
+    });
+    return false;
+  }
+  if (implementation.genericParameters.includes(implementation.targetName)) {
+    diagnostics.push({
+      code: "bare-parameter-impl-target",
+      message: `implementation target '${implementation.targetName}' is a bare type parameter; a target must start with a type constructor`,
+      span: implementation.span,
+    });
+    return false;
+  }
   return true;
 }
 
@@ -225,6 +277,57 @@ function prepareInherentImplementation(
   }
 }
 
+function resolveImplementationTarget(
+  implementation: ImplDecl,
+  context: ProgramCheckContext,
+): string | undefined {
+  const { diagnostics, dataTypes, enumTypes, traitTypes } = context;
+  const targetType =
+    typeName(
+      { name: implementation.targetName, span: implementation.span },
+      dataTypes,
+      enumTypes,
+      traitTypes,
+      diagnostics,
+      new Set(implementation.genericParameters),
+    ) ?? "void";
+  if (isKnownType(targetType, dataTypes, enumTypes, traitTypes)) return targetType;
+  diagnostics.push({
+    code: "unknown-type",
+    message: `unknown implementation target '${implementation.targetName}'`,
+    span: implementation.span,
+  });
+  return undefined;
+}
+
+// 09 Implementation Ownership: the package must own the trait, the target's
+// constructor, or the outer constructor of a trait argument (the last never
+// for a bare-parameter target).
+function checkImplementationOwnership(
+  implementation: ImplDecl,
+  trait: HirTrait,
+  traitArguments: readonly string[],
+  targetType: string,
+  context: ProgramCheckContext,
+): boolean {
+  const { program, dataTypes, enumTypes } = context;
+  const constructorOf = (type: string): string =>
+    nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
+  const isLocalConstructor = (type: string): boolean =>
+    dataTypes.has(constructorOf(type)) || enumTypes.has(constructorOf(type));
+  const traitIsLocal = program.traits.some((declaration) => declaration.name === trait.name);
+  const argumentIsLocal =
+    genericTypeName(readonlyType(targetType)) === undefined &&
+    traitArguments.some(isLocalConstructor);
+  if (traitIsLocal || isLocalConstructor(targetType) || argumentIsLocal) return true;
+  context.diagnostics.push({
+    code: "orphan-impl",
+    message: `implementation of nonlocal trait '${trait.name}' for nonlocal type '${constructorOf(targetType)}' is not allowed`,
+    span: implementation.span,
+  });
+  return false;
+}
+
 function prepareAssociatedTypes(
   implementation: ImplDecl,
   trait: HirTrait,
@@ -276,14 +379,13 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     inherentMethods,
   } = context;
   const inherentMethodKeys = new Set<string>();
-  const implementationPairs = new Set<string>();
-  const normalizedImplementationPairs = new Set<string>();
   const implementationTargets: RegisteredImplementationTarget[] = [];
   const orderedImplementationEntries = [...program.implementations.entries()].sort(
     (left, right) =>
       Number(left[1].traitName !== undefined) - Number(right[1].traitName !== undefined),
   );
   for (const [implementationIndex, implementation] of orderedImplementationEntries) {
+    if (!checkImplementationTarget(implementation, diagnostics)) continue;
     if (implementation.traitName === undefined) {
       prepareInherentImplementation(
         implementation,
@@ -316,43 +418,16 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     if (!specialization) continue;
     const traitArguments = specialization.arguments;
     const traitSubstitutions = specialization.substitutions;
-    const implementationGenerics = new Set(implementation.genericParameters);
-    const targetType =
-      typeName(
-        { name: implementation.targetName, span: implementation.span },
-        dataTypes,
-        enumTypes,
-        traitTypes,
-        diagnostics,
-        implementationGenerics,
-      ) ?? "void";
-    if (!isKnownType(targetType, dataTypes, enumTypes, traitTypes)) {
-      diagnostics.push({
-        code: "unknown-type",
-        message: `unknown implementation target '${implementation.targetName}'`,
-        span: implementation.span,
-      });
+    const targetType = resolveImplementationTarget(implementation, context);
+    if (targetType === undefined) continue;
+    if (!checkImplementationOwnership(implementation, trait, traitArguments, targetType, context))
       continue;
-    }
-    const targetHead =
-      nominalGenericParts(readonlyType(targetType))?.name ?? readonlyType(targetType);
-    const traitIsLocal = program.traits.some((declaration) => declaration.name === trait.name);
-    const targetIsLocal = dataTypes.has(targetHead) || enumTypes.has(targetHead);
-    if (!traitIsLocal && !targetIsLocal) {
-      diagnostics.push({
-        code: "orphan-impl",
-        message: `implementation of nonlocal trait '${trait.name}' for nonlocal type '${targetHead}' is not allowed`,
-        span: implementation.span,
-      });
-      continue;
-    }
     if (
       !registerImplementationPair(
         implementation,
         trait,
+        traitArguments,
         targetType,
-        implementationPairs,
-        normalizedImplementationPairs,
         implementationTargets,
         diagnostics,
       )
@@ -435,7 +510,12 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           };
           const call: Expression = {
             kind: required.suspending ? "suspend-call" : "call",
-            callee: { kind: "member", receiver, name: required.name, span: defaultMethod.span },
+            callee: {
+              kind: "member",
+              receiver,
+              name: required.name,
+              span: defaultMethod.span,
+            },
             arguments: defaultMethod.parameters.slice(1).map((parameter) => ({
               kind: "name" as const,
               name: parameter.name,
@@ -445,7 +525,13 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           };
           method = {
             ...defaultMethod,
-            body: [{ kind: "expression", expression: call, span: defaultMethod.span }],
+            body: [
+              {
+                kind: "expression",
+                expression: call,
+                span: defaultMethod.span,
+              },
+            ],
           };
         }
       }

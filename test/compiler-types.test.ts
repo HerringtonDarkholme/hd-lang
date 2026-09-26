@@ -360,3 +360,20 @@ test("context creation accepts spreads and normalizes exact replacement keys", (
   assert.equal(final?.kind, "expression");
   if (final?.kind === "expression") assert.equal(final.expression.type, "context:Backup+Clock");
 });
+
+test("owning a trait argument's outer constructor permits a foreign trait impl (TQ-2)", () => {
+  const owned = analyze(
+    "data Word:\n    text: string\n\nimpl Iterator[Word] for string:\n    fn next(mut self) -> Word?: nil\n",
+  );
+  assert.deepEqual(
+    owned.diagnostics.map((diagnostic) => diagnostic.code),
+    [],
+  );
+  const nested = analyze(
+    "data Word:\n    text: string\n\nimpl Iterator[list[Word]] for string:\n    fn next(mut self) -> list[Word]?: nil\n",
+  );
+  assert.deepEqual(
+    nested.diagnostics.map((diagnostic) => diagnostic.code),
+    ["orphan-impl"],
+  );
+});
