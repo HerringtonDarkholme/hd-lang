@@ -45,6 +45,11 @@ tail -n +2 "$manifest" | while IFS="$tab" read -r path phase expectation section
         *) fail "unknown expectation '$expectation' for $path" ;;
     esac
 
+    if grep -q '^# expect-stdout:' "$spec_dir/conformance/$path"; then
+        [ "$phase" = runtime ] && [ "$expectation" = accept ] ||
+            fail "fixture $path uses # expect-stdout: outside a runtime accept case"
+    fi
+
     spec_file=${section%%#*}
     [ -f "$spec_dir/$spec_file" ] || fail "missing specification $spec_file for $path"
 
@@ -78,8 +83,30 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
 fi
 
 if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
-    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role): '; then
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|expect-stdout): ' |
+    grep -v -E ':# expect-stdout:$'; then
     fail "fixture uses a header directive not defined in conformance/README.md"
+fi
+
+# Package sources (conformance/packages) are inputs of the package-role
+# environment, not cases: no index row, no directives, and they must parse.
+packages_dir="$spec_dir/conformance/packages"
+if [ -d "$packages_dir" ]; then
+    if grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
+        fail "package sources under conformance/packages must not carry fixture directives"
+    fi
+    packages_manifest=$(mktemp "${TMPDIR:-/tmp}/hd-spec-packages.XXXXXX")
+    {
+        printf 'path\tphase\texpectation\tspecification\n'
+        find "$packages_dir" -type f -name '*.hd' | sort | while IFS= read -r file; do
+            printf '%s\tparse\taccept\t-\n' "${file#"$spec_dir/conformance/"}"
+        done
+    } > "$packages_manifest"
+    if ! node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$packages_manifest" "$spec_dir/conformance"; then
+        rm -f "$packages_manifest"
+        fail "a package source under conformance/packages does not parse"
+    fi
+    rm -f "$packages_manifest"
 fi
 
 if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
@@ -87,7 +114,7 @@ if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
     fail "fixture uses an undefined # expect: value"
 fi
 
-find "$spec_dir/conformance" -type f -name '*.hd' | sort | while IFS= read -r file; do
+find "$spec_dir/conformance" -path "$spec_dir/conformance/packages" -prune -o -type f -name '*.hd' -print | sort | while IFS= read -r file; do
     relative=${file#"$spec_dir/conformance/"}
     count=$(awk -F "$tab" -v path="$relative" 'NR > 1 && $1 == path { count += 1 } END { print count + 0 }' "$manifest")
     [ "$count" -eq 1 ] || fail "fixture $relative has $count manifest entries"

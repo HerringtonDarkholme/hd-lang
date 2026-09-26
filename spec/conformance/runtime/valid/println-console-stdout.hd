@@ -1,0 +1,8 @@
+# expect-stdout: value 42
+# expect-stdout: 42
+# expect-stdout: λ
+
+pub fn main() -> void $ Console:
+    println("value ${42}")
+    println(42)
+    println("λ")

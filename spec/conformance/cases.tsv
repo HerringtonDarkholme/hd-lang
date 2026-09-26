@@ -804,3 +804,4 @@ typing/invalid/incompatible-identity-operands.hd	type	reject:incompatible-identi
 typing/valid/identity-trait-value-operand.hd	type	accept	05-expressions.md#unary-and-binary-operators
 typing/invalid/tuple-binding-non-tuple.hd	type	reject:type-mismatch	05-expressions.md#binding-expressions
 typing/invalid/tuple-binding-arity.hd	type	reject:type-mismatch	05-expressions.md#binding-expressions
+runtime/valid/println-console-stdout.hd	runtime	accept	10-modules.md#prelude

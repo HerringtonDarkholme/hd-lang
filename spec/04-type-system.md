@@ -68,6 +68,11 @@ compare scalar values in sequence; canonically equivalent but differently
 encoded scalar sequences are distinct. `string.len()` counts scalar values.
 The core type has no integer-indexing or slicing operation with an O(1)
 guarantee; libraries may provide explicit scalar, byte, or grapheme traversal.
+
+Note: because `string.len()` counts scalar values, not bytes or code units,
+the specification states no constant-time bound for it. It takes time
+linear in the string's length unless the representation stores the scalar
+count.
 At every Wasm host boundary, strings are encoded as UTF-8, including embedded
 U+0000 scalar values.
 
@@ -806,6 +811,17 @@ poll function. The frame holds the arguments, construction-time providers,
 the active child suspension, and the locals that are live across suspension
 points. Frame contents are not observable, so an implementation may keep
 only live values.
+
+The frame representation as a whole is not observable either. When a
+suspension frame is statically known, as for a direct `fn!` call, an
+implementation may skip the uniform `Suspend[T]` wrapper and the boxing of
+the frame's result.
+
+### Requirement Rows
+
+How providers for a requirement row are passed is not observable. An
+implementation may pass them positionally, ordered by a canonical order of
+the row's keys, instead of through a keyed lookup.
 
 ### Representation-Preserving Conversions
 

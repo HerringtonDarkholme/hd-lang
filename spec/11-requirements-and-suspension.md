@@ -304,7 +304,13 @@ driver is already active in the program instance, calling `block_on` causes a
 call reached indirectly from a suspending body or during cancellation, and
 prevents nested cooperative drivers from blocking one another.
 
-The host executor is the driver for `main!`. The runtime-provided leaf
+The host executor is the driver for `main!`. This entry driver is
+waker-driven: when a poll returns `Pending` because a host provider operation
+is pending, the driver returns control to the host and polls again only after
+a waker for that suspension is invoked. A driver that keeps polling a pending
+host operation without returning to the host is not conforming.
+
+The runtime-provided leaf
 `std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` maps an opaque
 host wait operation to the WebAssembly Component Model async ABI as used by
 WASI 0.3 host interfaces. User code obtains `HostWait[T]`

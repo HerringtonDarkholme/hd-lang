@@ -84,8 +84,8 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `suspension/26-replay-rejects-function-code-change.hd`: implementation detail: replay rejection, driven from TypeScript.
 - `suspension/26-replay-survives-unrelated-declaration.hd`: implementation detail: replay stability, driven from TypeScript.
 - `suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd`: implementation detail: record and replay configuration identity.
-- `suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd`: claims console output; stdout expectations are deferred (N5).
-- `suspension/32-host-provider-polls-record-and-replay.hd`: implementation-only profile ready-gate (N2); check moved into `main!`.
-- `suspension/33-host-provider-scalar-arguments-and-results.hd`: implementation-only profile ready-counter (N2); check moved into `main!`.
-- `suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd`: implementation-only profile ready-float (N2); sign-sensitive check moved into `main!`.
-- `suspension/36-host-provider-strings-use-utf8-boundary.hd`: implementation-only profile ready-text (N2); check moved into `main!`.
+- `suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd`: implementation detail: console provider plumbing, a non-`pub` `main` returning `i32`, and `bool` and `char` rendering, which the specification does not define. Its portable part is `runtime/valid/println-console-stdout.hd`, checked with `# expect-stdout:`.
+- `suspension/32-host-provider-polls-record-and-replay.hd`: the ready-gate profile is an implementation test, because the conformance suite lists only its own profiles; check moved into `main!`.
+- `suspension/33-host-provider-scalar-arguments-and-results.hd`: the ready-counter profile is an implementation test, because the conformance suite lists only its own profiles; check moved into `main!`.
+- `suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd`: the ready-float profile is an implementation test, because the conformance suite lists only its own profiles; sign-sensitive check moved into `main!`.
+- `suspension/36-host-provider-strings-use-utf8-boundary.hd`: the ready-text profile is an implementation test, because the conformance suite lists only its own profiles; check moved into `main!`.

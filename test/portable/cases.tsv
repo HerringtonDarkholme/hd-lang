@@ -658,3 +658,4 @@ typing/invalid/bang-call-non-suspending.hd	type
 typing/invalid/incompatible-identity-operands.hd	type
 typing/invalid/tuple-binding-non-tuple.hd	type
 typing/invalid/tuple-binding-arity.hd	type
+runtime/valid/println-console-stdout.hd	runtime

@@ -99,8 +99,8 @@ typing/invalid/covariant-gadt-result.hd	MVP reports expected-token at line 4 ins
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
 typing/invalid/variance-representation-change.hd	MVP reports expected-token at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
 typing/valid/variance-permission-weakening.hd	check fails: expected-token at line 4: expected a generic data parameter	F-250
-typing/invalid/library-orphan-annotation.hd	MVP reports expected-expression at line 5 instead of orphan-annotation-in-library: expected an expression, found 'annotate'	F-250
-typing/valid/root-orphan-annotation.hd	check fails: expected-expression at line 5: expected an expression, found 'annotate'	F-250
+typing/invalid/library-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
+typing/valid/root-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
 typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at line 12 instead of annotation-resolution-reentry: expected an expression, found 'annotate'	F-250
 typing/valid/annotation-reference.hd	check fails: expected-expression at line 12: expected an expression, found 'annotate'	F-250
 typing/invalid/derived-generic-bound.hd	MVP reports decorator-not-top-level at line 1 instead of missing-derived-bound: decorators are only valid on top-level declarations	F-250

@@ -44,6 +44,12 @@ use exact IEEE-754 bit strings, while strings use hex-encoded UTF-8 bytes. The
 issue remains open for explicit source labels, durable structural host values,
 and determinism checks between provider calls.
 
+The owner has decided code identity, recording, end-of-history, and
+runtime-profile rules; they are in
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules). Code identity now covers
+the whole module, so the experiment's tolerance of an unrelated declaration
+insertion no longer holds.
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Problem.** Current shapes describe declarations but
@@ -313,57 +319,6 @@ Retain checked disposal errors.
 design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
-
-### Questions From The Compiler Audit
-
-**Problem.** The 2026-09-25 audit of the Wasm GC compiler (commit `bd985d7`)
-found places where the specification leaves an outcome open. The owner
-decided most of them the same day, and those decisions are in the
-specification. The questions below remain. Each is a question for a
-specification decision, not a default to implement; evidence is in
-[`audit/README.md`](../audit/README.md) under the tag in parentheses.
-Fixtures affected by a question stay out of `spec/conformance/` until it is
-answered.
-
-**Conformance environments.**
-
-- What does the `disposed-file` profile expose: any fixture `Files` and
-  `FileHandle` pair by method name, or one trait declaration the suite
-  supplies? What do reads before close and a second close return? (N1)
-- Should runtime profiles beyond `pending-gate` and `disposed-file` join the
-  suite, or remain implementation tests? (N2)
-- How are a competing second driver and a re-entrant poll expressed in
-  source terms, so a runner can build them without an implementation hook?
-  Should the specification define a test-driver interface instead of named
-  scenarios? (N3)
-- Where do the sources of the synthetic packages `dep.validation` and
-  `dep.models` live? (N4)
-- Should the fixture format gain a stdout expectation for console output?
-  (N5)
-
-**Representation and performance.**
-
-- May a statically known suspension frame skip the uniform `Suspend[T]`
-  wrapper and result boxing? (C2)
-- May requirement-row packs be positional under a canonical key order? (C3)
-- Should the specification state complexity bounds for map operations and
-  `string.len()`, beyond the non-normative implementation model? (C5)
-
-**Replay and host boundary** (see also
-[Replay Determinism And Durable Workflows](#replay-determinism-and-durable-workflows)).
-
-- Should replay code identity cover every executed function, and be computed
-  from a normalized form so formatting edits keep it stable? (D1)
-- Should a panicking run produce a replayable history? When a history runs
-  out, does replay stop, or continue live and append? (D2)
-- Is the runtime profile part of the provider-configuration identity? (D3)
-- Is an entry driver that busy-polls a pending provider, without returning to
-  the host, conforming? (D4)
-- Should the specification define a development host boundary, or only the
-  Component Model boundary with canonical-ABI strings? (D6)
-
-**Unblocks.** Promotion of the held-back fixtures and a replacement compiler
-that can follow the specification without repeating the prototype's choices.
 
 ## Runtime, Library, ABI, And Tooling Work
 

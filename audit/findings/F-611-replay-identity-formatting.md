@@ -10,5 +10,7 @@ Effect: Adding a comment line, or changing `value + 2` to `value  +  2`, makes
   invalidates every recording.
   codeId is sha256 of the raw source slice of the function span
   (src/compiler.ts:215-226). spec/07-functions.md:258 defers code identity.
-Recommendation: OPEN_ISSUES question. Should code identity be derived from
-  normalized HIR or tokens rather than raw text?
+Recommendation: implementation change. Decided rule (future-work/RUNTIME_AND_LIBRARY.md "Replay Rules"): code
+  identity is a hash of the whole module's semantic content, so formatting and
+  comment edits never change it. Hash a normalized form such as typed HIR, not
+  raw source text.

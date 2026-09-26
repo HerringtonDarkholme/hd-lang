@@ -179,6 +179,12 @@ The following built-in methods are normative. Lengths and scalar positions use
 `list.map` and optional `map` are non-suspending and evaluate the transform in
 source order. No `set` type is part of the core prelude.
 
+Map lookup, insertion, and removal take expected amortized O(1) time. This
+covers `get`, `remove`, reading `entries[key]`, and inserting or replacing
+through `entries[key] = value`
+([Indexing](05-expressions.md#indexing)). Each call of the key type's `Hash`
+or `Eq` implementation counts as one step.
+
 String methods operate on Unicode scalar-value strings without locale. `lower`
 uses Unicode Default Case Conversion with full mappings. `trim` removes the
 Unicode `White_Space` property at both ends. `split(separator)` retains empty
@@ -409,9 +415,12 @@ suspension drivers, and annotation registries are disjoint.
 
 The official compiler targets Wasm only. The official runtime uses Wasm GC for
 managed language values and a WASI-compatible host boundary. Authority-bearing
-providers originate at that boundary. Every host facility is injected through
-an ordinary requirement trait; the eventual standard capability-trait set is
-runtime and library work.
+providers originate at that boundary. The only normative host boundary is the
+WebAssembly Component Model, and strings cross it as canonical-ABI strings.
+Hooks that a toolchain adds for development, testing, or tracing are
+implementation tooling, not a language boundary. Every host facility is
+injected through an ordinary requirement trait; the eventual standard
+capability-trait set is runtime and library work.
 
 The exact component-model ABI and registration APIs are runtime and library
 specification work.
