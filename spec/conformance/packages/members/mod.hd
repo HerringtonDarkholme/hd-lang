@@ -32,4 +32,4 @@ impl Tagged for Outer:
         "outer"
 
 pub fn make_outer() -> Outer:
-    Outer { Inner: Inner { note: "note", code: "inner field" }, code: "private", revision: 1 }
+    Outer { Inner: ...Inner { note: "note", code: "inner field" }, code: "private", revision: 1 }

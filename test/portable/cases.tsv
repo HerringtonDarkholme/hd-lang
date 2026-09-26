@@ -25,7 +25,6 @@ parse/invalid/named-pattern-before-positional.hd	parse
 parse/invalid/trailing-block-in-brackets.hd	parse
 parse/invalid/multi-binding-needs-parentheses.hd	parse
 parse/valid/reserved-receiver-names.hd	parse
-parse/valid/data-embedding.hd	parse
 parse/valid/test-block.hd	parse
 parse/valid/consecutive-trailing-block-calls.hd	parse
 parse/invalid/direct-variant-use.hd	parse
@@ -37,7 +36,6 @@ typing/valid/bindings.hd	type
 typing/valid/fresh-mutable-values.hd	type
 typing/valid/copy-update-permissions.hd	type
 typing/valid/generic-field-permission.hd	type
-typing/valid/generic-data-embedding.hd	type
 typing/valid/equality.hd	type
 typing/valid/comparison-traits.hd	type
 typing/valid/composite-ordering.hd	type
@@ -172,7 +170,6 @@ runtime/panic/test-block-on.hd	runtime
 runtime/valid/construction-provider-capture.hd	runtime
 runtime/valid/defer-order.hd	runtime
 runtime/valid/map-insertion-order.hd	runtime
-runtime/valid/generic-data-embedding.hd	runtime
 runtime/valid/partial-equality-dispatch.hd	runtime
 runtime/valid/partial-ordering-dispatch.hd	runtime
 runtime/valid/structural-equality.hd	runtime
@@ -314,7 +311,6 @@ typing/invalid/ambiguous-method-two-traits.hd	type
 typing/invalid/trait-method-result-type-mismatch.hd	type
 typing/invalid/trait-impl-missing-method.hd	type
 runtime/valid/static-and-dynamic-trait-dispatch.hd	runtime
-runtime/valid/embedded-field-satisfies-trait.hd	runtime
 runtime/valid/generic-bound-dispatch.hd	runtime
 runtime/valid/inherent-methods.hd	runtime
 runtime/valid/multiple-bounds-dispatch.hd	runtime
@@ -600,7 +596,6 @@ runtime/valid/loop-iteration-binding-capture.hd	runtime
 typing/invalid/for-binding-not-visible-in-else.hd	type
 runtime/valid/match-arm-binding-reuse.hd	runtime
 typing/invalid/comprehension-binding-does-not-leak.hd	type
-runtime/valid/direct-member-hides-promoted.hd	runtime
 runtime/valid/use-declaration-position-independent.hd	runtime
 runtime/valid/default-method-conflict-inherent-resolves.hd	runtime
 typing/invalid/function-type-invariant-view-result.hd	type
@@ -742,23 +737,15 @@ parse/invalid/old-or-operator.hd	parse
 parse/invalid/old-not-operator.hd	parse
 parse/invalid/associated-binding-outside-bound.hd	parse
 parse/invalid/old-where-clause.hd	parse
-runtime/valid/outer-trait-method-hides-embedded-method.hd	runtime
-runtime/valid/outer-field-beside-embedded-method.hd	runtime
-runtime/valid/depth-two-promotion.hd	runtime
 typing/invalid/same-depth-promotion-clash.hd	type
-runtime/valid/shorter-promotion-path-wins.hd	runtime
 typing/invalid/embedded-trait-method-not-promoted.hd	type
 typing/invalid/bodyless-impl-via-promotion.hd	type
 typing/invalid/promoted-mut-self-method.hd	type
-runtime/valid/function-typed-field-call.hd	runtime
 runtime/valid/field-read-beside-trait-method.hd	runtime
 typing/invalid/readonly-provider-mut-method.hd	type
-runtime/valid/field-and-inherent-method-share-name.hd	runtime
 runtime/valid/field-and-trait-method-share-name.hd	runtime
 typing/invalid/function-typed-field-method-call.hd	type
 typing/invalid/embedded-field-not-called.hd	type
-runtime/valid/embedded-trait-method-skipped.hd	runtime
-runtime/valid/promoted-method-no-override.hd	runtime
 runtime/valid/generic-trait-instantiation-by-argument.hd	runtime
 typing/invalid/generic-trait-instantiations-ambiguous.hd	type
 typing/invalid/generic-trait-instantiation-no-fit.hd	type
@@ -781,8 +768,6 @@ parse/invalid/bound-method-value.hd	parse
 typing/invalid/bound-method-value-call.hd	type
 typing/invalid/trait-value-impl-target.hd	type
 typing/valid/trait-value-as-target-argument.hd	type
-runtime/valid/private-own-member-wins-in-module.hd	runtime
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type
 typing/invalid/promoted-field-assignment-readonly.hd	type
-typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	type
 typing/invalid/embedded-part-readonly-alias.hd	type

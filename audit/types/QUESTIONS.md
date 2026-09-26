@@ -235,7 +235,10 @@ read it, so prefer explicit, checkable rules and locality.
   variance. (F) Only construction, copy-update, and assignment copy parts;
   reading, pattern destructuring, and passing the outer value never copy.
 
-- **Explicit copy syntax for embedded parts (VE-S), decided.** Every copy
+- **Explicit copy syntax for embedded parts (VE-S), decided and applied** to
+  01 (the `...=` token), 02 (grammar), 04, 05, and 08, with the codes
+  `embedded-copy-required` and `copy-into-ordinary-field`; the prototype does
+  not implement it (KNOWN_FAILURES tag VE). Every copy
   into an embedded part is written with `...`: construction
   `Post { user: a, Timestamps: ...ts }`, and assignment
   `p.Timestamps ...= ts` (a new compound-assignment token). The plain forms

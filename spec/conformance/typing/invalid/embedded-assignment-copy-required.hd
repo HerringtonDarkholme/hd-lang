@@ -1,0 +1,11 @@
+# test: assigning an embedded field with plain = is rejected; the copy assignment ...= is required
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+data Post:
+    Timestamps
+    id: string
+
+fn invalid(post: mut Post, stamps: Timestamps) -> void:
+    post.Timestamps = stamps  # diagnostic: embedded-copy-required

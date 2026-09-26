@@ -502,7 +502,8 @@ field's declared type, whether the field is `field: U` or `field: mut U`.
 Replacing a field does not mutate the old referenced value. Storing into a
 direct `field: mut U` of a mutable value requires `mut U`; a readonly value
 may store `U` there and cannot later be upgraded to `mut T`. Storing into an
-embedded field stores a copy, which must have mutable access
+embedded field, written `e.E ...= value`, stores a copy, which must have
+mutable access
 ([Data Embedding](08-data-and-enums.md#data-embedding)); otherwise the store is
 a `mutable-upgrade` error.
 

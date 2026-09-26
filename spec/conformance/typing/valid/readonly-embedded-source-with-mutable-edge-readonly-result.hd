@@ -11,8 +11,8 @@ data Post:
     id: string
 
 fn wrap(stamp: Stamp) -> Post:
-    Post { Stamp: stamp, id: "p" }
+    Post { Stamp: ...stamp, id: "p" }
 
 fn inferred(stamp: Stamp) -> string:
-    let post = Post { Stamp: stamp, id: "p" }
+    let post = Post { Stamp: ...stamp, id: "p" }
     post.id

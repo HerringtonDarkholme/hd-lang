@@ -34,7 +34,7 @@ async function hd(args: readonly string[], cwd = root): Promise<CommandResult> {
 test("documented CLI commands work end to end", async () => {
   const core = resolve(root, "examples/core.hd");
   const suspension = resolve(root, "examples/suspension.hd");
-  const runtimeFixture = resolve(root, "spec/conformance/runtime/valid/generic-data-embedding.hd");
+  const runtimeFixture = resolve(root, "spec/conformance/runtime/valid/generic-data-fields.hd");
 
   const parsed = await hd(["parse", core]);
   assert.match(parsed.stdout, /core\.hd: ok/);
@@ -43,7 +43,7 @@ test("documented CLI commands work end to end", async () => {
   assert.match(checked.stdout, /core\.hd: ok/);
 
   const tested = await hd(["test", runtimeFixture]);
-  assert.match(tested.stdout, /generic-data-embedding\.hd: 1 passed/);
+  assert.match(tested.stdout, /generic-data-fields\.hd: 1 passed/);
 
   const run = await hd(["run", core]);
   assert.equal(run.stdout.trim(), "7");

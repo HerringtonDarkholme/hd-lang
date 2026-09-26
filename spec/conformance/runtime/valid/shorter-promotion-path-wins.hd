@@ -15,6 +15,6 @@ data Record:
     FarBox
 
 test "depth one wins over depth two":
-    record := Record { Near: Near { name: "near" }, FarBox: FarBox { Far: Far { name: "far" } } }
+    record := Record { Near: ...Near { name: "near" }, FarBox: ...FarBox { Far: ...Far { name: "far" } } }
     assert_equal(record.name, "near", reason="shorter path wins")
     assert_equal(record.FarBox.name, "far", reason="qualified access reaches the deeper field")

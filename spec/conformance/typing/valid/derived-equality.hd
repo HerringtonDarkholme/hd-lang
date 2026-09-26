@@ -16,10 +16,10 @@ enum State:
     Paused(code: i32)
 
 test "derived equality includes every member":
-    left := User { Revision: Revision { number: 1 }, id: 1, name: "Ada" }
-    same := User { Revision: Revision { number: 1 }, id: 1, name: "Ada" }
-    renamed := User { Revision: Revision { number: 1 }, id: 1, name: "Grace" }
-    revised := User { Revision: Revision { number: 2 }, id: 1, name: "Ada" }
+    left := User { Revision: ...Revision { number: 1 }, id: 1, name: "Ada" }
+    same := User { Revision: ...Revision { number: 1 }, id: 1, name: "Ada" }
+    renamed := User { Revision: ...Revision { number: 1 }, id: 1, name: "Grace" }
+    revised := User { Revision: ...Revision { number: 2 }, id: 1, name: "Ada" }
     assert_equal(left == same, true, reason="equal data")
     assert_equal(left == renamed, false, reason="field participates")
     assert_equal(left == revised, false, reason="embedded field participates")

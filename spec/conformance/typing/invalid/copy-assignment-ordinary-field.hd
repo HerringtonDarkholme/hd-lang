@@ -1,0 +1,9 @@
+# test: the copy assignment ...= on an ordinary field is rejected
+data User:
+    name: string
+
+data Account:
+    owner: User
+
+fn invalid(account: mut Account, user: User) -> void:
+    account.owner ...= user  # diagnostic: copy-into-ordinary-field
