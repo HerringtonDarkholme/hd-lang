@@ -1,0 +1,3 @@
+# test: W05b (F05b) real panic category when the program succeeds
+
+fn main() -> i32: 1  # panic: explicit-panic

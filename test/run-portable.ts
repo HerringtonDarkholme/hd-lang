@@ -9,16 +9,6 @@ interface CommandResult {
   readonly stdout: string;
 }
 
-interface ConformanceCase {
-  readonly expectation: string;
-  readonly line?: number;
-  readonly path: string;
-  readonly pendingFunction?: string;
-  readonly phase: "parse" | "runtime" | "type";
-  readonly profile?: string;
-  readonly scenario?: string;
-}
-
 interface Directive {
   readonly kind: "diagnostic" | "expect" | "expect-result" | "panic" | "warning";
   readonly line?: number;
@@ -32,17 +22,19 @@ interface FixtureCase {
   readonly profile?: string;
 }
 
+type Phase = "parse" | "runtime" | "type";
+
 interface Options {
   readonly command: readonly string[];
+  readonly commandText: string;
   readonly jobs: number;
-  readonly phase?: ConformanceCase["phase"];
+  readonly phase?: Phase;
   readonly suite: "all" | "conformance" | "fixtures";
 }
 
 const root = resolve(import.meta.dirname, "..");
 const portableManifest = resolve(root, "test/portable/cases.tsv");
-const specManifest = resolve(root, "spec/conformance/cases.tsv");
-const conformanceRoot = resolve(root, "spec/conformance");
+const conformanceRunner = resolve(root, "spec/tools/run-conformance.ts");
 const fixtureRoot = resolve(root, "test/fixtures");
 
 function splitCommand(value: string): string[] {
@@ -53,28 +45,27 @@ function splitCommand(value: string): string[] {
 }
 
 function parseOptions(args: readonly string[]): Options {
-  let command = splitCommand(
-    process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js",
-  );
+  let commandText = process.env.HD_TEST_COMMAND ?? "node --experimental-strip-types bin/hd.js";
   let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let phase: Options["phase"];
   let suite: Options["suite"] = "all";
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index];
     const value = args[index + 1];
-    if (option === "--compiler" && value) command = splitCommand(value);
+    if (option === "--compiler" && value) commandText = value;
     else if (option === "--jobs" && value) jobs = Number(value);
     else if (option === "--phase" && /^(parse|type|runtime)$/.test(value ?? ""))
-      phase = value as Options["phase"];
+      phase = value as Phase;
     else if (option === "--suite" && /^(all|conformance|fixtures)$/.test(value ?? ""))
       suite = value as Options["suite"];
     else throw new Error(`invalid option ${option ?? ""}`);
     index += 1;
   }
+  const command = splitCommand(commandText);
   if (command.length === 0) throw new Error("compiler command must not be empty");
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
   if (phase && suite === "fixtures") throw new Error("--phase cannot use --suite fixtures");
-  return { command, jobs, phase, suite };
+  return { command, commandText, jobs, phase, suite };
 }
 
 async function invoke(
@@ -137,98 +128,28 @@ async function mapParallel<T, U>(
   return results;
 }
 
-async function readConformanceCases(): Promise<ConformanceCase[]> {
-  const lines = (await readFile(portableManifest, "utf8")).trimEnd().split("\n");
-  if (lines.shift() !== "path\tphase") throw new Error(`${portableManifest} has an invalid header`);
-  return Promise.all(
-    lines.map(async (row) => {
-      const [path, phase, ...extra] = row.split("\t");
-      if (!path || !/^(parse|type|runtime)$/.test(phase ?? "") || extra.length)
-        throw new Error(`${portableManifest} has an invalid row: ${row}`);
-      const sourceLines = (await readFile(resolve(conformanceRoot, path), "utf8")).split("\n");
-      const markers: Array<{ expectation: string; line: number }> = [];
-      let pendingFunction: string | undefined;
-      let profile: string | undefined;
-      let scenario: string | undefined;
-      for (const [index, sourceLine] of sourceLines.entries()) {
-        const pendingMarker =
-          /^# fixture-runtime-pending-function: ([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(sourceLine);
-        if (pendingMarker) pendingFunction = pendingMarker[1];
-        const profileMarker = /^# fixture-runtime-profile: ([a-z0-9-]+)\s*$/.exec(sourceLine);
-        if (profileMarker) profile = profileMarker[1];
-        const scenarioMarker = /^# fixture-runtime-scenario: ([a-z0-9-]+)\s*$/.exec(sourceLine);
-        if (scenarioMarker) scenario = scenarioMarker[1];
-        const marker = /# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/.exec(sourceLine);
-        if (!marker) continue;
-        const prefix =
-          marker[1] === "diagnostic" ? "reject" : marker[1] === "warning" ? "warn" : "panic";
-        markers.push({ expectation: `${prefix}:${marker[2]}`, line: index + 1 });
-      }
-      if (markers.length > 1)
-        throw new Error(`${path} has more than one conformance expectation marker`);
-      return {
-        expectation: markers[0]?.expectation ?? "accept",
-        line: markers[0]?.line,
-        path,
-        pendingFunction,
-        phase: phase as ConformanceCase["phase"],
-        profile,
-        scenario,
-      };
-    }),
-  );
-}
-
-async function runConformanceCase(
-  command: readonly string[],
-  testCase: ConformanceCase,
-): Promise<string | undefined> {
-  const path = resolve(conformanceRoot, testCase.path);
-  if (testCase.phase === "runtime") {
-    const profileOptions = testCase.profile ? ["--profile", testCase.profile] : [];
-    const checked = await invoke(command, "check", path, profileOptions);
-    if (checked.code !== 0)
-      return failure(testCase.path, "runtime fixture did not type-check", checked);
-    const runtimeOptions = [
-      ...(testCase.scenario ? ["--scenario", testCase.scenario] : []),
-      ...(testCase.pendingFunction ? ["--pending-function", testCase.pendingFunction] : []),
-      ...profileOptions,
-    ];
-    const result = await invoke(command, "test", path, runtimeOptions);
-    if (testCase.expectation === "accept")
-      return result.code === 0 ? undefined : failure(testCase.path, "expected success", result);
-    if (testCase.expectation.startsWith("panic:")) {
-      const code = testCase.expectation.slice("panic:".length);
-      if (result.code === 0) return failure(testCase.path, `expected panic ${code}`, result);
-      return containsCode(result, code)
-        ? undefined
-        : failure(testCase.path, `missing runtime panic ${code}`, result);
-    }
-    return `${testCase.path}: invalid runtime expectation ${testCase.expectation}`;
-  }
-  const result = await invoke(command, testCase.phase === "parse" ? "parse" : "check", path);
-  if (testCase.expectation === "accept")
-    return result.code === 0 ? undefined : failure(testCase.path, "expected success", result);
-  const [kind, code] = testCase.expectation.split(":", 2);
-  if (kind === "reject") {
-    if (result.code === 0) return failure(testCase.path, `expected rejection ${code}`, result);
-    const found = testCase.line
-      ? containsLocatedCode(result, path, testCase.line, code!)
-      : containsCode(result, code!);
-    return found
-      ? undefined
-      : failure(testCase.path, `missing ${code} at line ${testCase.line}`, result);
-  }
-  if (kind === "warn") {
-    if (result.code !== 0) return failure(testCase.path, "expected a warning", result);
-    const found = testCase.line
-      ? containsLocatedCode(result, path, testCase.line, code!)
-      : containsCode(result, code!);
-    return found
-      ? undefined
-      : failure(testCase.path, `missing ${code} at line ${testCase.line}`, result);
-  }
-  return `${testCase.path}: invalid expectation ${testCase.expectation}`;
+// Runs the selected conformance cases through the implementation-neutral
+// runner in spec/tools, which judges them by spec/conformance/README.md.
+async function runConformance(options: Options): Promise<boolean> {
+  const args = [
+    "--experimental-strip-types",
+    conformanceRunner,
+    "--manifest",
+    portableManifest,
+    "--compiler",
+    options.commandText,
+    "--jobs",
+    String(options.jobs),
+    ...(options.phase ? ["--phase", options.phase] : []),
+  ];
+  return new Promise((complete, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd: root,
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    child.on("error", reject);
+    child.on("close", (code) => complete(code === 0));
+  });
 }
 
 async function fixturePaths(directory: string): Promise<string[]> {
@@ -329,37 +250,21 @@ async function runFixtureCase(
 
 async function main(): Promise<number> {
   const options = parseOptions(process.argv.slice(2));
-  const failures: string[] = [];
-  let count = 0;
-  if (options.suite !== "fixtures") {
-    const cases = (await readConformanceCases()).filter(
-      ({ phase }) => !options.phase || phase === options.phase,
-    );
-    const spec = await readFile(specManifest, "utf8");
-    for (const testCase of cases)
-      if (!spec.includes(`${testCase.path}\t${testCase.phase}\t${testCase.expectation}\t`))
-        failures.push(`${testCase.path}: selection does not match spec/conformance/cases.tsv`);
-    const problems = await mapParallel(cases, options.jobs, (testCase) =>
-      runConformanceCase(options.command, testCase),
-    );
-    failures.push(...problems.filter((problem): problem is string => Boolean(problem)));
-    count += cases.length;
-  }
+  let passed = true;
+  if (options.suite !== "fixtures") passed = await runConformance(options);
   if (!options.phase && options.suite !== "conformance") {
     const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
     const problems = await mapParallel(cases, options.jobs, (testCase) =>
       runFixtureCase(options.command, testCase),
     );
-    failures.push(...problems.filter((problem): problem is string => Boolean(problem)));
-    count += cases.length;
+    const failures = problems.filter((problem): problem is string => Boolean(problem));
+    if (failures.length) {
+      console.error(failures.join("\n\n"));
+      console.error(`fixture tests: ${failures.length} of ${cases.length} failed`);
+      passed = false;
+    } else console.log(`fixture tests: ${cases.length} passed`);
   }
-  if (failures.length) {
-    console.error(failures.join("\n\n"));
-    console.error(`portable tests: ${failures.length} of ${count} failed`);
-    return 1;
-  }
-  console.log(`portable tests: ${count} passed`);
-  return 0;
+  return passed ? 0 : 1;
 }
 
 process.exitCode = await main();

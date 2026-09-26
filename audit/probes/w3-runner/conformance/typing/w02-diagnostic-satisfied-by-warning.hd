@@ -1,0 +1,5 @@
+# test: W02 (F12) diagnostic marker satisfied by a warning
+
+fn main() -> i32:
+    unused := 1  # diagnostic: unused-local-binding
+    missing

@@ -1,0 +1,3 @@
+# test: W04a (F05a) runtime-error panic satisfied by a host crash
+
+fn main() -> string: "no runnable export"  # panic: runtime-error

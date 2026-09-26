@@ -1,0 +1,5 @@
+# test: W09 (F16) panic marker on a line that does not panic; passes by D6
+
+fn helper() -> i32: 1  # panic: integer-overflow
+
+fn main() -> i32: helper() + 2147483647

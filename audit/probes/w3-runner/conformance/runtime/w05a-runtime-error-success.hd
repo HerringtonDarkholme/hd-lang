@@ -1,0 +1,3 @@
+# test: W05a (F05b) runtime-error panic when the program succeeds
+
+fn main() -> i32: 1  # panic: runtime-error

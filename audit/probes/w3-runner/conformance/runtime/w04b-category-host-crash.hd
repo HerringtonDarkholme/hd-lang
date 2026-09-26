@@ -1,0 +1,3 @@
+# test: W04b (F05a) real panic category, but the host crashes
+
+fn main() -> string: "no runnable export"  # panic: explicit-panic
