@@ -1385,7 +1385,9 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     )
     .join("\n\n");
   const adapters = emitter.emitCallableAdapters();
-  const traitAdapters = emitter.emitTraitAdapters();
+  const traitAdapters = [emitter.emitTraitAdapters(), emitter.emitBuiltinTraitAdapters()]
+    .filter(Boolean)
+    .join("\n\n");
   const traitSuspensionHelpers = emitter.emitTraitSuspensionHelpers();
   const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
   const referenceableFunctions = [
@@ -1394,6 +1396,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       .filter((declaration) => declaration.genericParameters.length === 0)
       .map((declaration) => `$fv${suspensionIndex(declaration)}`),
     ...emitter.adapters.map((adapter) => `$adapt${adapter.index}`),
+    ...emitter.builtinTraitAdapterNames,
     ...program.implementations.flatMap((implementation) =>
       implementation.methodFunctions.map(
         (method) => `$tadapt${implementation.index}_${method.methodIndex}`,

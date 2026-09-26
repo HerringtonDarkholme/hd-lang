@@ -23,6 +23,19 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
   }));
 }
 
+// Parameters (or named shared enum fields) after `index` are not yet visible
+// to the default at `index`.
+function laterNamesContext(
+  items: readonly { readonly name: string }[],
+  index: number,
+): NonNullable<FunctionDecl["defaultContext"]> {
+  return {
+    laterNames: items
+      .slice(index + 1)
+      .flatMap((later) => (/^\d/.test(later.name) ? [] : [later.name])),
+  };
+}
+
 export function createProgramDeclarations(
   context: ProgramCheckContext,
 ): FunctionDecl[] | undefined {
@@ -48,6 +61,7 @@ export function createProgramDeclarations(
                 },
               ],
               span: field.default.span,
+              defaultContext: { laterNames: [] },
             },
           ]
         : [],
@@ -78,6 +92,7 @@ export function createProgramDeclarations(
                 },
               ],
               span: parameter.default.span,
+              defaultContext: laterNamesContext(declaration.parameters, parameterIndex),
             },
           ]
         : [],
@@ -110,6 +125,7 @@ export function createProgramDeclarations(
                 },
               ],
               span: field.default.span,
+              defaultContext: laterNamesContext(declaration.sharedFields, fieldIndex),
             },
           ]
         : [],

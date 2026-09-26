@@ -832,6 +832,20 @@ export abstract class CallChecker extends StatementChecker {
         Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
       );
       if (!implementation) {
+        const builtin = this.builtinTraitDictionaryPlan(
+          bound.traitIndex,
+          actual,
+          traitArguments,
+          span,
+        );
+        if (builtin)
+          return {
+            kind: "trait-dictionary",
+            traitIndex: bound.traitIndex,
+            dictionary: builtin,
+            type: `trait:${traitKey}`,
+            span,
+          };
         this.fail(
           "missing-trait-implementation",
           `type '${actual}' does not implement ${bound.traitName}`,

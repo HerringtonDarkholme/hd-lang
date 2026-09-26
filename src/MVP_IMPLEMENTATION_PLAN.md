@@ -17,7 +17,7 @@ varargs use the existing `list[T]` ABI and support positional elements, one
 positional list spread, or a named list across ordinary, generic, suspending,
 static-trait, and dynamic-trait calls. First-class `fn(T...) -> U` values retain
 the same list ABI and calling convention. Data-field defaults are checked
-transitively for purity and evaluated once per construction, after explicit
+for requirement-freedom from callee signatures and evaluated once per construction, after explicit
 initializers and in declaration order. Data copy-update evaluates one leading
 source once, then explicit replacements in source order, and constructs a fresh
 Wasm GC struct without invoking defaults for copied fields. The executable S1 core covers functions
@@ -28,7 +28,7 @@ including recursive captures and requirement forwarding, explicit generic call l
 inference, contextually typed trailing callback blocks, and stored callable
 fields whose result permissions survive readonly outer access, GC data and enums,
 including fieldless data as empty GC structs and shared enum constructor data
-lowered through hidden per-variant factories with pure ordered defaults,
+lowered through hidden per-variant factories with requirement-free ordered defaults,
 contextual enum construction, guarded literal and recursive data
 patterns, named enum-payload pattern bindings, literal, nested-data, and
 nested-enum payload constraints, value-producing while loops, checked integer

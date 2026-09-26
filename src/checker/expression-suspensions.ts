@@ -93,8 +93,8 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
             );
           }
           if (!signature)
-            this.fail(
-              "unknown-name",
+            this.failUnknownName(
+              expression.callee.name,
               `unknown function '${expression.callee.name}'`,
               expression.callee.span,
             );

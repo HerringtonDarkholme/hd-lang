@@ -1095,8 +1095,8 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
     }
     const signature = this.signatures.get(expression.callee.name);
     if (!signature)
-      this.fail(
-        "unknown-name",
+      this.failUnknownName(
+        expression.callee.name,
         `unknown function '${expression.callee.name}'`,
         expression.callee.span,
       );

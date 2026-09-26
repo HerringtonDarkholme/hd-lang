@@ -1,6 +1,0 @@
-# F-500: Primitives do not satisfy `T: PartialEq` or `T: PartialOrd`
-Severity: major
-Area: correctness
-Evidence: audit/evidence/05-object-model/failures-f160-f500.txt (`hd check audit/probes/arch/erasure/erasure-primitive-bounds.hd`); audit/evidence/05-object-model/cli-runs.txt
-Effect: `fn same[T: PartialEq](a: T, b: T) -> bool: a == b` rejects `same(1, 1)` with `missing-trait-implementation: type 'i32' does not implement PartialEq`. The same happens for `f64`, `string`, `char`, `bool`, and for `PartialOrd`. Users cannot write a generic sort or `contains` over `list[i32]` with the standard traits. Concrete `1 == 1` and `1 < 2` still work. spec/05-expressions.md#unary-and-binary-operators and spec/09-traits.md#comparison-traits say the standard library implements these traits for primitives. The only selected dispatch cases (`runtime/valid/partial-{equality,ordering}-dispatch.hd`) use user data types, so the gap is untested.
-Recommendation: implementation change. Register built-in `PartialEq`/`PartialOrd` implementations for the primitive types, with dictionaries whose methods unbox and compare. Add a portable case that calls a bounded generic with `i32`, `f64` (including NaN), and `string`.

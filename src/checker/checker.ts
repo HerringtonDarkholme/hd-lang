@@ -264,6 +264,12 @@ export class FunctionChecker extends ExpressionControlChecker {
         };
       }
       case "provider-with": {
+        if (this.declaration.defaultContext)
+          this.fail(
+            "requirement-in-default",
+            "a default must be requirement-free: it cannot enter a provider scope",
+            expression.span,
+          );
         const { entries, providers } = this.checkProviderEntries(expression.entries);
         this.providerScopes.push(providers);
         let body: readonly HirStatement[];

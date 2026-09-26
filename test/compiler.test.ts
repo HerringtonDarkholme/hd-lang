@@ -136,7 +136,7 @@ test("function parameter defaults evaluate after explicit arguments", async () =
   );
 });
 
-test("function parameter defaults enforce order, type, and purity", () => {
+test("function parameter defaults enforce order, type, and requirement-freedom", () => {
   assert.equal(
     analyze(
       fixture("compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic"),
@@ -149,7 +149,7 @@ test("function parameter defaults enforce order, type, and purity", () => {
   );
   assert.equal(
     analyze(conformance("typing/invalid/suspending-parameter-default")).diagnostics[0]?.code,
-    "impure-parameter-default",
+    "suspension-forbidden-context",
   );
 });
 
@@ -415,14 +415,14 @@ test("data field defaults run per construction after explicit fields", async () 
   }
 });
 
-test("data field defaults are type checked and purity checked", () => {
+test("data field defaults are type checked and requirement-free", () => {
   assert.equal(
     analyze(conformance("typing/valid/generic-optional-field-default")).diagnostics.length,
     0,
   );
   assert.equal(
     analyze(conformance("typing/invalid/suspending-data-field-default")).diagnostics[0]?.code,
-    "impure-data-default",
+    "suspension-forbidden-context",
   );
   assert.equal(
     analyze(conformance("typing/invalid/data-field-default-type-mismatch")).diagnostics[0]?.code,
