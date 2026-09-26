@@ -183,13 +183,15 @@ Postfix operations bind more tightly than every infix operator.
 
 ### Member Access
 
-`value.member` selects a member, and `tuple.0` selects a tuple element. When a
-member suffix is immediately followed by an argument clause,
-`value.name(arguments...)` performs member lookup and invokes the result: a
-selected method is called with `value` as its receiver, and a selected field
-whose type is a function type is read and its value called, so
-`handler.callback(event)` calls the function stored in the field `callback`.
-Fields, methods, and promoted members are selected by the single algorithm in
+`value.member` selects a member, and `tuple.0` selects a tuple element.
+Without an argument clause, `value.name` reads a field. When a member suffix
+is immediately followed by an argument clause, `value.name(arguments...)` is a
+method call: member lookup selects a method, which is called with `value` as
+its receiver. A method call never reads a field. A function stored in a field
+is called by parenthesizing the field read, as in `(handler.callback)(event)`;
+`handler.callback(event)` looks for a method named `callback` and is an
+`unknown-method` error when there is none. Field and method lookup, including
+promoted members, are defined in
 [Member Resolution](03-names-and-scopes.md#member-resolution). Whether a
 bare `value.method` can form a bound function value is deferred; explicit
 closures can adapt method calls where a function value is needed.
@@ -219,8 +221,10 @@ syntax.
 
 ### Calls
 
-A call evaluates the callable first, then arguments from left to right.
-Positional arguments must precede named arguments:
+A call evaluates the callable first, then arguments from left to right. The
+callable may be any expression of function type, including a parenthesized
+field read such as `(handler.callback)(event)`. Positional arguments must
+precede named arguments:
 
 ```text
 resize(640, height=480)

@@ -8,10 +8,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
-  optionalInner,
   readonlyType,
-  resultParts,
-  tupleParts,
   tupleType,
 } from "../types.ts";
 import {
@@ -39,25 +36,13 @@ interface RegisteredImplementationTarget {
   readonly targetType: string;
 }
 
-// The type constructor a target starts with. Two implementations of one trait
-// can overlap only when their targets share it (09 Overlap).
-function targetConstructor(type: string): string {
-  const tuple = tupleParts(type);
-  if (tuple !== undefined) return `tuple:${tuple.length}`;
-  if (optionalInner(type) !== undefined) return "optional";
-  if (resultParts(type)) return "Result";
-  const nominal = nominalGenericParts(type);
-  if (nominal) return nominal.name;
-  if (functionParts(type)) return "function";
-  return type;
-}
-
-function traitArgumentsMayUnify(
+// 09 Overlap (TQ-28): two implementations of one trait overlap when one
+// substitution unifies their trait arguments and full targets together.
+function implementationHeadsMayUnify(
   left: readonly string[],
   right: readonly string[],
   rightGenerics: readonly string[],
 ): boolean {
-  if (left.length === 0) return true;
   // Rename the other implementation's parameters apart before unifying.
   const renamed = new Map(
     rightGenerics.map((parameter) => [parameter, `generic:$other.${parameter}`] as const),
@@ -109,22 +94,19 @@ function registerImplementationPair(
   targets: RegisteredImplementationTarget[],
   diagnostics: Diagnostic[],
 ): boolean {
-  const constructor = targetConstructor(readonlyType(targetType));
-  if (
-    targets.some(
-      (candidate) =>
-        candidate.traitIndex === trait.index &&
-        targetConstructor(readonlyType(candidate.targetType)) === constructor &&
-        traitArgumentsMayUnify(
-          traitArguments,
-          candidate.traitArguments,
-          candidate.genericParameters,
-        ),
-    )
-  ) {
+  const conflict = targets.find(
+    (candidate) =>
+      candidate.traitIndex === trait.index &&
+      implementationHeadsMayUnify(
+        [...traitArguments, readonlyType(targetType)],
+        [...candidate.traitArguments, readonlyType(candidate.targetType)],
+        candidate.genericParameters,
+      ),
+  );
+  if (conflict) {
     diagnostics.push({
       code: "overlapping-impl",
-      message: `${implementation.targetName} overlaps another ${trait.name} implementation for the type constructor '${constructor}'`,
+      message: `${implementation.targetName} overlaps the ${trait.name} implementation for '${readonlyType(conflict.targetType).replaceAll("generic:", "")}': their heads unify`,
       span: implementation.span,
     });
     return false;
@@ -144,6 +126,14 @@ function checkImplementationTarget(implementation: ImplDecl, diagnostics: Diagno
     diagnostics.push({
       code: "mutable-impl-target",
       message: `implementation target '${readonlyType(implementation.targetName)}' cannot be written with mut; permission belongs to receivers and bounds`,
+      span: implementation.span,
+    });
+    return false;
+  }
+  if (functionParts(implementation.targetName)) {
+    diagnostics.push({
+      code: "function-impl-target",
+      message: `implementation target '${implementation.targetName}' is a function type; function types are never implementation targets`,
       span: implementation.span,
     });
     return false;
@@ -212,18 +202,6 @@ function prepareInherentImplementation(
     }
     methodKeys.add(key);
     const associated = method.parameters[0]?.name !== "self";
-    const fields =
-      dataTypes.get(implementation.targetName)?.fields ??
-      enumTypes.get(implementation.targetName)?.sharedFields ??
-      [];
-    if (!associated && fields.some((field) => field.name === method.name)) {
-      diagnostics.push({
-        code: "duplicate-inherent-member",
-        message: `inherent method '${key}' has the name of a field of ${implementation.targetName}`,
-        span: method.span,
-      });
-      continue;
-    }
     const sourceParameters = associated ? method.parameters : method.parameters.slice(1);
     const genericParameters = new Set(method.genericParameters);
     sourceParameters.forEach((parameter, parameterIndex) => {

@@ -109,5 +109,7 @@ typing/invalid/orphan-impl-nested-trait-argument.hd	check reports unknown-trait 
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
 typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2
 typing/invalid/invisible-outer-member-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; private-member is not implemented	E2
+typing/invalid/invisible-outer-field-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; private-member is not implemented	E2
 typing/invalid/unavailable-trait-method-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; trait availability is not tracked, so trait-not-in-scope is not implemented	E2
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	E2
+runtime/valid/iterable-and-iterator-for-loop.hd	check reports unknown-trait: the prototype has no Iterable trait, so the Iterable-over-Iterator preference cannot run	TQ-29

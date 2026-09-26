@@ -413,6 +413,8 @@ export type Expression =
       readonly receiver: Expression;
       readonly name: string;
       readonly typeArguments?: readonly TypeRef[];
+      /** Written as `(x.name)`, so a following call calls the field's value (M2). */
+      readonly parenthesized?: boolean;
       readonly span: SourceSpan;
     }
   | {

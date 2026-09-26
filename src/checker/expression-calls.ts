@@ -1,6 +1,6 @@
 import type { Expression } from "../ast.ts";
 import type { HirExpression, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
-import type { Signature } from "./context.ts";
+import { CheckFailure, type Signature } from "./context.ts";
 import {
   functionParts,
   mutableInner,
@@ -97,7 +97,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       }
       return this.checkEnumConstructor(declaration, expression.callee.name, expression, expected);
     }
-    if (expression.callee.kind === "member") {
+    if (expression.callee.kind === "member" && !expression.callee.parenthesized) {
       return this.checkMemberCall(expression as MemberCallExpression, expected);
     }
     if (expression.callee.kind === "qualified-name") {
@@ -591,15 +591,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     const methodName = expression.callee.name;
     const receiverImplementationType = readonlyType(receiver.type);
     if (qualifiedTraitIndex === undefined) {
-      const selection = this.selectMember(receiver.type, methodName, expression.callee.span, true);
-      if (selection.kind === "field") {
-        const { declaration, field, substitutions } = selection.final;
-        const owner = this.memberPath(receiver, selection.steps, expression.callee.receiver.span);
-        return this.checkFieldValueCall(
-          expression,
-          this.dataMember(owner, declaration, field, substitutions, expression.callee.span),
-        );
-      }
+      const selection = this.selectMethod(receiver.type, methodName, expression.callee.span);
       if (selection.kind === "inherent") {
         const owner = this.memberPath(receiver, selection.steps, expression.callee.receiver.span);
         return this.checkInherentMethodCall(expression, owner, selection.method, expected);
@@ -636,14 +628,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
       return trait && method && mapping ? [{ trait, method, mapping, substitutions }] : [];
     });
-    if (candidates.length > 1)
-      this.fail(
-        "ambiguous-method",
-        `method '${expression.callee.name}' is supplied by multiple traits`,
-        expression.callee.span,
-      );
-    const candidate = candidates[0];
-    if (candidate) {
+    const callCandidate = (candidate: (typeof candidates)[number]): HirExpression => {
       if (candidate.method.receiverMutable && mutableInner(receiver.type) === undefined) {
         this.fail(
           "mutable-receiver-required",
@@ -754,10 +739,55 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
             type: resultType,
             span: expression.span,
           };
+    };
+    if (candidates.length === 1) return callCandidate(candidates[0]!);
+    if (candidates.length > 1) {
+      const trait = candidates[0]!.trait;
+      // 09 Method Resolution (TQ-4): among instantiations of one generic trait,
+      // the call selects the one instantiation whose method fits.
+      if (
+        candidates.some((candidate) => candidate.trait !== trait) ||
+        !speculationSafeArguments(expression.arguments)
+      )
+        this.fail(
+          "ambiguous-method",
+          `method '${expression.callee.name}' is supplied by multiple traits`,
+          expression.callee.span,
+        );
+      const fitting = candidates.filter((candidate) => {
+        const diagnosticCount = this.diagnostics.length;
+        try {
+          const call = callCandidate(candidate);
+          if (expected) this.requireCoercion(call, expected, expression.span);
+          return true;
+        } catch (error) {
+          if (!(error instanceof CheckFailure)) throw error;
+          return false;
+        } finally {
+          this.diagnostics.length = diagnosticCount;
+        }
+      });
+      if (fitting.length > 1)
+        this.fail(
+          "ambiguous-method",
+          `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${trait.name}'; qualify the call as ${trait.name}[...]::${expression.callee.name}(value, ...)`,
+          expression.callee.span,
+        );
+      if (fitting.length === 0)
+        this.fail(
+          "type-mismatch",
+          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${trait.name}' implemented by '${receiverImplementationType}'`,
+          expression.span,
+        );
+      return callCandidate(fitting[0]!);
     }
     this.fail(
       "unknown-method",
-      `type '${receiver.type}' has no supported method '${expression.callee.name}'`,
+      `type '${receiver.type}' has no supported method '${expression.callee.name}'${
+        this.hasFieldNamed(receiver.type, expression.callee.name)
+          ? `; to call the function stored in the field, write (value.${expression.callee.name})(...)`
+          : ""
+      }`,
       expression.callee.span,
     );
   }
@@ -1290,4 +1320,32 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       expected,
     );
   }
+}
+
+const SPECULATION_UNSAFE_KINDS = new Set([
+  "binding-expression",
+  "closure",
+  "list-comprehension",
+  "map-comprehension",
+  "if",
+  "for",
+  "while",
+  "match",
+  "provider-context",
+  "provider-with",
+  "suspend-call",
+]);
+
+/**
+ * Whether call arguments can be checked once per candidate without lasting
+ * effects: no nested scopes, bindings, or closures.
+ */
+function speculationSafeArguments(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(speculationSafeArguments);
+  if (value === null || typeof value !== "object") return true;
+  const kind = (value as { kind?: unknown }).kind;
+  if (typeof kind === "string" && SPECULATION_UNSAFE_KINDS.has(kind)) return false;
+  return Object.entries(value).every(
+    ([key, child]) => key === "span" || speculationSafeArguments(child),
+  );
 }

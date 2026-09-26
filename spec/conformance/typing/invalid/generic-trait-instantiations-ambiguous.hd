@@ -1,0 +1,17 @@
+# test: two fitting instantiations of one generic trait make a dot call ambiguous
+trait Pick[T]:
+    fn pick(self) -> T
+
+data Money:
+    cents: i32
+
+impl Pick[i32] for Money:
+    fn pick(self) -> i32:
+        self.cents
+
+impl Pick[string] for Money:
+    fn pick(self) -> string:
+        "money"
+
+fn invalid(price: Money) -> void:
+    value := price.pick()  # diagnostic: ambiguous-method

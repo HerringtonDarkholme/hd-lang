@@ -3,6 +3,7 @@ pub trait Tagged:
 
 pub data Inner:
     pub note: string
+    pub code: string
 
 impl Inner:
     pub fn tag(self) -> string:
@@ -11,13 +12,20 @@ impl Inner:
     pub fn code(self) -> string:
         "inner code"
 
+    pub fn secret(self) -> string:
+        "inner secret"
+
 pub data Outer:
     pub Inner
     code: string
+
+impl Outer:
+    fn secret(self) -> string:
+        "outer secret"
 
 impl Tagged for Outer:
     fn tag(self) -> string:
         "outer"
 
 pub fn make_outer() -> Outer:
-    Outer { Inner: Inner { note: "note" }, code: "private" }
+    Outer { Inner: Inner { note: "note", code: "inner field" }, code: "private" }

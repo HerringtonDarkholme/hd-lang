@@ -27,7 +27,10 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
             expression.span,
           );
         }
-        if (expression.callee.kind === "member" || expression.callee.kind === "qualified-name") {
+        if (
+          (expression.callee.kind === "member" && !expression.callee.parenthesized) ||
+          expression.callee.kind === "qualified-name"
+        ) {
           const suspension = this.checkExpression({
             kind: "call",
             callee: expression.callee,

@@ -96,7 +96,9 @@ exhaustion.
 implements `Iterable[T]`, the loop calls `iter` once and advances the
 resulting cursor. When it implements `Iterator[T]`, the loop advances that
 same cursor directly, without cloning or resetting it, so iteration continues
-from the cursor's current position and leaves it exhausted. An iterator must
+from the cursor's current position and leaves it exhausted. When the type
+implements both `Iterable[T]` and `Iterator[T]`, the loop uses `Iterable[T]`:
+it calls `iter` once and never advances the value itself. An iterator must
 be accessed mutably to advance: an expression whose type implements
 `Iterator[T]` but has only readonly access is a `mutable-receiver-required`
 error. An iterable expression whose type implements neither `Iterable[T]` nor

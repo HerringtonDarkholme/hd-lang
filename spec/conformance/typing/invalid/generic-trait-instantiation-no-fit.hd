@@ -1,0 +1,17 @@
+# test: a dot call that fits no instantiation of the generic trait is a type mismatch
+trait Combine[T]:
+    fn combine(self, other: T) -> i32
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> i32:
+        self.cents + other
+
+impl Combine[Money] for Money:
+    fn combine(self, other: Money) -> i32:
+        self.cents + other.cents
+
+fn invalid(price: Money) -> i32:
+    price.combine("five")  # diagnostic: type-mismatch

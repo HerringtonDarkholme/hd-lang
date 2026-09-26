@@ -338,76 +338,108 @@ The names `user` and `label` are not visible after the comprehension.
 
 ## Member Resolution
 
-Each nominal type has one member namespace. A type's **own members** are its
-fields, including embedded fields named by their embedded type name; its
-inherent methods; and its trait methods, which are the methods of every trait
-that a known implementation implements for the type. A **known
-implementation** is any implementation in the program's dependency graph whose
-target matches the type, except that a local implementation counts only where
-its methods are available for lookup
+Each nominal type has two member namespaces, and the form of a use chooses
+between them. Its **fields**, including embedded fields named by their
+embedded type name, are found by field lookup. Its **methods** are found by
+method lookup. A type's **own methods** are its inherent methods and its
+trait methods, which are the methods of every trait that a known
+implementation implements for the type. A **known implementation** is any
+implementation in the program's dependency graph whose target matches the
+type, except that a local implementation counts only where its methods are
+available for lookup
 ([Implementation Declarations](09-traits.md#implementation-declarations)).
 Associated functions are not dot-call members; they are reached through
 `Type::function` or `Trait::function`.
 
-A field, named or embedded, and an inherent method with the same name on the
-same type are a `duplicate-inherent-member` error, reported at the inherent
-method. Because a field exists for every instantiation of a generic type,
-this holds for an inherent method in any inherent implementation whose target
-has that type's constructor.
+A field and a method may share a name, whether the method is inherent or a
+trait method. Neither hides the other, because no use looks in both
+namespaces.
 
-Member lookup resolves `x.name`, with or without an argument clause, where the
-receiver `x` has nominal type `S` or `mut S`. It is the only lookup algorithm
-for these forms; the rest of the specification refers to it. A member is
-**usable** at the use when it is a field or inherent method visible from the
-calling module, or a trait method whose trait is available to dot-call lookup
-there ([Method Resolution](09-traits.md#method-resolution)). Lookup proceeds as
-follows:
+Member lookup resolves `x.name` and `x.name(args)` where the receiver `x` has
+nominal type `S` or `mut S`. It is the only lookup algorithm for these forms;
+the rest of the specification refers to it.
 
-1. **Own members.** If `S` has at least one own member named `name`, lookup
-   stops at `S`; embedded fields are not searched. Presence is decided by name
-   alone, whatever the member's kind, arity, parameter types, or visibility,
-   and whether or not its trait is available. Among the usable own members:
-   - In `x.name(args)`, a field together with a trait method is an
-     `ambiguous-method` error. Without an argument clause, `x.name` selects
-     the field, because a bare method is not a value
-     ([Member Access](05-expressions.md#member-access)).
-   - Otherwise a field is selected. `x.name` reads it, and `x.name(args)`
-     calls its value, which must have a function type or the call is a
-     `not-callable` error.
-   - Otherwise an inherent method is selected. It wins over every trait
-     method.
-   - Otherwise exactly one trait method is selected. Methods of two or more
-     traits are an `ambiguous-method` error.
-   - If no own member named `name` is usable, the use is an error:
-     `private-member` when a field or inherent method named `name` exists
-     but is not visible, and otherwise `trait-not-in-scope`, whose message
-     names the trait and suggests a use declaration or the qualified form
-     `Trait::name(x, ...)`.
-2. **Embedded fields.** Only when `S` has no own member named `name`, lookup
-   searches the data types reachable through embedded fields, breadth first.
-   An embedded field of `S` is at depth 1, an embedded field of that field's
-   type is at depth 2, and so on. At each depth, a **match** is a field or an
-   inherent method named `name` of an embedded type at that depth; trait
-   methods of embedded types are never matches. The first depth with a match
-   decides the lookup, so a shorter path always wins over a longer one. Two or
-   more matches at that depth, including one member reached through two
-   different paths, are an `ambiguous-promoted-member` error. A match counts
-   whatever its visibility; if the selected member or an embedded field on
-   its path is not visible from the calling module, the use is a
+- `x.name` without an argument clause uses field lookup only. It never
+  selects a method, because a bare method is not a value
+  ([Member Access](05-expressions.md#member-access)).
+- `x.name(args)` uses method lookup only. It never selects a field. A
+  function stored in a field is called as `(x.name)(args)`.
+
+A member is **usable** at the use when it is a field or inherent method
+visible from the calling module, or a trait method whose trait is available
+to dot-call lookup there ([Method Resolution](09-traits.md#method-resolution)).
+Both lookups search embedded fields the same way. An embedded field of `S` is
+at depth 1, an embedded field of that field's type is at depth 2, and so on.
+
+**Field lookup** proceeds as follows:
+
+1. **Own fields.** If `S` declares a field named `name`, that field is
+   selected and embedded fields are not searched. If it is not visible from
+   the calling module, the use is a `private-member` error.
+2. **Embedded fields.** Otherwise lookup searches the data types reachable
+   through embedded fields, breadth first. At each depth, a **match** is a
+   field named `name` of an embedded type at that depth. The first depth with
+   a match decides the lookup, so a shorter path always wins over a longer
+   one. Two or more matches at that depth, including one field reached
+   through two different paths, are an `ambiguous-promoted-member` error. A
+   match counts whatever its visibility; if the selected field or an embedded
+   field on its path is not visible from the calling module, the use is a
    `private-member` error.
-3. **No member.** If neither step finds `name`, the use is an
-   `unknown-data-field` error for `x.name` and an `unknown-method` error for
-   `x.name(args)`.
+3. **No field.** If neither step finds `name`, the use is an
+   `unknown-data-field` error.
 
-A member selected in step 2 is a **promoted member**. `x.name` then means the
-explicit path `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`,
-with the same type, permission, and evaluation. An embedded field is a
-readonly edge, so a promoted field is readonly and a promoted `mut self`
-method is found and then rejected with `mutable-receiver-required`; lookup
-never skips it to try another member. Explicit qualification through an
-embedded field, as in `x.E1.name`, starts a new lookup at `E1`'s type and
-resolves every promotion ambiguity. `Trait::name(x, ...)` selects a trait
-method without member lookup.
+**Method lookup** proceeds as follows:
+
+1. **Own methods.** If `S` has at least one own method named `name`, lookup
+   stops at `S`; embedded fields are not searched. Presence is decided by name
+   alone, whatever the method's arity, parameter types, or visibility, and
+   whether or not its trait is available. Among the usable own methods:
+   - An inherent method is selected. It wins over every trait method.
+   - Otherwise exactly one trait method is selected. Methods of two or more
+     traits are an `ambiguous-method` error. When the methods come from
+     several instantiations of one generic trait, the call chooses among
+     them as in [Method Resolution](09-traits.md#method-resolution).
+   - If no own method named `name` is usable, the use is an error:
+     `private-member` when an inherent method named `name` exists but is not
+     visible, and otherwise `trait-not-in-scope`, whose message names the
+     trait and suggests a use declaration or the qualified form
+     `Trait::name(x, ...)`.
+2. **Embedded fields.** Only when `S` has no own method named `name`, lookup
+   searches the data types reachable through embedded fields, breadth first.
+   At each depth, a **match** is an inherent method named `name` of an
+   embedded type at that depth. Fields are never matches. Trait methods count
+   only on the receiver's own type `S`: an embedded type's trait methods are
+   skipped, so they are never matches and never stop the search below that
+   type. The first depth with a match decides the lookup, so a shorter path
+   always wins over a longer one. Two or more matches at that depth,
+   including one method reached through two different paths, are an
+   `ambiguous-promoted-member` error. A match counts whatever its
+   visibility; if the selected method or an embedded field on its path is
+   not visible from the calling module, the use is a `private-member` error.
+3. **No method.** If neither step finds `name`, the use is an
+   `unknown-method` error. When the receiver has a field named `name`, the
+   message should suggest `(x.name)(args)`.
+
+For example, if `Page` embeds `Label`, `Label` implements `Display` and
+embeds `Base`, and `Base` has an inherent `to_string`, then
+`page.to_string()` skips `Label`'s `Display` method at depth 1 and selects
+`Base`'s `to_string` at depth 2.
+
+A member selected in step 2 of either lookup is a **promoted member**.
+`x.name` then means the explicit path `x.E1.E2...Ek.name` through the
+embedded fields `E1` to `Ek`, with the same type, permission, and evaluation.
+An embedded field is a readonly edge, so a promoted field is readonly and a
+promoted `mut self` method is found and then rejected with
+`mutable-receiver-required`; lookup never skips it to try another member.
+Explicit qualification through an embedded field, as in `x.E1.name`, starts a
+new lookup at `E1`'s type and resolves every promotion ambiguity.
+`Trait::name(x, ...)` selects a trait method without member lookup.
+
+There is no overriding. A promoted method runs as the embedded type's own
+method, with the embedded value as its receiver. Inside that method, `self`
+has the embedded type, so a call `self.m()` inside `Base`'s methods always
+resolves against `Base` and never reaches a method of a type that embeds
+`Base`.
 
 Embedding never grants trait conformance, and a promoted method never fills a
 method of a trait implementation; see

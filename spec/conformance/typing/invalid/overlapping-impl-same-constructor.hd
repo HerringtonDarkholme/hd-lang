@@ -1,9 +1,0 @@
-# test: implementations for two instantiations of one type constructor overlap
-
-data Box[T]:
-    value: T
-
-trait Marker
-
-impl Marker for Box[i32]
-impl Marker for Box[string]  # diagnostic: overlapping-impl
