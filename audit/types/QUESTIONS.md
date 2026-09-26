@@ -195,6 +195,18 @@ read it, so prefer explicit, checkable rules and locality.
   trait's members and its supertraits' members; `Self`'s fields are not
   accessible there.
 
+- **Value embedding (VE1 to VE4), not yet applied; replaces OE2 and OE3,
+  keeps OE1 and OE4.** (VE1) Construction copies: `Post { Timestamps: ts }`
+  stores a copy of `ts`; the part's ordinary fields are copied shallowly
+  (they still reference the same objects), and nested embedded parts are
+  copied recursively. `ts` may be readonly. (VE2) Access through an embedded
+  field follows the container (OE1). (VE3) Copy-update copies embedded parts
+  the same way, so a copy never shares a part with its original. (VE4)
+  Reading a part out follows the container: `x := post.Timestamps` is a
+  `mut` alias when `post` is `mut`, readonly otherwise (OE4). The part may
+  be a separate object held exclusively by the outer value; it need not be
+  laid out inline.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
