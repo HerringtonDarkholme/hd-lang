@@ -263,6 +263,13 @@ read it, so prefer explicit, checkable rules and locality.
   conformance. (8) Mandatory `...`, construction keys, and invariance are
   not issues.
 
+- **TQ-31 revised: trait-method names stop the embedded search, not yet
+  applied.** Trait methods are still never found through embedding, but a
+  method name that an embedded type has only through a trait stops the
+  search at that depth with an error suggesting `x.Part.m()` (for example
+  `page.to_string()` when `Label` implements `Display` and embeds `Base`).
+  Removes the one lookup surprise that neither Go nor Rust has.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
