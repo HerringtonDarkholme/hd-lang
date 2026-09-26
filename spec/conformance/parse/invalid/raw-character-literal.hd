@@ -1,0 +1,4 @@
+# test: there is no raw character literal
+
+fn run() -> void:
+    c := r'a'  # diagnostic: syntax-error

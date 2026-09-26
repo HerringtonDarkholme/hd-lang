@@ -158,7 +158,10 @@ class GrammarCompiler {
   }
 
   private compileNode(node: EbnfNode): string[][] {
-    if (node.kind === "symbol" || node.kind === "literal") return [[node.value!]];
+    if (node.kind === "symbol") return [[node.value!]];
+    // A quoted literal is always a terminal, even when it spells a production
+    // name: the keyword "type" is not the `type` production.
+    if (node.kind === "literal") return [[`'${node.value!}`]];
     if (node.kind === "alternative")
       return node.children!.flatMap((child) => this.compileNode(child));
     if (node.kind === "sequence") {
@@ -219,6 +222,12 @@ function addItem(items: Map<string, ChartItem>, item: ChartItem): boolean {
   return true;
 }
 
+/** Terminals are quoted literals or token classes such as `identifier`; productions never scan. */
+function scans(token: GrammarToken, symbol: string): boolean {
+  if (grammar.has(symbol)) return false;
+  return token.kinds.has(symbol.startsWith("'") ? symbol.slice(1) : symbol);
+}
+
 export function earleyAccepts(tokens: readonly GrammarToken[]): ParseResult {
   const chart = Array.from({ length: tokens.length + 1 }, () => new Map<string, ChartItem>());
   addItem(chart[0]!, { dot: 0, lhs: "@root", origin: 0, rhs: ["source_file"] });
@@ -251,7 +260,7 @@ export function earleyAccepts(tokens: readonly GrammarToken[]): ParseResult {
     }
     if (position >= tokens.length) continue;
     for (const item of chart[position]!.values()) {
-      if (item.dot < item.rhs.length && tokens[position]!.kinds.has(item.rhs[item.dot]!))
+      if (item.dot < item.rhs.length && scans(tokens[position]!, item.rhs[item.dot]!))
         addItem(chart[position + 1]!, { ...item, dot: item.dot + 1 });
     }
     if (chart[position + 1]!.size > 0) farthest = position + 1;

@@ -1,0 +1,13 @@
+# test: a closing delimiter on the last body line of a nested suite ends that suite
+# expect: parse
+
+fn apply(f: fn(i32) -> i32) -> i32: f(1)
+
+fn run(c: bool) -> i32:
+    x := apply(fn(a: i32) -> i32:
+        a + 1)
+    y := (if c:
+        1
+    else:
+        2)
+    x + y

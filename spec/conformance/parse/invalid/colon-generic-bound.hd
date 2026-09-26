@@ -1,0 +1,6 @@
+# test: generic parameter bounds use <, not :
+
+trait Show:
+    fn show(self) -> string
+
+fn render[T: Show](value: T) -> string: value.show()  # diagnostic: syntax-error

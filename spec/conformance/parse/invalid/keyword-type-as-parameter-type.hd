@@ -1,0 +1,3 @@
+# test: the reserved word type is not a type
+
+fn describe(x: type) -> void: pass  # diagnostic: syntax-error

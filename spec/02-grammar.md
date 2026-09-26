@@ -214,7 +214,7 @@ parameter = receiver_parameter
 
 parameter_decorator = "@", continued_expression ;
 value_parameter = identifier, ":", type, [ "=", expression ]
-                | identifier, ":", type, [ "=", continued_expression ], "..."
+                | identifier, ":", type, "..."
                 ;
 
 receiver_parameter = "self" | "mut", "self" ;

@@ -102,11 +102,13 @@ comma.
 For example, the body of `fn(name): name.lower()` ends immediately before that
 closure's closing `)`.
 
-`else` is also a boundary for the immediately preceding same-line `if` suite:
-layout emits that suite's `SUITE_END` before `else` and keeps the enclosing
-conditional open. Thus `x := if c: 1 else: 2` is one conditional expression;
-the line boundary after `2` closes the `else` suite and then any enclosing
-same-line suite, innermost first.
+`else` is also a boundary for the immediately preceding same-line `if`, `for`,
+or `while` suite: layout emits that suite's `SUITE_END` before `else` and keeps
+the enclosing conditional or loop open, as the `inline_if_expression`,
+`inline_for_expression`, and `inline_while_expression` productions require.
+Thus `x := if c: 1 else: 2` is one conditional expression; the line boundary
+after `2` closes the `else` suite and then any enclosing same-line suite,
+innermost first.
 `SUITE_END` has no source spelling; parser-aware layout processing identifies
 the boundary from the expected suite and enclosing delimiter structure.
 

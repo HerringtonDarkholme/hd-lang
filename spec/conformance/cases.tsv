@@ -809,3 +809,13 @@ typing/valid/default-reads-top-level-binding.hd	type	accept	07-functions.md#defa
 runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	09-traits.md#dynamic-trait-values
 runtime/valid/println-suspending-call-argument.hd	runtime	accept	05-expressions.md#literals
 runtime/valid/println-around-suspending-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
+parse/valid/closing-delimiter-ends-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/bracketed-suite-header-line.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/literal-field-comparison-value.hd	parse	accept	02-grammar.md#primary-expressions
+parse/valid/same-line-loop-else.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/keyword-type-as-parameter-type.hd	parse	reject:syntax-error	01-lexical-structure.md#keywords-and-reserved-words
+parse/invalid/type-in-place-of-type-keyword.hd	parse	reject:syntax-error	02-grammar.md#type-declarations
+parse/invalid/raw-character-literal.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals
+parse/invalid/vararg-default-before-ellipsis.hd	parse	reject:syntax-error	02-grammar.md#functions
+parse/invalid/colon-generic-bound.hd	parse	reject:syntax-error	02-grammar.md#generic-parameters-and-bounds
+parse/invalid/colon-supertrait.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations

@@ -1,0 +1,14 @@
+# test: bracketed control flow and closures may end a header line in a colon
+# expect: parse
+
+fn run(xs: list[i32], c: bool) -> void:
+    doubled := [for x in xs:
+        x * 2
+    ]
+    picked := [if c:
+        1
+    else:
+        2]
+    handlers := [fn(x: i32) -> i32:
+        x + 1
+    ]
