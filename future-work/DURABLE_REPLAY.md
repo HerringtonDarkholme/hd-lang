@@ -53,6 +53,27 @@ lists only questions 2, 3, 4, 6, 7, 9, 10, 11, and 12.
    `outcome-unknown` error to the program, which decides whether to check,
    compensate, or fail.
 
+7. **Question 2: the runtime profile marks each host method as an input or
+   an output.** Inputs have their results recorded and replayed without the
+   live call; outputs record only a fingerprint, and the live call is
+   suppressed on replay.
+8. **Question 3: the standard `Hasher` is deterministic,** seeded per code
+   identity and runtime profile; hash-flooding defense uses an explicitly
+   chosen keyed hasher.
+9. **Question 4: code identity covers the entry module, all transitive
+   dependencies, and the compiler's semantic version,** not the binary hash.
+10. **Question 6: events match calls by order, provider and method key, and
+    an argument fingerprint;** source site IDs appear only in messages.
+11. **Question 7: no `Durable` bound;** histories reuse boundary-safe types.
+12. **Question 9: weak references and finalizers exist only inside the
+    standard runtime;** no user-visible finalizers.
+13. **Question 10: stack and memory limits are part of configuration
+    identity.**
+14. **Question 11: observability and replay use separate hooks;** both
+    derive IDs from execution ID and event index.
+15. **Question 12: a panic is recorded by its specification diagnostic
+    name,** not an exit status.
+
 ## Problem
 
 The accepted model re-executes a suspending entry point from the start and
