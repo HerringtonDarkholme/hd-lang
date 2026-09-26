@@ -1,0 +1,31 @@
+# test: a delegating implementation forwards every trait method to the embedded field, and its body may replace some
+trait Describe:
+    fn describe(self) -> string
+    fn headline(self) -> string:
+        "* " + self.describe()
+
+data Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger
+
+data Worker:
+    Logger
+
+impl Describe for Worker by Logger:
+    fn headline(self) -> string:
+        "worker " + self.Logger.headline()
+
+fn show(value: Describe) -> string:
+    value.headline()
+
+fn valid(service: Service, worker: Worker) -> string:
+    service.describe() + service.headline() + worker.headline() + show(service) + show(worker)

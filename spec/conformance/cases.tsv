@@ -991,3 +991,11 @@ typing/valid/diamond-different-depths.hd	type	accept	03-names-and-scopes.md#memb
 runtime/valid/diamond-shallower-copy-wins.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/valid/own-member-hides-promoted-conflict.hd	type	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/public-view-promoted-conflict.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/valid/trait-delegation.hd	type	accept	09-traits.md#trait-delegation
+runtime/valid/trait-delegation-forwards.hd	runtime	accept	09-traits.md#trait-delegation
+typing/valid/trait-delegation-mut-self.hd	type	accept	09-traits.md#trait-delegation
+typing/valid/trait-delegation-associated-type.hd	type	accept	09-traits.md#trait-delegation
+typing/invalid/delegation-to-ordinary-field.hd	type	reject:invalid-delegation	09-traits.md#trait-delegation
+typing/invalid/delegation-part-lacks-trait.hd	type	reject:invalid-delegation	09-traits.md#trait-delegation
+typing/invalid/delegation-associated-function-missing.hd	type	reject:missing-trait-method	09-traits.md#trait-delegation
+typing/invalid/delegation-binds-associated-type.hd	type	reject:invalid-delegation	09-traits.md#trait-delegation

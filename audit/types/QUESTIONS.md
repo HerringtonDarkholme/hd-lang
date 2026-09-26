@@ -367,7 +367,16 @@ read it, so prefer explicit, checkable rules and locality.
   promoted inherent method with the same name make the call
   `ambiguous-method`; a forwarding impl is called as `Trait::m(x)`.
 
-- **Trait delegation `impl Trait for C by E`, not yet applied.** The explicit
+- **Trait delegation `impl Trait for C by E`, applied** to 01 (contextual
+  `by`), 02 (grammar, so the reference parser), 08, 09 Trait Delegation, the
+  tour, the fixtures, and the prototype parser and checker (generated
+  forwarding methods; non-generic traits only), with the new code
+  `invalid-delegation` (not an embedded field, a part that does not
+  implement the trait, an associated type binding in the body). Readings:
+  `E` is a direct embedded field; a generated method calls the part's
+  implementation as `Trait::m(self.E, ...)`, so an inherent method of the
+  part is never reached; an associated function with a trait default keeps
+  the default, and only a required one is `missing-trait-method`. The explicit
   opt-in for trait behavior from an embedded part. `E` must name an embedded
   part of `C` whose type implements `Trait`. Every trait method, including
   those with default bodies, is generated as a call on `self.E`; an optional

@@ -164,3 +164,5 @@ typing/invalid/copy-assignment-ordinary-field.hd	check reports syntax-error at l
 parse/valid/embedded-copy-syntax.hd	parse reports expected-expression at line 11: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/diamond-shallower-copy-wins.hd	check reports expected-expression at line 19: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/invalid/public-view-promoted-conflict.hd	check reports syntax-error at line 3: the prototype parser does not accept `pub` on a named field, and the prototype checks conflicts only in the declaring module's view	EMB-S
+runtime/valid/trait-delegation-forwards.hd	check reports expected-expression at line 33: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+typing/valid/trait-delegation-mut-self.hd	check reports mutable-receiver-required at line 20: embedded fields are still readonly edges, so the generated forwarding call cannot reach the part through mut self (VE not implemented)	VE

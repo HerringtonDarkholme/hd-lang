@@ -35,8 +35,9 @@ with one name at the smallest depth as `ambiguous-promoted-member` at the
 data declaration. Parts' trait methods are ignored, and `unknown-method`
 suggests the explicit path. Rust-style trait lookup is implemented: only
 available trait methods are candidates, and a trait candidate beside a
-promoted method is
-`ambiguous-method`. Embedded fields are always public:
+promoted method is `ambiguous-method`. Trait delegation
+(`impl Trait for C by E`) is implemented as generated forwarding methods for
+non-generic traits. Embedded fields are always public:
 the prototype parser rejects `pub` on an embedded field, and a public data
 type embedding a private one is `private-type-leak`. Context spreads are suffix spreads
 (`$.with(ctx...)`) in the prototype parser, and the prefix form is a

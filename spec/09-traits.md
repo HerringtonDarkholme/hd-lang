@@ -563,7 +563,9 @@ explicit `impl`, and that implementation must write every required method that
 has no default. A method promoted from an embedded field never fills a trait
 method, whether required or defaulted, and whatever its receiver. An
 implementation that reuses an embedded type's behavior forwards to it
-explicitly, for example `fn label(self) -> string: self.Base.label()`. A
+explicitly, for example `fn label(self) -> string: self.Base.label()`, or,
+when the embedded type implements the trait, delegates the whole trait with
+`impl Trait for C by E` ([Trait Delegation](#trait-delegation)). A
 forwarding `mut self` method may call a `mut self` method of the embedded part,
 as in `fn reset(mut self) -> void: self.Base.reset()`, because `self.Base` has
 `mut` access through `mut self`
@@ -588,6 +590,76 @@ that name, the call is an `unknown-method` error whose message should suggest
 
 Embedding is composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.
+
+## Trait Delegation
+
+A trait implementation may delegate the trait to an embedded field of its
+target by naming the field after `by`:
+
+```text
+trait Describe:
+    fn describe(self) -> string
+    fn headline(self) -> string:
+        "* " + self.describe()
+
+data Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger
+
+data Worker:
+    Logger
+
+impl Describe for Worker by Logger:
+    fn headline(self) -> string:
+        "worker " + self.Logger.headline()
+```
+
+In `impl Trait for C by E`, `C` must be a data type, `E` must name one of
+its embedded fields, and the type of that field, with `C`'s type arguments
+substituted, must implement the same instantiation of `Trait`. Otherwise the
+implementation is an `invalid-delegation` error, reported on the line of
+`by`. `E` names a direct embedded field; a deeper part is reached by
+delegating to the field that contains it.
+
+For every method of `Trait` with a receiver, including methods that have a
+default body, the implementation has a generated method unless its body
+writes one with that name. The generated method has the trait method's
+signature and calls the part's implementation of the same method with the
+same arguments, as `Trait::method(self.E, arguments...)` would; a variadic
+parameter is passed on as a spread. A `mut self` method forwards through
+`self.E`, which has `mut` access through `mut self`
+([Data Embedding](08-data-and-enums.md#data-embedding)). A method written in
+the body replaces the generated one and follows the rules of
+[Implementation Declarations](#implementation-declarations), as does any
+other member of the body. The part's implementation runs with the part as
+its receiver, so a default body there calls the part's methods, never the
+delegating implementation's; there is no overriding
+([Member Resolution](03-names-and-scopes.md#member-resolution)).
+
+Associated types take the part's bindings: each associated type of the
+delegating implementation is bound to the type that the part's
+implementation binds, and an associated type binding in the body is an
+`invalid-delegation` error. Associated functions have no receiver to forward
+through and are never generated. The body writes each of them unless the
+trait gives it a default; a missing one is a `missing-trait-method` error.
+
+Otherwise a delegating implementation is an ordinary trait implementation.
+It obeys [Implementation Ownership](#implementation-ownership),
+[Overlap](#overlap), and trait visibility, satisfies bounds, supports
+dynamic trait values, and its methods are candidates in
+[Method Resolution](#method-resolution) where the trait is available. A dot
+call such as `service.describe()` therefore has one candidate unless an
+embedded type also has an inherent method of that name, in which case it is
+`ambiguous-method` as for any implementation.
 
 ## Default-Method Conflicts
 

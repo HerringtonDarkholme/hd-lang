@@ -1416,12 +1416,14 @@ impl Add[Money] for Money:
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
-Data embedding does not interact with traits. Embedding never grants trait conformance, an embedded type's trait methods are not promoted, and a promoted method never fills a trait method. An implementation that wants the embedded behavior forwards to it:
+Data embedding does not interact with traits. Embedding never grants trait conformance, an embedded type's trait methods are not promoted, and a promoted method never fills a trait method. An implementation that wants the embedded behavior delegates the trait to the embedded field, which forwards every method, or forwards by hand:
 
 ```text
-impl Describe for C:
+impl Describe for C by A
+
+impl Describe for D:
     fn describe(self) -> string:
-        self.A.describe()
+        self.B.describe()
 ```
 
 Dynamic dispatch follows the Go interface style: use the trait name as a value type, and method calls through that trait value dispatch to the concrete implementation at runtime.
@@ -1683,22 +1685,27 @@ Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
-An explicit impl forwards to the embedded value when it wants that behavior:
+An explicit impl delegates to the embedded value when it wants that behavior. `by` names the embedded field, and every trait method, defaults included, forwards to it; the body may replace individual methods:
 
 ```text
 data Logger:
     name: string
 
-impl Logger:
+impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
 data Service:
     Logger
 
-impl Describe for Service:
+impl Describe for Service by Logger
+
+data Worker:
+    Logger
+
+impl Describe for Worker by Logger:
     fn describe(self) -> string:
-        self.Logger.describe()
+        "worker " + self.Logger.describe()
 
 fn show(value: Describe) -> void $ Console:
     println(value.describe())
@@ -1708,14 +1715,17 @@ service := Service {
 }
 
 show(service)       # ok: the impl forwards to Logger
+service.describe()  # ok: one candidate, Service's Describe method
 ```
 
 Embedding never grants trait conformance, and a promoted method never fills a
-trait method: `impl Describe for Service` must write `describe`, even though
-`Logger` has an inherent `describe`. Where `Describe` is in scope,
-`service.describe()` is then ambiguous between `Service`'s `Describe` method
-and `Logger`'s promoted method; write `Describe::describe(service)` or
-`service.Logger.describe()`.
+trait method: without `by`, `impl Describe for Service` must write
+`describe`. When the embedded type has `describe` only as an inherent
+method, forward by hand, as in `fn describe(self) -> string:
+self.Logger.describe()`. Where `Describe` is in scope, `service.describe()`
+is then ambiguous between `Service`'s `Describe` method and `Logger`'s
+promoted method; call the implementation as `Describe::describe(service)`
+and the embedded method as `service.Logger.describe()`.
 
 ### Small Typed Idioms
 

@@ -95,6 +95,8 @@ export interface ImplDecl {
   readonly genericBounds: readonly GenericBound[];
   readonly traitName?: string;
   readonly targetName: string;
+  /** `impl Trait for C by E`: the embedded field `E` that the trait is delegated to. */
+  readonly delegate?: { readonly name: string; readonly span: SourceSpan };
   readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;

@@ -1,0 +1,38 @@
+# test: generated methods call the part's implementation, defaults included, and a body method replaces one
+use std.testing.assert_equal
+
+trait Describe:
+    fn describe(self) -> string
+    fn headline(self) -> string:
+        "* " + self.describe()
+
+data Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger
+
+data Worker:
+    Logger
+
+impl Describe for Worker by Logger:
+    fn headline(self) -> string:
+        "worker " + self.Logger.headline()
+
+fn show(value: Describe) -> string:
+    value.headline()
+
+test "delegation forwards to the part":
+    service := Service { Logger: ...Logger { name: "api" }, port: 80 }
+    worker := Worker { Logger: ...Logger { name: "job" } }
+    assert_equal(service.describe(), "api", reason="generated required method")
+    assert_equal(service.headline(), "* api", reason="generated method forwards to the part's default")
+    assert_equal(worker.headline(), "worker * job", reason="the body replaces one method")
+    assert_equal(show(service), "* api", reason="dynamic trait value")

@@ -321,7 +321,8 @@ trait_member = associated_type_decl
                ( NEWLINE | ":", suite_body )
              ;
 
-impl_decl = "impl", [ generic_params ], type, [ "for", type ],
+impl_decl = "impl", [ generic_params ], type,
+            [ "for", type, [ "by", identifier ] ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
               impl_member, { impl_member }, DEDENT )
@@ -337,7 +338,9 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 ```
 
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
-implementation. A trait declaration without a body is a marker trait. A trait
+implementation. `impl Trait for T by E` delegates the trait to the embedded
+field `E` of `T` and may omit its body
+([Trait Delegation](09-traits.md#trait-delegation)). A trait declaration without a body is a marker trait. A trait
 implementation may omit its body when the trait is a marker or when every
 trait method has a default; a method promoted from an embedded field never
 fills a trait method. A

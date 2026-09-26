@@ -350,7 +350,9 @@ The following contextual words have special meaning only in fixed positions:
   `pack . map_list (` always form the pack operation, even when a local or
   parameter named `pack` is in scope; every other use of such a `pack`, as in
   `pack.size()`, is ordinary;
-- `derive` immediately after `@`.
+- `derive` immediately after `@`;
+- `by` after the target type of a trait implementation header, as in
+  `impl Describe for Service by Logger`.
 
 These contextual words remain ordinary identifiers elsewhere, so declarations
 such as `fn test() -> void`, `fn map_list() -> void`, `fn derive() -> void`,

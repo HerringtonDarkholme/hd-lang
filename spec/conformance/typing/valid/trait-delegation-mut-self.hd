@@ -1,0 +1,24 @@
+# test: a delegated mut self method forwards through the part with the container's access
+trait Counter:
+    fn bump(mut self) -> void
+    fn count(self) -> i32
+
+data Tally:
+    total: i32
+
+impl Counter for Tally:
+    fn bump(mut self) -> void:
+        self.total = self.total + 1
+
+    fn count(self) -> i32:
+        self.total
+
+data Page:
+    Tally
+    title: string
+
+impl Counter for Page by Tally
+
+fn valid(page: mut Page) -> i32:
+    page.bump()
+    page.count()

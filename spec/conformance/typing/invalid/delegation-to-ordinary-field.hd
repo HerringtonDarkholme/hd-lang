@@ -1,0 +1,16 @@
+# test: the name after by must be an embedded field of the target
+trait Describe:
+    fn describe(self) -> string
+
+data Logger:
+    name: string
+
+impl Describe for Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+    port: i32
+
+impl Describe for Service by port  # diagnostic: invalid-delegation

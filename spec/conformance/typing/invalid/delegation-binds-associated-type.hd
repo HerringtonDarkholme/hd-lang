@@ -1,0 +1,18 @@
+# test: a delegating implementation takes associated types from the part and may not bind them
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Source:
+    value: i32
+
+impl Supplier for Source:
+    type Item = i32
+    fn get(self) -> i32:
+        self.value
+
+data Feed:
+    Source
+
+impl Supplier for Feed by Source:
+    type Item = i32  # diagnostic: invalid-delegation

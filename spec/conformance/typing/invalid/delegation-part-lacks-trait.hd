@@ -1,0 +1,15 @@
+# test: the embedded field named after by must have a type that implements the trait
+trait Describe:
+    fn describe(self) -> string
+
+data Logger:
+    name: string
+
+impl Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Service:
+    Logger
+
+impl Describe for Service by Logger  # diagnostic: invalid-delegation

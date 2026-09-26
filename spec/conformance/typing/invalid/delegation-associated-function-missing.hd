@@ -1,0 +1,19 @@
+# test: an associated function is never forwarded, so a delegating implementation must write it
+trait Named:
+    fn name(self) -> string
+    fn kind() -> string
+
+data Logger:
+    label: string
+
+impl Named for Logger:
+    fn name(self) -> string:
+        self.label
+
+    fn kind() -> string:
+        "logger"
+
+data Service:
+    Logger
+
+impl Named for Service by Logger  # diagnostic: missing-trait-method

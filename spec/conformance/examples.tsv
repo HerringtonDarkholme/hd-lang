@@ -115,6 +115,7 @@ specification	block	classification	fixture
 09-traits.md	14	accept	typing/valid/trait-features.hd
 09-traits.md	15	accept	typing/valid/associated-type-bindings.hd
 09-traits.md	16	accept	typing/valid/prelude-surface.hd
+09-traits.md	17	accept	typing/valid/trait-delegation.hd
 10-modules.md	1	filesystem-layout	-
 10-modules.md	2	filesystem-layout	-
 10-modules.md	3	accept	parse/valid/uses.hd

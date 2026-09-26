@@ -300,6 +300,9 @@ when a type that embeds `Base` declares its own `m`. Embedding never grants
 trait conformance, and a promoted method never fills a method of a trait
 implementation; see
 [Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
+Conformance through a part is written explicitly: `impl Describe for Service
+by Logger` implements `Describe` for `Service` by forwarding every method to
+its embedded `Logger` ([Trait Delegation](09-traits.md#trait-delegation)).
 
 An embedded field accepts the same prefix metadata decorators as a named field.
 The metadata is attached to the embedded field itself, whose name is the final

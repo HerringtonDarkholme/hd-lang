@@ -88,7 +88,9 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   called through the part, as in `x.Part.m()`.
   `embedded-trait-method-not-promoted` is gone.
 - Embedding never grants trait conformance, and promoted methods never fill
-  trait methods (E5).
+  trait methods (E5). Conformance through a part is explicit:
+  `impl Trait for C by E` forwards every trait method to the embedded field
+  `E` (trait delegation).
 - No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
 - Embedding is value embedding (VE1 to VE4): filling an embedded field
   copies the value, and access through an embedded field follows its

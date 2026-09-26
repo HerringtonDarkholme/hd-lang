@@ -1,5 +1,5 @@
 import type { Diagnostic } from "../diagnostics.ts";
-import type { FunctionDecl, ImplDecl, Parameter, TypeRef } from "../ast.ts";
+import type { Expression, FunctionDecl, ImplDecl, MethodDecl, Parameter, TypeRef } from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
 import {
@@ -364,6 +364,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     context;
   const inherentMethodKeys = new Set<string>();
   const implementationTargets: RegisteredImplementationTarget[] = [];
+  const delegations: Delegation[] = [];
   const orderedImplementationEntries = [...program.implementations.entries()].sort(
     (left, right) =>
       Number(left[1].traitName !== undefined) - Number(right[1].traitName !== undefined),
@@ -427,7 +428,18 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       )
     )
       continue;
-    const associatedTypes = prepareAssociatedTypes(implementation, trait, context);
+    const delegation = implementation.delegate
+      ? prepareDelegation(implementation, trait, context)
+      : undefined;
+    if (implementation.delegate && !delegation) continue;
+    if (delegation) delegations.push({ ...delegation, trait, traitArguments, implementation });
+    const associatedTypes = prepareAssociatedTypes(
+      delegation
+        ? { ...implementation, associatedTypes: delegation.associatedTypes }
+        : implementation,
+      trait,
+      context,
+    );
     const memberSubstitutions = new Map(traitSubstitutions);
     trait.associatedTypes.forEach((associated, index) =>
       memberSubstitutions.set(`Self::${associated.name}`, associatedTypes[index]!),
@@ -442,6 +454,10 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         });
       supplied.set(method.name, method);
     }
+    // 09 Trait Delegation: every instance method the body does not write
+    // forwards to the delegated part.
+    for (const method of delegation?.methods ?? [])
+      if (!supplied.has(method.name)) supplied.set(method.name, method);
     for (const method of implementation.methods) {
       if (!trait.methods.some((required) => required.name === method.name)) {
         diagnostics.push({
@@ -546,6 +562,125 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     });
   }
   validateSupertraitImplementations(context);
+  validateDelegations(delegations, context);
+}
+
+interface Delegation {
+  readonly implementation: ImplDecl;
+  readonly trait: HirTrait;
+  readonly traitArguments: readonly ValueType[];
+  readonly partType: ValueType;
+  readonly associatedTypes: ImplDecl["associatedTypes"];
+  readonly methods: readonly MethodDecl[];
+}
+
+/**
+ * 09 Trait Delegation: `impl Trait for C by E` requires `E` to be an embedded
+ * field of the data type `C`. Each instance method of the trait is generated
+ * as `Trait::m(self.E, arguments...)`; associated functions are not
+ * forwarded. Associated types take the part's bindings, so the body may not
+ * bind them. The prototype supports delegation of non-generic traits only.
+ */
+function prepareDelegation(
+  implementation: ImplDecl,
+  trait: HirTrait,
+  context: ProgramCheckContext,
+): Omit<Delegation, "trait" | "traitArguments" | "implementation"> | undefined {
+  const { program, dataTypes, diagnostics } = context;
+  const delegate = implementation.delegate!;
+  const fail = (message: string, span = delegate.span): undefined => {
+    diagnostics.push({ code: "invalid-delegation", message, span });
+    return undefined;
+  };
+  const target = dataTypes.get(
+    nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName,
+  );
+  const field = target?.fields.find((candidate) => candidate.name === delegate.name);
+  if (!field?.embedded)
+    return fail(`'${delegate.name}' is not an embedded field of '${implementation.targetName}'`);
+  if (implementation.associatedTypes.length > 0)
+    return fail(
+      `a delegating implementation takes its associated types from '${delegate.name}'`,
+      implementation.associatedTypes[0]!.span,
+    );
+  const traitName =
+    nominalGenericParts(implementation.traitName!)?.name ?? implementation.traitName!;
+  const partImplementation = program.implementations.find(
+    (candidate) =>
+      candidate.traitName !== undefined &&
+      (nominalGenericParts(candidate.traitName)?.name ?? candidate.traitName) === traitName &&
+      candidate.targetName === field.type,
+  );
+  const declaration = program.traits[trait.index];
+  const span = delegate.span;
+  const methods = (declaration?.methods ?? [])
+    .filter((method) => method.parameters[0]?.name === "self")
+    .map((method): MethodDecl => {
+      const parameters = method.parameters.slice(1);
+      const call: Expression = {
+        kind: method.suspending ? "suspend-call" : "call",
+        callee: { kind: "qualified-name", owner: traitName, name: method.name, span },
+        arguments: [
+          {
+            kind: "member",
+            receiver: { kind: "name", name: "self", span },
+            name: delegate.name,
+            span,
+          },
+          ...parameters.map((parameter): Expression => ({
+            kind: "name",
+            name: parameter.name,
+            span,
+          })),
+        ],
+        argumentSpreads: [false, ...parameters.map((parameter) => parameter.variadic === true)],
+        span,
+      };
+      // Associated types take the part's bindings.
+      const bound = (type: TypeRef): TypeRef =>
+        partImplementation?.associatedTypes.find(
+          (associated) => type.name === `Self::${associated.name}`,
+        )?.value ?? type;
+      return {
+        ...method,
+        parameters: method.parameters.map((parameter) => ({
+          ...parameter,
+          type: bound(parameter.type),
+        })),
+        result: bound(method.result),
+        body: [{ kind: "expression", expression: call, span }],
+        span,
+      };
+    });
+  return {
+    partType: field.type,
+    associatedTypes: partImplementation?.associatedTypes ?? [],
+    methods,
+  };
+}
+
+function validateDelegations(
+  delegations: readonly Delegation[],
+  context: ProgramCheckContext,
+): void {
+  for (const delegation of delegations) {
+    const implemented = context.implementationPreparations.some((candidate) =>
+      Boolean(
+        matchTraitImplementation(
+          candidate,
+          delegation.trait.index,
+          delegation.partType,
+          delegation.traitArguments,
+        ),
+      ),
+    );
+    if (!implemented)
+      context.diagnostics.push({
+        code: "invalid-delegation",
+        message: `'${delegation.implementation.delegate!.name}' has type '${delegation.partType}', which does not implement ${delegation.implementation.traitName}`,
+        span: delegation.implementation.delegate!.span,
+      });
+  }
 }
 
 function validateSupertraitImplementations(context: ProgramCheckContext): void {

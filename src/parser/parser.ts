@@ -18,7 +18,7 @@ import type {
   UseName,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import { lex } from "../lexer.ts";
+import { lex, type Token } from "../lexer.ts";
 import { ExpressionParser } from "./expression.ts";
 import { ParseFailure, type ExpressionParseResult } from "./base.ts";
 
@@ -505,6 +505,15 @@ class Parser extends ExpressionParser {
     const first = this.parseType();
     const trait = this.matchText("for") ? first : undefined;
     const target = trait ? this.parseType() : first;
+    // `by` is contextual: it delegates a trait implementation to an embedded field.
+    let delegateName: Token | undefined;
+    if (trait && this.atText("by") && this.peek(1).kind === "identifier") {
+      this.advance();
+      delegateName = this.expectKind("identifier", "expected an embedded field name");
+    }
+    const delegate = delegateName
+      ? { delegate: { name: delegateName.text, span: delegateName.span } }
+      : {};
     if (!this.matchText(":")) {
       if (!trait)
         this.fail(
@@ -521,6 +530,7 @@ class Parser extends ExpressionParser {
         genericBounds,
         traitName: trait.name,
         targetName: target.name,
+        ...delegate,
         associatedTypes: [],
         methods: [],
         doc,
@@ -566,6 +576,7 @@ class Parser extends ExpressionParser {
       genericBounds,
       ...(trait ? { traitName: trait.name } : {}),
       targetName: target.name,
+      ...delegate,
       associatedTypes,
       methods,
       doc,

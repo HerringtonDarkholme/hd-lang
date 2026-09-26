@@ -815,3 +815,9 @@ typing/invalid/promoted-method-conflict-at-declaration.hd	type
 typing/invalid/diamond-same-depth-conflict.hd	type
 typing/valid/diamond-different-depths.hd	type
 typing/valid/own-member-hides-promoted-conflict.hd	type
+typing/valid/trait-delegation.hd	type
+typing/valid/trait-delegation-associated-type.hd	type
+typing/invalid/delegation-to-ordinary-field.hd	type
+typing/invalid/delegation-part-lacks-trait.hd	type
+typing/invalid/delegation-associated-function-missing.hd	type
+typing/invalid/delegation-binds-associated-type.hd	type
