@@ -289,6 +289,13 @@ read it, so prefer explicit, checkable rules and locality.
 - **No diamond check.** A type may be reachable through several embedding
   paths (each path holds its own copy); the language does not diagnose it.
 
+- **Private members of embedded types never participate, not yet applied.**
+  A field or inherent method of an embedded type that is not visible from
+  the calling module is ignored entirely: it neither matches nor produces
+  `private-member`. `private-member` is reported only for an invisible own
+  member of the receiver's type `S` when nothing visible is found; otherwise
+  the use is `unknown-data-field` or `unknown-method`.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
