@@ -100,7 +100,7 @@ export abstract class PatternChecker extends CallChecker {
         containsGenericType(inferredField) ? undefined : inferredField,
       );
       const conflict = inferGenericType(field.type, checked.type, substitutions);
-      if (conflict) this.fail("generic-type-mismatch", conflict, argument.span);
+      if (conflict) this.fail("type-mismatch", conflict, argument.span);
       return this.requireCoercion(
         checked,
         substituteGenericType(field.type, substitutions),

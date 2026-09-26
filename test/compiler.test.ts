@@ -75,11 +75,11 @@ test("checker rejects name, mutability, and type errors", () => {
   );
   assert.equal(
     analyze(conformance("typing/invalid/float-remainder")).diagnostics[0]?.code,
-    "invalid-binary-operands",
+    "type-mismatch",
   );
   assert.equal(
     analyze(conformance("typing/invalid/bool-ordering")).diagnostics[0]?.code,
-    "invalid-binary-operands",
+    "missing-partial-ord",
   );
   assert.equal(
     analyze(conformance("typing/invalid/nonfinal-vararg-then-parameter")).diagnostics[0]?.code,
@@ -664,7 +664,7 @@ test("Result patterns recursively match imported enum payloads", async () => {
 test("optional and Result context errors have stable diagnostics", () => {
   assert.equal(
     analyze(conformance("typing/invalid/nil-without-expected-type")).diagnostics[0]?.code,
-    "nil-needs-optional-type",
+    "nil-to-nonoptional",
   );
   assert.equal(
     analyze(conformance("typing/invalid/result-constructor-without-context")).diagnostics[0]?.code,

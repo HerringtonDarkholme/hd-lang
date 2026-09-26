@@ -259,16 +259,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         }
         if (bitwise && left.type !== "i32")
           this.fail(
-            "invalid-binary-operands",
+            "type-mismatch",
             `operator '${expression.operator}' requires i32 operands`,
             expression.span,
           );
         if (remainder && left.type !== "i32")
-          this.fail(
-            "invalid-binary-operands",
-            "operator '%' requires integer operands",
-            expression.span,
-          );
+          this.fail("type-mismatch", "operator '%' requires integer operands", expression.span);
         if (
           comparison &&
           left.type === "bool" &&
@@ -276,8 +272,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           expression.operator !== "!="
         ) {
           this.fail(
-            "invalid-binary-operands",
-            `operator '${expression.operator}' does not accept bool`,
+            "missing-partial-ord",
+            `type 'bool' does not implement PartialOrd, required by operator '${expression.operator}'`,
             expression.span,
           );
         }
@@ -290,7 +286,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           !(comparison && (left.type === "bool" || left.type === "char" || left.type === "string"))
         ) {
           this.fail(
-            "invalid-binary-operands",
+            "type-mismatch",
             `operator '${expression.operator}' does not accept ${left.type}`,
             expression.span,
           );

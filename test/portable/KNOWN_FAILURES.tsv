@@ -2,19 +2,6 @@ path	reason	finding
 typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 or i64 type (unknown-type)	F-253
-typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
-typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
-typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
-typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
-typing/invalid/provider-spread-of-non-context.hd	MVP reports context-spread-type instead of type-mismatch	F-205
-typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
-parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error	F-205
-parse/invalid/dedent-to-unused-column.hd	MVP reports inconsistent-dedent instead of invalid-dedent	F-205
-parse/invalid/double-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
-parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal instead of syntax-error	F-205
-parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
-parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
-parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
 parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
@@ -31,7 +18,6 @@ runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a 
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with expected-token instead of reporting duplicate-binding	F-252
-parse/invalid/wildcard-use.hd	MVP reports expected-token instead of syntax-error	F-205
 parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	F-702
 parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	F-703
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
@@ -111,16 +97,7 @@ typing/invalid/variant-result-owner.hd	MVP reports expected-token at line 2 inst
 typing/invalid/unrepresentable-type-shape.hd	MVP reports expected-expression at line 7 instead of unrepresentable-type-shape: expected an expression, found 'shape'	F-250
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
-parse/invalid/stray-dollar.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/same-line-suite-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
 parse/invalid/same-line-let-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
-parse/invalid/discard-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205
-parse/invalid/return-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205
 parse/valid/raw-string-escaped-quote.hd	parse rejects a backslash-escaped quote inside a raw string (unexpected-character)	F-706
-parse/invalid/repeated-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
-typing/invalid/nil-without-expected-type.hd	MVP reports nil-needs-optional-type instead of nil-to-nonoptional	F-205
-typing/invalid/float-remainder.hd	MVP reports invalid-binary-operands instead of type-mismatch	F-205
-typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of missing-partial-ord	F-205
-parse/invalid/header-after-indented-suite.hd	MVP reports expected-newline at line 6 instead of syntax-error at line 4	F-205
 typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
-typing/valid/duplicate-trait-bound.hd	check fails: MVP reports duplicate-trait-bound for a trait listed twice in one bound, which the spec allows	F-205

@@ -96,7 +96,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
     const keyKind = mapKeyKind(keyType);
     if (keyKind === undefined)
       this.fail(
-        "unsupported-map-key",
+        "invalid-map-key",
         `type '${keyType}' does not have the MVP's built-in Eq and Hash support`,
         expression.key.span,
       );

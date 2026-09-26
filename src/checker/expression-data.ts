@@ -160,7 +160,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               expectedNominal.arguments[index]!,
               substitutions,
             );
-            if (conflict) this.fail("generic-type-mismatch", conflict, expression.span);
+            if (conflict) this.fail("type-mismatch", conflict, expression.span);
           });
         }
         const spread = expression.spread ? this.checkExpression(expression.spread) : undefined;
@@ -184,7 +184,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               spread.type,
               substitutions,
             );
-            if (conflict) this.fail("generic-type-mismatch", conflict, expression.spread!.span);
+            if (conflict) this.fail("type-mismatch", conflict, expression.spread!.span);
           }
         }
         const missingFields = declaration.fields.filter((field) => !supplied.has(field.name));
@@ -221,7 +221,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
                 value.span,
               );
             }
-            this.fail("generic-type-mismatch", conflict, value.span);
+            this.fail("type-mismatch", conflict, value.span);
           }
           return checked;
         });

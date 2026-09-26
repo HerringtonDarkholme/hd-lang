@@ -83,19 +83,20 @@ export function createProgramSignatures(
         return [];
       }
       const seen = new Set<string>();
+      const mutableKeys = new Set(
+        bound.traits.flatMap((sourceTraitName) => {
+          const inner = mutableInner(sourceTraitName);
+          return inner === undefined ? [] : [inner];
+        }),
+      );
       return bound.traits.flatMap((sourceTraitName) => {
-        const mutable = mutableInner(sourceTraitName) !== undefined;
         const traitKey = mutableInner(sourceTraitName) ?? sourceTraitName;
+        const mutable = mutableKeys.has(traitKey);
         const application = nominalGenericParts(traitKey);
         const traitName = application?.name ?? traitKey;
-        if (seen.has(traitKey)) {
-          diagnostics.push({
-            code: "duplicate-trait-bound",
-            message: `trait '${traitKey}' bounds '${bound.parameter}' more than once`,
-            span: bound.span,
-          });
-          return [];
-        }
+        // A repeated trait adds no requirement and is not diagnosed
+        // (09-traits.md#generic-bounds-and-static-dispatch).
+        if (seen.has(traitKey)) return [];
         seen.add(traitKey);
         if (traitName === "Reference") {
           referenceParameters.add(bound.parameter);
