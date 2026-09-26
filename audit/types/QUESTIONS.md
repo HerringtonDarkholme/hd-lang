@@ -367,6 +367,18 @@ read it, so prefer explicit, checkable rules and locality.
   promoted inherent method with the same name make the call
   `ambiguous-method`; a forwarding impl is called as `Trait::m(x)`.
 
+- **Trait delegation `impl Trait for C by E`, not yet applied.** The explicit
+  opt-in for trait behavior from an embedded part. `E` must name an embedded
+  part of `C` whose type implements `Trait`. Every trait method, including
+  those with default bodies, is generated as a call on `self.E`; an optional
+  body overrides specific methods. `mut self` methods forward through the
+  part with access following the container. Associated types take `E`'s
+  bindings; associated functions cannot be forwarded and must be written in
+  the body. Otherwise it is an ordinary impl (orphan rule, overlap,
+  visibility, in-scope lookup). Embedded lookup stays inherent-only (TQ-31
+  confirmed); `c.m()` on a delegated trait method has a single candidate
+  unless the part also has an inherent `m`.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
