@@ -367,7 +367,7 @@ automatically. As a value type, `Any` erases the concrete type and exposes no
 type-specific methods.
 
 `Any` excludes `nil`; `Any?` permits absence through ordinary optional typing.
-`mut Any` preserves mutable root access to an erased composite value.
+`mut Any` preserves mutable access to an erased composite value.
 
 ## Embedding And Trait Satisfaction
 

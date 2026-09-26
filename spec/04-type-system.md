@@ -340,10 +340,11 @@ that generic inference would produce: binding `keep(readonly_value)` to a
 `mut T` declaration, where `keep[T](value: T) -> T`, is rejected rather than
 inferring `T` as a mutable type.
 
-A readonly root blocks reassignment of its fields and mutation through a direct
-`mut U` field. It is not a deep authority boundary: a `mut U` nested inside an
-optional, tuple, collection, or other generic argument keeps its permission when
-that nested value is extracted. APIs that require a deep no-mutation guarantee
+A readonly view blocks reassignment of its fields and removes the `mut` of its
+direct `mut U` fields ([Mutable Paths](#mutable-paths)). It is not a deep
+authority boundary: a `mut U` supplied as an optional, tuple, collection, or
+other generic argument keeps its permission when that nested value is
+extracted. APIs that require a deep no-mutation guarantee
 must not expose mutable references through such nested field types.
 
 ```text
@@ -400,39 +401,55 @@ return `T` cannot, even when its implementation constructs a fresh value.
 
 ### Mutable Paths
 
-Mutation through a composite access path requires:
+Every expression in an access path has an access type, computed one step at a
+time from the expression it extends:
 
-1. a mutable root expression; and
-2. mutable permission on every stored composite edge traversed before the
-   location being mutated.
+- A binding, parameter, or `self` has its declared or inferred type. A call has
+  its callable's declared result type, whatever value the call was reached
+  through.
+- A field read `e.field` where `e` has type `mut T` yields the field's declared
+  type after substitution.
+- A field read `e.field` where `e` has readonly type `T` yields the field's
+  declared type after substitution, except that a `mut` written directly in the
+  field declaration is removed: `field: mut U` yields `U`. A field declared
+  with a generic parameter, `field: P`, yields the substituted type unchanged,
+  so reading `value: P` from readonly `Box[mut User]` yields `mut User`.
+- Indexing, iteration, and lookup on a built-in collection yield its declared
+  element or value type, whatever the collection's own permission: indexing
+  readonly `list[mut User]` yields `mut User`, and a successful lookup in a
+  readonly `map[K, mut User]` yields `mut User` after unwrapping. Optional and
+  `Result` unwrapping, tuple element extraction, and generic enum payloads
+  likewise yield their declared contents. A non-generic enum payload declared
+  `mut U` follows the field rule above.
+
+A mutation needs mutable access on exactly one expression: the one it acts on.
+Reassigning `e.field`, replacing an element with `e[i] = value`, calling a
+container-mutating method on `e`, or calling a `mut self` method on `e`
+requires `e` to have type `mut T`. Nothing else in the path is checked: the
+access type of `e` already records every permission removed on the way to it.
 
 ```text
 data Account:
     profile: mut Profile
 
 let account: mut Account = Account { profile: profile }
-account.profile.display_name = "Ada"
+account.profile.display_name = "Ada"   # account.profile has type mut Profile
 ```
 
-Given a `mut T` root, every field may be reassigned with a value assignable to
-its declared type, whether the field is `field: U` or `field: mut U`. Replacing
-a field does not mutate the old referenced value. An ordinary field `field: U`
-is a readonly edge: reading it yields only `U`, so its child cannot be mutated
-through that path. A direct field `field: mut U` preserves mutable access when
-read through a mutable root. That access permits assigning the child's fields
-and calling its `mut self` methods. A mutable root must store `mut U` in that
-field. A readonly root may store `U`; it cannot later be upgraded to `mut T`.
+When `e` is readonly, the diagnostic names why:
 
-Given a readonly `T` root, no field may be reassigned. A direct data field
-`field: mut U` read through it yields only `U`; neither the child's fields nor
-its `mut self` methods are available through that path. A field declared with
-a generic parameter instead yields that parameter's substituted type: reading
-`value: P` from readonly `Box[mut User]` yields `mut User`. A list's element
-type likewise remains its generic argument: indexing `list[mut User]` yields
-`mut User`, even when the list itself is readonly. Mutating that user does not
-replace the list slot. A map lookup likewise returns `V?` for the declared
-`map[K, V]`, so a successful lookup from `map[K, mut User]` yields `mut User`
-after unwrapping; a readonly map root still cannot replace entries.
+- `readonly-edge` when `e` is a field read whose declaration writes a
+  composite type without `mut`, `field: U`;
+- `readonly-root` otherwise: `e` is a readonly binding, parameter, `self`,
+  call result, element, or unwrapped value; a field read that lost `mut`
+  through a readonly value; or a generic field whose type argument is
+  readonly.
+
+A `mut T` value may reassign every field with a value assignable to the
+field's declared type, whether the field is `field: U` or `field: mut U`.
+Replacing a field does not mutate the old referenced value. Storing into a
+direct `field: mut U` of a mutable value requires `mut U`; a readonly value
+may store `U` there and cannot later be upgraded to `mut T`.
 
 Container mutation and element mutation are independent:
 
@@ -443,16 +460,10 @@ Container mutation and element mutation are independent:
 | `mut list[User]` | yes | no |
 | `mut list[mut User]` | yes | yes |
 
-Generic type arguments are not weakened solely because their enclosing value
-is readonly. Data patterns and copy-update use the effective field types of
-the subject's view; built-in collection indexing and iteration preserve their
-declared generic element or value types; optional and `Result` unwrapping
-preserve their declared generic contents. Tuple elements likewise retain their
-declared element types on extraction. Enum payload extraction preserves a
-generic parameter's substituted type while direct non-generic mutable payloads
-follow the subject's viewpoint. A call result is checked against
-the callable's declared return type, not automatically weakened merely
-because the callable was reached through a readonly value.
+Generic type arguments are never weakened because their enclosing value is
+readonly; only a `mut` written directly in a field declaration is removed.
+Data patterns and copy-update use the same access types as field reads on the
+subject.
 
 ### Parameters And Results
 

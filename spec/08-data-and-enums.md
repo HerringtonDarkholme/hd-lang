@@ -90,11 +90,11 @@ replacement. Generic fields retain their substituted type in both views. See
 [Data Expressions](05-expressions.md#data-expressions).
 
 Field access uses `value.field`. A `mut T` root may reassign any of its fields,
-regardless of the field's declared mutability; a readonly `T` root cannot
-reassign any field. Nested mutation or a `mut self` call through a field also
-requires a mutable root and every traversed composite field edge to have a
-`mut` type, as specified in [Type System](04-type-system.md). Reading a
-`field: mut U` through a readonly root yields only `U`. A readonly data value
+regardless of the field's declared mutability; a readonly `T` value cannot
+reassign any field. Nested mutation or a `mut self` call through a field
+requires the field read to have a `mut` access type, as specified in
+[Mutable Paths](04-type-system.md#mutable-paths). Reading a
+`field: mut U` through a readonly value yields only `U`. A readonly data value
 may be constructed with `U` in that direct field, while a mutable data value
 requires `mut U`. A generic field declared `field: P` retains its substituted
 type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
