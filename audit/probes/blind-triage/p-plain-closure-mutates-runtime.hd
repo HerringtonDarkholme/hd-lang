@@ -1,0 +1,14 @@
+# test: a plain closure mutates through a capture at runtime (should be rejected by check)
+# expect-result: probe = 7
+data User:
+    name: string
+
+fn rename(user: mut User) -> void:
+    user.name = "renamed"
+
+pub fn probe() -> i32:
+    let user: mut User = User { name: "Ada" }
+    call := fn() -> void:
+        rename(user)
+    call()
+    user.name.len()

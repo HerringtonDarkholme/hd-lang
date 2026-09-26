@@ -1,0 +1,20 @@
+# test: literal patterns for floats, strings and chars
+# expect: test
+use std.testing.assert_equal
+
+fn classify(value: f64, text: string, letter: char) -> i32:
+    let score: i32 = 0
+    match value:
+        0.5 => score = score + 1
+        _ => pass
+    match text:
+        "hé" => score = score + 10
+        _ => pass
+    match letter:
+        'é' => score = score + 100
+        _ => pass
+    score
+
+test "literals":
+    assert_equal(classify(0.5, "hé", 'é'), 111, reason="all match")
+    assert_equal(classify(0.25, "h", 'e'), 0, reason="none match")

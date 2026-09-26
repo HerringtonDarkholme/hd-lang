@@ -1,0 +1,5 @@
+# test: assert_equal cannot tell -0.0 from 0.0, so fixture 35 cannot see a lost sign bit
+# expect: test
+use std.testing.assert_equal
+test "sign loss is invisible to assert_equal":
+    assert_equal(0.0, -0.0, reason="PartialEq on f64 follows IEEE equality")

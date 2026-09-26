@@ -1,0 +1,6 @@
+data Counter:
+    value: i32
+
+trait Marker
+
+impl Marker for Counter

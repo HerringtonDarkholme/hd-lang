@@ -1,0 +1,26 @@
+# test: [variant: PartialEq-bound calls removed] NaN stays unequal to itself through generics, optionals, lists, tuples, maps, and Result
+# expect: test
+use std.testing.assert
+
+fn same[T: PartialEq](left: T, right: T) -> bool:
+    left == right
+
+fn pass_through[T](value: T) -> T:
+    value
+
+test "NaN is unequal to itself directly and through a bound":
+    nan := 0.0 / 0.0
+    assert(nan != nan, reason="IEEE equality")
+    assert(not (nan == nan), reason="== is false")
+
+test "NaN inside composites is unequal":
+    nan := 0.0 / 0.0
+    values := [nan]
+    assert(values != values, reason="list equality never falls back to identity")
+    assert([nan] != [nan], reason="element equality decides")
+    assert((nan, 1) != (nan, 1), reason="tuple fields compare with IEEE equality")
+    let present: f64? = nan
+    assert(present != present, reason="optional payload compares with IEEE equality")
+    assert({"k": nan} != {"k": nan}, reason="map values compare with IEEE equality")
+    let ok: Result[f64, string] = Ok(nan)
+    assert(ok != ok, reason="Result payload compares with IEEE equality")

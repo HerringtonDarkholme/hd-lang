@@ -1,0 +1,11 @@
+# gap probe control: replacing an element does not invalidate; later visits observe it
+use std.testing.assert_equal
+
+test "replacement is observed":
+    let values: mut list[i32] = [1, 2, 3]
+    let total: mut list[i32] = []
+    for value in values:
+        values[2] = 30
+        total.append(value)
+    assert_equal(total.len(), 3, reason="three visits")
+    assert_equal(total[2], 30, reason="replacement observed")

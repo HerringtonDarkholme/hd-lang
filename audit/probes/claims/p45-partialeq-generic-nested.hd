@@ -1,0 +1,15 @@
+# test: explicit PartialEq is used recursively inside lists and through generic bounds
+# expect: test
+use std.testing.assert_equal
+
+data Loose:
+    value: i32
+
+impl PartialEq for Loose:
+    fn eq(self, other: Loose) -> bool: self.value % 10 == other.value % 10
+
+fn same[T: PartialEq](left: T, right: T) -> bool: left == right
+
+test "nested eq":
+    assert_equal([Loose { value: 1 }] == [Loose { value: 11 }], true, reason="list uses element impl")
+    assert_equal(same(Loose { value: 2 }, Loose { value: 32 }), true, reason="generic bound dictionary")

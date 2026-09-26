@@ -1,0 +1,9 @@
+# test: data patterns reject unknown fields
+
+data User:
+    age: i32
+    active: bool
+
+fn read(user: User) -> i32:
+    match user:
+        pass

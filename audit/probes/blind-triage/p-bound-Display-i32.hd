@@ -1,0 +1,7 @@
+# test: prelude type i32 satisfies a Display bound (spec 05 operators; 10 prelude)
+# expect: accept
+fn take[T: Display](value: T) -> T:
+    value
+
+pub fn probe() -> i32:
+    take(1)

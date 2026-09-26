@@ -1,0 +1,10 @@
+# test: first-class vararg function values keep the list ABI
+# expect: test
+use std.testing.assert_equal
+
+fn total(values: i32...) -> i32: values.len()
+
+test "indirect vararg call":
+    let callback: fn(i32...) -> i32 = total
+    assert_equal(callback(1, 2, 3), 3, reason="indirect positional")
+    assert_equal(callback(), 0, reason="indirect empty")

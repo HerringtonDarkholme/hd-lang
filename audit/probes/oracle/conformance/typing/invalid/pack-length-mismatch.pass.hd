@@ -1,0 +1,12 @@
+
+fn zip_apply[As..., Bs..., Rs...](
+    pairs: ((As, Bs)...),
+    funcs: fn(As, Bs) -> Rs...,
+) -> (Rs...):
+    panic("fixture")
+
+result := zip_apply(
+    ((1, 2),),
+    fn(a: i32, b: i32) -> i32: a + b,
+    pass
+)

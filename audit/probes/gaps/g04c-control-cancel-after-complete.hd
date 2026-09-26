@@ -1,0 +1,12 @@
+# gap probe control: cancelling a completed suspension has no further effect
+use std.task.block_on
+use std.testing.assert_equal
+
+fn ready!() -> i32: 42
+
+test "cancel after completion is idempotent":
+    let pending: mut Suspend[i32] = ready()
+    value := block_on(pending)
+    pending.cancel()
+    pending.cancel()
+    assert_equal(value, 42, reason="completed value")

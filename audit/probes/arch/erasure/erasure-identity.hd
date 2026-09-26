@@ -1,0 +1,52 @@
+# probe 5.3: ref.eq on boxes vs spec 05 identity rules for trait values
+trait Show:
+    fn show(self) -> i32
+
+impl Show for i32:
+    fn show(self) -> i32: self
+
+data P:
+    x: i32
+
+impl Show for P:
+    fn show(self) -> i32: self.x
+
+fn relay(value: Show) -> Show: value
+
+fn same_ref[T: Reference](left: T, right: T) -> bool: left is right
+
+# spec: aliases of a converted primitive share the box identity -> true
+fn prim_alias() -> bool:
+    let a: Show = 5
+    b := a
+    a is b
+
+# spec: aliases survive passing through a function -> true
+fn prim_pass() -> bool:
+    let a: Show = 5
+    a is relay(a)
+
+# spec: repeating the conversion allocates a distinct box -> false
+fn prim_twice() -> bool:
+    let a: Show = 5
+    let b: Show = 5
+    a is b
+
+# spec: converting a heap composite preserves its identity -> true
+fn data_twice() -> bool:
+    p := P { x: 1 }
+    let a: Show = p
+    let b: Show = p
+    a is b
+
+# spec: generic Reference-bounded identity on trait values -> true for aliases
+fn generic_alias() -> bool:
+    let a: Show = 5
+    same_ref(a, a)
+
+fn generic_twice() -> bool:
+    let a: Show = 5
+    let b: Show = 5
+    same_ref(a, b)
+
+fn main() -> i32: 0

@@ -1,0 +1,5 @@
+data User:
+    name: string
+
+fn combine(small: mut list[mut User], wide: list[User]) -> void:
+    pass

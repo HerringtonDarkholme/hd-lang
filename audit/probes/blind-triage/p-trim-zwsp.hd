@@ -1,0 +1,4 @@
+# test: trim keeps U+200B (not White_Space)
+# expect-result: probe = 3
+pub fn probe() -> i32:
+    "​x​".trim().len()

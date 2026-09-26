@@ -1,0 +1,4 @@
+# test: prelude Hash cannot be shadowed
+
+fn main() -> i32:
+    Hash

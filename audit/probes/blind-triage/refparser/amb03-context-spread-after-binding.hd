@@ -1,0 +1,8 @@
+# test: AMB-03 context spread after an explicit binding (spec 11 context_entries)
+# expect: parse
+trait Tag:
+    fn name(self) -> string
+
+fn run(x: Tag, ctx: $.Context[Tag]) -> void:
+    $.with(Tag=x, ...ctx):
+        pass

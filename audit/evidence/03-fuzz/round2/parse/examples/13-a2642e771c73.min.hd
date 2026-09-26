@@ -1,0 +1,3 @@
+"text" :
+    fn map [ None : x . list . x + Some . i32 ] ( ) -> $ . Context [ ( ( Eq - Ok . f64 - f64 - value . None ) - y - y - self_value . x . f64 . f64 ) ] :
+        impl fn ( ) -> ( )

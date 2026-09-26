@@ -1,0 +1,20 @@
+data Box:
+    value: i32
+
+trait Reader:
+    fn read(self) -> i32
+
+fn via_bound[T: Reader](value: T) -> i32:
+    value.read()
+
+bounded := via_bound(Box { value: 2 })
+let dynamic_value: Reader = Box { value: 3 }
+dynamic := dynamic_value.read()
+later := 5
+
+impl Reader for Box:
+    fn read(self) -> i32:
+        later
+
+fn main() -> i32:
+    bounded * 100 + dynamic * 10 + later

@@ -1,0 +1,4 @@
+# test: parser represents mut self as a mutable Self receiver
+
+trait Invalid:
+    pass

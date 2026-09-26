@@ -1,0 +1,6 @@
+# test: an unescaped dollar sign must begin an interpolation
+# fuzz-expect: parse rejects line 6 (the spec inventory has no code for this; see F-303)
+# fuzz-signature: parse-agreement|ref-accept/impl-reject|invalid-string-interpolation
+# fuzz-class: reference-parser bug (F-303) plus spec gap (no inventory code)
+# The reference parser accepts this file; the implementation rejects it.
+price := "$"

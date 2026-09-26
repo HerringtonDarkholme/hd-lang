@@ -1,0 +1,5 @@
+pub trait TextBridge:
+    fn join!(self, left: string, right: string) -> string
+
+fn main!() -> i32 $ TextBridge:
+    $.use(TextBridge).join!("a\u{FEFF}", "x").len()

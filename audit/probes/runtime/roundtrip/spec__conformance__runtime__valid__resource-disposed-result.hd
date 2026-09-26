@@ -1,0 +1,21 @@
+# fixture-runtime-profile: disposed-file
+use std.resource.ResourceError
+
+data IoError:
+    message: string
+
+trait FileHandle:
+    fn read!(mut self) -> Result[string, ResourceError[IoError]]
+    fn close(mut self) -> Result[void, ResourceError[IoError]]
+
+trait Files:
+    fn open!(self) -> mut FileHandle
+
+pub fn main!() -> void $ Files:
+    let handle: mut FileHandle = $.use(Files).open!()
+    match handle.close():
+        Ok(_) => pass
+        Err(_) => panic("fixture host failed to close its handle")
+    match handle.read!():
+        Err(ResourceError.Disposed) => pass
+        _ => panic("operation after close did not report Disposed")

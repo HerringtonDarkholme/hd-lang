@@ -1,0 +1,20 @@
+# test: interpolation evaluates segments left to right using Display
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+data Tag:
+    name: string
+
+impl Display for Tag:
+    fn to_string(self) -> string: "<" + self.name + ">"
+
+test "interpolation":
+    text := "${g("a", 1)}-${g("b", 2)}-${Tag { name: "t" }}-${true}-${'x'}-${1.5}"
+    assert_equal(log, "ab", reason="left to right")
+    assert_equal(text, "1-2-<t>-true-x-1.5", reason="display of each segment")

@@ -1,0 +1,30 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# S3 gate probe: within one frame, defer suites run in reverse registration
+# order during cancellation; frames still unwind innermost first.
+let log: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    defer:
+        log = log + "a"
+    defer:
+        log = log + "b"
+    wait!()
+
+fn middle!() -> void:
+    defer:
+        log = log + "c"
+    defer:
+        log = log + "d"
+    inner!()
+
+pub fn main!() -> void:
+    defer:
+        log = log + "e"
+    middle!()
+
+pub fn cleanup_ran() -> bool:
+    log == "badce"

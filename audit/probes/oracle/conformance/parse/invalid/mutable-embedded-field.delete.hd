@@ -1,0 +1,4 @@
+data Base:
+    id: string
+
+data User:

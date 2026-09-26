@@ -1,0 +1,5 @@
+# test: test blocks apply the same must-use rule
+fn parse() -> Result[i32, string]: Ok(1)
+
+test "discard":
+    parse()  # diagnostic: discarded-must-use-value

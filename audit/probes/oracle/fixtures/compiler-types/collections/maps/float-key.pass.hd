@@ -1,0 +1,4 @@
+# test: collections / maps / float key
+
+fn main() -> void:
+    pass

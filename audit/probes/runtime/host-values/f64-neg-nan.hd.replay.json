@@ -1,0 +1,48 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "74579fc60448e867",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "echo:poll:1",
+    "functionName": "echo",
+    "functionCodeId": "fbb7d51090fcbd1c",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "echo:provider:FloatCell.sample:45",
+    "functionName": "echo",
+    "functionCodeId": "fbb7d51090fcbd1c",
+    "functionIndex": 0,
+    "providerKey": "FloatCell",
+    "operation": "provider-poll",
+    "encodedArguments": [
+      {
+        "bits": "fff8000000000000",
+        "kind": "f64"
+      }
+    ],
+    "encodedResult": "ready",
+    "encodedValue": {
+      "bits": "fff8000000000000",
+      "kind": "f64"
+    },
+    "providerConfigurationId": "cli-default"
+  }
+]

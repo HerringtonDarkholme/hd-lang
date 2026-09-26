@@ -1,0 +1,4 @@
+# test: first-class vararg functions retain their calling convention
+
+fn fixed(value: list[i32]) -> i32: value.len()
+fn apply_callback(callback: fn(i32...) -> i32) -> i32: callback()

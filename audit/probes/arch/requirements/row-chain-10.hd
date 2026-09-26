@@ -1,0 +1,132 @@
+# probe 5.4: 10-deep row-generic chain; callback row has 10 requirement(s)
+trait R1:
+    fn v(self) -> i32
+
+data P1:
+    x: i32
+
+impl R1 for P1:
+    fn v(self) -> i32: self.x
+
+trait R2:
+    fn v(self) -> i32
+
+data P2:
+    x: i32
+
+impl R2 for P2:
+    fn v(self) -> i32: self.x
+
+trait R3:
+    fn v(self) -> i32
+
+data P3:
+    x: i32
+
+impl R3 for P3:
+    fn v(self) -> i32: self.x
+
+trait R4:
+    fn v(self) -> i32
+
+data P4:
+    x: i32
+
+impl R4 for P4:
+    fn v(self) -> i32: self.x
+
+trait R5:
+    fn v(self) -> i32
+
+data P5:
+    x: i32
+
+impl R5 for P5:
+    fn v(self) -> i32: self.x
+
+trait R6:
+    fn v(self) -> i32
+
+data P6:
+    x: i32
+
+impl R6 for P6:
+    fn v(self) -> i32: self.x
+
+trait R7:
+    fn v(self) -> i32
+
+data P7:
+    x: i32
+
+impl R7 for P7:
+    fn v(self) -> i32: self.x
+
+trait R8:
+    fn v(self) -> i32
+
+data P8:
+    x: i32
+
+impl R8 for P8:
+    fn v(self) -> i32: self.x
+
+trait R9:
+    fn v(self) -> i32
+
+data P9:
+    x: i32
+
+impl R9 for P9:
+    fn v(self) -> i32: self.x
+
+trait R10:
+    fn v(self) -> i32
+
+data P10:
+    x: i32
+
+impl R10 for P10:
+    fn v(self) -> i32: self.x
+
+fn leaf(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5 + R6 + R7 + R8 + R9 + R10:
+    n + $.use(R1).v() + $.use(R2).v() + $.use(R3).v() + $.use(R4).v() + $.use(R5).v() + $.use(R6).v() + $.use(R7).v() + $.use(R8).v() + $.use(R9).v() + $.use(R10).v()
+
+fn g10[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    cb(n)
+
+fn g9[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g10(cb, n)
+
+fn g8[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g9(cb, n)
+
+fn g7[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g8(cb, n)
+
+fn g6[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g7(cb, n)
+
+fn g5[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g6(cb, n)
+
+fn g4[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g5(cb, n)
+
+fn g3[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g4(cb, n)
+
+fn g2[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g3(cb, n)
+
+fn g1[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g2(cb, n)
+
+fn main() -> i32:
+    $.with(R1=P1 { x: 1 }, R2=P2 { x: 1 }, R3=P3 { x: 1 }, R4=P4 { x: 1 }, R5=P5 { x: 1 }, R6=P6 { x: 1 }, R7=P7 { x: 1 }, R8=P8 { x: 1 }, R9=P9 { x: 1 }, R10=P10 { x: 1 }):
+        let index: i32 = 0
+        let total: i32 = 0
+        while index < 200000:
+            total = (total + g1(leaf, index % 7)) % 1000003
+            index = index + 1
+        total

@@ -1,0 +1,38 @@
+# probe 5.4: requirement ABI shape
+trait Clock:
+    fn now(self) -> i32
+
+trait Backup:
+    fn level(self) -> i32
+
+data FixedClock:
+    value: i32
+
+data FixedBackup:
+    value: i32
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: self.value
+
+impl Backup for FixedBackup:
+    fn level(self) -> i32: self.value
+
+fn one() -> i32 $ Clock:
+    $.use(Clock).now()
+
+fn two() -> i32 $ Clock + Backup:
+    $.use(Clock).now() + $.use(Backup).level()
+
+fn forward_row[r](callback: fn() -> i32 $ r) -> i32 $ r:
+    callback()
+
+fn subtract[r](callback: fn() -> i32 $ r, clock: Clock) -> i32 $ (r - Clock):
+    $.with(Clock=clock):
+        callback()
+
+fn uses_subtract() -> i32 $ Backup:
+    subtract(two, FixedClock { value: 5 })
+
+fn main() -> i32:
+    $.with(Clock=FixedClock { value: 40 }, Backup=FixedBackup { value: 2 }):
+        one() + two() - 42 + forward_row(two) - 42 + uses_subtract() - 7

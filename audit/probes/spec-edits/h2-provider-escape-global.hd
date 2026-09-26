@@ -1,0 +1,24 @@
+# Probe for spec/11 hunk H2: a provider escapes into a top-level list.
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data FixedCounter:
+    current: i32
+
+impl Counter for FixedCounter:
+    fn value(self) -> i32: self.current
+
+let saved: mut list[Counter] = []
+
+fn stash() -> void $ Counter:
+    saved.append($.use(Counter))
+
+fn read_saved() -> i32:
+    saved[0].value()
+
+test "provider stored in a top-level list is used with an empty row":
+    $.with(Counter=FixedCounter { current: 5 }):
+        stash()
+    assert_equal(read_saved(), 5, reason="provider escaped to module state")

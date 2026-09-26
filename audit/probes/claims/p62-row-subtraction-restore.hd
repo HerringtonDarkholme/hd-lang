@@ -1,0 +1,22 @@
+# test: subtracting a key from a generic row restores the lexical provider for that key
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data Fixed:
+    current: i32
+
+impl Counter for Fixed:
+    fn value(self) -> i32: self.current
+
+fn read() -> i32 $ Counter: $.use(Counter).value()
+
+fn run[r](callback: fn() -> i32 $ r + Counter) -> i32 $ r:
+    $.with(Counter=Fixed { current: 5 }):
+        callback()
+
+test "restore":
+    $.with(Counter=Fixed { current: 1 }):
+        assert_equal(run(read), 5, reason="inner provider supplies the subtracted key")

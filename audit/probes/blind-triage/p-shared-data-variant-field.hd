@@ -1,0 +1,8 @@
+# test: shared enum data is readable on a payload-free variant
+# expect-result: probe = 404
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+pub fn probe() -> i32:
+    StatusCode.NotFound.0

@@ -1,0 +1,5 @@
+# test: i32 power overflow panics
+fn two() -> i32: 2
+
+fn main() -> i32:
+    two() ** 31  # panic: integer-overflow

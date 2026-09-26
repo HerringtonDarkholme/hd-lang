@@ -1,0 +1,5 @@
+# test: data initialization rejects mismatched field values
+
+data Point:
+    x: i32
+

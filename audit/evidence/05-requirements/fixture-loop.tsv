@@ -1,0 +1,552 @@
+path	action	exit	wall_ms	parse_ms	check_ms	emit_ms	assemble_ms	instantiate_ms
+spec/conformance/parse/valid/functions-and-closures.hd	parse	0	265					
+spec/conformance/parse/valid/expressions.hd	parse	0	264	0.5	1.2	2.3	50.8	17.4
+spec/conformance/parse/valid/layout.hd	parse	0	268	0.7	1.4	0.5	8.5	3.7
+spec/conformance/parse/valid/unicode-identifiers.hd	parse	0	267					
+spec/conformance/parse/valid/doc-comments.hd	parse	0	265	0.3	0.4	0.2	6.0	0.1
+spec/conformance/parse/invalid/doc-comment-without-target.hd	parse	1	263					
+spec/conformance/parse/invalid/mutable-field-modifier.hd	parse	1	264					
+spec/conformance/parse/invalid/mutable-embedded-field.hd	parse	1	331					
+spec/conformance/parse/invalid/old-struct-declaration.hd	parse	1	286					
+spec/conformance/parse/invalid/declaration-without-let.hd	parse	1	279					
+spec/conformance/parse/invalid/reserved-name-collision.hd	parse	1	268					
+spec/conformance/parse/invalid/old-import-declaration.hd	parse	1	291					
+spec/conformance/parse/invalid/old-export-declaration.hd	parse	1	274					
+spec/conformance/parse/invalid/pub-trait-method.hd	parse	1	276					
+spec/conformance/parse/valid/utf8-bom.hd	parse	0	274	0.1	0.2	0.2	7.3	0.1
+spec/conformance/parse/invalid/tab-indentation.hd	parse	1	276					
+spec/conformance/parse/invalid/invalid-escape.hd	parse	1	266					
+spec/conformance/parse/invalid/mid-file-bom.hd	parse	1	268					
+spec/conformance/parse/invalid/semicolon.hd	parse	1	269					
+spec/conformance/parse/invalid/chained-comparison.hd	parse	1	273					
+spec/conformance/parse/invalid/positional-after-named.hd	parse	1	268					
+spec/conformance/parse/invalid/named-pattern-before-positional.hd	parse	1	274					
+spec/conformance/parse/invalid/trailing-block-in-brackets.hd	parse	1	272					
+spec/conformance/parse/invalid/multi-binding-needs-parentheses.hd	parse	1	266					
+spec/conformance/parse/valid/reserved-receiver-names.hd	parse	0	272					
+spec/conformance/parse/valid/data-embedding.hd	parse	0	276					
+spec/conformance/parse/valid/test-block.hd	parse	0	273	0.8	0.3	0.6	7.2	0.1
+spec/conformance/parse/valid/consecutive-trailing-block-calls.hd	parse	0	343					
+spec/conformance/parse/invalid/direct-variant-use.hd	parse	1	272					
+spec/conformance/parse/invalid/local-decorator.hd	parse	1	274					
+spec/conformance/parse/invalid/two-trailing-blocks.hd	parse	1	292					
+spec/conformance/typing/valid/data-patterns.hd	check	0	278	0.2	0.6	0.3	6.7	0.2
+spec/conformance/typing/valid/data-types.hd	check	0	294	0.2	0.3	0.2	6.8	0.1
+spec/conformance/typing/valid/bindings.hd	check	0	296	0.2	0.4	0.2	6.4	0.1
+spec/conformance/typing/valid/fresh-mutable-values.hd	check	0	309	0.2	0.7	0.3	7.9	2.0
+spec/conformance/typing/valid/copy-update-permissions.hd	check	0	280	0.2	0.3	0.2	6.6	0.1
+spec/conformance/typing/valid/generic-field-permission.hd	check	0	285	0.2	0.6	0.2	6.6	0.1
+spec/conformance/typing/valid/generic-data-embedding.hd	check	0	281	0.2	0.4	0.1	6.1	0.4
+spec/conformance/typing/valid/equality.hd	check	0	274	0.3	0.5	0.5	7.4	0.1
+spec/conformance/typing/valid/comparison-traits.hd	check	0	273	0.2	0.4	0.2	6.5	0.1
+spec/conformance/typing/valid/composite-ordering.hd	check	0	273	0.1	0.2	0.2	6.5	0.1
+spec/conformance/runtime/valid/display-dispatch.hd	test	0	497	0.4	0.7	0.7	7.6	0.1
+spec/conformance/runtime/valid/float-display.hd	test	0	494	0.4	0.2	0.3	9.2	0.1
+spec/conformance/runtime/valid/assert.hd	test	0	495	0.2	0.3	0.3	7.9	0.3
+spec/conformance/typing/valid/readonly-outer-mutable-field-init.hd	check	0	283	0.1	0.2	0.1	6.0	0.1
+spec/conformance/typing/valid/map-indexing.hd	check	0	274	0.1	0.1	0.2	5.9	0.2
+spec/conformance/typing/valid/readonly-list-mutable-elements.hd	check	0	263	0.2	0.3	0.3	6.7	0.1
+spec/conformance/typing/valid/generic-result-permission.hd	check	0	268	0.2	0.3	0.2	6.1	0.3
+spec/conformance/typing/valid/generic-argument-placeholder.hd	check	0	275	0.1	0.2	0.1	6.2	0.1
+spec/conformance/typing/valid/readonly-callable-mutable-result.hd	check	0	271	0.1	0.3	0.1	6.2	0.1
+spec/conformance/typing/valid/functions.hd	check	0	274	0.5	1.6	1.3	10.7	0.2
+spec/conformance/typing/valid/readonly-map-mutable-values.hd	check	0	267	0.2	0.3	0.3	6.8	0.3
+spec/conformance/typing/valid/row-polymorphic-callback.hd	check	0	265	0.1	0.5	0.3	6.1	0.1
+spec/conformance/typing/valid/requirements-and-suspension.hd	check	0	270	0.7	1.5	2.6	20.3	0.4
+spec/conformance/typing/valid/host-entry-requirement.hd	check	0	268	0.1	0.2	0.1	5.8	0.1
+spec/conformance/typing/valid/console-error-entry.hd	check	0	310	0.1	0.1	0.1	5.5	0.1
+spec/conformance/typing/valid/public-requirement-row.hd	check	0	260	0.1	0.1	0.1	5.6	0.1
+spec/conformance/typing/valid/explicit-discard-and-void-result.hd	check	0	265	0.2	0.2	0.3	7.3	0.1
+spec/conformance/typing/valid/optional-present-pattern.hd	check	0	258	0.1	0.3	0.3	6.8	0.1
+spec/conformance/typing/valid/stored-suspension-driving.hd	check	0	266	0.2	0.3	0.4	8.8	0.1
+spec/conformance/typing/valid/control-flow.hd	check	0	270	0.3	0.3	0.3	7.2	0.3
+spec/conformance/typing/valid/collections.hd	check	0	277	0.4	1.5	0.5	11.5	0.4
+spec/conformance/typing/valid/names-and-scopes.hd	check	0	270	0.1	0.4	0.2	7.4	0.1
+spec/conformance/typing/valid/partly-consumed-iterator.hd	check	0	270	0.1	0.1	0.1	6.5	0.1
+spec/conformance/typing/valid/iteration-protocol.hd	check	0	272	0.2	0.3	0.2	6.1	0.2
+spec/conformance/typing/valid/local-functions.hd	check	0	269	0.3	0.4	0.2	6.9	0.1
+spec/conformance/typing/valid/match-guards.hd	check	0	265	0.2	0.5	0.2	6.2	0.1
+spec/conformance/typing/valid/contextual-variants.hd	check	0	282	0.3	0.4	0.3	6.6	0.3
+spec/conformance/typing/valid/option-result.hd	check	0	287	0.2	0.3	0.2	7.1	0.1
+spec/conformance/typing/valid/recursive-local-closure.hd	check	0	330	0.2	1.3	0.2	11.1	2.8
+spec/conformance/typing/valid/defer-cleanup.hd	check	0	292	0.2	0.4	0.6	9.5	0.1
+spec/conformance/typing/valid/resource-disposed-result.hd	check	0	284					
+spec/conformance/typing/valid/mutable-paths.hd	check	0	271	0.1	0.7	0.2	6.2	0.4
+spec/conformance/typing/valid/embedded-trait-opt-in.hd	check	0	270	0.1	0.4	0.1	5.8	0.1
+spec/conformance/typing/valid/module-bindings.hd	check	0	273	0.1	0.2	0.1	5.9	0.1
+spec/conformance/typing/valid/transitive-initialized-binding.hd	check	0	268	0.1	0.2	0.1	6.1	0.1
+spec/conformance/typing/invalid/forward-module-binding.hd	check	1	266					
+spec/conformance/typing/invalid/transitive-uninitialized-binding.hd	check	1	265					
+spec/conformance/typing/invalid/possibly-uninitialized-binding.hd	check	1	270					
+spec/conformance/typing/invalid/implicit-data-equality.hd	check	1	268					
+spec/conformance/typing/invalid/implicit-data-ordering.hd	check	1	265					
+spec/conformance/typing/invalid/bare-variant-pattern.hd	check	1	267					
+spec/conformance/typing/invalid/nonexhaustive-match.hd	check	1	269					
+spec/conformance/typing/invalid/top-level-return.hd	check	1	264					
+spec/conformance/typing/invalid/recursive-closure-inferred-result.hd	check	1	266					
+spec/conformance/typing/invalid/missing-return-value.hd	check	1	265					
+spec/conformance/typing/invalid/nonfinal-spread.hd	check	1	266					
+spec/conformance/typing/invalid/reassign-short-binding.hd	check	1	273					
+spec/conformance/typing/invalid/reassign-parameter.hd	check	1	274					
+spec/conformance/typing/invalid/discarded-suspension.hd	check	1	287					
+spec/conformance/typing/invalid/float-literal-range.hd	check	1	285					
+spec/conformance/typing/invalid/heterogeneous-list.hd	check	1	277					
+spec/conformance/typing/invalid/invalid-map-key.hd	check	1	273					
+spec/conformance/typing/invalid/float-map-key.hd	check	1	278					
+spec/conformance/typing/invalid/nonnumeric-unary-plus.hd	check	1	275					
+spec/conformance/typing/invalid/readonly-suspension-cancel.hd	check	1	287					
+spec/conformance/typing/invalid/user-suspend-implementation.hd	check	1	293					
+spec/conformance/typing/invalid/guarded-match-not-exhaustive.hd	check	1	931					
+spec/conformance/typing/invalid/duplicate-data-pattern-field.hd	check	1	684					
+spec/conformance/typing/invalid/nonexhaustive-bool-match.hd	check	1	1046					
+spec/conformance/typing/invalid/overload.hd	check	1	614					
+spec/conformance/typing/invalid/redeclare-core-type.hd	check	1	421					
+spec/conformance/typing/invalid/prelude-shadow.hd	check	1	337					
+spec/conformance/typing/invalid/function-equality.hd	check	1	329					
+spec/conformance/typing/invalid/unsaturated-enum-constructor.hd	check	1	346					
+spec/conformance/typing/invalid/contextual-variant-without-type.hd	check	1	305					
+spec/conformance/typing/invalid/ambiguous-trait-method.hd	check	1	324					
+spec/conformance/typing/invalid/missing-trait-method.hd	check	1	298					
+spec/conformance/typing/invalid/trait-method-signature.hd	check	1	308					
+spec/conformance/typing/invalid/readonly-mut-field-method.hd	check	1	329					
+spec/conformance/typing/invalid/duplicate-inherent-member.hd	check	1	369					
+spec/conformance/typing/invalid/embedded-mut-trait-bodyless.hd	check	1	402					
+spec/conformance/typing/invalid/duplicate-generic-embedded-name.hd	check	1	406					
+spec/conformance/typing/invalid/duplicate-data-field.hd	check	1	351					
+spec/conformance/typing/invalid/present-pattern-nonoptional.hd	check	1	330					
+spec/conformance/typing/invalid/missing-requirement.hd	check	1	288					
+spec/conformance/typing/invalid/bang-call-outside-suspension.hd	check	1	303					
+spec/conformance/typing/invalid/row-subtraction-unsound.hd	check	1	320					
+spec/conformance/typing/invalid/assert-equal-non-eq.hd	check	1	363					
+spec/conformance/typing/invalid/break-value-without-else.hd	check	1	354					
+spec/conformance/typing/invalid/reimport-prelude-name.hd	check	1	332					
+spec/conformance/typing/invalid/suspension-forbidden-context.hd	check	1	347					
+spec/conformance/typing/invalid/defer-block-on.hd	check	1	364					
+spec/conformance/typing/valid/row-subtraction-entailment.hd	check	0	323	0.4	0.4	0.4	9.3	0.2
+spec/conformance/typing/valid/provider-capturing-closure.hd	check	0	346	0.2	0.3	0.2	6.6	0.1
+spec/conformance/typing/valid/distinct-requirement-keys.hd	check	0	304	0.2	0.3	0.1	6.2	0.1
+spec/conformance/typing/valid/data-field-defaults.hd	check	0	457	0.1	0.3	0.2	6.6	0.1
+spec/conformance/typing/invalid/missing-required-data-field.hd	check	1	350					
+spec/conformance/typing/invalid/generic-requirement-key-collision.hd	check	1	679					
+spec/conformance/typing/warnings/requirement-subtract-absent.hd	check	0	529	0.1	0.4	0.3	7.0	0.6
+spec/conformance/typing/valid/string-semantics.hd	check	0	773	0.1	0.8	0.3	10.1	4.4
+spec/conformance/typing/invalid/string-indexing.hd	check	1	408					
+spec/conformance/typing/invalid/duplicate-trait-member.hd	check	1	512					
+spec/conformance/typing/invalid/mixed-numeric-power.hd	check	1	583					
+spec/conformance/typing/invalid/defer-suspends.hd	check	1	366					
+spec/conformance/typing/invalid/top-level-defer.hd	check	1	335					
+spec/conformance/typing/invalid/impure-data-default.hd	check	1	298					
+spec/conformance/typing/warnings/unreachable-code.hd	check	0	329	0.1	0.1	0.2	6.2	0.1
+spec/conformance/typing/warnings/unused-local-binding.hd	check	0	300	0.1	0.1	0.1	5.6	0.2
+spec/conformance/typing/warnings/variant-binding-name-mismatch.hd	check	0	294	0.1	0.2	0.1	6.2	0.1
+spec/conformance/typing/valid/named-variant-bindings.hd	check	0	310	0.1	0.2	0.1	5.7	0.1
+spec/conformance/typing/valid/shared-enum-defaults.hd	check	0	298	0.4	1.7	1.2	10.1	0.2
+spec/conformance/typing/valid/enums.hd	check	0	297	0.3	1.0	0.4	8.3	0.3
+spec/conformance/typing/valid/closure-identity.hd	check	0	294	0.1	0.2	0.1	5.8	0.1
+spec/conformance/typing/valid/reference-generic-identity.hd	check	0	292	0.1	0.1	0.1	5.7	0.1
+spec/conformance/typing/invalid/primitive-identity.hd	check	1	294					
+spec/conformance/typing/invalid/tuple-identity.hd	check	1	291					
+spec/conformance/typing/invalid/tuple-map-key.hd	check	1	315					
+spec/conformance/typing/invalid/unbounded-generic-identity.hd	check	1	327					
+spec/conformance/typing/invalid/readonly-generic-field-init.hd	check	1	320					
+spec/conformance/typing/invalid/readonly-spread-mutable-field.hd	check	1	331					
+spec/conformance/typing/invalid/copy-update-readonly-child.hd	check	1	313					
+spec/conformance/typing/invalid/readonly-mutation.hd	check	1	335					
+spec/conformance/typing/invalid/readonly-function-result.hd	check	1	309					
+spec/conformance/typing/invalid/mut-upgrade.hd	check	1	314					
+spec/conformance/typing/invalid/missing-mutable-edge.hd	check	1	343					
+spec/conformance/typing/invalid/readonly-mut-field-reassignment.hd	check	1	297					
+spec/conformance/typing/invalid/readonly-mut-field-mutation.hd	check	1	334					
+spec/conformance/typing/invalid/readonly-list-element-replacement.hd	check	1	359					
+spec/conformance/typing/invalid/readonly-map-entry-replacement.hd	check	1	845					
+spec/conformance/typing/invalid/partial-generic-arguments.hd	check	1	826					
+spec/conformance/typing/invalid/unresolved-generic-placeholder.hd	check	1	916					
+spec/conformance/typing/invalid/nonhost-entry-requirement.hd	check	1	571					
+spec/conformance/typing/invalid/private-requirement-row.hd	check	1	947					
+spec/conformance/typing/invalid/private-type-leak.hd	check	1	744					
+spec/conformance/typing/invalid/nondisplay-entry-error.hd	check	1	779					
+spec/conformance/typing/invalid/discarded-result.hd	check	1	1238					
+spec/conformance/typing/invalid/impure-shared-enum-default.hd	check	1	940					
+spec/conformance/typing/invalid/shared-enum-default-order.hd	check	1	689					
+spec/conformance/runtime/panic/integer-divide-by-zero.hd	test	1	1004	0.1	0.2	0.4	10.6	0.4
+spec/conformance/runtime/panic/signed-min-division-overflow.hd	test	1	1070	0.1	1.9	0.4	6.5	4.0
+spec/conformance/runtime/panic/nested-block-on.hd	test	1	1059	0.3	0.5	0.8	10.2	0.2
+spec/conformance/runtime/panic/second-suspension-drive.hd	test	1	1002	0.2	0.3	0.2	10.0	0.9
+spec/conformance/runtime/panic/test-block-on.hd	test	1	1259	0.3	3.9	0.4	18.6	1.4
+spec/conformance/runtime/valid/construction-provider-capture.hd	test	0	1940	0.6	3.8	2.7	15.6	26.7
+spec/conformance/runtime/valid/defer-order.hd	test	0	3191	0.7	2.3	1.5	15.6	2.7
+spec/conformance/runtime/valid/map-insertion-order.hd	test	0	2440	0.5	1.0	1.3	8.3	0.9
+spec/conformance/runtime/valid/generic-data-embedding.hd	test	0	1778	0.2	0.5	0.3	11.3	0.2
+spec/conformance/runtime/valid/partial-equality-dispatch.hd	test	0	2353	4.6	29.2	5.3	45.5	5.4
+spec/conformance/runtime/valid/partial-ordering-dispatch.hd	test	0	1537	0.7	2.1	0.7	61.8	0.4
+spec/conformance/runtime/valid/structural-equality.hd	test	0	1418	0.7	5.0	1.1	20.0	4.8
+spec/conformance/runtime/valid/structural-ordering.hd	test	0	1228	0.2	0.8	1.5	16.9	0.3
+spec/conformance/runtime/valid/list-iterator.hd	test	0	1031	0.8	0.9	1.2	26.4	0.6
+spec/conformance/runtime/panic/invalidated-iterator.hd	test	1	801	0.2	0.5	0.3	20.2	7.4
+spec/conformance/runtime/valid/map-iterator.hd	test	0	1040	1.2	3.6	0.6	26.7	3.5
+spec/conformance/runtime/panic/map-iterator-invalidated.hd	test	1	939	1.3	0.3	0.2	7.7	1.6
+spec/conformance/runtime/panic/for-loop-iterator-invalidated.hd	test	1	1030	0.1	0.2	0.1	6.6	0.5
+spec/conformance/runtime/panic/removed-map-iterator-invalidated.hd	test	1	1053	0.1	0.2	0.1	7.9	0.1
+spec/conformance/runtime/panic/explicit-panic.hd	test	1	1250	0.4	0.7	0.2	7.5	0.9
+spec/conformance/runtime/panic/integer-add-overflow.hd	test	1	1059	0.1	0.3	0.2	8.2	2.5
+spec/conformance/runtime/panic/invalid-shift.hd	test	1	930	0.1	0.1	0.3	7.7	0.7
+spec/conformance/runtime/panic/list-index-out-of-bounds.hd	test	1	1387	0.1	0.2	0.1	12.7	1.9
+spec/conformance/runtime/panic/integer-negation-overflow.hd	test	1	1294	0.1	0.2	0.1	5.7	0.1
+spec/conformance/runtime/panic/list-set-out-of-bounds.hd	test	1	1101	0.2	0.3	0.2	7.3	0.3
+spec/conformance/runtime/panic/competing-suspension-drivers.hd	test --scenario competing-drivers	1	1084	0.1	0.2	0.3	30.8	2.8
+spec/conformance/runtime/panic/reentrant-suspension-poll.hd	test --scenario reentrant-poll	1	1196	0.1	0.1	0.3	7.9	1.4
+spec/conformance/runtime/panic/reentrant-cancel.hd	test	1	1385	0.4	1.8	1.2	11.5	2.9
+spec/conformance/runtime/valid/module-initialization-before-main.hd	test	0	835	0.1	0.2	0.1	6.0	0.7
+spec/conformance/runtime/valid/cancellation-unwinds-nested-frames.hd	test --scenario cancellation-cleanup --pending-function wait	0	790	0.2	0.3	0.6	20.5	4.3
+spec/conformance/runtime/valid/cancellation-unwinds-suspending-closure.hd	test --scenario cancellation-cleanup --profile pending-gate	0	1008	0.2	0.3	1.2	9.5	0.3
+spec/conformance/runtime/valid/cancellation-runs-defer.hd	test --scenario cancellation-cleanup --profile pending-gate	0	804	0.2	0.4	1.0	11.7	0.3
+spec/conformance/typing/valid/explicit-generic-method.hd	check	0	538	0.7	0.6	0.9	10.6	0.4
+spec/conformance/typing/invalid/partial-generic-method-arguments.hd	check	1	423					
+spec/conformance/typing/valid/blanket-impl-and-associated-function.hd	check	0	572	0.2	0.6	0.4	7.0	2.3
+spec/conformance/typing/invalid/permission-target-overlap.hd	check	1	479					
+spec/conformance/typing/invalid/orphan-impl.hd	check	1	620					
+spec/conformance/typing/valid/trait-features.hd	check	0	605	0.4	1.4	0.4	8.0	0.5
+spec/conformance/typing/invalid/supertrait-cycle.hd	check	1	416					
+spec/conformance/typing/invalid/unsafe-dynamic-trait.hd	check	1	480					
+test/fixtures/compiler-types/callbacks/function-values.hd	run --entry main	0	914	0.1	0.3	0.4	7.7	2.5
+test/fixtures/compiler-types/callbacks/readonly-result.hd	run --entry main	0	866	0.1	0.2	0.1	6.2	0.6
+test/fixtures/compiler-types/callbacks/requirement-function-values.hd	run --entry main	0	721	0.2	0.7	0.1	12.3	0.3
+test/fixtures/compiler-types/callbacks/trailing.hd	run --entry main	0	762	0.4	0.3	0.1	8.1	0.7
+test/fixtures/compiler-types/closures/captures.hd	run --entry main	0	817	0.2	0.4	0.2	7.6	1.1
+test/fixtures/compiler-types/closures/nested-captures.hd	run --entry main	0	691	0.1	0.4	0.1	7.3	5.9
+test/fixtures/compiler-types/closures/provider-captures.hd	run --entry main	0	804	0.2	0.5	0.5	6.7	0.2
+test/fixtures/compiler-types/closures/requirement-inference/inferred-row.hd	run --entry main	0	773	0.1	0.2	0.1	12.6	0.3
+test/fixtures/compiler-types/closures/requirement-inference/missing-requirement.hd	check	1	847					
+test/fixtures/compiler-types/closures/requirements.hd	run --entry main	0	868	0.3	1.5	0.3	10.5	0.4
+test/fixtures/compiler-types/collections/lists/empty-needs-context.hd	check	1	544					
+test/fixtures/compiler-types/collections/lists/erased-storage.hd	run --entry main	0	958	0.2	0.3	0.6	5.8	0.5
+test/fixtures/compiler-types/collections/lists/heterogeneous-elements.hd	check	1	732					
+test/fixtures/compiler-types/collections/lists/void-element-type.hd	check	1	720					
+test/fixtures/compiler-types/collections/maps/empty-needs-context.hd	check	1	1157					
+test/fixtures/compiler-types/collections/maps/float-key.hd	check	1	1277					
+test/fixtures/compiler-types/collections/maps/heterogeneous-values.hd	check	1	1348					
+test/fixtures/compiler-types/collections/maps/lookup-replacement.hd	run --entry main	0	2864	1.0	6.2	1.3	8.8	0.6
+test/fixtures/compiler-types/collections/trait-lists.hd	run --entry main	0	2108	0.3	0.7	0.4	12.1	7.3
+test/fixtures/compiler-types/data/generic/erased-layout.hd	run --entry main	0	1430	0.3	0.8	0.2	7.0	0.3
+test/fixtures/compiler-types/data/generic/mismatched-field-type.hd	check	1	949					
+test/fixtures/compiler-types/enums/generic/context-required.hd	check	1	1231					
+test/fixtures/compiler-types/enums/generic/erased-payloads.hd	run --entry main	0	1128	1.1	0.8	0.5	15.0	0.4
+test/fixtures/compiler-types/enums/generic/unsaturated-type.hd	check	1	849					
+test/fixtures/compiler-types/generics/callable-adapter.hd	run --entry main	0	1276	0.3	2.4	0.7	6.4	2.7
+test/fixtures/compiler-types/generics/functions/inconsistent-inference.hd	check	1	755					
+test/fixtures/compiler-types/generics/functions/inference-and-boxing.hd	run --entry main	0	1493	0.3	1.1	0.4	8.2	0.7
+test/fixtures/compiler-types/generics/functions/unresolved-placeholder.hd	check	1	918					
+test/fixtures/compiler-types/generics/functions/unsaturated-function-value.hd	check	1	656					
+test/fixtures/compiler-types/generics/option-result.hd	run --entry main	0	1321	0.7	1.0	0.2	6.5	0.6
+test/fixtures/compiler-types/identity/references/gc-identity.hd	run --entry main	0	1324	0.6	2.1	0.7	17.3	0.2
+test/fixtures/compiler-types/identity/references/missing-implementation.hd	check	1	580					
+test/fixtures/compiler-types/identity/references/unbounded-generic.hd	check	1	623					
+test/fixtures/compiler-types/requirements/abi.hd	run --entry main	0	774	0.6	0.3	0.3	9.9	0.4
+test/fixtures/compiler-types/requirements/context-errors/non-context-spread.hd	check	1	482					
+test/fixtures/compiler-types/requirements/context-errors/wrong-context-type.hd	check	1	699					
+test/fixtures/compiler-types/requirements/context-normalization.hd	check	0	525	0.1	0.2	0.2	7.0	0.2
+test/fixtures/compiler-types/requirements/contexts.hd	run --entry main	0	959	0.2	0.2	5.8	6.0	0.2
+test/fixtures/compiler-types/requirements/generic-provider-keys/collision.hd	check	1	559					
+test/fixtures/compiler-types/requirements/generic-provider-keys/consistent-substitution.hd	check	0	579	0.1	0.2	0.1	6.1	5.5
+test/fixtures/compiler-types/requirements/generic-provider-keys/distinct.hd	check	0	671	0.2	0.5	0.2	10.4	0.1
+test/fixtures/compiler-types/requirements/generic-provider-keys/occurs-check.hd	check	0	463	0.1	0.2	0.1	6.1	0.1
+test/fixtures/compiler-types/requirements/generic-provider-keys/spread-collision.hd	check	1	630					
+test/fixtures/compiler-types/requirements/missing-requirement.hd	check	1	616					
+test/fixtures/compiler-types/requirements/normalization/explicit-empty-row.hd	check	0	721	0.2	0.3	0.2	11.6	0.3
+test/fixtures/compiler-types/requirements/normalization/grouped.hd	check	0	646	0.1	0.1	0.1	6.0	0.1
+test/fixtures/compiler-types/requirements/normalization/ungrouped.hd	check	0	687	0.1	0.1	0.1	7.0	6.4
+test/fixtures/compiler-types/requirements/provider-errors/missing-provider.hd	check	1	780					
+test/fixtures/compiler-types/requirements/provider-errors/wrong-provider-type.hd	check	1	568					
+test/fixtures/compiler-types/requirements/provider-scopes.hd	run --entry main	0	1001	0.1	0.2	0.2	8.3	0.5
+test/fixtures/compiler-types/requirements/row-forwarding.hd	run --entry main	0	1048	0.3	1.0	1.6	7.0	0.2
+test/fixtures/compiler-types/requirements/row-inference/conflicting-row.hd	check	1	557					
+test/fixtures/compiler-types/requirements/row-inference/inferred-empty-row.hd	run --entry main	0	814	0.1	0.2	0.2	8.8	2.4
+test/fixtures/compiler-types/requirements/row-inference/unavailable-provider.hd	check	1	571					
+test/fixtures/compiler-types/requirements/row-multi-forwarding.hd	run --entry main	0	856	0.4	0.3	0.3	13.2	0.4
+test/fixtures/compiler-types/requirements/row-pack.hd	run --entry main	0	831	0.2	0.3	0.3	7.7	3.4
+test/fixtures/compiler-types/requirements/row-subtraction/absent-subtraction-warning.hd	check	0	651	0.3	0.5	0.4	6.8	0.2
+test/fixtures/compiler-types/requirements/row-subtraction/missing-subtracted-provider.hd	check	1	718					
+test/fixtures/compiler-types/requirements/row-subtraction/provider-restoration.hd	run --entry main	0	961	0.2	0.3	0.2	11.0	0.5
+test/fixtures/compiler-types/requirements/row-union.hd	run --entry main	0	1179	0.2	0.2	0.1	11.4	10.7
+test/fixtures/compiler-types/traits/defaults/inherited-method.hd	run --entry main	0	1120	0.2	0.3	0.2	6.1	22.0
+test/fixtures/compiler-types/traits/defaults/override.hd	run --entry main	0	990	0.2	0.6	0.2	9.1	0.1
+test/fixtures/compiler-types/traits/diagnostics/ambiguous-method.hd	check	1	510					
+test/fixtures/compiler-types/traits/diagnostics/mismatched-signature.hd	check	1	509					
+test/fixtures/compiler-types/traits/diagnostics/missing-method.hd	check	1	425					
+test/fixtures/compiler-types/traits/dispatch.hd	run --entry main	0	732	0.2	0.4	0.3	9.9	0.3
+test/fixtures/compiler-types/traits/embedded-fields.hd	run --entry main	0	750	0.1	0.4	0.4	8.9	7.9
+test/fixtures/compiler-types/traits/generic-bounds/dictionary-dispatch.hd	run --entry main	0	779	0.1	0.3	0.2	6.1	0.2
+test/fixtures/compiler-types/traits/generic-bounds/missing-implementation.hd	check	1	456					
+test/fixtures/compiler-types/traits/inherent-methods.hd	run --entry main	0	701	0.4	0.3	0.3	8.0	0.5
+test/fixtures/compiler-types/traits/multiple-bounds/dictionary-forwarding.hd	run --entry main	0	855	1.8	1.4	0.3	14.5	1.9
+test/fixtures/compiler-types/traits/multiple-bounds/duplicate-bound.hd	check	1	498					
+test/fixtures/compiler-types/traits/mutable-errors/readonly-dynamic.hd	check	1	570					
+test/fixtures/compiler-types/traits/mutable-errors/readonly-static.hd	check	1	421					
+test/fixtures/compiler-types/traits/mutable-errors/signature-mismatch.hd	check	1	450					
+test/fixtures/compiler-types/traits/mutable-receivers.hd	run --entry main	0	787	0.2	0.4	0.2	22.7	3.1
+test/fixtures/compiler-types/traits/providers.hd	run --entry main	0	770	0.8	0.9	0.2	16.6	0.5
+test/fixtures/compiler-types/traits/suspending-cancel.hd	check	0	609	0.1	0.6	0.4	12.9	1.4
+test/fixtures/compiler-types/traits/suspending-defaults.hd	run --entry main	0	811	0.1	0.3	0.4	15.8	1.2
+test/fixtures/compiler-types/traits/suspending-dispatch.hd	run --entry main	0	740	0.2	0.5	3.6	24.3	6.6
+test/fixtures/compiler-types/tuples/heterogeneous/gc-storage.hd	run --entry main	0	772	0.3	0.9	1.8	23.9	0.3
+test/fixtures/compiler-types/tuples/heterogeneous/identity-rejected.hd	check	1	436					
+test/fixtures/compiler-types/tuples/heterogeneous/index-out-of-range.hd	check	1	451					
+test/fixtures/compiler/00-case-program.hd	run --entry main	0	703	0.1	0.2	0.3	7.1	0.4
+test/fixtures/compiler/03-checked-i32-arithmetic-traps-on-overflow.hd	run	1	705	0.1	0.4	0.1	10.9	0.3
+test/fixtures/compiler/04-the-minimum-i32-literal-forms-through-unary-negation-diagnostic.hd	check	1	428					
+test/fixtures/compiler/04-the-minimum-i32-literal-forms-through-unary-negation-division.hd	run	1	723	0.1	0.5	0.3	6.7	1.4
+test/fixtures/compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd	run --entry main	0	811	0.1	0.1	0.1	7.7	1.1
+test/fixtures/compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-negative.hd	run	1	782	0.1	0.1	0.1	6.2	0.6
+test/fixtures/compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-overflow.hd	run	1	784	0.1	0.1	0.1	8.0	0.3
+test/fixtures/compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent.hd	run --entry main	0	696	0.1	0.1	0.1	5.8	1.1
+test/fixtures/compiler/06-floating-power-uses-the-host-ieee-pow-primitive-diagnostic.hd	check	1	704					
+test/fixtures/compiler/06-floating-power-uses-the-host-ieee-pow-primitive.hd	run --entry main	0	730	0.1	0.1	0.2	6.7	0.2
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-2.hd	check	1	371					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-3.hd	check	1	493					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-4.hd	check	1	480					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-5.hd	check	1	595					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-6.hd	check	1	679					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic.hd	check	1	650					
+test/fixtures/compiler/07-checker-rejects-name-mutability-and-type-errors-positional-spread-needs-vararg.hd	check	1	655					
+test/fixtures/compiler/08-homogeneous-varargs-lower-through-the-existing-list-abi.hd	run --entry main	0	776	0.4	1.5	0.5	23.7	0.5
+test/fixtures/compiler/09-first-class-vararg-functions-retain-their-calling-convention-type-mismatch.hd	check	1	582					
+test/fixtures/compiler/09-first-class-vararg-functions-retain-their-calling-convention.hd	run --entry main	0	1601	0.6	1.4	0.2	11.0	4.8
+test/fixtures/compiler/10-function-parameter-defaults-evaluate-after-explicit-arguments.hd	run --entry main	0	725	0.4	0.5	0.7	11.8	0.2
+test/fixtures/compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic-2.hd	check	1	298					
+test/fixtures/compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic.hd	check	1	294					
+test/fixtures/compiler/11-function-parameter-defaults-enforce-order-type-and-purity-impure-parameter-default.hd	check	1	292					
+test/fixtures/compiler/12-varargs-work-in-suspending-and-trait-method-calls.hd	run --entry main	0	514	0.2	0.4	0.9	11.5	0.2
+test/fixtures/compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord-2.hd	run --entry main	0	505	0.1	0.2	0.3	6.0	0.1
+test/fixtures/compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord.hd	run --entry main	0	491	0.1	0.2	0.3	9.2	0.5
+test/fixtures/compiler/14-named-enum-payloads-preserve-source-evaluation-order-duplicate-argument.hd	check	1	283					
+test/fixtures/compiler/14-named-enum-payloads-preserve-source-evaluation-order-unknown-named-argument.hd	check	1	282					
+test/fixtures/compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd	run --entry main	0	507	0.1	0.2	0.8	10.5	0.5
+test/fixtures/compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name-unknown-variant-pattern-field.hd	check	1	287					
+test/fixtures/compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name.hd	run --entry main	0	500	0.2	0.3	0.2	6.1	1.2
+test/fixtures/compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension--nonexhaustive-match.hd	check	1	293					
+test/fixtures/compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension-.hd	run --entry main	0	509	0.3	1.1	1.7	28.2	0.2
+test/fixtures/compiler/17-shared-enum-data-uses-per-variant-factories-and-pure-ordered-defaults.hd	run --entry main	0	523	0.1	0.6	0.2	6.2	0.1
+test/fixtures/compiler/18-named-arguments-work-through-static-and-dynamic-trait-dispatch.hd	run --entry main	0	569	2.5	1.7	1.4	39.7	0.3
+test/fixtures/compiler/19-shadow-console.hd	check	1	600					
+test/fixtures/compiler/19-shadow-display.hd	check	1	378					
+test/fixtures/compiler/19-shadow-hash.hd	check	1	450					
+test/fixtures/compiler/19-shadow-println.hd	check	1	1183					
+test/fixtures/compiler/19-shadow-result.hd	check	1	846					
+test/fixtures/compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other-diagnostic.hd	check	1	864					
+test/fixtures/compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd	run --entry main	0	1085	0.1	0.8	0.9	14.9	0.9
+test/fixtures/compiler/21-else-if-chains-preserve-value-typing-and-selection-order.hd	run --entry main	0	1204	0.2	0.7	0.6	7.4	0.3
+test/fixtures/compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow-diagnostic.hd	check	1	770					
+test/fixtures/compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow.hd	run --entry main	0	1458	0.3	0.3	0.2	6.1	0.9
+test/fixtures/compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-broken.hd	run --entry main	0	1237	0.3	0.2	0.1	12.4	5.6
+test/fixtures/compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic-2.hd	check	1	685					
+test/fixtures/compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic.hd	check	1	751					
+test/fixtures/compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-exhausted.hd	run --entry main	0	1069	0.2	0.3	0.2	8.4	1.9
+test/fixtures/compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic-2.hd	check	1	911					
+test/fixtures/compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic.hd	check	1	718					
+test/fixtures/compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va.hd	run --entry main	0	877	0.4	1.7	2.4	22.9	1.6
+test/fixtures/compiler/25-data-declarations-lower-to-wasm-gc-structs.hd	run --entry main	0	693	0.2	0.3	0.4	6.7	0.5
+test/fixtures/compiler/26-mutable-data-paths-weaken-one-way-and-share-wasm-gc-identity.hd	run --entry main	0	647	0.2	0.4	0.2	6.2	1.4
+test/fixtures/compiler/27-mutable-list-and-map-roots-support-indexed-replacement.hd	run --entry main	0	745	0.2	0.2	0.1	5.9	0.2
+test/fixtures/compiler/28-mutable-lists-append-through-growable-wasm-gc-storage-mutable-receiver-required.hd	check	1	474					
+test/fixtures/compiler/28-mutable-lists-append-through-growable-wasm-gc-storage.hd	run --entry main	0	797	0.2	0.3	0.2	6.3	0.4
+test/fixtures/compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord-mutable-receiver-required.hd	check	1	526					
+test/fixtures/compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord.hd	run --entry main	0	965	0.1	0.3	0.4	8.5	0.3
+test/fixtures/compiler/30-data-field-initializers-preserve-source-evaluation-order.hd	run --entry main	0	1073	0.2	0.3	0.8	50.0	8.3
+test/fixtures/compiler/31-data-field-defaults-run-per-construction-after-explicit-fields.hd	run --entry main	0	1159	0.1	0.3	0.2	6.6	0.4
+test/fixtures/compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default-2.hd	check	1	540					
+test/fixtures/compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default.hd	check	0	784	0.1	0.4	0.1	12.2	0.9
+test/fixtures/compiler/32-data-field-defaults-are-type-checked-and-purity-checked-type-mismatch.hd	check	1	688					
+test/fixtures/compiler/33-data-copy-update-evaluates-its-source-before-replacements.hd	run --entry main	0	850	0.2	0.8	0.7	13.8	0.9
+test/fixtures/compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults-type-mismatch.hd	check	1	590					
+test/fixtures/compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults.hd	run --entry main	0	1226	0.1	0.2	0.2	5.9	0.3
+test/fixtures/compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct.hd	run --entry main	0	1055	0.1	0.1	1.7	7.1	2.5
+test/fixtures/compiler/36-data-initialization-missing-field.hd	check	1	568					
+test/fixtures/compiler/36-data-initialization-unknown-field.hd	check	1	629					
+test/fixtures/compiler/36-data-initialization-wrong-field-type.hd	check	1	688					
+test/fixtures/compiler/37-data-pattern-duplicate-field.hd	check	1	597					
+test/fixtures/compiler/37-data-pattern-nonexhaustive.hd	check	1	653					
+test/fixtures/compiler/37-data-pattern-unknown-field.hd	check	1	578					
+test/fixtures/compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd	run --entry main	0	1215	0.7	0.6	0.2	8.3	0.2
+test/fixtures/compiler/38-strings-use-gc-byte-arrays-and-len-counts-unicode-scalars.hd	run --entry main	0	1006	0.1	0.3	0.2	7.1	0.8
+test/fixtures/compiler/39-string-interpolation-displays-built-ins-left-to-right.hd	run --entry main	0	733	0.6	0.4	0.2	9.4	0.1
+test/fixtures/compiler/40-strings-compare-by-utf-8-value-order.hd	run --entry main	0	901	0.1	0.2	0.1	9.1	1.1
+test/fixtures/compiler/41-strings-concatenate-and-unnamed-enum-fields-use-numeric-selectors.hd	run --entry main	0	1054	0.3	0.3	0.3	8.8	0.8
+test/fixtures/compiler/42-character-literals-carry-unicode-scalar-values-and-compare-in-scalar-ord.hd	run --entry main	0	1119	0.4	0.2	0.2	7.7	3.9
+test/fixtures/compiler/43-defer-runs-after-a-return-value-is-evaluated.hd	run --entry main	0	1278	0.4	0.7	0.3	6.3	0.2
+test/fixtures/compiler/44-defer-rejects-escaping-control-flow.hd	check	1	597					
+test/fixtures/compiler/45-defer-is-lifo-and-runs-on-loop-continue-and-break.hd	run --entry main	0	943	0.1	0.6	0.2	14.2	2.1
+test/fixtures/compiler/46-explicit-panic-lowers-to-unreachable-and-skips-pending-defer.hd	run	1	960	0.1	0.2	0.2	7.5	0.2
+test/fixtures/compiler/47-enums-use-tagged-gc-structs-and-match-binds-payloads.hd	run --entry main	0	922	0.2	0.4	0.3	9.7	0.6
+test/fixtures/compiler/48-match-bare-variant.hd	check	1	476					
+test/fixtures/compiler/48-match-nonexhaustive.hd	check	1	619					
+test/fixtures/compiler/48-match-pattern-arity.hd	check	1	641					
+test/fixtures/compiler/48-match-unreachable-arm.hd	check	1	882					
+test/fixtures/compiler/49-contextual-enum-variant-patterns-use-the-subject-type-variant-binding-name-mismatch.hd	check	0	611	0.1	0.2	0.1	6.3	12.3
+test/fixtures/compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd	run --entry main	0	1309	0.1	0.3	0.2	6.0	0.2
+test/fixtures/compiler/50-contextual-enum-variant-expressions-use-their-expected-type-diagnostic.hd	check	1	769					
+test/fixtures/compiler/50-contextual-enum-variant-expressions-use-their-expected-type.hd	run --entry main	0	1063	0.3	0.3	1.0	6.2	0.4
+test/fixtures/compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-diagnostic.hd	check	1	611					
+test/fixtures/compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-unreachable-match-arm.hd	check	1	670					
+test/fixtures/compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests.hd	run --entry main	0	980	0.2	0.3	0.2	9.2	7.0
+test/fixtures/compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-diagnostic.hd	check	1	792					
+test/fixtures/compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-unreachable-match-arm.hd	check	1	540					
+test/fixtures/compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all.hd	run --entry main	0	1055	0.7	0.4	0.3	10.5	0.2
+test/fixtures/compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-diagnostic.hd	check	1	631					
+test/fixtures/compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch-2.hd	check	1	501					
+test/fixtures/compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd	check	0	649	0.2	0.6	0.2	16.9	1.9
+test/fixtures/compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage.hd	run --entry main	0	1092	0.1	0.3	0.2	7.2	1.5
+test/fixtures/compiler/54-optionals-inject-plain-values-match-both-cases-and-propagate-nil.hd	run --entry main	0	954	0.3	0.4	0.9	9.4	0.6
+test/fixtures/compiler/55-result-constructors-matching-and-error-propagation-use-the-erased-carrie.hd	run --entry main	0	915	0.3	0.8	0.5	7.7	0.5
+test/fixtures/compiler/56-imported-resourceerror-is-a-generic-wasm-gc-enum.hd	run --entry main	0	788	0.2	0.5	0.3	7.5	0.2
+test/fixtures/compiler/57-result-patterns-recursively-match-imported-enum-payloads.hd	run --entry main	0	1048	0.2	0.4	0.1	6.1	0.7
+test/fixtures/compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-2.hd	check	1	594					
+test/fixtures/compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-3.hd	check	1	643					
+test/fixtures/compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-4.hd	check	0	590	0.3	0.2	0.1	8.2	1.5
+test/fixtures/compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic.hd	check	1	767					
+test/fixtures/compiler/59-optional-result-discarded.hd	check	1	830					
+test/fixtures/compiler/59-optional-result-explicitly-discarded.hd	check	0	865	0.3	0.1	0.3	26.7	10.3
+test/fixtures/compiler/60-comprehensions-lower-nested-filters-and-map-replacement.hd	run --entry main	0	1621	0.3	0.6	1.8	13.8	0.3
+test/fixtures/compiler/60-comprehensions-reject-suspension-calls.hd	check	1	1178					
+test/fixtures/compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references-diagnostic.hd	check	1	1005					
+test/fixtures/compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references.hd	run --entry main	0	1769	0.1	0.5	0.4	6.4	0.5
+test/fixtures/compiler/61-binding-expressions-reject-same-scope-redeclaration.hd	check	1	1109					
+test/fixtures/compiler/61-binding-expressions-return-values-and-bind-in-enclosing-scope.hd	run --entry main	0	1413	0.8	0.8	0.3	6.8	4.1
+test/fixtures/compiler/61-expected-function-types-infer-inline-closure-parameters-and-results-diagnostic.hd	check	1	753					
+test/fixtures/compiler/61-expected-function-types-infer-inline-closure-parameters-and-results.hd	run --entry main	0	1520	0.4	1.0	0.2	7.6	2.4
+test/fixtures/compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns-closure-result-type.hd	check	1	886					
+test/fixtures/compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns.hd	run --entry main	0	1681	0.2	1.6	0.2	9.6	1.1
+test/fixtures/compiler/62-string-trim-and-lower-use-unicode-byte-bridge.hd	run --entry main	0	1689	0.1	0.2	0.1	7.4	1.5
+test/fixtures/compiler/63-explicitly-typed-local-closures-recurse-through-their-current-environmen.hd	run --entry main	0	2352	2.3	1.8	0.4	18.0	6.2
+test/fixtures/compiler/63-generic-iterator-traits-drive-for-loops-and-comprehensions.hd	run --entry main	0	1528	0.5	1.4	0.3	9.4	0.1
+test/fixtures/compiler/63-generic-iterator-traits-require-mutable-receivers.hd	check	1	842					
+test/fixtures/compiler/64-generic-methods-infer-and-erase-type-arguments.hd	run --entry explicit_right	0	2138	0.5	1.6	0.5	9.5	0.2
+test/fixtures/compiler/64-named-local-functions-capture-enclosing-values-and-recurse.hd	run --entry main	0	1388	0.6	1.7	0.7	7.8	0.3
+test/fixtures/compiler/65-string-split-preserves-boundaries-and-unicode-scalars.hd	run --entry separated	0	1461	0.2	0.4	0.1	8.2	1.1
+test/fixtures/compiler/66-associated-functions-use-qualified-static-calls.hd	run --entry month_days	0	1313	0.2	0.2	0.1	5.9	0.1
+test/fixtures/compiler/67-blanket-implementations-dispatch-with-inferred-dictionaries.hd	run --entry total_score	0	1581	1.8	2.2	0.3	17.3	5.3
+test/fixtures/compiler/68-generic-implementation-heads-cannot-overlap.hd	check	1	1351					
+test/fixtures/compiler/69-trait-qualified-calls-select-ambiguous-methods.hd	run --entry qualified_total	0	1647	0.2	2.3	0.8	8.8	5.3
+test/fixtures/compiler/70-generic-trait-qualified-calls-select-an-instantiation.hd	run --entry add_qualified	0	1409	1.4	2.9	1.1	18.0	0.3
+test/fixtures/compiler/71-trait-associated-functions-use-implementing-type-qualification.hd	run --entry guest_length	0	1232	0.2	0.6	0.2	7.2	4.4
+test/fixtures/compiler/72-associated-types-specialize-self-projections.hd	run --entry projected_value	0	1963	3.2	3.3	2.1	13.5	2.0
+test/fixtures/compiler/73-supertraits-reject-missing-parent-implementations.hd	check	1	1363					
+test/fixtures/compiler/73-supertraits-require-and-expose-parent-implementations.hd	run --entry formatted_length	0	2984	0.2	1.1	6.9	10.9	0.3
+test/fixtures/compiler/74-mutable-trait-bounds-preserve-root-access.hd	run --entry cleared_value	0	2655	0.9	3.3	1.0	9.3	1.2
+test/fixtures/compiler/74-mutable-trait-bounds-reject-readonly-roots.hd	check	1	978					
+test/fixtures/compiler/75-generic-trait-methods-use-static-erased-dispatch.hd	run --entry selected_value	0	1104	0.2	0.5	0.9	7.7	5.4
+test/fixtures/compiler/76-blanket-implementations-materialize-dynamic-and-bound-dictionaries.hd	run --entry blanket_dynamic	0	1193	0.2	0.5	0.4	7.1	0.4
+test/fixtures/compiler/76-bounded-blanket-implementations-capture-erased-dictionaries.hd	run --entry dynamic_score	0	1346	0.2	0.6	0.2	7.7	11.4
+test/fixtures/compiler/77-generic-supertraits-reject-incompatible-upcasts.hd	check	1	1254					
+test/fixtures/compiler/77-generic-supertraits-substitute-parent-arguments.hd	run --entry generic_supertrait_direct	0	1584	0.4	1.6	1.2	9.6	0.5
+test/fixtures/compiler/78-bounded-blanket-supertraits-capture-parent-dictionaries.hd	run --entry dynamic_parent_dictionary	0	1769	0.2	0.6	6.3	12.6	0.6
+test/fixtures/compiler/assert-failure-panics.hd	run	1	1497	0.2	0.2	0.1	7.4	5.9
+test/fixtures/compiler/display-requires-implementation.hd	check	1	1114					
+test/fixtures/frontend/00-core-program.hd	parse	0	880	0.1	0.3	0.6	10.2	0.4
+test/fixtures/frontend/04-parser-builds-value-producing-while-else.hd	parse	0	798	0.1	0.2	0.1	7.1	2.0
+test/fixtures/frontend/05-parser-builds-for-loops-with-tuple-bindings-and-else-suites.hd	parse	0	810	0.2	0.3	0.4	10.2	0.4
+test/fixtures/frontend/06-parser-lowers-named-local-functions-to-typed-closure-bindings.hd	parse	0	647	0.2	0.5	0.3	9.6	0.2
+test/fixtures/frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd	parse	0	615	0.1	0.2	0.2	7.4	2.7
+test/fixtures/frontend/07-parser-retains-mutable-permission-types-and-field-assignments.hd	parse	0	829	0.1	0.1	0.1	7.5	5.5
+test/fixtures/frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver-2.hd	check	1	807					
+test/fixtures/frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd	parse	0	727	0.1	0.1	4.3	12.6	7.6
+test/fixtures/frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd	parse	0	1145	0.3	0.4	0.1	7.4	6.5
+test/fixtures/frontend/10-parser-marks-bare-data-members-as-embedded-fields.hd	parse	0	923	0.1	0.1	0.1	7.2	0.3
+test/fixtures/frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2.hd	parse	0	715					
+test/fixtures/frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks.hd	parse	0	596					
+test/fixtures/frontend/12-parser-retains-explicit-generic-data-arguments.hd	parse	0	634					
+test/fixtures/frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer-2.hd	check	1	653					
+test/fixtures/frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer.hd	check	1	815					
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-2.hd	check	1	625					
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-3.hd	check	1	904					
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd	parse	0	737					
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-5.hd	check	1	799					
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-6.hd	parse	0	621	0.1	0.2	0.3	8.2	1.1
+test/fixtures/frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators.hd	check	1	578					
+test/fixtures/frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars-2.hd	parse	0	594	0.1	0.3	0.1	5.9	0.3
+test/fixtures/frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars.hd	parse	0	636	0.2	0.2	0.6	6.0	1.3
+test/fixtures/frontend/16-parser-rejects-comparison-chaining.hd	check	1	569					
+test/fixtures/frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering-2.hd	check	1	612					
+test/fixtures/frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering.hd	parse	0	571					
+test/fixtures/frontend/18-parser-retains-vararg-and-positional-spread-markers-2.hd	parse	0	920					
+test/fixtures/frontend/18-parser-retains-vararg-and-positional-spread-markers-3.hd	check	1	787					
+test/fixtures/frontend/18-parser-retains-vararg-and-positional-spread-markers.hd	parse	0	624					
+test/fixtures/frontend/19-parser-retains-function-parameter-defaults-2.hd	check	1	666					
+test/fixtures/frontend/19-parser-retains-function-parameter-defaults.hd	parse	0	611	0.2	0.3	0.5	7.0	0.1
+test/fixtures/frontend/20-parser-retains-a-leading-data-copy-update-spread-2.hd	check	1	799					
+test/fixtures/frontend/20-parser-retains-a-leading-data-copy-update-spread.hd	parse	0	614					
+test/fixtures/frontend/21-parser-retains-named-enum-payload-pattern-labels.hd	parse	0	742					
+test/fixtures/frontend/22-parser-retains-nested-result-payload-patterns.hd	parse	0	754					
+test/fixtures/frontend/23-parser-retains-literal-enum-payload-patterns.hd	parse	0	1176					
+test/fixtures/frontend/24-parser-retains-shared-enum-fields-defaults-and-variant-results.hd	parse	0	909	0.1	0.7	0.4	9.3	0.6
+test/fixtures/frontend/25-parser-retains-decimal-numeric-member-selectors.hd	parse	0	952					
+test/fixtures/frontend/26-parser-distinguishes-grouped-expressions-from-tuple-types-and-literals.hd	parse	0	933	0.3	0.5	0.3	16.0	0.2
+test/fixtures/frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd	parse	0	786	0.2	0.1	0.1	6.4	0.7
+test/fixtures/frontend/27-documentation-comments-attach-to-ast-declarations-and-members.hd	check	1	496					
+test/fixtures/frontend/28-parser-retains-top-level-public-visibility.hd	parse	0	686	0.2	0.3	0.1	7.6	2.1
+test/fixtures/frontend/29-parser-retains-named-test-blocks.hd	parse	0	622	0.2	0.1	0.2	7.5	0.2
+test/fixtures/frontend/30-parser-lowers-multi-provider-use-to-an-ordered-tuple.hd	parse	0	728					
+test/fixtures/frontend/31-parser-retains-single-and-grouped-use-declarations.hd	parse	0	664	0.1	0.1	0.1	7.0	0.2
+test/fixtures/requirements/closure-provider.hd	check	0	701	0.2	0.3	0.2	7.7	0.3
+test/fixtures/requirements/lexical-override.hd	check	0	561	0.2	0.3	0.2	9.3	0.1
+test/fixtures/requirements/loop-exit.hd	check	0	648	0.1	0.1	0.1	9.7	2.1
+test/fixtures/requirements/transitive-call-paths.hd	check	0	573	0.1	0.1	0.1	6.7	0.3
+test/fixtures/suspension/01-suspending-functions-construct-gc-frames-and-bang-calls-drive-them.hd	run --entry main	0	1072	0.2	0.1	0.4	11.5	1.0
+test/fixtures/suspension/02-generic-suspending-functions-box-frame-arguments-and-unbox-direct-or-sto.hd	run --entry main	0	1142	4.4	0.7	0.7	14.7	2.0
+test/fixtures/suspension/03-generic-suspension-frames-retain-trait-dictionaries-across-child-polls.hd	run --entry main	0	1857	0.7	0.8	1.3	22.0	1.0
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-2.hd	check	1	776					
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3.hd	check	1	785					
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-4.hd	check	1	574					
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic.hd	check	0	598	0.1	1.5	0.2	9.6	4.5
+test/fixtures/suspension/05-unresolved-race-task-combinator.hd	check	1	666					
+test/fixtures/suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd	run --entry main	0	1347	0.2	0.3	0.4	18.4	2.7
+test/fixtures/suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd	check	1	1011					
+test/fixtures/suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive.hd	run	1	1394	2.9	4.5	0.7	21.7	0.3
+test/fixtures/suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd	run --entry main	0	1235	0.3	0.6	0.3	8.0	1.0
+test/fixtures/suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd	run --entry main	0	883	0.1	0.6	0.2	7.5	1.7
+test/fixtures/suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled.hd	run	1	862	0.2	0.3	0.4	14.0	2.4
+test/fixtures/suspension/08-readonly-suspension-cancel.hd	check	1	714					
+test/fixtures/suspension/09-defer-suites-cannot-suspend.hd	check	1	1063					
+test/fixtures/suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd	run --entry main	0	1558	1.0	6.1	2.4	34.9	37.5
+test/fixtures/suspension/11-deterministic-host-pending.hd	run --entry main	0	1189	0.1	0.1	0.1	9.9	3.1
+test/fixtures/suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd	run --entry main	0	822	0.1	0.1	0.2	8.5	0.1
+test/fixtures/suspension/13-child-pending-propagates-through-the-parent-frame-and-restores-locals.hd	run --entry main	0	791	0.2	0.4	0.5	12.7	2.6
+test/fixtures/suspension/13-nested-pending-frame.hd	run --entry main	0	782	0.2	0.3	0.8	9.3	0.1
+test/fixtures/suspension/14-started-frame-cancellation-cancels-the-child-and-runs-registered-cleanup.hd	run --entry main	0	1027	0.1	0.2	0.4	8.4	0.2
+test/fixtures/suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup.hd	check	0	643	0.1	0.1	0.3	11.7	1.3
+test/fixtures/suspension/16-linear-suspension-frames-resume-across-multiple-child-sites.hd	run --entry main	0	1443	0.1	0.2	0.3	9.9	0.5
+test/fixtures/suspension/17-cfg-suspension-lowering-preserves-nested-expression-evaluation.hd	run --entry main	0	988	0.1	0.1	0.3	9.0	0.7
+test/fixtures/suspension/18-cfg-suspension-lowering-preserves-nested-argument-order.hd	run --entry main	0	889	0.2	0.3	1.1	12.7	0.3
+test/fixtures/suspension/19-cfg-suspension-lowering-branches-and-short-circuits-around-child-frames.hd	run --entry main	0	1026	0.3	0.6	1.3	14.4	3.5
+test/fixtures/suspension/20-cfg-suspension-lowering-preserves-loops-continue-break-values-and-cleanu.hd	run --entry main	0	1398	1.1	5.6	1.7	20.5	1.2
+test/fixtures/suspension/21-cfg-suspension-lowering-preserves-match-bindings-and-suspending-guards.hd	run --entry main	0	1067	0.2	0.7	0.8	14.4	0.3
+test/fixtures/suspension/22-cfg-suspension-lowering-propagates-result-failures-after-child-completio.hd	run --entry main	0	1091	0.3	5.0	1.1	18.9	2.3
+test/fixtures/suspension/23-cfg-suspension-cancellation-cancels-the-active-child-and-runs-scoped-cle.hd	run --entry main	0	946	3.1	0.2	0.7	22.8	1.7
+test/fixtures/suspension/24-cfg-suspension-lowering-installs-providers-produced-after-resumption.hd	run --entry main	0	1535	0.6	0.7	0.3	8.7	1.1
+test/fixtures/suspension/25-cfg-suspension-lowering-nests-dynamic-trait-suspensions.hd	run --entry main	0	907	0.2	0.2	0.4	21.4	0.6
+test/fixtures/suspension/26-replay-rejects-function-code-change.hd	run --entry main	0	808	0.1	0.1	0.7	7.6	1.9
+test/fixtures/suspension/26-replay-survives-unrelated-declaration.hd	run --entry main	0	1102	0.1	0.1	0.2	12.0	2.9
+test/fixtures/suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd	run --entry main	0	1213	0.2	0.2	0.3	10.2	2.4
+test/fixtures/suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo-missing-requirement.hd	check	1	677					
+test/fixtures/suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd	check	0	803	0.2	0.4	0.2	9.6	1.7
+test/fixtures/suspension/28-multi-provider-use-preserves-requested-tuple-order-through-wasm-gc.hd	run --entry main	0	2123	8.0	6.5	2.4	61.6	0.6
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested.hd	run	1	1263	0.1	0.3	0.9	11.8	0.2
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-suspension-forbidden-context.hd	check	1	873					
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd	run --entry main	0	1056	0.1	0.2	0.2	7.3	4.2
+test/fixtures/suspension/30-imported-assert-equal-compares-supported-structural-values-failure.hd	run	1	1241	0.2	0.4	0.2	14.3	5.8
+test/fixtures/suspension/30-imported-assert-equal-compares-supported-structural-values-missing-partial-eq.hd	check	1	679					
+test/fixtures/suspension/30-imported-assert-equal-compares-supported-structural-values.hd	run --entry main	0	2123	0.5	0.8	0.4	9.0	0.4
+test/fixtures/suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions-non-reassignable-binding.hd	check	1	997					
+test/fixtures/suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions.hd	check	0	936	0.1	1.6	2.4	6.1	0.2
+test/fixtures/suspension/32-host-provider-polls-record-and-replay.hd	test --profile ready-gate	0	1704	0.3	0.7	0.6	11.1	8.3
+test/fixtures/suspension/33-host-provider-scalar-arguments-and-results.hd	test --profile ready-counter	0	1589	0.2	7.4	0.4	12.3	10.5
+test/fixtures/suspension/34-stored-suspension-crosses-function-boundary.hd	test	0	1204	0.3	0.3	0.3	9.8	3.9
+test/fixtures/suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd	test --profile ready-float	0	1055	0.3	0.5	0.5	11.8	0.6
+test/fixtures/suspension/36-host-provider-strings-use-utf8-boundary.hd	test --profile ready-text	0	1170	0.1	0.2	0.4	15.0	4.7
+test/fixtures/suspension/37-named-suspending-function-values-construct-stored-frames.hd	test	0	1267	0.4	0.5	3.5	31.5	2.0
+test/fixtures/suspension/38-suspending-closures-capture-values-in-gc-frames.hd	test	0	1134	0.2	0.7	0.5	14.1	0.3
+test/fixtures/suspension/39-suspending-closure-values-forward-requirements.hd	test	0	2421	0.9	6.7	1.6	18.5	6.4
+test/fixtures/suspension/40-lowered-suspension-constructor-does-not-upgrade.hd	check	1	1190					
+test/fixtures/suspension/41-suspending-generic-methods-preserve-explicit-type-arguments.hd	test	0	2334	1.0	1.9	3.2	15.4	1.1
+test/fixtures/suspension/42-suspending-associated-functions-preserve-generic-results.hd	test	0	3232	1.1	0.8	2.3	13.9	0.3
+test/fixtures/suspension/43-blanket-implementations-materialize-suspending-dictionaries.hd	test	0	5095	3.7	2.3	8.1	32.3	3.5
+test/fixtures/suspension/44-named-local-suspending-functions-capture-recurse-and-forward-requirements.hd	test	0	3465	0.7	0.5	3.3	22.4	5.4

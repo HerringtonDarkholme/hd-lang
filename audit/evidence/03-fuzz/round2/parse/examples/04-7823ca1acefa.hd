@@ -1,0 +1,2 @@
+@ pack . map_list ( fn ! ( Some , f , string : mut fn ( ) -> $ . Context [ map . len - f . print . self_value [ fn ( ) -> map ] ] , string ) : return , self_value )
+data value : pass

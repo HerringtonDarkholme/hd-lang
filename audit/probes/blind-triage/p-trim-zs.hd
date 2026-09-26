@@ -1,0 +1,4 @@
+# test: trim removes U+3000 and U+2029 (White_Space)
+# expect-result: probe = 1
+pub fn probe() -> i32:
+    "　x ".trim().len()

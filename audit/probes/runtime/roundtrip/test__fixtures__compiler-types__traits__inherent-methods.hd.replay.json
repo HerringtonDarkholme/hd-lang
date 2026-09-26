@@ -1,0 +1,28 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "28f9bc2e66f32826",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "$inherent0.load:poll:1",
+    "functionName": "$inherent0.load",
+    "functionCodeId": "0f83336e6185794d",
+    "functionIndex": 2,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

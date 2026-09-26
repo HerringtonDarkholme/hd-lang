@@ -1,0 +1,23 @@
+# test: host provider strings use a durable UTF-8 boundary
+# fixture-runtime-profile: ready-text
+# expect: test
+
+use std.testing.assert_equal
+
+let provider_result: string = ""
+
+pub trait TextBridge:
+    fn join!(self, left: string, right: string) -> string
+
+fn request!() -> string $ TextBridge:
+    $.use(TextBridge).join!("host: ", "λ🙂")
+
+pub fn main!() -> void $ TextBridge:
+    provider_result = request!()
+
+test "host string arguments and result preserve UTF-8 bytes":
+    assert_equal(
+        provider_result,
+        "host: λ🙂",
+        reason="the string boundary must preserve multibyte text",
+    )

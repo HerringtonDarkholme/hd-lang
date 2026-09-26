@@ -1,0 +1,41 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "d4232b3cbe10050e",
+    "functionIndex": 2,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "use_dynamic_async:poll:1",
+    "functionName": "use_dynamic_async",
+    "functionCodeId": "3501bc9b6a50e89f",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "$impl0.add_async:poll:1",
+    "functionName": "$impl0.add_async",
+    "functionCodeId": "d6e5fdb2e2927b31",
+    "functionIndex": 4,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

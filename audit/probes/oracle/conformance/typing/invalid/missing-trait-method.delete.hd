@@ -1,0 +1,4 @@
+trait Named:
+    fn name(self) -> string
+
+data User: pass

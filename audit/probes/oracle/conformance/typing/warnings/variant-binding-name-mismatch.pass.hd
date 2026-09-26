@@ -1,0 +1,6 @@
+enum Choice:
+    Pair(then_value: i32, else_value: i32)
+
+fn swapped(choice: Choice) -> i32:
+    match choice:
+        pass

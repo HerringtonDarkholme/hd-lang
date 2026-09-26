@@ -1,0 +1,4 @@
+fn label(value: i32) -> string:
+    if value > 0:
+        return value
+    "none"

@@ -1,0 +1,9 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+fn drop_logger[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+fn log() -> void $ Logger:
+    $.use(Logger).write("hello")
+
+fn run() -> void:
+    drop_logger(log)

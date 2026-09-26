@@ -1,0 +1,18 @@
+# probe 5.4: host provider externref wrapper construction site
+# run with --profile ready-counter
+pub trait Counter:
+    fn add!(self, left: i32, right: i32) -> i32
+
+fn leaf!(n: i32) -> i32 $ Counter:
+    $.use(Counter).add!(n, 1)
+
+fn middle!(n: i32) -> i32 $ Counter:
+    leaf!(n) + leaf!(n)
+
+fn main!() -> i32 $ Counter:
+    let index: i32 = 0
+    let total: i32 = 0
+    while index < 3:
+        total = total + middle!(index)
+        index = index + 1
+    total

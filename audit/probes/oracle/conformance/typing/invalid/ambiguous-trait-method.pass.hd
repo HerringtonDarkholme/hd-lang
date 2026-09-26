@@ -1,0 +1,17 @@
+trait LeftLabel:
+    fn label(self) -> string
+
+trait RightLabel:
+    fn label(self) -> string
+
+data User:
+    name: string
+
+impl LeftLabel for User:
+    fn label(self) -> string: self.name
+
+impl RightLabel for User:
+    fn label(self) -> string: self.name
+
+fn invalid(user: User) -> string:
+    pass

@@ -1,0 +1,5 @@
+# test: data initialization rejects unknown fields
+
+data Point:
+    x: i32
+

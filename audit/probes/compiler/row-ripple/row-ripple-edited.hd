@@ -1,0 +1,142 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+trait Cache:
+    fn size(self) -> i32
+
+data L: pass
+data C: pass
+
+impl Logger for L:
+    fn write(self, message: string) -> void: pass
+
+impl Cache for C:
+    fn size(self) -> i32: 1
+
+fn f0() -> i32 $ Logger:
+    cb := fn(): f2()
+    f1() + cb()
+
+fn f1() -> i32 $ Logger:
+    cb := fn(): f4()
+    f3() + cb()
+
+fn f2() -> i32 $ Logger:
+    cb := fn(): f6()
+    f5() + cb()
+
+fn f3() -> i32 $ Logger:
+    cb := fn(): f8()
+    f7() + cb()
+
+fn f4() -> i32 $ Logger:
+    cb := fn(): f10()
+    f9() + cb()
+
+fn f5() -> i32 $ Logger:
+    cb := fn(): f12()
+    f11() + cb()
+
+fn f6() -> i32 $ Logger:
+    cb := fn(): f14()
+    f13() + cb()
+
+fn f7() -> i32 $ Logger:
+    cb := fn(): f16()
+    f15() + cb()
+
+fn f8() -> i32 $ Logger:
+    cb := fn(): f18()
+    f17() + cb()
+
+fn f9() -> i32 $ Logger:
+    cb := fn(): f20()
+    f19() + cb()
+
+fn f10() -> i32 $ Logger:
+    cb := fn(): f22()
+    f21() + cb()
+
+fn f11() -> i32 $ Logger:
+    cb := fn(): f24()
+    f23() + cb()
+
+fn f12() -> i32 $ Logger:
+    cb := fn(): f26()
+    f25() + cb()
+
+fn f13() -> i32 $ Logger:
+    cb := fn(): f28()
+    f27() + cb()
+
+fn f14() -> i32 $ Logger:
+    cb := fn(): f30()
+    f29() + cb()
+
+fn f15() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f16() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f17() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f18() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f19() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f20() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f21() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f22() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f23() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f24() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f25() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f26() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f27() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f28() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f29() -> i32 $ Logger:
+    $.use(Logger).write("leaf")
+    1
+
+fn f30() -> i32 $ Logger + Cache:
+    $.use(Logger).write("leaf")
+    $.use(Cache).size()
+
+fn main() -> i32:
+    $.with(Logger=L {}, Cache=C {}):
+        f0()

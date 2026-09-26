@@ -1,0 +1,5 @@
+# test: suspension state transitions are observable through the trace ABI
+# expect-result: main = 42
+
+fn child!() -> i32: 42
+fn main!() -> i32: child!()

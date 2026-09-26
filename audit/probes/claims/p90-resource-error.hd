@@ -1,0 +1,13 @@
+# test: std.resource.ResourceError is a generic Operation(E) | Disposed enum
+# expect: test
+use std.resource.ResourceError
+use std.testing.assert_equal
+
+fn code(error: ResourceError[i32]) -> i32:
+    match error:
+        ResourceError.Operation(value) => value
+        ResourceError.Disposed => -1
+
+test "resource":
+    assert_equal(code(ResourceError.Operation(4)), 4, reason="operation payload")
+    assert_equal(code(ResourceError.Disposed), -1, reason="disposed")

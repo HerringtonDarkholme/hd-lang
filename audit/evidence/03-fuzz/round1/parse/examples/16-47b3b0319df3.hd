@@ -1,0 +1,27 @@
+fn apply(value: string, transform: fn(string) -> string) -> string:
+    transform(value)
+
+fn choice(
+    first: fn(i32) -> void,
+    second: fn(string) -> void,
+) -> void:
+    first(1)
+    second("two")
+
+slugify := fn(text: string) -> string:
+    text.trim().lower()
+
+inline := names.map(fn(name): name.lower())
+inc := fn(x: i32) -> i32: x + 1
+
+choice(
+    (
+        fn(number):
+        fn(number):
+            println(number)
+    ),
+    (
+        fn(text):
+            println(text)
+    ),
+)

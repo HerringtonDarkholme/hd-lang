@@ -1,0 +1,8 @@
+# test: traits / mutable errors / signature mismatch
+
+trait Add:
+    fn add(mut self) -> void
+data Counter:
+    value: i32
+impl Add for Counter:
+    pass

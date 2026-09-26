@@ -1,0 +1,5 @@
+# test: a readonly suspension cannot be cancelled
+fn work!() -> i32: 1
+
+fn bad(pending: Suspend[i32]) -> void:
+    pending.cancel()  # diagnostic: mutable-receiver-required

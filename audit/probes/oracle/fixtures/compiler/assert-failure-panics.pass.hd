@@ -1,0 +1,6 @@
+# test: assert failure is a runtime panic
+
+use std.testing.assert
+
+fn main() -> void:
+    pass

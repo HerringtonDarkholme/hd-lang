@@ -1,0 +1,6 @@
+use std.task.all
+
+fn one!() -> i32: 1
+
+fn main!() -> i32:
+    all!(one(), one())

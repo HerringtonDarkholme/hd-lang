@@ -1,0 +1,34 @@
+# probe 5.1: dynamic trait value: receiver plus method refs; built once or per call
+trait Shape:
+    fn area(self) -> i32
+    fn scale(self, factor: i32) -> i32
+
+data Square:
+    side: i32
+
+impl Shape for Square:
+    fn area(self) -> i32: self.side * self.side
+    fn scale(self, factor: i32) -> i32: self.side * factor
+
+fn use_dyn(item: Shape) -> i32: item.area() + item.scale(2)
+
+fn loop_dyn(n: i32) -> i32:
+    square := Square { side: 2 }
+    let dynamic: Shape = square
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + use_dyn(dynamic)
+        i = i + 1
+    total
+
+fn loop_convert(n: i32) -> i32:
+    square := Square { side: 2 }
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + use_dyn(square)
+        i = i + 1
+    total
+
+fn main() -> i32: loop_dyn(2) + loop_convert(1)

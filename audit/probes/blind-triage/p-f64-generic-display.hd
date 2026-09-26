@@ -1,0 +1,7 @@
+# test: f64 satisfies a Display bound
+# expect: accept
+fn render[T: Display](value: T) -> string:
+    "$value"
+
+pub fn probe() -> string:
+    render(1.5)

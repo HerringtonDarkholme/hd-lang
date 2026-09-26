@@ -1,0 +1,106 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "f8bb8d7fe46897fe",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "step:poll:1",
+    "functionName": "step",
+    "functionCodeId": "13190ea815d0c210",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

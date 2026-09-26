@@ -1,0 +1,10 @@
+# bench 5.7-4a: loop of fn! calls that complete immediately
+fn step!(n: i32) -> i32: n + 1
+
+fn main!() -> i32:
+    let index: i32 = 0
+    let total: i32 = 0
+    while index < 200000:
+        total = (total + step!(index % 7)) % 1000003
+        index = index + 1
+    total

@@ -1,0 +1,7 @@
+fn first() -> i32:
+    value := (1 +
+    value
+
+fn second() -> i32:
+    other := [1, 2
+    other[0]

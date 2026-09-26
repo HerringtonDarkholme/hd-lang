@@ -1,0 +1,4 @@
+# test: a plain fn closure must not mutate a captured mutable list (07-functions.md#captures)
+fn make_appender(items: mut list[i32]) -> fn(i32) -> void:
+    fn(value: i32) -> void:
+        items.append(value)  # diagnostic: mutable-capture-requires-mut-fn

@@ -1,0 +1,18 @@
+# gap probe control: without subtraction the caller still needs Logger
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn quiet[r](callback: fn() -> void $ r) -> void $ r:
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn log_something() -> void $ Logger:
+    $.use(Logger).write("hi")
+
+fn caller() -> void:
+    quiet(log_something)  # diagnostic: missing-requirement

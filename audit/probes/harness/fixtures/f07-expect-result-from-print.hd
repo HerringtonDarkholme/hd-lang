@@ -1,0 +1,5 @@
+# test: F07 expect-result satisfied by printed text
+# expect-result: main = 42
+
+fn main() -> void $ Console:
+    println("42")

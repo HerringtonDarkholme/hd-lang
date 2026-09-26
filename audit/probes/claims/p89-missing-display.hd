@@ -1,0 +1,6 @@
+# test: interpolating a type without Display is rejected
+data Point:
+    x: i32
+
+fn bad(point: Point) -> string:
+    "${point}"  # diagnostic: missing-display

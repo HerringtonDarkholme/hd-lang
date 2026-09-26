@@ -1,0 +1,51 @@
+# test: interpolation calls Display left to right at each segment position
+# expect: test
+use std.testing.assert_equal
+
+let order: string = ""
+
+data Tagged:
+    label: string
+
+impl Display for Tagged:
+    fn to_string(self) -> string:
+        order = order + self.label
+        "<" + self.label + ">"
+
+fn reset() -> void:
+    order = ""
+
+fn seen() -> string:
+    order
+
+fn render[T: Display](value: T) -> string:
+    "$value"
+
+test "segments render in order and call Display once each":
+    reset()
+    first := Tagged { label: "a" }
+    second := Tagged { label: "b" }
+    text := "$first-${second}-$first"
+    assert_equal(text, "<a>-<b>-<a>", reason="each segment uses Display")
+    assert_equal(seen(), "aba", reason="Display calls follow segment order")
+
+test "a string without segments performs no Display calls":
+    reset()
+    text := "plain text"
+    raw := r"$first ${second}"
+    assert_equal(text, "plain text", reason="constant")
+    assert_equal(raw, "\$first \${second}", reason="raw strings never interpolate")
+    assert_equal(seen(), "", reason="no Display calls")
+
+test "generic and dynamic Display use the same implementation":
+    value := Tagged { label: "g" }
+    let dynamic: Display = value
+    assert_equal(render(value), "<g>", reason="generic dictionary")
+    assert_equal("$dynamic", "<g>", reason="dynamic dispatch")
+
+test "primitive Display":
+    letter := 'é'
+    flag := true
+    negative := -7
+    half := 1.5
+    assert_equal("$letter|$flag|$negative|$half", "é|true|-7|1.5", reason="primitive spellings")

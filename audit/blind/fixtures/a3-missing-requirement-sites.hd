@@ -1,0 +1,38 @@
+# test: missing rows are diagnosed at call and construction sites; covered twins accept
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string:
+        self.value
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn invoke[r](callback: fn() -> string $ r) -> string $ r:
+    callback()
+
+fn tagged!() -> string $ Tag:
+    current()
+
+fn rejected_callback() -> string:
+    invoke(current)  # diagnostic: missing-requirement
+
+fn declared_callback() -> string $ Tag:
+    invoke(current)
+
+fn lexical_callback() -> string:
+    $.with(Tag=FixedTag { value: "x" }):
+        invoke(current)
+
+fn rejected_construction() -> void:
+    let pending: mut Suspend[string] = tagged()  # diagnostic: missing-requirement
+    pending.cancel()
+
+fn lexical_construction() -> void:
+    let pending: mut Suspend[string] = $.with(Tag=FixedTag { value: "x" }):
+        tagged()
+    pending.cancel()

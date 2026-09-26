@@ -1,0 +1,18 @@
+# test: a lexical key that can unify with a declared generic key is rejected
+trait Repo[T]:
+    fn label(self) -> string
+
+data User: pass
+data Post: pass
+
+fn mixed[T](local: Repo[User]) -> void $ Repo[T]:
+    $.with(Repo[User]=local):  # diagnostic: generic-requirement-key-collision
+        pass
+
+fn distinct(local: Repo[User]) -> void $ Repo[Post]:
+    $.with(Repo[User]=local):
+        pass
+
+fn same_key_override(local: Repo[User]) -> void $ Repo[User]:
+    $.with(Repo[User]=local):
+        pass

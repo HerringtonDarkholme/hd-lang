@@ -1,0 +1,4 @@
+# test: list indexing out of bounds panics
+fn main() -> i32:
+    values := [1, 2]
+    values[2]  # panic: index-out-of-bounds

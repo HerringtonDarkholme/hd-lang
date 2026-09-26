@@ -1,0 +1,10 @@
+let sequence: i32 = 0
+
+fn next() -> i32:
+    sequence = sequence + 1
+    sequence
+
+let callback: fn() -> i32 = next
+
+data Counter:
+    pass

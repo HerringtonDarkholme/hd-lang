@@ -1,0 +1,5 @@
+# test: contextual enum variant expressions use their expected type
+
+enum Status:
+    Queued
+fn main() -> void:

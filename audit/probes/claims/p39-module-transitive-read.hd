@@ -1,0 +1,5 @@
+# test: a top-level initializer may not transitively read a later binding through a function
+let early: i32 = read_later()  # diagnostic: top-level-read-before-initialization
+let later: i32 = 1
+
+fn read_later() -> i32: later

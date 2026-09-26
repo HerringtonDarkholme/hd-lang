@@ -1,0 +1,6 @@
+# test: a positional spread must be final
+fn total(values: i32...) -> i32: values.len()
+
+fn bad() -> i32:
+    rest := [1]
+    total(rest..., 2)  # diagnostic: nonfinal-positional-spread

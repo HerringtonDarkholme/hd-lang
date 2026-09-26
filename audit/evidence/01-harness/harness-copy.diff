@@ -1,0 +1,19 @@
+--- test/run-portable.ts	2026-09-25 12:39:49
++++ audit/scripts/harness/run-portable-copy.ts	2026-09-25 16:35:28
+@@ -39,11 +39,11 @@
+   readonly suite: "all" | "conformance" | "fixtures";
+ }
+ 
+-const root = resolve(import.meta.dirname, "..");
+-const portableManifest = resolve(root, "test/portable/cases.tsv");
+-const specManifest = resolve(root, "spec/conformance/cases.tsv");
+-const conformanceRoot = resolve(root, "spec/conformance");
+-const fixtureRoot = resolve(root, "test/fixtures");
++const root = resolve(import.meta.dirname, "../../..");
++const portableManifest = resolve(root, "audit/probes/harness/portable-cases.tsv");
++const specManifest = resolve(root, "audit/probes/harness/spec-cases.tsv");
++const conformanceRoot = resolve(root, "audit/probes/harness/conformance");
++const fixtureRoot = resolve(root, "audit/probes/harness/fixtures");
+ 
+ function splitCommand(value: string): string[] {
+   const parts: string[] = [];

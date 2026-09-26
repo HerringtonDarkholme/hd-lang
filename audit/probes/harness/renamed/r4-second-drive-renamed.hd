@@ -1,0 +1,8 @@
+use std.task.block_on
+
+fn produce!() -> i32: 42
+
+pub fn main() -> void:
+    let job: mut Suspend[i32] = produce()
+    _ := block_on(job)
+    _ := block_on(job)  # panic: suspension-invalid-state

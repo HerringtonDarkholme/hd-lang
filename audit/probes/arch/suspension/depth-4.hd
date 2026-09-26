@@ -1,0 +1,6 @@
+# probe 5.5: 4-deep suspension chain; leaf held pending by the dev runtime
+fn s4!() -> i32: 1
+fn s3!() -> i32: s4!() + 1
+fn s2!() -> i32: s3!() + 1
+fn s1!() -> i32: s2!() + 1
+fn main!() -> i32: s1!()

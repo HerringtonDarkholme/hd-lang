@@ -1,0 +1,16 @@
+data Validation: pass
+data Validator: pass
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        panic("exact annotation supplies build")
+
+annotate[T] Validation for list[T]:
+    fn build(self, target: TypeShape) -> Validator:
+        Validator {}
+
+    fn build(self, target: TypeShape) -> Validator:
+        Validator {}

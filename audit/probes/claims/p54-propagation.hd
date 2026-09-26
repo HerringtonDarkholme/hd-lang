@@ -1,0 +1,29 @@
+# test: postfix ? propagates nil and Err; Ok and present values continue
+# expect: test
+use std.testing.assert_equal
+
+fn half(value: i32) -> i32?:
+    if value % 2 == 0:
+        value / 2
+    else:
+        nil
+
+fn quarter(value: i32) -> i32?:
+    h := half(value)?
+    half(h)
+
+fn parse(value: i32) -> Result[i32, string]:
+    if value > 0:
+        Ok(value)
+    else:
+        Err("negative")
+
+fn doubled(value: i32) -> Result[i32, string]:
+    v := parse(value)?
+    Ok(v * 2)
+
+test "propagation":
+    assert_equal(quarter(8), 2, reason="present")
+    assert_equal(quarter(6), nil, reason="nil propagates")
+    assert_equal(doubled(2), Ok(4), reason="ok")
+    assert_equal(doubled(-1), Err("negative"), reason="err propagates")

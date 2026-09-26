@@ -1,0 +1,10 @@
+fn step!(value: i32) -> i32: value + 1
+
+fn main!() -> i32:
+    a := 1
+    b := a + 1
+    c := b + 1
+    d := c + 1
+    first := step!(d)
+    second := step!(first)
+    second

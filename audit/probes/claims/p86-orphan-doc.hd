@@ -1,0 +1,4 @@
+# test: an unattached documentation comment is rejected
+fn ok() -> i32: 1
+
+## dangling  # diagnostic: doc-comment-without-target

@@ -1,0 +1,7 @@
+# test: a plain fn closure must not assign captured let storage (07-functions.md#captures)
+fn run() -> i32:
+    let count: i32 = 0
+    bump := fn() -> void:
+        count = count + 1  # diagnostic: mutable-capture-requires-mut-fn
+    bump()
+    count

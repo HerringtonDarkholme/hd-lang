@@ -1,0 +1,7 @@
+# test: enums / generic / unsaturated type
+
+enum Maybe[T]:
+    Some(value: T)
+    None
+
+    pass

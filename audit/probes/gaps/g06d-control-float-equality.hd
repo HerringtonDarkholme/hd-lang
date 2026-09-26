@@ -1,0 +1,7 @@
+# gap probe control: f64 equality with NaN (equality, not ordering)
+use std.testing.assert
+
+test "NaN is unequal":
+    nan := 0.0 / 0.0
+    assert(not (nan == nan), reason="NaN is unequal to itself")
+    assert(nan != nan, reason="NaN != NaN")

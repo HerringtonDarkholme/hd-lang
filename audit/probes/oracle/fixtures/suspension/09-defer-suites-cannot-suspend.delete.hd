@@ -1,0 +1,6 @@
+# test: defer suites cannot suspend
+
+fn ready!() -> void: pass
+fn main!() -> void:
+    defer:
+    pass

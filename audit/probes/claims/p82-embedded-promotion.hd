@@ -1,0 +1,18 @@
+# test: embedded fields promote fields and inherent methods
+# expect: test
+use std.testing.assert_equal
+
+data Base:
+    id: i32
+
+impl Base:
+    fn label(self) -> string: "base"
+
+data User:
+    Base
+    name: string
+
+test "promotion":
+    user := User { Base: Base { id: 3 }, name: "a" }
+    assert_equal(user.id, 3, reason="field promoted")
+    assert_equal(user.label(), "base", reason="method promoted")

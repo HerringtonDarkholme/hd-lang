@@ -1,0 +1,6 @@
+path	phase
+../../audit/probes/gates/s3-cancel-order-3-frames.hd	runtime
+../../audit/probes/gates/s3-cancel-order-negative-control.hd	runtime
+../../audit/probes/gates/s3-cancel-lifo-within-frame.hd	runtime
+../../audit/probes/gates/s3-cancel-unreached-defer.hd	runtime
+../../audit/probes/gates/s3-nested-provider-capture.hd	runtime

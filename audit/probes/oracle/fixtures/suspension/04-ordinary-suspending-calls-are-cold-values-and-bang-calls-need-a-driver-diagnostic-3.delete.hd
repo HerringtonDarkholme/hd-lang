@@ -1,0 +1,3 @@
+# test: ordinary suspending calls are cold values and bang calls need a driver
+
+fn plain() -> i32: 42

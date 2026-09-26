@@ -1,0 +1,8 @@
+# test: i32 power is right associative and checked; f64 power is IEEE
+# expect: test
+use std.testing.assert_equal
+
+test "power":
+    assert_equal(2 ** 3 ** 2, 512, reason="right associative")
+    assert_equal(4.0 ** 0.5, 2.0, reason="float power")
+    assert_equal(2.0 ** 1024.0, 1.0 / 0.0, reason="float power overflows to infinity")

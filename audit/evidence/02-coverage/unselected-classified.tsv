@@ -1,0 +1,79 @@
+# commit bd985d7; command: awk join of unselected.tsv (runner.ts conformance) with classify-map.tsv and spec/README.md code inventory; date 2026-09-25T20:38:57Z
+path	phase	expectation	verdict	codes	class	feature	diagnostic_kind	finding
+parse/valid/declarations.hd	parse	accept	FAIL	expected-expression	in-scope-failing	type declarations (newtype/alias)	generic(expected-expression)	F-254
+parse/valid/decorators.hd	parse	accept	FAIL	decorator-not-top-level	deferred	annotations	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+parse/valid/grammar-disambiguation.hd	parse	accept	FAIL	expected-newline	in-scope-failing	inline if/else expression (parser)	generic(expected-newline)	F-252
+parse/valid/nested-layout.hd	parse	accept	FAIL	expected-newline	in-scope-failing	inline if/else expression (parser)	generic(expected-newline)	F-252
+parse/valid/uses.hd	parse	accept	FAIL	expected-token	in-scope-failing	relative self./super. use paths (parser)	generic(expected-token)	F-252
+runtime/valid/resource-disposed-result.hd	runtime	accept	FAIL		in-scope-failing	disposed-file runtime profile missing	harness-usage-error	F-259
+typing/invalid/annotation-direct-reentry.hd	type	reject:annotation-resolution-reentry	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/annotation-top-level-read.hd	type	reject:annotation-top-level-read	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/configured-facet-not-annotator.hd	type	reject:decorator-not-annotator	FAIL	decorator-not-top-level	deferred	annotations	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/invalid/contravariant-representation-change.hd	type	reject:variance-representation-change	FAIL	expected-token	deferred	declared variance	generic(expected-token)	F-250
+typing/invalid/covariant-gadt-result.hd	type	reject:invalid-variance	FAIL	expected-token	deferred	declared variance + GADTs	generic(expected-token)	F-250
+typing/invalid/data-annotator-map-build.hd	type	reject:annotation-build-signature	FAIL	unknown-trait	deferred	annotations	generic(unknown-trait)	F-250
+typing/invalid/derived-generic-bound.hd	type	reject:missing-derived-bound	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/invalid/derived-hash-field-not-hash.hd	type	reject:field-not-hash	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/invalid/derived-total-order-float.hd	type	reject:field-not-eq	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/invalid/duplicate-direct-annotation-impl.hd	type	reject:duplicate-annotation-impl	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/embedded-field-decorator-type.hd	type	reject:invalid-field-metadata	FAIL	expected-token	deferred	annotations	generic(expected-token)	F-250
+typing/invalid/impossible-gadt-pattern.hd	type	reject:impossible-gadt-pattern	FAIL	unknown-type,void-data-field,unsupported-gadt-result	deferred	GADTs	structured-not-first	F-250
+typing/invalid/integer-literal-range.hd	type	reject:integer-literal-range	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/invalid/integer-narrowing.hd	type	reject:implicit-narrowing	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/invalid/least-type-weakening-variance.hd	type	reject:no-least-common-type	FAIL	no-common-type	in-scope-failing	least common type code (no-common-type vs no-least-common-type)	spec-code-wrong-meaning(no-common-type)	F-258
+typing/invalid/library-orphan-annotation.hd	type	reject:orphan-annotation-in-library	FAIL	expected-expression	deferred	annotations + multi-package role	generic(expected-expression)	F-250
+typing/invalid/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	FAIL	expected-expression	in-scope-failing	local declarations (local impl)	generic(expected-expression)	F-254
+typing/invalid/metadata-type-as-value.hd	type	reject:type-used-as-value	FAIL	unknown-type	deferred	annotations (shape types)	generic(unknown-type)	F-250
+typing/invalid/missing-child-annotation.hd	type	reject:missing-child-annotation	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/mixed-signedness.hd	type	reject:mixed-signedness	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/invalid/multiple-positional-value-packs.hd	type	reject:multiple-positional-value-packs	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/invalid/nil-to-any.hd	type	reject:nil-to-nonoptional	FAIL	unknown-type	in-scope-failing	prelude Any type	generic(unknown-type)	F-255
+typing/invalid/nominal-map-key.hd	type	reject:invalid-map-key	FAIL	expected-expression	in-scope-failing	type declarations (newtype) as map key	generic(expected-expression)	F-254
+typing/invalid/nonfinal-positional-value-pack.hd	type	reject:nonfinal-positional-value-pack	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/invalid/overlapping-generic-annotation.hd	type	reject:overlapping-annotation-impl	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/pack-length-mismatch.hd	type	reject:pack-length-mismatch	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/invalid/pack-map-mapper-mismatch.hd	type	reject:pack-map-mapper-mismatch	FAIL	unknown-name	deferred	packs	generic(unknown-name)	F-250
+typing/invalid/parameter-decorator-type.hd	type	reject:invalid-parameter-metadata	FAIL	expected-token	deferred	annotations	generic(expected-token)	F-250
+typing/invalid/plain-closure-mutable-capture.hd	type	reject:mutable-capture-requires-mut-fn	FAIL		in-scope-failing	closure capture permission (UNSOUND ACCEPT)	accepted-no-diagnostic	F-251
+typing/invalid/retention-missing-field.hd	type	reject:unknown-shape-target	FAIL	expected-expression	deferred	annotations (shape)	generic(expected-expression)	F-250
+typing/invalid/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	FAIL	expected-token	in-scope-failing	row-kinded generic data arguments	generic(expected-token)	F-256
+typing/invalid/unknown-annotation-member.hd	type	reject:unknown-annotation-member	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/invalid/unrepresentable-type-shape.hd	type	reject:unrepresentable-type-shape	FAIL	expected-expression	deferred	annotations (shape)	generic(expected-expression)	F-250
+typing/invalid/unsigned-negation.hd	type	reject:unsigned-negation	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/invalid/variance-position.hd	type	reject:invalid-variance	FAIL	expected-token	deferred	declared variance	generic(expected-token)	F-250
+typing/invalid/variance-representation-change.hd	type	reject:variance-representation-change	FAIL	expected-token	deferred	declared variance	generic(expected-token)	F-250
+typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	FAIL	expected-token	in-scope-failing	unnamed positional enum payload (parser); GADT result is deferred	generic(expected-token)	F-252
+typing/valid/annotation-reference.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/annotations.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/configured-facet.hd	type	accept	FAIL	decorator-not-top-level	deferred	annotations	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/valid/data-decorator.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/derived-equality.hd	type	accept	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/valid/derived-generic-bound.hd	type	accept	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/valid/derived-hash.hd	type	accept	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/valid/derived-ordering.hd	type	accept	FAIL	decorator-not-top-level	deferred	annotations (derive)	spec-code-wrong-meaning(decorator-not-top-level)	F-250
+typing/valid/direct-annotation-impl.hd	type	accept	FAIL	unknown-trait	deferred	annotations	generic(unknown-trait)	F-250
+typing/valid/embedded-field-decorator.hd	type	accept	FAIL	expected-token	deferred	annotations	generic(expected-token)	F-250
+typing/valid/full-validation.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/gadts.hd	type	accept	FAIL	expected-token	deferred	GADTs	generic(expected-token)	F-250
+typing/valid/generic-annotation-family.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/generic-map-key.hd	type	accept	FAIL	unknown-trait,invalid-map-key	in-scope-failing	prelude Eq/Hash traits	generic(unknown-trait)	F-255
+typing/valid/invariant-gadt-result.hd	type	accept	FAIL	expected-expression	deferred	GADTs	generic(expected-expression)	F-250
+typing/valid/lazy-annotation-build.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/local-types.hd	type	accept	FAIL	expected-expression	in-scope-failing	local declarations (type/data/enum/trait/impl)	generic(expected-expression)	F-254
+typing/valid/missing-child-override.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/mutable-closure-capture.hd	type	accept	FAIL	expected-expression	in-scope-failing	mut fn closures	generic(expected-expression)	F-257
+typing/valid/mutable-suspension.hd	type	accept	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/valid/newtypes-and-widening.hd	type	accept	FAIL	expected-expression	in-scope-failing	type declarations + sized numeric types	generic(expected-expression)	F-253
+typing/valid/numeric-corners.hd	type	accept	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/valid/numeric-types.hd	type	accept	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/valid/numeric-widening-and-display-list.hd	type	accept	FAIL	unknown-type	in-scope-failing	sized numeric types	generic(unknown-type)	F-253
+typing/valid/pack-map.hd	type	accept	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/valid/parameter-decorator.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/prelude-surface.hd	type	accept	FAIL	unknown-trait	in-scope-failing	prelude Hash/Hasher and list.map surface	generic(unknown-trait)	F-255
+typing/valid/retention-metadata.hd	type	accept	FAIL	expected-expression	deferred	annotations	generic(expected-expression)	F-250
+typing/valid/root-orphan-annotation.hd	type	accept	FAIL	expected-expression	deferred	annotations + multi-package role	generic(expected-expression)	F-250
+typing/valid/row-kinded-arguments.hd	type	accept	FAIL	expected-token	in-scope-failing	row-kinded generic data arguments	generic(expected-token)	F-256
+typing/valid/shape-api.hd	type	accept	FAIL	expected-expression	deferred	annotations (shape)	generic(expected-expression)	F-250
+typing/valid/traits.hd	type	accept	PASS		passing-unselected	traits	n/a	F-260
+typing/valid/variadic-generics.hd	type	accept	FAIL	unsupported-generic-parameter	deferred	packs	structured	F-250
+typing/valid/variance-permission-weakening.hd	type	accept	FAIL	expected-token	deferred	declared variance	generic(expected-token)	F-250

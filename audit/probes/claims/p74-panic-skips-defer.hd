@@ -1,0 +1,5 @@
+# test: explicit panic reports its code (defer suites are skipped per the claim)
+fn main() -> i32:
+    defer:
+        pass
+    panic("stop")  # panic: explicit-panic

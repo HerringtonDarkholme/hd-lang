@@ -1,0 +1,12 @@
+# test: split keeps empty pieces and splits an empty separator at scalar boundaries
+# expect: test
+use std.testing.assert_equal
+
+test "split":
+    pieces := ",a,,b,".split(",")
+    assert_equal(pieces.len(), 5, reason="boundary and inner empties kept")
+    assert_equal(pieces[0], "", reason="leading empty")
+    assert_equal(pieces[4], "", reason="trailing empty")
+    scalars := "héé".split("")
+    assert_equal(scalars.len(), 3, reason="scalar split")
+    assert_equal(scalars[1], "é", reason="multi-byte scalar intact")

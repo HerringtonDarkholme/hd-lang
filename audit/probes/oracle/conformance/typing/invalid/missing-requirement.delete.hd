@@ -1,0 +1,6 @@
+trait Database
+
+fn query() -> void $ Database:
+    pass
+
+fn invalid() -> void:

@@ -1,0 +1,18 @@
+# test: named enum payload constructor arguments evaluate in source order
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+enum Shape:
+    Rect(width: i32, height: i32)
+
+test "enum payload order":
+    value := Shape.Rect(height=g("h", 2), width=g("w", 3))
+    match value:
+        Shape.Rect(width, height) => assert_equal(width * 10 + height, 32, reason="mapping")
+    assert_equal(log, "hw", reason="source order")

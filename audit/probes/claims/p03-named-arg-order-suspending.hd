@@ -1,0 +1,16 @@
+# test: named arguments to a suspending call evaluate in source order
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+fn combine!(first: i32, second: i32) -> i32: first * 10 + second
+
+pub fn main!() -> void:
+    result := combine!(second=g("s", 2), first=g("f", 1))
+    assert_equal(result, 12, reason="mapping")
+    assert_equal(log, "sf", reason="source order")

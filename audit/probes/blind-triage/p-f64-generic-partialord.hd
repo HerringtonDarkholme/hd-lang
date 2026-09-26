@@ -1,0 +1,7 @@
+# test: f64 satisfies a PartialOrd bound
+# expect: accept
+fn lower[T: PartialOrd](left: T, right: T) -> bool:
+    left < right
+
+pub fn probe() -> bool:
+    lower(1.0, 2.0)

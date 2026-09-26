@@ -1,0 +1,141 @@
+# probe 5.3: generic (erased, dictionary-passing) vs monomorphic sum and sort
+trait Num:
+    fn plus(self, other: Self) -> Self
+    fn zero(self) -> Self
+
+impl Num for i32:
+    fn plus(self, other: i32) -> i32: self + other
+    fn zero(self) -> i32: 0
+
+impl Num for f64:
+    fn plus(self, other: f64) -> f64: self + other
+    fn zero(self) -> f64: 0.0
+
+fn sum[T: Num](values: list[T], seed: T) -> T:
+    let total = seed.zero()
+    for value in values:
+        total = total.plus(value)
+    total
+
+fn sum_i32(values: list[i32]) -> i32:
+    let total = 0
+    for value in values:
+        total = total + value
+    total
+
+fn sum_f64(values: list[f64]) -> f64:
+    let total = 0.0
+    for value in values:
+        total = total + value
+    total
+
+# std PartialOrd is not satisfied by i32 in this MVP (F-500), so a user trait stands in.
+trait Less:
+    fn less(self, other: Self) -> bool
+
+impl Less for i32:
+    fn less(self, other: i32) -> bool: self < other
+
+fn sort[T: Less](values: mut list[T]) -> i32:
+    let i = 1
+    while i < values.len():
+        let j = i
+        while j > 0 and values[j].less(values[j - 1]):
+            tmp := values[j]
+            values[j] = values[j - 1]
+            values[j - 1] = tmp
+            j = j - 1
+        i = i + 1
+    values.len()
+
+fn sort_i32(values: mut list[i32]) -> i32:
+    let i = 1
+    while i < values.len():
+        let j = i
+        while j > 0 and values[j] < values[j - 1]:
+            tmp := values[j]
+            values[j] = values[j - 1]
+            values[j - 1] = tmp
+            j = j - 1
+        i = i + 1
+    values[0] + values.len() - values[0]
+
+fn ints(n: i32) -> mut list[i32]:
+    let values: mut list[i32] = []
+    let i = 0
+    while i < n:
+        values.append((i * 7919) % 1000)
+        i = i + 1
+    values
+
+fn floats(n: i32) -> list[f64]:
+    let values: mut list[f64] = []
+    let i = 0
+    let x = 0.5
+    while i < n:
+        values.append(x)
+        x = x + 1.0
+        i = i + 1
+    values
+
+fn bench_sum_generic_i32(n: i32, reps: i32) -> i32:
+    values := ints(n)
+    let total = 0
+    let r = 0
+    while r < reps:
+        total = total + sum(values, 0) % 7
+        r = r + 1
+    total
+
+fn bench_sum_mono_i32(n: i32, reps: i32) -> i32:
+    values := ints(n)
+    let total = 0
+    let r = 0
+    while r < reps:
+        total = total + sum_i32(values) % 7
+        r = r + 1
+    total
+
+fn bench_sum_generic_f64(n: i32, reps: i32) -> f64:
+    values := floats(n)
+    let total = 0.0
+    let r = 0
+    while r < reps:
+        total = total + sum(values, 0.0)
+        r = r + 1
+    total
+
+fn bench_sum_mono_f64(n: i32, reps: i32) -> f64:
+    values := floats(n)
+    let total = 0.0
+    let r = 0
+    while r < reps:
+        total = total + sum_f64(values)
+        r = r + 1
+    total
+
+fn bench_sort_generic_i32(n: i32, reps: i32) -> i32:
+    let total = 0
+    let r = 0
+    while r < reps:
+        total = total + sort(ints(n))
+        r = r + 1
+    total
+
+fn bench_sort_mono_i32(n: i32, reps: i32) -> i32:
+    let total = 0
+    let r = 0
+    while r < reps:
+        total = total + sort_i32(ints(n))
+        r = r + 1
+    total
+
+fn bench_build_i32(n: i32, reps: i32) -> i32:
+    let total = 0
+    let r = 0
+    while r < reps:
+        total = total + ints(n).len()
+        r = r + 1
+    total
+
+fn main() -> i32: bench_sum_generic_i32(10, 1) - bench_sum_mono_i32(10, 1) + bench_sort_generic_i32(10, 1) - bench_sort_mono_i32(10, 1)

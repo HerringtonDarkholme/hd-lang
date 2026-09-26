@@ -1,0 +1,9 @@
+# test: f64 relational operators compile and follow IEEE ordering
+# expect: test
+use std.testing.assert_equal
+
+fn less(left: f64, right: f64) -> bool: left < right
+
+test "f64 relational":
+    assert_equal(less(1.0, 2.0), true, reason="ordered")
+    assert_equal(less(0.0 / 0.0, 1.0), false, reason="NaN is unordered")

@@ -1,0 +1,11 @@
+# Control for h1-default-reads-mutable-global: the top-level := binding cannot be
+# reassigned, and the default reads it directly.
+use std.testing.assert_equal
+
+limit := 10
+
+fn current(value: i32 = limit) -> i32:
+    value
+
+test "default reads a top-level := binding":
+    assert_equal(current(), 10, reason="read is not a write")

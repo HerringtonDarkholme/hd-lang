@@ -1,0 +1,46 @@
+# test: generic arguments instantiated with mut User keep mutable access through readonly roots
+# expect: test
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+data Box[T]:
+    value: T
+
+fn keep[T](value: T) -> T:
+    value
+
+test "a generic function returns the mutable access it was given":
+    let user: mut User = User { name: "Ada" }
+    let kept: mut User = keep(user)
+    kept.name = "Grace"
+    assert_equal(user.name, "Grace", reason="T = mut User round-trips mutable access")
+
+test "a readonly Box[mut User] field read yields mut User":
+    let user: mut User = User { name: "Ada" }
+    let box: Box[mut User] = Box[mut User] { value: user }
+    let inner: mut User = box.value
+    inner.name = "Lin"
+    assert_equal(user.name, "Lin", reason="generic field keeps its substituted type")
+
+test "readonly list[mut User] yields mutable elements by index and iteration":
+    let user: mut User = User { name: "a" }
+    let users: list[mut User] = [user]
+    let indexed: mut User = users[0]
+    indexed.name = "b"
+    for element in users:
+        element.name = element.name + "!"
+    assert_equal(user.name, "b!", reason="element permission is the declared generic argument")
+
+test "optional and Result unwrapping keep mut":
+    let user: mut User = User { name: "a" }
+    let maybe: (mut User)? = user
+    match maybe:
+        present? => present.name = "opt"
+        nil => pass
+    let outcome: Result[mut User, string] = Ok(user)
+    match outcome:
+        Ok(value) => value.name = value.name + "+ok"
+        Err(message) => panic(message)
+    assert_equal(user.name, "opt+ok", reason="unwrapping preserves the generic argument")

@@ -1,0 +1,17 @@
+# test: contextual enum construction and patterns use the expected type
+# expect: test
+use std.testing.assert_equal
+
+enum State:
+    Waiting
+    Ready(value: i32)
+
+fn value(state: State) -> i32:
+    match state:
+        .Ready(value) => value
+        .Waiting => 0
+
+test "contextual":
+    let state: State = .Ready(42)
+    assert_equal(value(state), 42, reason="contextual constructor")
+    assert_equal(value(.Waiting), 0, reason="contextual argument")

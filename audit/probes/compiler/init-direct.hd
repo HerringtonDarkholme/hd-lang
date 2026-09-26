@@ -1,0 +1,8 @@
+first := read_later()
+later := 5
+
+fn read_later() -> i32:
+    later
+
+fn main() -> i32:
+    first

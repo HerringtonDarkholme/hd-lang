@@ -1,0 +1,8 @@
+# test: a private main with a non-host requirement is rejected or diagnosed, never a host crash
+# fuzz-expect: check rejects with nonhost-entry-requirement, or run exits 1 with a located code
+# fuzz-signature: contract|violation:run|no-located-code:TypeError: type incompatibility when transforming from/to JS
+# fuzz-class: implementation bug (F-308); `pub fn main` gets nonhost-entry-requirement, `fn main` crashes at run
+trait Database
+
+fn main() -> void $ Database:
+    pass

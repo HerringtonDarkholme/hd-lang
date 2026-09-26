@@ -1,0 +1,344 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/test-quality/inventory.ts; date: 2026-09-25
+path	flags
+compiler-types/callbacks/function-values.hd	nonentry-main-result
+compiler-types/callbacks/readonly-result.hd	nonentry-main-result
+compiler-types/callbacks/requirement-function-values.hd	undeclared-requirement-key:Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/callbacks/trailing.hd	nonentry-main-result
+compiler-types/closures/captures.hd	nonentry-main-result
+compiler-types/closures/nested-captures.hd	nonentry-main-result
+compiler-types/closures/provider-captures.hd	undeclared-requirement-key:Backup+Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/closures/requirement-inference/inferred-row.hd	undeclared-requirement-key:Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/closures/requirement-inference/missing-requirement.hd	undeclared-requirement-key:Clock
+compiler-types/closures/requirements.hd	undeclared-requirement-key:Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/collections/lists/empty-needs-context.hd	nonspec-code:empty-list-needs-context
+compiler-types/collections/lists/erased-storage.hd	nonentry-main-result
+compiler-types/collections/lists/heterogeneous-elements.hd	
+compiler-types/collections/lists/void-element-type.hd	nonspec-code:unknown-type
+compiler-types/collections/maps/empty-needs-context.hd	nonspec-code:empty-map-needs-context
+compiler-types/collections/maps/float-key.hd	nonspec-code:unsupported-map-key
+compiler-types/collections/maps/heterogeneous-values.hd	nonspec-code:type-mismatch
+compiler-types/collections/maps/lookup-replacement.hd	nonentry-main-result named-entry-hook:scalar_keys named-entry-hook:empty
+compiler-types/collections/trait-lists.hd	nonentry-main-result
+compiler-types/data/generic/erased-layout.hd	nonentry-main-result
+compiler-types/data/generic/mismatched-field-type.hd	nonspec-code:generic-type-mismatch
+compiler-types/enums/generic/context-required.hd	nonspec-code:generic-enum-needs-context
+compiler-types/enums/generic/erased-payloads.hd	nonentry-main-result
+compiler-types/enums/generic/unsaturated-type.hd	nonspec-code:unknown-type
+compiler-types/generics/callable-adapter.hd	nonentry-main-result
+compiler-types/generics/functions/inconsistent-inference.hd	nonspec-code:generic-type-mismatch
+compiler-types/generics/functions/inference-and-boxing.hd	nonentry-main-result float-result-host-format:float_value=3.5 named-entry-hook:float_value
+compiler-types/generics/functions/unresolved-placeholder.hd	
+compiler-types/generics/functions/unsaturated-function-value.hd	nonspec-code:generic-function-value-needs-arguments
+compiler-types/generics/option-result.hd	nonentry-main-result
+compiler-types/identity/references/gc-identity.hd	nonentry-main-result
+compiler-types/identity/references/missing-implementation.hd	nonspec-code:missing-trait-implementation
+compiler-types/identity/references/unbounded-generic.hd	
+compiler-types/requirements/abi.hd	undeclared-requirement-key:Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/context-errors/non-context-spread.hd	nonspec-code:context-spread-type
+compiler-types/requirements/context-errors/wrong-context-type.hd	nonspec-code:type-mismatch undeclared-requirement-key:Backup+Clock
+compiler-types/requirements/context-normalization.hd	undeclared-requirement-key:Backup+Clock
+compiler-types/requirements/contexts.hd	undeclared-requirement-key:Backup+Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/generic-provider-keys/collision.hd	
+compiler-types/requirements/generic-provider-keys/consistent-substitution.hd	
+compiler-types/requirements/generic-provider-keys/distinct.hd	
+compiler-types/requirements/generic-provider-keys/occurs-check.hd	
+compiler-types/requirements/generic-provider-keys/spread-collision.hd	
+compiler-types/requirements/missing-requirement.hd	undeclared-requirement-key:Clock
+compiler-types/requirements/normalization/explicit-empty-row.hd	
+compiler-types/requirements/normalization/grouped.hd	undeclared-requirement-key:Clock+Logger
+compiler-types/requirements/normalization/ungrouped.hd	undeclared-requirement-key:Clock+Logger
+compiler-types/requirements/provider-errors/missing-provider.hd	undeclared-requirement-key:Clock
+compiler-types/requirements/provider-errors/wrong-provider-type.hd	nonspec-code:provider-type-mismatch undeclared-requirement-key:Clock
+compiler-types/requirements/provider-scopes.hd	undeclared-requirement-key:Backup+Clock entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/row-forwarding.hd	undeclared-requirement-key:Clock+Logger entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/row-inference/conflicting-row.hd	nonspec-code:generic-type-mismatch undeclared-requirement-key:Clock+Logger
+compiler-types/requirements/row-inference/inferred-empty-row.hd	nonentry-main-result
+compiler-types/requirements/row-inference/unavailable-provider.hd	undeclared-requirement-key:Clock+Logger
+compiler-types/requirements/row-multi-forwarding.hd	undeclared-requirement-key:Clock+Logger entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/row-pack.hd	undeclared-requirement-key:Clock+Logger entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/row-subtraction/absent-subtraction-warning.hd	undeclared-requirement-key:Backup+Clock+Logger
+compiler-types/requirements/row-subtraction/missing-subtracted-provider.hd	undeclared-requirement-key:Logger
+compiler-types/requirements/row-subtraction/provider-restoration.hd	undeclared-requirement-key:Backup+Clock+Logger entry-with-requirement-row:main nonentry-main-result
+compiler-types/requirements/row-union.hd	undeclared-requirement-key:Logger entry-with-requirement-row:main nonentry-main-result
+compiler-types/traits/defaults/inherited-method.hd	nonentry-main-result
+compiler-types/traits/defaults/override.hd	nonentry-main-result
+compiler-types/traits/diagnostics/ambiguous-method.hd	
+compiler-types/traits/diagnostics/mismatched-signature.hd	
+compiler-types/traits/diagnostics/missing-method.hd	
+compiler-types/traits/dispatch.hd	nonentry-main-result
+compiler-types/traits/embedded-fields.hd	nonentry-main-result
+compiler-types/traits/generic-bounds/dictionary-dispatch.hd	nonentry-main-result
+compiler-types/traits/generic-bounds/missing-implementation.hd	nonspec-code:missing-trait-implementation
+compiler-types/traits/inherent-methods.hd	nonentry-main-result
+compiler-types/traits/multiple-bounds/dictionary-forwarding.hd	nonentry-main-result
+compiler-types/traits/multiple-bounds/duplicate-bound.hd	nonspec-code:duplicate-trait-bound
+compiler-types/traits/mutable-errors/readonly-dynamic.hd	
+compiler-types/traits/mutable-errors/readonly-static.hd	
+compiler-types/traits/mutable-errors/signature-mismatch.hd	
+compiler-types/traits/mutable-receivers.hd	nonentry-main-result
+compiler-types/traits/providers.hd	nonentry-main-result
+compiler-types/traits/suspending-cancel.hd	
+compiler-types/traits/suspending-defaults.hd	nonentry-main-result
+compiler-types/traits/suspending-dispatch.hd	nonentry-main-result
+compiler-types/tuples/heterogeneous/gc-storage.hd	nonentry-main-result
+compiler-types/tuples/heterogeneous/identity-rejected.hd	
+compiler-types/tuples/heterogeneous/index-out-of-range.hd	nonspec-code:tuple-index-range
+compiler/00-case-program.hd	nonentry-main-result
+compiler/03-checked-i32-arithmetic-traps-on-overflow.hd	
+compiler/04-the-minimum-i32-literal-forms-through-unary-negation-diagnostic.hd	
+compiler/04-the-minimum-i32-literal-forms-through-unary-negation-division.hd	
+compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd	nonentry-main-result
+compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-negative.hd	nonspec-code:runtime-error unchecked-panic-code:runtime-error
+compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-overflow.hd	
+compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent.hd	nonentry-main-result
+compiler/06-floating-power-uses-the-host-ieee-pow-primitive-diagnostic.hd	
+compiler/06-floating-power-uses-the-host-ieee-pow-primitive.hd	float-result-host-format:main=3 nonentry-main-result
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-2.hd	
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-3.hd	nonspec-code:type-mismatch
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-4.hd	nonspec-code:invalid-binary-operands
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-5.hd	nonspec-code:invalid-binary-operands
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-6.hd	nonspec-code:nonfinal-vararg
+compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic.hd	nonspec-code:unknown-name
+compiler/07-checker-rejects-name-mutability-and-type-errors-positional-spread-needs-vararg.hd	nonspec-code:positional-spread-needs-vararg
+compiler/08-homogeneous-varargs-lower-through-the-existing-list-abi.hd	nonentry-main-result
+compiler/09-first-class-vararg-functions-retain-their-calling-convention-type-mismatch.hd	nonspec-code:type-mismatch
+compiler/09-first-class-vararg-functions-retain-their-calling-convention.hd	nonentry-main-result
+compiler/10-function-parameter-defaults-evaluate-after-explicit-arguments.hd	nonentry-main-result
+compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic-2.hd	nonspec-code:type-mismatch
+compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic.hd	nonspec-code:parameter-default-order
+compiler/11-function-parameter-defaults-enforce-order-type-and-purity-impure-parameter-default.hd	nonspec-code:impure-parameter-default
+compiler/12-varargs-work-in-suspending-and-trait-method-calls.hd	nonentry-main-result
+compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord-2.hd	nonentry-main-result
+compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord.hd	nonentry-main-result
+compiler/14-named-enum-payloads-preserve-source-evaluation-order-duplicate-argument.hd	nonspec-code:duplicate-argument
+compiler/14-named-enum-payloads-preserve-source-evaluation-order-unknown-named-argument.hd	nonspec-code:unknown-named-argument
+compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd	nonentry-main-result
+compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name-unknown-variant-pattern-field.hd	nonspec-code:unknown-variant-pattern-field
+compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name.hd	nonentry-main-result
+compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension--nonexhaustive-match.hd	
+compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension-.hd	nonentry-main-result
+compiler/17-shared-enum-data-uses-per-variant-factories-and-pure-ordered-defaults.hd	nonentry-main-result
+compiler/18-named-arguments-work-through-static-and-dynamic-trait-dispatch.hd	nonentry-main-result
+compiler/19-shadow-console.hd	
+compiler/19-shadow-display.hd	
+compiler/19-shadow-hash.hd	
+compiler/19-shadow-println.hd	
+compiler/19-shadow-result.hd	
+compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other-diagnostic.hd	nonspec-code:unknown-name
+compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd	nonentry-main-result
+compiler/21-else-if-chains-preserve-value-typing-and-selection-order.hd	nonentry-main-result
+compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow-diagnostic.hd	nonspec-code:break-outside-loop
+compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow.hd	nonentry-main-result
+compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-broken.hd	nonentry-main-result
+compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic-2.hd	
+compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic.hd	
+compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-exhausted.hd	nonentry-main-result
+compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic-2.hd	nonspec-code:for-binding-arity map-iteration(order-specified)
+compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic.hd	nonspec-code:not-iterable
+compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va.hd	nonentry-main-result map-iteration(order-specified)
+compiler/25-data-declarations-lower-to-wasm-gc-structs.hd	nonentry-main-result
+compiler/26-mutable-data-paths-weaken-one-way-and-share-wasm-gc-identity.hd	nonentry-main-result
+compiler/27-mutable-list-and-map-roots-support-indexed-replacement.hd	nonentry-main-result
+compiler/28-mutable-lists-append-through-growable-wasm-gc-storage-mutable-receiver-required.hd	
+compiler/28-mutable-lists-append-through-growable-wasm-gc-storage.hd	nonentry-main-result
+compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord-mutable-receiver-required.hd	
+compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord.hd	nonentry-main-result map-iteration(order-specified)
+compiler/30-data-field-initializers-preserve-source-evaluation-order.hd	nonentry-main-result
+compiler/31-data-field-defaults-run-per-construction-after-explicit-fields.hd	nonentry-main-result
+compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default-2.hd	
+compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default.hd	
+compiler/32-data-field-defaults-are-type-checked-and-purity-checked-type-mismatch.hd	nonspec-code:type-mismatch
+compiler/33-data-copy-update-evaluates-its-source-before-replacements.hd	nonentry-main-result
+compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults-type-mismatch.hd	nonspec-code:type-mismatch
+compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults.hd	nonentry-main-result
+compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct.hd	nonentry-main-result
+compiler/36-data-initialization-missing-field.hd	
+compiler/36-data-initialization-unknown-field.hd	nonspec-code:unknown-data-field
+compiler/36-data-initialization-wrong-field-type.hd	nonspec-code:type-mismatch
+compiler/37-data-pattern-duplicate-field.hd	
+compiler/37-data-pattern-nonexhaustive.hd	
+compiler/37-data-pattern-unknown-field.hd	nonspec-code:unknown-data-field
+compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd	nonentry-main-result
+compiler/38-strings-use-gc-byte-arrays-and-len-counts-unicode-scalars.hd	nonentry-main-result
+compiler/39-string-interpolation-displays-built-ins-left-to-right.hd	nonentry-main-result
+compiler/40-strings-compare-by-utf-8-value-order.hd	nonentry-main-result
+compiler/41-strings-concatenate-and-unnamed-enum-fields-use-numeric-selectors.hd	nonentry-main-result
+compiler/42-character-literals-carry-unicode-scalar-values-and-compare-in-scalar-ord.hd	char-result-as-integer:main=128512 nonentry-main-result
+compiler/43-defer-runs-after-a-return-value-is-evaluated.hd	nonentry-main-result
+compiler/44-defer-rejects-escaping-control-flow.hd	nonspec-code:defer-control-flow
+compiler/45-defer-is-lifo-and-runs-on-loop-continue-and-break.hd	nonentry-main-result
+compiler/46-explicit-panic-lowers-to-unreachable-and-skips-pending-defer.hd	
+compiler/47-enums-use-tagged-gc-structs-and-match-binds-payloads.hd	nonentry-main-result
+compiler/48-match-bare-variant.hd	
+compiler/48-match-nonexhaustive.hd	
+compiler/48-match-pattern-arity.hd	nonspec-code:pattern-arity
+compiler/48-match-unreachable-arm.hd	nonspec-code:unreachable-match-arm
+compiler/49-contextual-enum-variant-patterns-use-the-subject-type-variant-binding-name-mismatch.hd	
+compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd	nonentry-main-result
+compiler/50-contextual-enum-variant-expressions-use-their-expected-type-diagnostic.hd	
+compiler/50-contextual-enum-variant-expressions-use-their-expected-type.hd	nonentry-main-result
+compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-diagnostic.hd	
+compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-unreachable-match-arm.hd	nonspec-code:unreachable-match-arm
+compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests.hd	nonentry-main-result
+compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-diagnostic.hd	
+compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-unreachable-match-arm.hd	nonspec-code:unreachable-match-arm
+compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all.hd	nonentry-main-result
+compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-diagnostic.hd	
+compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch-2.hd	nonspec-code:type-mismatch
+compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd	
+compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage.hd	nonentry-main-result
+compiler/54-optionals-inject-plain-values-match-both-cases-and-propagate-nil.hd	nonentry-main-result
+compiler/55-result-constructors-matching-and-error-propagation-use-the-erased-carrie.hd	nonentry-main-result
+compiler/56-imported-resourceerror-is-a-generic-wasm-gc-enum.hd	nonentry-main-result std.resource
+compiler/57-result-patterns-recursively-match-imported-enum-payloads.hd	nonentry-main-result std.resource
+compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-2.hd	nonspec-code:result-constructor-needs-context
+compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-3.hd	nonspec-code:invalid-result-propagation
+compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-4.hd	
+compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic.hd	nonspec-code:nil-needs-optional-type
+compiler/59-optional-result-discarded.hd	
+compiler/59-optional-result-explicitly-discarded.hd	
+compiler/60-comprehensions-lower-nested-filters-and-map-replacement.hd	nonentry-main-result map-iteration(order-specified)
+compiler/60-comprehensions-reject-suspension-calls.hd	
+compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references-diagnostic.hd	nonspec-code:type-mismatch
+compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references.hd	nonentry-main-result
+compiler/61-binding-expressions-reject-same-scope-redeclaration.hd	nonspec-code:duplicate-binding
+compiler/61-binding-expressions-return-values-and-bind-in-enclosing-scope.hd	nonentry-main-result
+compiler/61-expected-function-types-infer-inline-closure-parameters-and-results-diagnostic.hd	nonspec-code:closure-parameter-needs-annotation
+compiler/61-expected-function-types-infer-inline-closure-parameters-and-results.hd	nonentry-main-result
+compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns-closure-result-type.hd	nonspec-code:closure-result-type
+compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns.hd	nonentry-main-result
+compiler/62-string-trim-and-lower-use-unicode-byte-bridge.hd	nonentry-main-result
+compiler/63-explicitly-typed-local-closures-recurse-through-their-current-environmen.hd	nonentry-main-result
+compiler/63-generic-iterator-traits-drive-for-loops-and-comprehensions.hd	nonentry-main-result
+compiler/63-generic-iterator-traits-require-mutable-receivers.hd	
+compiler/64-generic-methods-infer-and-erase-type-arguments.hd	named-entry-hook:explicit_right named-entry-hook:inferred_right named-entry-hook:bounded_display
+compiler/64-named-local-functions-capture-enclosing-values-and-recurse.hd	nonentry-main-result
+compiler/65-string-split-preserves-boundaries-and-unicode-scalars.hd	named-entry-hook:separated named-entry-hook:scalars named-entry-hook:empty_input
+compiler/66-associated-functions-use-qualified-static-calls.hd	named-entry-hook:month_days named-entry-hook:selected
+compiler/67-blanket-implementations-dispatch-with-inferred-dictionaries.hd	named-entry-hook:total_score
+compiler/68-generic-implementation-heads-cannot-overlap.hd	
+compiler/69-trait-qualified-calls-select-ambiguous-methods.hd	named-entry-hook:qualified_total
+compiler/70-generic-trait-qualified-calls-select-an-instantiation.hd	named-entry-hook:add_qualified named-entry-hook:add_dynamic named-entry-hook:add_bounded named-entry-hook:add_blanket
+compiler/71-trait-associated-functions-use-implementing-type-qualification.hd	named-entry-hook:guest_length named-entry-hook:default_value named-entry-hook:converted_value
+compiler/72-associated-types-specialize-self-projections.hd	named-entry-hook:projected_value named-entry-hook:concrete_projected_value named-entry-hook:bounded_projected_value named-entry-hook:generic_bounded_projected_value
+compiler/73-supertraits-reject-missing-parent-implementations.hd	nonspec-code:missing-supertrait-implementation
+compiler/73-supertraits-require-and-expose-parent-implementations.hd	named-entry-hook:formatted_length named-entry-hook:bounded_parent_length named-entry-hook:dynamic_parent_length named-entry-hook:widened_parent_length
+compiler/74-mutable-trait-bounds-preserve-root-access.hd	named-entry-hook:cleared_value
+compiler/74-mutable-trait-bounds-reject-readonly-roots.hd	nonspec-code:mutable-bound-required
+compiler/75-generic-trait-methods-use-static-erased-dispatch.hd	named-entry-hook:selected_value named-entry-hook:qualified_selected_value
+compiler/76-blanket-implementations-materialize-dynamic-and-bound-dictionaries.hd	named-entry-hook:blanket_dynamic named-entry-hook:blanket_bound named-entry-hook:trait_argument_only_blanket
+compiler/76-bounded-blanket-implementations-capture-erased-dictionaries.hd	named-entry-hook:dynamic_score named-entry-hook:bounded_score named-entry-hook:forwarded_score
+compiler/77-generic-supertraits-reject-incompatible-upcasts.hd	nonspec-code:type-mismatch
+compiler/77-generic-supertraits-substitute-parent-arguments.hd	named-entry-hook:generic_supertrait_direct named-entry-hook:generic_supertrait_bound named-entry-hook:generic_supertrait_dynamic named-entry-hook:generic_supertrait_widened named-entry-hook:concrete_child_uses_blanket_parent
+compiler/78-bounded-blanket-supertraits-capture-parent-dictionaries.hd	named-entry-hook:dynamic_parent_dictionary named-entry-hook:bounded_parent_dictionary
+compiler/assert-failure-panics.hd	
+compiler/display-requires-implementation.hd	nonspec-code:missing-display
+frontend/00-core-program.hd	
+frontend/04-parser-builds-value-producing-while-else.hd	
+frontend/05-parser-builds-for-loops-with-tuple-bindings-and-else-suites.hd	map-iteration(order-specified)
+frontend/06-parser-lowers-named-local-functions-to-typed-closure-bindings.hd	
+frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd	
+frontend/07-parser-retains-mutable-permission-types-and-field-assignments.hd	
+frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver-2.hd	nonspec-code:expected-token
+frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd	
+frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd	
+frontend/10-parser-marks-bare-data-members-as-embedded-fields.hd	
+frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2.hd	
+frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks.hd	
+frontend/12-parser-retains-explicit-generic-data-arguments.hd	
+frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer-2.hd	nonspec-code:inconsistent-dedent
+frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer.hd	
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-2.hd	nonspec-code:invalid-integer-literal
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-3.hd	nonspec-code:invalid-integer-literal
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd	
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-5.hd	nonspec-code:invalid-string-interpolation
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-6.hd	
+frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators.hd	
+frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars-2.hd	
+frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars.hd	
+frontend/16-parser-rejects-comparison-chaining.hd	
+frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering-2.hd	
+frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering.hd	
+frontend/18-parser-retains-vararg-and-positional-spread-markers-2.hd	
+frontend/18-parser-retains-vararg-and-positional-spread-markers-3.hd	
+frontend/18-parser-retains-vararg-and-positional-spread-markers.hd	
+frontend/19-parser-retains-function-parameter-defaults-2.hd	nonspec-code:vararg-default
+frontend/19-parser-retains-function-parameter-defaults.hd	
+frontend/20-parser-retains-a-leading-data-copy-update-spread-2.hd	nonspec-code:data-spread-position
+frontend/20-parser-retains-a-leading-data-copy-update-spread.hd	
+frontend/21-parser-retains-named-enum-payload-pattern-labels.hd	
+frontend/22-parser-retains-nested-result-payload-patterns.hd	
+frontend/23-parser-retains-literal-enum-payload-patterns.hd	
+frontend/24-parser-retains-shared-enum-fields-defaults-and-variant-results.hd	
+frontend/25-parser-retains-decimal-numeric-member-selectors.hd	
+frontend/26-parser-distinguishes-grouped-expressions-from-tuple-types-and-literals.hd	
+frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd	
+frontend/27-documentation-comments-attach-to-ast-declarations-and-members.hd	
+frontend/28-parser-retains-top-level-public-visibility.hd	
+frontend/29-parser-retains-named-test-blocks.hd	
+frontend/30-parser-lowers-multi-provider-use-to-an-ordered-tuple.hd	
+frontend/31-parser-retains-single-and-grouped-use-declarations.hd	std.task
+requirements/closure-provider.hd	undeclared-requirement-key:Clock
+requirements/lexical-override.hd	undeclared-requirement-key:Backup+Clock
+requirements/loop-exit.hd	undeclared-requirement-key:Clock
+requirements/transitive-call-paths.hd	undeclared-requirement-key:Clock
+suspension/01-suspending-functions-construct-gc-frames-and-bang-calls-drive-them.hd	undeclared-requirement-key:Clock entry-with-requirement-row:main nonentry-main-result
+suspension/02-generic-suspending-functions-box-frame-arguments-and-unbox-direct-or-sto.hd	nonentry-main-result
+suspension/03-generic-suspension-frames-retain-trait-dictionaries-across-child-polls.hd	nonentry-main-result
+suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-2.hd	
+suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3.hd	nonspec-code:not-suspending
+suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-4.hd	
+suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic.hd	
+suspension/05-unresolved-race-task-combinator.hd	nonspec-code:unsupported-task-combinator
+suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd	nonentry-main-result
+suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd	nonspec-code:unsupported-task-combinator
+suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive.hd	
+suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd	nonentry-main-result
+suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd	nonentry-main-result
+suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled.hd	
+suspension/08-readonly-suspension-cancel.hd	
+suspension/09-defer-suites-cannot-suspend.hd	
+suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd	nonentry-main-result
+suspension/11-deterministic-host-pending.hd	nonentry-main-result
+suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd	nonentry-main-result
+suspension/13-child-pending-propagates-through-the-parent-frame-and-restores-locals.hd	nonentry-main-result
+suspension/13-nested-pending-frame.hd	nonentry-main-result
+suspension/14-started-frame-cancellation-cancels-the-child-and-runs-registered-cleanup.hd	nonentry-main-result
+suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup.hd	
+suspension/16-linear-suspension-frames-resume-across-multiple-child-sites.hd	nonentry-main-result
+suspension/17-cfg-suspension-lowering-preserves-nested-expression-evaluation.hd	nonentry-main-result
+suspension/18-cfg-suspension-lowering-preserves-nested-argument-order.hd	nonentry-main-result
+suspension/19-cfg-suspension-lowering-branches-and-short-circuits-around-child-frames.hd	nonentry-main-result
+suspension/20-cfg-suspension-lowering-preserves-loops-continue-break-values-and-cleanu.hd	nonentry-main-result
+suspension/21-cfg-suspension-lowering-preserves-match-bindings-and-suspending-guards.hd	nonentry-main-result
+suspension/22-cfg-suspension-lowering-propagates-result-failures-after-child-completio.hd	nonentry-main-result
+suspension/23-cfg-suspension-cancellation-cancels-the-active-child-and-runs-scoped-cle.hd	nonentry-main-result
+suspension/24-cfg-suspension-lowering-installs-providers-produced-after-resumption.hd	nonentry-main-result
+suspension/25-cfg-suspension-lowering-nests-dynamic-trait-suspensions.hd	nonentry-main-result
+suspension/26-replay-rejects-function-code-change.hd	nonentry-main-result
+suspension/26-replay-survives-unrelated-declaration.hd	nonentry-main-result
+suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd	nonentry-main-result
+suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo-missing-requirement.hd	
+suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd	
+suspension/28-multi-provider-use-preserves-requested-tuple-order-through-wasm-gc.hd	nonentry-main-result
+suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested.hd	std.task
+suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-suspension-forbidden-context.hd	std.task
+suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd	nonentry-main-result std.task
+suspension/30-imported-assert-equal-compares-supported-structural-values-failure.hd	
+suspension/30-imported-assert-equal-compares-supported-structural-values-missing-partial-eq.hd	
+suspension/30-imported-assert-equal-compares-supported-structural-values.hd	nonentry-main-result
+suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions-non-reassignable-binding.hd	
+suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions.hd	
+suspension/32-host-provider-polls-record-and-replay.hd	impl-only-profile:ready-gate
+suspension/33-host-provider-scalar-arguments-and-results.hd	impl-only-profile:ready-counter
+suspension/34-stored-suspension-crosses-function-boundary.hd	
+suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd	impl-only-profile:ready-float
+suspension/36-host-provider-strings-use-utf8-boundary.hd	impl-only-profile:ready-text
+suspension/37-named-suspending-function-values-construct-stored-frames.hd	
+suspension/38-suspending-closures-capture-values-in-gc-frames.hd	
+suspension/39-suspending-closure-values-forward-requirements.hd	
+suspension/40-lowered-suspension-constructor-does-not-upgrade.hd	nonspec-code:type-mismatch
+suspension/41-suspending-generic-methods-preserve-explicit-type-arguments.hd	
+suspension/42-suspending-associated-functions-preserve-generic-results.hd	
+suspension/43-blanket-implementations-materialize-suspending-dictionaries.hd	
+suspension/44-named-local-suspending-functions-capture-recurse-and-forward-requirements.hd	

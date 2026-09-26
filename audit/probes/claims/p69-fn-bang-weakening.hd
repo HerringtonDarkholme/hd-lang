@@ -1,0 +1,13 @@
+# test: fn! values weaken to fn(...) -> mut Suspend[T]
+# expect: test
+use std.task.block_on
+use std.testing.assert_equal
+
+fn add!(value: i32) -> i32: value + 1
+
+fn drive(factory: fn(i32) -> mut Suspend[i32]) -> i32:
+    let pending: mut Suspend[i32] = factory(41)
+    block_on(pending)
+
+pub fn main() -> void:
+    assert_equal(drive(add), 42, reason="named fn! value weakens one way")

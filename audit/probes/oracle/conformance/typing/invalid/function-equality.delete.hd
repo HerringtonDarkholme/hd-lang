@@ -1,0 +1,1 @@
+fn invalid(left: fn() -> void, right: fn() -> void) -> bool:

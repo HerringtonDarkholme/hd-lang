@@ -1,0 +1,3 @@
+test "" :
+    data x : pass
+pub trait string

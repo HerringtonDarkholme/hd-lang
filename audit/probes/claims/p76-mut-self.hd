@@ -1,0 +1,13 @@
+# test: mut self methods require a mutable receiver
+trait Counter:
+    fn bump(mut self) -> void
+
+data Box:
+    value: i32
+
+impl Counter for Box:
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn bad(box: Box) -> void:
+    box.bump()  # diagnostic: mutable-receiver-required

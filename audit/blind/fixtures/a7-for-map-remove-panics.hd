@@ -1,0 +1,6 @@
+# test: removing a map entry inside a for loop invalidates the loop iterator
+let values: mut map[string, i32] = {"a": 1, "b": 2}
+
+for key, value in values:  # panic: iterator-invalidated
+    if key == "a" and value == 1:
+        _ := values.remove("b")

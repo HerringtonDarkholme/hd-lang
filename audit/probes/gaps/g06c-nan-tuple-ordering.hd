@@ -1,0 +1,7 @@
+# gap probe: composite ordering stops at the first unordered element
+use std.testing.assert
+
+test "NaN inside a tuple is unordered":
+    nan := 0.0 / 0.0
+    assert(not ((nan, 1) < (1.0, 2)), reason="tuple with NaN head is unordered")
+    assert(not ((nan, 1) >= (1.0, 2)), reason="tuple with NaN head is unordered")

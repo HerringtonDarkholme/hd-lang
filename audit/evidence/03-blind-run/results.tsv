@@ -1,0 +1,62 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/blind/run-blind.ts (see run.log); date 2026-09-25
+fixture	area	phase	expectation	observed	verdict	triage class	note
+fixtures/a1-named-arguments-source-order.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-short-circuit-and-conditional.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-bang-call-arguments-before-body.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-operands-across-suspension.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-assignment-evaluation-order.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-map-literal-and-comprehension-order.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a1-propagation-before-cleanup.hd	1	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a2-cancel-nested-frames-order.hd	2	runtime	accept	as expected	PASS	-	route=conformance
+fixtures/a2-cancel-loop-and-branch-scopes.hd	2	runtime	accept	as expected	PASS	-	route=conformance
+fixtures/a2-cancel-provider-scope-cleanup.hd	2	runtime	accept	as expected	PASS	-	route=conformance
+fixtures/a2-cancel-cold-and-completed.hd	2	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a2-drive-cancelled-suspension-panics.hd	2	runtime	panic:suspension-invalid-state	as expected	PASS	-	route=conformance
+fixtures/a2-defer-cancels-active-ancestor.hd	2	runtime	panic:suspension-reentrant-poll	as expected	PASS	-	route=conformance
+fixtures/a2-defer-transitive-block-on.hd	2	type	reject:suspension-forbidden-context	as expected	PASS	-	route=conformance
+fixtures/a2-defer-suspending-vs-cold.hd	2	type	reject:suspending-defer	as expected	PASS	-	route=conformance
+fixtures/a3-nested-provider-restoration.hd	3	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a3-subtraction-restores-provider.hd	3	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a3-row-union-and-order.hd	3	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a3-missing-requirement-sites.hd	3	type	reject:missing-requirement	as expected	PASS	-	route=fixture
+fixtures/a3-provider-capture-timing.hd	3	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a3-generic-key-collision.hd	3	type	reject:generic-requirement-key-collision	as expected	PASS	-	route=conformance
+fixtures/a3-subtract-absent-two-keys.hd	3	type	warn:requirement-subtract-absent	as expected	PASS	-	route=conformance
+fixtures/a4-nan-equality-through-erasure.hd	4	runtime	accept	check rejects: missing-trait-implementation f64 PartialEq (lines 15, 29)	FAIL	implementation bug (wrong behavior: valid program rejected)	F-500 (PartialEq bound on primitives). Variant without bound calls passes: audit/probes/blind-triage/variants/a4-nan-equality.no-bound.hd
+fixtures/a4-signed-zero-and-infinity.hd	4	runtime	accept	check rejects: f64 PartialEq bound (17), f64 Display bound (33)	FAIL	implementation bug (wrong behavior: valid program rejected)	F-500 + F-350; variant without bound calls then crashes in Binaryen (F-160, f64 ordering)
+fixtures/a4-nan-ordering.hd	4	runtime	accept	check rejects: f64 / list[f64] PartialOrd bound (18, 27)	FAIL	implementation bug (wrong behavior: valid program rejected)	F-500; variant without bound calls crashes in Binaryen (F-160)
+fixtures/a4-i32-extremes-through-erasure.hd	4	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a4-erased-i32-overflow-panics.hd	4	runtime	panic:integer-overflow	as expected	PASS	-	route=conformance
+fixtures/a4-i64-u64-precision-through-erasure.hd	4	runtime	accept	check rejects: unknown-type i64	FAIL	unsupported feature (structured diagnostic)	i64/u64 outside the MVP type slice (src/README.md lists i32, f64, bool, char, string)
+fixtures/a4-f32-width-through-erasure.hd	4	runtime	accept	check rejects: unknown-type f32	FAIL	unsupported feature (structured diagnostic)	f32 outside the MVP type slice; AMB-09 not reached
+fixtures/a4-expect-result-min-through-optional.hd	4	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a5-boxed-primitive-identity.hd	5	runtime	accept	check rejects: type-mismatch expected trait:Display found i32 (6,12,18); unknown-type Any (27)	FAIL	implementation bug (wrong behavior) + unsupported feature (Any)	F-350 (i32 -> Display conversion, spec 04 rule 6 and 04 Variance example); Any unsupported
+fixtures/a5-composite-identity-and-views.hd	5	runtime	accept	check rejects: type-mismatch identity mut:User vs User (19), map vs mut map (39); unknown-type Any (27)	FAIL	implementation bug (wrong behavior) + unsupported feature (Any)	F-353; variant without Any still fails on F-353 only
+fixtures/a5-fieldless-variant-canonical.hd	5	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a5-fieldless-variant-erased-identity.hd	5	runtime	accept	check rejects: unknown-type Any (14); variant without Any: assertion-failed	FAIL	unsupported feature (Any) + spec ambiguity AMB-08	shared-data variant StatusCode.NotFound is not canonical (probe p-shared-data-variant-canonical returns 0); F-361
+fixtures/a5-identity-rejections.hd	5	type	reject:identity-requires-references	as expected	PASS	-	route=fixture
+fixtures/a5-closure-identity-per-evaluation.hd	5	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a6-generic-permission-preserved.hd	6	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a6-readonly-root-generic-path.hd	6	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a6-readonly-rejections.hd	6	type	reject:readonly-root	3 of 4 markers located; line 25 reports generic-type-mismatch, not mutable-upgrade	FAIL	spec ambiguity AMB-17	rejection happens; code differs and generic-type-mismatch is not in spec/README.md inventory; AMB-17 variant passes
+fixtures/a6-closure-capture-permission.hd	6	type	reject:mutable-capture-requires-mut-fn	parse error expected-expression at the mut fn literal (13)	FAIL	implementation bug (wrong behavior) + unsupported feature (generic parse diagnostic)	F-352 (mut fn literal unparsed); without the twin, line 10 is accepted: F-351
+fixtures/a6-closure-capture-runtime.hd	6	runtime	accept	parse error expected-expression at mut fn literal (13)	FAIL	unsupported feature (generic parse diagnostic)	F-352; the plain-closure test alone passes (variant plain-only)
+fixtures/a6-covariant-weakening-runtime.hd	6	runtime	accept	parse error expected-token: expected a generic data parameter (data Producer[+T])	FAIL	unsupported feature (generic parse diagnostic) + implementation bug	declared variance is a documented MVP deferral (src/MVP_IMPLEMENTATION_PLAN.md Deferred Work); variant without Producer fails on F-353 and F-354
+fixtures/a7-for-map-remove-panics.hd	7	runtime	panic:iterator-invalidated	as expected	PASS	-	route=conformance
+fixtures/a7-for-map-insert-panics.hd	7	runtime	panic:iterator-invalidated	as expected	PASS	-	route=conformance
+fixtures/a7-exhausted-iterator-then-growth.hd	7	runtime	panic:iterator-invalidated	as expected	PASS	-	route=conformance
+fixtures/a7-alias-growth-invalidates.hd	7	runtime	panic:iterator-invalidated	as expected	PASS	-	route=conformance
+fixtures/a7-shape-versus-value-changes.hd	7	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a7-remove-absent-key.hd	7	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a8-defaults-reference-earlier-parameters.hd	8	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a8-default-later-parameter-rejected.hd	8	type	reject:binding-not-yet-visible	rejected with impure-parameter-default at 2:23, not binding-not-yet-visible	FAIL	spec ambiguity AMB-15	F-356: code not in spec inventory; AMB-15 variant passes
+fixtures/a8-copy-update-evaluation-order.hd	8	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a8-copy-update-shallow.hd	8	runtime	accept	check rejects: identity-requires-references on mut:Child (16)	FAIL	implementation bug (wrong behavior: valid program rejected)	F-353; variant weakening operands to readonly passes (copy-update semantics correct)
+fixtures/a8-copy-update-permission.hd	8	type	reject:mutable-upgrade	as expected	PASS	-	route=conformance
+fixtures/a9-empty-strings.hd	9	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a9-split-empty-input-nonempty-separator.hd	9	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a9-multibyte-scalars.hd	9	runtime	accept	check rejects: unknown-method string.replace (26)	FAIL	unsupported feature (structured diagnostic)	spec 10 prelude lists replace as normative; variant without replace passes
+fixtures/a9-trim-white-space.hd	9	runtime	accept	test: assertion-failed	FAIL	implementation bug (wrong behavior)	F-355: trim removes U+FEFF and keeps U+0085 (host JS String.prototype.trim)
+fixtures/a9-replace-empty-old.hd	9	runtime	accept	check rejects: unknown-method string.replace	FAIL	unsupported feature (structured diagnostic)	AMB-11 not reached
+fixtures/a9-interpolation-display.hd	9	runtime	accept	as expected	PASS	-	route=fixture
+fixtures/a9-invalid-unicode-escape.hd	9	parse	reject:invalid-escape	as expected	PASS	-	route=fixture

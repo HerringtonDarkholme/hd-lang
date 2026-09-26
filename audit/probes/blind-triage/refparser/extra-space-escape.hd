@@ -1,0 +1,3 @@
+# test: extra: backslash-space is not a spec escape
+fn text() -> string:
+    "a\ b"  # diagnostic: invalid-escape

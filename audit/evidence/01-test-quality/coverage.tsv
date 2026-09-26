@@ -1,0 +1,207 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/test-quality/coverage.ts; date: 2026-09-25
+section	conformance_cases	conformance_selected	fixture_cases	status
+01-lexical-structure.md	0	0	0	no fixture
+01-lexical-structure.md#processing-model	2	2	0	
+01-lexical-structure.md#physical-and-logical-lines	1	0	0	
+01-lexical-structure.md#whitespace-and-indentation	2	2	2	
+01-lexical-structure.md#comments	2	2	2	
+01-lexical-structure.md#identifiers	1	1	0	
+01-lexical-structure.md#keywords-and-reserved-words	1	1	0	
+01-lexical-structure.md#literals	0	0	6	fixtures only (promotion candidate)
+01-lexical-structure.md#boolean-and-nil-literals	0	0	0	no fixture
+01-lexical-structure.md#integer-literals	0	0	1	fixtures only (promotion candidate)
+01-lexical-structure.md#floating-point-literals	0	0	0	no fixture
+01-lexical-structure.md#string-and-character-literals	1	1	5	
+01-lexical-structure.md#operators-and-delimiters	1	1	0	
+01-lexical-structure.md#lexical-token-grammar	0	0	0	no fixture
+01-lexical-structure.md#unsupported-lexical-extensions	0	0	0	no fixture
+02-grammar.md	0	0	0	no fixture
+02-grammar.md#source-files-and-suites	0	0	0	no fixture
+02-grammar.md#test-blocks	1	1	1	
+02-grammar.md#statements	1	1	0	
+02-grammar.md#declarations	1	0	6	
+02-grammar.md#functions	0	0	0	no fixture
+02-grammar.md#data-types	0	0	4	fixtures only (promotion candidate)
+02-grammar.md#enums	0	0	1	fixtures only (promotion candidate)
+02-grammar.md#traits-and-implementations	1	1	3	
+02-grammar.md#type-declarations	0	0	0	no fixture
+02-grammar.md#generic-parameters-and-bounds	0	0	0	no fixture
+02-grammar.md#types	2	0	2	
+02-grammar.md#use-declarations	2	2	1	
+02-grammar.md#expressions	4	3	3	
+02-grammar.md#primary-expressions	1	1	0	
+02-grammar.md#calls-and-arguments	2	2	5	
+02-grammar.md#closures	0	0	0	no fixture
+02-grammar.md#control-flow-expressions	0	0	2	fixtures only (promotion candidate)
+02-grammar.md#patterns	1	1	3	
+02-grammar.md#comprehensions	0	0	0	no fixture
+02-grammar.md#requirements-and-provider-contexts	0	0	1	fixtures only (promotion candidate)
+02-grammar.md#annotations	1	0	0	
+02-grammar.md#pack-expansion	0	0	0	no fixture
+03-names-and-scopes.md	0	0	0	no fixture
+03-names-and-scopes.md#name-categories	2	2	0	
+03-names-and-scopes.md#lexical-scopes	1	1	1	
+03-names-and-scopes.md#module-scope	2	2	0	
+03-names-and-scopes.md#use-declarations	0	0	0	no fixture
+03-names-and-scopes.md#local-bindings	1	1	1	
+03-names-and-scopes.md#binding-expressions	1	1	2	
+03-names-and-scopes.md#function-and-closure-scopes	1	0	0	
+03-names-and-scopes.md#control-flow-binding-scopes	0	0	2	fixtures only (promotion candidate)
+03-names-and-scopes.md#conditional-suites	0	0	0	no fixture
+03-names-and-scopes.md#loops	0	0	0	no fixture
+03-names-and-scopes.md#matches	0	0	0	no fixture
+03-names-and-scopes.md#comprehensions	0	0	0	no fixture
+03-names-and-scopes.md#member-resolution	0	0	0	no fixture
+03-names-and-scopes.md#unsupported-scope-extensions	0	0	0	no fixture
+04-type-system.md	0	0	0	no fixture
+04-type-system.md#type-forms	0	0	0	no fixture
+04-type-system.md#primitive-types	0	0	0	no fixture
+04-type-system.md#strings	2	2	5	
+04-type-system.md#literal-types	2	1	0	
+04-type-system.md#nominal-and-structural-types	0	0	0	no fixture
+04-type-system.md#transparent-aliases-and-newtypes	0	0	0	no fixture
+04-type-system.md#optional-types	1	0	5	
+04-type-system.md#result-types	3	3	1	
+04-type-system.md#numeric-conversions	10	4	0	
+04-type-system.md#assignability-and-coercion	1	1	1	
+04-type-system.md#composite-values-and-access-permission	2	2	4	
+04-type-system.md#bindings-and-fresh-values	2	2	0	
+04-type-system.md#mutable-paths	10	10	2	
+04-type-system.md#parameters-and-results	0	0	0	no fixture
+04-type-system.md#generics	2	2	2	
+04-type-system.md#variance	6	0	0	
+04-type-system.md#trait-values-and-any	0	0	0	no fixture
+04-type-system.md#map-key-types	5	3	1	
+04-type-system.md#type-inference-boundaries	0	0	0	no fixture
+04-type-system.md#unsupported-type-system-extensions	0	0	0	no fixture
+05-expressions.md	0	0	0	no fixture
+05-expressions.md#evaluation-order	0	0	0	no fixture
+05-expressions.md#expression-categories	0	0	0	no fixture
+05-expressions.md#primary-expressions	0	0	0	no fixture
+05-expressions.md#names	1	1	0	
+05-expressions.md#literals	1	1	0	
+05-expressions.md#parenthesized-and-tuple-expressions	0	0	3	fixtures only (promotion candidate)
+05-expressions.md#list-and-map-expressions	3	2	7	
+05-expressions.md#data-expressions	2	2	0	
+05-expressions.md#postfix-expressions	0	0	0	no fixture
+05-expressions.md#member-access	0	0	0	no fixture
+05-expressions.md#indexing	7	7	0	
+05-expressions.md#calls	0	0	0	no fixture
+05-expressions.md#propagation	0	0	0	no fixture
+05-expressions.md#unary-and-binary-operators	15	14	13	
+05-expressions.md#binding-expressions	0	0	0	no fixture
+05-expressions.md#comprehensions	1	1	2	
+05-expressions.md#closures-and-control-expressions	0	0	0	no fixture
+05-expressions.md#unsupported-expression-extensions	0	0	0	no fixture
+06-control-flow.md	1	1	0	
+06-control-flow.md#blocks-and-completion	3	3	2	
+06-control-flow.md#conditional-expressions	0	0	2	fixtures only (promotion candidate)
+06-control-flow.md#for-loops	8	8	5	
+06-control-flow.md#while-loops	0	0	2	fixtures only (promotion candidate)
+06-control-flow.md#break-continue-and-loop-else	1	1	4	
+06-control-flow.md#match-expressions	11	11	18	
+06-control-flow.md#return	1	1	0	
+06-control-flow.md#deferred-cleanup	5	5	4	
+06-control-flow.md#unreachable-code	1	1	0	
+06-control-flow.md#runtime-panics	1	1	1	
+07-functions.md	2	2	0	
+07-functions.md#declarations	2	2	0	
+07-functions.md#parameters	1	1	0	
+07-functions.md#positional-and-named-arguments	0	0	3	fixtures only (promotion candidate)
+07-functions.md#default-values	0	0	4	fixtures only (promotion candidate)
+07-functions.md#varargs	1	1	6	
+07-functions.md#function-types-and-values	0	0	2	fixtures only (promotion candidate)
+07-functions.md#closures	0	0	6	fixtures only (promotion candidate)
+07-functions.md#captures	3	1	2	
+07-functions.md#multiple-inline-closures	0	0	0	no fixture
+07-functions.md#trailing-callback-blocks	2	2	1	
+07-functions.md#generic-functions	5	5	7	
+07-functions.md#methods-and-receivers	0	0	0	no fixture
+07-functions.md#recursion	2	2	2	
+07-functions.md#program-entry-functions	0	0	0	no fixture
+07-functions.md#unsupported-function-extensions	0	0	0	no fixture
+08-data-and-enums.md	0	0	0	no fixture
+08-data-and-enums.md#data-declarations	4	4	10	
+08-data-and-enums.md#construction-and-access	3	3	3	
+08-data-and-enums.md#data-embedding	5	5	0	
+08-data-and-enums.md#enum-declarations	1	1	3	
+08-data-and-enums.md#shared-enum-constructor-data	3	3	1	
+08-data-and-enums.md#generic-and-recursive-enums	0	0	3	fixtures only (promotion candidate)
+08-data-and-enums.md#matching-enums	2	2	9	
+08-data-and-enums.md#option-and-result	0	0	0	no fixture
+08-data-and-enums.md#representation-and-garbage-collection	0	0	0	no fixture
+08-data-and-enums.md#generalized-algebraic-data-types	0	0	0	no fixture
+08-data-and-enums.md#unsupported-aggregate-extensions	0	0	0	no fixture
+09-traits.md	2	1	0	
+09-traits.md#trait-declarations	2	2	6	
+09-traits.md#trait-implementations	6	5	13	
+09-traits.md#comparison-traits	10	3	0	
+09-traits.md#inherent-implementations	1	1	2	
+09-traits.md#method-resolution	1	1	2	
+09-traits.md#generic-bounds-and-static-dispatch	0	0	7	fixtures only (promotion candidate)
+09-traits.md#dynamic-trait-values	1	1	3	
+09-traits.md#any	0	0	0	no fixture
+09-traits.md#embedding-and-trait-satisfaction	2	2	1	
+09-traits.md#default-method-conflicts	0	0	0	no fixture
+09-traits.md#unsupported-trait-extensions	0	0	0	no fixture
+10-modules.md	0	0	0	no fixture
+10-modules.md#package-manifest	0	0	0	no fixture
+10-modules.md#path-inferred-modules	0	0	0	no fixture
+10-modules.md#use-roots	0	0	0	no fixture
+10-modules.md#use-forms	2	1	2	
+10-modules.md#prelude	3	2	7	
+10-modules.md#standard-testing	2	2	4	
+10-modules.md#module-initialization	3	3	2	
+10-modules.md#public-uses-and-visibility	3	3	0	
+10-modules.md#name-resolution-across-packages	0	0	0	no fixture
+10-modules.md#executable-entry-point	2	2	0	
+10-modules.md#wasm-boundary	2	1	0	
+10-modules.md#tooling-abi-and-unsupported-extensions	0	0	0	no fixture
+11-requirements-and-suspension.md	1	1	0	
+11-requirements-and-suspension.md#decomposed-model	0	0	0	no fixture
+11-requirements-and-suspension.md#requirement-rows	4	4	4	
+11-requirements-and-suspension.md#provider-access	2	2	3	
+11-requirements-and-suspension.md#provider-scopes	2	2	7	
+11-requirements-and-suspension.md#suspending-functions	7	6	29	
+11-requirements-and-suspension.md#suspendt-protocol	6	6	5	
+11-requirements-and-suspension.md#compilation-strategy	0	0	0	no fixture
+11-requirements-and-suspension.md#construction-time-requirement-binding	1	1	4	
+11-requirements-and-suspension.md#cancellation	2	2	6	
+11-requirements-and-suspension.md#requirement-polymorphism	1	1	17	
+11-requirements-and-suspension.md#runtime-boundary	0	0	0	no fixture
+12-variadic-generics.md	1	0	0	
+12-variadic-generics.md#pack-parameters	0	0	0	no fixture
+12-variadic-generics.md#pattern-expansion	2	0	0	
+12-variadic-generics.md#lockstep-expansion	1	0	0	
+12-variadic-generics.md#pack-mapping	2	0	0	
+12-variadic-generics.md#calls-and-inference	0	0	0	no fixture
+12-variadic-generics.md#deliberate-limits	0	0	0	no fixture
+12-variadic-generics.md#all-motivation	0	0	3	fixtures only (promotion candidate)
+12-variadic-generics.md#expansion-validation	0	0	0	no fixture
+13-gadts.md	2	0	0	
+13-gadts.md#variant-result-types	0	0	0	no fixture
+13-gadts.md#shared-constructor-data	0	0	0	no fixture
+13-gadts.md#construction	0	0	0	no fixture
+13-gadts.md#pattern-refinement	1	0	0	
+13-gadts.md#payload-pattern-conventions	0	0	0	no fixture
+13-gadts.md#type-checking-requirements	0	0	0	no fixture
+13-gadts.md#runtime-representation	0	0	0	no fixture
+13-gadts.md#refinement-algorithm	0	0	0	no fixture
+14-annotations.md	1	0	0	
+14-annotations.md#terminology	0	0	0	no fixture
+14-annotations.md#common-shape-representation	4	0	0	
+14-annotations.md#annotation-protocol	0	0	0	no fixture
+14-annotations.md#two-annotate-forms	0	0	0	no fixture
+14-annotations.md#prefix-decorators	8	1	0	
+14-annotations.md#member-metadata	2	0	0	
+14-annotations.md#derived-facet-information	2	0	0	
+14-annotations.md#grammar	0	0	0	no fixture
+14-annotations.md#aggregate-annotators	1	0	0	
+14-annotations.md#structural-overrides	1	0	0	
+14-annotations.md#bottom-up-evaluation	0	0	0	no fixture
+14-annotations.md#runtime-materialization	2	0	0	
+14-annotations.md#desugaring-model	0	0	0	no fixture
+14-annotations.md#recursive-annotations	2	0	0	
+14-annotations.md#coherence-and-package-rules	3	0	0	
+14-annotations.md#missing-child-information	2	0	0	
+14-annotations.md#full-validation-example	1	0	0	

@@ -1,0 +1,3 @@
+
+fn invalid(values: list[i32]) -> void:
+    for value in values:

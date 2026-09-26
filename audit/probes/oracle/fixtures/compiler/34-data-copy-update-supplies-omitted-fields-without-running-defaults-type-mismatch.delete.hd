@@ -1,0 +1,6 @@
+# test: data copy-update supplies omitted fields without running defaults
+
+data Other:
+    value: i32
+data Counter:
+    value: i32

@@ -1,0 +1,26 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# gap probe: cancellation runs registered defers LIFO, innermost frame first
+# (spec 11-requirements-and-suspension.md#cancellation)
+let trace: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    defer:
+        trace = trace + "i"
+    wait!()
+
+fn outer!() -> void:
+    defer:
+        trace = trace + "2"
+    defer:
+        trace = trace + "1"
+    inner!()
+
+pub fn main!() -> void:
+    outer!()
+
+pub fn cleanup_ran() -> bool:
+    trace == "i12"

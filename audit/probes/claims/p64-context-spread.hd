@@ -1,0 +1,20 @@
+# test: reusable contexts spread left to right, later entries win
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data Fixed:
+    current: i32
+
+impl Counter for Fixed:
+    fn value(self) -> i32: self.current
+
+fn read() -> i32 $ Counter: $.use(Counter).value()
+
+test "contexts":
+    first := $.context(Counter=Fixed { current: 1 })
+    second := $.context(Counter=Fixed { current: 2 })
+    $.with(...first, ...second):
+        assert_equal(read(), 2, reason="later spread wins")

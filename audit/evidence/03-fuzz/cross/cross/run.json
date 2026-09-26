@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "cases": 1000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js",
+      "audit/fuzz/forward.sh"
+    ],
+    "fuzzer": "cross",
+    "generated": 254,
+    "generatedReferenceAccepted": 102,
+    "maxSignatures": 20,
+    "referenceAccepted": 658,
+    "requestedCases": 1000,
+    "seconds": 616,
+    "seed": "x1",
+    "signatures": 0,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 4486
+  },
+  "signatures": []
+}

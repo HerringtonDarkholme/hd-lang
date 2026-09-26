@@ -1,0 +1,31 @@
+# Probe for spec/11 hunk H2 (provider values are ordinary values).
+# A provider obtained with $.use escapes through a return value and a data
+# field, then is used by a function whose row does not mention Counter,
+# outside any $.with scope.
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data FixedCounter:
+    current: i32
+
+impl Counter for FixedCounter:
+    fn value(self) -> i32: self.current
+
+data Holder:
+    counter: Counter
+
+fn leak() -> Counter $ Counter:
+    $.use(Counter)
+
+fn capture() -> Holder:
+    $.with(Counter=FixedCounter { current: 7 }):
+        Holder { counter: leak() }
+
+fn use_later(holder: Holder) -> i32:
+    holder.counter.value()
+
+test "escaped provider remains usable after its scope with an empty row":
+    holder := capture()
+    assert_equal(use_later(holder), 7, reason="provider flowed through return and field")

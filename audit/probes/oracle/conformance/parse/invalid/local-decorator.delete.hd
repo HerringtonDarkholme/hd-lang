@@ -1,0 +1,3 @@
+fn run() -> void:
+    data Request:
+        query: string

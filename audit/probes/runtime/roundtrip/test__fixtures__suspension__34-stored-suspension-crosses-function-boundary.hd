@@ -1,0 +1,23 @@
+# test: stored suspension crosses a function boundary
+# expect: test
+
+use std.testing.assert_equal
+
+let forwarded_result: i32 = 0
+
+fn ready!() -> i32:
+    42
+
+fn forward![T](task: mut Suspend[T]) -> T:
+    task!()
+
+pub fn main!() -> void:
+    let pending: mut Suspend[i32] = ready()
+    forwarded_result = forward!(pending)
+
+test "stored suspension result survives parameter passing":
+    assert_equal(
+        forwarded_result,
+        42,
+        reason="the uniform suspension wrapper must preserve its concrete frame and result",
+    )

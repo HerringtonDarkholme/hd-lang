@@ -1,0 +1,5 @@
+# test: readonly suspension values cannot be cancelled
+
+fn ready!() -> i32: 42
+fn main() -> void:
+    pending := ready()

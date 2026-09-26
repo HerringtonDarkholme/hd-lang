@@ -1,0 +1,9 @@
+# test: an impure default is rejected
+let counter: i32 = 0
+
+fn bump() -> i32:
+    counter = counter + 1
+    counter
+
+fn bad(value: i32 = bump()) -> i32:  # diagnostic: impure-parameter-default
+    value

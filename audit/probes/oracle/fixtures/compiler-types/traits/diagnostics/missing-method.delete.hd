@@ -1,0 +1,6 @@
+# test: traits / diagnostics / missing method
+
+trait Named:
+    fn name(self) -> string
+data User:
+    value: i32

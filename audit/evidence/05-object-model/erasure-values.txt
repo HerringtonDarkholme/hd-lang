@@ -1,0 +1,42 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/erasure-values.ts; date: 2026-09-25T20:54:15.082Z
+
+## f64 / i32 survival through erased positions
+ok  	nan_identity	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_identity	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	nan_box	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_box	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	nan_list	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_list	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	nan_tuple	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_tuple	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	nan_optional	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_optional	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	nan_closure	actual=NaN bits=7ff8000000000000	expected=NaN bits=7ff8000000000000
+ok  	zero_closure	actual=0 bits=8000000000000000	expected=0 bits=8000000000000000
+ok  	max_box	actual=1.7976931348623157e+308 bits=7fefffffffffffff	expected=1.7976931348623157e+308 bits=7fefffffffffffff
+ok  	tiny_list	actual=5e-324 bits=0000000000000001	expected=5e-324 bits=0000000000000001
+ok  	min_tuple	actual=-2147483648	expected=-2147483648
+ok  	max_optional	actual=2147483647	expected=2147483647
+
+## equality (1 = true). IEEE: NaN != NaN, -0 == 0; spec 05: map equality ignores order
+ok  	concrete_nan_eq	actual=0	expected=0
+ok  	generic_nan_eq	actual=0	expected=0
+ok  	concrete_zero_eq	actual=1	expected=1
+ok  	generic_zero_eq	actual=1	expected=1
+ok  	list_nan_eq	actual=0	expected=0
+ok  	list_zero_eq	actual=1	expected=1
+ok  	tuple_nan_eq	actual=0	expected=0
+ok  	optional_nan_eq	actual=0	expected=0
+ok  	boxed_same_value_eq	actual=1	expected=1
+ok  	map_value_nan_eq	actual=0	expected=0
+ok  	map_order_eq	actual=1	expected=1
+
+## identity of trait values (spec 05 `is` rules; 1 = same identity)
+ok  	prim_alias	actual=1	expected=1
+ok  	prim_pass	actual=1	expected=1
+ok  	prim_twice	actual=0	expected=0
+ok  	data_twice	actual=1	expected=1
+ok  	generic_alias	actual=1	expected=1
+ok  	generic_twice	actual=0	expected=0
+
+failures: 0

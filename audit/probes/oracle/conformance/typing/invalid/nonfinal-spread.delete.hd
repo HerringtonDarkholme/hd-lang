@@ -1,0 +1,4 @@
+fn sum(values: i32...) -> i32:
+    0
+
+values := [1, 2]

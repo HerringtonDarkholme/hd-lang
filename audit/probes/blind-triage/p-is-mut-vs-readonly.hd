@@ -1,0 +1,12 @@
+# test: `is` accepts a mut view and a readonly view of one object (spec 05: permission does not change identity)
+# expect-result: probe = 1
+data User:
+    name: string
+
+pub fn probe() -> i32:
+    let mutable: mut User = User { name: "Ada" }
+    let readonly: User = mutable
+    if mutable is readonly:
+        1
+    else:
+        0

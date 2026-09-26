@@ -1,0 +1,15 @@
+# test: module initialization runs exactly once before main
+# expect: test
+use std.testing.assert_equal
+
+let runs: i32 = 0
+
+fn bump() -> i32:
+    runs = runs + 1
+    runs
+
+let first: i32 = bump()
+
+pub fn main() -> void:
+    assert_equal(runs, 1, reason="initializer ran once")
+    assert_equal(first, 1, reason="initialized value")

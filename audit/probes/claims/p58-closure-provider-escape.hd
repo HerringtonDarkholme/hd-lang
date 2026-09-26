@@ -1,0 +1,23 @@
+# test: a closure keeps the lexical provider it captured after the with scope ends
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data Fixed:
+    current: i32
+
+impl Counter for Fixed:
+    fn value(self) -> i32: self.current
+
+fn read() -> i32 $ Counter: $.use(Counter).value()
+
+fn make() -> fn() -> i32:
+    $.with(Counter=Fixed { current: 7 }):
+        fn() -> i32: read()
+
+test "escape":
+    callback := make()
+    $.with(Counter=Fixed { current: 9 }):
+        assert_equal(callback(), 7, reason="captured provider wins over the caller scope")

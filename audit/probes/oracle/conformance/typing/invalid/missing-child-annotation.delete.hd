@@ -1,0 +1,28 @@
+data Validation: pass
+data Validator: pass
+data FieldValidator: pass
+data Opaque: pass
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
+    ) -> Validator:
+        Validator {}
+
+data Record:
+    opaque: Opaque
+

@@ -1,0 +1,11 @@
+data ParseError:
+    string
+fn label(value: string?) -> string?:
+    actual := value?
+    actual
+fn parse(input: string) -> Result[i32, ParseError]:
+    Ok ( 0.0 )
+fn parse_twice(input: string) -> Result[i32, ParseError]:
+    first := parse(input)?
+    second := parse(input)?
+    Ok ( second )

@@ -1,0 +1,5 @@
+# gap probe control: ordered f64 comparisons without NaN
+use std.testing.assert
+
+test "ordered floats compare":
+    assert(1.0 < 2.0, reason="1 < 2")

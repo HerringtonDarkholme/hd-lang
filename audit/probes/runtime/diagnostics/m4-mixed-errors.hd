@@ -1,0 +1,6 @@
+data Point:
+    x: i32
+
+fn main() -> i32:
+    point := Point { x: 1, z: 2 }
+    point.y + undefined_value + true

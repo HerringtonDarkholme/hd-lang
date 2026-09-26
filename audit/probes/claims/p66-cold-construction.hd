@@ -1,0 +1,16 @@
+# test: an ordinary call to a suspending function is cold: the body runs only when driven
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn work!() -> i32:
+    log = log + "w"
+    1
+
+pub fn main!() -> void:
+    let pending: mut Suspend[i32] = work()
+    assert_equal(log, "", reason="construction does not run the body")
+    value := pending!()
+    assert_equal(log, "w", reason="driving runs it once")
+    assert_equal(value, 1, reason="result")

@@ -1,0 +1,10 @@
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+fn nested() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    block_on(pending)  # panic: suspension-nested-driver
+
+pub fn main!() -> void:
+    _ := nested()

@@ -1,0 +1,12 @@
+# test: `is` accepts two mut-typed operands (spec 05 identity)
+# expect-result: probe = 1
+data User:
+    name: string
+
+pub fn probe() -> i32:
+    let first: mut User = User { name: "Ada" }
+    let alias: mut User = first
+    if first is alias:
+        1
+    else:
+        0

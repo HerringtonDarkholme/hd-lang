@@ -1,0 +1,9 @@
+# test: match checking rejects arms after a catch-all
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:
+        _ => 1

@@ -1,0 +1,6 @@
+fn add_two!(value: i32) -> i32 $ Clock:
+    _ := $.use(Clock)
+    value  +  2
+
+fn main!() -> i32 $ Clock:
+    add_two!(40)

@@ -1,0 +1,4 @@
+# test: binding expressions reject same-scope redeclaration
+
+fn main() -> i32:
+    value := 1

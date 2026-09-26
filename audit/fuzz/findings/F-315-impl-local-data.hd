@@ -1,0 +1,8 @@
+# test: a local data declaration inside a function body parses
+# expect: parse
+# fuzz-signature: parse-agreement|ref-accept/impl-reject|expected-expression
+# fuzz-class: implementation gap (F-315). The grammar allows local declarations, but hd parse reports a generic
+# expected-expression error instead of an unsupported-feature diagnostic.
+fn f() -> void:
+    data Local:
+        x: i32

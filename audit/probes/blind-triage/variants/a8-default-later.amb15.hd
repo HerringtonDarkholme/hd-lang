@@ -1,0 +1,6 @@
+# test: [AMB-15 resolved to implementation code] a default may not refer to a later parameter; the earlier-parameter twin accepts
+fn later(first: i32 = second, second: i32 = 1) -> i32:  # diagnostic: impure-parameter-default
+    first + second
+
+fn earlier(first: i32 = 1, second: i32 = first) -> i32:
+    first + second

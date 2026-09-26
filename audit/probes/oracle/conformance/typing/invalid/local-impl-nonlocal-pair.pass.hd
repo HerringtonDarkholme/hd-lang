@@ -1,0 +1,12 @@
+
+trait Label:
+    fn label(self) -> string
+
+data Entry:
+    name: string
+
+fn describe(entry: Entry) -> string:
+    pass
+        fn label(self) -> string: self.name
+
+    entry.label()

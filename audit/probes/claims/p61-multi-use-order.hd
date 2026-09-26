@@ -1,0 +1,26 @@
+# test: multi-provider use returns providers in requested order
+# expect: test
+use std.testing.assert_equal
+
+trait A:
+    fn a(self) -> i32
+
+trait B:
+    fn b(self) -> i32
+
+data PA: pass
+data PB: pass
+
+impl A for PA:
+    fn a(self) -> i32: 1
+
+impl B for PB:
+    fn b(self) -> i32: 2
+
+fn read() -> i32 $ A + B:
+    _ := (second, first := $.use(B, A))
+    first.a() * 10 + second.b()
+
+test "order":
+    $.with(A=PA {}, B=PB {}):
+        assert_equal(read(), 12, reason="tuple order follows the request")

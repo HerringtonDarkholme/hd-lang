@@ -1,0 +1,7 @@
+fn first() -> i32:
+    let value: i32 = "text"  # diagnostic: type-mismatch
+    value
+
+fn second() -> bool:
+    let flag: bool = 3  # diagnostic: type-mismatch
+    flag

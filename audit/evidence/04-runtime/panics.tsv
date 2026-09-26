@@ -1,0 +1,40 @@
+# commit bd985d7, 2026-09-25T20:47:52.480Z, node v24.19.0
+# command: node --experimental-strip-types audit/scripts/runtime/panics.ts
+fixture	command	expected	marker_line	exit	reported	match	location_in_output
+audit/probes/runtime/panics/defer-panic-poisons.hd	run	explicit-panic	3	1	explicit-panic	yes	no
+audit/probes/runtime/panics/i64-overflow.hd	run	integer-overflow	3	1	NONSTRUCTURED(audit/probes/runtime/panics/i64-overflow.hd:1:14: unknown-type: unknown or unsup)	NO	yes
+audit/probes/runtime/panics/multiply-overflow.hd	run	integer-overflow	3	1	integer-overflow	yes	no
+audit/probes/runtime/panics/negative-exponent-dynamic.hd	run	runtime-error	3	1	NONSTRUCTURED(RuntimeError: unreachable)	any	yes
+audit/probes/runtime/panics/negative-index.hd	run	index-out-of-bounds	3	1	index-out-of-bounds	yes	no
+audit/probes/runtime/panics/negative-shift.hd	run	invalid-shift	3	1	invalid-shift	yes	no
+audit/probes/runtime/panics/remainder-by-zero.hd	run	integer-division-by-zero	3	1	integer-division-by-zero	yes	no
+audit/probes/runtime/panics/stack-exhausted-suspending.hd	run	stack-exhausted	2	1	NONSTRUCTURED(RangeError: Maximum call stack size exceeded)	NO	yes
+audit/probes/runtime/panics/stack-exhausted.hd	run	stack-exhausted	2	1	NONSTRUCTURED(RangeError: Maximum call stack size exceeded)	NO	no
+spec/conformance/runtime/panic/competing-suspension-drivers.hd	test	suspension-competing-driver	5	1	suspension-competing-driver	yes	no
+spec/conformance/runtime/panic/explicit-panic.hd	test	explicit-panic	1	1	explicit-panic	yes	no
+spec/conformance/runtime/panic/for-loop-iterator-invalidated.hd	test	iterator-invalidated	3	1	iterator-invalidated	yes	no
+spec/conformance/runtime/panic/integer-add-overflow.hd	test	integer-overflow	1	1	integer-overflow	yes	no
+spec/conformance/runtime/panic/integer-divide-by-zero.hd	test	integer-division-by-zero	2	1	integer-division-by-zero	yes	no
+spec/conformance/runtime/panic/integer-negation-overflow.hd	test	integer-overflow	2	1	integer-overflow	yes	no
+spec/conformance/runtime/panic/invalid-shift.hd	test	invalid-shift	1	1	invalid-shift	yes	no
+spec/conformance/runtime/panic/invalidated-iterator.hd	test	iterator-invalidated	5	1	iterator-invalidated	yes	no
+spec/conformance/runtime/panic/list-index-out-of-bounds.hd	test	index-out-of-bounds	2	1	index-out-of-bounds	yes	no
+spec/conformance/runtime/panic/list-set-out-of-bounds.hd	test	index-out-of-bounds	2	1	index-out-of-bounds	yes	no
+spec/conformance/runtime/panic/map-iterator-invalidated.hd	test	iterator-invalidated	4	1	iterator-invalidated	yes	no
+spec/conformance/runtime/panic/nested-block-on.hd	test	suspension-nested-driver	7	1	suspension-nested-driver	yes	no
+spec/conformance/runtime/panic/reentrant-cancel.hd	test	suspension-reentrant-poll	17	1	suspension-reentrant-poll	yes	no
+spec/conformance/runtime/panic/reentrant-suspension-poll.hd	test	suspension-reentrant-poll	5	1	suspension-reentrant-poll	yes	no
+spec/conformance/runtime/panic/removed-map-iterator-invalidated.hd	test	iterator-invalidated	4	1	iterator-invalidated	yes	no
+spec/conformance/runtime/panic/second-suspension-drive.hd	test	suspension-invalid-state	8	1	suspension-invalid-state	yes	no
+spec/conformance/runtime/panic/signed-min-division-overflow.hd	test	integer-overflow	3	1	integer-overflow	yes	no
+spec/conformance/runtime/panic/test-block-on.hd	test	suspension-nested-driver	7	1	suspension-nested-driver	yes	no
+test/fixtures/compiler/03-checked-i32-arithmetic-traps-on-overflow.hd	run	integer-overflow	3	1	integer-overflow	yes	no
+test/fixtures/compiler/04-the-minimum-i32-literal-forms-through-unary-negation-division.hd	run	integer-overflow	3	1	integer-overflow	yes	no
+test/fixtures/compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-negative.hd	run	runtime-error	3	1	NONSTRUCTURED(RuntimeError: unreachable)	any	yes
+test/fixtures/compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-overflow.hd	run	integer-overflow	3	1	integer-overflow	yes	no
+test/fixtures/compiler/46-explicit-panic-lowers-to-unreachable-and-skips-pending-defer.hd	run	explicit-panic	5	1	explicit-panic	yes	no
+test/fixtures/compiler/assert-failure-panics.hd	run	assertion-failed	6	1	assertion-failed	yes	no
+test/fixtures/suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive.hd	run	suspension-invalid-state	4	1	suspension-invalid-state	yes	no
+test/fixtures/suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled.hd	run	suspension-invalid-state	4	1	suspension-invalid-state	yes	no
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested.hd	run	suspension-nested-driver	11	1	suspension-nested-driver	yes	no
+test/fixtures/suspension/30-imported-assert-equal-compares-supported-structural-values-failure.hd	run	assertion-failed	4	1	assertion-failed	yes	no

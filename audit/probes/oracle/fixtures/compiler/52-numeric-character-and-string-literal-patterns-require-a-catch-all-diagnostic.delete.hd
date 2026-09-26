@@ -1,0 +1,4 @@
+# test: numeric, character, and string literal patterns require a catch-all
+
+fn classify(value: i32) -> i32:
+        1 => 1

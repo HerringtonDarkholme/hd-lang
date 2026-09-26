@@ -1,0 +1,7 @@
+# test: contextual enum variant patterns use the subject type
+
+enum Pair:
+    Values(left: i32, right: i32)
+fn read(value: Pair) -> i32:
+    match value:
+        pass

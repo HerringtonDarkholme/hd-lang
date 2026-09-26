@@ -1,0 +1,4 @@
+# test: expected function types infer inline closure parameters and results
+
+fn main() -> i32:
+    0

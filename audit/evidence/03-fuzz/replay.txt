@@ -1,0 +1,314 @@
+# commit bd985d7 | command: node --experimental-strip-types audit/fuzz/fuzz.ts --replay audit/fuzz/findings/<file> --fuzzer parse,contract,phase[,wasm --adapter wasm] | date 2026-09-25
+=== audit/fuzz/findings/F-300-ref-nested-function-type.hd
+parse: reference=syntax-error
+  c0 parse: accept
+  SIGNATURE parse-agreement|ref-reject/impl-accept|syntax-error
+contract: reference=syntax-error
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: program has no exported main function]
+  c0 test: violation:no-located-code [Error: program has no main function or test blocks]
+  SIGNATURE contract|violation:run|no-located-code:Error: program has no exported main function
+  SIGNATURE contract|violation:test|no-located-code:Error: program has no main function or test blocks
+phase: reference=syntax-error
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: program has no exported main function]
+  c0 test: violation:no-located-code [Error: program has no main function or test blocks]
+wasm: reference=syntax-error
+  c0 check: accept
+exit=1
+=== audit/fuzz/findings/F-301-ref-unicode-escape.hd
+parse: reference=invalid-escape
+  c0 parse: accept
+  SIGNATURE parse-agreement|ref-reject/impl-accept|invalid-escape
+contract: reference=invalid-escape
+  c0 parse: accept
+  c0 check: accept
+  c0 run: accept
+  c0 test: accept
+phase: reference=invalid-escape
+  c0 parse: accept
+  c0 check: accept
+  c0 run: accept
+  c0 test: accept
+wasm: reference=invalid-escape
+  c0 check: accept
+exit=1
+=== audit/fuzz/findings/F-302-ref-context-entry-order.hd
+parse: reference=argument-order
+  c0 parse: accept
+  SIGNATURE parse-agreement|ref-reject/impl-accept|argument-order
+contract: reference=argument-order
+  c0 parse: accept
+  c0 check: reject:unknown-name (uninventoried unknown-name)
+  c0 run: reject:unknown-name (uninventoried unknown-name)
+  c0 test: reject:unknown-name (uninventoried unknown-name)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=argument-order
+  c0 parse: accept
+  c0 check: reject:unknown-name (uninventoried unknown-name)
+  c0 run: reject:unknown-name (uninventoried unknown-name)
+  c0 test: reject:unknown-name (uninventoried unknown-name)
+wasm: reference=argument-order
+  c0 check: reject:unknown-name (uninventoried unknown-name)
+exit=1
+=== audit/fuzz/findings/F-303-ref-lone-dollar.hd
+parse: reference=accept
+  c0 parse: reject:invalid-string-interpolation
+  SIGNATURE parse-agreement|ref-accept/impl-reject|invalid-string-interpolation
+contract: reference=accept
+  c0 parse: reject:invalid-string-interpolation
+  c0 check: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+  c0 run: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+  c0 test: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=accept
+  c0 parse: reject:invalid-string-interpolation
+  c0 check: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+  c0 run: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+  c0 test: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+wasm: reference=accept
+  c0 check: reject:invalid-string-interpolation (uninventoried invalid-string-interpolation)
+exit=1
+=== audit/fuzz/findings/F-304-impl-result-payload-unchecked.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [WasmValidationError: Binaryen rejected generated Wasm]
+  c0 test: violation:no-located-code [WasmValidationError: Binaryen rejected generated Wasm]
+  SIGNATURE contract|violation:run|no-located-code:WasmValidationError: Binaryen rejected generated Wasm
+  SIGNATURE contract|violation:test|no-located-code:WasmValidationError: Binaryen rejected generated Wasm
+phase: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [WasmValidationError: Binaryen rejected generated Wasm]
+  c0 test: violation:no-located-code [WasmValidationError: Binaryen rejected generated Wasm]
+wasm: reference=accept
+  c0 check: accept
+  SIGNATURE wasm|build-failed|WasmValidationError: Binaryen rejected generated Wasm
+exit=1
+=== audit/fuzz/findings/F-305-impl-discard-void-try-wat.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [WasmValidationError: Binaryen could not parse generated WAT: [object Object]]
+  c0 test: violation:no-located-code [WasmValidationError: Binaryen could not parse generated WAT: [object Object]]
+  SIGNATURE contract|violation:run|no-located-code:WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+  SIGNATURE contract|violation:test|no-located-code:WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+phase: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [WasmValidationError: Binaryen could not parse generated WAT: [object Object]]
+  c0 test: violation:no-located-code [WasmValidationError: Binaryen could not parse generated WAT: [object Object]]
+wasm: reference=accept
+  c0 check: accept
+  SIGNATURE wasm|build-failed|WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+exit=1
+=== audit/fuzz/findings/F-306-impl-run-without-main.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: program has no exported main function]
+  c0 test: violation:no-located-code [Error: program has no main function or test blocks]
+  SIGNATURE contract|violation:run|no-located-code:Error: program has no exported main function
+  SIGNATURE contract|violation:test|no-located-code:Error: program has no main function or test blocks
+phase: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: program has no exported main function]
+  c0 test: violation:no-located-code [Error: program has no main function or test blocks]
+wasm: reference=accept
+  c0 check: accept
+exit=1
+=== audit/fuzz/findings/F-307-impl-result-main.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: main has no runnable export]
+  c0 test: violation:no-located-code [Error: main has no runnable export]
+  SIGNATURE contract|violation:run|no-located-code:Error: main has no runnable export
+  SIGNATURE contract|violation:test|no-located-code:Error: main has no runnable export
+phase: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [Error: main has no runnable export]
+  c0 test: violation:no-located-code [Error: main has no runnable export]
+wasm: reference=accept
+  c0 check: accept
+exit=1
+=== audit/fuzz/findings/F-308-impl-private-main-requirement.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [TypeError: type incompatibility when transforming from/to JS]
+  c0 test: violation:no-located-code [TypeError: type incompatibility when transforming from/to JS]
+  SIGNATURE contract|violation:run|no-located-code:TypeError: type incompatibility when transforming from/to JS
+  SIGNATURE contract|violation:test|no-located-code:TypeError: type incompatibility when transforming from/to JS
+phase: reference=accept
+  c0 parse: accept
+  c0 check: accept
+  c0 run: violation:no-located-code [TypeError: type incompatibility when transforming from/to JS]
+  c0 test: violation:no-located-code [TypeError: type incompatibility when transforming from/to JS]
+wasm: reference=accept
+  c0 check: accept
+exit=1
+=== audit/fuzz/findings/F-309-impl-same-line-else.hd
+parse: reference=accept
+  c0 parse: reject:expected-newline
+  SIGNATURE parse-agreement|ref-accept/impl-reject|expected-newline
+contract: reference=accept
+  c0 parse: reject:expected-newline
+  c0 check: reject:expected-newline (uninventoried expected-newline)
+  c0 run: reject:expected-newline (uninventoried expected-newline)
+  c0 test: reject:expected-newline (uninventoried expected-newline)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=accept
+  c0 parse: reject:expected-newline
+  c0 check: reject:expected-newline (uninventoried expected-newline)
+  c0 run: reject:expected-newline (uninventoried expected-newline)
+  c0 test: reject:expected-newline (uninventoried expected-newline)
+wasm: reference=accept
+  c0 check: reject:expected-newline (uninventoried expected-newline)
+exit=1
+=== audit/fuzz/findings/F-310-impl-colon-line.hd
+parse: reference=syntax-error,trailing-block-position
+  c0 parse: accept
+  SIGNATURE parse-agreement|ref-reject/impl-accept|syntax-error
+contract: reference=syntax-error,trailing-block-position
+  c0 parse: accept
+  c0 check: reject:not-callable (uninventoried not-callable)
+  c0 run: reject:not-callable (uninventoried not-callable)
+  c0 test: reject:not-callable (uninventoried not-callable)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=syntax-error,trailing-block-position
+  c0 parse: accept
+  c0 check: reject:not-callable (uninventoried not-callable)
+  c0 run: reject:not-callable (uninventoried not-callable)
+  c0 test: reject:not-callable (uninventoried not-callable)
+wasm: reference=syntax-error,trailing-block-position
+  c0 check: reject:not-callable (uninventoried not-callable)
+exit=1
+=== audit/fuzz/findings/F-311-impl-continuation-suite-indent.hd
+parse: reference=unexpected-indentation
+  c0 parse: accept
+  SIGNATURE parse-agreement|ref-reject/impl-accept|unexpected-indentation
+contract: reference=unexpected-indentation
+  c0 parse: accept
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+  c0 run: reject:type-mismatch (uninventoried type-mismatch)
+  c0 test: reject:type-mismatch (uninventoried type-mismatch)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=unexpected-indentation
+  c0 parse: accept
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+  c0 run: reject:type-mismatch (uninventoried type-mismatch)
+  c0 test: reject:type-mismatch (uninventoried type-mismatch)
+wasm: reference=unexpected-indentation
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+exit=1
+=== audit/fuzz/findings/F-312-impl-decorator-misreported.hd
+parse: reference=accept
+  c0 parse: reject:decorator-not-top-level
+  SIGNATURE parse-agreement|ref-accept/impl-reject|decorator-not-top-level
+contract: reference=accept
+  c0 parse: reject:decorator-not-top-level
+  c0 check: reject:decorator-not-top-level
+  c0 run: reject:decorator-not-top-level
+  c0 test: reject:decorator-not-top-level
+phase: reference=accept
+  c0 parse: reject:decorator-not-top-level
+  c0 check: reject:decorator-not-top-level
+  c0 run: reject:decorator-not-top-level
+  c0 test: reject:decorator-not-top-level
+wasm: reference=accept
+  c0 check: reject:decorator-not-top-level
+exit=1
+=== audit/fuzz/findings/F-313-spec-uninventoried-code.hd
+parse: reference=accept
+  c0 parse: accept
+contract: reference=accept
+  c0 parse: accept
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+  c0 run: reject:type-mismatch (uninventoried type-mismatch)
+  c0 test: reject:type-mismatch (uninventoried type-mismatch)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=accept
+  c0 parse: accept
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+  c0 run: reject:type-mismatch (uninventoried type-mismatch)
+  c0 test: reject:type-mismatch (uninventoried type-mismatch)
+wasm: reference=accept
+  c0 check: reject:type-mismatch (uninventoried type-mismatch)
+exit=1
+=== audit/fuzz/findings/F-314-spec-inline-suite-comma.hd
+parse: reference=syntax-error
+  c0 parse: reject:expected-expression
+contract: reference=syntax-error
+  c0 parse: reject:expected-expression
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+  c0 run: reject:expected-expression (uninventoried expected-expression)
+  c0 test: reject:expected-expression (uninventoried expected-expression)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=syntax-error
+  c0 parse: reject:expected-expression
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+  c0 run: reject:expected-expression (uninventoried expected-expression)
+  c0 test: reject:expected-expression (uninventoried expected-expression)
+wasm: reference=syntax-error
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+exit=1
+=== audit/fuzz/findings/F-315-impl-local-data.hd
+parse: reference=accept
+  c0 parse: reject:expected-expression
+  SIGNATURE parse-agreement|ref-accept/impl-reject|expected-expression
+contract: reference=accept
+  c0 parse: reject:expected-expression
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+  c0 run: reject:expected-expression (uninventoried expected-expression)
+  c0 test: reject:expected-expression (uninventoried expected-expression)
+  SIGNATURE contract|uninventoried-code:check|*
+  SIGNATURE contract|uninventoried-code:run|*
+  SIGNATURE contract|uninventoried-code:test|*
+phase: reference=accept
+  c0 parse: reject:expected-expression
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+  c0 run: reject:expected-expression (uninventoried expected-expression)
+  c0 test: reject:expected-expression (uninventoried expected-expression)
+wasm: reference=accept
+  c0 check: reject:expected-expression (uninventoried expected-expression)
+exit=1
+=== audit/fuzz/findings/F-316-impl-pub-inherent-method.hd
+parse: reference=accept
+  c0 parse: reject:doc-comment-without-target
+  SIGNATURE parse-agreement|ref-accept/impl-reject|doc-comment-without-target
+contract: reference=accept
+  c0 parse: reject:doc-comment-without-target
+  c0 check: reject:doc-comment-without-target
+  c0 run: reject:doc-comment-without-target
+  c0 test: reject:doc-comment-without-target
+exit=1

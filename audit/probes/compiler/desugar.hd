@@ -1,0 +1,29 @@
+use std.testing.assert_equal
+
+
+data Point:
+    x: i32
+    y: i32 = 7
+
+fn add(a: i32, b: i32 = 10) -> i32: a + b
+
+fn total(values: i32...) -> i32:
+    let sum: i32 = 0
+    for v in values:
+        sum = sum + v
+    sum
+
+fn apply(callback: fn() -> i32) -> i32: callback()
+
+fn main() -> i32:
+    p := Point { x: 1 }
+    q := Point { ...p, x: 3 }
+    doubled := [for v in [1, 2, 3] if v > 1 => v * 2]
+    _ := "q=${q.x} n=${add(1)}"
+    t := total(1, 2, 3)
+    r := apply:
+        5
+    q.y + t + r + doubled.len()
+
+test "adds":
+    assert_equal(add(1, 2), 3, reason="sum")

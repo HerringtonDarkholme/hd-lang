@@ -1,0 +1,6 @@
+# F-502: Bounded generic calls rebuild dictionaries and allocate a trait value per method call
+Severity: major
+Area: runtime
+Evidence: audit/evidence/05-object-model/alloc-per-iteration.tsv (`node --experimental-strip-types audit/scripts/arch/alloc-loops.ts`); audit/evidence/05-object-model/erasure-bench.txt, erasure-bench-run{1,2,3}.txt; audit/evidence/05-object-model/wat/alloc-loops.wat (`$f14` loop_blanket) and wat/erasure-bench.wat (`$f0` sum)
+Effect: each call of `read_score[T: Score](point)` in a loop allocates 2 objects. With a supertrait it allocates 3, and through a blanket `impl[Item: Score] Scored for list[Item]` it allocates 8. The caller builds the dictionary tree fresh on every call, although it is loop-invariant. Inside the generic body, each `value.score()` allocates a new `$traitN` struct binding the receiver. Generic `sum[T: Num]` over `list[i32]` makes 3 allocations per element against 1 for the concrete loop, and runs 3.0x to 4.2x slower in five of six runs (one run: 6.9x). For f64 the range is 3.0x to 7.2x.
+Recommendation: implementation change. Emit constant dictionaries as immutable globals, including blanket trees whose bounds are static. Call bound methods through the dictionary's function field with the receiver as an argument instead of materializing a trait value.

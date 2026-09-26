@@ -1,0 +1,19 @@
+# commit bd985d7, 2026-09-25T20:52:52.361Z, node v24.19.0
+# command: node --experimental-strip-types audit/scripts/runtime/edits.ts (base history: audit/probes/runtime/edits/base.hd.replay.json, profile ready-counter)
+variant	live_run	owned_ids_changed	replay_with_base_history	verdict_hint
+v01-unrelated-decl-top.hd	42	none	exit0: 42	accepted
+v02-unrelated-suspending-fn.hd	42	none	exit0: 42	accepted
+v03-child-body-change.hd	44	code(child); code(child)	exit1:  | Error: replay event 1 does not match function code identity 'd806cbcfa5d6d6a4'	rejected
+v04-helper-body-change.hd	63	none	exit0: 63	accepted
+v05-main-tail-change.hd	43	code(main)	exit1:  | Error: replay event 0 does not match function code identity 'a407bb42d7aba9a9'	rejected
+v06-ws-inside-child.hd	42	code(child); code(child)	exit1:  | Error: replay event 1 does not match function code identity '38177c5884660b26'	rejected
+v07-comment-inside-child.hd	42	none	exit0: 42	accepted
+v08-comment-between-decls.hd	42	none	exit0: 42	accepted
+v09-blank-lines-between.hd	42	none	exit0: 42	accepted
+v10-trailing-ws-main.hd	42	none	exit0: 42	accepted
+v11-comment-line-in-main.hd	42	code(main)	exit1:  | Error: replay event 0 does not match function code identity '45aec0a9951a83f5'	rejected
+v12-rename-child.hd	42	code(main); site child:poll:1->kid:poll:1 code(kid); site child:provider:Counter.add:44->kid:provider:Counter.add:42 code(kid)	exit1:  | Error: replay event 0 does not match function code identity '4212f71829946358'	rejected
+v13-leaf-body-change.hd	42	code(leaf)	exit1:  | Error: replay event 3 does not match function code identity 'eb7a7b1ced914a56'	rejected
+v14-doc-comment-child.hd	42	none	exit0: 42	accepted
+v15-ws-in-signature.hd	42	code(child); site child:provider:Counter.add:44->child:provider:Counter.add:45 code(child)	exit1:  | Error: replay event 1 does not match function code identity '9e550719b50465f2'	rejected
+v16-reorder-decls.hd	42	none	exit0: 42	accepted

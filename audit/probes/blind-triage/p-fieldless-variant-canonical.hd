@@ -1,0 +1,13 @@
+# test: control: a plain payload-free variant is canonical
+# expect-result: probe = 1
+enum Color:
+    Red
+    Green
+
+pub fn probe() -> i32:
+    first := Color.Red
+    second := Color.Red
+    if first is second:
+        1
+    else:
+        0

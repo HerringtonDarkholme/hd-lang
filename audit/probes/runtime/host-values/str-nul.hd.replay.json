@@ -1,0 +1,39 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "985937b7acf26f47",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "main:provider:TextBridge.join:46",
+    "functionName": "main",
+    "functionCodeId": "985937b7acf26f47",
+    "functionIndex": 0,
+    "providerKey": "TextBridge",
+    "operation": "provider-poll",
+    "encodedArguments": [
+      {
+        "kind": "string",
+        "utf8": "610062"
+      },
+      {
+        "kind": "string",
+        "utf8": "00"
+      }
+    ],
+    "encodedResult": "ready",
+    "encodedValue": {
+      "kind": "string",
+      "utf8": "61006200"
+    },
+    "providerConfigurationId": "cli-default"
+  }
+]

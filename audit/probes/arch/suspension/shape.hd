@@ -1,0 +1,8 @@
+# probe 5.5: state-machine shape with two child sites and a live local
+fn child!(value: i32) -> i32: value + 1
+
+fn main!() -> i32:
+    base := 10
+    first := child!(base)
+    second := child!(first)
+    base + first + second

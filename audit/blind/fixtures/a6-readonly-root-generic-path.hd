@@ -1,0 +1,21 @@
+# test: direct mutation paths through a readonly root whose generic argument is mut
+# expect: test
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+data Box[T]:
+    value: T
+
+test "readonly list[mut User] permits element mutation on the path":
+    let user: mut User = User { name: "a" }
+    let users: list[mut User] = [user]
+    users[0].name = "b"
+    assert_equal(user.name, "b", reason="table: list[mut User] can mutate referenced elements")
+
+test "readonly Box[mut User] permits child mutation on the path":
+    let user: mut User = User { name: "a" }
+    let box: Box[mut User] = Box[mut User] { value: user }
+    box.value.name = "c"
+    assert_equal(user.name, "c", reason="generic field yields mut User through a readonly root")

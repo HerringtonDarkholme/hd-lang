@@ -1,0 +1,9 @@
+# probe 5.5: driver guard behavior
+let divisor: i32 = 1
+
+pub fn set_divisor(value: i32) -> void:
+    divisor = value
+
+fn leaf!() -> i32: 10 / divisor
+
+fn main!() -> i32: leaf!() + 1

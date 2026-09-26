@@ -1,0 +1,22 @@
+# probe 5.1: enum tag field versus subtypes; match lowering
+enum Shape:
+    Circle(radius: i32)
+    Rect(width: i32, height: i32)
+    Line(length: f64)
+    Empty
+
+fn area(item: Shape) -> i32:
+    match item:
+        Shape.Circle(radius) => 3 * radius * radius
+        Shape.Rect(width, height) => width * height
+        Shape.Line(length) => above(length, 0.0)
+        Shape.Empty => 0
+
+fn main() -> i32:
+    area(Shape.Circle(2)) + area(Shape.Rect(3, 10)) + area(Shape.Empty) - area(Shape.Line(1.0))
+
+fn above(value: f64, limit: f64) -> i32:  # uses == because f64 ordering fails to assemble (F-160)
+    if value == limit:
+        1
+    else:
+        0

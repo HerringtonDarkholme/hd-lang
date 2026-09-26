@@ -1,0 +1,17 @@
+data Slot:
+    task: (mut Suspend[i32])?
+
+fn inner!(slot: mut Slot) -> i32:
+    match slot.task:
+        task? => task.cancel()
+        nil => pass
+    1
+
+fn outer!(slot: mut Slot) -> i32:
+    inner!(slot)
+
+pub fn main!() -> void:
+    let slot: mut Slot = Slot { task: nil }
+    let pending: mut Suspend[i32] = outer(slot)
+    slot.task = pending
+    _ := pending!()  # panic: suspension-reentrant-poll

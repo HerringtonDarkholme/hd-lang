@@ -1,0 +1,18 @@
+# test: associated type bindings specialize Self::Item projections
+# expect: test
+use std.testing.assert_equal
+
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+data Numbers: pass
+
+impl Source for Numbers:
+    type Item = i32
+    fn get(self) -> i32: 7
+
+fn read[S: Source](source: S) -> S::Item: source.get()
+
+test "assoc":
+    assert_equal(read(Numbers {}) + 1, 8, reason="projection resolves to i32")

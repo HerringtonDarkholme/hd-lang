@@ -1,0 +1,11 @@
+# test: a nested suite inside brackets must indent past its header line
+# fuzz-signature: parse-agreement|ref-reject/impl-accept|unexpected-indentation
+# fuzz-class: implementation bug (F-311); unexpected-indentation is a reference-parser code missing from spec/README.md
+fn apply(g: fn(i32) -> void) -> void:
+    g(1)
+
+fn main() -> void:
+    apply(
+        fn(a: i32):
+        println(a)  # diagnostic: unexpected-indentation
+    )

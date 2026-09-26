@@ -1,0 +1,68 @@
+# probe 5.4: allocation per requirement construct (read WAT per function)
+trait Clock:
+    fn now(self) -> i32
+
+trait Backup:
+    fn now(self) -> i32
+
+data FixedClock:
+    value: i32
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: self.value
+
+impl Backup for FixedClock:
+    fn now(self) -> i32: self.value
+
+fn read() -> i32 $ Clock:
+    $.use(Clock).now()
+
+fn read_both() -> i32 $ Clock + Backup:
+    $.use(Clock).now() + $.use(Backup).now()
+
+# A: $.with rebinding an existing provider value (no construction)
+fn with_rebind(clock: Clock) -> i32:
+    $.with(Clock=clock):
+        read()
+
+# B: $.with constructing a data provider (trait object coercion)
+fn with_construct() -> i32:
+    $.with(Clock=FixedClock { value: 1 }):
+        read()
+
+# C: context value and spread
+fn make_context() -> $.Context[Clock + Backup] $ Clock + Backup:
+    $.context(Clock=$.use(Clock), Backup=$.use(Backup))
+
+fn with_spread() -> i32 $ Clock + Backup:
+    context := make_context()
+    $.with(...context):
+        read_both()
+
+# D: row subtraction installs one key over a generic row
+fn subtract[r](callback: fn() -> i32 $ r, clock: Clock) -> i32 $ (r - Clock):
+    $.with(Clock=clock):
+        callback()
+
+fn use_subtract(clock: Clock) -> i32 $ Backup:
+    subtract(read_both, clock)
+
+# E: closure capturing a provider from a scope
+fn make_reader(clock: Clock) -> (fn() -> i32):
+    $.with(Clock=clock):
+        fn() -> i32:
+            $.use(Clock).now()
+
+# F: suspension frame capturing providers
+fn wait!() -> i32 $ Clock:
+    $.use(Clock).now()
+
+fn frame!() -> i32 $ Clock + Backup:
+    first := wait!()
+    first + $.use(Backup).now()
+
+fn main!() -> i32:
+    $.with(Clock=FixedClock { value: 1 }, Backup=FixedClock { value: 2 }):
+        clock := FixedClock { value: 3 }
+        reader := make_reader(clock)
+        with_rebind(clock) + with_construct() + with_spread() + use_subtract(clock) + reader() + frame!()

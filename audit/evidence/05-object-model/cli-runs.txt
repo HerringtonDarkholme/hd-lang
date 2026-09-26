@@ -1,0 +1,21 @@
+# commit bd985d7; command: node --experimental-strip-types bin/hd.js {build --wat,run,check} FILE for each 5.1-5.3 probe; date: 2026-09-25T20:50:34Z
+audit/probes/arch/object-model/om-closure.hd	build-exit=0	run: 17
+audit/probes/arch/object-model/om-data.hd	build-exit=0	run: 42
+audit/probes/arch/object-model/om-dyn-trait.hd	build-exit=0	run: 24
+audit/probes/arch/object-model/om-enum.hd	build-exit=0	run: 42
+audit/probes/arch/object-model/om-f64-ordering.hd	build-exit=1	run: WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+audit/probes/arch/object-model/om-fieldless.hd	build-exit=0	run: 42
+audit/probes/arch/object-model/om-generic-data.hd	build-exit=0	run: 43
+audit/probes/arch/object-model/om-list.hd	build-exit=0	run: 18
+audit/probes/arch/object-model/om-map.hd	build-exit=0	run: 47
+audit/probes/arch/object-model/om-optional-result.hd	build-exit=0	run: 42
+audit/probes/arch/object-model/om-string.hd	build-exit=0	run: 16
+audit/probes/arch/object-model/om-suspend.hd	build-exit=0	run: 42
+audit/probes/arch/object-model/om-tuple.hd	build-exit=0	run: 41
+audit/probes/arch/alloc/alloc-frames.hd	build-exit=0	run: Error: program has no exported main function
+audit/probes/arch/alloc/alloc-loops.hd	build-exit=0	run: 0
+audit/probes/arch/erasure/erasure-bench.hd	build-exit=0	run: 0
+audit/probes/arch/erasure/erasure-identity.hd	build-exit=0	run: 0
+audit/probes/arch/erasure/erasure-primitive-bounds.hd	build-exit=1	run: audit/probes/arch/erasure/erasure-primitive-bounds.hd:6:20: missing-trait-implementation: type 'i32' does not implement PartialEq
+audit/probes/arch/erasure/erasure-shared-storage.hd	build-exit=0	run: 82
+audit/probes/arch/erasure/erasure-values.hd	build-exit=0	run: 0

@@ -1,0 +1,10 @@
+# test: AMB-02 control: same call with the inner call using positional arguments
+# expect: parse
+fn f(a: i32, b: i32) -> i32:
+    a + b
+
+fn g(x: i32, y: i32) -> i32:
+    x + y
+
+fn h() -> i32:
+    g(f(1, 2), 3)

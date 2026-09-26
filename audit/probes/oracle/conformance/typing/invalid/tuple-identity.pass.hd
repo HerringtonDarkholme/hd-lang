@@ -1,0 +1,2 @@
+fn same(left: (i32, i32), right: (i32, i32)) -> bool:
+    pass

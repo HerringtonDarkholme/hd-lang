@@ -1,0 +1,29 @@
+# test: postfix ? evaluates its operand once and propagates before cleanup runs
+# expect: test
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn lookup(log: mut Log, value: i32?) -> i32?:
+    log.text = log.text + "e"
+    value
+
+fn chain(log: mut Log, value: i32?) -> i32?:
+    defer:
+        log.text = log.text + "d"
+    found := lookup(log, value)?
+    log.text = log.text + "c"
+    found + 1
+
+test "nil propagates after one evaluation and runs cleanup":
+    let log: mut Log = Log { text: "" }
+    let absent: i32? = nil
+    assert_equal(chain(log, nil), absent, reason="nil returns nil")
+    assert_equal(log.text, "ed", reason="operand once, no continuation, cleanup")
+
+test "present value continues":
+    let log: mut Log = Log { text: "" }
+    let two: i32? = 2
+    assert_equal(chain(log, 1), two, reason="unwrapped value continues")
+    assert_equal(log.text, "ecd", reason="operand once, continuation, cleanup")

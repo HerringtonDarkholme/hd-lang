@@ -1,0 +1,3 @@
+data User:
+    id: string
+

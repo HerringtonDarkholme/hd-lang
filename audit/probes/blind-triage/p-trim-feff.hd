@@ -1,0 +1,4 @@
+# test: trim keeps U+FEFF (not White_Space); spec 10 Prelude
+# expect-result: probe = 2
+pub fn probe() -> i32:
+    "﻿x".trim().len()

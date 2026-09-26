@@ -1,0 +1,3 @@
+# test: a default may not reference a later parameter
+fn bad(first: i32 = second, second: i32 = 1) -> i32:  # diagnostic: impure-parameter-default
+    first

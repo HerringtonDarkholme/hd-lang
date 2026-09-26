@@ -1,0 +1,14 @@
+pub trait Counter:
+    fn add!(self, left: i32, right: i32) -> i32
+
+fn helper(value: i32) -> i32: value * 2
+
+fn kid!(value: i32) -> i32 $ Counter:
+    $.use(Counter).add!(value, 1)
+
+fn leaf!() -> i32: 0
+
+fn main!() -> i32 $ Counter:
+    first := kid!(20)
+    zero := leaf!()
+    helper(first) + zero

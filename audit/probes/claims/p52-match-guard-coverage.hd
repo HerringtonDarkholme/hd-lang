@@ -1,0 +1,5 @@
+# test: guards do not contribute to exhaustiveness
+fn bad(value: bool) -> i32:
+    match value:  # diagnostic: nonexhaustive-match
+        true if value => 1
+        false => 0

@@ -1,0 +1,15 @@
+# test: a readonly alias observes writes through the mutable path (shared identity)
+# expect: test
+use std.testing.assert_equal
+
+data Counter:
+    value: i32
+
+fn read(counter: Counter) -> i32: counter.value
+
+test "alias":
+    let counter: mut Counter = Counter { value: 1 }
+    let view: Counter = counter
+    counter.value = 5
+    assert_equal(view.value, 5, reason="shared identity")
+    assert_equal(read(counter), 5, reason="mut weakens to readonly at a call")

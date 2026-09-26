@@ -1,0 +1,6 @@
+# test: a public function may not expose a private type
+data Secret:
+    value: i32
+
+pub fn leak() -> Secret:  # diagnostic: private-type-leak
+    Secret { value: 1 }

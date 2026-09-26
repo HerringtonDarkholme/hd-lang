@@ -1,0 +1,7 @@
+# test: a top-level derive decorator is not reported as decorator-not-top-level
+# expect: parse
+# fuzz-signature: parse-agreement|ref-accept/impl-reject|decorator-not-top-level
+# fuzz-class: implementation bug (F-312); spec/conformance/parse/valid/decorators.hd fails the same way
+@derive(Eq)
+data Point:
+    x: i32

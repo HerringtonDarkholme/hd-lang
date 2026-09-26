@@ -1,0 +1,8 @@
+pub trait Counter:
+    fn add!(self, left: i32, right: i32) -> i32
+
+fn calculate!() -> i32 $ Counter:
+    $.use(Counter).add!(20, 23)
+
+fn main!() -> i32 $ Counter:
+    calculate!()

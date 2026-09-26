@@ -1,0 +1,37 @@
+# test: [variant: bound calls removed] -0.0 and infinities keep their values and signs through erasure
+# expect: test
+use std.testing.{assert, assert_equal}
+
+fn same[T: PartialEq](left: T, right: T) -> bool:
+    left == right
+
+fn pass_through[T](value: T) -> T:
+    value
+
+fn render[T: Display](value: T) -> string:
+    "$value"
+
+test "negative zero equals zero but keeps its sign":
+    negative := -0.0
+    assert(negative == 0.0, reason="IEEE -0 == +0")
+    assert([negative] == [0.0], reason="list element equality agrees")
+    kept := pass_through(negative)
+    assert_equal("$kept", "-0.0", reason="sign survives a generic round trip")
+    assert(1.0 / kept < 0.0, reason="division observes the sign bit")
+    let maybe: f64? = negative
+    match maybe:
+        value? => assert_equal("${1.0 / value}", "-inf", reason="optional payload keeps the sign")
+        nil => panic("optional lost its payload")
+
+test "infinities survive erasure":
+    positive := 1.0 / 0.0
+    negative := -positive
+    assert(pass_through(positive) == positive, reason="inf == inf")
+    assert(negative < pass_through(positive), reason="-inf < inf")
+    assert_equal("${positive - positive}", "NaN", reason="inf - inf is NaN")
+    values := [positive, negative]
+    assert(values[0] > values[1], reason="list elements keep their values")
+    lookup := {"high": positive}
+    match lookup["high"]:
+        value? => assert(value == positive, reason="map values keep inf")
+        nil => panic("map lost its value")

@@ -1,0 +1,4 @@
+# test: prelude names cannot be shadowed by local bindings
+fn bad() -> i32:
+    println := 1  # diagnostic: prelude-name-shadow
+    println

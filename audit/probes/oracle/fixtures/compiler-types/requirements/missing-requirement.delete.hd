@@ -1,0 +1,4 @@
+# test: requirements / missing requirement
+
+fn read() -> i32 $ Clock: 1
+

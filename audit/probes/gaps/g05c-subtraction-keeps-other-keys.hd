@@ -1,0 +1,19 @@
+# gap probe: (r - Logger) keeps every other key of r
+trait Logger:
+    fn write(self, message: string) -> void
+trait Clock
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn quiet[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn both() -> void $ Logger + Clock:
+    $.use(Logger).write("hi")
+
+fn caller() -> void:
+    quiet(both)  # diagnostic: missing-requirement

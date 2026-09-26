@@ -1,0 +1,2 @@
+fn first(value: string) -> char:
+    pass

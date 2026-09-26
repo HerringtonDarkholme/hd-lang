@@ -1,0 +1,4 @@
+# test: identity / references / missing implementation
+
+fn same[T: Reference](left: T, right: T) -> bool: left is right
+

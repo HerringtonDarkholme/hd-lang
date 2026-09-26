@@ -1,0 +1,4 @@
+fn run(callback: fn() -> i32) -> i32: callback()
+
+pass
+    1]

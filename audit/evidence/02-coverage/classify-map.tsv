@@ -1,0 +1,77 @@
+parse/valid/declarations.hd	in-scope-failing	type declarations (newtype/alias)	F-254
+parse/valid/decorators.hd	deferred	annotations	F-250
+parse/valid/grammar-disambiguation.hd	in-scope-failing	inline if/else expression (parser)	F-252
+parse/valid/nested-layout.hd	in-scope-failing	inline if/else expression (parser)	F-252
+parse/valid/uses.hd	in-scope-failing	relative self./super. use paths (parser)	F-252
+runtime/valid/resource-disposed-result.hd	in-scope-failing	disposed-file runtime profile missing	F-259
+typing/invalid/annotation-direct-reentry.hd	deferred	annotations	F-250
+typing/invalid/annotation-top-level-read.hd	deferred	annotations	F-250
+typing/invalid/configured-facet-not-annotator.hd	deferred	annotations	F-250
+typing/invalid/contravariant-representation-change.hd	deferred	declared variance	F-250
+typing/invalid/covariant-gadt-result.hd	deferred	declared variance + GADTs	F-250
+typing/invalid/data-annotator-map-build.hd	deferred	annotations	F-250
+typing/invalid/derived-generic-bound.hd	deferred	annotations (derive)	F-250
+typing/invalid/derived-hash-field-not-hash.hd	deferred	annotations (derive)	F-250
+typing/invalid/derived-total-order-float.hd	deferred	annotations (derive)	F-250
+typing/invalid/duplicate-direct-annotation-impl.hd	deferred	annotations	F-250
+typing/invalid/embedded-field-decorator-type.hd	deferred	annotations	F-250
+typing/invalid/impossible-gadt-pattern.hd	deferred	GADTs	F-250
+typing/invalid/integer-literal-range.hd	in-scope-failing	sized numeric types	F-253
+typing/invalid/integer-narrowing.hd	in-scope-failing	sized numeric types	F-253
+typing/invalid/least-type-weakening-variance.hd	in-scope-failing	least common type code (no-common-type vs no-least-common-type)	F-258
+typing/invalid/library-orphan-annotation.hd	deferred	annotations + multi-package role	F-250
+typing/invalid/local-impl-nonlocal-pair.hd	in-scope-failing	local declarations (local impl)	F-254
+typing/invalid/metadata-type-as-value.hd	deferred	annotations (shape types)	F-250
+typing/invalid/missing-child-annotation.hd	deferred	annotations	F-250
+typing/invalid/mixed-signedness.hd	in-scope-failing	sized numeric types	F-253
+typing/invalid/multiple-positional-value-packs.hd	deferred	packs	F-250
+typing/invalid/nil-to-any.hd	in-scope-failing	prelude Any type	F-255
+typing/invalid/nominal-map-key.hd	in-scope-failing	type declarations (newtype) as map key	F-254
+typing/invalid/nonfinal-positional-value-pack.hd	deferred	packs	F-250
+typing/invalid/overlapping-generic-annotation.hd	deferred	annotations	F-250
+typing/invalid/pack-length-mismatch.hd	deferred	packs	F-250
+typing/invalid/pack-map-mapper-mismatch.hd	deferred	packs	F-250
+typing/invalid/parameter-decorator-type.hd	deferred	annotations	F-250
+typing/invalid/plain-closure-mutable-capture.hd	in-scope-failing	closure capture permission (UNSOUND ACCEPT)	F-251
+typing/invalid/retention-missing-field.hd	deferred	annotations (shape)	F-250
+typing/invalid/row-kind-mismatch.hd	in-scope-failing	row-kinded generic data arguments	F-256
+typing/invalid/unknown-annotation-member.hd	deferred	annotations	F-250
+typing/invalid/unrepresentable-type-shape.hd	deferred	annotations (shape)	F-250
+typing/invalid/unsigned-negation.hd	in-scope-failing	sized numeric types	F-253
+typing/invalid/variance-position.hd	deferred	declared variance	F-250
+typing/invalid/variance-representation-change.hd	deferred	declared variance	F-250
+typing/invalid/variant-result-owner.hd	in-scope-failing	unnamed positional enum payload (parser); GADT result is deferred	F-252
+typing/valid/annotation-reference.hd	deferred	annotations	F-250
+typing/valid/annotations.hd	deferred	annotations	F-250
+typing/valid/configured-facet.hd	deferred	annotations	F-250
+typing/valid/data-decorator.hd	deferred	annotations	F-250
+typing/valid/derived-equality.hd	deferred	annotations (derive)	F-250
+typing/valid/derived-generic-bound.hd	deferred	annotations (derive)	F-250
+typing/valid/derived-hash.hd	deferred	annotations (derive)	F-250
+typing/valid/derived-ordering.hd	deferred	annotations (derive)	F-250
+typing/valid/direct-annotation-impl.hd	deferred	annotations	F-250
+typing/valid/embedded-field-decorator.hd	deferred	annotations	F-250
+typing/valid/full-validation.hd	deferred	annotations	F-250
+typing/valid/gadts.hd	deferred	GADTs	F-250
+typing/valid/generic-annotation-family.hd	deferred	annotations	F-250
+typing/valid/generic-map-key.hd	in-scope-failing	prelude Eq/Hash traits	F-255
+typing/valid/invariant-gadt-result.hd	deferred	GADTs	F-250
+typing/valid/lazy-annotation-build.hd	deferred	annotations	F-250
+typing/valid/local-types.hd	in-scope-failing	local declarations (type/data/enum/trait/impl)	F-254
+typing/valid/missing-child-override.hd	deferred	annotations	F-250
+typing/valid/mutable-closure-capture.hd	in-scope-failing	mut fn closures	F-257
+typing/valid/mutable-suspension.hd	deferred	packs	F-250
+typing/valid/newtypes-and-widening.hd	in-scope-failing	type declarations + sized numeric types	F-253
+typing/valid/numeric-corners.hd	in-scope-failing	sized numeric types	F-253
+typing/valid/numeric-types.hd	in-scope-failing	sized numeric types	F-253
+typing/valid/numeric-widening-and-display-list.hd	in-scope-failing	sized numeric types	F-253
+typing/valid/pack-map.hd	deferred	packs	F-250
+typing/valid/parameter-decorator.hd	deferred	annotations	F-250
+typing/valid/prelude-surface.hd	in-scope-failing	prelude Hash/Hasher and list.map surface	F-255
+typing/valid/retention-metadata.hd	deferred	annotations	F-250
+typing/valid/root-orphan-annotation.hd	deferred	annotations + multi-package role	F-250
+typing/valid/row-kinded-arguments.hd	in-scope-failing	row-kinded generic data arguments	F-256
+typing/valid/shape-api.hd	deferred	annotations (shape)	F-250
+typing/valid/traits.hd	passing-unselected	traits	F-260
+typing/valid/variadic-generics.hd	deferred	packs	F-250
+typing/valid/variance-permission-weakening.hd	deferred	declared variance	F-250

@@ -1,0 +1,22 @@
+# test: blanket implementations dispatch through generic bounds and dynamic values
+# expect: test
+use std.testing.assert_equal
+
+data Tag:
+    name: string
+
+impl Display for Tag:
+    fn to_string(self) -> string: self.name
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[T: Display] Describe for T:
+    fn describe(self) -> string: "<" + self.to_string() + ">"
+
+fn generic[T: Describe](value: T) -> string: value.describe()
+fn dynamic(value: Describe) -> string: value.describe()
+
+test "blanket":
+    assert_equal(generic(Tag { name: "g" }), "<g>", reason="bound dictionary")
+    assert_equal(dynamic(Tag { name: "d" }), "<d>", reason="dynamic value")

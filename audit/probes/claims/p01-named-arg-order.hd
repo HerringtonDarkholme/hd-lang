@@ -1,0 +1,16 @@
+# test: named arguments evaluate in source order, not parameter order
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+fn combine(first: i32, second: i32) -> i32: first * 10 + second
+
+test "named argument order":
+    result := combine(second=g("s", 2), first=g("f", 1))
+    assert_equal(result, 12, reason="named arguments map to parameters")
+    assert_equal(log, "sf", reason="arguments evaluate in source order")

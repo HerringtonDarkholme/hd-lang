@@ -1,0 +1,8 @@
+# probe (F-160): any f64 ordering comparison produces WAT that Binaryen cannot parse
+fn greater(a: f64, b: f64) -> bool: a > b
+
+fn main() -> i32:
+    if greater(2.0, 1.0):
+        1
+    else:
+        0

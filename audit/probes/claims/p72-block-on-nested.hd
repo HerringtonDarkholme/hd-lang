@@ -1,0 +1,14 @@
+# test: block_on inside an active driver panics with suspension-nested-driver
+use std.task.block_on
+
+fn inner!() -> i32: 1
+
+fn nested() -> i32:
+    let pending: mut Suspend[i32] = inner()
+    block_on(pending)  # panic: suspension-nested-driver
+
+fn outer!() -> i32: nested()
+
+fn main() -> i32:
+    let pending: mut Suspend[i32] = outer()
+    block_on(pending)

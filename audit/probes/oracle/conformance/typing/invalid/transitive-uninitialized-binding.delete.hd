@@ -1,0 +1,7 @@
+let names: list[string] = ["Ada"]
+
+fn apply(callback: fn() -> string) -> string:
+    callback()
+
+fn first_name() -> string:
+    names[0]

@@ -1,0 +1,15 @@
+# test: f64 NaN, -0 and infinities survive erased generic boxing; i32 extremes survive optionals and lists
+# expect: test
+use std.testing.assert_equal
+
+fn id[T](value: T) -> T: value
+fn wrap[T](value: T) -> T?: value
+
+test "erasure":
+    nan := 0.0 / 0.0
+    boxed := id(nan)
+    assert_equal(boxed == boxed, false, reason="NaN is unequal after boxing")
+    assert_equal(1.0 / id(-0.0), -1.0 / 0.0, reason="negative zero keeps its sign")
+    assert_equal(id(1.0 / 0.0), 1.0 / 0.0, reason="infinity")
+    assert_equal(wrap(-2147483648), -2147483648, reason="i32 minimum through optional")
+    assert_equal(id([2147483647])[0], 2147483647, reason="i32 maximum through list")

@@ -1,0 +1,4 @@
+# test: for loops iterate lists and maps with continue, destructuring, and else values
+
+fn bad(values: list[i32]) -> void:
+        pass

@@ -1,0 +1,4 @@
+# test: a plain type mismatch is diagnosed with a code from the spec inventory
+# fuzz-signature: contract|uninventoried-code:check|*
+# fuzz-class: spec gap (F-313). The implementation reports type-mismatch, which spec/README.md does not list.
+let value: i32 = "text"  # diagnostic: type-mismatch

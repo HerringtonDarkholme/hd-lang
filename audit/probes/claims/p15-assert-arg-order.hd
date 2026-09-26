@@ -1,0 +1,18 @@
+# test: assert evaluates its arguments in source order
+# expect: test
+use std.testing.assert
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn cond() -> bool:
+    log = log + "c"
+    true
+
+fn why() -> string:
+    log = log + "r"
+    "reason"
+
+test "assert order":
+    assert(cond(), reason=why())
+    assert_equal(log, "cr", reason="condition before reason")

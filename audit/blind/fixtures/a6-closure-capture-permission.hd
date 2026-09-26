@@ -1,0 +1,17 @@
+# test: plain closures view mutable captures as readonly; mut fn closures may mutate
+data User:
+    name: string
+
+fn rename(user: mut User) -> void:
+    user.name = "renamed"
+
+fn plain_closure(user: mut User) -> fn() -> void:
+    fn() -> void:
+        rename(user)  # diagnostic: mutable-capture-requires-mut-fn
+
+fn mutable_closure(user: mut User) -> mut fn() -> void:
+    mut fn() -> void:
+        rename(user)
+
+fn plain_reader(user: mut User) -> fn() -> string:
+    fn() -> string: user.name

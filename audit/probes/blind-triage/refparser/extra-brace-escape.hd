@@ -1,0 +1,3 @@
+# test: extra: backslash-brace and backslash-space are not spec escapes (spec 01 escape_sequence)
+fn text() -> string:
+    "a\{b"  # diagnostic: invalid-escape

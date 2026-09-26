@@ -1,0 +1,15 @@
+# test: enum payloads may be unnamed positional parameters (08-data-and-enums.md line 200)
+# expect: test
+use std.testing.assert_equal
+
+enum Shape:
+    Circle(f64)
+    Square(side: f64)
+
+fn size(value: Shape) -> f64:
+    match value:
+        Shape.Circle(radius) => radius
+        Shape.Square(side) => side
+
+test "positional payload":
+    assert_equal(size(Shape.Circle(2.0)), 2.0, reason="positional payload binds")

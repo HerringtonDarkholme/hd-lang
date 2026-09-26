@@ -1,0 +1,11 @@
+# test: readonly map[string, mut User] to map[string, User] (spec 04 Variance: covariant V)
+# expect-result: probe = 1
+data User:
+    name: string
+
+fn count(users: map[string, User]) -> i32:
+    users.len()
+
+pub fn probe() -> i32:
+    let users: map[string, mut User] = {"k": User { name: "a" }}
+    count(users)

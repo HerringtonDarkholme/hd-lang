@@ -1,0 +1,6 @@
+
+data User:
+    name: string
+
+annotate User:
+    pass

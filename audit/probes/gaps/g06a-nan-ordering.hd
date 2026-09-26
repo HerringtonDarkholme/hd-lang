@@ -1,0 +1,11 @@
+# gap probe: an unordered comparison makes all four relational operators false
+# (spec 05-expressions.md#unary-and-binary-operators)
+use std.testing.assert
+
+test "NaN is unordered":
+    nan := 0.0 / 0.0
+    assert(not (nan < 1.0), reason="NaN < 1.0 is false")
+    assert(not (nan <= 1.0), reason="NaN <= 1.0 is false")
+    assert(not (nan > 1.0), reason="NaN > 1.0 is false")
+    assert(not (nan >= 1.0), reason="NaN >= 1.0 is false")
+    assert(not (nan == nan), reason="NaN is unequal to itself")

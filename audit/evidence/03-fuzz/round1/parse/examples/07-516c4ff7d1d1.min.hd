@@ -1,0 +1,2 @@
+value . value :: i64 ( ) :
+    type Point [ value : Display [ f + ( x [ ( ( Ok [ print ] ) ) + self_value ] ) + len ] ] = list

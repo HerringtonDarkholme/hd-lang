@@ -1,0 +1,9 @@
+use std.testing.assert_equal
+
+pub trait TextBridge:
+    fn join!(self, left: string, right: string) -> string
+
+fn main!() -> i32 $ TextBridge:
+    result := $.use(TextBridge).join!("e", "\u{301}")
+    assert_equal(result, "e\u{301}", reason="host join must preserve every UTF-8 byte")
+    result.len()

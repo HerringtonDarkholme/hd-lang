@@ -1,0 +1,39 @@
+# probe 5.4: 10-deep concrete-row chain carrying 0 requirement(s)
+
+fn c10(n: i32) -> i32:
+    n + 1
+
+fn c9(n: i32) -> i32:
+    c10(n)
+
+fn c8(n: i32) -> i32:
+    c9(n)
+
+fn c7(n: i32) -> i32:
+    c8(n)
+
+fn c6(n: i32) -> i32:
+    c7(n)
+
+fn c5(n: i32) -> i32:
+    c6(n)
+
+fn c4(n: i32) -> i32:
+    c5(n)
+
+fn c3(n: i32) -> i32:
+    c4(n)
+
+fn c2(n: i32) -> i32:
+    c3(n)
+
+fn c1(n: i32) -> i32:
+    c2(n)
+
+fn main() -> i32:
+    let index: i32 = 0
+    let total: i32 = 0
+    while index < 200000:
+        total = (total + c1(index % 7)) % 1000003
+        index = index + 1
+    total

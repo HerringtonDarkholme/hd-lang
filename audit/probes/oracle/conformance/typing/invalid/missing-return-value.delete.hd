@@ -1,0 +1,2 @@
+fn invalid(flag: bool) -> i32:
+        return 1

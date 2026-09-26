@@ -1,0 +1,11 @@
+# probe 5.1: Suspend[T] wrapper plus frame; indirection per poll
+fn child!(value: i32) -> i32: value + 1
+
+fn stored!(value: i32) -> i32:
+    let pending: mut Suspend[i32] = child(value)
+    pending!()
+
+fn direct!(value: i32) -> i32:
+    child!(value)
+
+fn main!() -> i32: stored!(20) + direct!(20)

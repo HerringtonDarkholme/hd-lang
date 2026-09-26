@@ -1,0 +1,9 @@
+# test: a line that starts with a colon does not attach a block to the previous statement
+# fuzz-signature: parse-agreement|ref-reject/impl-accept|syntax-error (also trailing-block-position)
+# fuzz-class: implementation bug (F-310); hd parse accepts, the reference parser rejects line 7
+fn f(c: bool) -> i32:
+    if c:
+        1
+    :  # diagnostic: trailing-block-position
+        2
+    return 0

@@ -1,0 +1,5 @@
+# test: match guards see pattern bindings and do not contribute coverage
+
+fn classify(value: bool) -> i32:
+    pass
+        _ if true => 1

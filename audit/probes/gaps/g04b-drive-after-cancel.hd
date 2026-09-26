@@ -1,0 +1,10 @@
+# gap probe: polling a cancelled suspension panics with suspension-invalid-state
+# (spec 11-requirements-and-suspension.md#suspendt-protocol)
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+pub fn main() -> void:
+    let pending: mut Suspend[i32] = ready()
+    pending.cancel()
+    _ := block_on(pending)  # panic: suspension-invalid-state

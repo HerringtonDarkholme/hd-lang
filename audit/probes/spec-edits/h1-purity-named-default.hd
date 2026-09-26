@@ -1,0 +1,11 @@
+# Control for h1: a named pure callee in a default expression is accepted.
+use std.testing.assert_equal
+
+fn pure_value() -> i32:
+    1
+
+fn named_default(value: i32 = pure_value()) -> i32:
+    value
+
+test "named pure callee in a default":
+    assert_equal(named_default(), 1, reason="named callable has a purity summary")

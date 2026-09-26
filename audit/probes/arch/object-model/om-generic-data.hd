@@ -1,0 +1,21 @@
+# probe 5.1: generic data uses one erased layout; box and unbox sites
+data Box[T]:
+    item: T
+
+fn get[T](box: Box[T]) -> T: box.item
+
+fn make_int(value: i32) -> Box[i32]: Box[i32] { item: value }
+
+fn main() -> i32:
+    ints := make_int(40)
+    floats := Box[f64] { item: 2.5 }
+    texts := Box[string] { item: "ab" }
+    direct := ints.item
+    generic := get(ints)
+    direct + generic - 40 + texts.item.len() + (1 - above(floats.item, 2.0))
+
+fn above(value: f64, limit: f64) -> i32:  # uses == because f64 ordering fails to assemble (F-160)
+    if value == limit:
+        1
+    else:
+        0

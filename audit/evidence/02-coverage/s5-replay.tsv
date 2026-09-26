@@ -1,0 +1,17 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/coverage/s5-replay.ts audit/evidence/02-coverage/s5-replay.tsv; date 2026-09-25T21:06:56.552Z
+variant	expect	record	replay	verdict
+round-trip	replay-ok(43)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=0 43	AS-CLAIMED
+changed-executed-body	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=1         throw new Error(`replay event ${replayIndex} does not match ${reason}`);	AS-CLAIMED
+changed-executed-main	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=1         throw new Error(`replay event ${replayIndex} does not match ${reason}`);	AS-CLAIMED
+inserted-unrelated-before	replay-ok(43)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=0 43	AS-CLAIMED
+inserted-unrelated-between	replay-ok(43)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=0 43	AS-CLAIMED
+changed-unexecuted-function	replay-ok(43)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=0 43	AS-CLAIMED
+changed-executed-nonsuspending-helper	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=0 44	CONTRADICTED
+comment-inside-executed	replay-ok(43)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=1         throw new Error(`replay event ${replayIndex} does not match ${reason}`);	CONTRADICTED
+missing-event	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=1       if (!expected) throw new Error(`replay exhausted before suspension site ${siteId}`);	AS-CLAIMED
+extra-event	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/base.hd.replay.json	exit=1         throw new Error(`replay has ${options.replay.length - replayIndex} unconsumed event(s)`);	AS-CLAIMED
+host-round-trip	replay-ok(42)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/host.hd.replay.json	exit=0 42	AS-CLAIMED
+host-tampered-value-restored	replay-ok(99)	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/host.hd.replay.json	exit=0 99	AS-CLAIMED
+host-changed-configuration	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/host.hd.replay.json	exit=1         throw new Error(	AS-CLAIMED
+host-changed-argument	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/host.hd.replay.json	exit=1         throw new Error(`replay event ${replayIndex} does not match ${reason}`);	AS-CLAIMED
+host-tampered-argument	replay-rejects	exit=0 /Users/hd/code/test/hd-lang/audit/probes/gates/s5/host.hd.replay.json	exit=1             throw new Error(	AS-CLAIMED

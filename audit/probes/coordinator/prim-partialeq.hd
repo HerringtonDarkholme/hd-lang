@@ -1,0 +1,3 @@
+fn same[T: PartialEq](a: T, b: T) -> bool: a == b
+
+fn main() -> bool: same(1, 1)

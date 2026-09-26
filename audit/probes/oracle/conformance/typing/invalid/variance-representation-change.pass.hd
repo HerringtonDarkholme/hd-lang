@@ -1,0 +1,5 @@
+data Producer[+T]:
+    value: T
+
+fn widen(value: Producer[i32]) -> Producer[Display]:
+    pass

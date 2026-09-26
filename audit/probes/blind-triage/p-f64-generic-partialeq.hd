@@ -1,0 +1,7 @@
+# test: f64 satisfies a PartialEq bound (spec 05 Unary and Binary Operators)
+# expect: accept
+fn same[T: PartialEq](left: T, right: T) -> bool:
+    left == right
+
+pub fn probe() -> bool:
+    same(1.5, 1.5)

@@ -1,0 +1,12 @@
+data Validation: pass
+data Validator: pass
+data Node: pass
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        pass
+
+annotate Validation for Node: pass

@@ -1,0 +1,7 @@
+# commit bd985d7 | command: npx oxlint audit/fuzz; node --experimental-strip-types audit/fuzz/check-imports.ts | date 2026-09-25
+oxlint exit=0
+check-imports: ok (node built-ins, audit/fuzz, spec/ only)
+check-imports exit=0
+audit/fuzz/zz-probe.ts: imports src/cli.ts
+audit/fuzz/zz-probe.ts: references src/: import x from "../../src/cli.ts";
+check-imports with planted src import exit=1

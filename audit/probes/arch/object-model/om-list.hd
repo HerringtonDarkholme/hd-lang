@@ -1,0 +1,29 @@
+# probe 5.1: list growth policy, element storage, bounds check
+fn sum(values: list[i32]) -> i32:
+    let total = 0
+    for value in values:
+        total = total + value
+    total
+
+fn indexed(values: list[i32]) -> i32:
+    values[0] + values[values.len() - 1]
+
+fn build(n: i32) -> i32:
+    let values: mut list[i32] = []
+    let i = 0
+    while i < n:
+        values.append(i)
+        i = i + 1
+    sum(values) + indexed(values)
+
+fn floats() -> f64:
+    values := [1.5, 2.5]
+    values[1]
+
+fn main() -> i32: build(5) + indexed([1, 2, 3]) + float_flag(floats())
+
+fn float_flag(value: f64) -> i32:
+    if value == 2.5:
+        0
+    else:
+        1

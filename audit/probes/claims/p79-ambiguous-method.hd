@@ -1,0 +1,17 @@
+# test: ambiguous dot lookup is rejected; trait qualification selects one
+trait Left:
+    fn name(self) -> string
+
+trait Right:
+    fn name(self) -> string
+
+data Both: pass
+
+impl Left for Both:
+    fn name(self) -> string: "left"
+
+impl Right for Both:
+    fn name(self) -> string: "right"
+
+fn bad(value: Both) -> string:
+    value.name()  # diagnostic: ambiguous-method

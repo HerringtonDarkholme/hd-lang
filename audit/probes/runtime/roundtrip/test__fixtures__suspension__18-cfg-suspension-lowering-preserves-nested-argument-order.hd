@@ -1,0 +1,8 @@
+# test: CFG suspension lowering preserves nested argument order
+# expect-result: main = 42
+
+fn value!(input: i32) -> i32: input
+fn add!(left: i32, right: i32) -> i32: left + right
+
+fn main!() -> i32:
+    add!(value!(20), value!(22))

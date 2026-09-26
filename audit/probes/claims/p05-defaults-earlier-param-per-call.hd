@@ -1,0 +1,11 @@
+# test: defaults may read earlier parameters and are evaluated per call after explicit arguments
+# expect: test
+use std.testing.assert_equal
+
+fn combine(first: i32 = 10, second: i32 = first + 1, third: i32 = second * 2) -> i32:
+    first * 10000 + second * 100 + third
+
+test "defaults":
+    assert_equal(combine(), 101122, reason="all defaults")
+    assert_equal(combine(third=5, first=2), 20305, reason="named explicit, middle default reads first")
+    assert_equal(combine(1, 7), 10714, reason="third default reads explicit second")

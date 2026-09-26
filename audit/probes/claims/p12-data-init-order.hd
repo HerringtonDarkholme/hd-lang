@@ -1,0 +1,19 @@
+# test: data initializers evaluate in source order, defaults after explicit fields
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+data Point:
+    x: i32
+    y: i32
+    z: i32 = 7
+
+test "data init order":
+    point := Point { y: g("y", 2), x: g("x", 1) }
+    assert_equal(log, "yx", reason="source order, not declaration order")
+    assert_equal(point.x * 100 + point.y * 10 + point.z, 127, reason="default fills z")

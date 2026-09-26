@@ -1,0 +1,183 @@
+# probe 5.2: allocations per iteration for representative loops
+use std.task.block_on
+
+trait Score:
+    fn score(self) -> i32
+
+trait Measure:
+    fn measure(self) -> i32
+
+trait Scored: Measure:
+    fn marker(self) -> i32
+
+data Point:
+    value: i32
+
+impl Score for Point:
+    fn score(self) -> i32: self.value
+
+impl Measure for Point:
+    fn measure(self) -> i32: self.value
+
+impl Scored for Point:
+    fn marker(self) -> i32: 0
+
+impl[Item: Score] Measure for list[Item]:
+    fn measure(self) -> i32: self[0].score()
+
+impl[Item: Score] Scored for list[Item]:
+    fn marker(self) -> i32: 0
+
+fn count[T](values: list[T]) -> i32:
+    let total = 0
+    for value in values:
+        total = total + 1
+    total
+
+fn first[T](values: list[T]) -> T: values[0]
+
+fn read_score[T: Score](value: T) -> i32: value.score()
+
+fn read_parent[T: Scored](value: T) -> i32: value.measure()
+
+fn build(n: i32) -> list[i32]:
+    let values: mut list[i32] = []
+    let i = 0
+    while i < n:
+        values.append(i)
+        i = i + 1
+    values
+
+# empty loop: baseline cost of the loop itself
+fn loop_empty(n: i32) -> i32:
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + i
+        i = i + 1
+    total
+
+# concrete for-loop over list[i32]; n elements, called once
+fn loop_for_concrete(n: i32) -> i32:
+    values := build(n)
+    let total = 0
+    for value in values:
+        total = total + value
+    total
+
+# generic for-loop over list[i32]
+fn loop_for_generic(n: i32) -> i32:
+    values := build(n)
+    count(values)
+
+# generic call returning an erased i32, n calls
+fn loop_generic_call(n: i32) -> i32:
+    values := build(1)
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + first(values)
+        i = i + 1
+    total
+
+# closure created once, called n times
+fn loop_closure_call(n: i32) -> i32:
+    base := 1
+    add := fn(value: i32) -> i32: value + base
+    let total = 0
+    let i = 0
+    while i < n:
+        total = add(total)
+        i = i + 1
+    total
+
+# closure created each iteration
+fn loop_closure_create(n: i32) -> i32:
+    base := 1
+    let total = 0
+    let i = 0
+    while i < n:
+        add := fn(value: i32) -> i32: value + base
+        total = add(total)
+        i = i + 1
+    total
+
+# string interpolation each iteration
+fn loop_interpolation(n: i32) -> i32:
+    let total = 0
+    let i = 0
+    while i < n:
+        text := "item ${i} of ${n}"
+        total = total + text.len()
+        i = i + 1
+    total
+
+# bounded generic call (dictionary) each iteration
+fn loop_bounded(n: i32) -> i32:
+    point := Point { value: 1 }
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + read_score(point)
+        i = i + 1
+    total
+
+# supertrait method through a bounded generic, concrete data implementation
+fn loop_supertrait(n: i32) -> i32:
+    point := Point { value: 1 }
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + read_parent(point)
+        i = i + 1
+    total
+
+# blanket + supertrait dictionary: list[Point] satisfies Scored through impl[Item: Score]
+fn loop_blanket(n: i32) -> i32:
+    let points: list[Point] = [Point { value: 1 }]
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + read_parent(points)
+        i = i + 1
+    total
+
+fn ready!(value: i32) -> i32: value + 1
+
+fn drive_loop!(n: i32) -> i32:
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + ready!(i) - i
+        i = i + 1
+    total
+
+# fn! calls that complete immediately, n calls inside one driven frame
+fn loop_suspend_ready(n: i32) -> i32:
+    let pending: mut Suspend[i32] = drive_loop(n)
+    block_on(pending)
+
+fn tick() -> i32 $ Clock:
+    _ := $.use(Clock)
+    1
+
+# requirement-bearing call each iteration
+fn loop_requirement(n: i32) -> i32 $ Clock:
+    let total = 0
+    let i = 0
+    while i < n:
+        total = total + tick()
+        i = i + 1
+    total
+
+# provider installation each iteration
+fn loop_with(n: i32) -> i32 $ Clock:
+    let total = 0
+    let i = 0
+    while i < n:
+        $.with(Clock=$.use(Clock)):
+            total = total + tick()
+        i = i + 1
+    total
+
+fn main() -> i32: 0

@@ -1,0 +1,7 @@
+# test: AMB-01 string literal inside ${...} (spec 01 String And Character Literals)
+# expect: parse
+fn f(value: string) -> string:
+    value
+
+fn g() -> string:
+    "x${f("y")}z"

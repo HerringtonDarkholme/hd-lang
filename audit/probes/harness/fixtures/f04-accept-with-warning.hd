@@ -1,0 +1,6 @@
+# test: F04 accept case that emits a warning
+# expect: accept
+
+fn main() -> i32:
+    unused := 1
+    2

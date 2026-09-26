@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "contract",
+    "generated": 0,
+    "generatedReferenceAccepted": 0,
+    "maxSignatures": 20,
+    "referenceAccepted": 5000,
+    "requestedCases": 5000,
+    "seconds": 820,
+    "seed": "r1",
+    "signatures": 13,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 19203
+  },
+  "signatures": [
+    {
+      "count": 2229,
+      "details": [
+        "expected-token",
+        "expected-expression",
+        "duplicate-data-field",
+        "type-mismatch",
+        "unknown-name",
+        "unknown-type"
+      ],
+      "firstIndex": 4,
+      "origin": "mutate:parse/valid/uses.hd:duplicate-line+swap-lines+swap-tokens",
+      "source": "use pkg.user.types\nuse dep.billing.types.{UserId as BillingUserId}\nuse pkg.user.service.{load_user, save_user}\nuse std.time.{Duration}\nuse pkg.résumé.{Entrée}\nuse self.local.{Config}\nuse self.local.{Config}\nuse super.shared.{Email}\n\npub use pkg.user.types.{User, UserId}\n",
+      "minimized": "use super\n",
+      "name": "01-7e7def6eec28",
+      "signature": "contract|uninventoried-code:check|*"
+    },
+    {
+      "count": 2229,
+      "details": [
+        "expected-token",
+        "expected-expression",
+        "duplicate-data-field",
+        "type-mismatch",
+        "unknown-name",
+        "unknown-type"
+      ],
+      "firstIndex": 4,
+      "origin": "mutate:parse/valid/uses.hd:duplicate-line+swap-lines+swap-tokens",
+      "source": "use pkg.user.types\nuse dep.billing.types.{UserId as BillingUserId}\nuse pkg.user.service.{load_user, save_user}\nuse std.time.{Duration}\nuse pkg.résumé.{Entrée}\nuse self.local.{Config}\nuse self.local.{Config}\nuse super.shared.{Email}\n\npub use pkg.user.types.{User, UserId}\n",
+      "minimized": "use super\n",
+      "name": "02-cbd58a51c971",
+      "signature": "contract|uninventoried-code:run|*"
+    },
+    {
+      "count": 2229,
+      "details": [
+        "expected-token",
+        "expected-expression",
+        "duplicate-data-field",
+        "type-mismatch",
+        "unknown-name",
+        "unknown-type"
+      ],
+      "firstIndex": 4,
+      "origin": "mutate:parse/valid/uses.hd:duplicate-line+swap-lines+swap-tokens",
+      "source": "use pkg.user.types\nuse dep.billing.types.{UserId as BillingUserId}\nuse pkg.user.service.{load_user, save_user}\nuse std.time.{Duration}\nuse pkg.résumé.{Entrée}\nuse self.local.{Config}\nuse self.local.{Config}\nuse super.shared.{Email}\n\npub use pkg.user.types.{User, UserId}\n",
+      "minimized": "use super\n",
+      "name": "03-a250a47f9535",
+      "signature": "contract|uninventoried-code:test|*"
+    },
+    {
+      "count": 810,
+      "details": [
+        "Error: program has no exported main function"
+      ],
+      "firstIndex": 9,
+      "origin": "mutate:runtime/panic/integer-add-overflow.hd:delete-line",
+      "source": "\n",
+      "minimized": "\n",
+      "name": "04-f30321e32b51",
+      "signature": "contract|violation:run|no-located-code:Error: program has no exported main function"
+    },
+    {
+      "count": 672,
+      "details": [
+        "Error: program has no main function or test blocks"
+      ],
+      "firstIndex": 9,
+      "origin": "mutate:runtime/panic/integer-add-overflow.hd:delete-line",
+      "source": "\n",
+      "minimized": "\n",
+      "name": "05-5bce741f092c",
+      "signature": "contract|violation:test|no-located-code:Error: program has no main function or test blocks"
+    },
+    {
+      "count": 12,
+      "details": [
+        "throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);"
+      ],
+      "firstIndex": 35,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "06-766f74e73460",
+      "signature": "contract|violation:run|no-located-code:throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);"
+    },
+    {
+      "count": 12,
+      "details": [
+        "throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);"
+      ],
+      "firstIndex": 35,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "07-7b0126413245",
+      "signature": "contract|violation:test|no-located-code:throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);"
+    },
+    {
+      "count": 8,
+      "details": [
+        "Error: main has no runnable export"
+      ],
+      "firstIndex": 119,
+      "origin": "mutate:typing/valid/console-error-entry.hd:reindent",
+      "source": "pub fn main() -> Result[void, ConsoleError] $ Console:\n    Ok()\n",
+      "minimized": "fn main ( ) -> Result [ void , ConsoleError ] :\n    Ok()\n",
+      "name": "08-5173187f8489",
+      "signature": "contract|violation:run|no-located-code:Error: main has no runnable export"
+    },
+    {
+      "count": 8,
+      "details": [
+        "Error: main has no runnable export"
+      ],
+      "firstIndex": 119,
+      "origin": "mutate:typing/valid/console-error-entry.hd:reindent",
+      "source": "pub fn main() -> Result[void, ConsoleError] $ Console:\n    Ok()\n",
+      "minimized": "fn main ( ) -> Result [ void , ConsoleError ] :\n    Ok()\n",
+      "name": "09-426b3056c2cd",
+      "signature": "contract|violation:test|no-located-code:Error: main has no runnable export"
+    },
+    {
+      "count": 1,
+      "details": [
+        "result = entry(...declaration.requirements.map((requirement) => ({ requirement })));"
+      ],
+      "firstIndex": 1547,
+      "origin": "mutate:typing/invalid/nonhost-entry-requirement.hd:delete-token",
+      "source": "trait Database\n\nfn main ( ) -> void $ Database :\n    pass\n",
+      "minimized": "trait Database\nfn main ( ) -> void $ Database :\n    pass\n",
+      "name": "10-127a671bb400",
+      "signature": "contract|violation:run|no-located-code:result = entry(...declaration.requirements.map((requirement) => ({ requirement })));"
+    },
+    {
+      "count": 1,
+      "details": [
+        "result = entry(...declaration.requirements.map((requirement) => ({ requirement })));"
+      ],
+      "firstIndex": 1547,
+      "origin": "mutate:typing/invalid/nonhost-entry-requirement.hd:delete-token",
+      "source": "trait Database\n\nfn main ( ) -> void $ Database :\n    pass\n",
+      "minimized": "trait Database\nfn main ( ) -> void $ Database :\n    pass\n",
+      "name": "11-03442db268ba",
+      "signature": "contract|violation:test|no-located-code:result = entry(...declaration.requirements.map((requirement) => ({ requirement })));"
+    },
+    {
+      "count": 1,
+      "details": [
+        "[wasm-validator error in function fN] struct.new operand N must have proper type, on"
+      ],
+      "firstIndex": 2908,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err(ParseError { message: \"empty\" })\n    Ok ( 1e308 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 1e308 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "12-79015c34c29f",
+      "signature": "contract|violation:run|no-located-code:[wasm-validator error in function fN] struct.new operand N must have proper type, on"
+    },
+    {
+      "count": 1,
+      "details": [
+        "[wasm-validator error in function fN] struct.new operand N must have proper type, on"
+      ],
+      "firstIndex": 2908,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err(ParseError { message: \"empty\" })\n    Ok ( 1e308 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 1e308 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "13-83ccfbf78d13",
+      "signature": "contract|violation:test|no-located-code:[wasm-validator error in function fN] struct.new operand N must have proper type, on"
+    }
+  ]
+}

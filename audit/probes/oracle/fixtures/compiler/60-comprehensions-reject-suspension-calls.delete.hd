@@ -1,0 +1,5 @@
+# test: comprehensions reject suspension calls
+
+fn ready!() -> i32: 1
+
+fn main!() -> list[i32]:

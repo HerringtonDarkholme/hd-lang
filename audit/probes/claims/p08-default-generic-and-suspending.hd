@@ -1,0 +1,11 @@
+# test: defaults work for generic and suspending functions
+# expect: test
+use std.testing.assert_equal
+
+fn choose[T](value: T, fallback: T = value) -> T: fallback
+fn load!(base: i32, extra: i32 = base * 2) -> i32: base + extra
+
+pub fn main!() -> void:
+    assert_equal(choose("x"), "x", reason="generic default boxes string")
+    assert_equal(choose(1.5, 2.5), 2.5, reason="explicit generic f64")
+    assert_equal(load!(5), 15, reason="suspending default reads earlier parameter")

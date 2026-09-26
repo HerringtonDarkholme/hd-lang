@@ -1,0 +1,253 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "parse",
+    "generated": 2573,
+    "generatedReferenceAccepted": 982,
+    "maxSignatures": 20,
+    "referenceAccepted": 1551,
+    "requestedCases": 5000,
+    "seconds": 302,
+    "seed": "r1",
+    "signatures": 19,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 6504
+  },
+  "signatures": [
+    {
+      "count": 431,
+      "details": [
+        "expected-expression"
+      ],
+      "firstIndex": 3,
+      "origin": "generate",
+      "source": "test \"\" :\n    data x : pass\npub trait string\n",
+      "minimized": "\"\" :\n    data x : pass\n",
+      "name": "01-b8648f61e800",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-expression"
+    },
+    {
+      "count": 105,
+      "details": [
+        "decorator-not-top-level"
+      ],
+      "firstIndex": 27,
+      "origin": "generate",
+      "source": "test \"text\" : continue\n@ self ( self_value = mut fn ! ( map : mut Self ? , Eq : ( Self ? ? ) ? ? ? , ) : break len := false & true & true & true | false & false ^ true ^ true & false & true & true ^ true | false ^ true & true & false & true ^ false or false ^ false & true & true ^ false | true & true & true & true or false or false ) ?\ndata x : pass\nreturn\n",
+      "minimized": "@ self\ndata x : pass\n",
+      "name": "02-7823ca1acefa",
+      "signature": "parse-agreement|ref-accept/impl-reject|decorator-not-top-level"
+    },
+    {
+      "count": 362,
+      "details": [
+        "expected-token"
+      ],
+      "firstIndex": 37,
+      "origin": "mutate:typing/valid/gadts.hd:swap-lines+delete-line",
+      "source": "enum Expr[T]:\n    BoolLit(value: bool) -> Expr[bool]\n    IntLit(value: i64) -> Expr[i64]\n    Add(left: Expr[i64], right: Expr[i64]) -> Expr[i64]\n    Sub(left: Expr[i64], right: Expr[i64]) -> Expr[i64]\n    Scale(value: Expr[i64], factor: i64) -> Expr[i64]\n    If[T](cond: Expr[bool], then_value: Expr[T], else_value: Expr[T]) -> Expr[T]\n\nfn eval[T](expr: Expr[T]) -> T:\n    match expr:\n        Expr.IntLit(value) => value\n        Expr.BoolLit(value) => value\n        Expr.Add(left, right) => eval(left) + eval(right)\n        Expr.Sub(left, right) => eval(left) - eval(right)\n        Expr.If(cond, then_value, else_value) =>\n            if eval(cond): eval(then_value) else: eval(else_value)\n\nenum Box[T](contents: T):\n    IntBox(n: i64) -> Box[i64](n)\n    BoolBox(b: bool) -> Box[bool](b)\n",
+      "minimized": "enum Expr[T]:\n    If [ T ]\nfn eval [ T ] ( ) -> T :\n    match expr:\n        IntLit ( ) => value\n",
+      "name": "03-8964203c735d",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-token"
+    },
+    {
+      "count": 14,
+      "details": [
+        "syntax-error,trailing-block-position",
+        "syntax-error"
+      ],
+      "firstIndex": 137,
+      "origin": "mutate:typing/valid/local-functions.hd:delete-token+reindent",
+      "source": "fn total_with_bonus(values: list[i32], bonus: i32) -> i32:\n    fn add_bonus(value: i32) -> i32:\n        value + bonus\n\n    let total = 0\n    for value in values:\n        total = total + add_bonus(value)\n    total\n\nfn factorial(n: i32) -> i32:\n    fn step(value: i32) -> i32:\n        if value <= 1:\n            1\n        :\n            value * step(value - 1)\n\n        step(n)\n",
+      "minimized": "fn factorial ( ) -> i32 :\n        if value :\n            1\n        :\n            ( )\n",
+      "name": "04-9bb27e039d3f",
+      "signature": "parse-agreement|ref-reject/impl-accept|syntax-error"
+    },
+    {
+      "count": 13,
+      "details": [
+        "unsupported-local-generic-function"
+      ],
+      "firstIndex": 228,
+      "origin": "generate",
+      "source": "test \"\" :\n    fn Point ! [ reified Display , reified main ... : mut f64 . map . Ok . main [ mut fn ( ) -> $ . Context [ None . string + ( ( ( x . Clock + ( ( x . value [ i32 , print , ] + ( print + ( Eq - f64 - i32 - Display ) - Display . i32 . T . string [ f , i32 , ] ) - print . len ) - bool . map - map . list - i32 . self_value ) + ( ( ( ( f64 ) - f64 [ main , list , ] ) + ( ( f - y ) - list [ f , Some , Eq , ] ) + Ok ) ) + Some ) ) ) + Ok ] ] , Clock ] ( ) -> Clock : return\nreturn\nreturn\n",
+      "minimized": "\"\" :\n    fn Point ! [ reified Display ... : mut f64 [ $ . Context [ None + ( ( ( ( ( value [ i32 ] + ( ( Eq - Display ) - Display . i32 . T . string [ f ] ) - print . len ) - bool . map - map . list - i32 . self_value ) + ( ( ( ( f64 ) - f64 [ main , list , ] ) + ( ( f - y ) ) + Ok ) ) + Some ) ) ) + Ok ] ] , Clock ] ( ) -> Clock : return\n",
+      "name": "05-a2642e771c73",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-local-generic-function"
+    },
+    {
+      "count": 7,
+      "details": [
+        "invalid-escape"
+      ],
+      "firstIndex": 230,
+      "origin": "mutate:typing/valid/prelude-surface.hd:replace-literal",
+      "source": "data Label:\n    value: string\n\nimpl Display for Label:\n    fn to_string(self) -> string: self.value\n\nimpl Hash for Label :\n    fn hash(self, state: mut Hasher) -> void:\n        self.value.hash(state)\n\nfn normalize(values: mut list[string], entries: mut map[string, i32]) -> i32:\n    values . append ( \"\\u{1F600}\" )\n    clean := values.map(fn(value: string): value.trim().lower())\n    removed := entries.remove(\"old\")\n    lengths := removed.map(fn(value: i32): value + clean.len())\n    match lengths:\n        value? => value\n        nil => 0\n\nfn report(label: Label) -> void $ Console:\n    println(label)\n\nfn fail[T](message: string) -> T:\n    panic(message)\n",
+      "minimized": "Label :\n    fn ( ) -> void :\n        ( )\nfn normalize ( ) -> i32 :\n    ( \"\\u{1F600}\" )\n",
+      "name": "06-7ea3731eb10d",
+      "signature": "parse-agreement|ref-reject/impl-accept|invalid-escape"
+    },
+    {
+      "count": 15,
+      "details": [
+        "expected-newline"
+      ],
+      "firstIndex": 249,
+      "origin": "generate",
+      "source": "Display , i64 := self_value . y . value . value :: i64 ( ) :\n    type Point [ value , T , x : Display [ f + ( x [ ( ( string . string . Ok [ $ ( ) , fn ( ) -> print , ] ) - Display ) + None . None . self_value ] ) + bool + len ] ] = list\n",
+      "minimized": "value . value :: i64 ( ) :\n    type Point [ value : Display [ f + ( x [ ( ( Ok [ print ] ) ) + self_value ] ) + len ] ] = list\n",
+      "name": "07-516c4ff7d1d1",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-newline"
+    },
+    {
+      "count": 29,
+      "details": [
+        "unsupported-generic-parameter"
+      ],
+      "firstIndex": 669,
+      "origin": "mutate:typing/invalid/multiple-positional-value-packs.hd:splice-line+swap-lines",
+      "source": "names[0]\nfn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):\n    ((left...), (right...))\n",
+      "minimized": "fn split [ As ... ] ( ) -> ( ) :\n    ( )\n",
+      "name": "08-893a962bd2d3",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-parameter"
+    },
+    {
+      "count": 20,
+      "details": [
+        "missing-impl-body"
+      ],
+      "firstIndex": 758,
+      "origin": "generate",
+      "source": "impl mut Self ? ? ?\n",
+      "minimized": "impl Self\n",
+      "name": "09-81ec21a4d0bd",
+      "signature": "parse-agreement|ref-accept/impl-reject|missing-impl-body"
+    },
+    {
+      "count": 6,
+      "details": [
+        "invalid-string-interpolation"
+      ],
+      "firstIndex": 964,
+      "origin": "mutate:typing/valid/transitive-initialized-binding.hd:replace-literal",
+      "source": "let names : list [ string ] = [ \"$\" ]\nfirst := apply ( first_name )\n\nfn apply(callback: fn() -> string) -> string:\n    callback()\n\nfn first_name() -> string:\n    names[0]\n",
+      "minimized": "[ ] [ \"$\" ]\n",
+      "name": "10-07a88a5419e0",
+      "signature": "parse-agreement|ref-accept/impl-reject|invalid-string-interpolation"
+    },
+    {
+      "count": 2,
+      "details": [
+        "reserved-name"
+      ],
+      "firstIndex": 1255,
+      "origin": "mutate:runtime/panic/integer-divide-by-zero.hd:splice-line",
+      "source": "let divisor: i32 = 0\nfn build(self, target: TypeShape) -> Validator: Validator {}\nresult := 10 / divisor\n",
+      "minimized": "fn build ( self ) -> Validator : { }\n",
+      "name": "11-95fb154f087b",
+      "signature": "parse-agreement|ref-accept/impl-reject|reserved-name"
+    },
+    {
+      "count": 4,
+      "details": [
+        "trailing-block-position,trailing-block-position",
+        "trailing-block-position",
+        "trailing-block-position,trailing-block-position,trailing-block-position"
+      ],
+      "firstIndex": 1543,
+      "origin": "generate",
+      "source": "value , list , bool := if Item := len := i32 := main := match Item := match if Point := + false + false + false % true / false >> + true + - false + true - ~ false % false / false >> not false / not true & ~ true << true | true % - true & true * + true >> - true / true % not true & true / ~ true * true and ~ false / true - false ^ ~ false - + true / true / + false % true >> true % not false / not true % true - false << true - not false + true + false and false and true : return\n:\n    _ => return\n:\n    _ => return\n: return\nreturn\n",
+      "minimized": "Item := match match if false : return\n:\n    _ => return\n:\n    _ => return\nreturn\n",
+      "name": "12-35d8cbc9f7d0",
+      "signature": "parse-agreement|ref-reject/impl-accept|trailing-block-position"
+    },
+    {
+      "count": 2,
+      "details": [
+        "duplicate-mutable-permission"
+      ],
+      "firstIndex": 1622,
+      "origin": "generate",
+      "source": "let f64 , f = fn ( ) -> mut ( mut Self ) :\n    self ! ( y = not not pack . map ( while print := true : _ := false else :\n        type T = bool\n    , map . Some . bool , T := len := for self_value in false : return , f64 := fn ! ( Item ) $ f :\n        return\n    , true ) ) = if false : return\nreturn\nreturn\nreturn\n",
+      "minimized": "f64 = fn ( ) -> mut ( mut Self ) :\n    ( ( while true : false else :\n        return\n    ) ) = if false : return\n",
+      "name": "13-a4921bb265de",
+      "signature": "parse-agreement|ref-accept/impl-reject|duplicate-mutable-permission"
+    },
+    {
+      "count": 6,
+      "details": [
+        "nonfinal-vararg"
+      ],
+      "firstIndex": 1747,
+      "origin": "generate",
+      "source": "impl fn ! ( Self :: bool ? ... , $ . Context [ None . i64 . Point + f64 . T [ T + ( Clock + i64 . string - Some . x . f64 ) , fn ( ) -> $ . Context [ Some - i64 - T ] ] + i64 + value ] , i64 ) -> main\nreturn\n",
+      "minimized": "impl fn ( bool ... , $ . Context [ None . i64 . Point + f64 . T [ T + ( Clock + i64 . string - Some . x . f64 ) , fn ( ) -> $ . Context [ Some - i64 - T ] ] + i64 + value ] ) -> main\n",
+      "name": "14-97fccb8d7f00",
+      "signature": "parse-agreement|ref-accept/impl-reject|nonfinal-vararg"
+    },
+    {
+      "count": 3,
+      "details": [
+        "unsupported-generic-enum-bound"
+      ],
+      "firstIndex": 2339,
+      "origin": "generate",
+      "source": "enum f64 [ Eq , T , None : f [ fn ! ( ) -> ( ( ) ? ? ? ) ? ? ... , ( ( ( ( bool . i32 - string . Some [ ( Point [ $ ( ) ] + ( ( i32 ) + i32 + bool - self_value . i64 [ x ] ) - Display . map ) , mut Self ? ? , ] ) + ( ( main + ( ( y + Display . main . Point . i32 [ $ ( ) , f ? ? , $ ( ) ] - map . bool [ $ ( ) ] - f - print ) ) ) ) ) ) ) ] , y ] :\n    self_value\nreturn\nreturn\n",
+      "minimized": "enum f64 [ Eq : f [ fn ( ) -> ( ) ] ] :\n    self_value\n",
+      "name": "15-9311460326e2",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-enum-bound"
+    },
+    {
+      "count": 1,
+      "details": [
+        "unexpected-indentation"
+      ],
+      "firstIndex": 2517,
+      "origin": "mutate:parse/valid/functions-and-closures.hd:duplicate-line",
+      "source": "fn apply(value: string, transform: fn(string) -> string) -> string:\n    transform(value)\n\nfn choice(\n    first: fn(i32) -> void,\n    second: fn(string) -> void,\n) -> void:\n    first(1)\n    second(\"two\")\n\nslugify := fn(text: string) -> string:\n    text.trim().lower()\n\ninline := names.map(fn(name): name.lower())\ninc := fn(x: i32) -> i32: x + 1\n\nchoice(\n    (\n        fn(number):\n        fn(number):\n            println(number)\n    ),\n    (\n        fn(text):\n            println(text)\n    ),\n)\n",
+      "minimized": "(\n    (\n        fn ( ) :\n        ( ) :\n            ( )\n    )\n    (\n    )\n)\n",
+      "name": "16-47b3b0319df3",
+      "signature": "parse-agreement|ref-reject/impl-accept|unexpected-indentation"
+    },
+    {
+      "count": 1,
+      "details": [
+        "unsupported-generic-data-bound"
+      ],
+      "firstIndex": 3202,
+      "origin": "generate",
+      "source": "data Point [ Point : mut Item . Some . self_value [ $ ( ) , $ ( ) ] + Some + i64 . f . f64 . i64 [ $ ( ) , ( ( ( ( ( ( Point . y . Display - None . Item - main . Some - string ) + len . self_value + ( ( y + list . f + f + Clock ) ) ) ) ) ) ) , T , Display ] + T ] : pass\nreturn\n",
+      "minimized": "data Point [ Point : self_value [ ( ) , ( ) ] + i64 [ ( ) ] + T ] : pass\n",
+      "name": "17-e3b24f0b1c89",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-data-bound"
+    },
+    {
+      "count": 3,
+      "details": [
+        "nonfinal-positional-spread"
+      ],
+      "firstIndex": 3464,
+      "origin": "mutate:typing/invalid/nonfinal-spread.hd:reindent",
+      "source": "fn sum(values: i32...) -> i32:\n    0\n\nvalues := [1, 2]\nresult := sum(values..., 3)\n",
+      "minimized": "sum ( values ... , 3 )\n",
+      "name": "18-b84fcdc0e3f1",
+      "signature": "parse-agreement|ref-accept/impl-reject|nonfinal-positional-spread"
+    },
+    {
+      "count": 1,
+      "details": [
+        "argument-order,trailing-block-position,trailing-block-position,syntax-error"
+      ],
+      "firstIndex": 3532,
+      "origin": "generate",
+      "source": "test \"\" : continue\nreturn\nreturn\n_ := i64 := match match T := while list := $ . context ( ... false , bool = false , ... false , ... true ) : return\n:\n    _ => return\n:\n    _ => return\n",
+      "minimized": "match match while list := $ . context ( ... false , bool = false , ... false , ... true ) : return\n:\n    _ => return\n:\n    _ => return\n",
+      "name": "19-2c9cabd34d2d",
+      "signature": "parse-agreement|ref-reject/impl-accept|argument-order"
+    }
+  ]
+}

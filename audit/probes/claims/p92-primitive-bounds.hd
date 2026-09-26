@@ -1,0 +1,12 @@
+# test: primitive values satisfy prelude PartialEq, PartialOrd and Display bounds
+# expect: test
+use std.testing.assert_equal
+
+fn same[T: PartialEq](left: T, right: T) -> bool: left == right
+fn less[T: PartialOrd](left: T, right: T) -> bool: left < right
+fn show[T: Display](value: T) -> string: "${value}"
+
+test "primitive bounds":
+    assert_equal(same(1, 1), true, reason="i32 PartialEq")
+    assert_equal(less("a", "b"), true, reason="string PartialOrd")
+    assert_equal(show(5), "5", reason="i32 Display")

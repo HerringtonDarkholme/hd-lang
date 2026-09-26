@@ -1,0 +1,3 @@
+fn main() -> i64:
+    let maximum: i64 = 9223372036854775807
+    maximum + 1  # panic: integer-overflow

@@ -1,0 +1,8 @@
+# test: traits / mutable errors / readonly static
+
+trait Add:
+    fn add(mut self) -> void
+data Counter:
+    value: i32
+impl Add for Counter:
+    fn add(mut self) -> void: pass

@@ -1,0 +1,8 @@
+# test: AMB-01 control: call with a local inside ${...}
+# expect: parse
+fn f(value: string) -> string:
+    value
+
+fn g() -> string:
+    y := "y"
+    "x${f(y)}z"

@@ -1,0 +1,4 @@
+fn read_count() -> i32:
+    pass
+
+let count: i32 = 0

@@ -1,0 +1,29 @@
+# probe 5.1: string len, concat, interpolation complexity
+fn length(text: string) -> i32: text.len()
+
+fn concat_loop(n: i32) -> i32:
+    let text = ""
+    let i = 0
+    while i < n:
+        text = text + "x"
+        i = i + 1
+    text.len()
+
+fn interp_loop(n: i32) -> i32:
+    let text = ""
+    let i = 0
+    while i < n:
+        text = "${text}x"
+        i = i + 1
+    text.len()
+
+fn interp_fresh(n: i32) -> i32:
+    let total = 0
+    let i = 0
+    while i < n:
+        piece := "v=${i};"
+        total = total + piece.len()
+        i = i + 1
+    total
+
+fn main() -> i32: concat_loop(3) + interp_loop(3) + length("界x") + interp_fresh(2)

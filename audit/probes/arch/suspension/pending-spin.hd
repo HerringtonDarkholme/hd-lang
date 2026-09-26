@@ -1,0 +1,7 @@
+# probe 5.5: entry driver with a host provider that stays pending
+# run: hd run --profile pending-gate
+pub trait Gate:
+    fn wait!(self) -> void
+
+pub fn main!() -> void $ Gate:
+    $.use(Gate).wait!()

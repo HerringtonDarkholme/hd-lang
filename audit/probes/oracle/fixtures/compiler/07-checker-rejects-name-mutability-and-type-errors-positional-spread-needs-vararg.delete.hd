@@ -1,0 +1,3 @@
+# test: checker rejects name, mutability, and type errors
+
+fn fixed(value: i32) -> i32: value

@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "phase",
+    "generated": 0,
+    "generatedReferenceAccepted": 0,
+    "maxSignatures": 20,
+    "referenceAccepted": 5000,
+    "requestedCases": 5000,
+    "seconds": 26,
+    "seed": "r2",
+    "signatures": 0,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 19013
+  },
+  "signatures": []
+}

@@ -1,0 +1,7 @@
+# test: literal enum payload patterns constrain variants in Wasm and suspension CFG
+
+enum Expr:
+    Scale(value: i32, factor: i32)
+fn incomplete(expr: Expr) -> i32:
+    pass
+        Expr.Scale(value, factor=2) => value

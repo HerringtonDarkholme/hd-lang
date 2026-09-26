@@ -1,0 +1,4 @@
+# test: requirements / provider errors / wrong provider type
+
+fn main() -> void:
+        pass

@@ -1,0 +1,6 @@
+enum Status:
+    Ready
+    Waiting
+
+fn invalid(status: Status) -> string:
+        Status.Ready => "ready"

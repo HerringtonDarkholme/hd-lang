@@ -1,0 +1,84 @@
+# probe 5.3: NaN, -0 and extremes survive boxing; generic vs concrete equality
+data Box[T]:
+    item: T
+
+trait Same:
+    fn same(self, other: Self) -> bool
+
+impl Same for f64:
+    fn same(self, other: f64) -> bool: self == other
+
+impl Same for i32:
+    fn same(self, other: i32) -> bool: self == other
+
+fn identity[T](value: T) -> T: value
+
+fn via_box[T](value: T) -> T:
+    box := Box[T] { item: value }
+    box.item
+
+fn via_list[T](value: T) -> T:
+    values := [value, value]
+    values[1]
+
+fn via_tuple[T](value: T) -> T:
+    pair := (value, 1)
+    pair.0
+
+fn via_optional[T](value: T) -> T:
+    let wrapped: T? = value
+    match wrapped:
+        nil => value
+        inner? => inner
+
+fn via_closure[T](value: T) -> T:
+    read := fn() -> T: value
+    read()
+
+fn generic_same[T: Same](left: T, right: T) -> bool: left.same(right)
+
+fn nan() -> f64: 0.0 / 0.0
+
+fn neg_zero() -> f64: -0.0
+
+fn f64_max() -> f64: 179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.0
+
+fn f64_tiny() -> f64: 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005
+
+fn i32_min() -> i32: -2147483648
+
+fn i32_max() -> i32: 2147483647
+
+fn nan_identity() -> f64: identity(nan())
+fn nan_box() -> f64: via_box(nan())
+fn nan_list() -> f64: via_list(nan())
+fn nan_tuple() -> f64: via_tuple(nan())
+fn nan_optional() -> f64: via_optional(nan())
+fn nan_closure() -> f64: via_closure(nan())
+fn zero_identity() -> f64: identity(neg_zero())
+fn zero_box() -> f64: via_box(neg_zero())
+fn zero_list() -> f64: via_list(neg_zero())
+fn zero_tuple() -> f64: via_tuple(neg_zero())
+fn zero_optional() -> f64: via_optional(neg_zero())
+fn zero_closure() -> f64: via_closure(neg_zero())
+fn max_box() -> f64: via_box(f64_max())
+fn tiny_list() -> f64: via_list(f64_tiny())
+fn min_tuple() -> i32: via_tuple(i32_min())
+fn max_optional() -> i32: via_optional(i32_max())
+
+fn concrete_nan_eq() -> bool: nan() == nan()
+fn generic_nan_eq() -> bool: generic_same(nan(), nan())
+fn concrete_zero_eq() -> bool: neg_zero() == 0.0
+fn generic_zero_eq() -> bool: generic_same(neg_zero(), 0.0)
+fn list_nan_eq() -> bool: [nan()] == [nan()]
+fn list_zero_eq() -> bool: [neg_zero()] == [0.0]
+fn tuple_nan_eq() -> bool: (nan(), 1) == (nan(), 1)
+fn optional_nan_eq() -> bool:
+    let left: f64? = nan()
+    let right: f64? = nan()
+    left == right
+fn boxed_same_value_eq() -> bool: via_box(i32_min()) == i32_min()
+fn map_value_nan_eq() -> bool: {"a": nan()} == {"a": nan()}
+fn map_order_eq() -> bool: {"a": 1, "b": 2} == {"b": 2, "a": 1}
+
+fn main() -> i32: 0

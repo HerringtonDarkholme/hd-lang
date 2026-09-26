@@ -1,0 +1,6 @@
+# test: plain closure assigning captured let storage (spec 07 Captures)
+fn make() -> fn() -> i32:
+    let count: i32 = 0
+    fn() -> i32:
+        count = count + 1  # diagnostic: mutable-capture-requires-mut-fn
+        count

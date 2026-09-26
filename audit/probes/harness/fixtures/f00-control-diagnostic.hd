@@ -1,0 +1,3 @@
+# test: F00 control diagnostic
+
+fn main() -> i32: missing  # diagnostic: unknown-name

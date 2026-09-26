@@ -1,0 +1,4 @@
+# test: named enum payloads preserve source evaluation order
+
+enum Pair:
+    Value(first: i32, second: i32)

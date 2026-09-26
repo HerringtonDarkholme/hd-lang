@@ -1,0 +1,4 @@
+# test: collections / lists / heterogeneous elements
+
+fn main() -> void:
+    pass

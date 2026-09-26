@@ -1,0 +1,7 @@
+# test: a short multi-binding in a same-line suite at depth zero
+# fuzz-class: spec ambiguity (F-314). The EBNF derives this and chapter 01 says only a comma inside
+# brackets ends a same-line suite. Both the reference parser and hd reject it at line 6.
+# Found by EBNF generation (audit/fuzz/grammar-check.ts --seed g1): 768 of 4000 small derivations get syntax-error.
+fn f(flag: bool) -> i32:
+    if flag: a, b := 1, 2
+    return 0

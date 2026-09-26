@@ -1,0 +1,29 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# NEGATIVE CONTROL: expects outermost-first order; must FAIL if the harness observes order.
+# pending runs defer suites innermost first ("i", then "m", then "o").
+let log: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    defer:
+        log = log + "i"
+    wait!()
+
+fn middle!() -> void:
+    defer:
+        log = log + "m"
+    inner!()
+
+fn outer!() -> void:
+    defer:
+        log = log + "o"
+    middle!()
+
+pub fn main!() -> void:
+    outer!()
+
+pub fn cleanup_ran() -> bool:
+    log == "omi"

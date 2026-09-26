@@ -1,0 +1,9 @@
+# test: match checking rejects missing payload patterns
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn main(flag: Flag) -> i32:
+    match flag:
+        Flag.Off => 0

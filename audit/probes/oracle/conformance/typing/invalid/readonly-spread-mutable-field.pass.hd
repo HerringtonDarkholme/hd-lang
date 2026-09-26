@@ -1,0 +1,8 @@
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+
+fn invalid(parent: Parent) -> mut Parent:
+    pass

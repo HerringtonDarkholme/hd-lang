@@ -1,0 +1,6 @@
+fn main() -> i32:
+    value := 1
+    value = 2
+    values := [1, 2]
+    values.append(3)
+    value

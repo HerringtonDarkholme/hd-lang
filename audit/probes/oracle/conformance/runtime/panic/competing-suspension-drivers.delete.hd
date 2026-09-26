@@ -1,0 +1,4 @@
+# fixture-runtime-scenario: competing-drivers
+fn ready!() -> i32: 42
+
+pub fn main!() -> void:

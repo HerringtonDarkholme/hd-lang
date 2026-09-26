@@ -1,0 +1,104 @@
+# commit bd985d7 base 4cc1312; command: git diff -U4 4cc1312 bd985d7 -- spec/[0-9][0-9]-*.md; date 2026-09-25
+diff --git a/spec/07-functions.md b/spec/07-functions.md
+index 1755cc4..c8f41ca 100644
+--- a/spec/07-functions.md
++++ b/spec/07-functions.md
+@@ -108,10 +108,12 @@ reassign a top-level `let`, call a `mut fn` value, pass non-fresh mutable access
+ to any call, require an injected provider, call `std.task.block_on`, or suspend. It may evaluate ordinary
+ expressions and call other pure functions. The compiler verifies this
+ transitively from available function bodies and exported purity summaries. A
+ call through a function value or dynamic trait method is rejected in a
+-purity-checked context because its current type cannot prove purity; named
+-callables with verified summaries remain usable. The containing default reports
++purity-checked context because function types do not carry purity; named
++callables with verified summaries remain usable. Purity here restricts
++observable writes, provider access, and suspension; it does not claim
++referential transparency. The containing default reports
+ its ordinary context-specific impurity diagnostic.
+ 
+ Purity permits allocation and mutation of newly created local values when those
+ values and mutable aliases do not escape the default expression. This is local
+diff --git a/spec/11-requirements-and-suspension.md b/spec/11-requirements-and-suspension.md
+index e0525a9..3c246d8 100644
+--- a/spec/11-requirements-and-suspension.md
++++ b/spec/11-requirements-and-suspension.md
+@@ -131,8 +131,15 @@ bindable-trait set is that boundary's profile. Failure to configure one of
+ those host providers is a pre-execution host configuration error. `$.use` is
+ non-suspending and performs no dynamic handler search that can fail at runtime
+ below that boundary.
+ 
++A provider value returned by `$.use` is an ordinary value of its trait type. It
++may flow anywhere an ordinary value of that type may flow, including fields,
++collections, closure captures, return values, and suspension frames, and it
++remains usable after its provider scope ends. A requirement row therefore
++records unresolved provider lookup, not every authority a callable can
++exercise through values it holds.
++
+ `$` is a special context namespace, not an ordinary value. Requirement keys in
+ its operations are type-level keys rather than named argument labels.
+ 
+ ## Provider Scopes
+@@ -448,10 +455,15 @@ The `std.task` combinators `all!` and `race!` cancel their children when the
+ parent is cancelled. `race!` also synchronously cancels losing children before
+ returning the first completed value. A retry combinator in `std.task` cancels
+ its active attempt and starts no further attempt after parent cancellation.
+ 
+-These combinators are library guidance, not first-class control-flow syntax;
+-their concrete generic signatures remain standard-library API design.
++The standard polling combinators in `std.task`, including `all!` and `race!`,
++are compiler intrinsics. Each is imported and bang-called like an ordinary
++`fn!` function and has an ordinary `fn!` signature, but the compiler supplies
++its frame and polling behavior. They are not first-class control-flow syntax.
++Because `Suspend[T]` is sealed, user code cannot define an equivalent polling
++combinator; it composes the standard intrinsics instead. The concrete
++signatures and the complete intrinsic set remain standard-library API design.
+ 
+ ## Requirement Polymorphism
+ 
+ Higher-order code preserves callback requirements with a row parameter:
+diff --git a/spec/12-variadic-generics.md b/spec/12-variadic-generics.md
+index 48cc856..e9b0a4c 100644
+--- a/spec/12-variadic-generics.md
++++ b/spec/12-variadic-generics.md
+@@ -132,19 +132,20 @@ fn poll_slot[T](slot: mut Slot[T], context: PollContext) -> bool:
+ 
+ fn take_ready[T](slot: mut Slot[T]) -> T:
+     ...
+ 
+-# Inside the standard-library all! driver, with Ts... inferred from its tasks:
++# Illustrative typed steps of an all!-style driver, with Ts... from its tasks:
+ slots := pack.map((tasks...), make_slot)     # (mut Slot[Ts]...)
+ ready := pack.map_list(slots, poll_slot, context)  # list[bool]
+ results := pack.map(slots, take_ready)        # (Ts...)
+ ```
+ 
+-The sketch shows only the typed transformations. The library driver retains
++The sketch shows only the typed transformations. Such a driver retains
+ `slots` across polls, checks `ready`, and returns `results` only after all
+ slots complete; suspension, waking, and cancellation follow the `Suspend[T]`
+-protocol. `all!` remains a library combinator, not special control-flow
+-syntax. The exact private driver representation is not specified here.
++protocol. The standard `std.task.all!` is a compiler intrinsic with this
++signature shape, not special control-flow syntax; its driver representation is
++not specified here.
+ The child inputs are mutable `Suspend[T]` views so the driver can poll and
+ cancel them; an ordinary cold `fn!` call supplies such a view.
+ 
+ The input tuple is evaluated first, then each extra argument once from left
+diff --git a/spec/14-annotations.md b/spec/14-annotations.md
+index a9419fe..342c53e 100644
+--- a/spec/14-annotations.md
++++ b/spec/14-annotations.md
+@@ -647,10 +647,10 @@ materializes each key at most once. This restricted annotation-initialization
+ phase is not unrestricted compiler evaluation. Builders and metadata must be
+ pure, deterministic, non-suspending, and dependency-free: no provider access,
+ bang calls, IO, clock, randomness, network, database, top-level binding reads,
+ top-level `let` reassignment, or escaping mutation. A call through a function
+-value or dynamic trait method is rejected here because its current type cannot
+-prove purity; a named callable requires an available verified purity summary.
++value or dynamic trait method is rejected here because function types do not
++carry purity; a named callable requires an available verified purity summary.
+ A panic is an ordinary panic reported at the first
+ request site; it does not occur merely because the annotated declaration is
+ loaded.
+ 

@@ -1,0 +1,84 @@
+# bench 5.7-3: 10-deep call chain carrying 5 requirement(s); leaf uses R1
+trait R1:
+    fn v(self) -> i32
+
+data P1:
+    x: i32
+
+impl R1 for P1:
+    fn v(self) -> i32: self.x
+
+trait R2:
+    fn v(self) -> i32
+
+data P2:
+    x: i32
+
+impl R2 for P2:
+    fn v(self) -> i32: self.x
+
+trait R3:
+    fn v(self) -> i32
+
+data P3:
+    x: i32
+
+impl R3 for P3:
+    fn v(self) -> i32: self.x
+
+trait R4:
+    fn v(self) -> i32
+
+data P4:
+    x: i32
+
+impl R4 for P4:
+    fn v(self) -> i32: self.x
+
+trait R5:
+    fn v(self) -> i32
+
+data P5:
+    x: i32
+
+impl R5 for P5:
+    fn v(self) -> i32: self.x
+
+fn c10(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    n + $.use(R1).v()
+
+fn c9(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c10(n)
+
+fn c8(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c9(n)
+
+fn c7(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c8(n)
+
+fn c6(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c7(n)
+
+fn c5(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c6(n)
+
+fn c4(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c5(n)
+
+fn c3(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c4(n)
+
+fn c2(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c3(n)
+
+fn c1(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
+    c2(n)
+
+fn main() -> i32:
+    $.with(R1=P1 { x: 1 }, R2=P2 { x: 1 }, R3=P3 { x: 1 }, R4=P4 { x: 1 }, R5=P5 { x: 1 }):
+        let index: i32 = 0
+        let total: i32 = 0
+        while index < 2000000:
+            total = (total + c1(index % 7)) % 1000003
+            index = index + 1
+        total

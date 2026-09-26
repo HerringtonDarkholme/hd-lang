@@ -1,0 +1,6 @@
+fn enabled() -> bool:
+    true
+
+@enabled
+fn health() -> string:
+    "ok"

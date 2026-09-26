@@ -1,0 +1,85 @@
+# commit bd985d7, 2026-09-25T21:01:23.843Z, node v24.19.0
+# command: node --experimental-strip-types audit/scripts/runtime/roundtrip.ts audit/scripts/runtime/suspension-fixtures.txt
+fixture	profile	scenario	check	run	record	replay	events	stdout_match	verdict
+examples/suspension.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+spec/conformance/runtime/panic/competing-suspension-drivers.hd	-	competing-drivers	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+spec/conformance/runtime/panic/nested-block-on.hd	-	-	ok	exit1:suspension-nested-driver: runtime panic	exit1:suspension-nested-driver: runtime panic	-	-	-	not-recordable
+spec/conformance/runtime/panic/reentrant-cancel.hd	-	-	ok	exit1:suspension-reentrant-poll: runtime panic	exit1:suspension-reentrant-poll: runtime panic	-	-	-	not-recordable
+spec/conformance/runtime/panic/reentrant-suspension-poll.hd	-	reentrant-poll	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+spec/conformance/runtime/panic/second-suspension-drive.hd	-	-	ok	exit1:suspension-invalid-state: runtime panic	exit1:suspension-invalid-state: runtime panic	-	-	-	not-recordable
+spec/conformance/runtime/panic/test-block-on.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+spec/conformance/runtime/valid/cancellation-runs-defer.hd	pending-gate	cancellation-cleanup	ok	exit-1:TIMEOUT(30s): spawnSync node ETIMEDOUT	exit-1:TIMEOUT(30s): spawnSync node ETIMEDOUT	-	-	-	not-recordable
+spec/conformance/runtime/valid/cancellation-unwinds-nested-frames.hd	-	cancellation-cleanup	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+spec/conformance/runtime/valid/cancellation-unwinds-suspending-closure.hd	pending-gate	cancellation-cleanup	ok	exit-1:TIMEOUT(30s): spawnSync node ETIMEDOUT	exitnull:<--- Last few GCs --->	-	-	-	not-recordable
+spec/conformance/runtime/valid/construction-provider-capture.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+spec/conformance/runtime/valid/resource-disposed-result.hd	disposed-file	-	exit2:usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME	-	-	-	-	-	static-reject
+test/fixtures/compiler-types/identity/references/gc-identity.hd	-	-	ok	ok	ok	ok	0	yes	roundtrip-ok
+test/fixtures/compiler-types/traits/inherent-methods.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler-types/traits/suspending-cancel.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler-types/traits/suspending-defaults.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler-types/traits/suspending-dispatch.hd	-	-	ok	ok	ok	ok	poll=6	yes	roundtrip-ok
+test/fixtures/compiler-types/tuples/heterogeneous/gc-storage.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler/10-function-parameter-defaults-evaluate-after-explicit-arguments.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler/11-function-parameter-defaults-enforce-order-type-and-purity-impure-parameter-default.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__compiler__11-function-parameter-defaults-enforce-order-type-and	-	-	-	-	-	static-reject
+test/fixtures/compiler/12-varargs-work-in-suspending-and-trait-method-calls.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension-.hd	-	-	ok	ok	ok	ok	poll=11	yes	roundtrip-ok
+test/fixtures/compiler/18-named-arguments-work-through-static-and-dynamic-trait-dispatch.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/compiler/30-data-field-initializers-preserve-source-evaluation-order.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default-2.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__compiler__32-data-field-defaults-are-type-checked-and-purity-ch	-	-	-	-	-	static-reject
+test/fixtures/compiler/33-data-copy-update-evaluates-its-source-before-replacements.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/compiler/60-comprehensions-reject-suspension-calls.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__compiler__60-comprehensions-reject-suspension-calls.hd:6:26: su	-	-	-	-	-	static-reject
+test/fixtures/suspension/01-suspending-functions-construct-gc-frames-and-bang-calls-drive-them.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/02-generic-suspending-functions-box-frame-arguments-and-unbox-direct-or-sto.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/suspension/03-generic-suspension-frames-retain-trait-dictionaries-across-child-polls.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-2.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__04-ordinary-suspending-calls-are-cold-values-and-ba	-	-	-	-	-	static-reject
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__04-ordinary-suspending-calls-are-cold-values-and-ba	-	-	-	-	-	static-reject
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-4.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__04-ordinary-suspending-calls-are-cold-values-and-ba	-	-	-	-	-	static-reject
+test/fixtures/suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic.hd	-	-	ok	ok	ok	ok	0	yes	roundtrip-ok
+test/fixtures/suspension/05-unresolved-race-task-combinator.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__05-unresolved-race-task-combinator.hd:4:20: unsuppo	-	-	-	-	-	static-reject
+test/fixtures/suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__05-unresolved-standard-task-combinators-have-a-dedi	-	-	-	-	-	static-reject
+test/fixtures/suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive.hd	-	-	ok	exit1:suspension-invalid-state: runtime panic	exit1:suspension-invalid-state: runtime panic	-	-	-	not-recordable
+test/fixtures/suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd	-	-	ok	ok	ok	ok	0	yes	roundtrip-ok
+test/fixtures/suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled.hd	-	-	ok	exit1:suspension-invalid-state: runtime panic	exit1:suspension-invalid-state: runtime panic	-	-	-	not-recordable
+test/fixtures/suspension/08-readonly-suspension-cancel.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__08-readonly-suspension-cancel.hd:6:5: mutable-recei	-	-	-	-	-	static-reject
+test/fixtures/suspension/09-defer-suites-cannot-suspend.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__09-defer-suites-cannot-suspend.hd:6:9: suspending-d	-	-	-	-	-	static-reject
+test/fixtures/suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/11-deterministic-host-pending.hd	-	-	ok	ok	ok	ok	poll=1	yes	roundtrip-ok
+test/fixtures/suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd	-	-	ok	ok	ok	ok	poll=1	yes	roundtrip-ok
+test/fixtures/suspension/13-child-pending-propagates-through-the-parent-frame-and-restores-locals.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/13-nested-pending-frame.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/14-started-frame-cancellation-cancels-the-child-and-runs-registered-cleanup.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup.hd	-	-	ok	ok	ok	ok	poll=4	yes	roundtrip-ok
+test/fixtures/suspension/16-linear-suspension-frames-resume-across-multiple-child-sites.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/suspension/17-cfg-suspension-lowering-preserves-nested-expression-evaluation.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/suspension/18-cfg-suspension-lowering-preserves-nested-argument-order.hd	-	-	ok	ok	ok	ok	poll=4	yes	roundtrip-ok
+test/fixtures/suspension/19-cfg-suspension-lowering-branches-and-short-circuits-around-child-frames.hd	-	-	ok	ok	ok	ok	poll=5	yes	roundtrip-ok
+test/fixtures/suspension/20-cfg-suspension-lowering-preserves-loops-continue-break-values-and-cleanu.hd	-	-	ok	ok	ok	ok	poll=8	yes	roundtrip-ok
+test/fixtures/suspension/21-cfg-suspension-lowering-preserves-match-bindings-and-suspending-guards.hd	-	-	ok	ok	ok	ok	poll=4	yes	roundtrip-ok
+test/fixtures/suspension/22-cfg-suspension-lowering-propagates-result-failures-after-child-completio.hd	-	-	ok	ok	ok	ok	poll=5	yes	roundtrip-ok
+test/fixtures/suspension/23-cfg-suspension-cancellation-cancels-the-active-child-and-runs-scoped-cle.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/24-cfg-suspension-lowering-installs-providers-produced-after-resumption.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/25-cfg-suspension-lowering-nests-dynamic-trait-suspensions.hd	-	-	ok	ok	ok	ok	poll=4	yes	roundtrip-ok
+test/fixtures/suspension/26-replay-rejects-function-code-change.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/26-replay-survives-unrelated-declaration.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd	-	-	ok	ok	ok	ok	poll=2	yes	roundtrip-ok
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested.hd	-	-	ok	exit1:suspension-nested-driver: runtime panic	exit1:suspension-nested-driver: runtime panic	-	-	-	not-recordable
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-suspension-forbidden-context.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__29-imported-block-on-drives-stored-suspensions-and-	-	-	-	-	-	static-reject
+test/fixtures/suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd	-	-	ok	ok	ok	ok	poll=1	yes	roundtrip-ok
+test/fixtures/suspension/32-host-provider-polls-record-and-replay.hd	ready-gate	-	ok	ok	ok	ok	poll=2,provider-poll=1	yes	roundtrip-ok
+test/fixtures/suspension/33-host-provider-scalar-arguments-and-results.hd	ready-counter	-	ok	ok	ok	ok	poll=2,provider-poll=1	yes	roundtrip-ok
+test/fixtures/suspension/34-stored-suspension-crosses-function-boundary.hd	-	-	ok	ok	ok	ok	poll=3	yes	roundtrip-ok
+test/fixtures/suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd	ready-float	-	ok	ok	ok	ok	poll=2,provider-poll=1	yes	roundtrip-ok
+test/fixtures/suspension/36-host-provider-strings-use-utf8-boundary.hd	ready-text	-	ok	ok	ok	ok	poll=2,provider-poll=1	yes	roundtrip-ok
+test/fixtures/suspension/37-named-suspending-function-values-construct-stored-frames.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/38-suspending-closures-capture-values-in-gc-frames.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/39-suspending-closure-values-forward-requirements.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/40-lowered-suspension-constructor-does-not-upgrade.hd	-	-	exit1:audit/probes/runtime/roundtrip/test__fixtures__suspension__40-lowered-suspension-constructor-does-not-upgrade.	-	-	-	-	-	static-reject
+test/fixtures/suspension/41-suspending-generic-methods-preserve-explicit-type-arguments.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/42-suspending-associated-functions-preserve-generic-results.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/43-blanket-implementations-materialize-suspending-dictionaries.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable
+test/fixtures/suspension/44-named-local-suspending-functions-capture-recurse-and-forward-requirements.hd	-	-	ok	exit1:Error: program has no exported main function	exit1:Error: program has no exported main function	-	-	-	not-recordable

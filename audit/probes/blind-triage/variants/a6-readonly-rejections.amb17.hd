@@ -1,0 +1,42 @@
+# test: [AMB-17 resolved to implementation code] readonly views reject upgrades and mutation; each mutable twin accepts
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+
+fn keep[T](value: T) -> T:
+    value
+
+fn rename(child: mut Child) -> void:
+    child.name = "renamed"
+
+fn short_binding_is_readonly() -> string:
+    child := Child { name: "a" }
+    child.name = "b"  # diagnostic: readonly-root
+    child.name
+
+fn unannotated_let_keeps_fresh_mut() -> string:
+    let child = Child { name: "a" }
+    child.name = "b"
+    child.name
+
+fn generic_result_is_not_upgraded(child: Child) -> string:
+    let kept: mut Child = keep(child)  # diagnostic: generic-type-mismatch
+    kept.name
+
+fn generic_result_keeps_mut(child: mut Child) -> string:
+    let kept: mut Child = keep(child)
+    kept.name
+
+fn readonly_parent_weakens_field(parent: Parent) -> void:
+    rename(parent.child)  # diagnostic: readonly-argument-to-mutable-parameter
+
+fn mutable_parent_keeps_field(parent: mut Parent) -> void:
+    rename(parent.child)
+
+fn readonly_map_remove(values: map[string, i32]) -> void:
+    _ := values.remove("a")  # diagnostic: mutable-receiver-required
+
+fn mutable_map_remove(values: mut map[string, i32]) -> void:
+    _ := values.remove("a")

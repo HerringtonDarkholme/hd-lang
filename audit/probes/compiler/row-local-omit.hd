@@ -1,0 +1,23 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+data ConsoleLogger: pass
+
+impl Logger for ConsoleLogger:
+    fn write(self, message: string) -> void: pass
+
+fn log_message(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+fn outer() -> void $ Logger:
+    fn inner(m: string) -> void:
+        log_message(m)
+    cb := fn(m: string): log_message(m)
+    inner("a")
+    cb("b")
+
+fn main() -> i32:
+    $.with(Logger=ConsoleLogger {}):
+        outer()
+    0

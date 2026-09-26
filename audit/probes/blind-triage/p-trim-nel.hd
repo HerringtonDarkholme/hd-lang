@@ -1,0 +1,4 @@
+# test: trim removes U+0085 NEL (White_Space); spec 10 Prelude
+# expect-result: probe = 1
+pub fn probe() -> i32:
+    "x".trim().len()

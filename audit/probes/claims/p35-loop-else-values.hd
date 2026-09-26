@@ -1,0 +1,25 @@
+# test: while-else and for-else produce values on break or exhaustion
+# expect: test
+use std.testing.assert_equal
+
+fn find(values: list[i32], target: i32) -> i32:
+    for value in values:
+        if value == target:
+            break value * 10
+    else:
+        -1
+
+fn count_to(limit: i32) -> i32:
+    let index: i32 = 0
+    while index < 100:
+        index = index + 1
+        if index == limit:
+            break index
+    else:
+        0
+
+test "loop else":
+    assert_equal(find([1, 2, 3], 2), 20, reason="break value")
+    assert_equal(find([1, 2, 3], 9), -1, reason="else on exhaustion")
+    assert_equal(count_to(5), 5, reason="while break value")
+    assert_equal(count_to(500), 0, reason="while else")

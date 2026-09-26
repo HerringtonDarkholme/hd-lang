@@ -1,0 +1,7 @@
+# test: mut fn closure expression (spec 02 Closures, 07 Captures)
+# expect: parse
+fn make() -> mut fn() -> i32:
+    let count: i32 = 0
+    mut fn() -> i32:
+        count = count + 1
+        count

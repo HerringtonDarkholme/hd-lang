@@ -1,0 +1,17 @@
+# test: f32 values keep their width through generic Display and widen exactly to f64
+# expect: test
+use std.testing.assert_equal
+
+fn pass_through[T](value: T) -> T:
+    value
+
+fn render[T: Display](value: T) -> string:
+    "$value"
+
+test "f32 shortest round-trip text survives erasure":
+    let small: f32 = 0.1
+    assert_equal("$small", "0.1", reason="direct f32 Display")
+    assert_equal(render(small), "0.1", reason="generic Display keeps f32 width")
+    assert_equal(render(pass_through(small)), "0.1", reason="erased round trip keeps f32 width")
+    let wide: f64 = small
+    assert_equal("$wide", "0.10000000149011612", reason="f32 to f64 widening is exact")

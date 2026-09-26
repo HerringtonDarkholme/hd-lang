@@ -1,0 +1,6 @@
+# test: a main returning Result[void, E] is a runnable entry point
+# expect: test
+# fuzz-signature: contract|violation:run|no-located-code:Error: main has no runnable export
+# fuzz-class: implementation bug (F-307); same failure for spec/conformance/typing/valid/console-error-entry.hd
+pub fn main() -> Result[void, ConsoleError]:
+    Ok()

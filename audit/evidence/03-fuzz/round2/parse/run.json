@@ -1,0 +1,241 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "parse",
+    "generated": 2444,
+    "generatedReferenceAccepted": 885,
+    "maxSignatures": 20,
+    "referenceAccepted": 1437,
+    "requestedCases": 5000,
+    "seconds": 369,
+    "seed": "r2",
+    "signatures": 18,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 6381
+  },
+  "signatures": [
+    {
+      "count": 325,
+      "details": [
+        "expected-token"
+      ],
+      "firstIndex": 19,
+      "origin": "generate",
+      "source": "impl [ reified map , None , ] mut None [ $ ( ) , $ ( ) , Display . T + ( self_value . map . value + ( i64 . map . print [ value ] ) + Eq + None ) + i32 , main ]\nreturn\nreturn\n",
+      "minimized": "impl [ map ] None [ ( ) , Display + ( ( i64 [ value ] ) ) + main ]\n",
+      "name": "01-8964203c735d",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-token"
+    },
+    {
+      "count": 395,
+      "details": [
+        "expected-expression"
+      ],
+      "firstIndex": 25,
+      "origin": "generate",
+      "source": "type f64 ( Item . bool . len . Item )\n",
+      "minimized": "type f64 ( Item )\n",
+      "name": "02-b8648f61e800",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-expression"
+    },
+    {
+      "count": 17,
+      "details": [
+        "syntax-error",
+        "syntax-error,trailing-block-position",
+        "syntax-error,trailing-block-position,trailing-block-position"
+      ],
+      "firstIndex": 30,
+      "origin": "generate",
+      "source": "test \"\" : _ := map := f64 := Eq := while Ok := list := T := self_value := while map := len := [ for value in false => true ] [ false ] . Some [ i64 , main , i32 , Eq , ] ! ( ) ** false ? * ( false ) ! ( ) ? % f :: annotation ( Eq ) ? ( false ) + - true * not $ . use ( Ok ) ? [ true ] / + Eq . i32 [ Point ] ( ) [ false ] / self ** - ~ ~ true - + \"text\" * + - not true / ~ main :: annotation ( Some ) - ~ { } : return\n: return\n",
+      "minimized": "while [ ] ( ) ( ) ( ) * $ . use ( Ok ) [ true ] : return\n: return\n",
+      "name": "03-9bb27e039d3f",
+      "signature": "parse-agreement|ref-reject/impl-accept|syntax-error"
+    },
+    {
+      "count": 98,
+      "details": [
+        "decorator-not-top-level"
+      ],
+      "firstIndex": 62,
+      "origin": "generate",
+      "source": "@ pack . map_list ( fn ! ( Some , f , string : mut fn ( ) -> $ . Context [ map . len - f . print . self_value [ fn ( ) -> map ] ] , string ) : return , self_value )\ndata value : pass\n",
+      "minimized": "@ pack\ndata value : pass\n",
+      "name": "04-7823ca1acefa",
+      "signature": "parse-agreement|ref-accept/impl-reject|decorator-not-top-level"
+    },
+    {
+      "count": 27,
+      "details": [
+        "unsupported-generic-parameter"
+      ],
+      "firstIndex": 115,
+      "origin": "generate",
+      "source": "impl [ print ... , reified Display , ] Self :: print ?\n",
+      "minimized": "impl [ print ... ] Self\n",
+      "name": "05-893a962bd2d3",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-parameter"
+    },
+    {
+      "count": 7,
+      "details": [
+        "nonfinal-positional-spread"
+      ],
+      "firstIndex": 196,
+      "origin": "mutate:typing/invalid/nonfinal-spread.hd:swap-lines",
+      "source": "fn sum(values: i32...) -> i32:\n    0\n\nresult := sum(values..., 3)\nvalues := [1, 2]\n",
+      "minimized": "sum ( values ... , 3 )\n",
+      "name": "06-b84fcdc0e3f1",
+      "signature": "parse-agreement|ref-accept/impl-reject|nonfinal-positional-spread"
+    },
+    {
+      "count": 3,
+      "details": [
+        "invalid-assignment-target"
+      ],
+      "firstIndex": 438,
+      "origin": "mutate:typing/invalid/readonly-list-element-replacement.hd:swap-tokens+swap-tokens+delete-token",
+      "source": "data Child:\n    name: string\n\nfn invalid(children: list[mut Child], replacement: mut Child) -> void:\n    [ 0 ] = replacement\n",
+      "minimized": "fn invalid ( ) -> void :\n    [ ] = replacement\n",
+      "name": "07-6c9d1d871cb9",
+      "signature": "parse-agreement|ref-accept/impl-reject|invalid-assignment-target"
+    },
+    {
+      "count": 2,
+      "details": [
+        "duplicate-mutable-permission"
+      ],
+      "firstIndex": 516,
+      "origin": "generate",
+      "source": "impl ( mut fn ! ( ) -> mut Self ? ? $ ( Eq [ mut ( mut x :: string ) ? , fn ( mut ( fn ! ( ) -> fn ! ( ) -> mut Self :: value ? ? ? $ f + ( Some + ( x - len ) ) - None [ $ ( ) , mut Clock ? ? ... , string ? ? ? , $ ( ) , ] ... ) ? , mut Self ? ? ? , fn ( fn ! ( Some . x ? ... , mut Point . Clock . bool . None ? , ) -> mut ( fn ( len ) -> Item ) ) -> Item ) -> Ok , map ] ) , )\nreturn\n",
+      "minimized": "impl ( fn ( ) -> Self $ ( Eq [ mut ( mut x ) , fn ( ) -> Ok ] ) )\n",
+      "name": "08-a4921bb265de",
+      "signature": "parse-agreement|ref-accept/impl-reject|duplicate-mutable-permission"
+    },
+    {
+      "count": 4,
+      "details": [
+        "unsupported-generic-enum-bound"
+      ],
+      "firstIndex": 595,
+      "origin": "generate",
+      "source": "enum list [ main : Some . x [ $ ( ) , mut $ . Context [ ( ( x . len [ ( ( i64 - main . f64 [ x , ] - i32 . Ok [ $ ( ) , map ] ) + ( value + Eq . f . Ok + ( T - Clock - print - Some ) + f64 . Point [ Clock , Display ] ) + Item ) ] ) ) ] ] ] :\n    x\n",
+      "minimized": "enum list [ main : Some [ $ . Context [ ( ( x [ ( ) ] ) ) ] ] ] :\n    x\n",
+      "name": "09-9311460326e2",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-enum-bound"
+    },
+    {
+      "count": 11,
+      "details": [
+        "missing-impl-body"
+      ],
+      "firstIndex": 645,
+      "origin": "generate",
+      "source": "impl f . Point . bool for mut fn ( $ . Context [ Ok . Item . bool + ( ( f64 . T + ( y . T . f + ( ( ( ( ( ( Clock ) + f64 ) + ( ( string - Eq ) ) ) ) ) ) + f64 + bool ) ) ) ] ) -> Display\nreturn\n",
+      "minimized": "impl f\n",
+      "name": "10-81ec21a4d0bd",
+      "signature": "parse-agreement|ref-accept/impl-reject|missing-impl-body"
+    },
+    {
+      "count": 5,
+      "details": [
+        "nonfinal-vararg"
+      ],
+      "firstIndex": 875,
+      "origin": "generate",
+      "source": "impl mut fn ( x ... , fn ! ( ) -> ( mut $ . Context [ i64 [ $ ( ) , $ ( ) , $ ( ) , $ ( ) , ] + bool . f - Display . len - self_value . print ] ... ) , x , Clock ) -> value\nreturn\nreturn\nreturn\n",
+      "minimized": "impl fn ( x ... , fn ( ) -> Clock ) -> value\n",
+      "name": "11-97fccb8d7f00",
+      "signature": "parse-agreement|ref-accept/impl-reject|nonfinal-vararg"
+    },
+    {
+      "count": 2,
+      "details": [
+        "unsupported-generic-data-bound"
+      ],
+      "firstIndex": 1031,
+      "origin": "generate",
+      "source": "pub data value [ Item , Point : None . i64 . main + Clock . len . Clock + Clock + Some . Some , ] : pass\ntrait print [ + Display ]\n",
+      "minimized": "data value [ Point : Some ] : pass\n",
+      "name": "12-e3b24f0b1c89",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-generic-data-bound"
+    },
+    {
+      "count": 3,
+      "details": [
+        "unsupported-local-generic-function"
+      ],
+      "firstIndex": 1076,
+      "origin": "generate",
+      "source": "test \"text\" :\n    fn map ! [ None ... : x . Ok . list . x + Some . i32 , bool ... , reified main , i64 , ] ( mut self ) -> mut $ . Context [ ( ( Eq - Ok . f64 - f64 - value . None ) - y - y - self_value . x . f64 . f64 ) ] ? :\n        impl fn ! ( self_value :: Ok ... , ) -> mut ( mut $ . Context [ ( ( ( Some . Point . value . Clock + ( ( ( f + ( f64 ) + Clock - map [ value ] ) - string . Clock . Display . Some ) ) - None . print . Display . string - i64 . map . T . value - Clock ) ) ) ] ... )\nreturn\nreturn\nreturn\n",
+      "minimized": "\"text\" :\n    fn map [ None : x . list . x + Some . i32 ] ( ) -> $ . Context [ ( ( Eq - Ok . f64 - f64 - value . None ) - y - y - self_value . x . f64 . f64 ) ] :\n        impl fn ( ) -> ( )\n",
+      "name": "13-a2642e771c73",
+      "signature": "parse-agreement|ref-accept/impl-reject|unsupported-local-generic-function"
+    },
+    {
+      "count": 16,
+      "details": [
+        "expected-newline"
+      ],
+      "firstIndex": 1228,
+      "origin": "generate",
+      "source": "test \"a $x b\" : continue\ntest \"a $x b\" : _ := bool := bool . bool . print . len :: annotation_ref ( fn ( ) -> main )\nreturn\nreturn\n",
+      "minimized": "print . len :: annotation_ref ( )\n",
+      "name": "14-516c4ff7d1d1",
+      "signature": "parse-agreement|ref-accept/impl-reject|expected-newline"
+    },
+    {
+      "count": 4,
+      "details": [
+        "trailing-block-position",
+        "trailing-block-position,trailing-block-position"
+      ],
+      "firstIndex": 2053,
+      "origin": "generate",
+      "source": "match T := f64 := fn ! ( Ok , list , ) : continue\n:\n    T ? => for f , value , self_value in i32 := if fn ( print : self_value ) : return\n    : return\n    : return\nreturn\n",
+      "minimized": "match T := fn ( ) : continue\n:\n    T => for self_value in i32 := fn ( ) : return\n    : return\n    : return\n",
+      "name": "15-35d8cbc9f7d0",
+      "signature": "parse-agreement|ref-reject/impl-accept|trailing-block-position"
+    },
+    {
+      "count": 4,
+      "details": [
+        "invalid-string-interpolation"
+      ],
+      "firstIndex": 2539,
+      "origin": "mutate:typing/invalid/nil-to-any.hd:replace-literal",
+      "source": "\nlet invalid : Any = \"$\"\n",
+      "minimized": "\"$\"\n",
+      "name": "16-07a88a5419e0",
+      "signature": "parse-agreement|ref-accept/impl-reject|invalid-string-interpolation"
+    },
+    {
+      "count": 2,
+      "details": [
+        "doc-comment-without-target"
+      ],
+      "firstIndex": 2580,
+      "origin": "generate",
+      "source": "use dep . self_value as bool\nimpl mut Self :: x ? ? :\n    pub fn Ok ( ) -> list . f64 . T ? $ T . string . i32 + ( ( list . string + y . main [ f64 . list [ fn ( ) -> mut $ . Context [ ( ( i64 + T ) + main + bool [ bool ] - Some ) + len . Ok . T . print + Eq ] ] ] + len ) ) : return\nreturn\n",
+      "minimized": "impl x :\n    pub fn Ok ( ) -> f64 $ ( ( main [ list [ fn ( ) -> $ . Context [ ( ( i64 ) + Some ) + len . T . print + Eq ] ] ] + len ) ) : return\n",
+      "name": "17-974b4fb774bd",
+      "signature": "parse-agreement|ref-accept/impl-reject|doc-comment-without-target"
+    },
+    {
+      "count": 2,
+      "details": [
+        "invalid-escape"
+      ],
+      "firstIndex": 3361,
+      "origin": "mutate:typing/invalid/readonly-mut-field-mutation.hd:replace-literal",
+      "source": "data Child :\n    name: string\n\ndata Parent:\n    child: mut Child\n\nfn invalid(parent: Parent) -> void:\n    parent . child . name = \"\\u{1F600}\"\n",
+      "minimized": "fn invalid ( ) -> void :\n    \"\\u{1F600}\"\n",
+      "name": "18-7ea3731eb10d",
+      "signature": "parse-agreement|ref-reject/impl-accept|invalid-escape"
+    }
+  ]
+}

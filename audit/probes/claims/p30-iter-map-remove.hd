@@ -1,0 +1,8 @@
+# test: map removal during iteration invalidates the cursor
+fn main() -> i32:
+    let scores: mut map[string, i32] = {"a": 1, "b": 2}
+    let total: i32 = 0
+    for key, value in scores:
+        _ := scores.remove("b")
+        total = total + value  # panic: iterator-invalidated
+    total

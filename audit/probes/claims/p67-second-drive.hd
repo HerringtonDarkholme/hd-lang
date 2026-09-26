@@ -1,0 +1,7 @@
+# test: driving a completed suspension again panics
+fn work!() -> i32: 1
+
+pub fn main!() -> void:
+    let pending: mut Suspend[i32] = work()
+    _ := pending!()
+    _ := pending!()  # panic: suspension-invalid-state

@@ -1,0 +1,2 @@
+"" :
+    fn Point ! [ reified Display ... : mut f64 [ $ . Context [ None + ( ( ( ( ( value [ i32 ] + ( ( Eq - Display ) - Display . i32 . T . string [ f ] ) - print . len ) - bool . map - map . list - i32 . self_value ) + ( ( ( ( f64 ) - f64 [ main , list , ] ) + ( ( f - y ) ) + Ok ) ) + Some ) ) ) + Ok ] ] , Clock ] ( ) -> Clock : return

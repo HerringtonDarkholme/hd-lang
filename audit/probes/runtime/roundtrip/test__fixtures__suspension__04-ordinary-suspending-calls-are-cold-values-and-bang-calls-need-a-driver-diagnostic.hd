@@ -1,0 +1,5 @@
+# test: ordinary suspending calls are cold values and bang calls need a driver
+
+fn work!() -> i32: 42
+fn main() -> void:
+    pending := work()  # warning: unused-local-binding

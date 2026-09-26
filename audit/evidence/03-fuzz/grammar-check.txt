@@ -1,0 +1,116 @@
+# commit bd985d7 | command: node --experimental-strip-types audit/fuzz/grammar-check.ts --seed g1 --cases 4000 --show 40 | date 2026-09-25
+seed=g1 derivations=4000 syntax-error=768
+    768  syntax-error
+    192  trailing-block-position
+      9  invalid-escape
+      5  multi-binding-needs-parentheses
+      5  missing-let
+      3  argument-order
+----
+test "" : Some , y := false
+----
+test "a $x b" : x , Clock := true
+----
+break Some := mut fn ( ) : return
+----
+impl mut fn ( ) -> mut fn ( ) -> T
+----
+_ := Point := fn ( ) : return
+return
+----
+test "text" : let None , Some = false
+----
+test "text" : y , y , f := true
+return
+----
+impl fn ( ) -> fn ( ) -> fn ( ) -> Point
+----
+impl fn ( ) -> fn ( ) -> x
+return
+return
+----
+impl ( fn ( ) -> fn ! ( ) -> i64 )
+return
+----
+impl Self ? where mut fn ( ) -> None : Ok
+----
+test "a $x b" : Eq , Clock , Point := true
+----
+test "a $x b" : print , value := y := true
+----
+impl mut ( fn ( ) -> mut fn ! ( ) -> Some )
+----
+impl fn ! ( ) -> mut fn ( ) -> Clock
+return
+----
+impl fn ( ) -> fn ( ) -> Item
+return
+return
+----
+impl mut fn ! ( ) -> fn ( ) -> Clock
+return
+----
+test "" : value , list , T , Point := false
+----
+test "" : y , y , bool , f64 := false
+return
+----
+impl fn ( ) -> fn ! ( ) -> len
+return
+return
+----
+test "a $x b" : let x , Point : Clock = true
+----
+@ mut fn ( len , Ok ) : return
+data f : pass
+----
+let i64 , f = list := for T in true : return
+----
+@ f := fn ( ) : return
+data i32 : pass
+return
+----
+impl [ reified x ] fn ( ) -> mut fn ( ) -> map
+----
+impl fn ! ( ) -> fn ( ) -> Point
+return
+return
+----
+test "" : f , f64 := true
+return
+return
+return
+----
+test "text" : map , i32 , Item := print
+return
+----
+test "a $x b" : i32 , len , x := Clock := false
+----
+test "a $x b" : let Clock , None = false
+return
+----
+test "" : let string , i32 , map = false
+return
+----
+test "text" : map , list := false
+return
+return
+----
+test "text" : y , Ok , i64 , Ok := false
+return
+----
+impl mut Self ? ? ? for fn ( ) -> fn ! ( ) -> Eq
+----
+let Ok , Point : fn ! ( ) -> fn ( ) -> f = false
+----
+let y = Ok := Some := fn ! ( ) -> mut x : return
+----
+test "a $x b" : Eq , map , Point , Item := false
+----
+_ := y := bool := $ . with ( ... false ) : return
+----
+return Clock := mut fn ( ) : return
+return
+return
+----
+impl Self where mut fn ( ) -> Self ? : y . Ok . y

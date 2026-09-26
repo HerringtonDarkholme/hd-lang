@@ -1,0 +1,24 @@
+data Label:
+    value: string
+
+impl Display for Label:
+    fn to_string(self) -> string: self.value
+
+impl Hash for Label :
+    fn hash(self, state: mut Hasher) -> void:
+        self.value.hash(state)
+
+fn normalize(values: mut list[string], entries: mut map[string, i32]) -> i32:
+    values . append ( "\u{1F600}" )
+    clean := values.map(fn(value: string): value.trim().lower())
+    removed := entries.remove("old")
+    lengths := removed.map(fn(value: i32): value + clean.len())
+    match lengths:
+        value? => value
+        nil => 0
+
+fn report(label: Label) -> void $ Console:
+    println(label)
+
+fn fail[T](message: string) -> T:
+    panic(message)

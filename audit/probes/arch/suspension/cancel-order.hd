@@ -1,0 +1,37 @@
+# probe 5.5: cancellation cleanup order, 3 frames with several defer suites each
+let log: i32 = 0
+
+fn note(value: i32) -> void:
+    log = log * 10 + value
+
+fn wait!() -> void:
+    pass
+
+fn leaf!() -> void:
+    defer:
+        note(1)
+    defer:
+        note(2)
+    wait!()
+    defer:
+        note(9)
+
+fn middle!() -> void:
+    defer:
+        note(3)
+    if true:
+        defer:
+            note(4)
+        leaf!()
+    defer:
+        note(8)
+
+fn main!() -> void:
+    defer:
+        note(5)
+    defer:
+        note(6)
+    middle!()
+
+pub fn order() -> i32:
+    log

@@ -1,0 +1,4 @@
+id	count	first_case	signature	origin	details
+01-f808587e44e4	12	35	wasm|build-failed|PATH:N	seed:typing/valid/resource-disposed-result.hd	file:///Users/hd/code/test/hd-lang/src/wasm.ts:23
+02-a4bd86e4b256	1	361	wasm|invalid:wasm-opt|[parse exception: unexpected end of input (at N:N)]	mutate:runtime/panic/integer-divide-by-zero.hd:delete-line+delete-line	[parse exception: unexpected end of input (at 0:0)]
+03-5ae681a660c3	1	2908	wasm|build-failed|[wasm-validator error in function fN] struct.new operand N must have proper type, on	mutate:typing/valid/option-result.hd:replace-literal	[wasm-validator error in function f1] struct.new operand 0 must have proper type, on

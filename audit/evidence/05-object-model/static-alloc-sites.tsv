@@ -1,0 +1,83 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/om-build.ts; date: 2026-09-25T20:54:06.500Z
+probe	function	allocation sites (op type)
+om-closure.hd	<global $e0v0>	struct.new $e0
+om-closure.hd	<global $e0v1>	struct.new $e0
+om-closure.hd	<global $e0v2>	struct.new $e0
+om-closure.hd	$f1	struct.new $closure0, struct.new $env0
+om-closure.hd	$f2	struct.new $closure0, struct.new $env1
+om-closure.hd	$f3	struct.new $closure0, struct.new $env2
+om-data.hd	<global $e0v0>	struct.new $e0
+om-data.hd	<global $e0v1>	struct.new $e0
+om-data.hd	<global $e0v2>	struct.new $e0
+om-data.hd	$f2	array.new_fixed $hd.bytes, struct.new $d0
+om-dyn-trait.hd	<global $e0v0>	struct.new $e0
+om-dyn-trait.hd	<global $e0v1>	struct.new $e0
+om-dyn-trait.hd	<global $e0v2>	struct.new $e0
+om-dyn-trait.hd	$f1	struct.new $d0, struct.new $trait0
+om-dyn-trait.hd	$f2	struct.new $d0, struct.new $trait0
+om-enum.hd	<global $e0v3>	struct.new $e0
+om-enum.hd	<global $e1v0>	struct.new $e1
+om-enum.hd	<global $e1v1>	struct.new $e1
+om-enum.hd	<global $e1v2>	struct.new $e1
+om-enum.hd	$f1	struct.new $e0, struct.new $e0, struct.new $e0
+om-f64-ordering.hd	-	UNBALANCED WAT: Error: unbalanced form at 0
+om-fieldless.hd	<global $e0v0>	struct.new $e0
+om-fieldless.hd	<global $e0v1>	struct.new $e0
+om-fieldless.hd	<global $e1v1>	struct.new $e1
+om-fieldless.hd	<global $e2v0>	struct.new $e2
+om-fieldless.hd	<global $e2v1>	struct.new $e2
+om-fieldless.hd	<global $e2v2>	struct.new $e2
+om-fieldless.hd	$f3	struct.new $d0
+om-generic-data.hd	<global $e0v0>	struct.new $e0
+om-generic-data.hd	<global $e0v1>	struct.new $e0
+om-generic-data.hd	<global $e0v2>	struct.new $e0
+om-generic-data.hd	$f1	struct.new $d0, struct.new $hd.box-i32
+om-generic-data.hd	$f2	struct.new $d0, struct.new $hd.box-f64, array.new_fixed $hd.bytes, struct.new $d0
+om-list.hd	<global $e0v0>	struct.new $e0
+om-list.hd	<global $e0v1>	struct.new $e0
+om-list.hd	<global $e0v2>	struct.new $e0
+om-list.hd	$f0	struct.new $hd.iterator, struct.new $hd.variant, struct.new $hd.variant, array.new_fixed $hd.list, struct.new $hd.variant, struct.new $hd.variant
+om-list.hd	$f2	struct.new $hd.vector, array.new_default $hd.list, struct.new $hd.box-i32
+om-list.hd	$f3	struct.new $hd.vector, array.new_fixed $hd.list, struct.new $hd.box-f64, struct.new $hd.box-f64
+om-list.hd	$f4	struct.new $hd.vector, array.new_fixed $hd.list, struct.new $hd.box-i32, struct.new $hd.box-i32, struct.new $hd.box-i32
+om-map.hd	<global $e0v0>	struct.new $e0
+om-map.hd	<global $e0v1>	struct.new $e0
+om-map.hd	<global $e0v2>	struct.new $e0
+om-map.hd	$f0	struct.new $hd.map, array.new_default $hd.list, array.new_default $hd.list, struct.new $hd.box-i32, struct.new $hd.box-i32
+om-map.hd	$f1	struct.new $hd.box-i32
+om-map.hd	$f2	struct.new $hd.map, array.new_default $hd.list, array.new_default $hd.list, array.new_fixed $hd.bytes, struct.new $hd.box-i32, array.new_fixed $hd.bytes, struct.new $hd.box-i32, array.new_fixed $hd.bytes
+om-optional-result.hd	<global $e0v0>	struct.new $e0
+om-optional-result.hd	<global $e0v1>	struct.new $e0
+om-optional-result.hd	<global $e0v2>	struct.new $e0
+om-optional-result.hd	$f0	struct.new $hd.variant, struct.new $hd.box-i32, struct.new $hd.variant
+om-optional-result.hd	$f1	struct.new $hd.variant, struct.new $hd.box-f64, struct.new $hd.variant
+om-optional-result.hd	$f2	struct.new $hd.variant, struct.new $d0, struct.new $hd.variant
+om-optional-result.hd	$f3	struct.new $hd.variant, array.new_fixed $hd.bytes, struct.new $hd.variant
+om-optional-result.hd	$f4	struct.new $hd.variant, struct.new $hd.box-i32, struct.new $hd.variant, array.new_fixed $hd.bytes
+om-string.hd	<global $e0v0>	struct.new $e0
+om-string.hd	<global $e0v1>	struct.new $e0
+om-string.hd	<global $e0v2>	struct.new $e0
+om-string.hd	$f1	array.new_default $hd.bytes, array.new_fixed $hd.bytes
+om-string.hd	$f2	array.new_default $hd.bytes, array.new_fixed $hd.bytes
+om-string.hd	$f3	array.new_fixed $hd.bytes, array.new_fixed $hd.bytes
+om-string.hd	$f4	array.new_fixed $hd.bytes
+om-suspend.hd	<global $e0v0>	struct.new $e0
+om-suspend.hd	<global $e0v1>	struct.new $e0
+om-suspend.hd	<global $e0v2>	struct.new $e0
+om-suspend.hd	$f0	struct.new $s0
+om-suspend.hd	$fv0	struct.new $hd.suspension
+om-suspend.hd	$f1	struct.new $s1
+om-suspend.hd	$poll1	struct.new $hd.suspension
+om-suspend.hd	$fv1	struct.new $hd.suspension
+om-suspend.hd	$f2	struct.new $s2
+om-suspend.hd	$fv2	struct.new $hd.suspension
+om-suspend.hd	$f3	struct.new $s3
+om-suspend.hd	$fv3	struct.new $hd.suspension
+om-suspend.hd	$swresult0	struct.new $hd.box-i32
+om-suspend.hd	$swresult1	struct.new $hd.box-i32
+om-suspend.hd	$swresult2	struct.new $hd.box-i32
+om-suspend.hd	$swresult3	struct.new $hd.box-i32
+om-tuple.hd	<global $e0v0>	struct.new $e0
+om-tuple.hd	<global $e0v1>	struct.new $e0
+om-tuple.hd	<global $e0v2>	struct.new $e0
+om-tuple.hd	$f0	array.new_fixed $hd.list, struct.new $hd.box-i32, struct.new $hd.box-f64, array.new_fixed $hd.bytes

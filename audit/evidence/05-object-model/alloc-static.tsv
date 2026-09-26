@@ -1,0 +1,22 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/alloc-static.ts; date: 2026-09-25T20:54:08.401Z
+probe	user sites	user boxes	runtime sites	global-init sites	user sites by type
+alloc/alloc-frames.hd	23	9	14	3	$s0=1 $hd.suspension=5 $s1=1 $s2=1 $s3=1 $hd.bytes=1 $hd.vector=1 $hd.list=2 $hd.box-i32=9 $s4=1
+alloc/alloc-loops.hd	45	3	14	3	$hd.iterator=2 $hd.variant=8 $hd.list=6 $trait0=5 $trait2=3 $hd.vector=2 $hd.box-i32=3 $closure1=2 $env0=1 $env1=1 $hd.bytes=2 $d0=3 $trait1=2 $s15=1 $hd.suspension=3 $s16=1
+erasure/erasure-bench.hd	38	10	14	3	$trait0=4 $hd.iterator=3 $hd.variant=12 $hd.list=5 $trait1=2 $hd.box-i32=6 $hd.vector=2 $hd.box-f64=4
+erasure/erasure-identity.hd	17	7	14	3	$trait0=9 $hd.box-i32=7 $d0=1
+audit/probes/arch/erasure/erasure-primitive-bounds.hd	CHECK FAILED missing-trait-implementation: type 'i32' does not implement PartialEq
+erasure/erasure-shared-storage.hd	15	6	14	3	$hd.list=5 $hd.box-i32=6 $hd.vector=2 $hd.variant=2
+erasure/erasure-values.hd	78	38	14	3	$d0=1 $hd.vector=5 $hd.list=16 $hd.box-i32=10 $hd.variant=3 $closure0=1 $env0=1 $trait0=3 $hd.box-f64=28 $hd.map=4 $hd.bytes=6
+object-model/om-closure.hd	6	0	14	3	$closure0=3 $env0=1 $env1=1 $env2=1
+object-model/om-data.hd	2	0	14	3	$hd.bytes=1 $d0=1
+object-model/om-dyn-trait.hd	4	0	14	3	$d0=2 $trait0=2
+object-model/om-enum.hd	3	0	14	4	$e0=3
+audit/probes/arch/object-model/om-f64-ordering.hd	UNBALANCED WAT Error: unbalanced form at 0
+object-model/om-fieldless.hd	1	0	14	6	$d0=1
+object-model/om-generic-data.hd	6	2	14	3	$d0=3 $hd.box-i32=1 $hd.box-f64=1 $hd.bytes=1
+object-model/om-list.hd	18	6	14	3	$hd.iterator=1 $hd.variant=4 $hd.list=4 $hd.vector=3 $hd.box-i32=4 $hd.box-f64=2
+object-model/om-map.hd	14	5	14	3	$hd.map=2 $hd.list=4 $hd.box-i32=5 $hd.bytes=3
+object-model/om-optional-result.hd	16	3	14	3	$hd.variant=10 $hd.box-i32=2 $hd.box-f64=1 $d0=1 $hd.bytes=2
+object-model/om-string.hd	7	0	14	3	$hd.bytes=7
+object-model/om-suspend.hd	13	4	14	3	$s0=1 $hd.suspension=5 $s1=1 $s2=1 $s3=1 $hd.box-i32=4
+object-model/om-tuple.hd	4	2	14	3	$hd.list=1 $hd.box-i32=1 $hd.box-f64=1 $hd.bytes=1

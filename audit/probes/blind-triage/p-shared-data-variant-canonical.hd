@@ -1,0 +1,13 @@
+# test: a payload-free variant with shared enum data is canonical for `is` (AMB-08; spec 05 identity)
+# expect-result: probe = 1
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+pub fn probe() -> i32:
+    first := StatusCode.NotFound
+    second := StatusCode.NotFound
+    if first is second:
+        1
+    else:
+        0

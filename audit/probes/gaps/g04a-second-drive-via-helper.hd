@@ -1,0 +1,13 @@
+# gap probe: a completed suspension driven again through a helper panics
+# (spec 11-requirements-and-suspension.md#suspendt-protocol)
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+fn drive(pending: mut Suspend[i32]) -> i32:
+    block_on(pending)  # panic: suspension-invalid-state
+
+pub fn main() -> void:
+    let pending: mut Suspend[i32] = ready()
+    _ := drive(pending)
+    _ := drive(pending)

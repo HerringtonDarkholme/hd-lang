@@ -1,0 +1,8 @@
+# test: child pending propagates through the parent frame and restores locals
+# expect-result: main = 42
+
+fn child!() -> i32: 2
+fn main!() -> i32:
+    base := 40
+    value := child!()
+    base + value

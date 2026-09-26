@@ -1,0 +1,5 @@
+fn sum_to(limit: i32) -> i32:
+    pass
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)

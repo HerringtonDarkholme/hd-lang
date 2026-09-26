@@ -1,0 +1,19 @@
+# Probe for spec/07 hunk H1 ("does not claim referential transparency"):
+# a default expression that reads, but does not write, a reassignable
+# top-level let is accepted, and the same call yields different values.
+use std.testing.assert_equal
+
+let counter: i32 = 0
+
+fn bump() -> void:
+    counter = counter + 1
+
+fn current(value: i32 = counter) -> i32:
+    value
+
+test "default observes top-level state at each call":
+    first := current()
+    bump()
+    second := current()
+    assert_equal(first, 0, reason="first default read")
+    assert_equal(second, 1, reason="second default read sees the write")

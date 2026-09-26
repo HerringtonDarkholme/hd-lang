@@ -1,0 +1,22 @@
+# test: mut self dispatch through a mutable dynamic value mutates the receiver
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn bump(mut self) -> void
+
+data Box:
+    value: i32
+
+impl Counter for Box:
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn twice(counter: mut Counter) -> void:
+    counter.bump()
+    counter.bump()
+
+test "mut dispatch":
+    let box: mut Box = Box { value: 1 }
+    twice(box)
+    assert_equal(box.value, 3, reason="mutation visible through shared identity")

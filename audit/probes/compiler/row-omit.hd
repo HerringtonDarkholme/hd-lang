@@ -1,0 +1,12 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+fn log_message(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+fn middle(message: string) -> void:
+    log_message(message)
+
+fn main() -> i32:
+    0

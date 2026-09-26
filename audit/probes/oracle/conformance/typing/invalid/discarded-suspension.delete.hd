@@ -1,0 +1,4 @@
+fn load!() -> i32: 1
+
+fn caller() -> void:
+    pass

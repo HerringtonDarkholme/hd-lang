@@ -1,0 +1,11 @@
+# Probe for spec/11 hunk H3 and spec/12 hunk H4 (all! is a compiler intrinsic).
+use std.task.all
+
+fn one!() -> i32:
+    1
+
+fn two!() -> i32:
+    2
+
+pub fn main!() -> void:
+    _ := all!(one(), two())

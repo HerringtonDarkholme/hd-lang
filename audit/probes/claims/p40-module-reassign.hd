@@ -1,0 +1,13 @@
+# test: functions may reassign top-level let bindings and read them later
+# expect: test
+use std.testing.assert_equal
+
+let counter: i32 = 10
+
+fn bump() -> void:
+    counter = counter + 1
+
+test "reassign":
+    bump()
+    bump()
+    assert_equal(counter, 12, reason="reassignment persists")

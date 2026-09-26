@@ -1,0 +1,3 @@
+# test: module bindings lower to Wasm globals shared with declared functions
+
+answer := 41

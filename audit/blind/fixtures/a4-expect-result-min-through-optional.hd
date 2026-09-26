@@ -1,0 +1,12 @@
+# test: i32 minimum returned through a generic and an optional unwrap
+# expect-result: through_generic = -2147483648
+fn pass_through[T](value: T) -> T:
+    value
+
+pub fn through_generic() -> i32:
+    let minimum: i32 = -2147483648
+    boxed := pass_through(minimum)
+    let maybe: i32? = boxed
+    match maybe:
+        value? => pass_through(value)
+        nil => 0

@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "wasm",
+    "generated": 0,
+    "generatedReferenceAccepted": 0,
+    "maxSignatures": 20,
+    "referenceAccepted": 5000,
+    "requestedCases": 5000,
+    "seconds": 561,
+    "seed": "r2",
+    "signatures": 3,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 19112
+  },
+  "signatures": [
+    {
+      "count": 1,
+      "details": [
+        "WasmValidationError: Binaryen rejected generated Wasm"
+      ],
+      "firstIndex": 96,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err ( ParseError { message : \"empty\" } )\n    Ok ( -0.0 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 0.0 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "01-d4d484d76b90",
+      "signature": "wasm|build-failed|WasmValidationError: Binaryen rejected generated Wasm"
+    },
+    {
+      "count": 15,
+      "details": [
+        "WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+      ],
+      "firstIndex": 187,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "02-e841b5a6d3a0",
+      "signature": "wasm|build-failed|WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+    },
+    {
+      "count": 6,
+      "details": [
+        "PATH"
+      ],
+      "firstIndex": 918,
+      "origin": "mutate:runtime/valid/map-iterator.hd:duplicate-line",
+      "source": "use std.testing.assert\n\ntest \"map iterator yields entries in insertion order\":\n    let values: mut map[string, i32] = {\"first\": 1, \"second\": 2}\n    let iterator: mut Iterator[(string, i32)] = values.iter()\n    let first: (string, i32)? = (\"first\", 1)\n    let second: (string, i32)? = (\"second\", 2)\n    let exhausted: (string, i32)? = nil\n    assert(iterator.next() == first, reason=\"the first entry preserves insertion order\")\n    assert(iterator.next() == second, reason=\"the second entry preserves insertion order\")\n    assert(iterator.next() == exhausted, reason=\"the exhausted map iterator returns nil\")\n    assert(iterator.next() == exhausted, reason=\"the exhausted map iterator returns nil\")\n\ntest \"map value replacement preserves an iterator and changes a later yield\":\n    let values: mut map[string, i32] = {\"first\": 1, \"second\": 2}\n    let iterator: mut Iterator[(string, i32)] = values.iter()\n    let first: (string, i32)? = (\"first\", 1)\n    let replacement: (string, i32)? = (\"second\", 42)\n    assert(iterator.next() == first, reason=\"the iterator advances before replacement\")\n    values[\"second\"] = 42\n    assert(iterator.next() == replacement, reason=\"replacement does not invalidate the iterator\")\n",
+      "minimized": "use std.testing.assert\n\ntest \"map iterator yields entries in insertion order\":\n    let values: mut map[string, i32] = {\"first\": 1, \"second\": 2}\n    let iterator: mut Iterator[(string, i32)] = values.iter()\n    let first: (string, i32)? = (\"first\", 1)\n    let second: (string, i32)? = (\"second\", 2)\n    let exhausted: (string, i32)? = nil\n    assert(iterator.next() == first, reason=\"the first entry preserves insertion order\")\n    assert(iterator.next() == second, reason=\"the second entry preserves insertion order\")\n    assert(iterator.next() == exhausted, reason=\"the exhausted map iterator returns nil\")\n    assert(iterator.next() == exhausted, reason=\"the exhausted map iterator returns nil\")\n\ntest \"map value replacement preserves an iterator and changes a later yield\":\n    let values: mut map[string, i32] = {\"first\": 1, \"second\": 2}\n    let iterator: mut Iterator[(string, i32)] = values.iter()\n    let first: (string, i32)? = (\"first\", 1)\n    let replacement: (string, i32)? = (\"second\", 42)\n    assert(iterator.next() == first, reason=\"the iterator advances before replacement\")\n    values[\"second\"] = 42\n    assert(iterator.next() == replacement, reason=\"replacement does not invalidate the iterator\")\n",
+      "name": "03-2df2857b2cfc",
+      "signature": "wasm|build-timeout|PATH"
+    }
+  ]
+}

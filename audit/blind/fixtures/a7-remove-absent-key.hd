@@ -1,0 +1,11 @@
+# test: removing an absent key returns nil and does not change shape or invalidate iterators
+# expect: test
+use std.testing.assert
+
+test "absent removal keeps the iterator valid":
+    let values: mut map[string, i32] = {"a": 1, "b": 2}
+    let iterator: mut Iterator[(string, i32)] = values.iter()
+    let absent: i32? = nil
+    assert(values.remove("missing") == absent, reason="absent key yields nil")
+    let first: (string, i32)? = ("a", 1)
+    assert(iterator.next() == first, reason="no shape change, so no invalidation")

@@ -1,0 +1,13 @@
+# test: next yields nil after the end and stays exhausted; partly consumed cursor continues in for
+# expect: test
+use std.testing.assert_equal
+
+test "cursor":
+    let cursor = [1, 2, 3].iter()
+    assert_equal(cursor.next(), 1, reason="first")
+    let rest: i32 = 0
+    for value in cursor:
+        rest = rest + value
+    assert_equal(rest, 5, reason="for continues a partly consumed cursor")
+    assert_equal(cursor.next(), nil, reason="exhausted")
+    assert_equal(cursor.next(), nil, reason="stays exhausted")

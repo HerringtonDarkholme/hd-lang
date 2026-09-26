@@ -1,0 +1,4 @@
+use std.testing.assert
+
+pub fn main() -> void:
+    assert(1 == 2, reason="planted failure must fail the case")

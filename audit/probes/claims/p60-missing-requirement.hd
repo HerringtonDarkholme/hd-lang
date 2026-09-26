@@ -1,0 +1,8 @@
+# test: calling a requirement-bearing function without a provider is rejected
+trait Counter:
+    fn value(self) -> i32
+
+fn read() -> i32 $ Counter: $.use(Counter).value()
+
+fn bad() -> i32:
+    read()  # diagnostic: missing-requirement

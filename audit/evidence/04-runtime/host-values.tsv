@@ -1,0 +1,17 @@
+# commit bd985d7, 2026-09-25T20:57:55.464Z, node v24.19.0
+# command: node --experimental-strip-types audit/scripts/runtime/host-values.ts
+probe	live_run	record	replay	recorded_argument	recorded_result
+f64-max.hd	exit0 1.7976931348623157e+308	exit0 1.7976931348623157e+308	exit0 1.7976931348623157e+308	f64:7fefffffffffffff	f64:7fefffffffffffff
+f64-nan.hd	exit0 NaN	exit0 NaN	exit0 NaN	f64:7ff8000000000000	f64:7ff8000000000000
+f64-neg-inf.hd	exit0 -Infinity	exit0 -Infinity	exit0 -Infinity	f64:fff0000000000000	f64:fff0000000000000
+f64-neg-nan.hd	exit0 NaN	exit0 NaN	exit0 NaN	f64:fff8000000000000	f64:fff8000000000000
+f64-neg-zero.hd	exit0 -0	exit0 -0	exit0 -0	f64:8000000000000000	f64:8000000000000000
+f64-pos-inf.hd	exit0 Infinity	exit0 Infinity	exit0 Infinity	f64:7ff0000000000000	f64:7ff0000000000000
+f64-subnormal.hd	exit0 5e-324	exit0 5e-324	exit0 5e-324	f64:0000000000000001	f64:0000000000000001
+str-astral.hd	exit0 4	exit0 4	exit0 4	string:f09d849e,string:f09f9880f09f918df09f8fbd	string:f09d849ef09f9880f09f918df09f8fbd
+str-bom.hd	exit1  | assertion-failed: runtime panic	exit1  | assertion-failed: runtime panic	exit1  | Error: ENOENT: no such file or directory, open '/Users/hd/code/test/hd-lang/audit/probes/runtime/host-values/str-bom.hd.replay.json'	no sidecar	-
+str-cjk.hd	exit0 3	exit0 3	exit0 3	string:e697a5e69cac,string:e8aa9e	string:e697a5e69cace8aa9e
+str-combining.hd	exit0 2	exit0 2	exit0 2	string:65,string:cc81	string:65cc81
+str-empty.hd	exit0 0	exit0 0	exit0 0	string:,string:	string:
+str-lambda-emoji.hd	exit0 8	exit0 8	exit0 8	string:686f73743a20,string:cebbf09f9982	string:686f73743a20cebbf09f9982
+str-nul.hd	exit0 4	exit0 4	exit0 4	string:610062,string:00	string:61006200

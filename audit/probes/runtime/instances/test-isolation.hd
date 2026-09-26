@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+let counter: i32 = 0
+
+test "first test sees a fresh counter":
+    counter = counter + 1
+    assert_equal(counter, 1, reason="each test runs in its own program instance")
+
+test "second test sees a fresh counter":
+    counter = counter + 1
+    assert_equal(counter, 1, reason="each test runs in its own program instance")

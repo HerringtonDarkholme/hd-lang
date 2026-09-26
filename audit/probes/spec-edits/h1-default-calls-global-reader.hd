@@ -1,0 +1,20 @@
+# Variant: the default calls a named function that reads a reassignable
+# top-level let. The callee performs no write, provider access, or suspension.
+use std.testing.assert_equal
+
+let counter: i32 = 0
+
+fn bump() -> void:
+    counter = counter + 1
+
+fn read_counter() -> i32:
+    counter
+
+fn current(value: i32 = read_counter()) -> i32:
+    value
+
+test "default calls a reader of top-level state":
+    first := current()
+    bump()
+    assert_equal(first, 0, reason="first read")
+    assert_equal(current(), 1, reason="second read sees the write")

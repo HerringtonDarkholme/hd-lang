@@ -1,0 +1,19 @@
+# test: identity compares GC references; fieldless variants are canonical; payload variants are not
+# expect: test
+use std.testing.assert_equal
+
+data Box:
+    value: i32
+
+enum Status:
+    Ready
+    Code(value: i32)
+
+test "identity":
+    box := Box { value: 1 }
+    alias := box
+    assert_equal(box is alias, true, reason="alias")
+    other := Box { value: 1 }
+    assert_equal(box is other, false, reason="distinct")
+    assert_equal(Status.Ready is Status.Ready, true, reason="canonical fieldless")
+    assert_equal(Status.Code(1) is Status.Code(1), false, reason="payload variants allocate")

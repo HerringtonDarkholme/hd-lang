@@ -1,0 +1,22 @@
+# gap probe: (r - Logger) removes Logger from the caller's requirements
+# (spec 11-requirements-and-suspension.md#requirement-rows)
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn quiet[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn log_something() -> void $ Logger:
+    $.use(Logger).write("hi")
+
+fn caller() -> void:
+    quiet(log_something)
+
+test "subtracted requirement is provided locally":
+    caller()

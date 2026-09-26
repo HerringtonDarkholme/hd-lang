@@ -1,0 +1,8 @@
+# test: AMB-03 control: spread before the explicit binding
+# expect: parse
+trait Tag:
+    fn name(self) -> string
+
+fn run(x: Tag, ctx: $.Context[Tag]) -> void:
+    $.with(...ctx, Tag=x):
+        pass

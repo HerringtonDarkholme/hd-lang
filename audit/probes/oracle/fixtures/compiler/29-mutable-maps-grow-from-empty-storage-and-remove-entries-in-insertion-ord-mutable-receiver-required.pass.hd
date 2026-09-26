@@ -1,0 +1,4 @@
+# test: mutable maps grow from empty storage and remove entries in insertion order
+
+fn bad(values: map[string, i32]) -> void:
+    pass

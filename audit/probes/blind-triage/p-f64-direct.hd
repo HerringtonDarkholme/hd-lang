@@ -1,0 +1,5 @@
+# test: direct f64 equality and ordering with NaN
+# expect-result: probe = true
+pub fn probe() -> bool:
+    nan := 0.0 / 0.0
+    nan != nan and not (nan < 1.0) and not (nan >= 1.0) and -0.0 == 0.0

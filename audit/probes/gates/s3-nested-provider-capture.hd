@@ -1,0 +1,27 @@
+# S3 gate probe: a stored suspension captures providers at construction; a
+# child frame created later during polling still sees the construction value.
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data FixedCounter:
+    current: i32
+
+impl Counter for FixedCounter:
+    fn value(self) -> i32: self.current
+
+fn inner!() -> i32 $ Counter:
+    $.use(Counter).value()
+
+fn outer!() -> i32 $ Counter:
+    first := inner!()
+    second := inner!()
+    first * 10 + second
+
+pub fn main!() -> void:
+    let pending: mut Suspend[i32] = $.with(Counter=FixedCounter { current: 1 }):
+        outer()
+    $.with(Counter=FixedCounter { current: 2 }):
+        actual := pending!()
+        assert_equal(actual, 11, reason="construction provider reaches child frames")

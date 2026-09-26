@@ -1,0 +1,7 @@
+# test: prelude type i32 satisfies a PartialEq bound (spec 05 operators; 10 prelude)
+# expect: accept
+fn take[T: PartialEq](value: T) -> T:
+    value
+
+pub fn probe() -> i32:
+    take(1)

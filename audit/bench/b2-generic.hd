@@ -1,0 +1,27 @@
+# bench 5.7-2a: generic (erased) sum over list[i32] through a trait bound
+trait Plus:
+    fn plus(self, other: i32) -> i32
+
+impl Plus for i32:
+    fn plus(self, other: i32) -> i32: (self + other) % 1000003
+
+fn sum[T: Plus](items: list[T]) -> i32:
+    let total: i32 = 0
+    let index: i32 = 0
+    while index < items.len():
+        total = items[index].plus(total)
+        index = index + 1
+    total
+
+fn main() -> i32:
+    let values: mut list[i32] = []
+    let index: i32 = 0
+    while index < 1000:
+        values.append(index)
+        index = index + 1
+    let round: i32 = 0
+    let acc: i32 = 0
+    while round < 2000:
+        acc = (acc + sum(values)) % 1000003
+        round = round + 1
+    acc

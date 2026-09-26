@@ -1,0 +1,20 @@
+# probe 5.3 / phase 7: a list of concrete tuples and optionals flows into generic
+# code without conversion, so element layout must be the erased layout.
+fn first_left[T](values: mut list[(T, i32)]) -> T:
+    values[0] = (values[1].0, 0)
+    values[0].0
+
+fn first_present[T](values: list[T?]) -> T?: values[0]
+
+fn tuples() -> i32:
+    let values: mut list[(i32, i32)] = [(1, 2), (40, 3)]
+    got := first_left(values)
+    values[0].0 + got - 40
+
+fn optionals() -> i32:
+    let values: list[i32?] = [41, nil]
+    match first_present(values):
+        nil => 0
+        value? => value
+
+fn main() -> i32: tuples() + optionals() + 1

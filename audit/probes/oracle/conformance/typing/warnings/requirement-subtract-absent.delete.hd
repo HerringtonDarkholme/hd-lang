@@ -1,0 +1,16 @@
+trait Logger:
+    fn write(self, message: string) -> void
+trait Clock
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn redundant[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn tick() -> void $ Clock: pass
+
+fn run() -> void $ Clock:

@@ -1,0 +1,5 @@
+# test: generic implementation heads cannot overlap after substitution
+
+trait Marker
+
+impl[Value] Marker for list[Value]

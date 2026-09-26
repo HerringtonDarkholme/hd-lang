@@ -1,0 +1,4 @@
+
+@derive(PartialEq, Eq, PartialOrd, Ord)
+data Measurement:
+    pass

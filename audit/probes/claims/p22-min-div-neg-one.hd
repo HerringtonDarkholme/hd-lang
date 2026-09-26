@@ -1,0 +1,5 @@
+# test: i32 minimum divided by -1 overflows
+fn low() -> i32: -2147483648
+
+fn main() -> i32:
+    low() / -1  # panic: integer-overflow

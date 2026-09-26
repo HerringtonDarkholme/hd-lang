@@ -1,0 +1,26 @@
+data Box:
+    value: i32
+
+trait Reader:
+    fn read(self) -> i32
+
+fn via_bound[T: Reader](value: T) -> i32:
+    value.read()
+
+direct := Box { value: 1 }.read()
+text := "${Box { value: 1 }}"
+bounded := via_bound(Box { value: 2 })
+let dynamic_value: Reader = Box { value: 3 }
+dynamic := dynamic_value.read()
+later := 5
+
+impl Display for Box:
+    fn to_string(self) -> string:
+        "box ${later}"
+
+impl Reader for Box:
+    fn read(self) -> i32:
+        later
+
+fn main() -> i32:
+    direct + bounded + dynamic + text.len()

@@ -1,0 +1,10 @@
+# test: supertraits reject missing parent implementations
+
+trait Parent
+
+trait Child: Parent:
+    fn value(self) -> i32
+
+data Item: pass
+
+    fn value(self) -> i32: 42

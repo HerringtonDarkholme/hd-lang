@@ -1,0 +1,11 @@
+# Variant: a data-field default reads an immutable top-level := binding.
+use std.testing.assert_equal
+
+limit := 10
+
+data Config:
+    size: i32 = limit
+
+test "data default reads a top-level := binding":
+    config := Config {}
+    assert_equal(config.size, 10, reason="read is not a write")

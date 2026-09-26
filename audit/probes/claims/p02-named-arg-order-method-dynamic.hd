@@ -1,0 +1,25 @@
+# test: named arguments on dynamic trait dispatch evaluate in source order
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+trait Combiner:
+    fn combine(self, first: i32, second: i32) -> i32
+
+data Tens: pass
+
+impl Combiner for Tens:
+    fn combine(self, first: i32, second: i32) -> i32: first * 10 + second
+
+fn call(value: Combiner) -> i32:
+    value.combine(second=g("s", 2), first=g("f", 1))
+
+test "dynamic named argument order":
+    result := call(Tens {})
+    assert_equal(result, 12, reason="named arguments map through dynamic dispatch")
+    assert_equal(log, "sf", reason="source order")

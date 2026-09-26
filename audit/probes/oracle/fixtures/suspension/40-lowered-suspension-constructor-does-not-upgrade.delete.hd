@@ -1,0 +1,8 @@
+# test: a lowered suspension constructor does not upgrade to fn bang
+
+fn work!(value: i32) -> i32:
+    value
+
+fn construct(value: i32) -> mut Suspend[i32]:
+    work(value)
+

@@ -1,0 +1,8 @@
+fn a(x: Missing) -> i32:
+    0
+
+fn b() -> i32:
+    true
+
+fn main() -> i32:
+    0

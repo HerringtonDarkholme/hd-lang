@@ -1,0 +1,77 @@
+FAIL(expected-expression)	parse/valid/declarations.hd	accept
+FAIL(decorator-not-top-level)	parse/valid/decorators.hd	accept
+FAIL(expected-newline)	parse/valid/grammar-disambiguation.hd	accept
+FAIL(expected-newline)	parse/valid/nested-layout.hd	accept
+FAIL(expected-token)	parse/valid/uses.hd	accept
+FAIL(private-type-leak)	runtime/valid/resource-disposed-result.hd	accept
+FAIL(got expected-expression)	typing/invalid/annotation-direct-reentry.hd	reject:annotation-resolution-reentry
+FAIL(got expected-expression)	typing/invalid/annotation-top-level-read.hd	reject:annotation-top-level-read
+FAIL(got decorator-not-top-level)	typing/invalid/configured-facet-not-annotator.hd	reject:decorator-not-annotator
+FAIL(got expected-token)	typing/invalid/contravariant-representation-change.hd	reject:variance-representation-change
+FAIL(got expected-token)	typing/invalid/covariant-gadt-result.hd	reject:invalid-variance
+FAIL(got unknown-trait)	typing/invalid/data-annotator-map-build.hd	reject:annotation-build-signature
+FAIL(got decorator-not-top-level)	typing/invalid/derived-generic-bound.hd	reject:missing-derived-bound
+FAIL(got decorator-not-top-level)	typing/invalid/derived-hash-field-not-hash.hd	reject:field-not-hash
+FAIL(got decorator-not-top-level)	typing/invalid/derived-total-order-float.hd	reject:field-not-eq
+FAIL(got expected-expression)	typing/invalid/duplicate-direct-annotation-impl.hd	reject:duplicate-annotation-impl
+FAIL(got expected-token)	typing/invalid/embedded-field-decorator-type.hd	reject:invalid-field-metadata
+FAIL(got unknown-type)	typing/invalid/impossible-gadt-pattern.hd	reject:impossible-gadt-pattern
+FAIL(got unknown-type)	typing/invalid/integer-literal-range.hd	reject:integer-literal-range
+FAIL(got unknown-type)	typing/invalid/integer-narrowing.hd	reject:implicit-narrowing
+FAIL(got no-common-type)	typing/invalid/least-type-weakening-variance.hd	reject:no-least-common-type
+FAIL(got expected-expression)	typing/invalid/library-orphan-annotation.hd	reject:orphan-annotation-in-library
+FAIL(got expected-expression)	typing/invalid/local-impl-nonlocal-pair.hd	reject:local-impl-nonlocal-pair
+FAIL(got unknown-type)	typing/invalid/metadata-type-as-value.hd	reject:type-used-as-value
+FAIL(got expected-expression)	typing/invalid/missing-child-annotation.hd	reject:missing-child-annotation
+FAIL(got unknown-type)	typing/invalid/mixed-signedness.hd	reject:mixed-signedness
+FAIL(got unsupported-generic-parameter)	typing/invalid/multiple-positional-value-packs.hd	reject:multiple-positional-value-packs
+FAIL(got unknown-type)	typing/invalid/nil-to-any.hd	reject:nil-to-nonoptional
+FAIL(got expected-expression)	typing/invalid/nominal-map-key.hd	reject:invalid-map-key
+FAIL(got unsupported-generic-parameter)	typing/invalid/nonfinal-positional-value-pack.hd	reject:nonfinal-positional-value-pack
+FAIL(got expected-expression)	typing/invalid/overlapping-generic-annotation.hd	reject:overlapping-annotation-impl
+FAIL(got unsupported-generic-parameter)	typing/invalid/pack-length-mismatch.hd	reject:pack-length-mismatch
+FAIL(got unknown-name)	typing/invalid/pack-map-mapper-mismatch.hd	reject:pack-map-mapper-mismatch
+FAIL(got expected-token)	typing/invalid/parameter-decorator-type.hd	reject:invalid-parameter-metadata
+FAIL(got ok)	typing/invalid/plain-closure-mutable-capture.hd	reject:mutable-capture-requires-mut-fn
+FAIL(got expected-expression)	typing/invalid/retention-missing-field.hd	reject:unknown-shape-target
+FAIL(got expected-token)	typing/invalid/row-kind-mismatch.hd	reject:generic-kind-mismatch
+FAIL(got expected-expression)	typing/invalid/unknown-annotation-member.hd	reject:unknown-annotation-member
+FAIL(got expected-expression)	typing/invalid/unrepresentable-type-shape.hd	reject:unrepresentable-type-shape
+FAIL(got unknown-type)	typing/invalid/unsigned-negation.hd	reject:unsigned-negation
+FAIL(got expected-token)	typing/invalid/variance-position.hd	reject:invalid-variance
+FAIL(got expected-token)	typing/invalid/variance-representation-change.hd	reject:variance-representation-change
+FAIL(got expected-token)	typing/invalid/variant-result-owner.hd	reject:variant-result-owner
+FAIL(expected-expression)	typing/valid/annotation-reference.hd	accept
+FAIL(expected-expression)	typing/valid/annotations.hd	accept
+FAIL(decorator-not-top-level)	typing/valid/configured-facet.hd	accept
+FAIL(expected-expression)	typing/valid/data-decorator.hd	accept
+FAIL(decorator-not-top-level)	typing/valid/derived-equality.hd	accept
+FAIL(decorator-not-top-level)	typing/valid/derived-generic-bound.hd	accept
+FAIL(decorator-not-top-level)	typing/valid/derived-hash.hd	accept
+FAIL(decorator-not-top-level)	typing/valid/derived-ordering.hd	accept
+FAIL(unknown-trait)	typing/valid/direct-annotation-impl.hd	accept
+FAIL(expected-token)	typing/valid/embedded-field-decorator.hd	accept
+FAIL(expected-expression)	typing/valid/full-validation.hd	accept
+FAIL(expected-token)	typing/valid/gadts.hd	accept
+FAIL(expected-expression)	typing/valid/generic-annotation-family.hd	accept
+FAIL(unknown-trait)	typing/valid/generic-map-key.hd	accept
+FAIL(expected-expression)	typing/valid/invariant-gadt-result.hd	accept
+FAIL(expected-expression)	typing/valid/lazy-annotation-build.hd	accept
+FAIL(expected-expression)	typing/valid/local-types.hd	accept
+FAIL(expected-expression)	typing/valid/missing-child-override.hd	accept
+FAIL(expected-expression)	typing/valid/mutable-closure-capture.hd	accept
+FAIL(unsupported-generic-parameter)	typing/valid/mutable-suspension.hd	accept
+FAIL(expected-expression)	typing/valid/newtypes-and-widening.hd	accept
+FAIL(unknown-type)	typing/valid/numeric-corners.hd	accept
+FAIL(unknown-type)	typing/valid/numeric-types.hd	accept
+FAIL(unknown-type)	typing/valid/numeric-widening-and-display-list.hd	accept
+FAIL(unsupported-generic-parameter)	typing/valid/pack-map.hd	accept
+FAIL(expected-expression)	typing/valid/parameter-decorator.hd	accept
+FAIL(unknown-trait)	typing/valid/prelude-surface.hd	accept
+FAIL(expected-expression)	typing/valid/retention-metadata.hd	accept
+FAIL(expected-expression)	typing/valid/root-orphan-annotation.hd	accept
+FAIL(expected-token)	typing/valid/row-kinded-arguments.hd	accept
+FAIL(expected-expression)	typing/valid/shape-api.hd	accept
+PASS	typing/valid/traits.hd	accept
+FAIL(unsupported-generic-parameter)	typing/valid/variadic-generics.hd	accept
+FAIL(expected-token)	typing/valid/variance-permission-weakening.hd	accept

@@ -1,0 +1,17 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# gap probe control: without a defer, cleanup_ran stays false and the scenario must fail
+let trace: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    wait!()
+    trace = trace + "i"
+
+pub fn main!() -> void:
+    inner!()
+
+pub fn cleanup_ran() -> bool:
+    trace == "i"

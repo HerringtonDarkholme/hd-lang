@@ -1,0 +1,6 @@
+enum State:
+    Ready
+
+fn inspect(state: State) -> string:
+    match state:
+        pass

@@ -1,0 +1,22 @@
+# test: an inner with scope overrides and the outer provider is restored after it
+# expect: test
+use std.testing.assert_equal
+
+trait Counter:
+    fn value(self) -> i32
+
+data Fixed:
+    current: i32
+
+impl Counter for Fixed:
+    fn value(self) -> i32: self.current
+
+fn read() -> i32 $ Counter: $.use(Counter).value()
+
+test "override":
+    $.with(Counter=Fixed { current: 1 }):
+        before := read()
+        inner := $.with(Counter=Fixed { current: 2 }):
+            read()
+        after := read()
+        assert_equal(before * 100 + inner * 10 + after, 121, reason="override then restore")

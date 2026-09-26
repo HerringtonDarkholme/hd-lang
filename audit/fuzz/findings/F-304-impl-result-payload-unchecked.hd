@@ -1,0 +1,11 @@
+# test: an Ok payload must match the expected Result success type
+# fuzz-signature: contract|violation:run|no-located-code:WasmValidationError: Binaryen rejected generated Wasm (round-1 label: [wasm-validator error ...] struct.new operand N must have proper type)
+# fuzz-class: implementation bug (F-304). hd check accepts; run and build crash in Wasm validation.
+# The spec code is unsettled; the implementation uses type-mismatch elsewhere.
+fn parse() -> Result[i32, string]:
+    Ok("text")  # diagnostic: type-mismatch
+
+fn main() -> i32:
+    match parse():
+        Ok(value) => value
+        Err(_) => 0

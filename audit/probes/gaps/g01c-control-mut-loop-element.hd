@@ -1,0 +1,7 @@
+# gap probe control: list[mut User] elements are mutable when iterated; must be accepted
+data User:
+    name: string
+
+fn rename_all(users: list[mut User]) -> void:
+    for user in users:
+        user.name = "Grace"

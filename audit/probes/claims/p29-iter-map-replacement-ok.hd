@@ -1,0 +1,11 @@
+# test: map value replacement during iteration does not invalidate; replacement is visible
+# expect: test
+use std.testing.assert_equal
+
+test "replacement":
+    let scores: mut map[string, i32] = {"a": 1, "b": 2}
+    let seen: i32 = 0
+    for key, value in scores:
+        scores["b"] = 20
+        seen = seen + value
+    assert_equal(seen, 21, reason="second entry sees replaced value")

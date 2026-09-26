@@ -1,0 +1,24 @@
+# test: copy-update evaluates the source once, then replacements in source order, without defaults
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn g(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+data Point:
+    x: i32
+    y: i32
+    z: i32 = 7
+
+fn source() -> Point:
+    log = log + "S"
+    Point { x: 1, y: 2, z: 3 }
+
+test "copy update order":
+    updated := Point { ...source(), y: g("y", 20), x: g("x", 10) }
+    assert_equal(log, "Sxy", reason="source first, then replacements in source order")
+    assert_equal(updated.z, 3, reason="copied field keeps source value, not default")
+    assert_equal(updated.x + updated.y, 30, reason="replacements applied")

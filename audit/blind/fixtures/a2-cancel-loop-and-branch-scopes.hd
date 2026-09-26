@@ -1,0 +1,26 @@
+# test: cancellation unwinds if, loop-body, and function cleanup scopes in order
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+let trace: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn run!() -> void:
+    defer:
+        trace = trace + "fn;"
+    for index in [0, 1, 2]:
+        defer:
+            trace = trace + "body$index;"
+        if index == 1:
+            defer:
+                trace = trace + "if;"
+            wait!()
+            trace = trace + "if-after;"
+    trace = trace + "after-loop;"
+
+pub fn main!() -> void:
+    run!()
+
+pub fn cleanup_ran() -> bool:
+    trace == "body0;if;body1;fn;"

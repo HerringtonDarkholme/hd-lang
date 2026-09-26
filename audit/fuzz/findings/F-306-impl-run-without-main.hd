@@ -1,0 +1,6 @@
+# test: run on a program without main reports a located diagnostic, not a crash
+# fuzz-expect: run and test exit 1 with a located code (which code is open; see F-306)
+# fuzz-signature: contract|violation:run|no-located-code:Error: program has no exported main function
+# fuzz-class: implementation bug (F-306); the test command fails the same way
+fn helper() -> i32:
+    return 1

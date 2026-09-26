@@ -1,0 +1,5 @@
+# test: assert requires the reason argument
+use std.testing.assert
+
+test "no reason":
+    assert(true)  # diagnostic: argument-count

@@ -1,0 +1,15 @@
+[
+  {
+    "siteId": "ready:poll:1",
+    "functionName": "ready",
+    "functionCodeId": "bea9496a741c4a96",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

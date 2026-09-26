@@ -1,0 +1,6 @@
+# test: requirements / row subtraction / absent subtraction warning
+
+fn redundant[r](callback: fn() -> i32 $ r) -> i32 $ (r - Logger) + Backup:
+    $.with(Logger=$.use(Backup)):
+        callback()
+fn tick() -> i32 $ Clock: 42

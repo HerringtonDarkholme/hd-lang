@@ -1,0 +1,6 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/alloc-frames.ts; date: 2026-09-25T20:54:13.483Z
+function	frame type	value slots (args+locals)	ref slots among them	child slots	control slots	max live across a suspension (hand-derived)	live sets
+wide	$s1	7	0	1	3	0	site1: {} (e is consumed as the child's argument)
+accumulate	$s2	15	0	1	3	3	site1: {n, i, total-before-call} = 3
+heap	$s3	6	3	2	3	0	site1: {} ; site2: {} (text, values, point dead after first argument)
+phases	$s4	5	0	2	3	1	site1: {x} = 1 ; site2: {} 

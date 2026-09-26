@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "wasm",
+    "generated": 0,
+    "generatedReferenceAccepted": 0,
+    "maxSignatures": 20,
+    "referenceAccepted": 5000,
+    "requestedCases": 5000,
+    "seconds": 240,
+    "seed": "r1",
+    "signatures": 3,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 19203
+  },
+  "signatures": [
+    {
+      "count": 12,
+      "details": [
+        "file:///Users/hd/code/test/hd-lang/src/wasm.ts:23"
+      ],
+      "firstIndex": 35,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "01-f808587e44e4",
+      "signature": "wasm|build-failed|PATH:N"
+    },
+    {
+      "count": 1,
+      "details": [
+        "[parse exception: unexpected end of input (at 0:0)]"
+      ],
+      "firstIndex": 361,
+      "origin": "mutate:runtime/panic/integer-divide-by-zero.hd:delete-line+delete-line",
+      "source": "\n",
+      "minimized": "\n",
+      "name": "02-a4bd86e4b256",
+      "signature": "wasm|invalid:wasm-opt|[parse exception: unexpected end of input (at N:N)]"
+    },
+    {
+      "count": 1,
+      "details": [
+        "[wasm-validator error in function f1] struct.new operand 0 must have proper type, on"
+      ],
+      "firstIndex": 2908,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err(ParseError { message: \"empty\" })\n    Ok ( 1e308 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 1e308 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "03-5ae681a660c3",
+      "signature": "wasm|build-failed|[wasm-validator error in function fN] struct.new operand N must have proper type, on"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)

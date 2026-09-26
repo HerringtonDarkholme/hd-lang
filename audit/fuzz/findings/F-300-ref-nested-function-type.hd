@@ -1,0 +1,6 @@
+# test: a function type whose result is a function type parses without a requirement clause
+# expect: parse
+# fuzz-signature: parse-agreement|ref-reject/impl-accept|syntax-error
+# fuzz-class: reference-parser bug (F-300); found by EBNF generation, confirmed by --replay
+fn apply(make: fn() -> fn() -> i32) -> i32:
+    make()()

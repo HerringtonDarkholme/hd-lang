@@ -1,0 +1,6 @@
+test "text" :
+    fn map ! [ None ... : x . Ok . list . x + Some . i32 , bool ... , reified main , i64 , ] ( mut self ) -> mut $ . Context [ ( ( Eq - Ok . f64 - f64 - value . None ) - y - y - self_value . x . f64 . f64 ) ] ? :
+        impl fn ! ( self_value :: Ok ... , ) -> mut ( mut $ . Context [ ( ( ( Some . Point . value . Clock + ( ( ( f + ( f64 ) + Clock - map [ value ] ) - string . Clock . Display . Some ) ) - None . print . Display . string - i64 . map . T . value - Clock ) ) ) ] ... )
+return
+return
+return

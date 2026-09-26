@@ -1,0 +1,6 @@
+match T := f64 := fn ! ( Ok , list , ) : continue
+:
+    T ? => for f , value , self_value in i32 := if fn ( print : self_value ) : return
+    : return
+    : return
+return

@@ -1,0 +1,11 @@
+# test: control: readonly list[T] is covariant in T (spec 04 Variance)
+# expect-result: probe = 1
+data User:
+    name: string
+
+fn count(users: list[User]) -> i32:
+    users.len()
+
+pub fn probe() -> i32:
+    let users: mut list[mut User] = [User { name: "a" }]
+    count(users)

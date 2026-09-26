@@ -1,0 +1,3 @@
+names[0]
+fn split[As..., Bs...](left: As..., right: Bs...) -> ((As...), (Bs...)):
+    ((left...), (right...))

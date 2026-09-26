@@ -1,0 +1,7 @@
+# test: all! reports the dedicated unsupported-task-combinator diagnostic
+use std.task.all
+
+fn one!() -> i32: 1
+
+fn bad!() -> void:
+    _ := all!(one(), one())  # diagnostic: unsupported-task-combinator

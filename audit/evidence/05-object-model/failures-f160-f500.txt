@@ -1,0 +1,23 @@
+# commit bd985d7; command: see lines; date: 2026-09-25T20:52:23Z
+$ node --experimental-strip-types bin/hd.js run audit/probes/arch/object-model/om-f64-ordering.hd
+file:///Users/hd/code/test/hd-lang/src/wasm.ts:23
+    throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);
+          ^
+
+WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+    at assembleWat (file:///Users/hd/code/test/hd-lang/src/wasm.ts:23:11)
+    at compile (file:///Users/hd/code/test/hd-lang/src/compiler.ts:206:20)
+    at instantiate (file:///Users/hd/code/test/hd-lang/src/compiler.ts:214:23)
+exit: 0
+
+$ node --experimental-strip-types bin/hd.js check audit/probes/arch/erasure/erasure-primitive-bounds.hd
+audit/probes/arch/erasure/erasure-primitive-bounds.hd:6:20: missing-trait-implementation: type 'i32' does not implement PartialEq
+
+$ node --experimental-strip-types bin/hd.js check audit/probes/arch/object-model/om-f64-ordering.hd
+audit/probes/arch/object-model/om-f64-ordering.hd: ok
+exit: 0
+run exit: 1
+$ wasm-as --all-features on emitWat output (via om-build excerpt tail):
+Fatal: 704:1: error: expected end of module
+emitted f64 ordering expression (src/emitter/value-comparison.ts:100) closes 6 of the 7 forms it opens:
+(if (result i32) (f64.lt (local.get $l0) (local.get $l1)) (then (i32.const -1)) (else (if (result i32) (f64.gt (local.get $l0) (local.get $l1)) (then (i32.const 1)) (else (if (result i32) (f64.eq (local.get $l0) (local.get $l1)) (then (i32.const 0)) (else (i32.const 2))))))) (i32.eq (local.get $tmp0) (i32.const 1)))

@@ -1,0 +1,9 @@
+# test: string len counts scalars and ordering is UTF-8 byte order
+# expect: test
+use std.testing.assert_equal
+
+test "strings":
+    assert_equal("héllo".len(), 5, reason="scalar count")
+    assert_equal("é" > "z", true, reason="UTF-8 byte order puts é after z")
+    assert_equal("ab" < "abc", true, reason="prefix orders first")
+    assert_equal("a" + "é", "aé", reason="concatenation")

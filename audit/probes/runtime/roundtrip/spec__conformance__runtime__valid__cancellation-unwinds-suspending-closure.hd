@@ -1,0 +1,19 @@
+# fixture-runtime-profile: pending-gate
+# fixture-runtime-scenario: cancellation-cleanup
+
+let cleaned: bool = false
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+pub fn main!() -> void $ Gate:
+    operation := fn!() -> void $ Gate:
+        defer:
+            cleaned = true
+        gate := $.use(Gate)
+        gate.wait!()
+    operation!()
+
+pub fn cleanup_ran() -> i32:
+    if cleaned: 1
+    else: 0

@@ -1,0 +1,145 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "b9abd878a32547e7",
+    "functionIndex": 5,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "evaluate:poll:1",
+    "functionName": "evaluate",
+    "functionCodeId": "0f2f0e27b927663e",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "tick:poll:1",
+    "functionName": "tick",
+    "functionCodeId": "80fc50debb370d00",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "evaluate:poll:1",
+    "functionName": "evaluate",
+    "functionCodeId": "0f2f0e27b927663e",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "inspect_shape:poll:1",
+    "functionName": "inspect_shape",
+    "functionCodeId": "2cd5acfb44fa33f6",
+    "functionIndex": 3,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "tick:poll:1",
+    "functionName": "tick",
+    "functionCodeId": "80fc50debb370d00",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "inspect_shape:poll:1",
+    "functionName": "inspect_shape",
+    "functionCodeId": "2cd5acfb44fa33f6",
+    "functionIndex": 3,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "inspect_nested:poll:1",
+    "functionName": "inspect_nested",
+    "functionCodeId": "c6d7ae4c73ee4ec4",
+    "functionIndex": 4,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "tick:poll:1",
+    "functionName": "tick",
+    "functionCodeId": "80fc50debb370d00",
+    "functionIndex": 0,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "inspect_nested:poll:1",
+    "functionName": "inspect_nested",
+    "functionCodeId": "c6d7ae4c73ee4ec4",
+    "functionIndex": 4,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "inspect_nested:poll:1",
+    "functionName": "inspect_nested",
+    "functionCodeId": "c6d7ae4c73ee4ec4",
+    "functionIndex": 4,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

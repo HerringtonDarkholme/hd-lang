@@ -1,0 +1,17 @@
+# test: is rejects optionals, nil, and strings; the unwrapped composite twin accepts
+data User:
+    name: string
+
+fn optional_identity(left: User?, right: User?) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn string_identity(left: string, right: string) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn float_identity(left: f64, right: f64) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn unwrapped_identity(left: User?, right: User) -> bool:
+    match left:
+        value? => value is right
+        nil => false

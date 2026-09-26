@@ -1,0 +1,29 @@
+# test: defer is LIFO and runs after the return value is evaluated, on break and continue
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn note(tag: string) -> i32:
+    log = log + tag
+    0
+
+fn body() -> i32:
+    defer:
+        log = log + "1"
+    defer:
+        log = log + "2"
+    note("r")
+
+test "defer":
+    _ := body()
+    assert_equal(log, "r21", reason="return value first, then LIFO")
+    log = ""
+    for value in [1, 2, 3]:
+        defer:
+            log = log + "d"
+        if value == 1:
+            continue
+        if value == 2:
+            break
+    assert_equal(log, "dd", reason="continue and break run defer")

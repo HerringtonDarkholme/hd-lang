@@ -1,0 +1,7 @@
+enum Status:
+    Queued
+    Running
+
+fn label(status: Status, urgent: bool) -> string:
+        Status.Queued if urgent => "urgent"
+        Status.Running => "running"

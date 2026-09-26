@@ -1,0 +1,12 @@
+# test: copy-update constructs a fresh struct
+# expect: test
+use std.testing.assert_equal
+
+data Box:
+    value: i32
+
+test "fresh":
+    let original: mut Box = Box { value: 1 }
+    let copy: mut Box = Box { ...original }
+    copy.value = 2
+    assert_equal(original.value, 1, reason="original unchanged")

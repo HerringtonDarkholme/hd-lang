@@ -1,0 +1,11 @@
+data Child:
+    name: string
+
+impl Child:
+    fn rename(mut self, name: string) -> void:
+        self.name = name
+
+data Parent:
+    child: mut Child
+
+fn invalid(parent: Parent) -> void:

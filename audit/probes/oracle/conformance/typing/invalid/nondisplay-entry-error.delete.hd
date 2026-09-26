@@ -1,0 +1,3 @@
+data HiddenError: pass
+
+    Err(HiddenError {})

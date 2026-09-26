@@ -1,0 +1,1702 @@
+data P0:
+    x: i32
+    y: i32 = 2
+
+fn g0(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P0 { x: a + 3 }
+    q := P0 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        0
+
+data P1:
+    x: i32
+    y: i32 = 2
+
+fn g1(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P1 { x: a + 3 }
+    q := P1 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g0(total, rest=[1, 2])
+
+data P2:
+    x: i32
+    y: i32 = 2
+
+fn g2(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P2 { x: a + 3 }
+    q := P2 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g1(total, rest=[1, 2])
+
+data P3:
+    x: i32
+    y: i32 = 2
+
+fn g3(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P3 { x: a + 3 }
+    q := P3 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g2(total, rest=[1, 2])
+
+data P4:
+    x: i32
+    y: i32 = 2
+
+fn g4(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P4 { x: a + 3 }
+    q := P4 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g3(total, rest=[1, 2])
+
+data P5:
+    x: i32
+    y: i32 = 2
+
+fn g5(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P5 { x: a + 3 }
+    q := P5 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g4(total, rest=[1, 2])
+
+data P6:
+    x: i32
+    y: i32 = 2
+
+fn g6(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P6 { x: a + 3 }
+    q := P6 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g5(total, rest=[1, 2])
+
+data P7:
+    x: i32
+    y: i32 = 2
+
+fn g7(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P7 { x: a + 3 }
+    q := P7 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g6(total, rest=[1, 2])
+
+data P8:
+    x: i32
+    y: i32 = 2
+
+fn g8(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P8 { x: a + 3 }
+    q := P8 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g7(total, rest=[1, 2])
+
+data P9:
+    x: i32
+    y: i32 = 2
+
+fn g9(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P9 { x: a + 3 }
+    q := P9 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g8(total, rest=[1, 2])
+
+data P10:
+    x: i32
+    y: i32 = 2
+
+fn g10(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P10 { x: a + 3 }
+    q := P10 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g9(total, rest=[1, 2])
+
+data P11:
+    x: i32
+    y: i32 = 2
+
+fn g11(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P11 { x: a + 3 }
+    q := P11 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g10(total, rest=[1, 2])
+
+data P12:
+    x: i32
+    y: i32 = 2
+
+fn g12(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P12 { x: a + 3 }
+    q := P12 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g11(total, rest=[1, 2])
+
+data P13:
+    x: i32
+    y: i32 = 2
+
+fn g13(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P13 { x: a + 3 }
+    q := P13 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g12(total, rest=[1, 2])
+
+data P14:
+    x: i32
+    y: i32 = 2
+
+fn g14(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P14 { x: a + 3 }
+    q := P14 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g13(total, rest=[1, 2])
+
+data P15:
+    x: i32
+    y: i32 = 2
+
+fn g15(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P15 { x: a + 3 }
+    q := P15 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g14(total, rest=[1, 2])
+
+data P16:
+    x: i32
+    y: i32 = 2
+
+fn g16(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P16 { x: a + 3 }
+    q := P16 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g15(total, rest=[1, 2])
+
+data P17:
+    x: i32
+    y: i32 = 2
+
+fn g17(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P17 { x: a + 3 }
+    q := P17 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g16(total, rest=[1, 2])
+
+data P18:
+    x: i32
+    y: i32 = 2
+
+fn g18(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P18 { x: a + 3 }
+    q := P18 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g17(total, rest=[1, 2])
+
+data P19:
+    x: i32
+    y: i32 = 2
+
+fn g19(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P19 { x: a + 3 }
+    q := P19 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g18(total, rest=[1, 2])
+
+data P20:
+    x: i32
+    y: i32 = 2
+
+fn g20(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P20 { x: a + 3 }
+    q := P20 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g19(total, rest=[1, 2])
+
+data P21:
+    x: i32
+    y: i32 = 2
+
+fn g21(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P21 { x: a + 3 }
+    q := P21 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g20(total, rest=[1, 2])
+
+data P22:
+    x: i32
+    y: i32 = 2
+
+fn g22(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P22 { x: a + 3 }
+    q := P22 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g21(total, rest=[1, 2])
+
+data P23:
+    x: i32
+    y: i32 = 2
+
+fn g23(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P23 { x: a + 3 }
+    q := P23 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g22(total, rest=[1, 2])
+
+data P24:
+    x: i32
+    y: i32 = 2
+
+fn g24(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P24 { x: a + 3 }
+    q := P24 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g23(total, rest=[1, 2])
+
+data P25:
+    x: i32
+    y: i32 = 2
+
+fn g25(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P25 { x: a + 3 }
+    q := P25 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g24(total, rest=[1, 2])
+
+data P26:
+    x: i32
+    y: i32 = 2
+
+fn g26(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P26 { x: a + 3 }
+    q := P26 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g25(total, rest=[1, 2])
+
+data P27:
+    x: i32
+    y: i32 = 2
+
+fn g27(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P27 { x: a + 3 }
+    q := P27 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g26(total, rest=[1, 2])
+
+data P28:
+    x: i32
+    y: i32 = 2
+
+fn g28(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P28 { x: a + 3 }
+    q := P28 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g27(total, rest=[1, 2])
+
+data P29:
+    x: i32
+    y: i32 = 2
+
+fn g29(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P29 { x: a + 3 }
+    q := P29 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g28(total, rest=[1, 2])
+
+data P30:
+    x: i32
+    y: i32 = 2
+
+fn g30(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P30 { x: a + 3 }
+    q := P30 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g29(total, rest=[1, 2])
+
+data P31:
+    x: i32
+    y: i32 = 2
+
+fn g31(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P31 { x: a + 3 }
+    q := P31 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g30(total, rest=[1, 2])
+
+data P32:
+    x: i32
+    y: i32 = 2
+
+fn g32(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P32 { x: a + 3 }
+    q := P32 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g31(total, rest=[1, 2])
+
+data P33:
+    x: i32
+    y: i32 = 2
+
+fn g33(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P33 { x: a + 3 }
+    q := P33 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g32(total, rest=[1, 2])
+
+data P34:
+    x: i32
+    y: i32 = 2
+
+fn g34(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P34 { x: a + 3 }
+    q := P34 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g33(total, rest=[1, 2])
+
+data P35:
+    x: i32
+    y: i32 = 2
+
+fn g35(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P35 { x: a + 3 }
+    q := P35 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g34(total, rest=[1, 2])
+
+data P36:
+    x: i32
+    y: i32 = 2
+
+fn g36(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P36 { x: a + 3 }
+    q := P36 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g35(total, rest=[1, 2])
+
+data P37:
+    x: i32
+    y: i32 = 2
+
+fn g37(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P37 { x: a + 3 }
+    q := P37 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g36(total, rest=[1, 2])
+
+data P38:
+    x: i32
+    y: i32 = 2
+
+fn g38(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P38 { x: a + 3 }
+    q := P38 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g37(total, rest=[1, 2])
+
+data P39:
+    x: i32
+    y: i32 = 2
+
+fn g39(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P39 { x: a + 3 }
+    q := P39 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g38(total, rest=[1, 2])
+
+data P40:
+    x: i32
+    y: i32 = 2
+
+fn g40(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P40 { x: a + 3 }
+    q := P40 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g39(total, rest=[1, 2])
+
+data P41:
+    x: i32
+    y: i32 = 2
+
+fn g41(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P41 { x: a + 3 }
+    q := P41 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g40(total, rest=[1, 2])
+
+data P42:
+    x: i32
+    y: i32 = 2
+
+fn g42(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P42 { x: a + 3 }
+    q := P42 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g41(total, rest=[1, 2])
+
+data P43:
+    x: i32
+    y: i32 = 2
+
+fn g43(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P43 { x: a + 3 }
+    q := P43 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g42(total, rest=[1, 2])
+
+data P44:
+    x: i32
+    y: i32 = 2
+
+fn g44(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P44 { x: a + 3 }
+    q := P44 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g43(total, rest=[1, 2])
+
+data P45:
+    x: i32
+    y: i32 = 2
+
+fn g45(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P45 { x: a + 3 }
+    q := P45 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g44(total, rest=[1, 2])
+
+data P46:
+    x: i32
+    y: i32 = 2
+
+fn g46(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P46 { x: a + 3 }
+    q := P46 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g45(total, rest=[1, 2])
+
+data P47:
+    x: i32
+    y: i32 = 2
+
+fn g47(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P47 { x: a + 3 }
+    q := P47 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g46(total, rest=[1, 2])
+
+data P48:
+    x: i32
+    y: i32 = 2
+
+fn g48(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P48 { x: a + 3 }
+    q := P48 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g47(total, rest=[1, 2])
+
+data P49:
+    x: i32
+    y: i32 = 2
+
+fn g49(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P49 { x: a + 3 }
+    q := P49 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g48(total, rest=[1, 2])
+
+data P50:
+    x: i32
+    y: i32 = 2
+
+fn g50(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P50 { x: a + 3 }
+    q := P50 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g49(total, rest=[1, 2])
+
+data P51:
+    x: i32
+    y: i32 = 2
+
+fn g51(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P51 { x: a + 3 }
+    q := P51 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g50(total, rest=[1, 2])
+
+data P52:
+    x: i32
+    y: i32 = 2
+
+fn g52(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P52 { x: a + 3 }
+    q := P52 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g51(total, rest=[1, 2])
+
+data P53:
+    x: i32
+    y: i32 = 2
+
+fn g53(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P53 { x: a + 3 }
+    q := P53 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g52(total, rest=[1, 2])
+
+data P54:
+    x: i32
+    y: i32 = 2
+
+fn g54(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P54 { x: a + 3 }
+    q := P54 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g53(total, rest=[1, 2])
+
+data P55:
+    x: i32
+    y: i32 = 2
+
+fn g55(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P55 { x: a + 3 }
+    q := P55 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g54(total, rest=[1, 2])
+
+data P56:
+    x: i32
+    y: i32 = 2
+
+fn g56(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P56 { x: a + 3 }
+    q := P56 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g55(total, rest=[1, 2])
+
+data P57:
+    x: i32
+    y: i32 = 2
+
+fn g57(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P57 { x: a + 3 }
+    q := P57 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g56(total, rest=[1, 2])
+
+data P58:
+    x: i32
+    y: i32 = 2
+
+fn g58(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P58 { x: a + 3 }
+    q := P58 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g57(total, rest=[1, 2])
+
+data P59:
+    x: i32
+    y: i32 = 2
+
+fn g59(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P59 { x: a + 3 }
+    q := P59 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g58(total, rest=[1, 2])
+
+data P60:
+    x: i32
+    y: i32 = 2
+
+fn g60(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P60 { x: a + 3 }
+    q := P60 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g59(total, rest=[1, 2])
+
+data P61:
+    x: i32
+    y: i32 = 2
+
+fn g61(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P61 { x: a + 3 }
+    q := P61 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g60(total, rest=[1, 2])
+
+data P62:
+    x: i32
+    y: i32 = 2
+
+fn g62(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P62 { x: a + 3 }
+    q := P62 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g61(total, rest=[1, 2])
+
+data P63:
+    x: i32
+    y: i32 = 2
+
+fn g63(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P63 { x: a + 3 }
+    q := P63 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g62(total, rest=[1, 2])
+
+data P64:
+    x: i32
+    y: i32 = 2
+
+fn g64(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P64 { x: a + 3 }
+    q := P64 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g63(total, rest=[1, 2])
+
+data P65:
+    x: i32
+    y: i32 = 2
+
+fn g65(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P65 { x: a + 3 }
+    q := P65 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g64(total, rest=[1, 2])
+
+data P66:
+    x: i32
+    y: i32 = 2
+
+fn g66(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P66 { x: a + 3 }
+    q := P66 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g65(total, rest=[1, 2])
+
+data P67:
+    x: i32
+    y: i32 = 2
+
+fn g67(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P67 { x: a + 3 }
+    q := P67 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g66(total, rest=[1, 2])
+
+data P68:
+    x: i32
+    y: i32 = 2
+
+fn g68(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P68 { x: a + 3 }
+    q := P68 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g67(total, rest=[1, 2])
+
+data P69:
+    x: i32
+    y: i32 = 2
+
+fn g69(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P69 { x: a + 3 }
+    q := P69 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g68(total, rest=[1, 2])
+
+data P70:
+    x: i32
+    y: i32 = 2
+
+fn g70(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P70 { x: a + 3 }
+    q := P70 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g69(total, rest=[1, 2])
+
+data P71:
+    x: i32
+    y: i32 = 2
+
+fn g71(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P71 { x: a + 3 }
+    q := P71 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g70(total, rest=[1, 2])
+
+data P72:
+    x: i32
+    y: i32 = 2
+
+fn g72(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P72 { x: a + 3 }
+    q := P72 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g71(total, rest=[1, 2])
+
+data P73:
+    x: i32
+    y: i32 = 2
+
+fn g73(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P73 { x: a + 3 }
+    q := P73 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g72(total, rest=[1, 2])
+
+data P74:
+    x: i32
+    y: i32 = 2
+
+fn g74(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P74 { x: a + 3 }
+    q := P74 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g73(total, rest=[1, 2])
+
+data P75:
+    x: i32
+    y: i32 = 2
+
+fn g75(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P75 { x: a + 3 }
+    q := P75 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g74(total, rest=[1, 2])
+
+data P76:
+    x: i32
+    y: i32 = 2
+
+fn g76(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P76 { x: a + 3 }
+    q := P76 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g75(total, rest=[1, 2])
+
+data P77:
+    x: i32
+    y: i32 = 2
+
+fn g77(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P77 { x: a + 3 }
+    q := P77 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g76(total, rest=[1, 2])
+
+data P78:
+    x: i32
+    y: i32 = 2
+
+fn g78(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P78 { x: a + 3 }
+    q := P78 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g77(total, rest=[1, 2])
+
+data P79:
+    x: i32
+    y: i32 = 2
+
+fn g79(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P79 { x: a + 3 }
+    q := P79 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g78(total, rest=[1, 2])
+
+data P80:
+    x: i32
+    y: i32 = 2
+
+fn g80(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P80 { x: a + 3 }
+    q := P80 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g79(total, rest=[1, 2])
+
+data P81:
+    x: i32
+    y: i32 = 2
+
+fn g81(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P81 { x: a + 3 }
+    q := P81 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g80(total, rest=[1, 2])
+
+data P82:
+    x: i32
+    y: i32 = 2
+
+fn g82(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P82 { x: a + 3 }
+    q := P82 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g81(total, rest=[1, 2])
+
+data P83:
+    x: i32
+    y: i32 = 2
+
+fn g83(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P83 { x: a + 3 }
+    q := P83 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g82(total, rest=[1, 2])
+
+data P84:
+    x: i32
+    y: i32 = 2
+
+fn g84(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P84 { x: a + 3 }
+    q := P84 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g83(total, rest=[1, 2])
+
+data P85:
+    x: i32
+    y: i32 = 2
+
+fn g85(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P85 { x: a + 3 }
+    q := P85 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g84(total, rest=[1, 2])
+
+data P86:
+    x: i32
+    y: i32 = 2
+
+fn g86(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P86 { x: a + 3 }
+    q := P86 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g85(total, rest=[1, 2])
+
+data P87:
+    x: i32
+    y: i32 = 2
+
+fn g87(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P87 { x: a + 3 }
+    q := P87 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g86(total, rest=[1, 2])
+
+data P88:
+    x: i32
+    y: i32 = 2
+
+fn g88(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P88 { x: a + 3 }
+    q := P88 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g87(total, rest=[1, 2])
+
+data P89:
+    x: i32
+    y: i32 = 2
+
+fn g89(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P89 { x: a + 3 }
+    q := P89 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g88(total, rest=[1, 2])
+
+data P90:
+    x: i32
+    y: i32 = 2
+
+fn g90(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P90 { x: a + 3 }
+    q := P90 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g89(total, rest=[1, 2])
+
+data P91:
+    x: i32
+    y: i32 = 2
+
+fn g91(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P91 { x: a + 3 }
+    q := P91 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g90(total, rest=[1, 2])
+
+data P92:
+    x: i32
+    y: i32 = 2
+
+fn g92(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P92 { x: a + 3 }
+    q := P92 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g91(total, rest=[1, 2])
+
+data P93:
+    x: i32
+    y: i32 = 2
+
+fn g93(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P93 { x: a + 3 }
+    q := P93 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g92(total, rest=[1, 2])
+
+data P94:
+    x: i32
+    y: i32 = 2
+
+fn g94(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P94 { x: a + 3 }
+    q := P94 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g93(total, rest=[1, 2])
+
+data P95:
+    x: i32
+    y: i32 = 2
+
+fn g95(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P95 { x: a + 3 }
+    q := P95 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g94(total, rest=[1, 2])
+
+data P96:
+    x: i32
+    y: i32 = 2
+
+fn g96(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P96 { x: a + 3 }
+    q := P96 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g95(total, rest=[1, 2])
+
+data P97:
+    x: i32
+    y: i32 = 2
+
+fn g97(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P97 { x: a + 3 }
+    q := P97 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g96(total, rest=[1, 2])
+
+data P98:
+    x: i32
+    y: i32 = 2
+
+fn g98(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P98 { x: a + 3 }
+    q := P98 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g97(total, rest=[1, 2])
+
+data P99:
+    x: i32
+    y: i32 = 2
+
+fn g99(a: i32, b: i32 = 1, rest: i32...) -> i32:
+    p := P99 { x: a + 3 }
+    q := P99 { ...p, x: b }
+    let total: i32 = 0
+    for v in rest:
+        total = total + v
+    doubled := [for v in rest if v > 1 => v * 2]
+    _ := "v=${q.x}"
+    if total > 10:
+        total + q.y + doubled.len()
+    else:
+        g98(total, rest=[1, 2])
+
+fn main() -> i32:
+    g99(1, 2, 3, 4)

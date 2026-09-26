@@ -1,0 +1,9 @@
+# test: fn(...) -> mut Suspend[T] does not strengthen to fn!
+fn make(value: i32) -> mut Suspend[i32]:
+    work(value)
+
+fn work!(value: i32) -> i32: value
+
+fn bad!() -> i32:
+    let callback: fn!(i32) -> i32 = make  # diagnostic: type-mismatch
+    callback!(1)

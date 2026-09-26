@@ -1,0 +1,12 @@
+use std.resource.{ResourceError}
+
+data IoError:
+    message: string
+
+trait FileHandle:
+    fn read!(mut self) -> Result[string, ResourceError[IoError]]
+    fn close(mut self) -> Result[void, ResourceError[IoError]]
+
+fn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:
+    _ := handle.close()?
+    handle.read!()

@@ -1,0 +1,39 @@
+# test: [variant: is operands weakened to readonly] copy-update is shallow and does not re-evaluate field defaults
+# expect: test
+use std.testing.{assert, assert_equal}
+
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+    label: string
+    tags: list[string] = []
+
+test "a copied composite field is shared with the source":
+    let original: mut Parent = Parent { child: Child { name: "a" }, label: "x" }
+    let copy: mut Parent = Parent { ...original, label: "y" }
+    let copy_child: Child = copy.child
+    let original_child: Child = original.child
+    assert(copy_child is original_child, reason="shallow copy shares the child")
+    copy.child.name = "b"
+    assert_equal(original.child.name, "b", reason="mutation through the copy is visible")
+    assert_equal(original.label, "x", reason="replaced primitive field does not affect the source")
+
+test "the spread supplies defaulted fields instead of re-evaluating defaults":
+    let original: mut Parent = Parent { child: Child { name: "a" }, label: "x" }
+    copy := Parent { ...original }
+    assert(copy.tags is original.tags, reason="default is not evaluated for a spread copy")
+
+test "each ordinary construction evaluates the default afresh":
+    first := Parent { child: Child { name: "a" }, label: "1" }
+    second := Parent { child: Child { name: "a" }, label: "2" }
+    assert(not (first.tags is second.tags), reason="one default list per construction")
+
+test "a readonly source with an explicit mut replacement":
+    let original: mut Parent = Parent { child: Child { name: "a" }, label: "x" }
+    let readonly: Parent = original
+    let replaced: mut Parent = Parent { ...readonly, child: Child { name: "fresh" } }
+    replaced.child.name = "changed"
+    assert_equal(original.child.name, "a", reason="replacement child is independent")
+    assert_equal(replaced.label, "x", reason="other fields are copied")

@@ -1,0 +1,10 @@
+# test: generic suspending functions box frame arguments and unbox direct or stored results
+# expect-result: main = 42
+
+fn echo![T](value: T) -> T: value
+
+fn main!() -> i32:
+    let pending: mut Suspend[i32] = echo(20)
+    left := pending!()
+    right := echo!(22)
+    left + right

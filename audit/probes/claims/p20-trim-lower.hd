@@ -1,0 +1,6 @@
+# test: trim and lower are Unicode-aware
+# expect: test
+use std.testing.assert_equal
+
+test "trim lower":
+    assert_equal("  ÉCOLE  ".trim().lower(), "école", reason="unicode trim and lower")

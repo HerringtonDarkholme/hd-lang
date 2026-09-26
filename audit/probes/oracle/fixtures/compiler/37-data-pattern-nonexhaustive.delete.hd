@@ -1,0 +1,8 @@
+# test: constrained data patterns require a fallback arm
+
+data User:
+    age: i32
+    active: bool
+
+fn read(user: User) -> i32:
+        User { age=1 } => 1

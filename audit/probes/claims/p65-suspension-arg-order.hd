@@ -1,0 +1,24 @@
+# test: nested bang calls in arguments and short-circuiting keep left-to-right order
+# expect: test
+use std.testing.assert_equal
+
+let log: string = ""
+
+fn step!(tag: string, value: i32) -> i32:
+    log = log + tag
+    value
+
+fn flag!(tag: string, value: bool) -> bool:
+    log = log + tag
+    value
+
+fn combine(a: i32, b: i32, c: i32) -> i32: a * 100 + b * 10 + c
+
+pub fn main!() -> void:
+    result := combine(step!("a", 1), step!("b", 2) + step!("c", 0), step!("d", 3))
+    assert_equal(result, 123, reason="values")
+    if flag!("f", false) and flag!("X", true):
+        log = log + "!"
+    if flag!("t", true) or flag!("Y", true):
+        log = log + "+"
+    assert_equal(log, "abcdft+", reason="left to right with short-circuit")

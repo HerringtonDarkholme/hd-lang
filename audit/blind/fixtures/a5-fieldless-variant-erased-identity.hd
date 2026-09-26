@@ -1,0 +1,22 @@
+# test: payload-free variants stay canonical after Any conversion and with shared enum data
+# expect: test
+use std.testing.assert
+
+enum Color:
+    Red
+    Green
+
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+test "Any conversion of a canonical variant keeps its identity":
+    let first: Any = Color.Red
+    let second: Any = Color.Red
+    assert(first is second, reason="canonical values are not boxed per conversion")
+
+test "variants with shared enum data are still canonical":
+    first := StatusCode.NotFound
+    second := StatusCode.NotFound
+    assert(first is second, reason="a payload-free variant with shared data is canonical")
+    assert(first.0 == 404, reason="shared data readable")

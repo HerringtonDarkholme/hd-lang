@@ -1,0 +1,4 @@
+# test: Unicode escapes must denote scalar values; surrogates and out-of-range values are rejected
+maximum := "\u{10FFFF}"
+high := "\u{D800}"  # diagnostic: invalid-escape
+beyond := "\u{110000}"  # diagnostic: invalid-escape

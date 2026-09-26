@@ -1,0 +1,6 @@
+# test: data declarations do not acquire equality implicitly
+data Point:
+    x: i32
+
+fn bad(left: Point, right: Point) -> bool:
+    left == right  # diagnostic: missing-partial-eq

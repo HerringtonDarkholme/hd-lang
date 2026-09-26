@@ -1,0 +1,17 @@
+# test: suspending associated functions preserve generic results through qualified bang calls
+# expect: test
+
+use std.testing.assert_equal
+
+data Identity: pass
+
+impl Identity:
+    fn echo![Value](value: Value) -> Value:
+        value
+
+test "a qualified generic suspension returns its concrete value":
+    assert_equal(
+        Identity::echo[i32]!(42),
+        42,
+        reason="the associated function keeps its explicit result type",
+    )

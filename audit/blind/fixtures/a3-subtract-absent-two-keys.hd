@@ -1,0 +1,28 @@
+# test: subtracting a key the callback row can never contain warns; a present key does not
+trait Tag:
+    fn name(self) -> string
+
+trait Clock
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string:
+        self.value
+
+fn provide_tag[r](callback: fn() -> void $ r) -> void $ (r - Tag):
+    $.with(Tag=FixedTag { value: "x" }):
+        callback()
+
+fn tick() -> void $ Clock:
+    pass
+
+fn read_tag() -> void $ Tag:
+    _ := $.use(Tag).name()
+
+fn run_absent() -> void $ Clock:
+    provide_tag(tick)  # warning: requirement-subtract-absent
+
+fn run_present() -> void:
+    provide_tag(read_tag)

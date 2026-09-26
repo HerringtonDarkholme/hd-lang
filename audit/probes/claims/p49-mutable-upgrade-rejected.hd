@@ -1,0 +1,6 @@
+# test: readonly values do not upgrade to mut
+data Counter:
+    value: i32
+
+fn bad(counter: Counter) -> void:
+    let alias: mut Counter = counter  # diagnostic: mutable-upgrade

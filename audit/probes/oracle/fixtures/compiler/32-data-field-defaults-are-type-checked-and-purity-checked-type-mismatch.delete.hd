@@ -1,0 +1,3 @@
+# test: data field defaults are type checked and purity checked
+
+data Bad:

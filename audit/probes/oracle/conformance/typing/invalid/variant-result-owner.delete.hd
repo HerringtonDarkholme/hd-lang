@@ -1,0 +1,4 @@
+enum Other[T]:
+    Value(T)
+
+enum Expr[T]:

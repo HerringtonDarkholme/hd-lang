@@ -1,0 +1,4 @@
+# test: unresolved standard task combinators have a dedicated boundary diagnostic
+
+fn ready!() -> i32: 42
+fn main!() -> i32: all!(ready(), ready())  # diagnostic: unsupported-task-combinator

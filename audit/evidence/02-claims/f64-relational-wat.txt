@@ -1,0 +1,8 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/coverage/raw-wat.ts audit/probes/claims/wat/f64-gt-minimal.hd (excerpt); date 2026-09-25T21:04:37Z
+  (func $f0 (export "gt") (param $l0 f64) (param $l1 f64) (result i32)
+    (local $tmp0 i32)
+    (block (result i32) (local.set $tmp0 (if (result i32) (f64.lt (local.get $l0) (local.get $l1)) (then (i32.const -1)) (else (if (result i32) (f64.gt (local.get $l0) (local.get $l1)) (then (i32.const 1)) (else (if (result i32) (f64.eq (local.get $l0) (local.get $l1)) (then (i32.const 0)) (else (i32.const 2))))))) (i32.eq (local.get $tmp0) (i32.const 1)))
+  )
+PARSE ERROR {"gC":5557736,"message":"685:1: error: expected end of module"} 
+gt body line: open 31 close 30
+gt func (4 lines): open 37 close 36

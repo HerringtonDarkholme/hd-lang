@@ -1,0 +1,4 @@
+data Score:
+    value: i32
+
+fn higher(left: Score, right: Score) -> bool:

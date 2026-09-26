@@ -1,0 +1,4 @@
+# test: optional and Result context errors have stable diagnostics
+
+fn main() -> void:
+    pass

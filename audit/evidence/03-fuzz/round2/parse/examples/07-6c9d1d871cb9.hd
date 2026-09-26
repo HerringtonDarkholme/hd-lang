@@ -1,0 +1,5 @@
+data Child:
+    name: string
+
+fn invalid(children: list[mut Child], replacement: mut Child) -> void:
+    [ 0 ] = replacement

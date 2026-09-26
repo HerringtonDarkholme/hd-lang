@@ -1,0 +1,22 @@
+# test: host token and bool/char scalars (runtime driven by host-token.ts)
+# expect: accept
+# Driven by audit/scripts/coverage/host-token.ts through the Node API (not a CLI fixture).
+pub trait Counter:
+    fn add!(self, left: i32, right: i32) -> i32
+    fn flip!(self, value: bool) -> bool
+    fn next_char!(self, value: char) -> char
+
+fn twice!() -> i32 $ Counter:
+    let total: i32 = 0
+    for value in [1, 2]:
+        total = total + $.use(Counter).add!(value, value)
+    total
+
+fn main!() -> i32 $ Counter:
+    base := twice!()
+    flipped := $.use(Counter).flip!(true)
+    letter := $.use(Counter).next_char!('a')
+    if not flipped and letter == 'b':
+        base
+    else:
+        -1

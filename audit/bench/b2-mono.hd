@@ -1,0 +1,23 @@
+# bench 5.7-2b: monomorphic sum over list[i32], same algorithm as b2-generic
+fn plus(self_value: i32, other: i32) -> i32: (self_value + other) % 1000003
+
+fn sum(items: list[i32]) -> i32:
+    let total: i32 = 0
+    let index: i32 = 0
+    while index < items.len():
+        total = plus(items[index], total)
+        index = index + 1
+    total
+
+fn main() -> i32:
+    let values: mut list[i32] = []
+    let index: i32 = 0
+    while index < 1000:
+        values.append(index)
+        index = index + 1
+    let round: i32 = 0
+    let acc: i32 = 0
+    while round < 2000:
+        acc = (acc + sum(values)) % 1000003
+        round = round + 1
+    acc

@@ -1,0 +1,19 @@
+# test: closures capture transitively and named local functions recurse
+# expect: test
+use std.testing.assert_equal
+
+fn make_adder(base: i32) -> fn(i32) -> i32:
+    offset := 1
+    fn(value: i32) -> i32:
+        inner := fn() -> i32: base + offset
+        value + inner()
+
+test "captures":
+    add := make_adder(10)
+    assert_equal(add(5), 16, reason="transitive capture")
+    fn fact(n: i32) -> i32:
+        if n <= 1:
+            1
+        else:
+            n * fact(n - 1)
+    assert_equal(fact(5), 120, reason="named local recursion")

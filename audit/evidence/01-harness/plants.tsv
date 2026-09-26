@@ -1,0 +1,43 @@
+# commit bd985d7, 2026-09-25, command: node --experimental-strip-types audit/scripts/harness/run-portable-copy.ts --jobs 4 (log: plant-run.log)
+id	suite	file	plan_row	plant	expected	harness_result	verdict
+C00	conformance	typing/c00-control-reject.hd	control	unmodified readonly-mutation copy	pass	pass	ok
+C01	conformance	typing/c01-wrong-line.hd	right code, wrong line	marker moved to line 4	fail	fail	caught
+C02	conformance	typing/c02-wrong-code.hd	wrong code, right line	marker code type-mismatch	fail	fail	caught
+C03	conformance	typing/c03-extra-error.hd	extra unexpected error in reject case	added unknown-name error	fail	pass	MISSED (F-150)
+C04	conformance	typing/c04-accept-with-warning.hd	accept case that emits a warning	added unused local	decide	pass	decided: pass (see SUMMARY)
+C05a	conformance	runtime/c05a-trap-runtime-error.hd	panic ends in generic runtime-error	marker runtime-error on raw wasm trap	fail	fail	caught
+C05b	conformance	runtime/c05b-trap-vs-category.hd	panic ends in generic runtime-error	marker integer-overflow on raw wasm trap	fail	fail	caught
+C06	conformance	runtime/c06-decoy-printed-code.hd	(extra) panic code only in program stdout	println("index-out-of-bounds: ...") then explicit-panic	fail	pass	MISSED (F-152)
+C07	conformance	runtime/c07-panic-wrong-line.hd	(extra) panic marker on wrong line	marker on a non-panicking line	fail	pass	MISSED (F-155)
+C08	conformance	runtime/c08-failing-test-block.hd	runtime case never runs test blocks	failing assert in added test block	fail	fail	caught
+C09	conformance	runtime/c09-failing-main.hd	runtime phase executes	failing assert in main	fail	fail	caught
+C10	conformance	runtime/c10-scenario-skips-tests.hd	runtime case never runs test blocks	panicking test block in a scenario fixture	fail	pass	MISSED (F-154)
+C10b	conformance	runtime/c10b-control-scenario.hd	control	unmodified cancellation-runs-defer copy	pass	pass	ok
+C11	conformance	typing/c11-type-error-in-accept.hd	type phase type-checks	type error appended to typing/valid file	fail	fail	caught
+C12	conformance	parse/c12-parse-only.hd	parse phase only parses	type error appended to parse/valid file	pass	pass	ok (by design)
+C13	conformance	runtime/c13-runtime-accept-panics.hd	runtime phase executes	top-level index-out-of-bounds in accept case	fail	fail	caught
+C14a	conformance	runtime/c14a-crash-in-runtime-accept.hd	crash instead of diagnostic	compiler crash (Binaryen WAT parse) in accept case	fail	fail	caught
+C14b	conformance	runtime/c14b-crash-vs-stack-exhausted.hd	crash instead of diagnostic	RangeError crash where stack-exhausted expected	fail	fail	caught
+C15	conformance	typing/c15-diagnostic-satisfied-by-warning.hd	(extra) diagnostic satisfied by a warning	marker code emitted only as warning, other error elsewhere	fail	pass	MISSED (F-151)
+C17	conformance	typing/c17-marker-typo.hd	(extra) marker typo	# diagnostc: readonly-root	fail	fail	caught (selection check)
+C18	conformance	nested/c18-substring-row.hd	(extra) selection row substring	spec row is outer/nested/...; portable row nested/...	fail	pass	missed (observation, no finding)
+F00	fixtures	f00-control-diagnostic.hd	control	unmodified fixture 07 copy	pass	pass	ok
+F01	fixtures	f01-wrong-line.hd	right code, wrong line	marker on comment line 2	fail	fail	caught
+F02	fixtures	f02-wrong-code.hd	wrong code, right line	marker type-mismatch	fail	fail	caught
+F03	fixtures	f03-extra-error.hd	extra unexpected error in reject case	added type-mismatch function	fail	pass	MISSED (F-150)
+F04	fixtures	f04-accept-with-warning.hd	accept case that emits a warning	# expect: accept with unused local	decide	pass	decided: pass
+F05a	fixtures	f05a-runtime-error-on-host-crash.hd	panic ends in generic runtime-error	# panic: runtime-error, CLI throws "no runnable export"	fail	pass	MISSED (F-153)
+F05b	fixtures	f05b-runtime-error-on-success.hd	panic ends in generic runtime-error	# panic: runtime-error, program succeeds	fail	fail	caught
+F06	fixtures	f06-expect-result-wrong.hd	expect-result with wrong value	1438 -> 1439	fail	fail	caught
+F07	fixtures	f07-expect-result-from-print.hd	(extra) expect-result satisfied by stdout	void main prints 42	fail	pass	MISSED (F-156)
+F08	fixtures	f08-expect-test-failing.hd	runtime case never runs test blocks	# expect: test with failing test	fail	fail	caught
+F09	fixtures	f09-expect-accept-failing-test.hd	(extra) accept only checks	# expect: accept with failing test	pass	pass	ok (by design)
+F10	fixtures	f10-panic-wrong-code.hd	(extra) wrong panic code	integer-overflow marked index-out-of-bounds	fail	fail	caught
+F11	fixtures	f11-panic-decoy-print.hd	(extra) panic code only in program stdout	decoy println then explicit-panic	fail	pass	MISSED (F-152)
+F12	fixtures	f12-diagnostic-satisfied-by-warning.hd	(extra) diagnostic satisfied by a warning	warning and error in same function	fail	fail	caught (warning suppressed by error)
+F12b	fixtures	f12b-diagnostic-satisfied-by-warning.hd	(extra) diagnostic satisfied by a warning	warning and error in different functions	fail	pass	MISSED (F-151)
+F13	fixtures	f13-runtime-error-on-compiler-crash.hd	crash instead of diagnostic	# panic: runtime-error, compiler crashes	fail	pass	MISSED (F-153)
+F14	fixtures	f14-expect-parse-type-error.hd	parse phase only parses	# expect: parse with type error	pass	pass	ok (by design)
+F15	fixtures	f15-mixed-directives.hd	(extra) mixed directive kinds	expect + diagnostic	fail	fail	caught
+F16	fixtures	f16-panic-wrong-line.hd	(extra) panic marker on wrong line	marker on helper line	fail	pass	MISSED (F-155)
+F17	fixtures	f17-expect-result-control.hd	control	main = 42	pass	pass	ok

@@ -1,0 +1,6 @@
+# test: inserting a new map key inside a for loop invalidates the loop iterator
+let values: mut map[string, i32] = {"a": 1, "b": 2}
+
+for key, value in values:  # panic: iterator-invalidated
+    if key == "a":
+        values["c"] = value + 2

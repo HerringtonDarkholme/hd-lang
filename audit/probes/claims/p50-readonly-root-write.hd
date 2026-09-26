@@ -1,0 +1,6 @@
+# test: writing a field through a readonly root is rejected
+data Counter:
+    value: i32
+
+fn bad(counter: Counter) -> void:
+    counter.value = 2  # diagnostic: readonly-root

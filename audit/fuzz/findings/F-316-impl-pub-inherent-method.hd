@@ -1,0 +1,9 @@
+# test: an inherent impl may declare a pub method
+# expect: parse
+# fuzz-signature: parse-agreement|ref-accept/impl-reject|doc-comment-without-target (round 2)
+# fuzz-class: implementation bug (F-316); spec/conformance/parse/valid/declarations.hd line 23 uses the same form
+data Point:
+    x: i32
+
+impl Point:
+    pub fn get(self) -> i32: self.x

@@ -1,0 +1,15 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/alloc-loops.ts audit/probes/arch/alloc/alloc-loops.hd; date: 2026-09-25T20:54:11.182Z
+loop	allocs/iteration	by type (per iteration)
+loop_empty	0	
+loop_for_concrete	2.01	$hd.box-i32=1 $hd.list=0.01 $hd.variant=1
+loop_for_generic	2.01	$hd.box-i32=1 $hd.list=0.01 $hd.variant=1
+loop_generic_call	0	
+loop_closure_call	0	
+loop_closure_create	2	$closure1=1 $env1=1
+loop_interpolation	7	$hd.bytes=7
+loop_bounded	2	$trait0=2
+loop_supertrait	3	$trait1=1 $trait2=2
+loop_blanket	8	$hd.list=2 $trait0=3 $trait1=1 $trait2=2
+loop_suspend_ready	1	$s15=1
+loop_requirement	0	
+loop_with	0	

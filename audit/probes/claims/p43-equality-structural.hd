@@ -1,0 +1,12 @@
+# test: built-in structural equality for tuples, lists, optionals, Result and order-independent maps
+# expect: test
+use std.testing.assert_equal
+
+test "equality":
+    assert_equal((1, "a") == (1, "a"), true, reason="tuple")
+    assert_equal([1, 2] != [2, 1], true, reason="list order matters")
+    assert_equal({"a": 1, "b": 2} == {"b": 2, "a": 1}, true, reason="map order independent")
+    let ok: Result[i32, string] = Ok(1)
+    let same: Result[i32, string] = Ok(1)
+    assert_equal(ok == same, true, reason="result")
+    assert_equal({"b": 2, "a": 1}, {"a": 1, "b": 2}, reason="assert_equal map order independent")

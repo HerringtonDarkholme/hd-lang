@@ -1,0 +1,15 @@
+# test: maps keep insertion order; duplicate literal keys replace in place; reinsertion after remove goes last
+# expect: test
+use std.testing.assert_equal
+
+test "map order":
+    let scores: mut map[string, i32] = {"a": 1, "b": 2, "a": 3}
+    assert_equal(scores.len(), 2, reason="duplicate replaced")
+    assert_equal(scores["a"], 3, reason="last duplicate wins")
+    _ := scores.remove("a")
+    scores["a"] = 4
+    let order: string = ""
+    for key, value in scores:
+        order = order + key
+    assert_equal(order, "ba", reason="reinsertion appends")
+    assert_equal(scores.get("zz"), nil, reason="missing lookup is nil")

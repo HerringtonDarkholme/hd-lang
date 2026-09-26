@@ -1,0 +1,4 @@
+# fixture-package-role: library
+use dep.validation.{Validation}
+use dep.models.{User}
+

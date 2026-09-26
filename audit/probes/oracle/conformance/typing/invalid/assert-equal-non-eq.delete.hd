@@ -1,0 +1,7 @@
+use std.testing.assert_equal
+
+data Error:
+    message: string
+
+test "result equality needs PartialEq":
+    let actual: Result[i32, Error] = Ok(1)

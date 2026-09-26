@@ -1,0 +1,7 @@
+fn add(left: i32, right: i32) -> i32: left + right
+
+fn main() -> i32:
+    one := add(1)
+    two := add(1, 2, 3)
+    three := add("a", 2)
+    one + two + three

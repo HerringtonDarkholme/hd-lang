@@ -1,0 +1,5 @@
+
+trait Convert:
+    fn convert[T](self, value: T) -> string
+
+    pass

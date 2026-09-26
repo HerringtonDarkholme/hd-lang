@@ -1,0 +1,16 @@
+# test: tuple bindings stage the initializer once and bind simultaneously
+# expect: test
+use std.testing.assert_equal
+
+let calls: i32 = 0
+
+fn pair() -> (i32, i32):
+    calls = calls + 1
+    (1, 2)
+
+test "tuple":
+    _ := (left, right := pair())
+    assert_equal(calls, 1, reason="initializer evaluated once")
+    assert_equal(left * 10 + right, 12, reason="element order")
+    triple := (1, "two", 3.0)
+    assert_equal(triple.1, "two", reason="heterogeneous numeric selection")

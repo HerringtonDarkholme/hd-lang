@@ -1,0 +1,23 @@
+# test: a user Iterator implementation drives for loops and comprehensions
+# expect: test
+use std.testing.assert_equal
+
+data Countdown:
+    remaining: i32
+
+impl Iterator[i32] for Countdown:
+    fn next(mut self) -> i32?:
+        if self.remaining == 0:
+            nil
+        else:
+            self.remaining = self.remaining - 1
+            self.remaining + 1
+
+test "iterator":
+    let total: i32 = 0
+    let source: mut Countdown = Countdown { remaining: 3 }
+    for value in source:
+        total = total * 10 + value
+    assert_equal(total, 321, reason="for loop")
+    let again: mut Countdown = Countdown { remaining: 2 }
+    assert_equal([for value in again => value * 2], [4, 2], reason="comprehension")

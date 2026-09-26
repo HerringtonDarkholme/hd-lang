@@ -1,0 +1,9 @@
+pub trait FloatCell:
+    fn sample!(self, value: f64) -> f64
+
+fn echo!(value: f64) -> f64 $ FloatCell:
+    $.use(FloatCell).sample!(value)
+
+fn main!() -> f64 $ FloatCell:
+    let zero: f64 = 0.0
+    echo!(1.0 / zero)

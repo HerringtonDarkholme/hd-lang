@@ -1,0 +1,9 @@
+# test: observation only; shows the mutation through a plain closure executes when accepted
+fn run() -> i32:
+    let items: mut list[i32] = [1]
+    add := fn(value: i32) -> void:
+        items.append(value)
+    add(5)
+    add(7)
+    items.len()
+# expect-result: run = 3

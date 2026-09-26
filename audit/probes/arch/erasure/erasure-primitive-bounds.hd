@@ -1,0 +1,6 @@
+# probe (F-500): primitives do not satisfy the standard PartialEq / PartialOrd bounds
+fn same[T: PartialEq](left: T, right: T) -> bool: left == right
+
+fn lower[T: PartialOrd](left: T, right: T) -> bool: left < right
+
+fn main() -> bool: same(1, 1) and lower(1, 2) and same("a", "a") and lower(1.0, 2.0)

@@ -1,0 +1,39 @@
+# probe 5.2: suspension frame size versus locals live at each suspension point
+fn ready!(value: i32) -> i32: value + 1
+
+# five dead temporaries before the only suspension; nothing but the child is live
+fn wide!(n: i32) -> i32:
+    a := n + 1
+    b := a * 2
+    c := b + 3
+    d := c - 4
+    e := d + a
+    r := ready!(e)
+    r + 1
+
+# loop accumulator: n, total, i live across the suspension; tmp is dead
+fn accumulate!(n: i32) -> i32:
+    let total = 0
+    let i = 0
+    while i < n:
+        tmp := i * 2
+        total = total + ready!(tmp)
+        i = i + 1
+    total
+
+# heap values: text and values live across the first suspension only
+fn heap!(n: i32) -> i32:
+    text := "abc"
+    values := [n, n, n]
+    point := (n, text)
+    first := ready!(values[0] + text.len() + point.0)
+    second := ready!(first)
+    second
+
+# two sequential suspensions with disjoint live sets
+fn phases!(n: i32) -> i32:
+    x := n * 3
+    y := ready!(x)
+    z := y + x
+    w := ready!(z)
+    w

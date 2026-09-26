@@ -1,0 +1,5 @@
+# test: a unicode escape from chapter 01 is a valid string escape
+# expect: parse
+# fuzz-signature: parse-agreement|ref-reject/impl-accept|invalid-escape
+# fuzz-class: reference-parser bug (F-301)
+face := "\u{1F600}"

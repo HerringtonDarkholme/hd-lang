@@ -1,0 +1,245 @@
+# commit bd985d7; command: diff -u test/run-portable.ts audit/scripts/blind/run-blind.ts; date 2026-09-25T21:03:12Z
+--- test/run-portable.ts	2026-09-25 12:39:49
++++ audit/scripts/blind/run-blind.ts	2026-09-25 17:03:11
+@@ -1,5 +1,5 @@
+ import { spawn } from "node:child_process";
+-import { readFile, readdir } from "node:fs/promises";
++import { readFile } from "node:fs/promises";
+ import { availableParallelism } from "node:os";
+ import { resolve } from "node:path";
+ 
+@@ -39,11 +39,10 @@
+   readonly suite: "all" | "conformance" | "fixtures";
+ }
+ 
+-const root = resolve(import.meta.dirname, "..");
+-const portableManifest = resolve(root, "test/portable/cases.tsv");
+-const specManifest = resolve(root, "spec/conformance/cases.tsv");
+-const conformanceRoot = resolve(root, "spec/conformance");
+-const fixtureRoot = resolve(root, "test/fixtures");
++const root = resolve(import.meta.dirname, "../../..");
++// BLIND: manifest and fixture root come from env so corrected copies can reuse the runner.
++const blindManifest = resolve(root, process.env.HD_BLIND_MANIFEST ?? "audit/blind/MANIFEST.tsv");
++const conformanceRoot = resolve(blindManifest, "..");
+ 
+ function splitCommand(value: string): string[] {
+   const parts: string[] = [];
+@@ -137,46 +136,65 @@
+   return results;
+ }
+ 
+-async function readConformanceCases(): Promise<ConformanceCase[]> {
+-  const lines = (await readFile(portableManifest, "utf8")).trimEnd().split("\n");
+-  if (lines.shift() !== "path\tphase") throw new Error(`${portableManifest} has an invalid header`);
+-  return Promise.all(
+-    lines.map(async (row) => {
+-      const [path, phase, ...extra] = row.split("\t");
+-      if (!path || !/^(parse|type|runtime)$/.test(phase ?? "") || extra.length)
+-        throw new Error(`${portableManifest} has an invalid row: ${row}`);
+-      const sourceLines = (await readFile(resolve(conformanceRoot, path), "utf8")).split("\n");
+-      const markers: Array<{ expectation: string; line: number }> = [];
+-      let pendingFunction: string | undefined;
+-      let profile: string | undefined;
+-      let scenario: string | undefined;
+-      for (const [index, sourceLine] of sourceLines.entries()) {
+-        const pendingMarker =
+-          /^# fixture-runtime-pending-function: ([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(sourceLine);
+-        if (pendingMarker) pendingFunction = pendingMarker[1];
+-        const profileMarker = /^# fixture-runtime-profile: ([a-z0-9-]+)\s*$/.exec(sourceLine);
+-        if (profileMarker) profile = profileMarker[1];
+-        const scenarioMarker = /^# fixture-runtime-scenario: ([a-z0-9-]+)\s*$/.exec(sourceLine);
+-        if (scenarioMarker) scenario = scenarioMarker[1];
+-        const marker = /# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/.exec(sourceLine);
+-        if (!marker) continue;
+-        const prefix =
+-          marker[1] === "diagnostic" ? "reject" : marker[1] === "warning" ? "warn" : "panic";
+-        markers.push({ expectation: `${prefix}:${marker[2]}`, line: index + 1 });
+-      }
+-      if (markers.length > 1)
+-        throw new Error(`${path} has more than one conformance expectation marker`);
+-      return {
+-        expectation: markers[0]?.expectation ?? "accept",
+-        line: markers[0]?.line,
+-        path,
+-        pendingFunction,
+-        phase: phase as ConformanceCase["phase"],
+-        profile,
+-        scenario,
+-      };
+-    }),
+-  );
++interface BlindRow {
++  readonly area: string;
++  readonly expectation: string;
++  readonly path: string;
++  readonly phase: ConformanceCase["phase"];
++}
++
++// BLIND: MANIFEST.tsv has columns path, phase, expectation, specification, area, note.
++async function readBlindRows(): Promise<BlindRow[]> {
++  const lines = (await readFile(blindManifest, "utf8")).trimEnd().split("\n");
++  if (lines.shift() !== "path\tphase\texpectation\tspecification\tarea\tnote")
++    throw new Error(`${blindManifest} has an invalid header`);
++  return lines.map((row) => {
++    const [path, phase, expectation, , area] = row.split("\t");
++    if (!path || !/^(parse|type|runtime)$/.test(phase ?? "") || !expectation || !area)
++      throw new Error(`${blindManifest} has an invalid row: ${row}`);
++    return {
++      area,
++      expectation,
++      path,
++      phase: phase as ConformanceCase["phase"],
++    };
++  });
++}
++
++// BLIND: conformance-case marker scan, unchanged except that the row comes from MANIFEST.tsv.
++async function readConformanceCase(row: BlindRow): Promise<ConformanceCase> {
++  const { path, phase } = row;
++  const sourceLines = (await readFile(resolve(conformanceRoot, path), "utf8")).split("\n");
++  const markers: Array<{ expectation: string; line: number }> = [];
++  let pendingFunction: string | undefined;
++  let profile: string | undefined;
++  let scenario: string | undefined;
++  for (const [index, sourceLine] of sourceLines.entries()) {
++    const pendingMarker = /^# fixture-runtime-pending-function: ([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(
++      sourceLine,
++    );
++    if (pendingMarker) pendingFunction = pendingMarker[1];
++    const profileMarker = /^# fixture-runtime-profile: ([a-z0-9-]+)\s*$/.exec(sourceLine);
++    if (profileMarker) profile = profileMarker[1];
++    const scenarioMarker = /^# fixture-runtime-scenario: ([a-z0-9-]+)\s*$/.exec(sourceLine);
++    if (scenarioMarker) scenario = scenarioMarker[1];
++    const marker = /# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/.exec(sourceLine);
++    if (!marker) continue;
++    const prefix =
++      marker[1] === "diagnostic" ? "reject" : marker[1] === "warning" ? "warn" : "panic";
++    markers.push({ expectation: `${prefix}:${marker[2]}`, line: index + 1 });
++  }
++  if (markers.length > 1)
++    throw new Error(`${path} has more than one conformance expectation marker`);
++  return {
++    expectation: markers[0]?.expectation ?? "accept",
++    line: markers[0]?.line,
++    path,
++    pendingFunction,
++    phase,
++    profile,
++    scenario,
++  };
+ }
+ 
+ async function runConformanceCase(
+@@ -231,16 +249,6 @@
+   return `${testCase.path}: invalid expectation ${testCase.expectation}`;
+ }
+ 
+-async function fixturePaths(directory: string): Promise<string[]> {
+-  const paths: string[] = [];
+-  for (const entry of await readdir(directory, { withFileTypes: true })) {
+-    const path = resolve(directory, entry.name);
+-    if (entry.isDirectory()) paths.push(...(await fixturePaths(path)));
+-    else if (entry.isFile() && entry.name.endsWith(".hd")) paths.push(path);
+-  }
+-  return paths.sort();
+-}
+-
+ async function readFixtureCase(path: string): Promise<FixtureCase> {
+   const lines = (await readFile(path, "utf8")).split("\n");
+   let name: string | undefined;
+@@ -327,38 +335,72 @@
+     : undefined;
+ }
+ 
++// BLIND: route each manifest row. A file with '# expect:' or '# expect-result:' directives, or
++// with more than one marker (which the conformance path refuses), uses the fixture path;
++// every other row uses the conformance path with the manifest phase.
++async function runRow(
++  command: readonly string[],
++  row: BlindRow,
++): Promise<{ path: string; route: string; problem?: string }> {
++  const path = resolve(conformanceRoot, row.path);
++  const source = await readFile(path, "utf8");
++  const markerCount = [...source.matchAll(/# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/gm)]
++    .length;
++  if (/^# (expect|expect-result): /m.test(source) || markerCount > 1) {
++    const fixture = await readFixtureCase(path);
++    const codes = fixture.directives.map(({ kind, value }) =>
++      kind === "diagnostic"
++        ? `reject:${value}`
++        : kind === "warning"
++          ? `warn:${value}`
++          : kind === "panic"
++            ? `panic:${value}`
++            : "accept",
++    );
++    if (!codes.includes(row.expectation))
++      return {
++        path: row.path,
++        problem: `${row.path}: manifest expectation ${row.expectation} not among directives ${codes.join(",")}`,
++        route: "fixture",
++      };
++    return {
++      path: row.path,
++      problem: await runFixtureCase(command, fixture),
++      route: "fixture",
++    };
++  }
++  const testCase = await readConformanceCase(row);
++  if (testCase.expectation !== row.expectation)
++    return {
++      path: row.path,
++      problem: `${row.path}: selection does not match MANIFEST.tsv (${testCase.expectation})`,
++      route: "conformance",
++    };
++  return {
++    path: row.path,
++    problem: await runConformanceCase(command, testCase),
++    route: "conformance",
++  };
++}
++
+ async function main(): Promise<number> {
+   const options = parseOptions(process.argv.slice(2));
++  const rows = await readBlindRows();
++  const results = await mapParallel(rows, options.jobs, (row) => runRow(options.command, row));
+   const failures: string[] = [];
+-  let count = 0;
+-  if (options.suite !== "fixtures") {
+-    const cases = (await readConformanceCases()).filter(
+-      ({ phase }) => !options.phase || phase === options.phase,
++  for (const [index, result] of results.entries()) {
++    const row = rows[index]!;
++    console.log(
++      `RESULT\t${row.path}\t${row.area}\t${row.phase}\t${row.expectation}\t${result.route}\t${result.problem ? "FAIL" : "PASS"}`,
+     );
+-    const spec = await readFile(specManifest, "utf8");
+-    for (const testCase of cases)
+-      if (!spec.includes(`${testCase.path}\t${testCase.phase}\t${testCase.expectation}\t`))
+-        failures.push(`${testCase.path}: selection does not match spec/conformance/cases.tsv`);
+-    const problems = await mapParallel(cases, options.jobs, (testCase) =>
+-      runConformanceCase(options.command, testCase),
+-    );
+-    failures.push(...problems.filter((problem): problem is string => Boolean(problem)));
+-    count += cases.length;
++    if (result.problem) failures.push(result.problem);
+   }
+-  if (!options.phase && options.suite !== "conformance") {
+-    const cases = await Promise.all((await fixturePaths(fixtureRoot)).map(readFixtureCase));
+-    const problems = await mapParallel(cases, options.jobs, (testCase) =>
+-      runFixtureCase(options.command, testCase),
+-    );
+-    failures.push(...problems.filter((problem): problem is string => Boolean(problem)));
+-    count += cases.length;
+-  }
+   if (failures.length) {
+     console.error(failures.join("\n\n"));
+-    console.error(`portable tests: ${failures.length} of ${count} failed`);
++    console.error(`blind tests: ${failures.length} of ${rows.length} failed`);
+     return 1;
+   }
+-  console.log(`portable tests: ${count} passed`);
++  console.log(`blind tests: ${rows.length} passed`);
+   return 0;
+ }
+ 

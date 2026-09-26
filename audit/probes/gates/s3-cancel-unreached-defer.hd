@@ -1,0 +1,28 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# S3 gate probe: a defer that was never reached is not registered, so
+# cancellation does not run it.
+let log: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    defer:
+        log = log + "i"
+    wait!()
+    defer:
+        log = log + "X"
+
+fn outer!() -> void:
+    defer:
+        log = log + "o"
+    inner!()
+    defer:
+        log = log + "Y"
+
+pub fn main!() -> void:
+    outer!()
+
+pub fn cleanup_ran() -> bool:
+    log == "io"

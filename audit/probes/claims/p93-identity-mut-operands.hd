@@ -1,0 +1,12 @@
+# test: identity ignores access permission (05-expressions: mut does not change identity)
+# expect: test
+use std.testing.assert_equal
+
+data Box:
+    value: i32
+
+test "mut identity":
+    let original: mut Box = Box { value: 1 }
+    let view: Box = original
+    assert_equal(original is original, true, reason="mut operands")
+    assert_equal(view is original, true, reason="readonly vs mut operand")

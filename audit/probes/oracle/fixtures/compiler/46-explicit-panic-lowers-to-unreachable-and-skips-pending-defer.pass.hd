@@ -1,0 +1,6 @@
+# test: explicit panic lowers to unreachable and skips pending defer
+
+fn main() -> i32:
+    defer:
+        pass
+    panic("boom")

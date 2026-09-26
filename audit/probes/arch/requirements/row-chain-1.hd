@@ -1,0 +1,51 @@
+# probe 5.4: 10-deep row-generic chain; callback row has 1 requirement(s)
+trait R1:
+    fn v(self) -> i32
+
+data P1:
+    x: i32
+
+impl R1 for P1:
+    fn v(self) -> i32: self.x
+
+fn leaf(n: i32) -> i32 $ R1:
+    n + $.use(R1).v()
+
+fn g10[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    cb(n)
+
+fn g9[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g10(cb, n)
+
+fn g8[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g9(cb, n)
+
+fn g7[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g8(cb, n)
+
+fn g6[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g7(cb, n)
+
+fn g5[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g6(cb, n)
+
+fn g4[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g5(cb, n)
+
+fn g3[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g4(cb, n)
+
+fn g2[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g3(cb, n)
+
+fn g1[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+    g2(cb, n)
+
+fn main() -> i32:
+    $.with(R1=P1 { x: 1 }):
+        let index: i32 = 0
+        let total: i32 = 0
+        while index < 200000:
+            total = (total + g1(leaf, index % 7)) % 1000003
+            index = index + 1
+        total

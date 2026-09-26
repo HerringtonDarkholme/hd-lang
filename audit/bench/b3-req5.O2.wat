@@ -1,0 +1,270 @@
+;; commit bd985d7; binaryen -O2 of b3-req5.hd; 2026-09-25T20:54:13.282Z
+(module
+ (rec
+  (type $sig0 (func (param anyref i32 (ref null $trait0) (ref null $trait1) (ref null $trait2) (ref null $trait3) (ref null $trait4)) (result i32)))
+  (type $sig1 (func (param anyref) (result i32)))
+  (type $sig2 (func (param anyref (ref null $d0)) (result i32)))
+  (type $sig3 (func (param anyref (ref null $d1)) (result i32)))
+  (type $sig4 (func (param anyref (ref null $d2)) (result i32)))
+  (type $sig5 (func (param anyref (ref null $d3)) (result i32)))
+  (type $sig6 (func (param anyref (ref null $d4)) (result i32)))
+  (type $tsig0_0 (func (param anyref anyref) (result i32)))
+  (type $tsig1_0 (func (param anyref anyref) (result i32)))
+  (type $tsig2_0 (func (param anyref anyref) (result i32)))
+  (type $tsig3_0 (func (param anyref anyref) (result i32)))
+  (type $tsig4_0 (func (param anyref anyref) (result i32)))
+  (type $tsig5_0 (func (param anyref anyref) (result (ref null $hd.bytes))))
+  (type $tsig6_0 (func (param anyref anyref anyref) (result i32)))
+  (type $tsig7_0 (func (param anyref anyref anyref) (result (ref null $hd.variant))))
+  (type $tsig8_0 (func (param anyref anyref)))
+  (type $tsig9_0 (func (param anyref anyref) (result (ref null $hd.variant))))
+  (type $hd.suspension-poll-sig (func (param anyref) (result i32)))
+  (type $hd.suspension-cancel-sig (func (param anyref)))
+  (type $hd.suspension-result-sig (func (param anyref) (result anyref)))
+  (type $hd.suspension (struct (field $hd.suspension-inner anyref) (field $hd.suspension-poll (ref $hd.suspension-poll-sig)) (field $hd.suspension-cancel (ref $hd.suspension-cancel-sig)) (field $hd.suspension-result (ref $hd.suspension-result-sig))))
+  (type $hd.bytes (array (mut i8)))
+  (type $hd.list (array (mut anyref)))
+  (type $hd.vector (struct (field $hd.vector-size (mut i32)) (field $hd.vector-values (mut (ref $hd.list))) (field $hd.vector-version (mut i32))))
+  (type $hd.iterator (struct (field $hd.iterator-list (ref null $hd.vector)) (field $hd.iterator-map (ref null $hd.map)) (field $hd.iterator-index (mut i32)) (field $hd.iterator-version i32)))
+  (type $hd.map (struct (field $hd.map-key-kind i32) (field $hd.map-size (mut i32)) (field $hd.map-keys (mut (ref $hd.list))) (field $hd.map-values (mut (ref $hd.list))) (field $hd.map-version (mut i32))))
+  (type $hd.providers (struct (field $hd.provider-key i32) (field $hd.provider-value anyref) (field $hd.provider-parent (ref null $hd.providers))))
+  (type $hd.box-i32 (struct (field $hd.box-i32-value i32)))
+  (type $hd.box-f64 (struct (field $hd.box-f64-value f64)))
+  (type $hd.box-extern (struct (field $hd.box-extern-value externref)))
+  (type $hd.variant (struct (field $hd.variant-tag i32) (field $hd.variant-payload (mut anyref))))
+  (type $closure0 (struct (field $closure0fn (ref $sig0)) (field $closure0env anyref)))
+  (type $closure1 (struct (field $closure1fn (ref $sig1)) (field $closure1env anyref)))
+  (type $closure2 (struct (field $closure2fn (ref $sig2)) (field $closure2env anyref)))
+  (type $closure3 (struct (field $closure3fn (ref $sig3)) (field $closure3env anyref)))
+  (type $closure4 (struct (field $closure4fn (ref $sig4)) (field $closure4env anyref)))
+  (type $closure5 (struct (field $closure5fn (ref $sig5)) (field $closure5env anyref)))
+  (type $closure6 (struct (field $closure6fn (ref $sig6)) (field $closure6env anyref)))
+  (type $trait0 (struct (field $trait0value anyref) (field $trait0bounds (ref null $hd.list)) (field $trait0m0 (ref $tsig0_0))))
+  (type $trait1 (struct (field $trait1value anyref) (field $trait1bounds (ref null $hd.list)) (field $trait1m0 (ref $tsig1_0))))
+  (type $trait2 (struct (field $trait2value anyref) (field $trait2bounds (ref null $hd.list)) (field $trait2m0 (ref $tsig2_0))))
+  (type $trait3 (struct (field $trait3value anyref) (field $trait3bounds (ref null $hd.list)) (field $trait3m0 (ref $tsig3_0))))
+  (type $trait4 (struct (field $trait4value anyref) (field $trait4bounds (ref null $hd.list)) (field $trait4m0 (ref $tsig4_0))))
+  (type $trait5 (struct (field $trait5value anyref) (field $trait5bounds (ref null $hd.list)) (field $trait5m0 (ref $tsig5_0))))
+  (type $trait6 (struct (field $trait6value anyref) (field $trait6bounds (ref null $hd.list)) (field $trait6m0 (ref $tsig6_0))))
+  (type $trait7 (struct (field $trait7value anyref) (field $trait7bounds (ref null $hd.list)) (field $trait7m0 (ref $tsig7_0))))
+  (type $trait8 (struct (field $trait8value anyref) (field $trait8bounds (ref null $hd.list)) (field $trait8m0 (ref $tsig8_0))))
+  (type $trait9 (struct (field $trait9value anyref) (field $trait9bounds (ref null $hd.list)) (field $trait9m0 (ref $tsig9_0))))
+  (type $d0 (struct (field $d0f0 (mut i32))))
+  (type $d1 (struct (field $d1f0 (mut i32))))
+  (type $d2 (struct (field $d2f0 (mut i32))))
+  (type $d3 (struct (field $d3f0 (mut i32))))
+  (type $d4 (struct (field $d4f0 (mut i32))))
+  (type $e0 (struct (field $e0tag i32)))
+  (type $hd.runtime (struct (field $status (mut i32)) (field $scratch (mut (ref null $hd.bytes)))))
+ )
+ (type $55 (func (param i32)))
+ (type $56 (func (result i32)))
+ (type $57 (func (param i32 i32) (result i32)))
+ (type $58 (func (param i32 (ref null $trait0) (ref null $trait1) (ref null $trait2) (ref null $trait3) (ref null $trait4)) (result i32)))
+ (import "hd" "panic" (func $hd.panic (type $55) (param i32)))
+ (elem declare func $tadapt0_0 $tadapt1_0 $tadapt2_0 $tadapt3_0 $tadapt4_0)
+ (export "c10" (func $f0))
+ (export "c9" (func $f1))
+ (export "c8" (func $f1))
+ (export "c7" (func $f1))
+ (export "c6" (func $f1))
+ (export "c5" (func $f1))
+ (export "c4" (func $f1))
+ (export "c3" (func $f1))
+ (export "c2" (func $f1))
+ (export "c1" (func $f1))
+ (export "main" (func $f10))
+ (func $hd.add_i32 (type $57) (param $0 i32) (param $1 i32) (result i32)
+  (local $2 i64)
+  (if
+   (i32.or
+    (i64.lt_s
+     (local.tee $2
+      (i64.add
+       (i64.extend_i32_s
+        (local.get $0)
+       )
+       (i64.extend_i32_s
+        (local.get $1)
+       )
+      )
+     )
+     (i64.const -2147483648)
+    )
+    (i64.gt_s
+     (local.get $2)
+     (i64.const 2147483647)
+    )
+   )
+   (then
+    (call $hd.panic
+     (i32.const 2)
+    )
+    (unreachable)
+   )
+  )
+  (i32.wrap_i64
+   (local.get $2)
+  )
+ )
+ (func $f0 (type $58) (param $0 i32) (param $1 (ref null $trait0)) (param $2 (ref null $trait1)) (param $3 (ref null $trait2)) (param $4 (ref null $trait3)) (param $5 (ref null $trait4)) (result i32)
+  (call $hd.add_i32
+   (local.get $0)
+   (call_ref $tsig0_0
+    (struct.get $trait0 $trait0value
+     (local.get $1)
+    )
+    (local.get $1)
+    (struct.get $trait0 $trait0m0
+     (local.get $1)
+    )
+   )
+  )
+ )
+ (func $f1 (type $58) (param $0 i32) (param $1 (ref null $trait0)) (param $2 (ref null $trait1)) (param $3 (ref null $trait2)) (param $4 (ref null $trait3)) (param $5 (ref null $trait4)) (result i32)
+  (call $f0
+   (local.get $0)
+   (local.get $1)
+   (local.get $2)
+   (local.get $3)
+   (local.get $4)
+   (local.get $5)
+  )
+ )
+ (func $f10 (type $56) (result i32)
+  (local $0 i32)
+  (local $1 i32)
+  (local $2 (ref (exact $trait0)))
+  (local $3 (ref (exact $trait1)))
+  (local $4 (ref (exact $trait2)))
+  (local $5 (ref (exact $trait3)))
+  (local $6 (ref (exact $trait4)))
+  (local.set $2
+   (struct.new $trait0
+    (struct.new $d0
+     (i32.const 1)
+    )
+    (ref.null none)
+    (ref.func $tadapt0_0)
+   )
+  )
+  (local.set $3
+   (struct.new $trait1
+    (struct.new $d1
+     (i32.const 1)
+    )
+    (ref.null none)
+    (ref.func $tadapt1_0)
+   )
+  )
+  (local.set $4
+   (struct.new $trait2
+    (struct.new $d2
+     (i32.const 1)
+    )
+    (ref.null none)
+    (ref.func $tadapt2_0)
+   )
+  )
+  (local.set $5
+   (struct.new $trait3
+    (struct.new $d3
+     (i32.const 1)
+    )
+    (ref.null none)
+    (ref.func $tadapt3_0)
+   )
+  )
+  (local.set $6
+   (struct.new $trait4
+    (struct.new $d4
+     (i32.const 1)
+    )
+    (ref.null none)
+    (ref.func $tadapt4_0)
+   )
+  )
+  (loop $loop0
+   (if
+    (i32.eq
+     (select
+      (i32.const -1)
+      (i32.gt_s
+       (local.get $0)
+       (i32.const 2000000)
+      )
+      (i32.lt_s
+       (local.get $0)
+       (i32.const 2000000)
+      )
+     )
+     (i32.const -1)
+    )
+    (then
+     (local.set $1
+      (i32.rem_s
+       (call $hd.add_i32
+        (local.get $1)
+        (call $f0
+         (i32.rem_s
+          (local.get $0)
+          (i32.const 7)
+         )
+         (local.get $2)
+         (local.get $3)
+         (local.get $4)
+         (local.get $5)
+         (local.get $6)
+        )
+       )
+       (i32.const 1000003)
+      )
+     )
+     (local.set $0
+      (call $hd.add_i32
+       (local.get $0)
+       (i32.const 1)
+      )
+     )
+     (br $loop0)
+    )
+   )
+  )
+  (local.get $1)
+ )
+ (func $tadapt0_0 (type $tsig0_0) (param $0 anyref) (param $1 anyref) (result i32)
+  (struct.get $d0 $d0f0
+   (ref.cast (ref $d0)
+    (local.get $0)
+   )
+  )
+ )
+ (func $tadapt1_0 (type $tsig1_0) (param $0 anyref) (param $1 anyref) (result i32)
+  (struct.get $d1 $d1f0
+   (ref.cast (ref $d1)
+    (local.get $0)
+   )
+  )
+ )
+ (func $tadapt2_0 (type $tsig2_0) (param $0 anyref) (param $1 anyref) (result i32)
+  (struct.get $d2 $d2f0
+   (ref.cast (ref $d2)
+    (local.get $0)
+   )
+  )
+ )
+ (func $tadapt3_0 (type $tsig3_0) (param $0 anyref) (param $1 anyref) (result i32)
+  (struct.get $d3 $d3f0
+   (ref.cast (ref $d3)
+    (local.get $0)
+   )
+  )
+ )
+ (func $tadapt4_0 (type $tsig4_0) (param $0 anyref) (param $1 anyref) (result i32)
+  (struct.get $d4 $d4f0
+   (ref.cast (ref $d4)
+    (local.get $0)
+   )
+  )
+ )
+)

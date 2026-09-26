@@ -1,0 +1,8 @@
+# gap probe: readonly check inside a closure body (spec 04-type-system.md#mutable-paths)
+data User:
+    name: string
+
+fn rename(user: User) -> void:
+    change := fn() -> void:
+        user.name = "Grace"  # diagnostic: readonly-root
+    change()

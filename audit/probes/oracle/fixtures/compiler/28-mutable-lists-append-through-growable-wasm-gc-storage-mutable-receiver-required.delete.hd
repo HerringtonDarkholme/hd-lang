@@ -1,0 +1,3 @@
+# test: mutable lists append through growable Wasm GC storage
+
+fn bad(values: list[i32]) -> void:

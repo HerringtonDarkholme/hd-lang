@@ -1,0 +1,15 @@
+# probe 5.1: tuple storage: erased anyref array, casts per read, boxing per element
+fn make(a: i32, b: f64) -> (i32, f64, string): (a, b, "s")
+
+fn first(value: (i32, f64, string)) -> i32: value.0
+
+fn main() -> i32:
+    triple := make(40, 1.5)
+    x, y, z := triple
+    first(triple) + triple.2.len() + above(y, 1.0) + x - 40
+
+fn above(value: f64, limit: f64) -> i32:  # uses == because f64 ordering fails to assemble (F-160)
+    if value == limit:
+        1
+    else:
+        0

@@ -1,0 +1,12 @@
+# Probe for spec/07 hunk H1: a call through a function value in a default
+# expression is rejected even when the callee is pure.
+fn pure_value() -> i32:
+    1
+
+let callback: fn() -> i32 = pure_value
+
+fn with_default(value: i32 = callback()) -> i32:
+    value
+
+fn named_default(value: i32 = pure_value()) -> i32:
+    value

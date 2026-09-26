@@ -1,0 +1,63 @@
+# probe 5.1: is nil a null ref; does i32? box; Result carrier
+data Point:
+    x: i32
+
+fn maybe_int(flag: bool) -> i32?:
+    if flag:
+        40
+    else:
+        nil
+
+fn maybe_float(flag: bool) -> f64?:
+    if flag:
+        1.5
+    else:
+        nil
+
+fn maybe_point(flag: bool) -> Point?:
+    if flag:
+        Point { x: 1 }
+    else:
+        nil
+
+fn maybe_text(flag: bool) -> string?:
+    if flag:
+        "t"
+    else:
+        nil
+
+fn result_int(flag: bool) -> Result[i32, string]:
+    if flag:
+        Ok(1)
+    else:
+        Err("bad")
+
+fn read_int(value: i32?) -> i32:
+    match value:
+        nil => 0
+        actual? => actual
+
+fn read_point(value: Point?) -> i32:
+    match value:
+        nil => 0
+        actual? => actual.x
+
+fn read_result(value: Result[i32, string]) -> i32:
+    match value:
+        Ok(actual) => actual
+        Err(message) => message.len()
+
+fn main() -> i32:
+    float_part := match maybe_float(true):
+        nil => 0
+        f? => above(f, 1.0)
+    text_part := match maybe_text(false):
+        nil => 0
+        t? => t.len()
+    read_int(maybe_int(true)) + read_point(maybe_point(true)) + read_result(result_int(true)) + float_part + text_part
+
+fn above(value: f64, limit: f64) -> i32:  # uses == because f64 ordering fails to assemble (F-160)
+    if value == limit:
+        1
+    else:
+        0

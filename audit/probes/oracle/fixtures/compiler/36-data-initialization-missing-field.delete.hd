@@ -1,0 +1,5 @@
+# test: data initialization rejects missing required fields
+
+data Point:
+    x: i32
+

@@ -1,0 +1,7 @@
+# gap probe: inserting a new map key during for iteration invalidates the iterator
+fn main_loop(scores: mut map[string, i32]) -> void:
+    for key, value in scores:  # panic: iterator-invalidated
+        scores[key + "!"] = value
+
+let scores: mut map[string, i32] = {"a": 1, "b": 2}
+main_loop(scores)

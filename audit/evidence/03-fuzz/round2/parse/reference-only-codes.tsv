@@ -1,0 +1,3 @@
+count	action	code
+162	parse	unclosed-delimiter
+5	parse	unterminated-string

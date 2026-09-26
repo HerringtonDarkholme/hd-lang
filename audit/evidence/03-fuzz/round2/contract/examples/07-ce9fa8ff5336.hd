@@ -1,0 +1,19 @@
+data ParseError:
+    message: string
+
+fn label(value: string?) -> string?:
+    actual := value?
+    "value: " + actual
+
+fn parse(input: string) -> Result[i32, ParseError]:
+    if input == "":
+        return Err ( ParseError { message : "empty" } )
+    Ok ( -0.0 )
+
+fn parse_twice(input: string) -> Result[i32, ParseError]:
+    first := parse(input)?
+    second := parse(input)?
+    Ok(first + second)
+
+let nested: string?? = nil
+let callback: (fn(i32) -> string)? = nil

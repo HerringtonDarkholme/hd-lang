@@ -1,0 +1,20 @@
+fn a() -> i32:
+    true
+
+fn b() -> string:
+    1
+
+fn c() -> i32:
+    x := "s"
+    x + 1
+
+fn d() -> i32:
+    unknown_fn()
+
+fn e() -> i32:
+    let y: i32 = "no"
+    let z: bool = 3
+    0
+
+fn main() -> i32:
+    0

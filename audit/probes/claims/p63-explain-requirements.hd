@@ -1,0 +1,8 @@
+# test: explain-requirements prints transitive paths (checked by CLI in ledger)
+# expect: accept
+trait Clock:
+    fn now(self) -> i32
+
+fn leaf() -> i32 $ Clock: $.use(Clock).now()
+fn middle() -> i32 $ Clock: leaf()
+fn top() -> i32 $ Clock: middle()

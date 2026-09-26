@@ -1,0 +1,21 @@
+# probe 5.6: string crossing, 2^10 bytes, crossing=host
+pub trait TextBridge:
+    fn join!(self, left: string, right: string) -> string
+
+let result_len: i32 = 0
+
+fn build(count: i32) -> string:
+    let s: string = "a"
+    let index: i32 = 0
+    while index < count:
+        s = s + s
+        index = index + 1
+    s
+
+pub fn main!() -> void $ TextBridge:
+    s := build(10)
+    r := $.use(TextBridge).join!(s, "")
+    result_len = r.len()
+
+pub fn length() -> i32:
+    result_len

@@ -1,0 +1,4 @@
+# test: code after return warns
+fn value() -> i32:
+    return 1
+    2  # warning: unreachable-code

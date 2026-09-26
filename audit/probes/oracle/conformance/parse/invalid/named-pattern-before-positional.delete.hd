@@ -1,0 +1,5 @@
+enum Pair:
+    Values(left: i32, right: i32)
+
+fn invalid(value: Pair) -> i32:
+    match value:

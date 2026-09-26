@@ -1,0 +1,8 @@
+# test: `is` between a readonly list binding and a fresh list literal
+# expect-result: probe = 0
+pub fn probe() -> i32:
+    values := [1, 2]
+    if values is [1, 2]:
+        1
+    else:
+        0

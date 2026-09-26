@@ -1,0 +1,4 @@
+fn operation!() -> i32:
+    1
+
+fn invalid() -> i32:

@@ -1,0 +1,29 @@
+# test: length, ordering, split, and replace operate on Unicode scalar values
+# expect: test
+use std.testing.{assert, assert_equal}
+
+test "len counts scalar values":
+    assert_equal("你好".len(), 2, reason="two BMP scalars")
+    assert_equal("😀".len(), 1, reason="one astral scalar, not two UTF-16 units")
+    assert_equal("a😀b".len(), 3, reason="mixed ASCII and astral")
+    assert_equal("é".len(), 2, reason="combining mark is its own scalar")
+
+test "no normalization in equality":
+    assert("é" != "é", reason="canonically equivalent but distinct")
+    assert_equal("é", "é", reason="the same precomposed scalar")
+
+test "ordering compares scalar values, not UTF-16 code units":
+    assert("｡" < "😀", reason="U+FF61 < U+1F600 by scalar value")
+    assert("😀" > "￿", reason="astral sorts after every BMP scalar")
+    assert("a😀" < "a😁", reason="later scalar decides")
+
+test "split with an empty separator yields one-scalar strings":
+    assert_equal("a😀b".split(""), ["a", "😀", "b"], reason="astral scalar stays whole")
+    assert_equal("é".split(""), ["e", "́"], reason="scalars, not graphemes")
+
+test "multibyte separators and replacements":
+    assert_equal("a😀b😀".split("😀"), ["a", "b", ""], reason="astral separator")
+    assert_equal("a😀a".replace("a", "é"), "é😀é", reason="replace keeps the astral scalar")
+    assert("😀x".starts_with("😀"), reason="astral prefix")
+    assert_equal("ÀB".lower(), "àb", reason="lowercasing non-ASCII")
+    assert_equal("İ".lower(), "i̇", reason="full mapping for capital I with dot")

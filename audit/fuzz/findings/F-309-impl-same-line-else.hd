@@ -1,0 +1,7 @@
+# test: a same-line if/else is one conditional expression (chapter 01 example)
+# expect: parse
+# fuzz-signature: parse-agreement|ref-accept/impl-reject|expected-newline
+# fuzz-class: implementation bug (F-309)
+fn pick(c: bool) -> i32:
+    x := if c: 1 else: 2
+    return x

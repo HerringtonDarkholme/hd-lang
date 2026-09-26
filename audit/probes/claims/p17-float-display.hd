@@ -1,0 +1,9 @@
+# test: f64 display uses shortest round-trip formatting
+# expect: test
+use std.testing.assert_equal
+
+test "float display":
+    assert_equal("${0.1 + 0.2}", "0.30000000000000004", reason="shortest round trip")
+    assert_equal("${1.0}", "1.0", reason="integral float keeps a fraction")
+    assert_equal("${-0.0}", "-0.0", reason="negative zero")
+    assert_equal("${1e21}", "1e+21", reason="large exponent")

@@ -1,0 +1,5 @@
+# test: discarding a Result is rejected unless explicitly discarded
+fn parse() -> Result[i32, string]: Ok(1)
+
+fn bad() -> void:
+    parse()  # diagnostic: discarded-must-use-value

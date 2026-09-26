@@ -1,0 +1,33 @@
+# test: parameter defaults may use earlier parameters and are evaluated per call
+# expect: test
+use std.testing.{assert, assert_equal}
+
+fn area(width: i32, height: i32 = width) -> i32:
+    width * height
+
+fn chain(a: i32, b: i32 = a * 2, c: i32 = b + 1) -> i32:
+    a * 100 + b * 10 + c
+
+fn fresh(items: list[i32] = []) -> list[i32]:
+    items
+
+test "a default reads an earlier explicit parameter":
+    assert_equal(area(3), 9, reason="height defaults to width")
+    assert_equal(area(3, 4), 12, reason="explicit height")
+    reversed := area(height=2, width=5)
+    assert_equal(reversed, 10, reason="named arguments in reverse order")
+
+test "chained defaults see earlier defaults and explicit values":
+    assert_equal(chain(1), 123, reason="b = 2, c = 3")
+    assert_equal(chain(1, c=9), 129, reason="b still defaults when c is explicit")
+    explicit_b := chain(a=1, b=5)
+    named_a := chain(c=0, a=2)
+    assert_equal(explicit_b, 156, reason="c sees the explicit b")
+    assert_equal(named_a, 240, reason="b sees the named a")
+
+test "defaults are evaluated for each call":
+    assert(not (fresh() is fresh()), reason="each call allocates a new default list")
+
+test "function values do not inherit defaults":
+    let call: fn(i32, i32) -> i32 = area
+    assert_equal(call(2, 3), 6, reason="positional call through a function value")

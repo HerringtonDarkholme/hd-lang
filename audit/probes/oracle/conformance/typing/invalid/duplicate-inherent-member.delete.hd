@@ -1,0 +1,4 @@
+data User: pass
+
+impl User:
+    fn name(self) -> string: "first"

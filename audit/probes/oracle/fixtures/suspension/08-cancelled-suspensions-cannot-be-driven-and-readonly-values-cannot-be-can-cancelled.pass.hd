@@ -1,0 +1,7 @@
+# test: cancelled suspensions cannot be driven and readonly values cannot be cancelled
+
+fn ready!() -> i32: 42
+pass
+    let pending: mut Suspend[i32] = ready()
+    pending.cancel()
+    pending!()

@@ -1,0 +1,30 @@
+# probe 5.1: map lookup complexity, hashing, insertion order
+fn build(n: i32) -> map[i32, i32]:
+    let values: mut map[i32, i32] = {}
+    let i = 0
+    while i < n:
+        values[i] = i
+        i = i + 1
+    values
+
+fn lookup(n: i32, reps: i32) -> i32:
+    values := build(n)
+    let total = 0
+    let r = 0
+    while r < reps:
+        found := match values.get(r % n):
+            value? => value
+            nil => 0
+        total = total + found
+        r = r + 1
+    total
+
+fn string_keys() -> i32:
+    let names: mut map[string, i32] = {}
+    names["a"] = 1
+    names["b"] = 2
+    match names.get("b"):
+        value? => value
+        nil => 0
+
+fn main() -> i32: lookup(10, 10) + string_keys()

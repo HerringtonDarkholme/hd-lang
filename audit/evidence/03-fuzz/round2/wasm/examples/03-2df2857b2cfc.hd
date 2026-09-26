@@ -1,0 +1,21 @@
+use std.testing.assert
+
+test "map iterator yields entries in insertion order":
+    let values: mut map[string, i32] = {"first": 1, "second": 2}
+    let iterator: mut Iterator[(string, i32)] = values.iter()
+    let first: (string, i32)? = ("first", 1)
+    let second: (string, i32)? = ("second", 2)
+    let exhausted: (string, i32)? = nil
+    assert(iterator.next() == first, reason="the first entry preserves insertion order")
+    assert(iterator.next() == second, reason="the second entry preserves insertion order")
+    assert(iterator.next() == exhausted, reason="the exhausted map iterator returns nil")
+    assert(iterator.next() == exhausted, reason="the exhausted map iterator returns nil")
+
+test "map value replacement preserves an iterator and changes a later yield":
+    let values: mut map[string, i32] = {"first": 1, "second": 2}
+    let iterator: mut Iterator[(string, i32)] = values.iter()
+    let first: (string, i32)? = ("first", 1)
+    let replacement: (string, i32)? = ("second", 42)
+    assert(iterator.next() == first, reason="the iterator advances before replacement")
+    values["second"] = 42
+    assert(iterator.next() == replacement, reason="replacement does not invalidate the iterator")

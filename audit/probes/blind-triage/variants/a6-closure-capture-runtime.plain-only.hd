@@ -1,0 +1,16 @@
+# test: [variant: mut fn tests removed] mut fn closures share captured storage; plain closures observe later writes
+# expect: test
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+fn rename(user: mut User) -> void:
+    user.name = "renamed"
+
+test "a plain closure reads through a readonly view and sees later writes":
+    let user: mut User = User { name: "Ada" }
+    read := fn() -> string: user.name
+    user.name = "Grace"
+    assert_equal(read(), "Grace", reason="readonly view is not a snapshot")
+

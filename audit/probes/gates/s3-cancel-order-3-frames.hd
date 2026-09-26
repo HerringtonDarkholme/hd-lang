@@ -1,0 +1,29 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# S3 gate probe: cancelling the root while the innermost of three frames is
+# pending runs defer suites innermost first ("i", then "m", then "o").
+let log: string = ""
+
+fn wait!() -> void:
+    pass
+
+fn inner!() -> void:
+    defer:
+        log = log + "i"
+    wait!()
+
+fn middle!() -> void:
+    defer:
+        log = log + "m"
+    inner!()
+
+fn outer!() -> void:
+    defer:
+        log = log + "o"
+    middle!()
+
+pub fn main!() -> void:
+    outer!()
+
+pub fn cleanup_ran() -> bool:
+    log == "imo"

@@ -1,0 +1,5 @@
+# test: integer division by zero panics
+fn zero() -> i32: 0
+
+fn main() -> i32:
+    1 / zero()  # panic: integer-division-by-zero

@@ -1,0 +1,24 @@
+# test: default methods call other trait methods; explicit overrides take precedence, also dynamically
+# expect: test
+use std.testing.assert_equal
+
+trait Named:
+    fn name(self) -> string
+    fn greet(self) -> string: "hi " + self.name()
+
+data Plain: pass
+data Custom: pass
+
+impl Named for Plain:
+    fn name(self) -> string: "plain"
+
+impl Named for Custom:
+    fn name(self) -> string: "custom"
+    fn greet(self) -> string: "yo"
+
+fn dynamic(value: Named) -> string: value.greet()
+
+test "defaults":
+    assert_equal(Plain {}.greet(), "hi plain", reason="default")
+    assert_equal(dynamic(Custom {}), "yo", reason="override through dynamic table")
+    assert_equal(dynamic(Plain {}), "hi plain", reason="default through dynamic table")

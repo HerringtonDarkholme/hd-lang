@@ -1,0 +1,65 @@
+[
+  {
+    "siteId": "main:poll:1",
+    "functionName": "main",
+    "functionCodeId": "9917945ca360b4d3",
+    "functionIndex": 3,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "child:poll:1",
+    "functionName": "child",
+    "functionCodeId": "d806cbcfa5d6d6a4",
+    "functionIndex": 1,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "child:provider:Counter.add:44",
+    "functionName": "child",
+    "functionCodeId": "d806cbcfa5d6d6a4",
+    "functionIndex": 1,
+    "providerKey": "Counter",
+    "operation": "provider-poll",
+    "encodedArguments": [
+      {
+        "kind": "i32",
+        "value": 20
+      },
+      {
+        "kind": "i32",
+        "value": 2
+      }
+    ],
+    "encodedResult": "ready",
+    "encodedValue": {
+      "kind": "i32",
+      "value": 22
+    },
+    "providerConfigurationId": "cli-default"
+  },
+  {
+    "siteId": "leaf:poll:1",
+    "functionName": "leaf",
+    "functionCodeId": "8d0188dbb6a16aac",
+    "functionIndex": 2,
+    "providerKey": "$runtime",
+    "operation": "poll",
+    "encodedArguments": [
+      1
+    ],
+    "encodedResult": "ready",
+    "providerConfigurationId": "cli-default"
+  }
+]

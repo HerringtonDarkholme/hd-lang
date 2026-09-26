@@ -1,0 +1,6 @@
+# test: a binding introduced after a short-circuit is not definitely initialized
+fn bad(flag: bool) -> i32:
+    if flag or (inside := 1) > 0:
+        inside  # diagnostic: possibly-uninitialized-binding
+    else:
+        0

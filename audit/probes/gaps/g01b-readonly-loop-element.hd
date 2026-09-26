@@ -1,0 +1,7 @@
+# gap probe: list[User] elements are readonly when iterated (spec 04-type-system.md#mutable-paths, 06-control-flow.md#for-loops)
+data User:
+    name: string
+
+fn rename_all(users: mut list[User]) -> void:
+    for user in users:
+        user.name = "Grace"  # diagnostic: readonly-root

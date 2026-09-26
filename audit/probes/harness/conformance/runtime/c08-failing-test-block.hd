@@ -1,0 +1,20 @@
+use std.testing.assert
+
+let order: i32 = 0
+
+fn ordered_condition() -> bool:
+    order = order + 1
+    order == 2
+
+fn ordered_reason() -> string:
+    order = order + 1
+    "condition should run after this named reason"
+
+test "assert accepts a true condition":
+    assert(1 + 1 == 2, reason="integer addition remains consistent")
+
+test "assert preserves source evaluation order":
+    assert(reason=ordered_reason(), condition=ordered_condition())
+
+test "planted failure":
+    assert(1 == 2, reason="planted failure must fail the case")

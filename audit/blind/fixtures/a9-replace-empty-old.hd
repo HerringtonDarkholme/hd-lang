@@ -1,0 +1,12 @@
+# test: replace is left to right and non-overlapping; empty old inserts at scalar boundaries
+# expect: test
+use std.testing.assert_equal
+
+test "non-overlapping left-to-right replacement":
+    assert_equal("aaa".replace("aa", "b"), "ba", reason="first match wins, no overlap")
+    assert_equal("abab".replace("ab", ""), "", reason="deletion")
+
+test "empty old inserts at every scalar boundary":
+    assert_equal("ab".replace("", "-"), "-a-b-", reason="boundaries include both ends")
+    assert_equal("😀".replace("", "|"), "|😀|", reason="no boundary inside a scalar")
+    assert_equal("".replace("", "x"), "x", reason="the empty string has one boundary")

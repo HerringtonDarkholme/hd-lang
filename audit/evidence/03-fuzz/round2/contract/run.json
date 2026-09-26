@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "cases": 5000,
+    "compilers": [
+      "node --experimental-strip-types bin/hd.js"
+    ],
+    "fuzzer": "contract",
+    "generated": 0,
+    "generatedReferenceAccepted": 0,
+    "maxSignatures": 20,
+    "referenceAccepted": 5000,
+    "requestedCases": 5000,
+    "seconds": 1081,
+    "seed": "r2",
+    "signatures": 11,
+    "stoppedEarly": false,
+    "timeoutMs": 10000,
+    "totalCalls": 19013
+  },
+  "signatures": [
+    {
+      "count": 2227,
+      "details": [
+        "unknown-type",
+        "expected-expression",
+        "expected-token",
+        "duplicate-binding",
+        "unknown-trait",
+        "type-mismatch"
+      ],
+      "firstIndex": 7,
+      "origin": "mutate:typing/invalid/nil-to-any.hd:splice-line+delete-line+replace-literal",
+      "source": "\nlet invalid : Any = 4294967295\n",
+      "minimized": "Any = 4294967295\n",
+      "name": "01-7e7def6eec28",
+      "signature": "contract|uninventoried-code:check|*"
+    },
+    {
+      "count": 2227,
+      "details": [
+        "unknown-type",
+        "expected-expression",
+        "expected-token",
+        "duplicate-binding",
+        "unknown-trait",
+        "type-mismatch"
+      ],
+      "firstIndex": 7,
+      "origin": "mutate:typing/invalid/nil-to-any.hd:splice-line+delete-line+replace-literal",
+      "source": "\nlet invalid : Any = 4294967295\n",
+      "minimized": "Any = 4294967295\n",
+      "name": "02-cbd58a51c971",
+      "signature": "contract|uninventoried-code:run|*"
+    },
+    {
+      "count": 2227,
+      "details": [
+        "unknown-type",
+        "expected-expression",
+        "expected-token",
+        "duplicate-binding",
+        "unknown-trait",
+        "type-mismatch"
+      ],
+      "firstIndex": 7,
+      "origin": "mutate:typing/invalid/nil-to-any.hd:splice-line+delete-line+replace-literal",
+      "source": "\nlet invalid : Any = 4294967295\n",
+      "minimized": "Any = 4294967295\n",
+      "name": "03-a250a47f9535",
+      "signature": "contract|uninventoried-code:test|*"
+    },
+    {
+      "count": 821,
+      "details": [
+        "Error: program has no exported main function"
+      ],
+      "firstIndex": 1,
+      "origin": "mutate:typing/invalid/nonfinal-positional-value-pack.hd:delete-line+delete-line",
+      "source": "\n",
+      "minimized": "\n",
+      "name": "04-f30321e32b51",
+      "signature": "contract|violation:run|no-located-code:Error: program has no exported main function"
+    },
+    {
+      "count": 679,
+      "details": [
+        "Error: program has no main function or test blocks"
+      ],
+      "firstIndex": 1,
+      "origin": "mutate:typing/invalid/nonfinal-positional-value-pack.hd:delete-line+delete-line",
+      "source": "\n",
+      "minimized": "\n",
+      "name": "05-5bce741f092c",
+      "signature": "contract|violation:test|no-located-code:Error: program has no main function or test blocks"
+    },
+    {
+      "count": 1,
+      "details": [
+        "WasmValidationError: Binaryen rejected generated Wasm"
+      ],
+      "firstIndex": 96,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err ( ParseError { message : \"empty\" } )\n    Ok ( -0.0 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 0.0 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "06-81c906bdb45e",
+      "signature": "contract|violation:run|no-located-code:WasmValidationError: Binaryen rejected generated Wasm"
+    },
+    {
+      "count": 1,
+      "details": [
+        "WasmValidationError: Binaryen rejected generated Wasm"
+      ],
+      "firstIndex": 96,
+      "origin": "mutate:typing/valid/option-result.hd:replace-literal",
+      "source": "data ParseError:\n    message: string\n\nfn label(value: string?) -> string?:\n    actual := value?\n    \"value: \" + actual\n\nfn parse(input: string) -> Result[i32, ParseError]:\n    if input == \"\":\n        return Err ( ParseError { message : \"empty\" } )\n    Ok ( -0.0 )\n\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok(first + second)\n\nlet nested: string?? = nil\nlet callback: (fn(i32) -> string)? = nil\n",
+      "minimized": "data ParseError:\n    string\nfn label(value: string?) -> string?:\n    actual := value?\n    actual\nfn parse(input: string) -> Result[i32, ParseError]:\n    Ok ( 0.0 )\nfn parse_twice(input: string) -> Result[i32, ParseError]:\n    first := parse(input)?\n    second := parse(input)?\n    Ok ( second )\n",
+      "name": "07-ce9fa8ff5336",
+      "signature": "contract|violation:test|no-located-code:WasmValidationError: Binaryen rejected generated Wasm"
+    },
+    {
+      "count": 15,
+      "details": [
+        "WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+      ],
+      "firstIndex": 187,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "08-890fdbac8bbb",
+      "signature": "contract|violation:run|no-located-code:WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+    },
+    {
+      "count": 15,
+      "details": [
+        "WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+      ],
+      "firstIndex": 187,
+      "origin": "seed:typing/valid/resource-disposed-result.hd",
+      "source": "use std.resource.{ResourceError}\n\ndata IoError:\n    message: string\n\ntrait FileHandle:\n    fn read!(mut self) -> Result[string, ResourceError[IoError]]\n    fn close(mut self) -> Result[void, ResourceError[IoError]]\n\nfn read_after_close!(handle: mut FileHandle) -> Result[string, ResourceError[IoError]]:\n    _ := handle.close()?\n    handle.read!()\n",
+      "minimized": "use std.resource.{ResourceError}\ndata IoError:\n    string\ntrait FileHandle:\n    fn read ! ( self ) -> Result [ string , ResourceError [ IoError ] ]\n    fn close ( self ) -> Result [ void , ResourceError [ IoError ] ]\nfn read_after_close ! ( handle : FileHandle ) -> Result [ string , ResourceError [ IoError ] ] :\n    _ := handle.close()?\n    handle.read!()\n",
+      "name": "09-d1d667b8b29f",
+      "signature": "contract|violation:test|no-located-code:WasmValidationError: Binaryen could not parse generated WAT: [object Object]"
+    },
+    {
+      "count": 10,
+      "details": [
+        "Error: main has no runnable export"
+      ],
+      "firstIndex": 479,
+      "origin": "mutate:typing/valid/console-error-entry.hd:swap-tokens",
+      "source": "pub fn main() -> Result[void, ConsoleError] $ Console:\n    Ok()\n",
+      "minimized": "fn main ( ) -> Result [ void , ConsoleError ] :\n    Ok()\n",
+      "name": "10-5173187f8489",
+      "signature": "contract|violation:run|no-located-code:Error: main has no runnable export"
+    },
+    {
+      "count": 10,
+      "details": [
+        "Error: main has no runnable export"
+      ],
+      "firstIndex": 479,
+      "origin": "mutate:typing/valid/console-error-entry.hd:swap-tokens",
+      "source": "pub fn main() -> Result[void, ConsoleError] $ Console:\n    Ok()\n",
+      "minimized": "fn main ( ) -> Result [ void , ConsoleError ] :\n    Ok()\n",
+      "name": "11-426b3056c2cd",
+      "signature": "contract|violation:test|no-located-code:Error: main has no runnable export"
+    }
+  ]
+}

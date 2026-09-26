@@ -1,0 +1,21 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/om-timing.ts; date: 2026-09-25T20:41:23.035Z
+# timings are medians of 5-7 runs on a CPU shared with other audit workers; read ratios, not absolutes
+
+## map[i32, i32]: get cost (lookup(n, reps) - lookup(n, 0)), and build cost
+n	build_ms	get_total_ms	ns_per_get	ns_per_get / n
+10	0.001	0.434	21.7	2.170
+100	0.046	0.795	39.7	0.397
+1000	0.602	7.650	382.5	0.383
+10000	131.302	49.799	2490.0	0.249
+
+## string accumulation: text = text + "x" and text = "${text}x" in a loop
+n	concat_ms	interp_ms	concat ms/n	interp ms/n
+1000	0.260	0.285	0.00026	0.00029
+10000	50.914	38.365	0.00509	0.00384
+100000	3488.899	3299.235	0.03489	0.03299
+
+## fresh interpolation "v=${i};" per iteration (no accumulation)
+n	ms	ms/n
+1000	0.035	0.00003
+10000	0.377	0.00004
+100000	2.275	0.00002

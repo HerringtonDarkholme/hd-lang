@@ -1,0 +1,14 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/arch/erasure-bench.ts; date: 2026-09-25T20:54:56.920Z
+# CPU shared with other audit workers: pairs are interleaved, 9 rounds, medians; read ratios
+
+## timing
+case	n	reps	generic_ms	mono_ms	build_ms	ratio generic/mono (build subtracted)
+sum list[i32]	1000	4000	92.46	22.24	0.00	4.16
+sum list[f64]	1000	4000	139.96	19.58	0.00	7.15
+insertion sort list[i32]	300	60	5.93	7.68	0.08	0.77
+
+## allocations per element (instrumented build, one call with reps=1 minus reps=0)
+case	n	generic allocs/elem	mono allocs/elem	generic by type	mono by type
+sum list[i32]	1000	3.01	1.00	$hd.variant=1001 $trait0=1002 $hd.iterator=1 $hd.box-i32=1002	$hd.variant=1001 $hd.iterator=1
+sum list[f64]	1000	3.01	1.00	$hd.variant=1001 $trait0=1002 $hd.iterator=1 $hd.box-f64=1002	$hd.variant=1001 $hd.iterator=1
+insertion sort list[i32]	300	76.12	149.21	$hd.list=9 $trait1=22527 $hd.box-i32=300 $hd.vector=1	$hd.list=9 $hd.box-i32=44754 $hd.vector=1

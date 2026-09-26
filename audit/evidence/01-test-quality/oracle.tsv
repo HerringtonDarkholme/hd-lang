@@ -1,0 +1,630 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/test-quality/oracle-summary.ts (after oracle.ts); date: 2026-09-25
+body	case	expectation	selection	a_neutralized_verdict	b_marker_observed	b_extra_errors	c_runtime_observation	d_accept_twin_in_group	e_scope_flags
+spec/conformance	parse/valid/layout.hd	parse:accept	selected						
+spec/conformance	parse/valid/nested-layout.hd	parse:accept	unselected						
+spec/conformance	parse/valid/declarations.hd	parse:accept	unselected						
+spec/conformance	parse/valid/reserved-receiver-names.hd	parse:accept	selected						
+spec/conformance	parse/valid/expressions.hd	parse:accept	selected						
+spec/conformance	parse/valid/grammar-disambiguation.hd	parse:accept	unselected						
+spec/conformance	parse/valid/functions-and-closures.hd	parse:accept	selected						
+spec/conformance	parse/valid/uses.hd	parse:accept	unselected						
+spec/conformance	parse/valid/data-embedding.hd	parse:accept	selected						
+spec/conformance	parse/invalid/mutable-field-modifier.hd	parse:reject:mutable-field-modifier	selected	isolated-other-errors:expected-token	yes	no		far 0.33 typing/valid/invariant-gadt-result.hd group-accept	
+spec/conformance	parse/invalid/mutable-embedded-field.hd	parse:reject:mutable-embedded-field	selected	isolated-other-errors:expected-token	yes	no		far 0.31 parse/valid/doc-comments.hd group-accept	
+spec/conformance	typing/valid/generic-data-embedding.hd	type:accept	selected						
+spec/conformance	runtime/valid/display-dispatch.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/float-display.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/assert.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/partial-equality-dispatch.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/partial-ordering-dispatch.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/structural-equality.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/structural-ordering.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/list-iterator.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/map-iterator.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/panic/map-iterator-invalidated.hd	runtime:panic:iterator-invalidated	selected	isolated-accepts	yes	n/a		near 0.50 runtime/valid/map-insertion-order.hd group-accept	
+spec/conformance	runtime/panic/for-loop-iterator-invalidated.hd	runtime:panic:iterator-invalidated	selected	isolated-other-errors:expected-expression	yes	n/a		far 0.47 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	runtime/panic/removed-map-iterator-invalidated.hd	runtime:panic:iterator-invalidated	selected	isolated-accepts	yes	n/a		far 0.45 runtime/valid/map-insertion-order.hd group-accept	
+spec/conformance	runtime/panic/explicit-panic.hd	runtime:panic:explicit-panic	selected	isolated-other-errors:unlocated	yes	n/a		far 0.17 typing/valid/host-entry-requirement.hd no-group-accept	
+spec/conformance	runtime/panic/integer-add-overflow.hd	runtime:panic:integer-overflow	selected	isolated-other-errors:unlocated	yes	n/a		far 0.22 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	runtime/panic/invalid-shift.hd	runtime:panic:invalid-shift	selected	isolated-other-errors:unlocated	yes	n/a		far 0.22 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	runtime/panic/list-index-out-of-bounds.hd	runtime:panic:index-out-of-bounds	selected	isolated-accepts	yes	n/a		far 0.23 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	runtime/panic/integer-negation-overflow.hd	runtime:panic:integer-overflow	selected	isolated-accepts	yes	n/a		far 0.25 typing/valid/numeric-corners.hd group-accept	
+spec/conformance	runtime/panic/list-set-out-of-bounds.hd	runtime:panic:index-out-of-bounds	selected	isolated-accepts	yes	n/a		far 0.33 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	typing/invalid/duplicate-generic-embedded-name.hd	type:reject:duplicate-embedded-field	selected	isolated-accepts	yes	no		far 0.43 typing/valid/generic-data-embedding.hd group-accept	
+spec/conformance	parse/invalid/old-struct-declaration.hd	parse:reject:old-struct-declaration	selected	isolated-accepts	yes	no		far 0.13 typing/valid/root-orphan-annotation.hd group-accept	
+spec/conformance	parse/valid/test-block.hd	parse:accept	selected						
+spec/conformance	parse/invalid/declaration-without-let.hd	parse:reject:missing-let	selected	isolated-accepts	yes	no		far 0.46 typing/valid/data-types.hd no-group-accept	
+spec/conformance	parse/invalid/trailing-block-in-brackets.hd	parse:reject:trailing-block-position	selected	isolated-other-errors:mismatched-delimiter	yes	no		near 0.56 typing/valid/closure-identity.hd no-group-accept	
+spec/conformance	parse/invalid/reserved-name-collision.hd	parse:reject:reserved-name	selected	isolated-accepts	yes	no		far 0.44 typing/valid/closure-identity.hd no-group-accept	
+spec/conformance	parse/invalid/direct-variant-use.hd	parse:reject:direct-variant-use	selected	isolated-accepts	yes	no		far 0.24 typing/valid/root-orphan-annotation.hd group-accept	
+spec/conformance	parse/invalid/old-import-declaration.hd	parse:reject:old-import-declaration	selected	isolated-accepts	yes	no		far 0.24 typing/valid/root-orphan-annotation.hd no-group-accept	
+spec/conformance	parse/invalid/old-export-declaration.hd	parse:reject:old-export-declaration	selected	isolated-accepts	yes	no		far 0.24 typing/valid/root-orphan-annotation.hd no-group-accept	
+spec/conformance	parse/invalid/pub-trait-method.hd	parse:reject:trait-method-visibility	selected	isolated-other-errors:doc-comment-without-target	yes	no		far 0.47 typing/valid/public-requirement-row.hd no-group-accept	
+spec/conformance	parse/invalid/chained-comparison.hd	parse:reject:comparison-chaining	selected	isolated-accepts	yes	no		far 0.20 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	parse/invalid/invalid-escape.hd	parse:reject:invalid-escape	selected	isolated-accepts	yes	no		far 0.33 parse/valid/utf8-bom.hd no-group-accept	
+spec/conformance	parse/invalid/named-pattern-before-positional.hd	parse:reject:pattern-order	selected	isolated-other-errors:expected-token	yes	no		near 0.58 typing/valid/named-variant-bindings.hd no-group-accept	
+spec/conformance	typing/invalid/bare-variant-pattern.hd	type:reject:bare-variant-pattern	selected	isolated-other-errors:expected-token	yes	no		far 0.37 typing/valid/match-guards.hd group-accept	
+spec/conformance	parse/valid/unicode-identifiers.hd	parse:accept	selected						
+spec/conformance	parse/valid/utf8-bom.hd	parse:accept	selected						
+spec/conformance	parse/invalid/mid-file-bom.hd	parse:reject:unexpected-bom	selected	isolated-accepts	yes	no		far 0.22 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	parse/invalid/semicolon.hd	parse:reject:reserved-semicolon	selected	isolated-accepts	yes	no		far 0.38 parse/valid/utf8-bom.hd no-group-accept	
+spec/conformance	parse/invalid/tab-indentation.hd	parse:reject:tab-whitespace	selected	isolated-accepts (rerun: pass indented with spaces; first copy kept the tab)	yes	no		near 0.57 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	parse/invalid/positional-after-named.hd	parse:reject:argument-order	selected	isolated-accepts	yes	no		far 0.25 parse/valid/consecutive-trailing-block-calls.hd no-group-accept	
+spec/conformance	typing/invalid/nonfinal-spread.hd	type:reject:nonfinal-positional-spread	selected	isolated-accepts	yes	no		far 0.45 parse/valid/expressions.hd no-group-accept	
+spec/conformance	typing/invalid/missing-return-value.hd	type:reject:missing-return-value	selected	isolated-accepts	yes	no		near 0.50 parse/valid/nested-layout.hd group-accept	
+spec/conformance	typing/valid/bindings.hd	type:accept	selected						
+spec/conformance	typing/valid/collections.hd	type:accept	selected						
+spec/conformance	typing/valid/readonly-list-mutable-elements.hd	type:accept	selected						
+spec/conformance	typing/invalid/readonly-list-element-replacement.hd	type:reject:readonly-root	selected	isolated-accepts	yes	no		near 0.63 typing/valid/readonly-list-mutable-elements.hd group-accept	
+spec/conformance	typing/valid/equality.hd	type:accept	selected						
+spec/conformance	typing/invalid/implicit-data-equality.hd	type:reject:missing-partial-eq	selected	isolated-other-errors:missing-return-value	yes	no		near 0.58 parse/valid/doc-comments.hd group-accept	
+spec/conformance	typing/invalid/primitive-identity.hd	type:reject:identity-requires-references	selected	isolated-other-errors:missing-return-value	yes	no		near 0.71 typing/valid/reference-generic-identity.hd group-accept	
+spec/conformance	typing/valid/comparison-traits.hd	type:accept	selected						
+spec/conformance	typing/invalid/implicit-data-ordering.hd	type:reject:missing-partial-ord	selected	isolated-other-errors:missing-return-value	yes	no		near 0.57 typing/valid/string-semantics.hd group-accept	
+spec/conformance	typing/valid/control-flow.hd	type:accept	selected						
+spec/conformance	typing/valid/enums.hd	type:accept	selected						
+spec/conformance	typing/valid/shared-enum-defaults.hd	type:accept	selected						
+spec/conformance	typing/invalid/impure-shared-enum-default.hd	type:reject:impure-enum-default	selected	isolated-other-errors:expected-expression	yes	no		far 0.43 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	typing/invalid/shared-enum-default-order.hd	type:reject:enum-default-order	selected	isolated-other-errors:expected-expression	yes	no		far 0.47 typing/valid/shared-enum-defaults.hd group-accept	
+spec/conformance	typing/valid/match-guards.hd	type:accept	selected						
+spec/conformance	typing/valid/data-patterns.hd	type:accept	selected						
+spec/conformance	typing/valid/contextual-variants.hd	type:accept	selected						
+spec/conformance	typing/valid/functions.hd	type:accept	selected						
+spec/conformance	typing/valid/local-functions.hd	type:accept	selected						
+spec/conformance	typing/valid/recursive-local-closure.hd	type:accept	selected						
+spec/conformance	typing/invalid/recursive-closure-inferred-result.hd	type:reject:recursive-closure-needs-result-type	selected	isolated-other-errors:expected-expression	yes	no		near 0.71 typing/valid/recursive-local-closure.hd group-accept	
+spec/conformance	typing/valid/local-types.hd	type:accept	unselected						
+spec/conformance	typing/valid/fresh-mutable-values.hd	type:accept	selected						
+spec/conformance	typing/valid/map-indexing.hd	type:accept	selected						
+spec/conformance	typing/valid/readonly-map-mutable-values.hd	type:accept	selected						
+spec/conformance	typing/invalid/readonly-map-entry-replacement.hd	type:reject:readonly-root	selected	isolated-accepts	yes	no		near 0.56 typing/valid/readonly-list-mutable-elements.hd group-accept	
+spec/conformance	typing/valid/iteration-protocol.hd	type:accept	selected						
+spec/conformance	typing/valid/partly-consumed-iterator.hd	type:accept	selected						
+spec/conformance	typing/valid/mutable-paths.hd	type:accept	selected						
+spec/conformance	typing/valid/readonly-callable-mutable-result.hd	type:accept	selected						
+spec/conformance	typing/invalid/readonly-mut-field-reassignment.hd	type:reject:readonly-root	selected	isolated-accepts	yes	no		near 0.58 typing/valid/readonly-callable-mutable-result.hd group-accept	
+spec/conformance	typing/invalid/readonly-mut-field-mutation.hd	type:reject:readonly-root	selected	isolated-accepts	yes	no		near 0.50 typing/valid/readonly-list-mutable-elements.hd group-accept	
+spec/conformance	typing/invalid/readonly-mut-field-method.hd	type:reject:mutable-receiver-required	selected	isolated-accepts	yes	no		near 0.53 typing/valid/readonly-list-mutable-elements.hd group-accept	
+spec/conformance	typing/valid/readonly-outer-mutable-field-init.hd	type:accept	selected						
+spec/conformance	typing/valid/names-and-scopes.hd	type:accept	selected						
+spec/conformance	typing/valid/module-bindings.hd	type:accept	selected						
+spec/conformance	typing/valid/prelude-surface.hd	type:accept	unselected						
+spec/conformance	typing/invalid/forward-module-binding.hd	type:reject:binding-not-yet-visible	selected	isolated-other-errors:missing-return-value	yes	no		far 0.46 typing/valid/module-bindings.hd group-accept	
+spec/conformance	typing/valid/newtypes-and-widening.hd	type:accept	unselected						
+spec/conformance	typing/valid/numeric-types.hd	type:accept	unselected						
+spec/conformance	typing/valid/option-result.hd	type:accept	selected						
+spec/conformance	typing/valid/explicit-discard-and-void-result.hd	type:accept	selected						
+spec/conformance	typing/valid/generic-result-permission.hd	type:accept	selected						
+spec/conformance	typing/valid/data-types.hd	type:accept	selected						
+spec/conformance	typing/valid/copy-update-permissions.hd	type:accept	selected						
+spec/conformance	typing/valid/generic-field-permission.hd	type:accept	selected						
+spec/conformance	typing/invalid/readonly-generic-field-init.hd	type:reject:mutable-upgrade	selected	isolated-accepts	yes	no		near 0.54 typing/valid/readonly-outer-mutable-field-init.hd group-accept	
+spec/conformance	typing/invalid/readonly-spread-mutable-field.hd	type:reject:mutable-upgrade	selected	isolated-other-errors:missing-return-value	yes	no		near 0.61 typing/valid/readonly-callable-mutable-result.hd group-accept	
+spec/conformance	typing/invalid/copy-update-readonly-child.hd	type:reject:readonly-edge	selected	isolated-accepts	yes	no		near 0.63 typing/valid/copy-update-permissions.hd group-accept	
+spec/conformance	typing/valid/data-field-defaults.hd	type:accept	selected						
+spec/conformance	typing/invalid/impure-data-default.hd	type:reject:impure-data-default	selected	isolated-other-errors:expected-token	yes	no		far 0.48 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	typing/invalid/missing-required-data-field.hd	type:reject:missing-required-field	selected	isolated-accepts	yes	no		far 0.41 typing/valid/data-patterns.hd group-accept	
+spec/conformance	typing/valid/trait-features.hd	type:accept	selected						
+spec/conformance	typing/valid/traits.hd	type:accept	unselected						
+spec/conformance	typing/invalid/break-value-without-else.hd	type:reject:break-value-context	selected	isolated-accepts	yes	no		far 0.41 typing/valid/local-functions.hd no-group-accept	
+spec/conformance	typing/invalid/top-level-return.hd	type:reject:return-outside-function	selected	isolated-accepts	yes	no		far 0.07 typing/valid/closure-identity.hd no-group-accept	
+spec/conformance	typing/invalid/reassign-short-binding.hd	type:reject:non-reassignable-binding	selected	isolated-accepts	yes	no		near 0.50 typing/valid/fresh-mutable-values.hd no-group-accept	
+spec/conformance	typing/invalid/possibly-uninitialized-binding.hd	type:reject:possibly-uninitialized-binding	selected	isolated-other-errors:missing-return-value	yes	no		far 0.38 typing/valid/data-types.hd no-group-accept	
+spec/conformance	typing/invalid/readonly-mutation.hd	type:reject:readonly-root	selected	isolated-accepts	yes	no		near 0.67 typing/valid/fresh-mutable-values.hd group-accept	
+spec/conformance	typing/invalid/readonly-function-result.hd	type:reject:readonly-argument-to-mutable-parameter	selected	isolated-accepts	yes	no		near 0.84 typing/valid/fresh-mutable-values.hd group-accept	
+spec/conformance	typing/invalid/mut-upgrade.hd	type:reject:mutable-upgrade	selected	isolated-accepts	yes	no		near 0.56 typing/valid/bindings.hd no-group-accept	
+spec/conformance	typing/invalid/integer-narrowing.hd	type:reject:implicit-narrowing	unselected	isolated-other-errors:unknown-type	no	unknown-type@2		far 0.36 typing/valid/newtypes-and-widening.hd group-accept	
+spec/conformance	typing/invalid/integer-literal-range.hd	type:reject:integer-literal-range	unselected	isolated-accepts	no	unknown-type@2		far 0.22 parse/valid/utf8-bom.hd no-group-accept	
+spec/conformance	typing/invalid/float-literal-range.hd	type:reject:float-literal-range	selected	isolated-accepts	yes	no		far 0.20 parse/valid/utf8-bom.hd no-group-accept	
+spec/conformance	typing/invalid/heterogeneous-list.hd	type:reject:no-common-type	selected	isolated-accepts	yes	no		far 0.32 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	typing/invalid/invalid-map-key.hd	type:reject:invalid-map-key	selected	isolated-accepts	yes	no		far 0.42 typing/valid/generic-data-embedding.hd group-accept	
+spec/conformance	typing/invalid/nominal-map-key.hd	type:reject:invalid-map-key	unselected	isolated-other-errors:expected-expression	no	expected-expression@2		far 0.33 typing/valid/map-indexing.hd group-accept	
+spec/conformance	typing/invalid/tuple-map-key.hd	type:reject:invalid-map-key	selected	isolated-accepts	yes	no		far 0.38 typing/valid/map-indexing.hd group-accept	
+spec/conformance	typing/invalid/float-map-key.hd	type:reject:invalid-map-key	selected	isolated-accepts	yes	no		far 0.33 typing/valid/generic-data-embedding.hd group-accept	
+spec/conformance	typing/valid/generic-map-key.hd	type:accept	unselected						
+spec/conformance	typing/valid/pack-map.hd	type:accept	unselected						
+spec/conformance	typing/invalid/pack-map-mapper-mismatch.hd	type:reject:pack-map-mapper-mismatch	unselected	isolated-accepts	no	unknown-name@5		far 0.45 typing/valid/recursive-local-closure.hd group-accept	
+spec/conformance	typing/valid/mutable-suspension.hd	type:accept	unselected						
+spec/conformance	typing/valid/stored-suspension-driving.hd	type:accept	selected						
+spec/conformance	typing/invalid/readonly-suspension-cancel.hd	type:reject:mutable-receiver-required	selected	isolated-accepts	yes	no		near 0.58 typing/valid/mutable-suspension.hd group-accept	
+spec/conformance	typing/invalid/user-suspend-implementation.hd	type:reject:sealed-trait-implementation	selected	isolated-other-errors:expected-expression	yes	no		far 0.44 typing/valid/mutable-suspension.hd group-accept	
+spec/conformance	runtime/panic/invalidated-iterator.hd	runtime:panic:iterator-invalidated	selected	isolated-accepts	yes	n/a		near 0.51 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	typing/invalid/mixed-signedness.hd	type:reject:mixed-signedness	unselected	isolated-other-errors:unknown-type	no	unknown-type@2		far 0.45 typing/valid/string-semantics.hd group-accept	
+spec/conformance	typing/invalid/unsigned-negation.hd	type:reject:unsigned-negation	unselected	isolated-other-errors:unknown-type	no	unknown-type@2		far 0.23 typing/valid/recursive-local-closure.hd group-accept	
+spec/conformance	typing/invalid/nonnumeric-unary-plus.hd	type:reject:nonnumeric-unary-plus	selected	isolated-accepts	yes	no		far 0.38 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	runtime/panic/integer-divide-by-zero.hd	runtime:panic:integer-division-by-zero	selected	isolated-accepts	yes	n/a		far 0.19 typing/valid/module-bindings.hd group-accept	
+spec/conformance	typing/invalid/missing-mutable-edge.hd	type:reject:readonly-edge	selected	isolated-accepts	yes	no		near 0.60 typing/valid/mutable-paths.hd group-accept	
+spec/conformance	typing/invalid/nil-to-any.hd	type:reject:nil-to-nonoptional	unselected	isolated-accepts	no	unknown-type@2		far 0.22 parse/valid/utf8-bom.hd no-group-accept	
+spec/conformance	typing/invalid/nonexhaustive-match.hd	type:reject:nonexhaustive-match	selected	isolated-other-errors:expected-expression	yes	no		far 0.48 typing/valid/match-guards.hd group-accept	
+spec/conformance	typing/invalid/discarded-result.hd	type:reject:discarded-must-use-value	selected	code-persists	yes	discarded-must-use-value@12 discarded-must-use-value@15		near 0.74 typing/valid/explicit-discard-and-void-result.hd no-group-accept	
+spec/conformance	typing/invalid/discarded-suspension.hd	type:reject:discarded-must-use-value	selected	isolated-accepts	yes	no		far 0.44 typing/valid/public-requirement-row.hd no-group-accept	
+spec/conformance	typing/invalid/guarded-match-not-exhaustive.hd	type:reject:nonexhaustive-match	selected	isolated-other-errors:expected-expression	yes	no		near 0.74 typing/valid/match-guards.hd group-accept	
+spec/conformance	typing/invalid/duplicate-data-pattern-field.hd	type:reject:duplicate-data-pattern-field	selected	isolated-other-errors:expected-token	yes	no		near 0.63 typing/valid/data-patterns.hd group-accept	
+spec/conformance	typing/invalid/contextual-variant-without-type.hd	type:reject:missing-contextual-enum-type	selected	isolated-accepts	yes	no		far 0.43 typing/valid/match-guards.hd no-group-accept	
+spec/conformance	typing/invalid/nonexhaustive-bool-match.hd	type:reject:nonexhaustive-match	selected	isolated-other-errors:expected-expression	yes	no		far 0.41 typing/valid/data-patterns.hd group-accept	
+spec/conformance	typing/invalid/overload.hd	type:reject:duplicate-module-name	selected	isolated-accepts	yes	no		far 0.47 typing/valid/string-semantics.hd no-group-accept	
+spec/conformance	typing/invalid/redeclare-core-type.hd	type:reject:prelude-name-shadow	selected	isolated-other-errors:expected-expression	yes	no		far 0.25 typing/valid/generic-data-embedding.hd no-group-accept	
+spec/conformance	typing/invalid/prelude-shadow.hd	type:reject:prelude-name-shadow	selected	isolated-accepts	yes	no		far 0.13 typing/valid/root-orphan-annotation.hd group-accept	
+spec/conformance	typing/invalid/function-equality.hd	type:reject:unsupported-equality	selected	isolated-other-errors:missing-return-value	yes	no		near 0.53 typing/valid/reference-generic-identity.hd group-accept	
+spec/conformance	typing/invalid/unsaturated-enum-constructor.hd	type:reject:unsaturated-enum-constructor	selected	isolated-accepts	yes	no		far 0.25 typing/valid/readonly-callable-mutable-result.hd no-group-accept	
+spec/conformance	typing/invalid/ambiguous-trait-method.hd	type:reject:ambiguous-method	selected	isolated-other-errors:missing-return-value	yes	no		near 0.52 parse/valid/reserved-receiver-names.hd no-group-accept	
+spec/conformance	typing/invalid/unsafe-dynamic-trait.hd	type:reject:trait-not-dynamically-safe	selected	isolated-other-errors:expected-expression	yes	no		far 0.43 typing/valid/distinct-requirement-keys.hd no-group-accept	
+spec/conformance	typing/invalid/orphan-impl.hd	type:reject:orphan-impl	selected	isolated-other-errors:expected-expression	yes	no		far 0.41 typing/valid/traits.hd group-accept	
+spec/conformance	typing/invalid/local-impl-nonlocal-pair.hd	type:reject:local-impl-nonlocal-pair	unselected	isolated-other-errors:expected-expression	no	expected-expression@9		near 0.63 typing/valid/embedded-trait-opt-in.hd group-accept	
+spec/conformance	typing/invalid/private-type-leak.hd	type:reject:private-type-leak	selected	isolated-other-errors:expected-expression	yes	no		near 0.50 parse/valid/doc-comments.hd group-accept	
+spec/conformance	typing/invalid/variance-position.hd	type:reject:invalid-variance	unselected	isolated-other-errors:expected-token	no	expected-token@2		far 0.45 typing/valid/variance-permission-weakening.hd group-accept	
+spec/conformance	typing/warnings/unreachable-code.hd	type:warn:unreachable-code	selected	isolated-accepts	yes	no		far 0.47 typing/valid/closure-identity.hd no-group-accept	
+spec/conformance	typing/warnings/unused-local-binding.hd	type:warn:unused-local-binding	selected	isolated-accepts	yes	no		far 0.47 typing/valid/public-requirement-row.hd no-group-accept	
+spec/conformance	typing/invalid/duplicate-data-field.hd	type:reject:duplicate-field	selected	isolated-accepts	yes	no		near 0.52 typing/valid/data-types.hd group-accept	
+spec/conformance	typing/valid/requirements-and-suspension.hd	type:accept	selected						
+spec/conformance	typing/valid/variadic-generics.hd	type:accept	unselected						
+spec/conformance	typing/valid/gadts.hd	type:accept	unselected						
+spec/conformance	typing/valid/annotations.hd	type:accept	unselected						
+spec/conformance	typing/valid/full-validation.hd	type:accept	unselected						
+spec/conformance	typing/valid/missing-child-override.hd	type:accept	unselected						
+spec/conformance	typing/invalid/missing-child-annotation.hd	type:reject:missing-child-annotation	unselected	isolated-other-errors:unknown-trait	no	expected-expression@29		near 0.80 typing/valid/missing-child-override.hd group-accept	
+spec/conformance	typing/valid/data-decorator.hd	type:accept	unselected						
+spec/conformance	typing/valid/embedded-field-decorator.hd	type:accept	unselected						
+spec/conformance	typing/invalid/embedded-field-decorator-type.hd	type:reject:invalid-field-metadata	unselected	isolated-other-errors:unknown-type+void-data-field+unknown-trait	no	expected-token@14		near 0.61 typing/valid/embedded-field-decorator.hd group-accept	
+spec/conformance	typing/valid/derived-equality.hd	type:accept	unselected						
+spec/conformance	typing/valid/derived-hash.hd	type:accept	unselected						
+spec/conformance	typing/invalid/derived-hash-field-not-hash.hd	type:reject:field-not-hash	unselected	isolated-other-errors:decorator-not-top-level	no	decorator-not-top-level@4		far 0.27 typing/valid/derived-generic-bound.hd group-accept	
+spec/conformance	typing/valid/derived-ordering.hd	type:accept	unselected						
+spec/conformance	typing/invalid/derived-total-order-float.hd	type:reject:field-not-eq	unselected	isolated-other-errors:decorator-not-top-level	no	decorator-not-top-level@2		far 0.33 typing/valid/derived-generic-bound.hd group-accept	
+spec/conformance	typing/valid/optional-present-pattern.hd	type:accept	selected						
+spec/conformance	typing/invalid/present-pattern-nonoptional.hd	type:reject:optional-pattern-requires-optional	selected	isolated-accepts	yes	no		far 0.40 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	parse/valid/decorators.hd	parse:accept	unselected						
+spec/conformance	typing/invalid/missing-requirement.hd	type:reject:missing-requirement	selected	isolated-accepts	yes	no		near 0.86 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	typing/invalid/bang-call-outside-suspension.hd	type:reject:bang-call-outside-suspension	selected	isolated-other-errors:missing-return-value	yes	no		far 0.47 typing/valid/closure-identity.hd group-accept	
+spec/conformance	typing/invalid/pack-length-mismatch.hd	type:reject:pack-length-mismatch	unselected	isolated-other-errors:unsupported-generic-parameter	no	unsupported-generic-parameter@2		far 0.45 typing/valid/variadic-generics.hd no-group-accept	
+spec/conformance	typing/invalid/impossible-gadt-pattern.hd	type:reject:impossible-gadt-pattern	unselected	isolated-other-errors:unknown-type+void-data-field+unsupported-gadt-result	no	unknown-type@3 void-data-field@3 unsupported-gadt-result@3 unsupported-gadt-result@4 unknown-type@6		far 0.45 typing/valid/gadts.hd no-group-accept	
+spec/conformance	typing/invalid/unknown-annotation-member.hd	type:reject:unknown-annotation-member	unselected	isolated-other-errors:expected-expression	no	expected-expression@5		far 0.40 typing/valid/invariant-gadt-result.hd group-accept	
+spec/conformance	typing/invalid/partial-generic-arguments.hd	type:reject:partial-generic-arguments	selected	isolated-accepts	yes	no		near 0.86 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	typing/valid/generic-argument-placeholder.hd	type:accept	selected						
+spec/conformance	typing/invalid/unresolved-generic-placeholder.hd	type:reject:unresolved-generic-placeholder	selected	isolated-accepts	yes	no		far 0.48 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	typing/valid/explicit-generic-method.hd	type:accept	selected						
+spec/conformance	typing/invalid/partial-generic-method-arguments.hd	type:reject:partial-generic-arguments	selected	isolated-accepts	yes	no		near 0.60 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	typing/invalid/reassign-parameter.hd	type:reject:non-reassignable-parameter-binding	selected	isolated-accepts	yes	no		far 0.47 typing/valid/closure-identity.hd no-group-accept	
+spec/conformance	typing/valid/parameter-decorator.hd	type:accept	unselected						
+spec/conformance	typing/valid/retention-metadata.hd	type:accept	unselected						
+spec/conformance	typing/invalid/parameter-decorator-type.hd	type:reject:invalid-parameter-metadata	unselected	isolated-other-errors:unknown-trait	no	expected-token@10		far 0.44 typing/valid/embedded-field-decorator.hd group-accept	
+spec/conformance	typing/invalid/retention-missing-field.hd	type:reject:unknown-shape-target	unselected	isolated-accepts	no	expected-expression@4		far 0.37 parse/valid/doc-comments.hd group-accept	
+spec/conformance	typing/valid/configured-facet.hd	type:accept	unselected						
+spec/conformance	typing/invalid/configured-facet-not-annotator.hd	type:reject:decorator-not-annotator	unselected	isolated-accepts	no	decorator-not-top-level@4		far 0.33 typing/valid/string-semantics.hd group-accept	
+spec/conformance	parse/invalid/local-decorator.hd	parse:reject:decorator-not-top-level	selected	isolated-other-errors:expected-expression	yes	no		far 0.42 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	typing/valid/generic-annotation-family.hd	type:accept	unselected						
+spec/conformance	typing/invalid/overlapping-generic-annotation.hd	type:reject:overlapping-annotation-impl	unselected	isolated-other-errors:expected-expression	no	expected-expression@11		near 0.92 typing/valid/generic-annotation-family.hd group-accept	
+spec/conformance	typing/valid/direct-annotation-impl.hd	type:accept	unselected						
+spec/conformance	typing/invalid/duplicate-direct-annotation-impl.hd	type:reject:duplicate-annotation-impl	unselected	isolated-other-errors:unknown-trait	no	expected-expression@30		near 0.70 typing/valid/missing-child-override.hd group-accept	
+spec/conformance	typing/invalid/covariant-gadt-result.hd	type:reject:invalid-variance	unselected	isolated-other-errors:expected-token	no	expected-token@4		near 0.74 typing/valid/invariant-gadt-result.hd group-accept	
+spec/conformance	typing/valid/invariant-gadt-result.hd	type:accept	unselected						
+spec/conformance	typing/invalid/variance-representation-change.hd	type:reject:variance-representation-change	unselected	isolated-other-errors:expected-token	no	expected-token@1		far 0.46 typing/valid/derived-generic-bound.hd group-accept	
+spec/conformance	typing/valid/variance-permission-weakening.hd	type:accept	unselected						
+spec/conformance	typing/invalid/transitive-uninitialized-binding.hd	type:reject:top-level-read-before-initialization	selected	isolated-accepts	yes	no		near 1.00 typing/valid/transitive-initialized-binding.hd group-accept	
+spec/conformance	typing/valid/transitive-initialized-binding.hd	type:accept	selected						
+spec/conformance	runtime/valid/module-initialization-before-main.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/cancellation-unwinds-nested-frames.hd	runtime:accept	selected				cleanup_ran-check		
+spec/conformance	runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime:accept	selected				cleanup_ran-check		
+spec/conformance	typing/valid/provider-capturing-closure.hd	type:accept	selected						
+spec/conformance	typing/invalid/row-subtraction-unsound.hd	type:reject:missing-requirement	selected	isolated-accepts	yes	no		near 0.69 typing/valid/row-subtraction-entailment.hd group-accept	
+spec/conformance	typing/valid/row-subtraction-entailment.hd	type:accept	selected						
+spec/conformance	typing/warnings/requirement-subtract-absent.hd	type:warn:requirement-subtract-absent	selected	isolated-accepts	yes	no		near 0.79 typing/valid/row-subtraction-entailment.hd group-accept	
+spec/conformance	typing/invalid/permission-target-overlap.hd	type:reject:overlapping-impl	selected	isolated-accepts	yes	no		far 0.24 typing/valid/iteration-protocol.hd group-accept	
+spec/conformance	typing/invalid/library-orphan-annotation.hd	type:reject:orphan-annotation-in-library	unselected	isolated-accepts	no	expected-expression@5		near 1.00 typing/valid/root-orphan-annotation.hd group-accept	
+spec/conformance	typing/valid/root-orphan-annotation.hd	type:accept	unselected						
+spec/conformance	typing/invalid/annotation-direct-reentry.hd	type:reject:annotation-resolution-reentry	unselected	isolated-other-errors:expected-expression	no	expected-expression@12		near 0.73 typing/valid/lazy-annotation-build.hd group-accept	
+spec/conformance	typing/valid/annotation-reference.hd	type:accept	unselected						
+spec/conformance	typing/invalid/nonhost-entry-requirement.hd	type:reject:nonhost-entry-requirement	selected	isolated-other-errors:expected-expression	yes	private-type-leak@3		near 0.86 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	typing/valid/host-entry-requirement.hd	type:accept	selected						
+spec/conformance	typing/invalid/embedded-mut-trait-bodyless.hd	type:reject:promoted-mutable-requirement	selected	isolated-accepts	yes	no		far 0.45 typing/valid/embedded-trait-opt-in.hd group-accept	
+spec/conformance	typing/valid/embedded-trait-opt-in.hd	type:accept	selected						
+spec/conformance	typing/invalid/derived-generic-bound.hd	type:reject:missing-derived-bound	unselected	isolated-other-errors:decorator-not-top-level	no	decorator-not-top-level@1		near 0.91 typing/valid/derived-generic-bound.hd group-accept	
+spec/conformance	typing/valid/derived-generic-bound.hd	type:accept	unselected						
+spec/conformance	typing/valid/row-kinded-arguments.hd	type:accept	unselected						
+spec/conformance	typing/invalid/row-kind-mismatch.hd	type:reject:generic-kind-mismatch	unselected	isolated-accepts	no	expected-token@4		far 0.48 typing/valid/distinct-requirement-keys.hd group-accept	
+spec/conformance	typing/invalid/multiple-positional-value-packs.hd	type:reject:multiple-positional-value-packs	unselected	isolated-other-errors:expected-expression	no	unsupported-generic-parameter@1		near 0.55 typing/valid/reference-generic-identity.hd no-group-accept	
+spec/conformance	typing/invalid/least-type-weakening-variance.hd	type:reject:no-least-common-type	unselected	isolated-accepts	no	no-common-type@5		far 0.48 typing/valid/readonly-list-mutable-elements.hd group-accept	
+spec/conformance	typing/invalid/plain-closure-mutable-capture.hd	type:reject:mutable-capture-requires-mut-fn	unselected	isolated-accepts	no	no		near 0.68 typing/valid/mutable-closure-capture.hd group-accept	
+spec/conformance	typing/valid/mutable-closure-capture.hd	type:accept	unselected						
+spec/conformance	typing/warnings/variant-binding-name-mismatch.hd	type:warn:variant-binding-name-mismatch	selected	isolated-other-errors:expected-token	yes	no		near 0.81 typing/valid/named-variant-bindings.hd group-accept	
+spec/conformance	typing/valid/named-variant-bindings.hd	type:accept	selected						
+spec/conformance	typing/valid/blanket-impl-and-associated-function.hd	type:accept	selected						
+spec/conformance	typing/valid/numeric-widening-and-display-list.hd	type:accept	unselected						
+spec/conformance	typing/valid/row-polymorphic-callback.hd	type:accept	selected						
+spec/conformance	typing/valid/string-semantics.hd	type:accept	selected						
+spec/conformance	typing/invalid/string-indexing.hd	type:reject:unsupported-string-indexing	selected	isolated-other-errors:missing-return-value	yes	no		near 0.50 typing/valid/transitive-initialized-binding.hd group-accept	
+spec/conformance	typing/valid/numeric-corners.hd	type:accept	unselected						
+spec/conformance	runtime/panic/signed-min-division-overflow.hd	runtime:panic:integer-overflow	selected	isolated-other-errors:missing-return-value	yes	n/a		far 0.47 typing/valid/closure-identity.hd group-accept	
+spec/conformance	typing/valid/composite-ordering.hd	type:accept	selected						
+spec/conformance	typing/invalid/data-annotator-map-build.hd	type:reject:annotation-build-signature	unselected	isolated-other-errors:unknown-trait	no	unknown-trait@5 unknown-trait@8		near 0.69 typing/valid/missing-child-override.hd no-group-accept	
+spec/conformance	runtime/valid/map-insertion-order.hd	runtime:accept	selected				assert		
+spec/conformance	typing/invalid/unbounded-generic-identity.hd	type:reject:identity-needs-reference-bound	selected	isolated-other-errors:missing-return-value	yes	no		near 0.94 typing/valid/reference-generic-identity.hd group-accept	
+spec/conformance	typing/valid/reference-generic-identity.hd	type:accept	selected						
+spec/conformance	typing/invalid/tuple-identity.hd	type:reject:identity-requires-references	selected	isolated-other-errors:missing-return-value	yes	no		near 0.71 typing/valid/reference-generic-identity.hd group-accept	
+spec/conformance	typing/valid/closure-identity.hd	type:accept	selected						
+spec/conformance	typing/invalid/annotation-top-level-read.hd	type:reject:annotation-top-level-read	unselected	isolated-other-errors:expected-expression	no	expected-expression@12		near 0.86 typing/valid/lazy-annotation-build.hd group-accept	
+spec/conformance	typing/valid/lazy-annotation-build.hd	type:accept	unselected						
+spec/conformance	typing/invalid/private-requirement-row.hd	type:reject:private-type-leak	selected	isolated-other-errors:expected-expression	yes	no		near 1.00 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	typing/valid/public-requirement-row.hd	type:accept	selected						
+spec/conformance	typing/valid/shape-api.hd	type:accept	unselected						
+spec/conformance	typing/invalid/metadata-type-as-value.hd	type:reject:type-used-as-value	unselected	isolated-other-errors:unknown-type	no	unknown-type@4		far 0.36 typing/valid/string-semantics.hd group-accept	
+spec/conformance	parse/invalid/doc-comment-without-target.hd	parse:reject:doc-comment-without-target	selected	isolated-accepts	yes	no		far 0.47 typing/valid/closure-identity.hd group-accept	
+spec/conformance	parse/valid/doc-comments.hd	parse:accept	selected						
+spec/conformance	parse/valid/consecutive-trailing-block-calls.hd	parse:accept	selected						
+spec/conformance	parse/invalid/two-trailing-blocks.hd	parse:reject:trailing-block-position	selected	isolated-accepts	yes	no		far 0.38 parse/valid/consecutive-trailing-block-calls.hd group-accept	
+spec/conformance	typing/invalid/contravariant-representation-change.hd	type:reject:variance-representation-change	unselected	isolated-other-errors:expected-token	no	expected-token@1		far 0.45 typing/valid/variance-permission-weakening.hd group-accept	
+spec/conformance	typing/invalid/generic-requirement-key-collision.hd	type:reject:generic-requirement-key-collision	selected	code-persists	yes	generic-requirement-key-collision@11		near 0.85 typing/valid/distinct-requirement-keys.hd group-accept	
+spec/conformance	typing/valid/distinct-requirement-keys.hd	type:accept	selected						
+spec/conformance	runtime/panic/nested-block-on.hd	runtime:panic:suspension-nested-driver	selected	isolated-other-errors:missing-return-value	yes	n/a		near 0.69 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	typing/invalid/assert-equal-non-eq.hd	type:reject:missing-partial-eq	selected	isolated-accepts	yes	no		far 0.38 runtime/valid/map-insertion-order.hd group-accept	
+spec/conformance	typing/invalid/supertrait-cycle.hd	type:reject:supertrait-cycle	selected	isolated-other-errors:unknown-trait	yes	supertrait-cycle@1		far 0.44 typing/valid/public-requirement-row.hd no-group-accept	
+spec/conformance	typing/invalid/missing-trait-method.hd	type:reject:missing-trait-method	selected	isolated-accepts	yes	no		near 0.67 parse/valid/reserved-receiver-names.hd group-accept	
+spec/conformance	typing/invalid/trait-method-signature.hd	type:reject:trait-method-signature	selected	isolated-other-errors:doc-comment-without-target	yes	no		near 0.62 parse/valid/reserved-receiver-names.hd group-accept	
+spec/conformance	typing/invalid/duplicate-inherent-member.hd	type:reject:duplicate-inherent-member	selected	isolated-accepts	yes	no		far 0.48 parse/valid/reserved-receiver-names.hd no-group-accept	
+spec/conformance	typing/invalid/variant-result-owner.hd	type:reject:variant-result-owner	unselected	isolated-other-errors:expected-token	no	expected-token@2		far 0.36 typing/valid/reference-generic-identity.hd group-accept	
+spec/conformance	typing/invalid/duplicate-trait-member.hd	type:reject:duplicate-trait-member	selected	isolated-accepts	yes	no		far 0.46 parse/valid/reserved-receiver-names.hd no-group-accept	
+spec/conformance	typing/valid/resource-disposed-result.hd	type:accept	selected						
+spec/conformance	typing/invalid/unrepresentable-type-shape.hd	type:reject:unrepresentable-type-shape	unselected	isolated-accepts	no	expected-expression@7		far 0.28 typing/valid/readonly-callable-mutable-result.hd group-accept	
+spec/conformance	typing/invalid/suspension-forbidden-context.hd	type:reject:suspension-forbidden-context	selected	isolated-other-errors:unknown-name	yes	no		near 0.59 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	typing/invalid/reimport-prelude-name.hd	type:reject:prelude-name-shadow	selected	isolated-accepts	yes	no		far 0.38 typing/valid/string-semantics.hd group-accept	
+spec/conformance	parse/invalid/multi-binding-needs-parentheses.hd	parse:reject:multi-binding-needs-parentheses	selected	isolated-accepts	yes	no		near 0.54 typing/valid/generic-argument-placeholder.hd group-accept	
+spec/conformance	typing/invalid/mixed-numeric-power.hd	type:reject:mixed-numeric-types	selected	isolated-other-errors:missing-return-value	yes	no		far 0.43 typing/valid/numeric-corners.hd group-accept	
+spec/conformance	runtime/panic/second-suspension-drive.hd	runtime:panic:suspension-invalid-state	selected	isolated-accepts	yes	n/a		near 0.71 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	runtime/panic/test-block-on.hd	runtime:panic:suspension-nested-driver	selected	isolated-other-errors:missing-return-value	yes	n/a		near 0.59 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	runtime/panic/reentrant-cancel.hd	runtime:panic:suspension-reentrant-poll	selected	isolated-accepts	yes	n/a		near 0.51 typing/valid/mutable-suspension.hd group-accept	
+spec/conformance	runtime/valid/construction-provider-capture.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/resource-disposed-result.hd	runtime:accept	unselected				panic-guard		
+spec/conformance	runtime/panic/competing-suspension-drivers.hd	runtime:panic:suspension-competing-driver	selected	code-persists (scenario harness panics regardless of the marked line)	yes	n/a		far 0.44 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	runtime/panic/reentrant-suspension-poll.hd	runtime:panic:suspension-reentrant-poll	selected	code-persists (scenario harness panics regardless of the marked line)	yes	n/a		far 0.44 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	typing/invalid/nonfinal-positional-value-pack.hd	type:reject:nonfinal-positional-value-pack	unselected	isolated-other-errors:expected-expression	no	unsupported-generic-parameter@1		far 0.45 typing/valid/mutable-suspension.hd no-group-accept	
+spec/conformance	typing/valid/console-error-entry.hd	type:accept	selected						
+spec/conformance	typing/invalid/nondisplay-entry-error.hd	type:reject:entry-error-not-display	selected	isolated-other-errors:expected-expression	yes	private-type-leak@3		near 0.57 typing/valid/console-error-entry.hd group-accept	
+spec/conformance	typing/valid/defer-cleanup.hd	type:accept	selected						
+spec/conformance	typing/invalid/top-level-defer.hd	type:reject:defer-outside-cleanup-scope	selected	isolated-other-errors:expected-expression	yes	no		far 0.14 parse/valid/utf8-bom.hd group-accept	
+spec/conformance	typing/invalid/defer-suspends.hd	type:reject:suspending-defer	selected	isolated-accepts	yes	no		far 0.47 typing/valid/public-requirement-row.hd group-accept	
+spec/conformance	typing/invalid/defer-block-on.hd	type:reject:suspension-forbidden-context	selected	isolated-accepts	yes	no		near 0.59 typing/valid/stored-suspension-driving.hd group-accept	
+spec/conformance	runtime/valid/defer-order.hd	runtime:accept	selected				assert		
+spec/conformance	runtime/valid/cancellation-runs-defer.hd	runtime:accept	selected				cleanup_ran-check		
+spec/conformance	runtime/valid/generic-data-embedding.hd	runtime:accept	selected				assert		
+test/fixtures	compiler-types/callbacks/function-values.hd	result	run-portable				result		
+test/fixtures	compiler-types/callbacks/readonly-result.hd	result	run-portable				result		
+test/fixtures	compiler-types/callbacks/requirement-function-values.hd	result	run-portable				result		
+test/fixtures	compiler-types/callbacks/trailing.hd	result	run-portable				result		
+test/fixtures	compiler-types/closures/captures.hd	result	run-portable				result		
+test/fixtures	compiler-types/closures/nested-captures.hd	result	run-portable				result		
+test/fixtures	compiler-types/closures/provider-captures.hd	result	run-portable				result		
+test/fixtures	compiler-types/closures/requirement-inference/inferred-row.hd	result	run-portable				result		
+test/fixtures	compiler-types/closures/requirement-inference/missing-requirement.hd	diagnostic:missing-requirement	run-portable	isolated-other-errors:missing-return-value	yes	no		near 1.00 compiler-types/closures/requirement-inference/inferred-row.hd group-accept	
+test/fixtures	compiler-types/closures/requirements.hd	result	run-portable				result		
+test/fixtures	compiler-types/collections/lists/empty-needs-context.hd	diagnostic:empty-list-needs-context	run-portable	isolated-accepts	yes	no		near 0.61 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	
+test/fixtures	compiler-types/collections/lists/erased-storage.hd	result	run-portable				result		
+test/fixtures	compiler-types/collections/lists/heterogeneous-elements.hd	diagnostic:no-common-type	run-portable	isolated-accepts	yes	no		near 0.60 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	
+test/fixtures	compiler-types/collections/lists/void-element-type.hd	diagnostic:unknown-type	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.58 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	
+test/fixtures	compiler-types/collections/maps/empty-needs-context.hd	diagnostic:empty-map-needs-context	run-portable	isolated-accepts	yes	no		near 0.56 compiler-types/requirements/normalization/explicit-empty-row.hd group-accept	
+test/fixtures	compiler-types/collections/maps/float-key.hd	diagnostic:unsupported-map-key	run-portable	isolated-accepts	yes	no		far 0.47 compiler-types/requirements/normalization/explicit-empty-row.hd group-accept	
+test/fixtures	compiler-types/collections/maps/heterogeneous-values.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.55 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	
+test/fixtures	compiler-types/collections/maps/lookup-replacement.hd	result	run-portable				result		results=3
+test/fixtures	compiler-types/collections/trait-lists.hd	result	run-portable				result		
+test/fixtures	compiler-types/data/generic/erased-layout.hd	result	run-portable				result		
+test/fixtures	compiler-types/data/generic/mismatched-field-type.hd	diagnostic:generic-type-mismatch	run-portable	isolated-accepts	yes	no		near 0.67 compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default.hd group-accept	
+test/fixtures	compiler-types/enums/generic/context-required.hd	diagnostic:generic-enum-needs-context	run-portable	isolated-accepts	yes	no		far 0.48 frontend/22-parser-retains-nested-result-payload-patterns.hd group-accept	
+test/fixtures	compiler-types/enums/generic/erased-payloads.hd	result	run-portable				result		
+test/fixtures	compiler-types/enums/generic/unsaturated-type.hd	diagnostic:unknown-type	run-portable	isolated-other-errors:expected-expression	yes	no		far 0.39 compiler-types/requirements/generic-provider-keys/occurs-check.hd group-accept	
+test/fixtures	compiler-types/generics/callable-adapter.hd	result	run-portable				result		
+test/fixtures	compiler-types/generics/functions/inconsistent-inference.hd	diagnostic:generic-type-mismatch	run-portable	isolated-accepts	yes	no		near 0.54 compiler-types/generics/callable-adapter.hd group-accept	
+test/fixtures	compiler-types/generics/functions/inference-and-boxing.hd	result	run-portable				result		
+test/fixtures	compiler-types/generics/functions/unresolved-placeholder.hd	diagnostic:unresolved-generic-placeholder	run-portable	isolated-accepts	yes	no		near 0.57 compiler-types/generics/callable-adapter.hd group-accept	
+test/fixtures	compiler-types/generics/functions/unsaturated-function-value.hd	diagnostic:generic-function-value-needs-arguments	run-portable	isolated-accepts	yes	no		near 0.50 compiler-types/requirements/normalization/explicit-empty-row.hd group-accept	
+test/fixtures	compiler-types/generics/option-result.hd	result	run-portable				result		
+test/fixtures	compiler-types/identity/references/gc-identity.hd	result	run-portable				result		and-chain=8
+test/fixtures	compiler-types/identity/references/missing-implementation.hd	diagnostic:missing-trait-implementation	run-portable	isolated-accepts	yes	no		far 0.46 compiler-types/generics/callable-adapter.hd group-accept	
+test/fixtures	compiler-types/identity/references/unbounded-generic.hd	diagnostic:identity-needs-reference-bound	run-portable	isolated-accepts	yes	no		far 0.41 suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd group-accept	
+test/fixtures	compiler-types/requirements/abi.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/context-errors/non-context-spread.hd	diagnostic:context-spread-type	run-portable	isolated-accepts	yes	no		near 0.63 compiler-types/requirements/normalization/explicit-empty-row.hd no-group-accept	
+test/fixtures	compiler-types/requirements/context-errors/wrong-context-type.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.81 compiler-types/requirements/context-normalization.hd no-group-accept	
+test/fixtures	compiler-types/requirements/context-normalization.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/contexts.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/generic-provider-keys/collision.hd	diagnostic:generic-requirement-key-collision	run-portable	isolated-accepts	yes	no		near 0.69 compiler-types/requirements/generic-provider-keys/occurs-check.hd group-accept	
+test/fixtures	compiler-types/requirements/generic-provider-keys/consistent-substitution.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/generic-provider-keys/distinct.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/generic-provider-keys/occurs-check.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/generic-provider-keys/spread-collision.hd	diagnostic:generic-requirement-key-collision	run-portable	isolated-accepts	yes	no		near 0.59 compiler-types/requirements/generic-provider-keys/distinct.hd group-accept	
+test/fixtures	compiler-types/requirements/missing-requirement.hd	diagnostic:missing-requirement	run-portable	isolated-accepts	yes	no		near 0.80 compiler-types/requirements/abi.hd group-accept	
+test/fixtures	compiler-types/requirements/normalization/explicit-empty-row.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/normalization/grouped.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/normalization/ungrouped.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/requirements/provider-errors/missing-provider.hd	diagnostic:missing-requirement	run-portable	isolated-accepts	yes	no		near 0.76 compiler-types/closures/requirement-inference/inferred-row.hd no-group-accept	
+test/fixtures	compiler-types/requirements/provider-errors/wrong-provider-type.hd	diagnostic:provider-type-mismatch	run-portable	isolated-accepts	yes	no		near 0.65 compiler-types/requirements/normalization/explicit-empty-row.hd no-group-accept	
+test/fixtures	compiler-types/requirements/provider-scopes.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-forwarding.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-inference/conflicting-row.hd	diagnostic:generic-type-mismatch	run-portable	isolated-accepts	yes	no		near 0.56 suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd group-accept	
+test/fixtures	compiler-types/requirements/row-inference/inferred-empty-row.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-inference/unavailable-provider.hd	diagnostic:missing-requirement	run-portable	isolated-accepts	yes	no		near 0.85 compiler-types/requirements/row-union.hd group-accept	
+test/fixtures	compiler-types/requirements/row-multi-forwarding.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-pack.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-subtraction/absent-subtraction-warning.hd	warning:requirement-subtract-absent	run-portable	isolated-accepts	yes	no		near 0.81 compiler-types/requirements/row-subtraction/provider-restoration.hd group-accept	
+test/fixtures	compiler-types/requirements/row-subtraction/missing-subtracted-provider.hd	diagnostic:missing-requirement	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.75 compiler-types/requirements/row-union.hd group-accept	
+test/fixtures	compiler-types/requirements/row-subtraction/provider-restoration.hd	result	run-portable				result		
+test/fixtures	compiler-types/requirements/row-union.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/defaults/inherited-method.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/defaults/override.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/diagnostics/ambiguous-method.hd	diagnostic:ambiguous-method	run-portable	isolated-accepts	yes	no		near 0.63 frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd no-group-accept	
+test/fixtures	compiler-types/traits/diagnostics/mismatched-signature.hd	diagnostic:trait-method-signature	run-portable	isolated-other-errors:doc-comment-without-target	yes	no		near 0.67 frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd no-group-accept	
+test/fixtures	compiler-types/traits/diagnostics/missing-method.hd	diagnostic:missing-trait-method	run-portable	isolated-accepts	yes	no		near 0.70 frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd no-group-accept	
+test/fixtures	compiler-types/traits/dispatch.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/embedded-fields.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/generic-bounds/dictionary-dispatch.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/generic-bounds/missing-implementation.hd	diagnostic:missing-trait-implementation	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.94 compiler-types/traits/generic-bounds/dictionary-dispatch.hd group-accept	
+test/fixtures	compiler-types/traits/inherent-methods.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/multiple-bounds/dictionary-forwarding.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/multiple-bounds/duplicate-bound.hd	diagnostic:duplicate-trait-bound	run-portable	code-persists	yes	duplicate-trait-bound@28		near 1.00 compiler-types/traits/multiple-bounds/dictionary-forwarding.hd group-accept	
+test/fixtures	compiler-types/traits/mutable-errors/readonly-dynamic.hd	diagnostic:mutable-receiver-required	run-portable	isolated-accepts	yes	no		near 0.64 frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd no-group-accept	
+test/fixtures	compiler-types/traits/mutable-errors/readonly-static.hd	diagnostic:mutable-receiver-required	run-portable	isolated-accepts	yes	no		near 0.64 frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd no-group-accept	
+test/fixtures	compiler-types/traits/mutable-errors/signature-mismatch.hd	diagnostic:trait-method-signature	run-portable	isolated-other-errors:doc-comment-without-target	yes	no		near 0.70 frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd no-group-accept	
+test/fixtures	compiler-types/traits/mutable-receivers.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/providers.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/suspending-cancel.hd	expect:accept	run-portable						
+test/fixtures	compiler-types/traits/suspending-defaults.hd	result	run-portable				result		
+test/fixtures	compiler-types/traits/suspending-dispatch.hd	result	run-portable				result		
+test/fixtures	compiler-types/tuples/heterogeneous/gc-storage.hd	result	run-portable				result		
+test/fixtures	compiler-types/tuples/heterogeneous/identity-rejected.hd	diagnostic:identity-requires-references	run-portable	isolated-accepts	yes	no		near 0.53 suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd group-accept	
+test/fixtures	compiler-types/tuples/heterogeneous/index-out-of-range.hd	diagnostic:tuple-index-range	run-portable	isolated-accepts	yes	no		near 0.56 frontend/06-parser-lowers-named-local-functions-to-typed-closure-bindings.hd group-accept	
+test/fixtures	compiler/00-case-program.hd	result	run-portable				result		
+test/fixtures	compiler/03-checked-i32-arithmetic-traps-on-overflow.hd	panic:integer-overflow	run-portable	isolated-other-errors:unlocated	yes	n/a		near 0.71 suspension/13-nested-pending-frame.hd no-group-accept	panic-marker-on-fn-header
+test/fixtures	compiler/04-the-minimum-i32-literal-forms-through-unary-negation-diagnostic.hd	diagnostic:integer-literal-range	run-portable	isolated-accepts	yes	no		near 0.90 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd group-accept	shared-test-name=3
+test/fixtures	compiler/04-the-minimum-i32-literal-forms-through-unary-negation-division.hd	panic:integer-overflow	run-portable	isolated-other-errors:unlocated	yes	n/a		near 0.82 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd group-accept	shared-test-name=3 panic-marker-on-fn-header
+test/fixtures	compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd	result	run-portable				result-constant-literal		shared-test-name=3
+test/fixtures	compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-negative.hd	panic:runtime-error	run-portable	isolated-other-errors:unlocated	no	n/a		near 0.77 compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent.hd group-accept	shared-test-name=3 panic-marker-on-fn-header
+test/fixtures	compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-overflow.hd	panic:integer-overflow	run-portable	isolated-other-errors:unlocated	yes	n/a		near 0.77 compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent.hd group-accept	shared-test-name=3 panic-marker-on-fn-header
+test/fixtures	compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	compiler/06-floating-power-uses-the-host-ieee-pow-primitive-diagnostic.hd	diagnostic:mixed-numeric-types	run-portable	isolated-accepts	yes	no		near 0.79 compiler/06-floating-power-uses-the-host-ieee-pow-primitive.hd group-accept	shared-test-name=2
+test/fixtures	compiler/06-floating-power-uses-the-host-ieee-pow-primitive.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-2.hd	diagnostic:non-reassignable-binding	run-portable	isolated-accepts	yes	no		near 0.69 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-3.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.80 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-4.hd	diagnostic:invalid-binary-operands	run-portable	isolated-accepts	yes	no		near 0.63 compiler/06-floating-power-uses-the-host-ieee-pow-primitive.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-5.hd	diagnostic:invalid-binary-operands	run-portable	isolated-accepts	yes	no		near 0.54 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-6.hd	diagnostic:nonfinal-vararg	run-portable	isolated-accepts	yes	no		near 0.53 frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic.hd	diagnostic:unknown-name	run-portable	isolated-accepts	yes	no		near 0.80 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/07-checker-rejects-name-mutability-and-type-errors-positional-spread-needs-vararg.hd	diagnostic:positional-spread-needs-vararg	run-portable	isolated-accepts	yes	no		near 0.52 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd no-group-accept	shared-test-name=7
+test/fixtures	compiler/08-homogeneous-varargs-lower-through-the-existing-list-abi.hd	result	run-portable				result		
+test/fixtures	compiler/09-first-class-vararg-functions-retain-their-calling-convention-type-mismatch.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.50 compiler-types/requirements/row-inference/inferred-empty-row.hd group-accept	shared-test-name=2
+test/fixtures	compiler/09-first-class-vararg-functions-retain-their-calling-convention.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/10-function-parameter-defaults-evaluate-after-explicit-arguments.hd	result	run-portable				result		
+test/fixtures	compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic-2.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.63 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd no-group-accept	shared-test-name=3
+test/fixtures	compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic.hd	diagnostic:parameter-default-order	run-portable	isolated-accepts	yes	no		near 0.60 compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord.hd no-group-accept	shared-test-name=3
+test/fixtures	compiler/11-function-parameter-defaults-enforce-order-type-and-purity-impure-parameter-default.hd	diagnostic:impure-parameter-default	run-portable	isolated-accepts	yes	no		near 0.56 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd no-group-accept	shared-test-name=3
+test/fixtures	compiler/12-varargs-work-in-suspending-and-trait-method-calls.hd	result	run-portable				result		
+test/fixtures	compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord-2.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/14-named-enum-payloads-preserve-source-evaluation-order-duplicate-argument.hd	diagnostic:duplicate-argument	run-portable	isolated-accepts	yes	no		near 0.64 compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd group-accept	shared-test-name=3
+test/fixtures	compiler/14-named-enum-payloads-preserve-source-evaluation-order-unknown-named-argument.hd	diagnostic:unknown-named-argument	run-portable	isolated-accepts	yes	no		near 0.62 compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd group-accept	shared-test-name=3
+test/fixtures	compiler/14-named-enum-payloads-preserve-source-evaluation-order.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name-unknown-variant-pattern-field.hd	diagnostic:unknown-variant-pattern-field	run-portable	isolated-other-errors:expected-token	yes	no		near 0.64 frontend/21-parser-retains-named-enum-payload-pattern-labels.hd group-accept	shared-test-name=2
+test/fixtures	compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension--nonexhaustive-match.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.73 frontend/23-parser-retains-literal-enum-payload-patterns.hd group-accept	shared-test-name=2
+test/fixtures	compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension-.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/17-shared-enum-data-uses-per-variant-factories-and-pure-ordered-defaults.hd	result	run-portable				result		
+test/fixtures	compiler/18-named-arguments-work-through-static-and-dynamic-trait-dispatch.hd	result	run-portable				result		
+test/fixtures	compiler/19-shadow-console.hd	diagnostic:prelude-name-shadow	run-portable	isolated-accepts	yes	no		near 0.64 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	
+test/fixtures	compiler/19-shadow-display.hd	diagnostic:prelude-name-shadow	run-portable	isolated-accepts	yes	no		far 0.18 compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct.hd no-group-accept	
+test/fixtures	compiler/19-shadow-hash.hd	diagnostic:prelude-name-shadow	run-portable	isolated-other-errors:unknown-name	yes	no		near 0.69 frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2.hd no-group-accept	
+test/fixtures	compiler/19-shadow-println.hd	diagnostic:prelude-name-shadow	run-portable	isolated-accepts	yes	no		near 0.62 frontend/04-parser-builds-value-producing-while-else.hd no-group-accept	
+test/fixtures	compiler/19-shadow-result.hd	diagnostic:prelude-name-shadow	run-portable	isolated-accepts	yes	no		far 0.43 frontend/22-parser-retains-nested-result-payload-patterns.hd no-group-accept	
+test/fixtures	compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other-diagnostic.hd	diagnostic:unknown-name	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.75 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	shared-test-name=2
+test/fixtures	compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/21-else-if-chains-preserve-value-typing-and-selection-order.hd	result	run-portable				result		
+test/fixtures	compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow-diagnostic.hd	diagnostic:break-outside-loop	run-portable	isolated-accepts	yes	no		near 0.64 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd group-accept	shared-test-name=2
+test/fixtures	compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-broken.hd	result	run-portable				result		shared-test-name=4
+test/fixtures	compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic-2.hd	diagnostic:break-value-context	run-portable	isolated-accepts	yes	no		near 0.67 frontend/04-parser-builds-value-producing-while-else.hd group-accept	shared-test-name=4
+test/fixtures	compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic.hd	diagnostic:break-value-context	run-portable	isolated-accepts	yes	no		near 0.71 frontend/04-parser-builds-value-producing-while-else.hd group-accept	shared-test-name=4
+test/fixtures	compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-exhausted.hd	result	run-portable				result		shared-test-name=4
+test/fixtures	compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic-2.hd	diagnostic:for-binding-arity	run-portable	isolated-accepts	yes	no		near 0.50 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	shared-test-name=3
+test/fixtures	compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic.hd	diagnostic:not-iterable	run-portable	isolated-accepts	yes	no		far 0.47 frontend/04-parser-builds-value-producing-while-else.hd group-accept	shared-test-name=3
+test/fixtures	compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	compiler/25-data-declarations-lower-to-wasm-gc-structs.hd	result	run-portable				result		
+test/fixtures	compiler/26-mutable-data-paths-weaken-one-way-and-share-wasm-gc-identity.hd	result	run-portable				result		
+test/fixtures	compiler/27-mutable-list-and-map-roots-support-indexed-replacement.hd	result	run-portable				result		
+test/fixtures	compiler/28-mutable-lists-append-through-growable-wasm-gc-storage-mutable-receiver-required.hd	diagnostic:mutable-receiver-required	run-portable	isolated-accepts	yes	no		near 0.65 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	shared-test-name=2
+test/fixtures	compiler/28-mutable-lists-append-through-growable-wasm-gc-storage.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord-mutable-receiver-required.hd	diagnostic:mutable-receiver-required	run-portable	isolated-accepts	yes	no		far 0.48 frontend/22-parser-retains-nested-result-payload-patterns.hd group-accept	shared-test-name=2
+test/fixtures	compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/30-data-field-initializers-preserve-source-evaluation-order.hd	result	run-portable				result		
+test/fixtures	compiler/31-data-field-defaults-run-per-construction-after-explicit-fields.hd	result	run-portable				result		and-chain=3
+test/fixtures	compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default-2.hd	diagnostic:impure-data-default	run-portable	isolated-other-errors:expected-token	yes	no		near 0.53 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	shared-test-name=3
+test/fixtures	compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default.hd	expect:accept	run-portable						shared-test-name=3
+test/fixtures	compiler/32-data-field-defaults-are-type-checked-and-purity-checked-type-mismatch.hd	diagnostic:type-mismatch	run-portable	isolated-other-errors:expected-token	yes	no		far 0.31 frontend/12-parser-retains-explicit-generic-data-arguments.hd group-accept	shared-test-name=3
+test/fixtures	compiler/33-data-copy-update-evaluates-its-source-before-replacements.hd	result	run-portable				result		
+test/fixtures	compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults-type-mismatch.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.52 compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct.hd group-accept	shared-test-name=2
+test/fixtures	compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct.hd	result	run-portable				result		
+test/fixtures	compiler/36-data-initialization-missing-field.hd	diagnostic:missing-required-field	run-portable	isolated-accepts	yes	no		near 0.65 frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd no-group-accept	
+test/fixtures	compiler/36-data-initialization-unknown-field.hd	diagnostic:unknown-data-field	run-portable	isolated-accepts	yes	no		near 0.65 compiler/25-data-declarations-lower-to-wasm-gc-structs.hd no-group-accept	
+test/fixtures	compiler/36-data-initialization-wrong-field-type.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.61 frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd no-group-accept	
+test/fixtures	compiler/37-data-pattern-duplicate-field.hd	diagnostic:duplicate-data-pattern-field	run-portable	isolated-other-errors:expected-token	yes	no		near 0.58 compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd group-accept	
+test/fixtures	compiler/37-data-pattern-nonexhaustive.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.60 compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd group-accept	
+test/fixtures	compiler/37-data-pattern-unknown-field.hd	diagnostic:unknown-data-field	run-portable	isolated-other-errors:expected-token	yes	no		near 0.58 compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd group-accept	
+test/fixtures	compiler/37-data-patterns-destructure-nested-fields-and-test-literals.hd	result	run-portable				result		
+test/fixtures	compiler/38-strings-use-gc-byte-arrays-and-len-counts-unicode-scalars.hd	result	run-portable				result		
+test/fixtures	compiler/39-string-interpolation-displays-built-ins-left-to-right.hd	result	run-portable				result		
+test/fixtures	compiler/40-strings-compare-by-utf-8-value-order.hd	result	run-portable				result		and-chain=6
+test/fixtures	compiler/41-strings-concatenate-and-unnamed-enum-fields-use-numeric-selectors.hd	result	run-portable				result		
+test/fixtures	compiler/42-character-literals-carry-unicode-scalar-values-and-compare-in-scalar-ord.hd	result	run-portable				result		
+test/fixtures	compiler/43-defer-runs-after-a-return-value-is-evaluated.hd	result	run-portable				result		
+test/fixtures	compiler/44-defer-rejects-escaping-control-flow.hd	diagnostic:defer-control-flow	run-portable	isolated-accepts	yes	no		near 0.65 compiler/43-defer-runs-after-a-return-value-is-evaluated.hd no-group-accept	
+test/fixtures	compiler/45-defer-is-lifo-and-runs-on-loop-continue-and-break.hd	result	run-portable				result		
+test/fixtures	compiler/46-explicit-panic-lowers-to-unreachable-and-skips-pending-defer.hd	panic:explicit-panic	run-portable	code-persists (panic comes from line 6 `panic("boom")`; marker sits on the defer body that must not run)	yes	n/a		far 0.47 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	
+test/fixtures	compiler/47-enums-use-tagged-gc-structs-and-match-binds-payloads.hd	result	run-portable				result		
+test/fixtures	compiler/48-match-bare-variant.hd	diagnostic:bare-variant-pattern	run-portable	isolated-other-errors:nonexhaustive-match	yes	no		near 0.86 compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd no-group-accept	
+test/fixtures	compiler/48-match-nonexhaustive.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.85 compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd no-group-accept	
+test/fixtures	compiler/48-match-pattern-arity.hd	diagnostic:pattern-arity	run-portable	isolated-other-errors:nonexhaustive-match	yes	no		near 0.86 compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd no-group-accept	
+test/fixtures	compiler/48-match-unreachable-arm.hd	diagnostic:unreachable-match-arm	run-portable	isolated-accepts	yes	no		near 0.82 compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd no-group-accept	
+test/fixtures	compiler/49-contextual-enum-variant-patterns-use-the-subject-type-variant-binding-name-mismatch.hd	warning:variant-binding-name-mismatch	run-portable	isolated-other-errors:expected-token	yes	no		near 0.65 frontend/21-parser-retains-named-enum-payload-pattern-labels.hd group-accept	shared-test-name=2
+test/fixtures	compiler/49-contextual-enum-variant-patterns-use-the-subject-type.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/50-contextual-enum-variant-expressions-use-their-expected-type-diagnostic.hd	diagnostic:missing-contextual-enum-type	run-portable	isolated-accepts	yes	no		near 0.54 compiler/50-contextual-enum-variant-expressions-use-their-expected-type.hd group-accept	shared-test-name=2
+test/fixtures	compiler/50-contextual-enum-variant-expressions-use-their-expected-type.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-diagnostic.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.68 compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests.hd group-accept	shared-test-name=3
+test/fixtures	compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-unreachable-match-arm.hd	diagnostic:unreachable-match-arm	run-portable	isolated-accepts	yes	no		near 0.75 compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests.hd group-accept	shared-test-name=3
+test/fixtures	compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-diagnostic.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.71 compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd group-accept	shared-test-name=3
+test/fixtures	compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-unreachable-match-arm.hd	diagnostic:unreachable-match-arm	run-portable	isolated-accepts	yes	no		near 0.67 compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd group-accept	shared-test-name=3
+test/fixtures	compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-diagnostic.hd	diagnostic:nonexhaustive-match	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.83 compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd group-accept	shared-test-name=4
+test/fixtures	compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch-2.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.94 compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd group-accept	shared-test-name=4
+test/fixtures	compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch.hd	expect:accept	run-portable						shared-test-name=4
+test/fixtures	compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage.hd	result	run-portable				result		shared-test-name=4
+test/fixtures	compiler/54-optionals-inject-plain-values-match-both-cases-and-propagate-nil.hd	result	run-portable				result		
+test/fixtures	compiler/55-result-constructors-matching-and-error-propagation-use-the-erased-carrie.hd	result	run-portable				result		
+test/fixtures	compiler/56-imported-resourceerror-is-a-generic-wasm-gc-enum.hd	result	run-portable				result		
+test/fixtures	compiler/57-result-patterns-recursively-match-imported-enum-payloads.hd	result	run-portable				result		
+test/fixtures	compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-2.hd	diagnostic:result-constructor-needs-context	run-portable	isolated-accepts	yes	no		far 0.40 frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks.hd no-group-accept	shared-test-name=4
+test/fixtures	compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-3.hd	diagnostic:invalid-result-propagation	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.69 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd no-group-accept	shared-test-name=4
+test/fixtures	compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-4.hd	warning:unused-local-binding	run-portable	isolated-accepts	yes	no		near 0.65 compiler/59-optional-result-explicitly-discarded.hd no-group-accept	shared-test-name=4
+test/fixtures	compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic.hd	diagnostic:nil-needs-optional-type	run-portable	isolated-accepts	yes	no		far 0.43 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd no-group-accept	shared-test-name=4
+test/fixtures	compiler/59-optional-result-discarded.hd	diagnostic:discarded-must-use-value	run-portable	isolated-accepts	yes	no		near 0.86 compiler/59-optional-result-explicitly-discarded.hd group-accept	
+test/fixtures	compiler/59-optional-result-explicitly-discarded.hd	expect:accept	run-portable						
+test/fixtures	compiler/60-comprehensions-lower-nested-filters-and-map-replacement.hd	result	run-portable				result		and-chain=3
+test/fixtures	compiler/60-comprehensions-reject-suspension-calls.hd	diagnostic:suspension-forbidden-context	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.57 suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd group-accept	
+test/fixtures	compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references-diagnostic.hd	diagnostic:type-mismatch	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.69 frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2.hd group-accept	shared-test-name=2
+test/fixtures	compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/61-binding-expressions-reject-same-scope-redeclaration.hd	diagnostic:duplicate-binding	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.80 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	
+test/fixtures	compiler/61-binding-expressions-return-values-and-bind-in-enclosing-scope.hd	result	run-portable				result		
+test/fixtures	compiler/61-expected-function-types-infer-inline-closure-parameters-and-results-diagnostic.hd	diagnostic:closure-parameter-needs-annotation	run-portable	isolated-accepts	yes	no		near 0.62 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd group-accept	shared-test-name=2
+test/fixtures	compiler/61-expected-function-types-infer-inline-closure-parameters-and-results.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns-closure-result-type.hd	diagnostic:closure-result-type	run-portable	code-persists-legitimately (void fallthrough still mixes with i32)	yes	no		near 0.72 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	shared-test-name=2
+test/fixtures	compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	compiler/62-string-trim-and-lower-use-unicode-byte-bridge.hd	result	run-portable				result		
+test/fixtures	compiler/63-explicitly-typed-local-closures-recurse-through-their-current-environmen.hd	result	run-portable				result		
+test/fixtures	compiler/63-generic-iterator-traits-drive-for-loops-and-comprehensions.hd	result	run-portable				result		and-chain=4
+test/fixtures	compiler/63-generic-iterator-traits-require-mutable-receivers.hd	diagnostic:mutable-receiver-required	run-portable	isolated-other-errors:missing-return-value	yes	no		far 0.49 compiler/63-generic-iterator-traits-drive-for-loops-and-comprehensions.hd group-accept	
+test/fixtures	compiler/64-generic-methods-infer-and-erase-type-arguments.hd	result	run-portable				result		results=3
+test/fixtures	compiler/64-named-local-functions-capture-enclosing-values-and-recurse.hd	result	run-portable				result		
+test/fixtures	compiler/65-string-split-preserves-boundaries-and-unicode-scalars.hd	result	run-portable				result		results=3 and-chain=5
+test/fixtures	compiler/66-associated-functions-use-qualified-static-calls.hd	result	run-portable				result		
+test/fixtures	compiler/67-blanket-implementations-dispatch-with-inferred-dictionaries.hd	result	run-portable				result		
+test/fixtures	compiler/68-generic-implementation-heads-cannot-overlap.hd	diagnostic:overlapping-impl	run-portable	isolated-accepts	yes	no		far 0.24 compiler-types/collections/trait-lists.hd no-group-accept	
+test/fixtures	compiler/69-trait-qualified-calls-select-ambiguous-methods.hd	result	run-portable				result		
+test/fixtures	compiler/70-generic-trait-qualified-calls-select-an-instantiation.hd	result	run-portable				result		results=4
+test/fixtures	compiler/71-trait-associated-functions-use-implementing-type-qualification.hd	result	run-portable				result		results=3
+test/fixtures	compiler/72-associated-types-specialize-self-projections.hd	result	run-portable				result		results=4
+test/fixtures	compiler/73-supertraits-reject-missing-parent-implementations.hd	diagnostic:missing-supertrait-implementation	run-portable	isolated-other-errors:expected-expression	yes	no		near 0.59 frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd group-accept	
+test/fixtures	compiler/73-supertraits-require-and-expose-parent-implementations.hd	result	run-portable				result		results=4
+test/fixtures	compiler/74-mutable-trait-bounds-preserve-root-access.hd	result	run-portable				result		
+test/fixtures	compiler/74-mutable-trait-bounds-reject-readonly-roots.hd	diagnostic:mutable-bound-required	run-portable	isolated-accepts	yes	no		near 0.91 compiler/74-mutable-trait-bounds-preserve-root-access.hd group-accept	
+test/fixtures	compiler/75-generic-trait-methods-use-static-erased-dispatch.hd	result	run-portable				result		
+test/fixtures	compiler/76-blanket-implementations-materialize-dynamic-and-bound-dictionaries.hd	result	run-portable				result		results=3
+test/fixtures	compiler/76-bounded-blanket-implementations-capture-erased-dictionaries.hd	result	run-portable				result		results=3
+test/fixtures	compiler/77-generic-supertraits-reject-incompatible-upcasts.hd	diagnostic:type-mismatch	run-portable	isolated-other-errors:missing-return-value	yes	no		far 0.42 compiler/77-generic-supertraits-substitute-parent-arguments.hd group-accept	
+test/fixtures	compiler/77-generic-supertraits-substitute-parent-arguments.hd	result	run-portable				result		results=5
+test/fixtures	compiler/78-bounded-blanket-supertraits-capture-parent-dictionaries.hd	result	run-portable				result		
+test/fixtures	compiler/assert-failure-panics.hd	panic:assertion-failed	run-portable	isolated-accepts	yes	n/a		far 0.47 suspension/30-imported-assert-equal-compares-supported-structural-values.hd no-group-accept	
+test/fixtures	compiler/display-requires-implementation.hd	diagnostic:missing-display	run-portable	isolated-other-errors:missing-return-value	yes	no		far 0.43 frontend/07-parser-retains-mutable-permission-types-and-field-assignments.hd no-group-accept	
+test/fixtures	frontend/00-core-program.hd	expect:parse	run-portable						
+test/fixtures	frontend/04-parser-builds-value-producing-while-else.hd	expect:parse	run-portable						
+test/fixtures	frontend/05-parser-builds-for-loops-with-tuple-bindings-and-else-suites.hd	expect:parse	run-portable						
+test/fixtures	frontend/06-parser-lowers-named-local-functions-to-typed-closure-bindings.hd	expect:parse	run-portable						
+test/fixtures	frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/07-parser-retains-mutable-permission-types-and-field-assignments.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver-2.hd	diagnostic:expected-token	run-portable	isolated-other-errors:doc-comment-without-target	yes	no		near 0.75 frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd group-accept	shared-test-name=2
+test/fixtures	frontend/08-parser-represents-mut-self-as-a-mutable-self-receiver.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/09-parser-distinguishes-inherent-and-trait-implementation-blocks.hd	expect:parse	run-portable						
+test/fixtures	frontend/10-parser-marks-bare-data-members-as-embedded-fields.hd	expect:parse	run-portable						
+test/fixtures	frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks-2.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/11-parser-retains-explicit-generic-arguments-and-trailing-callbacks.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/12-parser-retains-explicit-generic-data-arguments.hd	expect:parse	run-portable						
+test/fixtures	frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer-2.hd	diagnostic:inconsistent-dedent	run-portable	isolated-accepts	yes	no		near 0.58 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	shared-test-name=2
+test/fixtures	frontend/13-tabs-and-inconsistent-dedents-are-rejected-by-the-lexer.hd	diagnostic:tab-whitespace	run-portable	isolated-other-errors:missing-return-value (rerun with spaces)	yes	no		near 0.64 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd no-group-accept	shared-test-name=2
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-2.hd	diagnostic:invalid-integer-literal	run-portable	isolated-accepts	yes	no		far 0.38 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd group-accept	shared-test-name=6
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-3.hd	diagnostic:invalid-integer-literal	run-portable	isolated-accepts	yes	no		far 0.38 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd group-accept	shared-test-name=6
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd	expect:parse	run-portable						shared-test-name=6
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-5.hd	diagnostic:invalid-string-interpolation	run-portable	isolated-accepts	yes	no		near 0.71 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd group-accept	shared-test-name=6
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-6.hd	expect:parse	run-portable						shared-test-name=6
+test/fixtures	frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators.hd	diagnostic:reserved-semicolon	run-portable	isolated-accepts	yes	no		far 0.38 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd group-accept	shared-test-name=6
+test/fixtures	frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars-2.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/15-parser-retains-string-interpolation-expressions-and-raw-dollars.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/16-parser-rejects-comparison-chaining.hd	diagnostic:comparison-chaining	run-portable	isolated-accepts	yes	no		far 0.30 frontend/14-lexer-enforces-reserved-punctuation-escapes-and-numeric-separators-4.hd no-group-accept	
+test/fixtures	frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering-2.hd	diagnostic:argument-order	run-portable	isolated-accepts	yes	no		near 0.91 frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering.hd group-accept	shared-test-name=2
+test/fixtures	frontend/17-parser-retains-named-call-labels-and-enforces-argument-ordering.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/18-parser-retains-vararg-and-positional-spread-markers-2.hd	expect:parse	run-portable						shared-test-name=3
+test/fixtures	frontend/18-parser-retains-vararg-and-positional-spread-markers-3.hd	diagnostic:nonfinal-positional-spread	run-portable	isolated-accepts	yes	no		near 0.57 frontend/18-parser-retains-vararg-and-positional-spread-markers-2.hd group-accept	shared-test-name=3
+test/fixtures	frontend/18-parser-retains-vararg-and-positional-spread-markers.hd	expect:parse	run-portable						shared-test-name=3
+test/fixtures	frontend/19-parser-retains-function-parameter-defaults-2.hd	diagnostic:vararg-default	run-portable	isolated-accepts	yes	no		near 0.68 frontend/07-parser-retains-mutable-permission-types-and-field-assignments-2.hd group-accept	shared-test-name=2
+test/fixtures	frontend/19-parser-retains-function-parameter-defaults.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/20-parser-retains-a-leading-data-copy-update-spread-2.hd	diagnostic:data-spread-position	run-portable	isolated-accepts	yes	no		near 1.00 frontend/20-parser-retains-a-leading-data-copy-update-spread.hd group-accept	shared-test-name=2
+test/fixtures	frontend/20-parser-retains-a-leading-data-copy-update-spread.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/21-parser-retains-named-enum-payload-pattern-labels.hd	expect:parse	run-portable						
+test/fixtures	frontend/22-parser-retains-nested-result-payload-patterns.hd	expect:parse	run-portable						
+test/fixtures	frontend/23-parser-retains-literal-enum-payload-patterns.hd	expect:parse	run-portable						
+test/fixtures	frontend/24-parser-retains-shared-enum-fields-defaults-and-variant-results.hd	expect:parse	run-portable						
+test/fixtures	frontend/25-parser-retains-decimal-numeric-member-selectors.hd	expect:parse	run-portable						
+test/fixtures	frontend/26-parser-distinguishes-grouped-expressions-from-tuple-types-and-literals.hd	expect:parse	run-portable						
+test/fixtures	frontend/27-documentation-comments-attach-to-ast-declarations-and-members-source.hd	expect:parse	run-portable						shared-test-name=2
+test/fixtures	frontend/27-documentation-comments-attach-to-ast-declarations-and-members.hd	diagnostic:doc-comment-without-target	run-portable	isolated-accepts	yes	no		near 0.53 compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other.hd group-accept	shared-test-name=2
+test/fixtures	frontend/28-parser-retains-top-level-public-visibility.hd	expect:parse	run-portable						
+test/fixtures	frontend/29-parser-retains-named-test-blocks.hd	expect:parse	run-portable						
+test/fixtures	frontend/30-parser-lowers-multi-provider-use-to-an-ordered-tuple.hd	expect:parse	run-portable						
+test/fixtures	frontend/31-parser-retains-single-and-grouped-use-declarations.hd	expect:parse	run-portable						
+test/fixtures	requirements/closure-provider.hd	expect:accept	run-portable						
+test/fixtures	requirements/lexical-override.hd	expect:accept	run-portable						
+test/fixtures	requirements/loop-exit.hd	expect:accept	run-portable						
+test/fixtures	requirements/transitive-call-paths.hd	expect:accept	run-portable						
+test/fixtures	suspension/01-suspending-functions-construct-gc-frames-and-bang-calls-drive-them.hd	result	run-portable				result		
+test/fixtures	suspension/02-generic-suspending-functions-box-frame-arguments-and-unbox-direct-or-sto.hd	result	run-portable				result		
+test/fixtures	suspension/03-generic-suspension-frames-retain-trait-dictionaries-across-child-polls.hd	result	run-portable				result		
+test/fixtures	suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-2.hd	diagnostic:bang-call-outside-suspension	run-portable	isolated-accepts	yes	no		near 0.91 suspension/11-deterministic-host-pending.hd no-group-accept	shared-test-name=4
+test/fixtures	suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3.hd	diagnostic:not-suspending	run-portable	isolated-accepts	yes	no		near 0.91 suspension/11-deterministic-host-pending.hd no-group-accept	shared-test-name=4
+test/fixtures	suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-4.hd	diagnostic:mutable-receiver-required	run-portable	isolated-other-errors:missing-return-value	yes	no		near 0.77 suspension/11-deterministic-host-pending.hd no-group-accept	shared-test-name=4
+test/fixtures	suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic.hd	warning:unused-local-binding	run-portable	isolated-accepts	yes	no		near 0.71 suspension/11-deterministic-host-pending.hd no-group-accept	shared-test-name=4
+test/fixtures	suspension/05-unresolved-race-task-combinator.hd	diagnostic:unsupported-task-combinator	run-portable	isolated-accepts	yes	no		near 0.77 suspension/11-deterministic-host-pending.hd group-accept	
+test/fixtures	suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti-userdefined.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	suspension/05-unresolved-standard-task-combinators-have-a-dedicated-boundary-diagnosti.hd	diagnostic:unsupported-task-combinator	run-portable	isolated-accepts	yes	no		near 0.77 suspension/11-deterministic-host-pending.hd group-accept	shared-test-name=2
+test/fixtures	suspension/06-explicit-mutable-suspension-bindings-are-one-shot-seconddrive.hd	panic:suspension-invalid-state	run-portable	isolated-other-errors:expected-expression	yes	n/a		near 0.95 suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd group-accept	shared-test-name=2 panic-marker-on-fn-header
+test/fixtures	suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd	result	run-portable				result		shared-test-name=2
+test/fixtures	suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd	result	run-portable				result		
+test/fixtures	suspension/08-cancelled-suspensions-cannot-be-driven-and-readonly-values-cannot-be-can-cancelled.hd	panic:suspension-invalid-state	run-portable	isolated-other-errors:expected-expression	yes	n/a		near 1.00 suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd no-group-accept	panic-marker-on-fn-header
+test/fixtures	suspension/08-readonly-suspension-cancel.hd	diagnostic:mutable-receiver-required	run-portable	isolated-accepts	yes	no		near 0.71 suspension/07-cold-suspension-cancellation-is-synchronous-and-idempotent.hd no-group-accept	
+test/fixtures	suspension/09-defer-suites-cannot-suspend.hd	diagnostic:suspending-defer	run-portable	isolated-accepts	yes	no		near 0.73 suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup.hd no-group-accept	
+test/fixtures	suspension/10-suspension-state-transitions-are-observable-through-the-trace-abi.hd	result	run-portable				result		
+test/fixtures	suspension/11-deterministic-host-pending.hd	result	run-portable				result-constant-literal		
+test/fixtures	suspension/12-development-drivers-reject-competing-and-reentrant-suspension-control.hd	result	run-portable				result-constant-literal		
+test/fixtures	suspension/13-child-pending-propagates-through-the-parent-frame-and-restores-locals.hd	result	run-portable				result		
+test/fixtures	suspension/13-nested-pending-frame.hd	result	run-portable				result		
+test/fixtures	suspension/14-started-frame-cancellation-cancels-the-child-and-runs-registered-cleanup.hd	result	run-portable				result		
+test/fixtures	suspension/15-cancellation-unwinds-child-frames-before-parent-cleanup.hd	expect:accept	run-portable						
+test/fixtures	suspension/16-linear-suspension-frames-resume-across-multiple-child-sites.hd	result	run-portable				result		
+test/fixtures	suspension/17-cfg-suspension-lowering-preserves-nested-expression-evaluation.hd	result	run-portable				result		
+test/fixtures	suspension/18-cfg-suspension-lowering-preserves-nested-argument-order.hd	result	run-portable				result		
+test/fixtures	suspension/19-cfg-suspension-lowering-branches-and-short-circuits-around-child-frames.hd	result	run-portable				result		
+test/fixtures	suspension/20-cfg-suspension-lowering-preserves-loops-continue-break-values-and-cleanu.hd	result	run-portable				result		
+test/fixtures	suspension/21-cfg-suspension-lowering-preserves-match-bindings-and-suspending-guards.hd	result	run-portable				result		
+test/fixtures	suspension/22-cfg-suspension-lowering-propagates-result-failures-after-child-completio.hd	result	run-portable				result		
+test/fixtures	suspension/23-cfg-suspension-cancellation-cancels-the-active-child-and-runs-scoped-cle.hd	result	run-portable				result		
+test/fixtures	suspension/24-cfg-suspension-lowering-installs-providers-produced-after-resumption.hd	result	run-portable				result		
+test/fixtures	suspension/25-cfg-suspension-lowering-nests-dynamic-trait-suspensions.hd	result	run-portable				result		
+test/fixtures	suspension/26-replay-rejects-function-code-change.hd	result	run-portable				result		
+test/fixtures	suspension/26-replay-survives-unrelated-declaration.hd	result	run-portable				result		
+test/fixtures	suspension/26-suspension-poll-decisions-record-and-replay-with-configuration-identity.hd	result	run-portable				result		
+test/fixtures	suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo-missing-requirement.hd	diagnostic:missing-requirement	run-portable	isolated-accepts	yes	no		near 0.54 compiler/04-the-minimum-i32-literal-forms-through-unary-negation.hd group-accept	shared-test-name=2
+test/fixtures	suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo.hd	expect:accept	run-portable						shared-test-name=2
+test/fixtures	suspension/28-multi-provider-use-preserves-requested-tuple-order-through-wasm-gc.hd	result	run-portable				result		
+test/fixtures	suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-nested.hd	panic:suspension-nested-driver	run-portable	isolated-other-errors:missing-return-value	yes	n/a		near 0.88 suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd group-accept	shared-test-name=3 panic-marker-on-fn-header
+test/fixtures	suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers-suspension-forbidden-context.hd	diagnostic:suspension-forbidden-context	run-portable	isolated-accepts	yes	no		near 0.88 suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd group-accept	shared-test-name=3
+test/fixtures	suspension/29-imported-block-on-drives-stored-suspensions-and-rejects-nested-drivers.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	suspension/30-imported-assert-equal-compares-supported-structural-values-failure.hd	panic:assertion-failed	run-portable	isolated-other-errors:unlocated	yes	n/a		near 0.68 suspension/30-imported-assert-equal-compares-supported-structural-values.hd group-accept	shared-test-name=3 panic-marker-on-fn-header
+test/fixtures	suspension/30-imported-assert-equal-compares-supported-structural-values-missing-partial-eq.hd	diagnostic:missing-partial-eq	run-portable	isolated-accepts	yes	no		far 0.48 suspension/30-imported-assert-equal-compares-supported-structural-values.hd group-accept	shared-test-name=3
+test/fixtures	suspension/30-imported-assert-equal-compares-supported-structural-values.hd	result	run-portable				result		shared-test-name=3
+test/fixtures	suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions-non-reassignable-binding.hd	diagnostic:non-reassignable-binding	run-portable	isolated-accepts	yes	no		far 0.47 compiler-types/requirements/normalization/explicit-empty-row.hd group-accept	shared-test-name=2
+test/fixtures	suspension/31-module-bindings-lower-to-wasm-globals-shared-with-declared-functions.hd	expect:accept	run-portable						shared-test-name=2
+test/fixtures	suspension/32-host-provider-polls-record-and-replay.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/33-host-provider-scalar-arguments-and-results.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/34-stored-suspension-crosses-function-boundary.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/36-host-provider-strings-use-utf8-boundary.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/37-named-suspending-function-values-construct-stored-frames.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/38-suspending-closures-capture-values-in-gc-frames.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/39-suspending-closure-values-forward-requirements.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/40-lowered-suspension-constructor-does-not-upgrade.hd	diagnostic:type-mismatch	run-portable	isolated-accepts	yes	no		near 0.64 suspension/06-explicit-mutable-suspension-bindings-are-one-shot-valid.hd no-group-accept	
+test/fixtures	suspension/41-suspending-generic-methods-preserve-explicit-type-arguments.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/42-suspending-associated-functions-preserve-generic-results.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/43-blanket-implementations-materialize-suspending-dictionaries.hd	expect:test	run-portable				assert		
+test/fixtures	suspension/44-named-local-suspending-functions-capture-recurse-and-forward-requirements.hd	expect:test	run-portable				assert		

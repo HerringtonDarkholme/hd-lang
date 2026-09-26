@@ -1,0 +1,3 @@
+fn label(value: bool) -> string:
+    pass
+        true => "yes"

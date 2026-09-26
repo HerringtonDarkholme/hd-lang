@@ -1,0 +1,33 @@
+# test: for loops iterate lists and maps with continue, destructuring, and else values
+# expect-result: main = 42
+
+fn load!() -> list[i32]: [1, 2, 3]
+
+fn first_or(values: list[i32]) -> i32:
+    for value in values:
+        break value
+    else:
+        1
+
+fn main!() -> i32:
+    let total: i32 = 0
+    for value in load!():
+        if value == 2:
+            continue
+        total = total + value
+    scores := {"a": 10, "b": 20}
+    for key, score in scores:
+        total = total + score + key.len() - 1
+    for entry in {"c": 7}:
+        total = total + entry.1
+    let cleanup: i32 = 0
+    for value in [1, 2]:
+        defer:
+            cleanup = cleanup + 10
+        if value == 1:
+            continue
+        break
+    if total + first_or([]) == 42 and cleanup == 20:
+        42
+    else:
+        0

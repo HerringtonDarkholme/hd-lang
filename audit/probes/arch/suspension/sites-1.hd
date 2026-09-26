@@ -1,0 +1,6 @@
+# probe 5.5: one frame with 1 sequential suspension sites
+fn step!(value: i32) -> i32: value + 1
+fn main!() -> i32:
+    v0 := 0
+    v1 := step!(v0)
+    v1

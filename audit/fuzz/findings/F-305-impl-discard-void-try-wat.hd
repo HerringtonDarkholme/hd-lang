@@ -1,0 +1,11 @@
+# test: discarding the void success value of a propagated Result compiles
+# expect: accept
+# fuzz-signature: wasm|build-failed|WasmValidationError: Binaryen could not parse generated WAT: [object Object]
+# fuzz-class: implementation bug (F-305). check accepts; build, run, and test crash with invalid WAT.
+# Seed: spec/conformance/typing/valid/resource-disposed-result.hd (selected type case) fails the same way.
+fn close() -> Result[void, string]:
+    Ok()
+
+fn after_close() -> Result[i32, string]:
+    _ := close()?
+    Ok(1)

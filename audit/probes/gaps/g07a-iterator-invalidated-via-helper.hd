@@ -1,0 +1,9 @@
+# gap probe: an alias mutation in a helper invalidates the running for-loop iterator
+# (spec 06-control-flow.md#for-loops)
+fn grow(values: mut list[i32]) -> void:
+    values.append(0)
+
+let values: mut list[i32] = [1, 2]
+
+for value in values:  # panic: iterator-invalidated
+    grow(values)

@@ -1,0 +1,16 @@
+# probe 5.1: data layout, field mutability, typed fields
+data Point:
+    x: i32
+    y: f64
+    name: string
+    flag: bool
+
+fn read(point: Point) -> i32: point.x
+
+fn bump(point: mut Point) -> i32:
+    point.x = point.x + 1
+    point.x
+
+fn main() -> i32:
+    let point: mut Point = Point { x: 41, y: 1.5, name: "p", flag: true }
+    bump(point) + read(point) - 42

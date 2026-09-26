@@ -1,0 +1,26 @@
+# test: host provider f64 values use durable bit encoding
+# fixture-runtime-profile: ready-float
+# expect: test
+
+use std.testing.assert_equal
+
+let provider_result: f64 = 1.0
+
+pub trait FloatCell:
+    fn sample!(self, value: f64) -> f64
+
+fn sample!() -> f64 $ FloatCell:
+    $.use(FloatCell).sample!(-0.0)
+
+pub fn main!() -> void $ FloatCell:
+    provider_result = sample!()
+
+pub fn recorded_result() -> f64:
+    provider_result
+
+test "the host result crosses the scalar boundary":
+    assert_equal(
+        provider_result,
+        -0.0,
+        reason="the runtime profile echoes the f64 argument",
+    )

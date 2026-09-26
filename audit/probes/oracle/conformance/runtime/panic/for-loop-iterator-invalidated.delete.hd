@@ -1,0 +1,3 @@
+let values: mut list[i32] = [1, 2]
+
+    values.append(value)

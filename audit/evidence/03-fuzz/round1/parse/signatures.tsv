@@ -1,0 +1,20 @@
+id	count	first_case	signature	origin	details
+01-b8648f61e800	431	3	parse-agreement|ref-accept/impl-reject|expected-expression	generate	expected-expression
+02-7823ca1acefa	105	27	parse-agreement|ref-accept/impl-reject|decorator-not-top-level	generate	decorator-not-top-level
+03-8964203c735d	362	37	parse-agreement|ref-accept/impl-reject|expected-token	mutate:typing/valid/gadts.hd:swap-lines+delete-line	expected-token
+04-9bb27e039d3f	14	137	parse-agreement|ref-reject/impl-accept|syntax-error	mutate:typing/valid/local-functions.hd:delete-token+reindent	syntax-error,trailing-block-position ; syntax-error
+05-a2642e771c73	13	228	parse-agreement|ref-accept/impl-reject|unsupported-local-generic-function	generate	unsupported-local-generic-function
+06-7ea3731eb10d	7	230	parse-agreement|ref-reject/impl-accept|invalid-escape	mutate:typing/valid/prelude-surface.hd:replace-literal	invalid-escape
+07-516c4ff7d1d1	15	249	parse-agreement|ref-accept/impl-reject|expected-newline	generate	expected-newline
+08-893a962bd2d3	29	669	parse-agreement|ref-accept/impl-reject|unsupported-generic-parameter	mutate:typing/invalid/multiple-positional-value-packs.hd:splice-line+swap-lines	unsupported-generic-parameter
+09-81ec21a4d0bd	20	758	parse-agreement|ref-accept/impl-reject|missing-impl-body	generate	missing-impl-body
+10-07a88a5419e0	6	964	parse-agreement|ref-accept/impl-reject|invalid-string-interpolation	mutate:typing/valid/transitive-initialized-binding.hd:replace-literal	invalid-string-interpolation
+11-95fb154f087b	2	1255	parse-agreement|ref-accept/impl-reject|reserved-name	mutate:runtime/panic/integer-divide-by-zero.hd:splice-line	reserved-name
+12-35d8cbc9f7d0	4	1543	parse-agreement|ref-reject/impl-accept|trailing-block-position	generate	trailing-block-position,trailing-block-position ; trailing-block-position ; trailing-block-position,trailing-block-position,trailing-block-position
+13-a4921bb265de	2	1622	parse-agreement|ref-accept/impl-reject|duplicate-mutable-permission	generate	duplicate-mutable-permission
+14-97fccb8d7f00	6	1747	parse-agreement|ref-accept/impl-reject|nonfinal-vararg	generate	nonfinal-vararg
+15-9311460326e2	3	2339	parse-agreement|ref-accept/impl-reject|unsupported-generic-enum-bound	generate	unsupported-generic-enum-bound
+16-47b3b0319df3	1	2517	parse-agreement|ref-reject/impl-accept|unexpected-indentation	mutate:parse/valid/functions-and-closures.hd:duplicate-line	unexpected-indentation
+17-e3b24f0b1c89	1	3202	parse-agreement|ref-accept/impl-reject|unsupported-generic-data-bound	generate	unsupported-generic-data-bound
+18-b84fcdc0e3f1	3	3464	parse-agreement|ref-accept/impl-reject|nonfinal-positional-spread	mutate:typing/invalid/nonfinal-spread.hd:reindent	nonfinal-positional-spread
+19-2c9cabd34d2d	1	3532	parse-agreement|ref-reject/impl-accept|argument-order	generate	argument-order,trailing-block-position,trailing-block-position,syntax-error

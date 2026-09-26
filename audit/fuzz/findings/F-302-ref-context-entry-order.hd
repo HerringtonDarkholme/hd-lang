@@ -1,0 +1,7 @@
+# test: context spreads may follow explicit bindings (chapter 11 example)
+# expect: parse
+# fuzz-signature: parse-agreement|ref-reject/impl-accept|argument-order
+# fuzz-class: reference-parser bug (F-302)
+fn run() -> void:
+    $.with(Database=db, Logger=logger, ...prod_context()):
+        pass

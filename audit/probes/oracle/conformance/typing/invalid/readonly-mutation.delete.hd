@@ -1,0 +1,4 @@
+data User:
+    name: string
+
+fn invalid(user: User) -> void:

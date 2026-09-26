@@ -1,0 +1,12 @@
+path	phase	expectation	specification	area	note
+a4-nan-equality.no-bound.hd	runtime	accept	-	4	variant
+a4-nan-ordering.no-bound.hd	runtime	accept	-	4	variant
+a4-signed-zero.no-bound.hd	runtime	accept	-	4	variant
+a5-composite-identity.no-any.hd	runtime	accept	-	5	variant
+a5-fieldless-variant.no-any.hd	runtime	accept	-	5	variant
+a6-closure-capture-runtime.plain-only.hd	runtime	accept	-	6	variant
+a6-covariant.no-variance.hd	runtime	accept	-	6	variant
+a6-readonly-rejections.amb17.hd	type	reject:readonly-root	04-type-system.md#bindings-and-fresh-values	6	variant
+a8-copy-update-shallow.weakened.hd	runtime	accept	-	8	variant
+a8-default-later.amb15.hd	type	reject:impure-parameter-default	07-functions.md#default-values	8	variant
+a9-multibyte-scalars.no-replace.hd	runtime	accept	-	9	variant

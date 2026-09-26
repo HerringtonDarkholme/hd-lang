@@ -1,0 +1,5 @@
+fn ready!() -> i32:
+    1
+
+fn cannot_cancel() -> void:
+    pending := ready()
