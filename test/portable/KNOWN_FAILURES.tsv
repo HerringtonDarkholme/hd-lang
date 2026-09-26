@@ -4,7 +4,6 @@ typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports privat
 runtime/valid/reference-bounded-dynamic-method.hd	check fails: MVP rejects Reference-bounded method generics in dynamic traits (trait-not-dynamically-safe at lines 27 and 30)	G2
 runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 type (unknown-type)	L2
 typing/invalid/signed-exponent.hd	MVP accepts a signed i32 exponent	L2
-typing/invalid/inferred-mutable-upgrade.hd	wrong code: MVP reports generic-type-mismatch instead of mutable-upgrade	L6
 runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is between list[User] and mut list[mut User] (type-mismatch)	L7
 runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205

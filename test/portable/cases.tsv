@@ -674,3 +674,4 @@ runtime/valid/private-main-is-ordinary-function.hd	runtime
 runtime/valid/no-entry-point-no-tests.hd	runtime
 typing/invalid/tuple-element-assignment.hd	type
 typing/invalid/indirect-supertrait-cycle.hd	type
+typing/invalid/inferred-mutable-upgrade.hd	type
