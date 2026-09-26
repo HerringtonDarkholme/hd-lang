@@ -1,0 +1,13 @@
+# test: requirements / inferred rows / public caller without a clause
+
+trait Clock
+
+fn read_clock():
+    _ := $.use(Clock)
+    pass
+
+fn forward():
+    read_clock()
+
+pub fn top() -> void:
+    forward()  # diagnostic: missing-requirement

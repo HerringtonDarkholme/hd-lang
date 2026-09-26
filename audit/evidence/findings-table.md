@@ -116,3 +116,11 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-610](../findings/F-610-dispatch-chains-defeat-exhaustiveness.md) | note | architecture | Expression dispatch is split into `??` chains, so missing kinds fail only at runtime |  |
 | [F-611](../findings/F-611-replay-identity-formatting.md) | note | runtime | Replay code identity changes on whitespace or comment edits inside a function |  |
 | [F-612](../findings/F-612-explain-requirements-path-explosion.md) | note | architecture | explain-requirements prints every call path, so output grows exponentially |  |
+| [F-700](../findings/F-700-closure-propagation-invalid-wat.md) | major | correctness | Optional `?` inside a closure emits WAT that Binaryen cannot parse |  |
+| [F-701](../findings/F-701-generic-function-value-rejected.md) | minor | correctness | A generic function cannot be used as a value, even when its type arguments are known |  |
+| [F-702](../findings/F-702-pub-path-only-use-accepted.md) | minor | correctness | `pub` on a path-only `use` is accepted |  |
+| [F-703](../findings/F-703-pub-top-level-binding-accepted.md) | minor | correctness | `pub` on a top-level binding is accepted |  |
+| [F-704](../findings/F-704-string-replace-unimplemented.md) | minor | coverage | `string.replace` is not implemented |  |
+| [F-705](../findings/F-705-declared-variance-deferred.md) | note | coverage | Declared variance is deferred, so covariant data cannot be written |  |
+| [F-706](../findings/F-706-raw-string-escaped-quote.md) | minor | correctness | A backslash before a quote in a raw string is a lexer error |  |
+| [F-707](../findings/F-707-same-line-suite-comma-accepted.md) | minor | correctness | A comma at depth zero does not end a same-line suite |  |

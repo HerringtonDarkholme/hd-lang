@@ -1,0 +1,18 @@
+# test: requirements / inferred rows / recursive functions get the least row
+
+use std.testing.assert_equal
+
+fn is_even(n: i32) -> bool:
+    if n == 0: true
+    else: is_odd(n - 1)
+
+fn is_odd(n: i32) -> bool:
+    if n == 0: false
+    else: is_even(n - 1)
+
+pub fn check(n: i32) -> bool:
+    is_even(n)
+
+test "cyclic inferred rows are empty":
+    assert_equal(check(4), true, reason="four is even")
+    assert_equal(check(3), false, reason="three is odd")

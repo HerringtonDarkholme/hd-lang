@@ -581,3 +581,11 @@ runtime/valid/direct-member-hides-promoted.hd	runtime
 runtime/valid/use-declaration-position-independent.hd	runtime
 runtime/valid/default-method-conflict-inherent-resolves.hd	runtime
 typing/invalid/function-type-invariant-view-result.hd	type
+typing/valid/traits.hd	type
+parse/valid/unicode-escape.hd	parse
+parse/invalid/brace-escape.hd	parse
+parse/valid/curried-function-type.hd	parse
+parse/valid/string-in-interpolation.hd	parse
+parse/valid/nested-named-arguments.hd	parse
+parse/valid/context-spread-after-binding.hd	parse
+runtime/valid/recursive-private-functions-least-row.hd	runtime

@@ -1,0 +1,23 @@
+# test: functions / declarations / private function infers its result
+
+use std.testing.assert_equal
+
+fn double(x: i32):
+    x * 2
+
+fn describe(x: i32):
+    "value ${double(x)}"
+
+data Counter:
+    start: i32
+
+impl Counter:
+    fn next(self):
+        self.start + 1
+
+pub fn total() -> i32:
+    double(3) + Counter { start: 4 }.next()
+
+test "inferred results flow to callers":
+    assert_equal(total(), 11, reason="private function infers its result")
+    assert_equal(describe(5), "value 10", reason="inferred string result")

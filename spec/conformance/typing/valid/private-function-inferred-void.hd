@@ -1,0 +1,8 @@
+# test: functions / declarations / omitted result with no value is void
+
+fn note(value: i32):
+    _ := value
+    pass
+
+pub fn run() -> void:
+    note(1)

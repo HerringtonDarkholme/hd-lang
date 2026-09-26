@@ -110,3 +110,11 @@ F-609	note	architecture		Desugaring is split between checker and emitter, and co
 F-610	note	architecture		Expression dispatch is split into `??` chains, so missing kinds fail only at runtime	F-610-dispatch-chains-defeat-exhaustiveness.md
 F-611	note	runtime		Replay code identity changes on whitespace or comment edits inside a function	F-611-replay-identity-formatting.md
 F-612	note	architecture		explain-requirements prints every call path, so output grows exponentially	F-612-explain-requirements-path-explosion.md
+F-700	major	correctness		Optional `?` inside a closure emits WAT that Binaryen cannot parse	F-700-closure-propagation-invalid-wat.md
+F-701	minor	correctness		A generic function cannot be used as a value, even when its type arguments are known	F-701-generic-function-value-rejected.md
+F-702	minor	correctness		`pub` on a path-only `use` is accepted	F-702-pub-path-only-use-accepted.md
+F-703	minor	correctness		`pub` on a top-level binding is accepted	F-703-pub-top-level-binding-accepted.md
+F-704	minor	coverage		`string.replace` is not implemented	F-704-string-replace-unimplemented.md
+F-705	note	coverage		Declared variance is deferred, so covariant data cannot be written	F-705-declared-variance-deferred.md
+F-706	minor	correctness		A backslash before a quote in a raw string is a lexer error	F-706-raw-string-escaped-quote.md
+F-707	minor	correctness		A comma at depth zero does not end a same-line suite	F-707-same-line-suite-comma-accepted.md

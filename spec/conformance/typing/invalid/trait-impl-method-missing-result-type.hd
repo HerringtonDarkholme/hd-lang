@@ -1,0 +1,11 @@
+# test: functions / declarations / trait implementation method needs a result type
+
+trait Sized:
+    fn size(self) -> i32
+
+data Box:
+    width: i32
+
+impl Sized for Box:
+    fn size(self):  # diagnostic: missing-result-type
+        self.width

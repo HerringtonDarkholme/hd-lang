@@ -20,7 +20,7 @@ typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mism
 typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
 typing/invalid/provider-spread-of-non-context.hd	MVP reports context-spread-type instead of type-mismatch	F-205
 typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
-typing/invalid/signed-integer-exponent.hd	MVP accepts a signed integer exponent; L2 makes it type-mismatch	F-153
+typing/invalid/signed-integer-exponent.hd	MVP accepts a signed integer exponent; L2 makes it type-mismatch	L2
 parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
 parse/invalid/dedent-to-unused-column.hd	MVP reports inconsistent-dedent instead of invalid-dedent	F-205
 parse/invalid/double-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
@@ -55,20 +55,112 @@ runtime/valid/boxed-primitive-identity.hd	check fails: i32 cannot become a Displ
 runtime/valid/composite-identity-and-views.hd	check fails: is rejects mut T operands; unknown-type Any	F-353
 runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
 runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-352
-runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	MVP-scope
+runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	F-705
 typing/invalid/default-later-parameter-earlier-twin.hd	reports impure-parameter-default instead of binding-not-yet-visible	F-356
 runtime/valid/copy-update-shallow.hd	check fails: is rejects mut Child operands (identity-requires-references)	F-353
-runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	MVP-scope
+runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	F-704
 runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and keeps U+0085 (assertion-failed)	F-355
-runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	MVP-scope
-runtime/valid/propagation-in-closure-targets-closure.hd	test crashes: optional ? inside a closure emits WAT that Binaryen cannot parse	W7-new
+runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	F-704
+runtime/valid/propagation-in-closure-targets-closure.hd	test crashes: optional ? inside a closure emits WAT that Binaryen cannot parse	F-700
 runtime/valid/private-main-is-ordinary-function.hd	test runs a non-pub main as an entry point (assertion-failed); only pub main is an entry point	L4
 runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a parenthesized multiline closure argument	F-252
-runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	W7-new
+runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with expected-token instead of reporting duplicate-binding	F-252
 parse/invalid/wildcard-use.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
-parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	W7-new
-parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	W7-new
+parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	F-702
+parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	F-703
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
 runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type list[Any])	F-255
+parse/valid/nested-layout.hd	parse fails: expected-newline at line 2: expected a line ending, found 'else'	F-252
+parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254
+parse/valid/grammar-disambiguation.hd	parse fails: expected-newline at line 10: expected a line ending, found 'else'	F-252
+parse/valid/uses.hd	parse fails: expected-token at line 6: expected a module path after use	F-252
+typing/valid/local-types.hd	check fails: expected-expression at line 2: expected an expression, found 'type'	F-254
+typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
+typing/valid/newtypes-and-widening.hd	check fails: expected-expression at line 1: expected an expression, found 'type'	F-254
+typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
+typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i64'	F-253
+typing/invalid/integer-literal-range.hd	MVP reports unknown-type at line 2 instead of integer-literal-range: unknown or unsupported type 'u8'	F-253
+typing/invalid/nominal-map-key.hd	MVP reports expected-expression at line 2 instead of invalid-map-key: expected an expression, found 'type'	F-254
+typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Eq'	F-255
+typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
+typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
+typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
+typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
+typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
+typing/invalid/nil-to-any.hd	MVP reports unknown-type at line 2 instead of nil-to-nonoptional: unknown or unsupported type 'Any'	F-255
+typing/invalid/local-impl-nonlocal-pair.hd	MVP reports expected-expression at line 9 instead of local-impl-nonlocal-pair: expected an expression, found 'impl'	F-254
+typing/invalid/variance-position.hd	MVP reports expected-token at line 2 instead of invalid-variance: expected a generic data parameter	F-250
+typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
+typing/valid/gadts.hd	check fails: expected-token at line 7: expected a line ending after an enum variant	F-250
+typing/valid/annotations.hd	check fails: expected-expression at line 39: expected an expression, found 'annotate'	F-250
+typing/valid/full-validation.hd	check fails: expected-expression at line 71: expected an expression, found 'annotate'	F-250
+typing/valid/missing-child-override.hd	check fails: expected-expression at line 30: expected an expression, found 'annotate'	F-250
+typing/invalid/missing-child-annotation.hd	MVP reports expected-expression at line 29 instead of missing-child-annotation: expected an expression, found 'annotate'	F-250
+typing/valid/data-decorator.hd	check fails: expected-expression at line 37: expected an expression, found 'annotate'	F-250
+typing/valid/embedded-field-decorator.hd	check fails: expected-token at line 12: expected a data field name	F-250
+typing/invalid/embedded-field-decorator-type.hd	MVP reports expected-token at line 14 instead of invalid-field-metadata: expected a data field name	F-250
+typing/valid/derived-equality.hd	check fails: decorator-not-top-level at line 3: decorators are only valid on top-level declarations	F-250
+typing/valid/derived-hash.hd	check fails: decorator-not-top-level at line 2: decorators are only valid on top-level declarations	F-250
+typing/invalid/derived-hash-field-not-hash.hd	MVP reports decorator-not-top-level at line 4 instead of field-not-hash: decorators are only valid on top-level declarations	F-250
+typing/valid/derived-ordering.hd	check fails: decorator-not-top-level at line 3: decorators are only valid on top-level declarations	F-250
+typing/invalid/derived-total-order-float.hd	MVP reports decorator-not-top-level at line 2 instead of field-not-eq: decorators are only valid on top-level declarations	F-250
+parse/valid/decorators.hd	parse fails: decorator-not-top-level at line 1: decorators are only valid on top-level declarations	F-250
+typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
+typing/invalid/impossible-gadt-pattern.hd	MVP reports unknown-type at line 3 instead of impossible-gadt-pattern: unknown or unsupported type 'i64'	F-250
+typing/invalid/unknown-annotation-member.hd	MVP reports expected-expression at line 5 instead of unknown-annotation-member: expected an expression, found 'annotate'	F-250
+typing/valid/parameter-decorator.hd	check fails: expected-expression at line 5: expected an expression, found 'type'	F-250
+typing/valid/retention-metadata.hd	check fails: expected-expression at line 1: expected an expression, found 'type'	F-250
+typing/invalid/parameter-decorator-type.hd	MVP reports expected-token at line 10 instead of invalid-parameter-metadata: expected a parameter name	F-250
+typing/invalid/retention-missing-field.hd	MVP reports expected-expression at line 4 instead of unknown-shape-target: expected an expression, found 'shape'	F-250
+typing/valid/configured-facet.hd	check fails: decorator-not-top-level at line 28: decorators are only valid on top-level declarations	F-250
+typing/invalid/configured-facet-not-annotator.hd	MVP reports decorator-not-top-level at line 4 instead of decorator-not-annotator: decorators are only valid on top-level declarations	F-250
+typing/valid/generic-annotation-family.hd	check fails: expected-expression at line 11: expected an expression, found 'annotate'	F-250
+typing/invalid/overlapping-generic-annotation.hd	MVP reports expected-expression at line 11 instead of overlapping-annotation-impl: expected an expression, found 'annotate'	F-250
+typing/valid/direct-annotation-impl.hd	check fails: unknown-trait at line 8: unknown trait 'Annotation'	F-250
+typing/invalid/duplicate-direct-annotation-impl.hd	MVP reports expected-expression at line 30 instead of duplicate-annotation-impl: expected an expression, found 'annotate'	F-250
+typing/invalid/covariant-gadt-result.hd	MVP reports expected-token at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
+typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
+typing/invalid/variance-representation-change.hd	MVP reports expected-token at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
+typing/valid/variance-permission-weakening.hd	check fails: expected-token at line 4: expected a generic data parameter	F-250
+typing/invalid/library-orphan-annotation.hd	MVP reports expected-expression at line 5 instead of orphan-annotation-in-library: expected an expression, found 'annotate'	F-250
+typing/valid/root-orphan-annotation.hd	check fails: expected-expression at line 5: expected an expression, found 'annotate'	F-250
+typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at line 12 instead of annotation-resolution-reentry: expected an expression, found 'annotate'	F-250
+typing/valid/annotation-reference.hd	check fails: expected-expression at line 12: expected an expression, found 'annotate'	F-250
+typing/invalid/derived-generic-bound.hd	MVP reports decorator-not-top-level at line 1 instead of missing-derived-bound: decorators are only valid on top-level declarations	F-250
+typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at line 1: decorators are only valid on top-level declarations	F-250
+typing/valid/row-kinded-arguments.hd	check fails: expected-token at line 7: expected '.', found '('	F-256
+typing/invalid/row-kind-mismatch.hd	MVP reports expected-token at line 4 instead of generic-kind-mismatch: expected '.', found '('	F-256
+typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
+typing/invalid/least-type-weakening-variance.hd	MVP reports no-common-type at line 5 instead of no-least-common-type: list elements have no common type: mut:list[mut:User] and list[User]	F-258
+typing/invalid/plain-closure-mutable-capture.hd	MVP check accepts; expected mutable-capture-requires-mut-fn	F-251
+typing/valid/mutable-closure-capture.hd	check fails: expected-expression at line 2: expected an expression, found 'mut'	F-257
+typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
+typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253
+typing/invalid/data-annotator-map-build.hd	MVP reports unknown-trait at line 5 instead of annotation-build-signature: unknown trait 'Annotation'	F-250
+typing/invalid/annotation-top-level-read.hd	MVP reports expected-expression at line 12 instead of annotation-top-level-read: expected an expression, found 'annotate'	F-250
+typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 10: expected an expression, found 'annotate'	F-250
+typing/valid/shape-api.hd	check fails: expected-expression at line 13: expected an expression, found 'shape'	F-250
+typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
+typing/invalid/contravariant-representation-change.hd	MVP reports expected-token at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
+typing/invalid/variant-result-owner.hd	MVP reports expected-token at line 2 instead of variant-result-owner: expected ':', found ')'	F-252
+typing/invalid/unrepresentable-type-shape.hd	MVP reports expected-expression at line 7 instead of unrepresentable-type-shape: expected an expression, found 'shape'	F-250
+runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
+typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
+parse/invalid/stray-dollar.hd	MVP reports invalid-string-interpolation instead of syntax-error (S3)	F-205
+parse/invalid/same-line-suite-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
+parse/invalid/same-line-let-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
+parse/invalid/discard-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205
+parse/invalid/return-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205
+parse/valid/raw-string-escaped-quote.hd	parse rejects a backslash-escaped quote inside a raw string (unexpected-character)	F-706
+parse/invalid/repeated-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
+typing/invalid/public-function-missing-result-type.hd	MVP reports expected-token at line 3 instead of missing-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+typing/invalid/trait-impl-method-missing-result-type.hd	MVP reports expected-token at line 10 instead of missing-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+typing/invalid/mutual-recursion-omitted-results.hd	MVP reports expected-token at line 3 instead of recursive-function-needs-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+typing/invalid/inferred-row-reaches-public-caller.hd	MVP reports expected-token at line 5 instead of missing-requirement: expected '->', found ':'; requirement-row inference (I6) is not implemented	I6
+typing/valid/private-function-inferred-void.hd	check fails: expected-token at line 3: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+typing/valid/mutual-recursion-one-annotated.hd	check fails: expected-token at line 7: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+typing/valid/inferred-row-through-private-callers.hd	check fails: missing-requirement at line 6: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
+runtime/valid/private-function-inferred-result.hd	check fails: expected-token at line 5: expected '->', found ':'; result-type inference (I5) is not implemented	I5
+runtime/valid/private-function-inferred-row.hd	check fails: missing-requirement at line 12: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6

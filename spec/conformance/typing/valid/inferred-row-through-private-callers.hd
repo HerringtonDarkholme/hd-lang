@@ -1,0 +1,13 @@
+# test: requirements / inferred rows / private callers propagate the row
+
+pub trait Clock
+
+fn read_clock() -> i32:
+    _ := $.use(Clock)
+    7
+
+fn forward() -> i32:
+    read_clock() + 1
+
+pub fn top() -> i32 $ Clock:
+    forward()
