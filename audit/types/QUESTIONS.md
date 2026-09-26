@@ -1,5 +1,24 @@
 # Type-Checking Rules: Questions For The Owner
 
+## Owner Decisions
+
+Decided 2026-09-26; not yet applied to the specification.
+
+- **TQ-1: MoonBit/Swift overlap rule.** An impl target must start with a type
+  constructor (data, enum, newtype, or built-in), never a bare type
+  parameter. Two impls overlap when they have the same trait, unifiable trait
+  arguments, and the same target constructor; bounds are ignored. The prelude
+  `Iterable`-for-`Iterator` adapter is replaced by `for` accepting either
+  trait. Rust-style blanket impls may be added later (a compatible
+  extension); the standard library must settle its blanket impls before it
+  stabilizes.
+- **TQ-2: orphan rule.** `impl Trait[Args] for Type` may appear only in the
+  package that owns the trait, the target type constructor, or a type
+  argument of the trait (when the target is not a bare parameter).
+- **TQ-3 (partial): more than one promoted or trait candidate is an error.**
+  Still open: an inherent method versus a trait method of the same name.
+
+
 Each question stands alone. Guiding preference: agents write the code and humans
 read it, so prefer explicit, checkable rules and locality.
 

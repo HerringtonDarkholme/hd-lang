@@ -41,9 +41,13 @@ Decided 2026-09-26:
 5. **Question 8: reaching the end of the log is not an exit.** Resuming
    (switching to live execution) is the default; `defer` runs only on a real
    exit or a real cancellation. A host that wants to abort instead cancels
-   the resumed instance, which runs cleanup live. Still open: what happens to
-   a host call that was in flight when the original run stopped (started,
-   no result recorded), since not every call can be retried blindly.
+   the resumed instance, which runs cleanup live.
+6. **In-flight calls follow a per-method policy.** A host call that started
+   but has no recorded result is handled by its runtime-profile marking: an
+   idempotent method re-runs with a stable idempotency key (execution ID plus
+   event index) passed to the host; any other method returns an
+   `outcome-unknown` error to the program, which decides whether to check,
+   compensate, or fail.
 
 ## Problem
 
