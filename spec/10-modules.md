@@ -133,7 +133,7 @@ prelude: prelude names are used directly and are not re-imported.
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `list`, `map`, `Any`, `Reference`, `Result`, `Ok`, `Err`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `list`, `map`, `Any`, `Reference`, `Option`, `Result`, `Ok`, `Err`, `panic` |
 | `std.format` | `Display` |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |

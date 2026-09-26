@@ -15,5 +15,5 @@ fn parse_twice(input: string) -> Result[i32, ParseError]:
     second := parse(input)?
     Ok(first + second)
 
-let nested: string?? = nil
-let callback: (fn(i32) -> string)? = nil
+let nested: string?? = .None
+let callback: (fn(i32) -> string)? = .None

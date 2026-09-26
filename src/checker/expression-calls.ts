@@ -7,6 +7,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
   readonlyType,
   resultParts,
   storedSuspensionParts,
@@ -80,6 +81,14 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
 
   private checkCall(expression: CallExpression, expected?: ValueType): HirExpression {
     if (expression.callee.kind === "contextual-variant") {
+      if (expected && optionalInner(expected) !== undefined)
+        return this.checkOptionVariant(
+          expression.callee.name,
+          expression,
+          expected,
+          expression.span,
+          false,
+        );
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -118,6 +127,17 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
   }
 
   private checkMemberCall(expression: MemberCallExpression, expected?: ValueType): HirExpression {
+    if (
+      expression.callee.receiver.kind === "name" &&
+      this.namesOptionEnum(expression.callee.receiver.name)
+    )
+      return this.checkOptionVariant(
+        expression.callee.name,
+        expression,
+        expected,
+        expression.span,
+        true,
+      );
     if (expression.callee.receiver.kind === "name") {
       const declaration = this.enumTypes.get(expression.callee.receiver.name);
       if (declaration) {

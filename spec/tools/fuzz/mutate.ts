@@ -65,7 +65,6 @@ const interestingLiterals = [
   '"a${x}b"',
   '"$"',
   "'a'",
-  "nil",
   "true",
   "false",
 ];
@@ -178,7 +177,7 @@ export function applyMutation(
       return true;
     case "replace-literal": {
       const literalSlots = slots.filter(([row, column]) =>
-        /^(?:\d|"|'|r"|nil$|true$|false$)/.test(lines[row]!.tokens[column]!),
+        /^(?:\d|"|'|r"|true$|false$)/.test(lines[row]!.tokens[column]!),
       );
       if (literalSlots.length === 0) return false;
       const [row, column] = rng.pick(literalSlots);

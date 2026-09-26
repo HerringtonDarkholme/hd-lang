@@ -35,7 +35,11 @@ field and method lookups, same-named fields and methods, and
 `(x.callback)(args)` for function-typed fields. TQ-4 (a dot call chooses among
 instantiations of one generic trait by argument and expected types), TQ-28
 (overlap by unifying full heads), and TQ-27's tuple targets and
-`function-impl-target` are implemented.
+`function-impl-target` are implemented. O1 to O3 are implemented as sugar
+over the existing erased optional carrier: `Option[T]` is `T?`, `.None`,
+`.Some(value)`, and their `Option.`-qualified forms construct and match
+optionals, the implicit wrap adds one layer only, and `Option[T]` targets
+behave like `T?` targets.
 The grammar decisions GQ1 (a trailing
 requirement clause belongs to the declaration), GQ5 (data patterns label
 fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2

@@ -8,8 +8,8 @@ fn main() -> i32:
     values[0] = 40
     scores["x"] = 2
     score := match scores["x"]:
-        found? => found
-        nil => 0
+        .Some(found) => found
+        .None => 0
     values[0] + score
 
 test "main returns 42":

@@ -49,6 +49,7 @@ import {
   type LinearSuspensionSite,
   dataSingletons,
   methodBoundParameters,
+  andThen,
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
@@ -696,7 +697,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
             : test.literal!.type === "f64"
               ? `(f64.eq ${actual} ${expected})`
               : `(i32.eq ${actual} ${expected})`;
-      condition = condition ? `(i32.and ${condition} ${next})` : next;
+      condition = condition ? andThen(condition, next) : next;
     }
     return condition ?? `(i32.const 1)`;
   }

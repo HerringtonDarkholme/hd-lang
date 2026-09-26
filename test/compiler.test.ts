@@ -633,7 +633,7 @@ test("match guards see pattern bindings and do not contribute coverage", async (
   );
 });
 
-test("optionals inject plain values, match both cases, and propagate nil", async () => {
+test("optionals inject plain values, match both cases, and propagate .None", async () => {
   const source = conformance("runtime/valid/optional-propagation");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /type \$hd\.variant/);
@@ -663,8 +663,8 @@ test("Result patterns recursively match imported enum payloads", async () => {
 
 test("optional and Result context errors have stable diagnostics", () => {
   assert.equal(
-    analyze(conformance("typing/invalid/nil-without-expected-type")).diagnostics[0]?.code,
-    "nil-to-nonoptional",
+    analyze(conformance("typing/invalid/none-without-expected-type")).diagnostics[0]?.code,
+    "missing-contextual-enum-type",
   );
   assert.equal(
     analyze(conformance("typing/invalid/result-constructor-without-context")).diagnostics[0]?.code,

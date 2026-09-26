@@ -175,7 +175,6 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
     case "string":
     case "character":
     case "boolean":
-    case "nil":
     case "name":
     case "qualified-name":
     case "contextual-variant":

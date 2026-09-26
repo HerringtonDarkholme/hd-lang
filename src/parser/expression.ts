@@ -71,6 +71,10 @@ export abstract class ExpressionParser extends ParserBase {
     }
     let left = this.parsePrefix();
     while (true) {
+      // An expression that ended by closing an indented suite (a `for`,
+      // `match`, or `if` body) is complete: the next line, such as `.None`,
+      // starts a new statement.
+      if (this.peek(-1).kind === "dedent") break;
       if (
         this.atText("[") &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
@@ -263,10 +267,6 @@ export abstract class ExpressionParser extends ParserBase {
     if (token.text === "true" || token.text === "false") {
       this.advance();
       return { kind: "boolean", value: token.text === "true", span: token.span };
-    }
-    if (token.text === "nil") {
-      this.advance();
-      return { kind: "nil", span: token.span };
     }
     if (this.matchText("[")) {
       if (this.atText("for")) return this.parseListComprehension(token);
@@ -878,7 +878,6 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "boolean", value: true, span: { start, end: this.peek(-1).span.end } };
     if (this.matchText("false"))
       return { kind: "boolean", value: false, span: { start, end: this.peek(-1).span.end } };
-    if (this.matchText("nil")) return { kind: "nil", span: { start, end: this.peek(-1).span.end } };
     const negative = this.matchText("-");
     const literal = this.current();
     if (literal.kind === "integer") {
@@ -956,13 +955,12 @@ export abstract class ExpressionParser extends ParserBase {
       const close = this.expectText("}");
       return { kind: "data", typeName: first.text, fields, span: { start, end: close.span.end } };
     }
-    if (this.matchText("?")) {
-      return {
-        kind: "optional-present",
-        name: first.text,
-        span: { start, end: this.peek(-1).span.end },
-      };
-    }
+    if (this.atText("?"))
+      this.fail(
+        "syntax-error",
+        `'${first.text}?' is not a pattern; match an optional with '.Some(${first.text})'`,
+        this.current().span,
+      );
     if ((first.text === "Ok" || first.text === "Err") && this.atText("(")) {
       const { bindings, patterns } = this.parsePatternBindings();
       return {

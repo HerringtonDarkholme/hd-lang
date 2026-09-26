@@ -14,8 +14,8 @@ fn normalize(values: mut list[string], entries: mut map[string, i32]) -> i32:
     removed := entries.remove("old")
     lengths := removed.map(fn(value: i32): value + clean.len())
     match lengths:
-        value? => value
-        nil => 0
+        .Some(value) => value
+        .None => 0
 
 fn report(label: Label) -> void $ Console:
     println(label)

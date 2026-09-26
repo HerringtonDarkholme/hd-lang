@@ -218,7 +218,7 @@ pub fn port_line(text: string) -> string?:
     for line in text.split("\n"):
         if line.starts_with("port"):
             return line.trim()
-    nil
+    .None
 ```
 
 Compared with the surveyed languages: Python would patch `open` and
@@ -419,7 +419,7 @@ it is the recommended final form.
 ```text
 pub trait Error < Display:
     fn cause(self) -> Error?:
-        nil
+        .None
 ```
 
 [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified)
@@ -1433,5 +1433,5 @@ fn port(text: string) -> f64?:
     match json.parse(text):
         Ok(json.Json.Object(fields)) => pass
         _ => pass
-    nil
+    .None
 ```

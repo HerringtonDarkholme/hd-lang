@@ -17,6 +17,8 @@ import {
   functionParts,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
+  readonlyType,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -48,6 +50,93 @@ export abstract class PatternChecker extends CallChecker {
     if (nominal && (this.dataTypes.has(nominal.name) || this.enumTypes.has(nominal.name)))
       return true;
     return this.dataTypes.has(type) || this.enumTypes.has(type);
+  }
+
+  /**
+   * `T?` is the prelude enum `Option[T]`. Its variants construct the existing
+   * erased optional representation: `.None` is the absent variant and
+   * `.Some(value)` wraps exactly one layer.
+   */
+  protected checkOptionVariant(
+    variantName: string,
+    call: Extract<Expression, { kind: "call" }> | undefined,
+    expected: ValueType | undefined,
+    span: SourceSpan,
+    qualified: boolean,
+  ): HirExpression {
+    const expectedOptional = expected ? optionalInner(expected) : undefined;
+    const optionalType = expectedOptional !== undefined ? expected : undefined;
+    if (variantName !== "Some" && variantName !== "None")
+      this.fail("unknown-variant", `enum 'Option' has no variant '${variantName}'`, span);
+    if (call?.argumentSpreads?.some(Boolean))
+      this.fail(
+        "positional-spread-needs-vararg",
+        "enum constructors have no variadic parameter",
+        span,
+      );
+    if (optionalType === undefined && !qualified)
+      this.fail(
+        "missing-contextual-enum-type",
+        `variant '.${variantName}' requires an expected enum type`,
+        span,
+      );
+    if (variantName === "None") {
+      if (call && call.arguments.length > 0)
+        this.fail("argument-count", "variant 'None' takes no arguments", span);
+      if (optionalType === undefined)
+        this.fail(
+          "unresolved-generic-placeholder",
+          "could not infer generic enum parameter T of 'Option.None'",
+          span,
+        );
+      return { kind: "variant-wrap", variant: "optional-absent", type: optionalType, span };
+    }
+    if (!call)
+      this.fail("unsaturated-enum-constructor", "variant 'Some' requires 1 argument", span);
+    if (call.arguments.length !== 1)
+      this.fail(
+        "argument-count",
+        `variant 'Some' takes 1 argument, found ${call.arguments.length}`,
+        span,
+      );
+    const name = call.argumentNames?.[0];
+    if (name !== undefined && name !== "value")
+      this.fail("unknown-data-field", `variant 'Some' has no payload field '${name}'`, span);
+    const argument = call.arguments[0]!;
+    if (expectedOptional === undefined) {
+      const payload = this.checkExpression(argument);
+      return {
+        kind: "variant-wrap",
+        variant: "optional-present",
+        payload,
+        payloadType: payload.type,
+        type: `${payload.type}?`,
+        span,
+      };
+    }
+    const payload = this.requireCoercion(
+      this.checkExpression(argument, expectedOptional),
+      expectedOptional,
+      argument.span,
+    );
+    return {
+      kind: "variant-wrap",
+      variant: "optional-present",
+      payload,
+      payloadType: expectedOptional,
+      type: optionalType!,
+      span,
+    };
+  }
+
+  /** `Option` names the prelude enum unless a local or global binding shadows it. */
+  protected namesOptionEnum(name: string): boolean {
+    return (
+      name === "Option" &&
+      !this.resolveLocal(name) &&
+      !this.availableCaptures.has(name) &&
+      !this.resolveGlobal(name)
+    );
   }
 
   protected checkEnumConstructor(
@@ -225,6 +314,46 @@ export abstract class PatternChecker extends CallChecker {
       tests.push({ accessPath, literal });
       return false;
     }
+    const optional = optionalInner(readonlyType(type));
+    if (
+      optional !== undefined &&
+      pattern.kind === "variant" &&
+      (pattern.enumName === undefined || pattern.enumName === "Option")
+    ) {
+      const payloadPatterns =
+        pattern.payloadPatterns ??
+        pattern.bindings.map((name) =>
+          name
+            ? { kind: "binding" as const, name, span: pattern.span }
+            : { kind: "wildcard" as const, span: pattern.span },
+        );
+      if (pattern.variantName !== "Some" && pattern.variantName !== "None")
+        this.fail(
+          "unknown-variant",
+          `enum 'Option' has no variant '${pattern.variantName}'`,
+          pattern.span,
+        );
+      const some = pattern.variantName === "Some";
+      if (payloadPatterns.length !== (some ? 1 : 0))
+        this.fail(
+          "pattern-arity",
+          `variant '${pattern.variantName}' expects ${some ? 1 : 0} payload patterns`,
+          pattern.span,
+        );
+      tests.push({ accessPath, tag: some ? 1 : 0, tagEnumIndex: -1 });
+      if (some)
+        this.checkNestedPattern(
+          payloadPatterns[0]!,
+          optional,
+          [
+            ...accessPath,
+            { kind: "erased-variant", typeIndex: -1, fieldIndex: 0, valueType: optional },
+          ],
+          bindings,
+          tests,
+        );
+      return false;
+    }
     const nominal = nominalGenericParts(type);
     if (pattern.kind === "data") {
       const declaration = this.dataTypes.get(nominal?.name ?? type);
@@ -276,6 +405,12 @@ export abstract class PatternChecker extends CallChecker {
     }
     if (pattern.kind === "variant") {
       const declaration = this.enumTypes.get(nominal?.name ?? type);
+      if (!declaration && pattern.enumName === undefined)
+        this.fail(
+          "missing-contextual-enum-type",
+          `variant pattern '.${pattern.variantName}' requires an enum type, found '${type}'`,
+          pattern.span,
+        );
       if (
         !declaration ||
         (pattern.enumName !== undefined && pattern.enumName !== declaration.name)

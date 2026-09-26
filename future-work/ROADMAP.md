@@ -201,7 +201,7 @@ A language server is therefore low priority.
   through a query interface (SQLite, Datalog, or a small DSL) addressed by
   name rather than file position. Agents can then compose questions such as
   "every public function that eventually requires `Fs`" or "every path where
-  this value can be `nil`", and the same queries can serve as lint rules.
+  this value can be `.None`", and the same queries can serve as lint rules.
 - Name-addressed CLI queries: documentation and definition lookup by symbol,
   extending the existing `explain-requirements` and `trace` commands and the
   annotation inspection command from

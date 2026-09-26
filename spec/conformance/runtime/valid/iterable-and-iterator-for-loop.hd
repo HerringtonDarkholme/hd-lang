@@ -9,7 +9,7 @@ impl Iterable[i32] for Ring:
         self.items.iter()
 
 impl Iterator[i32] for Ring:
-    fn next(mut self) -> i32?: nil
+    fn next(mut self) -> i32?: .None
 
 fn sum(ring: Ring) -> i32:
     let total: i32 = 0

@@ -16,10 +16,10 @@ fn chain(log: mut Log, value: i32?) -> i32?:
     log.text = log.text + "c"
     found + 1
 
-test "nil propagates after one evaluation and runs cleanup":
+test ".None propagates after one evaluation and runs cleanup":
     let log: mut Log = Log { text: "" }
-    let absent: i32? = nil
-    assert_equal(chain(log, nil), absent, reason="nil returns nil")
+    let absent: i32? = .None
+    assert_equal(chain(log, .None), absent, reason=".None returns .None")
     assert_equal(log.text, "ed", reason="operand once, no continuation, cleanup")
 
 test "present value continues":

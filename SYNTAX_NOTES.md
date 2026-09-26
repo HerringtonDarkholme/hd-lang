@@ -59,7 +59,7 @@ name = "Grace"   # invalid: `name` was introduced with `:=`
 
 ```text
 let display_name: string = "Ada"
-let nickname: string? = nil
+let nickname: string? = .None
 let inferred = 1
 let attempts: i32 = 0
 let counter = 1
@@ -234,7 +234,7 @@ let scores: map[string, i32] = {"Ada": 10, "Grace": 12}
 
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
-        nil
+        .None
     else:
         items[0]
 ```
@@ -358,9 +358,9 @@ fn keep_erased(value: Any) -> Any:
     value
 ```
 
-`Any` is non-null. `nil` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T < Any` is a generic constraint that preserves the concrete type.
+`Any` is non-null. `.None` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T < Any` is a generic constraint that preserves the concrete type.
 
-Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values. A plain `T` implicitly constructs a present `T?` where that type is expected; no `Some(T)` wrapper is needed or built in. In a pattern, `value?` matches only the present case and binds `value: T`, while `nil` matches absence.
+Nullability is explicit. `T` and `T?` are different types, and `T?` is sugar for the prelude enum `Option[T]` with variants `Some(value)` and `None`. A plain `T` implicitly constructs `.Some(value)` where `T?` is expected, one layer only. The absent value is `.None` or `Option.None`; there is no `nil`. In a pattern, `.Some(value)` matches only the present case and binds `value: T`, while `.None` matches absence.
 
 Data embedding is composition, not inheritance. Embedded fields and methods can be promoted, but the outer data is not automatically a subtype of the embedded data.
 
@@ -638,7 +638,7 @@ embedded fields, and every enum payload field; different variants are unequal.
 Derived ordering compares data fields lexicographically and enum variants by
 declaration order, then shared data and payload fields. No field is implicitly
 excluded. `is` checks composite reference identity
-without calling comparison methods. It cannot compare primitives, `nil`, or
+without calling comparison methods. It cannot compare primitives or
 optional values.
 | `&&` | logical and |
 | `\|\|` | logical or |
@@ -1082,11 +1082,11 @@ return Err(db_error)
 Follow Swift's design:
 
 ```text
-let name: string = "Ada"      # required, cannot be nil
-let nickname: string? = nil   # optional, may be nil
+let name: string = "Ada"        # required, cannot be absent
+let nickname: string? = .None   # optional, may be absent
 ```
 
-Use `T?` for optional values. Non-optional values cannot be `nil`.
+Use `T?` for optional values. Non-optional values cannot be `.None`.
 
 Rust-style `?` propagates absence from functions returning optional values:
 
@@ -1334,7 +1334,7 @@ Generic functions put generic arguments after the function name:
 ```text
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
-        nil
+        .None
     else:
         items[0]
 ```
@@ -1863,7 +1863,7 @@ trait Cache:
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     cached := cache.get_user(id)
-    if cached != nil:
+    if cached != .None:
         return Ok(cached)
     db.get_user!(id)
 
@@ -2657,9 +2657,9 @@ annotate Validation for i32:
 annotate Validation for string:
     fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
-            min_len: nil,
-            max_len: nil,
-            contains: nil,
+            min_len: .None,
+            max_len: .None,
+            contains: .None,
         })
 
 annotate Validation for string?:
@@ -3331,7 +3331,7 @@ Any later design must specify interaction with `Result` and `?`, cleanup failure
 The current type system does not cover resource leakage through aliases. `mut` expresses write permission only; it does not express ownership, lexical lifetime, open/closed state, or responsibility for disposal. Consequently, either a future `defer` or `using` design could allow an alias to outlive the resource scope:
 
 ```text
-let global_file: File? = nil
+let global_file: File? = .None
 
 fn publish_file() -> void:
     file := File.open("data.txt")

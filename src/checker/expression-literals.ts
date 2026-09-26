@@ -5,7 +5,6 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
-  optionalInner,
   readonlyType,
   tupleParts,
   tupleType,
@@ -69,21 +68,6 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         };
       case "boolean":
         return { ...expression, type: "bool" };
-      case "nil": {
-        if (!expected || optionalInner(expected) === undefined) {
-          this.fail(
-            "nil-to-nonoptional",
-            "nil requires an expected optional type",
-            expression.span,
-          );
-        }
-        return {
-          kind: "variant-wrap",
-          variant: "optional-absent",
-          type: expected,
-          span: expression.span,
-        };
-      }
       case "list": {
         const expectedDataType = expected ? readonlyType(expected) : undefined;
         const expectedNominal = expectedDataType

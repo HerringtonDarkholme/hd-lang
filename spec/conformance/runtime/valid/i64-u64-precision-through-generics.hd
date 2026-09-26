@@ -19,5 +19,5 @@ test "large 64-bit integers keep every digit":
     assert_equal("${pass_through(unsigned)}", "18446744073709551615", reason="u64 max through a generic")
     let maybe: u64? = unsigned
     match maybe:
-        value? => assert_equal(value, unsigned, reason="optional payload keeps u64 max")
-        nil => panic("optional lost its payload")
+        .Some(value) => assert_equal(value, unsigned, reason="optional payload keeps u64 max")
+        .None => panic("optional lost its payload")

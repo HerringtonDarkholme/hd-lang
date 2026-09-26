@@ -79,9 +79,9 @@ annotate Validation for i32:
 annotate Validation for string:
     fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
-            min_len: nil,
-            max_len: nil,
-            contains: nil,
+            min_len: .None,
+            max_len: .None,
+            contains: .None,
         })
 
 annotate Validation for string?:

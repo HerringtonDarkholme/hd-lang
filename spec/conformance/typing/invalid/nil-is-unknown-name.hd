@@ -1,0 +1,3 @@
+# test: nil is no longer a keyword or literal; it is an unknown name
+
+let value: i32? = nil  # diagnostic: unknown-name
