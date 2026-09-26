@@ -177,7 +177,13 @@ function scanString(source: string, start: number, initialLine: number): StringS
       index += 1;
       continue;
     }
-    if (character === "\\" && !raw) {
+    if (character === "\\" && raw) {
+      // A backslash keeps the next quote from terminating a raw literal, and
+      // both characters remain content.
+      index += source[index + 1] === "\n" || index + 1 >= source.length ? 1 : 2;
+      continue;
+    }
+    if (character === "\\") {
       if (index + 1 >= source.length || source[index + 1] === "\n") {
         diagnostics.push(diagnostic("invalid-escape", line));
         index += 1;
@@ -234,6 +240,17 @@ export function maskLiterals(source: string): string {
     index += 1;
   }
   return result;
+}
+
+const digits = (digit: string): string => `${digit}(?:_?${digit})*`;
+const validNumberPattern = new RegExp(
+  `^(?:0[xX]_?${digits("[0-9A-Fa-f]")}|0[bB]_?${digits("[01]")}|0[oO]_?${digits("[0-7]")}` +
+    `|${digits("[0-9]")}(?:\\.${digits("[0-9]")})?(?:[eE][+-]?${digits("[0-9]")})?)$`,
+);
+
+/** Chapter 01 separator rule: an underscore only between digits, or once after a radix prefix. */
+function validNumber(text: string): boolean {
+  return validNumberPattern.test(text);
 }
 
 function numberEnd(source: string, start: number, afterDot: boolean): NumberScan {
@@ -428,6 +445,7 @@ export function lexSource(source: string): LexResult {
     if (isDigit(character)) {
       const found = numberEnd(source, index, previousText === ".");
       const text = source.slice(index, found.end);
+      if (!validNumber(text)) diagnostics.push(diagnostic("invalid-token", line));
       tokens.push(token(found.floating ? "float_literal" : "integer_literal", line, text));
       index = found.end;
       lineHasToken = true;

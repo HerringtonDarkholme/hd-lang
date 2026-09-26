@@ -1,0 +1,3 @@
+# test: a backslash keeps the next quote from ending a raw string
+quoted := r"say \"hi\""
+block := r"""a \""" still inside"""

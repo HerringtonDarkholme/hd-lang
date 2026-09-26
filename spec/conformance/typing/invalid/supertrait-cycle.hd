@@ -1,5 +1,2 @@
-trait Left: Right:
-    fn left(self) -> void
-
-trait Right: Left:  # diagnostic: supertrait-cycle
-    fn right(self) -> void
+trait Loop: Loop:  # diagnostic: supertrait-cycle
+    fn step(self) -> void

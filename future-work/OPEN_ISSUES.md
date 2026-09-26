@@ -332,6 +332,10 @@ until each is answered.
   `impure-enum-default`, or does one generalized code cover all defaults?
   Which code covers a default that names a later parameter? (A8, B6, AMB-15)
 - How is a non-final `...` in a function type diagnosed? (fuzzing)
+- In an indirect supertrait cycle (`trait A: B` and `trait B: A`), which
+  declaration reports `supertrait-cycle`: each member, the first in source
+  order, or the one that closes the cycle? The conformance fixture currently
+  covers only a direct self-cycle. (F-208)
 - Which code applies to a stray `$`? (F-303)
 - What does the `disposed-file` profile expose: any fixture `Files` and
   `FileHandle` pair by method name, or one trait declaration the suite

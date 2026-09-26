@@ -4,9 +4,3 @@ fn choose[T, U](first: Repo[T], second: Repo[U]) -> void:
     $.with(Repo[T]=first):
         $.with(Repo[U]=second):  # diagnostic: generic-requirement-key-collision
             pass
-
-data User: pass
-
-fn choose_row[T](user_repo: Repo[User]) -> void $ Repo[T]:
-    $.with(Repo[User]=user_repo):
-        pass

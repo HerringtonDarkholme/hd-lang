@@ -5,13 +5,15 @@ import type { Diagnostic } from "./types.ts";
 
 export function parseSource(source: string): Diagnostic[] {
   const { diagnostics, tokens } = lexSource(source);
-  const parsed = earleyAccepts(tokens);
-  if (!parsed.accepted)
-    diagnostics.push({
-      code: "syntax-error",
-      line: tokens[Math.min(parsed.farthest, tokens.length - 1)]!.line,
-    });
   diagnostics.push(...argumentOrderDiagnostics(source), ...contextDiagnostics(source));
+  const parsed = earleyAccepts(tokens);
+  if (!parsed.accepted) {
+    const line = tokens[Math.min(parsed.farthest, tokens.length - 1)]!.line;
+    // A lexical or contextual diagnostic on the same or an earlier line
+    // already explains the failure; the grammar error would only cascade.
+    if (!diagnostics.some((item) => item.line <= line))
+      diagnostics.push({ code: "syntax-error", line });
+  }
   const unique = new Map(diagnostics.map((item) => [`${item.code}\u0000${item.line}`, item]));
   return [...unique.values()].sort(
     (left, right) => left.line - right.line || left.code.localeCompare(right.code),
