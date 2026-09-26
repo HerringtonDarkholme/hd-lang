@@ -737,6 +737,16 @@ export type HirExpression =
       readonly erasedFieldType?: ValueType;
     })
   | (HirExpressionBase & {
+      /**
+       * A copy of `value` for an embedded field (08 Data Embedding): a new object
+       * of data type `dataIndex` whose ordinary fields hold `value`'s field values
+       * and whose embedded fields hold copies of `value`'s parts.
+       */
+      readonly kind: "embedded-copy";
+      readonly value: HirExpression;
+      readonly dataIndex: number;
+    })
+  | (HirExpressionBase & {
       readonly kind: "field-set";
       readonly receiver: HirExpression;
       readonly value: HirExpression;

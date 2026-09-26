@@ -1,4 +1,4 @@
-# test: a copy marker after a field label and the copy assignment token parse
+# test: a copy marker after a field label and the copy assignment token parse, also in a same-line suite
 data Timestamps:
     created_at: i32
     updated_at: i32
@@ -10,4 +10,5 @@ data Post:
 fn build(stamps: Timestamps) -> mut Post:
     let post: mut Post = Post { Timestamps: ...stamps, id: "p" }
     post.Timestamps ...= Timestamps { created_at: 2, updated_at: 2 }
+    if post.id == "p": post.Timestamps ...= stamps
     post

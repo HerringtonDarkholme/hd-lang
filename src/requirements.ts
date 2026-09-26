@@ -202,6 +202,7 @@ function visitExpression(
       );
       return;
     case "trait-wrap":
+    case "embedded-copy":
       visitExpression(expression.value, key, path, active, functions, output);
       return;
     case "trait-dictionary":

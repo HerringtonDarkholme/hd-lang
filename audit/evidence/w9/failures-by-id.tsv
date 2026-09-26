@@ -1,13 +1,12 @@
 id	count	title
 F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-VE	34	Value embedding is not implemented: the parser rejects the copy marker `...` and `...=`, embedded fields are still readonly edges, parts are shared instead of copied, and embedded fields are not invariant for variance
-F-253	12	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
+F-253	13	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	8	`$.use(mut K)` and other `mut` requirement keys are not implemented
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 P2	6	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every member is visible, and the fixtures need package roles
-F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 EMB-S	5	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports or pub fields, so trait availability and the other-module view of a public type are untested, and the fixtures need package roles or pub fields
+F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-252	3	The parser rejects core grammar forms
 F-257	3	`mut fn` closure literals do not parse
@@ -17,7 +16,9 @@ F-704	2	`string.replace` is not implemented
 F-707	2	A comma at depth zero does not end a same-line suite
 TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
 GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly after `annotate` fail
+VE	1	Value embedding is implemented except the variance rule: declared variance markers do not parse (F-705), so an embedded field cannot be shown to be an invariant position
 TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
+TQ-36	1	A member-lookup fixture expects the 03 example's reading of `page.Label.to_string()`, which contradicts the TQ-36 rule (a promoted inherent method beside the receiver's trait method is ambiguous); it needs rewriting with the single-view member rule
 F-258	1	Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 F-355	1	`string.trim()` removes U+FEFF and keeps U+0085

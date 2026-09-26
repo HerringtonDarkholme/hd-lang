@@ -1,5 +1,6 @@
-import type { Expression } from "../ast.ts";
-import type { HirExpression, ValueType } from "../hir.ts";
+import type { Expression, Statement } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
+import type { HirExpression, HirStatement, ValueType } from "../hir.ts";
 import {
   mutableInner,
   mutableType,
@@ -37,13 +38,26 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               `field '${field.name}' is supplied more than once`,
               field.span,
             );
-          if (!declaration.fields.some((candidate) => candidate.name === field.name)) {
+          const declared = declaration.fields.find((candidate) => candidate.name === field.name);
+          if (!declared) {
             this.fail(
               "unknown-data-field",
               `type '${declaration.name}' has no field '${field.name}'`,
               field.span,
             );
           }
+          if (declared.embedded && !field.copy)
+            this.fail(
+              "embedded-copy-required",
+              `embedded field '${field.name}' receives a copy; write '${field.name}: ...value'`,
+              field.span,
+            );
+          if (!declared.embedded && field.copy)
+            this.fail(
+              "copy-into-ordinary-field",
+              `'...' copies into an embedded field, and '${field.name}' is an ordinary field; write '${field.name}: value'`,
+              field.span,
+            );
           supplied.set(field.name, field.value);
         }
         const substitutions = new Map<string, ValueType>();
@@ -115,6 +129,26 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           const field = declaration.fields.find((candidate) => candidate.name === entry.name)!;
           const value = entry.value;
           const inferredField = substituteGenericType(field.type, substitutions);
+          if (field.embedded) {
+            // The part is filled with a copy of any view of the value; a `mut`
+            // outer literal asks for a mutable source (08 Data Embedding).
+            const hint = outerMutableExpected
+              ? mutableType(readonlyType(inferredField))
+              : expected === undefined
+                ? undefined
+                : readonlyType(inferredField);
+            const checked = this.checkExpression(
+              value,
+              hint && !containsGenericType(hint) ? hint : undefined,
+            );
+            const conflict = inferGenericType(
+              field.type,
+              readonlyType(checked.type),
+              substitutions,
+            );
+            if (conflict) this.fail("type-mismatch", conflict, value.span);
+            return checked;
+          }
           const directMutable = mutableInner(field.type) !== undefined;
           const contextualField =
             directMutable && !outerMutableExpected
@@ -154,6 +188,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const explicitFields = initiallyChecked.map((field, sourceIndex) => {
           const declarationField = declaration.fields[explicitFieldIndices[sourceIndex]!]!;
           const fieldType = substituteGenericType(declarationField.type, substitutions);
+          if (declarationField.embedded) return this.embeddedCopy(field, fieldType, field.span);
           const directMutable = mutableInner(declarationField.type) !== undefined;
           if (directMutable && !outerMutableExpected && field.type === mutableInner(fieldType))
             return field;
@@ -193,17 +228,37 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             (fieldIndex, sourceIndex) => [fieldIndex, explicitFields[sourceIndex]!] as const,
           ),
         );
-        const canProduceMutable = mutableDirectFields.every((field) => {
+        const directFieldsMutable = mutableDirectFields.every((field) => {
           const explicit = explicitByIndex.get(field.index);
           if (explicit) return explicit.type === substituteGenericType(field.type, substitutions);
           if (expression.spread) return mutableInner(spread!.type) !== undefined;
           return true;
         });
-        if (outerMutableExpected && !canProduceMutable) {
+        // Every embedded copy must have mutable access too; a part copied from
+        // the spread is read through the spread source's view (VE-A).
+        const readonlyCopy = declaration.fields.find((field) => {
+          if (!field.embedded) return false;
+          const explicit = explicitByIndex.get(field.index);
+          if (explicit) return mutableInner(explicit.type) === undefined;
+          return (
+            mutableInner(spread!.type) === undefined &&
+            this.hasMutableEdges(substituteGenericType(field.type, substitutions))
+          );
+        });
+        const canProduceMutable = directFieldsMutable && readonlyCopy === undefined;
+        if (outerMutableExpected && !directFieldsMutable) {
           this.fail(
             "mutable-upgrade",
             `construction of '${readonlyResult}' does not retain mutable access for every direct mutable field`,
             expression.span,
+          );
+        }
+        if (outerMutableExpected && readonlyCopy) {
+          const explicit = expression.fields.find((field) => field.name === readonlyCopy.name);
+          this.fail(
+            "mutable-upgrade",
+            `the copy for embedded field '${readonlyCopy.name}' is readonly: it is made from a readonly value whose type has a direct 'mut' field, so '${readonlyResult}' cannot be mutable`,
+            explicit?.value.span ?? expression.span,
           );
         }
         const type =
@@ -227,6 +282,168 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       default:
         return undefined;
     }
+  }
+
+  private readonly mutableEdges = new Map<string, boolean>();
+
+  /**
+   * VE-A: a data type has mutable edges when it declares a direct `mut U`
+   * field or embeds a type that has mutable edges. Generic fields keep their
+   * substituted type and never count.
+   */
+  protected hasMutableEdges(type: ValueType): boolean {
+    const readonly = readonlyType(type);
+    const name = nominalGenericParts(readonly)?.name ?? readonly;
+    const cached = this.mutableEdges.get(name);
+    if (cached !== undefined) return cached;
+    const declaration = this.dataTypes.get(name);
+    // Guards a self-embedding type, which the declaration check rejects.
+    this.mutableEdges.set(name, false);
+    const result =
+      declaration?.fields.some(
+        (field) =>
+          mutableInner(field.type) !== undefined ||
+          (field.embedded === true && this.hasMutableEdges(field.type)),
+      ) ?? false;
+    this.mutableEdges.set(name, result);
+    return result;
+  }
+
+  /**
+   * The copy of `value` for an embedded field of type `partType`
+   * (08 Data Embedding). It has type `mut E` when `value` is `mut E` or `E`
+   * has no mutable edges, and readonly `E` otherwise.
+   */
+  protected embeddedCopy(
+    value: HirExpression,
+    partType: ValueType,
+    span: SourceSpan,
+  ): HirExpression {
+    const part = readonlyType(partType);
+    this.requireAssignable(readonlyType(value.type), part, span);
+    const declaration = this.dataTypes.get(nominalGenericParts(part)?.name ?? part)!;
+    const mutable = mutableInner(value.type) !== undefined || !this.hasMutableEdges(part);
+    return {
+      kind: "embedded-copy",
+      value,
+      dataIndex: declaration.index,
+      type: mutable ? mutableType(part) : part,
+      span,
+    };
+  }
+
+  /** Whether `expression` reads an embedded field (`x.Part`). */
+  private readsEmbeddedField(expression: HirExpression): boolean {
+    if (expression.kind !== "member") return false;
+    const declaration = [...this.dataTypes.values()].find(
+      (candidate) => candidate.index === expression.dataIndex,
+    );
+    return declaration?.fields[expression.fieldIndex]?.embedded === true;
+  }
+
+  /**
+   * `place.field = value` and the copy assignment `place.Part ...= value`.
+   * The field may be promoted; it is reached through its embedded fields, each
+   * of which follows its container's access (04 Mutable Paths).
+   */
+  protected checkFieldAssignment(
+    statement: Extract<Statement, { kind: "field-assignment" }>,
+  ): HirStatement {
+    const root = this.checkExpression(statement.target.receiver);
+    if (tupleParts(readonlyType(root.type)) !== undefined)
+      this.fail(
+        "invalid-assignment-target",
+        `tuple element '${statement.target.name}' is not assignable; tuples are immutable`,
+        statement.target.span,
+      );
+    const rootReadonly = readonlyType(root.type);
+    const selection = this.dataTypes.has(nominalGenericParts(rootReadonly)?.name ?? rootReadonly)
+      ? this.selectField(root.type, statement.target.name, statement.target.span)
+      : undefined;
+    const selected = selection?.kind === "field" ? selection : undefined;
+    const receiver = selected
+      ? this.memberPath(root, selected.steps, statement.target.receiver.span)
+      : root;
+    const field = selected?.final.field;
+    if (field?.embedded && !statement.copy)
+      this.fail(
+        "embedded-copy-required",
+        `embedded field '${field.name}' stores a copy; write 'place.${field.name} ...= value'`,
+        statement.span,
+      );
+    if (field && !field.embedded && statement.copy)
+      this.fail(
+        "copy-into-ordinary-field",
+        `the copy assignment '...=' stores into an embedded field, and '${field.name}' is an ordinary field; use '='`,
+        statement.span,
+      );
+    const mutableReceiver = mutableInner(receiver.type);
+    if (mutableReceiver === undefined) {
+      let rootExpression: Expression = statement.target.receiver;
+      while (rootExpression.kind === "member") rootExpression = rootExpression.receiver;
+      const rootBinding =
+        rootExpression.kind === "name"
+          ? (this.resolveLocal(rootExpression.name) ?? this.resolveGlobal(rootExpression.name))
+          : undefined;
+      // An embedded field read through a readonly value is never a readonly edge.
+      const code =
+        !this.readsEmbeddedField(receiver) &&
+        rootBinding &&
+        mutableInner(rootBinding.type) !== undefined
+          ? "readonly-edge"
+          : "readonly-root";
+      this.fail(
+        code,
+        `field '${statement.target.name}' cannot be assigned through readonly type '${receiver.type}'`,
+        statement.target.span,
+      );
+    }
+    if (!selection)
+      this.fail(
+        "member-on-non-data",
+        `type '${mutableReceiver}' has no assignable data fields`,
+        statement.target.receiver.span,
+      );
+    if (!selected || !field)
+      this.fail(
+        "unknown-data-field",
+        `type '${rootReadonly}' has no field '${statement.target.name}'`,
+        statement.target.span,
+      );
+    const { declaration, substitutions } = selected.final;
+    const fieldType = substituteGenericType(field.type, substitutions);
+    let value: HirExpression;
+    if (field.embedded) {
+      const part = readonlyType(fieldType);
+      value = this.embeddedCopy(
+        this.checkExpression(statement.value, mutableType(part)),
+        part,
+        statement.value.span,
+      );
+      if (mutableInner(value.type) === undefined)
+        this.fail(
+          "mutable-upgrade",
+          `the copy stored into embedded field '${field.name}' is readonly: it is made from a readonly value whose type has a direct 'mut' field`,
+          statement.value.span,
+        );
+    } else {
+      value = this.requireCoercion(
+        this.checkExpression(statement.value, fieldType),
+        fieldType,
+        statement.value.span,
+      );
+    }
+    const expression: HirExpression = {
+      kind: "field-set",
+      receiver,
+      value,
+      dataIndex: declaration.index,
+      fieldIndex: field.index,
+      erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+      type: "void",
+      span: statement.span,
+    };
+    return { kind: "expression", expression, span: statement.span };
   }
 
   protected checkAccessExpression(

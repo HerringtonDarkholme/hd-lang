@@ -2,7 +2,7 @@ import type { FunctionDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
-import { mutableInner, nominalGenericParts, readonlyType } from "../types.ts";
+import { mutableInner, mutableType, nominalGenericParts, readonlyType } from "../types.ts";
 import { genericTypeName, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -71,8 +71,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     span: SourceSpan,
   ): HirExpression {
     const declaredType = substituteGenericType(field.type, substitutions);
-    const type =
-      mutableInner(receiver.type) !== undefined || genericTypeName(field.type)
+    // An embedded field follows its container's access (04 Mutable Paths).
+    const type = field.embedded
+      ? mutableInner(receiver.type) !== undefined
+        ? mutableType(readonlyType(declaredType))
+        : readonlyType(declaredType)
+      : mutableInner(receiver.type) !== undefined || genericTypeName(field.type)
         ? declaredType
         : readonlyType(declaredType);
     return {

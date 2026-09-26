@@ -234,6 +234,8 @@ export type ComprehensionClause = ComprehensionForClause | ComprehensionIfClause
 export interface DataExpressionField {
   readonly name: string;
   readonly value: Expression;
+  /** `Label: ...value`: the value is copied into an embedded field (VE-S). */
+  readonly copy?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -288,18 +290,22 @@ export type Statement =
       readonly kind: "assignment";
       readonly name: string;
       readonly value: Expression;
+      /** Written with the copy assignment `...=` (VE-S). */
+      readonly copy?: boolean;
       readonly span: SourceSpan;
     }
   | {
       readonly kind: "field-assignment";
       readonly target: Extract<Expression, { kind: "member" }>;
       readonly value: Expression;
+      readonly copy?: boolean;
       readonly span: SourceSpan;
     }
   | {
       readonly kind: "index-assignment";
       readonly target: Extract<Expression, { kind: "index" }>;
       readonly value: Expression;
+      readonly copy?: boolean;
       readonly span: SourceSpan;
     }
   | { readonly kind: "discard"; readonly value: Expression; readonly span: SourceSpan }

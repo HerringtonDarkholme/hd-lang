@@ -411,3 +411,9 @@ existing source. Each entry names the decision that made the change.
   depth 4, previously valid, is now `embedding-too-deep` at every data type
   that reaches it, including through generic data types and recursive
   embedding.
+- VE-S in same-line suites: the inline statement form now accepts the copy
+  assignment, as in `if fresh: post.Timestamps ...= stamps`. The grammar
+  allowed `...=` only in a full assignment statement, while a plain `=` on
+  an embedded field is `embedded-copy-required`, so a same-line suite could
+  not store into an embedded field at all; that source, previously a
+  `syntax-error`, is now accepted.

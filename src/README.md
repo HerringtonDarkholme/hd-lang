@@ -180,10 +180,16 @@ else`, `break`, `break value`, and `continue`;
   bound dictionaries for ordinary and suspending methods; bounded blanket
   dictionaries capture nested dictionaries, including when forwarded from a
   caller or retained by a parent supertrait;
-- embedded data fields with direct field and method promotion, including
-  generic substitution through the embedded edge, plus bodyless explicit trait
-  opt-in for one compatible readonly promoted method; mutable promoted
-  requirements are rejected at the embedded readonly edge;
+- embedded data fields (value embedding): field and inherent-method promotion
+  at any depth, with generic substitution through each embedded field; an
+  embedded field follows its container's access, so through `mut C` a
+  promoted field may be assigned and a promoted `mut self` method called;
+  every fill copies (`Label: ...value`, copy-update, `place ...= value`), with
+  one generated `$hd.copy_d<N>` per embedded data type that copies ordinary
+  fields shallowly and parts recursively; a copy of a readonly value whose
+  type has mutable edges is readonly (`mutable-upgrade` where `mut` is
+  needed); trait conformance through a part is explicit delegation,
+  `impl Trait for C by E`;
 - default trait methods with target-specific lowering, dynamic method-table
   entries, and explicit override precedence;
 - generic supertraits substitute parent arguments through inherited calls and
