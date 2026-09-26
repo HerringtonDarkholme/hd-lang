@@ -1169,6 +1169,16 @@ Stateful testing and replay artifacts wait for area 3's event log.
 | capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |
 | how `std` versions with the compiler | package tooling | [Roadmap area 5](ROADMAP.md#5-packages) |
 
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Question 1: `$.use` can return `mut`.** A provider installed with
+   `mut` access may be used as `$.use(mut Clock)`, so a deterministic
+   provider such as `ManualClock` changes its own state through ordinary
+   `mut self` methods. The access rules for installing and using a `mut`
+   provider still need to be written into chapter 11.
+
 ## Questions For The Owner
 
 ### 1. How does a deterministic provider change its own state?
