@@ -73,16 +73,17 @@ statement = suite_statement
 suite_statement = defer_statement
                 | suite_expression
                 | trailing_block_call
-                | "_", ":=", suite_expression
-                | binding_pattern, ":=",
-                  { binding_pattern, ":=" }, suite_expression
-                | binding_pattern, ":=", trailing_block_call
+                | "_", ":=", suite_right_side
+                | binding_pattern, ":=", { identifier, ":=" },
+                  suite_right_side
                 | "let", binding_pattern, [ ":", type ], "=",
-                  ( suite_expression | trailing_block_call )
-                | postfix_expression, "=", suite_expression
-                | "return", suite_expression
-                | "break", suite_expression
+                  suite_right_side
+                | postfix_expression, "=", suite_right_side
+                | "return", suite_right_side
+                | "break", suite_right_side
                 ;
+
+suite_right_side = suite_expression | trailing_block_call ;
 
 defer_statement = "defer", ":", suite_body ;
 
@@ -134,7 +135,11 @@ A `suite_statement` is a statement whose outermost expression owns a suite.
 Its final `DEDENT`, or the `SUITE_END` of a same-line suite, terminates the
 statement; it does not require another `NEWLINE`. This separate production is
 what permits `value := if ...`, `let callback = fn ...`, and similar direct
-right-hand-side forms. A suite expression nested inside delimiters remains part
+right-hand-side forms. Every right-hand side that accepts a suite expression,
+after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a
+trailing block call. A chain of bindings continues only with single names, as
+in `a := b := if c: 1 else: 2`: a multi-name pattern may only come first, so
+`a, b := c, d := pair` is a syntax error with or without a suite. A suite expression nested inside delimiters remains part
 of its enclosing expression, and the enclosing statement ends normally after
 the closing delimiter.
 
@@ -148,7 +153,12 @@ binding makes them valid.
 A same-line suite body is an `inline_statement`. Layout closes a same-line
 suite at the end of its logical line and at any comma at the suite's own
 delimiter depth. The body therefore contains no comma at that depth and no
-indented suite. A multi-name binding such as `a, b := pair` needs an
+indented suite. It also contains no same-line `if` at that depth:
+`if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and
+`defer: if flag: pass` are syntax errors. Parentheses nest a conditional, as
+in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one;
+`else if` continues the same conditional rather than nesting one. Same-line
+`for` and `while` loops may still appear directly in a same-line suite. A multi-name binding such as `a, b := pair` needs an
 indented body or parentheses, as in `(a, b := pair)`. A `let` or `for` over
 several names needs an indented body.
 
@@ -510,8 +520,11 @@ use_group = "{", use_item, { ",", use_item }, [ "," ], "}" ;
 use_item = identifier, [ "as", identifier ] ;
 ```
 
-`pkg`, `std`, and `dep` are contextual use-root words. The lexical reserved
-words `self` and `super` also act as relative use roots.
+`pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is
+contextual before an alias. `use` begins a use declaration only when a use
+root follows it
+([Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words)).
+The reserved word `self` also acts as a relative use root.
 
 ## Expressions
 
@@ -566,8 +579,7 @@ indented_suite_expression = indented_if_expression
                             ":", indented_suite_body
                           ;
 
-inline_suite_expression = inline_if_expression
-                        | inline_for_expression
+inline_suite_expression = inline_for_expression
                         | inline_while_expression
                         | inline_closure_expression
                         | inline_context_scope
@@ -608,7 +620,7 @@ postfix_suffix = ".", identifier, [ function_type_arguments ]
                | suspension_call_suffix
                | "?"
                ;
-suspension_call_suffix = "!", argument_clause ;
+suspension_call_suffix = "!", [ function_type_arguments ], argument_clause ;
 ```
 
 `:=` is right-associative and has the lowest precedence. Comparisons do not
@@ -623,8 +635,8 @@ it is never a tuple whose final element is a binding expression. A tuple that
 contains a binding must parenthesize that element separately, as in
 `(a, (b := value))`.
 
-`!(` after a completed operand begins a suspension call suffix at ordinary call
-precedence. A `!` at the start of an operand is the prefix logical-not operator
+`!(` or `![` after a completed operand begins a suspension call suffix at
+ordinary call precedence. A `!` at the start of an operand is the prefix logical-not operator
 of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
 `!=` is a single token by longest match: `f!=g` is the comparison `f != g`. Immediately
 after `.`, the lexer scans an integer tuple index using decimal digits only, so
@@ -633,7 +645,10 @@ after `.`, the lexer scans an integer tuple index using decimal digits only, so
 After member resolution, brackets immediately following a generic method name
 are parsed as `function_type_arguments`, not as an indexing suffix. An explicit
 method type-argument list is valid only when the selected member is generic and
-the expression proceeds to an ordinary or suspending call.
+the expression proceeds to an ordinary call. A bang call writes the `!` on the
+name and the list after it, as the declaration `fn all![Ts...](...)` does: the
+calls are `all![i32, string](a, b)`, `parser.load![User](text)`, and
+`Store::load![User](key)`.
 
 ### Primary Expressions
 
@@ -663,8 +678,8 @@ function_type_arguments = "[", function_type_argument,
 function_type_argument = type_argument | "_" ;
 contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier,
-                       [ function_type_arguments ],
-                       ( argument_clause | suspension_call_suffix ) ;
+                       ( [ function_type_arguments ], argument_clause
+                       | suspension_call_suffix ) ;
 
 annotation_runtime_access = qualified_name, "::", "annotation", "(",
                             annotation_target, ")"
@@ -700,11 +715,13 @@ interpreted_multiline_string_expression = '"""',
 string_segment = string_text
                | escape_sequence
                | "$", identifier
+               | "$", "self"
                | "${", expression, "}"
                ;
 multiline_string_segment = multiline_string_text
                          | escape_sequence
                          | "$", identifier
+                         | "$", "self"
                          | "${", expression, "}"
                          ;
 
@@ -721,7 +738,10 @@ tuple_element = conditional_expression
 list_expression = "[", [ list_items ], "]"
                 | list_comprehension
                 ;
-list_items = expression, { ",", expression }, [ "," ] ;
+list_items = list_item, { ",", list_item }, [ "," ] ;
+list_item = expression
+          | continued_expression, "..."
+          ;
 
 map_expression = "{", [ map_items ], "}"
                | map_comprehension
@@ -750,7 +770,7 @@ until name resolution. Each argument is a type, a type-pack expansion, or the
 inference placeholder `_`. The placeholder is not part of ordinary
 `type_arguments` and therefore cannot occur in a type such as `list[_]`.
 In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or
-`Type::name[T]!(...)`, type arguments of the qualifying type or trait stay
+`Type::name![T](...)`, type arguments of the qualifying type or trait stay
 before `::`, as in `Add[Money]::add`. Method-level type arguments follow the
 member name, as in the dot call `parser.parse[User](text)`. Name resolution
 treats that bracket like any other generic reference: it is valid only when
@@ -758,6 +778,15 @@ the selected member is generic, and it follows the explicit-list rules of
 [Generic Functions](07-functions.md#generic-functions).
 After `::`, the contextual words `annotation` and `annotation_ref` always
 select `annotation_runtime_access`, not an ordinary trait-qualified call.
+Likewise, the token sequences `pack . map (` and `pack . map_list (` always
+select `pack_map_expression`, even when a local or parameter named `pack` is
+in scope; a raw identifier `` `pack` `` never does.
+
+A list element ending in `...` is a spread that expands a list's elements in
+place ([List And Map Expressions](05-expressions.md#list-and-map-expressions)).
+Spreads follow one rule: a prefix `...` copies named members, in copy-update
+and provider-context entries, and a suffix `...` expands positional elements,
+in arguments, list elements, tuple elements, and pack expansions.
 
 ### Calls And Arguments
 
@@ -780,8 +809,8 @@ spread syntax. Semantic rules require a positional spread to be the final
 positional argument and to feed a declared vararg parameter.
 
 A call whose final parameter is a zero-argument function may use an indented
-trailing block as a complete statement or as the outermost right-hand side of
-`:=` or `let`:
+trailing block as a complete statement or as the complete right-hand side of
+`:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`:
 
 ```ebnf
 trailing_block_call = postfix_expression, ":", indented_suite_body ;
@@ -790,7 +819,7 @@ indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 
 When there are no ordinary arguments, the call omits `()`, as in
 `transaction:`. This production is accepted only at delimiter depth zero when
-the call is the complete statement or the outermost binding right-hand side
+the call is the complete statement or one of those complete right-hand sides
 and name and type resolution identify a callable with an eligible final
 parameter. Its body must begin on the next logical line. It is not accepted in
 an `if`, `while`, `for`, or `match` header or inside brackets.
@@ -848,12 +877,6 @@ indented_while_expression = "while", continued_expression, ":",
                             ( indented_suite_body
                             | suite_body, "else", ":", indented_suite_body )
                             ;
-
-inline_if_expression = "if", closed_expression, ":", inline_suite_body,
-                       { "else", "if", closed_expression, ":",
-                         inline_suite_body },
-                       [ "else", ":", inline_suite_body ]
-                       ;
 
 inline_for_expression = "for", identifier, "in", closed_expression, ":",
                         inline_suite_body, [ "else", ":", inline_suite_body ]
@@ -1025,16 +1048,17 @@ annotation_target = type ;
 
 annotation_member_suite = "pass", SUITE_END
                         | NEWLINE, INDENT,
-                          metadata_assignment,
-                          { metadata_assignment }, DEDENT
+                          ( "pass", NEWLINE
+                          | metadata_assignment, { metadata_assignment } ),
+                          DEDENT
                         ;
 
 metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
 
 facet_annotation_suite = "pass", SUITE_END
                        | NEWLINE, INDENT,
-                         facet_override,
-                         { facet_override }, DEDENT
+                         ( "pass", NEWLINE
+                         | facet_override, { facet_override } ), DEDENT
                        ;
 
 facet_override = metadata_assignment | function_decl ;
@@ -1046,6 +1070,11 @@ expression form is evaluated as a configured facet
 value; its static type is the facet type used for coherence and
 `Annotate[Facet]` generation. The syntactic overlap between a named type and a
 name expression is resolved by ordinary name and type resolution.
+
+`[` directly after `annotate` always opens generic parameters, as after
+`impl`, so a facet expression cannot begin with `[`; parenthesize one that
+would. Every annotation body, like a data body, accepts `pass` either after
+the header's `:` or alone on an indented line.
 
 Generic parameters and their bounds follow the same rules as a generic
 `impl`. A generic annotation target denotes a family of concrete

@@ -61,6 +61,13 @@ conditional then has type `void`.
 `else if` is one conditional-chain form. It is not parsed as an `else` suite
 containing an unrelated nested `if`.
 
+A same-line `if` cannot be written directly inside another same-line suite,
+so each `else` on a line has one owner. `if a: if b: 1 else: 2 else: 3` and
+`fn sign(x: i32) -> i32: if x < 0: -1 else: 1` are `syntax-error`. Nest the
+inner conditional in parentheses, as in `if a: (if b: 1 else: 2) else: 3`, or
+give the outer suite an indented body
+([Grammar](02-grammar.md#statements)).
+
 ## For Loops
 
 A `for` loop obtains an iterator from its iterable expression and repeatedly

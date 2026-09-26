@@ -63,8 +63,10 @@ Boolean, integer, floating-point, string, character, and `nil` literals are
 defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in
 [Type System](04-type-system.md).
 
-Interpreted strings support `$name` and `${expression}` interpolation. Embedded
-expressions are evaluated from left to right at the position of their segment.
+Interpreted strings support `$name`, `$self`, and `${expression}`
+interpolation; `"value: $self"` inside a method interpolates the receiver.
+Embedded expressions are evaluated from left to right at the position of their
+segment.
 Each expression's type must implement the canonical `std.format.Display`
 trait; the compiler appends the string returned by that implementation. An
 embedded expression whose type does not implement `Display` is an
@@ -113,6 +115,13 @@ where every element is assignable to `T`:
 ```text
 names := ["Ada", "Grace"]
 ```
+
+A list element ending in `...` is a spread. Its operand is evaluated once, in
+element order, and must have a list type `list[U]`; its elements are inserted
+at that position, in order. A literal may contain several spreads in any
+position, so `[0, xs...]` and `[xs..., ys...]` are valid. With an expected
+`list[T]`, `U` must be assignable to `T`; without one, a spread contributes
+`U` to the least common type of the elements.
 
 A map literal evaluates each key and then its value, processing entries from
 left to right:

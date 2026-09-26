@@ -479,16 +479,17 @@ annotation_target = type ;
 
 annotation_member_suite = "pass", SUITE_END
                         | NEWLINE, INDENT,
-                          metadata_assignment,
-                          { metadata_assignment }, DEDENT
+                          ( "pass", NEWLINE
+                          | metadata_assignment, { metadata_assignment } ),
+                          DEDENT
                         ;
 
 metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
 
 facet_annotation_suite = "pass", SUITE_END
                        | NEWLINE, INDENT,
-                         facet_override,
-                         { facet_override }, DEDENT
+                         ( "pass", NEWLINE
+                         | facet_override, { facet_override } ), DEDENT
                        ;
 
 facet_override = metadata_assignment | function_decl ;
@@ -510,6 +511,15 @@ from a function target. `annotate Target` metadata
 assignments apply to data fields, enum variants, or module-level function
 parameters. Function annotators read the resulting parameter shapes and may
 replace the complete `build`.
+
+Either suite accepts `pass` after the header's `:` or alone on an indented
+line; both request ordinary derivation with no assignments or overrides.
+
+`[` directly after `annotate` always opens generic parameters, as after
+`impl`. A facet expression therefore cannot begin with `[`: in
+`annotate [Tag("a")] for Point: pass`, the brackets are read as generic
+parameters and the declaration is a `syntax-error`. Parenthesize such an
+expression.
 
 Generic parameters and their bounds have the same meaning as on an ordinary
 generic implementation. For example,

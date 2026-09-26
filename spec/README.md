@@ -176,6 +176,53 @@ existing source. Each entry names the decision that made the change.
   the logical line it follows, continues that line unless the line ends in
   `:` or `=>`. Leading-dot method chains, previously a syntax error, are
   valid.
+- GQ7 (refinement): a leading-dot line is now a `syntax-error` when a
+  same-line suite is still open at the end of the logical line it would
+  continue. After `f := fn(x): x`, a deeper `.len()` line previously joined
+  the closure body.
+- GQ3: the first body line of a suite nested inside delimiters must be
+  indented farther than the first physical line of the logical line that
+  contains its header, not only farther than the header's own line. A body
+  level with or left of the enclosing statement is now a `syntax-error`.
+- GQ4: `pack.map(` and `pack.map_list(` always form the pack operation. A
+  local or parameter named `pack` no longer makes `pack.map(...)` a method
+  call; `pack.map(5)` on such a value is now a `syntax-error`.
+- GQ6: a backtick raw identifier such as `` `type` `` writes any reserved word
+  as an identifier, usable as a field, member, named-argument label,
+  parameter, or binding. Backticks were previously an `invalid-token`.
+- GQ8: inside delimiters, a line whose first token is `(`, `[`, `{`, or `!`
+  starts a new operand instead of a call, index, data-literal, or suspension
+  call suffix on the previous line's last operand. A list written as `first`
+  and then `[1]` on the next line, previously `first[1]`, is now a
+  `syntax-error` for the missing comma.
+- GQ9: a same-line `if` directly inside another same-line suite is now a
+  `syntax-error`, including a same-line function, closure, `defer`, or loop
+  body such as `fn f() -> i32: if c: 1 else: 2` or `defer: if flag: pass`.
+  Parentheses nest one: `if a: (if b: 1 else: 2) else: 3`.
+- GQ10: a trailing block call is valid as the right-hand side of `=`,
+  `_ :=`, `return`, and `break`, as it already was after `:=` and `let`.
+  Chained bindings with a multi-name pattern after the first, such as
+  `a, b := c, d := fn() -> (i32, i32): (1, 2)`, are now a `syntax-error`.
+- GQ11: `[` directly after `annotate` always opens generic parameters. A
+  facet expression beginning with a list literal, previously accepted, is now
+  a `syntax-error` unless parenthesized.
+- GQ12: a bang call with explicit type arguments writes them after the `!`,
+  matching the declaration: `all![i32, string](a, b)`,
+  `identity.echo![i32](42)`, and `Identity::echo![i32](42)`. A method's
+  explicit list must now be followed by an ordinary call, so the former
+  `identity.echo[i32]!(42)` is no longer valid.
+- GQ13: list literals accept suffix spreads, as in `[0, xs...]`; each spread
+  inserts a list's elements in place.
+- GQ14: annotation bodies accept `pass` alone on an indented line, as data
+  bodies already did.
+- GQ15: `"$self"` interpolates the receiver; it was previously a
+  `syntax-error`. A `$` before any other reserved word, as in `"$true"`,
+  stays a `syntax-error`.
+- GQ17: `reified`, `super`, `as`, and `use` are no longer reserved words.
+  Each keeps its meaning in its fixed position (generic parameters, use roots,
+  use aliases, and use declarations or `$.use(...)`) and is an ordinary
+  identifier elsewhere, so `resource.use(f)`, `fn use() -> void`, and a
+  parameter named `as` are valid.
 - TQ-1: an implementation target must start with a type constructor; a bare
   type parameter target is `bare-parameter-impl-target`. Two implementations
   overlap when they share the trait, their trait arguments unify, and their

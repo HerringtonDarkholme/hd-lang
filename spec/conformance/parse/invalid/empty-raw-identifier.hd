@@ -1,0 +1,5 @@
+# test: an empty pair of backticks forms no token
+
+fn main() -> i32:
+    `` := 1  # diagnostic: invalid-token
+    0

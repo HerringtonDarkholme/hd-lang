@@ -1,0 +1,13 @@
+# test: annotation bodies accept pass alone on an indented line
+# expect: parse
+
+data Validation: pass
+
+data Point:
+    x: i32
+
+annotate Validation for Point:
+    pass
+
+annotate Point:
+    pass

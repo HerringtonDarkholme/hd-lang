@@ -2,7 +2,7 @@ import { closeToOpen, maskLiterals, openToClose } from "./lexer.ts";
 import type { Diagnostic } from "./types.ts";
 
 const reserved = new Set(
-  "Self annotate as break continue data defer else enum false fn for if impl in is let match mut nil pass pub reified return self super trait true type use while".split(
+  "Self annotate break continue data defer else enum false fn for if impl in is let match mut nil pass pub return self trait true type while".split(
     " ",
   ),
 );
@@ -79,7 +79,7 @@ export function argumentOrderDiagnostics(source: string): Diagnostic[] {
       let namedSeen = false;
       for (const part of splitTopLevel(content)) {
         if (!part) continue;
-        const named = /^[\p{L}_][\p{L}\p{N}_]*\s*=(?!=)/u.test(part);
+        const named = /^(?:[\p{L}_][\p{L}\p{N}_]*|`[\p{L}_][\p{L}\p{N}_]*`)\s*=(?!=)/u.test(part);
         if (named) namedSeen = true;
         else if (namedSeen && !part.startsWith("fn ") && !part.startsWith("mut fn ")) {
           const code = lines[start.line - 1]?.includes("=>") ? "pattern-order" : "argument-order";
@@ -109,7 +109,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (/^struct\b/.test(clean)) diagnostics.push(diagnostic("old-struct-declaration", line));
   if (/^import\b/.test(clean)) diagnostics.push(diagnostic("old-import-declaration", line));
   if (/^export\b/.test(clean)) diagnostics.push(diagnostic("old-export-declaration", line));
-  if (/^use\b.*\{[^}]*\.[A-Za-z_]/.test(clean))
+  if (/^(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b.*\{[^}]*\.[A-Za-z_]/.test(clean))
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
@@ -153,9 +153,10 @@ function docCommentDiagnostics(records: readonly LineRecord[]): Diagnostic[] {
       diagnostics.push(diagnostic("doc-comment-without-target", record.line));
       continue;
     }
-    const declaration = /^(?:pub\s+)?(?:data|enum|trait|impl|type|fn)\b|^@|^\w+\s*(?::|\()/u.test(
-      next.clean,
-    );
+    const declaration =
+      /^(?:pub\s+)?(?:data|enum|trait|impl|type|fn)\b|^@|^(?:\w+|`\w+`)\s*(?::|\()/u.test(
+        next.clean,
+      );
     if (next.indent !== record.indent || !declaration || next.clean.includes(":="))
       diagnostics.push(diagnostic("doc-comment-without-target", record.line));
   }

@@ -26,7 +26,7 @@ fn main() -> void:
 #### L05 same-line closure ends at comma
 fn main() -> void:
     x := f(fn(a): g(a), 2)
-#### L06 same-line closure with if-else then comma
+#### L06 same-line closure with if-else then comma (spec: error, Q9)
 fn main() -> void:
     x := f(fn(a): if a: 1 else: 2, 3)
 #### L07 closure followed by juxtaposed name after dedent
@@ -68,10 +68,10 @@ fn main() -> void:
 fn main() -> void:
     if a: x = 1
     else: x = 2
-#### L16 dangling else, nested same-line ifs
+#### L16 dangling else, nested same-line ifs (spec: error, Q9)
 fn main() -> void:
     v := if a: if b: 1 else: 2 else: 3
-#### L17 nested same-line if without inner else
+#### L17 nested same-line if without inner else (spec: error, Q9)
 fn main() -> void:
     if a: if b: go()
     else: stop()
@@ -94,7 +94,7 @@ fn main() -> void:
 #### L23 comprehension guard with same-line if in result
 fn main() -> void:
     xs := [for k in m if k > 1 => if k > 2: 1 else: 0]
-#### L24 line continuation: list literal after name on next line becomes index
+#### L24 line continuation: list literal after name on next line (spec: error, Q8)
 fn main() -> void:
     xs := [
         first
@@ -106,7 +106,7 @@ fn main() -> void:
         a
         -b
     ]
-#### L26 line continuation: parenthesis after name on next line becomes a call
+#### L26 line continuation: parenthesis after name on next line (spec: error, Q8)
 fn main() -> void:
     xs := [
         a

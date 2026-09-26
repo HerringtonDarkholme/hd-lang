@@ -1,0 +1,16 @@
+# test: backtick raw identifiers name fields, members, labels, parameters, and bindings
+# expect: accept
+
+data Token:
+    `type`: string
+    text: string
+
+fn describe(`in`: Token, `match`: bool) -> string:
+    if `match`: `in`.`type` else: `in`.text
+
+label := describe(Token { `type`: "word", text: "hi" }, `match` = true)
+
+fn keywords() -> i32:
+    `for` := 1
+    `return` := `for` + 1
+    `return`

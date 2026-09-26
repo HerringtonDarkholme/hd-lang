@@ -27,7 +27,7 @@ fn main() -> void:
     x := Add[Money]::add[i32](a, b)
 #### T10 qualified suspending call with member type args
 fn main!() -> void:
-    x := Store::load[User]!(key)
+    x := Store::load![User](key)
 #### T11 generic function reference without call
 fn main() -> void:
     f := first[string]
@@ -48,7 +48,7 @@ fn main() -> void:
         nil => pass
 #### T16 bang call on member and generic
 fn main!() -> void:
-    x := db.get[User]!(id)
+    x := db.get![User](id)
 #### T17 bang function declaration and bang type
 fn fetch!(url: string) -> string $ Net:
     pass

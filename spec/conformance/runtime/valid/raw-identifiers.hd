@@ -1,0 +1,23 @@
+# test: raw identifiers are ordinary names at run time
+# expect: test
+
+use std.testing.assert_equal
+
+data Token:
+    `type`: string
+    text: string
+
+impl Token:
+    fn `match`(self, `in`: string) -> bool:
+        self.`type` == `in`
+
+fn label(token: Token, `if`: bool) -> string:
+    if `if`: token.`type` else: token.text
+
+test "raw identifiers read and write like plain names":
+    token := Token { `type`: "word", text: "hi" }
+    assert_equal(token.`type`, "word", reason="a field named type")
+    assert_equal(label(token, `if` = false), "hi", reason="a named-argument label")
+    assert_equal(token.`match`("word"), true, reason="a method named match")
+    `for` := 40
+    assert_equal(`for` + 2, 42, reason="a binding named for")

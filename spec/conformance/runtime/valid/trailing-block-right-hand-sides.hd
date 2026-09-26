@@ -1,0 +1,35 @@
+# test: a trailing block may follow =, _ :=, return, and break
+# expect: test
+
+use std.testing.assert_equal
+
+fn twice(action: fn() -> i32) -> i32:
+    action() + action()
+
+fn via_return() -> i32:
+    return twice():
+        10
+
+fn via_assignment() -> i32:
+    let total = 1
+    total = twice():
+        3
+    total
+
+fn via_discard() -> i32:
+    _ := twice():
+        1
+    5
+
+fn via_break(values: list[i32]) -> i32:
+    for value in values:
+        break twice():
+            value
+    else:
+        0
+
+test "trailing blocks complete each right-hand side":
+    assert_equal(via_return(), 20, reason="return")
+    assert_equal(via_assignment(), 6, reason="assignment")
+    assert_equal(via_discard(), 5, reason="discard")
+    assert_equal(via_break([4, 9]), 8, reason="break")

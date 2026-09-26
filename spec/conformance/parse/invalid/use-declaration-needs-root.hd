@@ -1,0 +1,3 @@
+# test: use begins a use declaration only before a use root
+
+use helpers.format  # diagnostic: syntax-error

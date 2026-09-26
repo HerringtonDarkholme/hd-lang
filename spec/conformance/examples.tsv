@@ -5,10 +5,11 @@ specification	block	classification	fixture
 01-lexical-structure.md	4	mixed	parse/valid/closure-body-ends-at-comma-line.hd|parse/invalid/closure-body-absorbs-next-argument.hd
 01-lexical-structure.md	5	accept	parse/valid/layout.hd
 01-lexical-structure.md	6	accept	parse/valid/layout.hd
-01-lexical-structure.md	7	lexical-inventory	-
-01-lexical-structure.md	8	accept	parse/valid/layout.hd
-01-lexical-structure.md	9	lexical-inventory	-
+01-lexical-structure.md	7	accept	typing/valid/raw-identifiers.hd
+01-lexical-structure.md	8	lexical-inventory	-
+01-lexical-structure.md	9	accept	parse/valid/layout.hd
 01-lexical-structure.md	10	lexical-inventory	-
+01-lexical-structure.md	11	lexical-inventory	-
 02-grammar.md	1	accept	typing/valid/declaration-owns-requirement-clause.hd
 03-names-and-scopes.md	1	accept	typing/valid/names-and-scopes.hd
 03-names-and-scopes.md	2	accept	parse/valid/uses.hd

@@ -7,7 +7,7 @@ fn use_types(callback: fn() -> i32?, optional_callback: (fn() -> i32)?) -> void:
 
 fn apply(callback: fn(i32) -> i32) -> i32: callback(1)
 
-result := apply(fn(value: i32): if value > 0: value else: 0)
+result := apply(fn(value: i32): (if value > 0: value else: 0))
 
 fn pair() -> (i32, i32): (1, 2)
 

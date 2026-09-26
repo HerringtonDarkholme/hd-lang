@@ -1,0 +1,7 @@
+# test: inside brackets a line starting with '[' begins a new element, so the missing comma is an error
+
+fn pick(first: list[i32]) -> list[list[i32]]:
+    [
+        first
+        [1]  # diagnostic: syntax-error
+    ]

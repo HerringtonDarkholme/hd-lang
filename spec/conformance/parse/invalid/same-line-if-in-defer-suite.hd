@@ -1,0 +1,5 @@
+# test: a same-line defer suite cannot hold a same-line if
+
+fn release(flag: bool) -> void:
+    defer: if flag: pass  # diagnostic: syntax-error
+    pass
