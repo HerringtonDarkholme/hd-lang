@@ -57,8 +57,12 @@ type_argument = type, [ "..." ]
               | row_type_argument
               ;
 type_element = type, [ "..." ] ;
-value_parameter = identifier, ":", type, [ "=", expression ], [ "..." ] ;
-positional_argument = expression, [ "..." ] ;
+value_parameter = identifier, ":", type, [ "=", expression ]
+                | identifier, ":", type, [ "=", continued_expression ], "..."
+                ;
+positional_argument = expression
+                    | continued_expression, "..."
+                    ;
 ```
 
 A function signature may contain at most one value-pack parameter that accepts

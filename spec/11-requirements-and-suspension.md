@@ -44,7 +44,9 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
 ```
 
 ```ebnf
-requirement_clause = "$", requirement_expression ;
+requirement_clause = "$", requirement_expression
+                   | "$", "(", ")"
+                   ;
 requirement_expression = requirement_union,
                          { "-", requirement_key } ;
 requirement_union = requirement_term, { "+", requirement_term } ;
@@ -53,6 +55,8 @@ requirement_term = requirement_key
                  ;
 requirement_key = trait_type ;
 ```
+
+The clause `$()` writes the empty row explicitly.
 
 Function declarations, closure expressions, and function types use the same
 requirement clause:

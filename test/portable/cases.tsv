@@ -589,3 +589,7 @@ parse/valid/string-in-interpolation.hd	parse
 parse/valid/nested-named-arguments.hd	parse
 parse/valid/context-spread-after-binding.hd	parse
 runtime/valid/recursive-private-functions-least-row.hd	runtime
+typing/valid/explicit-empty-row.hd	type
+parse/valid/defer-same-line-nested-suite.hd	parse
+parse/valid/header-resumes-after-nested-suite.hd	parse
+parse/valid/bracketed-for-multi-name-binding.hd	parse

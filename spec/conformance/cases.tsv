@@ -754,3 +754,7 @@ typing/valid/inferred-row-through-private-callers.hd	type	accept	11-requirements
 runtime/valid/private-function-inferred-result.hd	runtime	accept	07-functions.md#declarations
 runtime/valid/private-function-inferred-row.hd	runtime	accept	11-requirements-and-suspension.md#requirement-rows
 runtime/valid/recursive-private-functions-least-row.hd	runtime	accept	11-requirements-and-suspension.md#requirement-rows
+typing/valid/explicit-empty-row.hd	type	accept	02-grammar.md#types
+parse/valid/defer-same-line-nested-suite.hd	parse	accept	02-grammar.md#statements
+parse/valid/header-resumes-after-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/bracketed-for-multi-name-binding.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines

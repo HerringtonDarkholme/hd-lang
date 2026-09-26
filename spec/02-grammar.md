@@ -152,6 +152,14 @@ indented suite. A multi-name binding such as `a, b := pair` needs an
 indented body or parentheses, as in `(a, b := pair)`. A `let` or `for` over
 several names needs an indented body.
 
+Where another token follows an expression, the grammar uses
+`continued_expression`: in a control-flow header before `:`, a match guard, a
+comprehension clause, a map key, a spread before `...`, a parameter decorator,
+and an annotation facet before `for`. It cannot end in a same-line suite,
+because layout would extend that suite over the following token; layout ends a
+same-line suite only at a line boundary outside brackets, at a comma or closing
+delimiter at its depth, or before `else`. It may end in an indented suite.
+
 Whether a statement may appear in a particular value-producing block is a
 semantic rule. In particular, `break` is valid only inside a loop, and `break`
 with a value is valid only in a loop with an `else` suite.
@@ -195,8 +203,10 @@ parameter = receiver_parameter
           | { parameter_decorator }, value_parameter
           ;
 
-parameter_decorator = "@", expression ;
-value_parameter = identifier, ":", type, [ "=", expression ], [ "..." ] ;
+parameter_decorator = "@", continued_expression ;
+value_parameter = identifier, ":", type, [ "=", expression ]
+                | identifier, ":", type, [ "=", continued_expression ], "..."
+                ;
 
 receiver_parameter = "self" | "mut", "self" ;
 ```
@@ -391,7 +401,9 @@ associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 
 qualified_name = identifier, { ".", identifier } ;
 
-requirement_clause = "$", requirement_expression ;
+requirement_clause = "$", requirement_expression
+                   | "$", "(", ")"
+                   ;
 requirement_expression = requirement_union,
                          { "-", requirement_key } ;
 requirement_union = requirement_term, { "+", requirement_term } ;
@@ -403,9 +415,10 @@ requirement_key = trait_type ;
 
 When the corresponding generic parameter is row-kinded, a type argument may
 be a requirement expression such as `Logger + Clock`. The explicit empty row
-is `$()`. A single requirement key is syntactically also a type; the parameter
-kind selects its interpretation, and using a row argument for a type-kinded
-parameter (or conversely) is an error.
+is `$()`, both as a row type argument and as a requirement clause. A single
+requirement key is syntactically also a type; the parameter kind selects its
+interpretation, and using a row argument for a type-kinded parameter (or
+conversely) is an error.
 
 `mut` is a type modifier. Semantic rules reject meaningless or nested forms,
 including direct `mut mut T`. Optionality applies to the complete reference
@@ -480,6 +493,23 @@ inline_expression = identifier, ":=", inline_expression
                   | inline_suite_expression
                   | logical_or_expression
                   ;
+
+continued_expression = identifier, ":=", continued_expression
+                     | continued_conditional_expression
+                     ;
+
+continued_conditional_expression = indented_suite_expression
+                                 | logical_or_expression
+                                 ;
+
+indented_suite_expression = indented_if_expression
+                          | indented_for_expression
+                          | indented_while_expression
+                          | match_expression
+                          | closure_header, indented_suite_body
+                          | "$", ".", "with", "(", context_entries, ")",
+                            ":", indented_suite_body
+                          ;
 
 inline_suite_expression = inline_if_expression
                         | inline_for_expression
@@ -626,9 +656,11 @@ tuple_or_group_expression = "(", ")"
                           | "(", expression, ")"
                           | "(", tuple_element, ",",
                             [ tuple_element, { ",", tuple_element }, [ "," ] ], ")"
-                          | "(", expression, "...", ")"
+                          | "(", continued_expression, "...", ")"
                           ;
-tuple_element = conditional_expression, [ "..." ] ;
+tuple_element = conditional_expression
+              | continued_conditional_expression, "..."
+              ;
 
 list_expression = "[", [ list_items ], "]"
                 | list_comprehension
@@ -639,7 +671,7 @@ map_expression = "{", [ map_items ], "}"
                | map_comprehension
                ;
 map_items = map_item, { ",", map_item }, [ "," ] ;
-map_item = expression, ":", expression ;
+map_item = continued_expression, ":", expression ;
 
 data_expression = named_type, "{", [ data_items ], "}" ;
 data_items = [ "...", expression, "," ],
@@ -669,7 +701,9 @@ argument_list = positional_argument, { ",", positional_argument },
               | named_argument, { ",", named_argument }, [ "," ]
               ;
 
-positional_argument = expression, [ "..." ] ;
+positional_argument = expression
+                    | continued_expression, "..."
+                    ;
 named_argument = identifier, "=", expression ;
 ```
 
@@ -716,18 +750,37 @@ complete function type.
 ## Control-Flow Expressions
 
 ```ebnf
-if_expression = "if", expression, ":", suite_body,
-                { "else", "if", expression, ":", suite_body },
+if_expression = "if", continued_expression, ":", suite_body,
+                { "else", "if", continued_expression, ":", suite_body },
                 [ "else", ":", suite_body ]
                 ;
 
-for_expression = "for", binding_pattern, "in", expression, ":", suite_body,
-                 [ "else", ":", suite_body ]
+for_expression = "for", binding_pattern, "in", continued_expression, ":",
+                 suite_body, [ "else", ":", suite_body ]
                  ;
 
-while_expression = "while", expression, ":", suite_body,
+while_expression = "while", continued_expression, ":", suite_body,
                    [ "else", ":", suite_body ]
                    ;
+
+indented_if_expression = "if", continued_expression, ":", indented_suite_body
+                       | "if", continued_expression, ":", suite_body,
+                         { "else", "if", continued_expression, ":",
+                           suite_body },
+                         "else", [ "if", continued_expression ], ":",
+                         indented_suite_body
+                       ;
+
+indented_for_expression = "for", binding_pattern, "in", continued_expression,
+                          ":", ( indented_suite_body
+                               | suite_body, "else", ":",
+                                 indented_suite_body )
+                          ;
+
+indented_while_expression = "while", continued_expression, ":",
+                            ( indented_suite_body
+                            | suite_body, "else", ":", indented_suite_body )
+                            ;
 
 inline_if_expression = "if", closed_expression, ":", inline_suite_body,
                        { "else", "if", closed_expression, ":",
@@ -743,11 +796,11 @@ inline_while_expression = "while", closed_expression, ":", inline_suite_body,
                           [ "else", ":", inline_suite_body ]
                           ;
 
-match_expression = "match", expression, ":", NEWLINE, INDENT,
+match_expression = "match", continued_expression, ":", NEWLINE, INDENT,
                    match_arm, { match_arm }, DEDENT
                    ;
 
-match_arm = pattern, [ "if", expression ], "=>", arm_body ;
+match_arm = pattern, [ "if", continued_expression ], "=>", arm_body ;
 arm_body = suite_expression
          | simple_statement, NEWLINE
          | NEWLINE, INDENT, statement, { statement }, DEDENT
@@ -818,12 +871,12 @@ ignored.
 list_comprehension = "[", comprehension_clauses, "=>", expression, "]" ;
 
 map_comprehension = "{", comprehension_clauses, "=>",
-                    expression, ":", expression, "}" ;
+                    continued_expression, ":", expression, "}" ;
 
 comprehension_clauses = comprehension_for,
                         { comprehension_for | comprehension_if } ;
-comprehension_for = "for", binding_pattern, "in", expression ;
-comprehension_if = "if", expression ;
+comprehension_for = "for", binding_pattern, "in", continued_expression ;
+comprehension_if = "if", continued_expression ;
 ```
 
 The first clause must be `for`. Later `for` and `if` clauses execute from left
@@ -873,7 +926,7 @@ facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
                         "for", annotation_target, [ where_clause ], ":",
                         facet_annotation_suite ;
 
-annotation_facet = type | expression ;
+annotation_facet = type | continued_expression ;
 
 annotation_target = type ;
 
