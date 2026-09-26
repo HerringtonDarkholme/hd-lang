@@ -47,7 +47,7 @@ interface InterpolationScanResult {
   readonly terminated: boolean;
 }
 
-const KEYWORDS = new Set([
+export const KEYWORDS = new Set([
   "Self",
   "and",
   "annotate",

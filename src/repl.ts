@@ -1,7 +1,8 @@
-import { createInterface } from "node:readline";
+import { clearLine, createInterface, cursorTo } from "node:readline";
 
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
 import type { Diagnostic } from "./diagnostics.ts";
+import { highlight, highlightLines } from "./highlight.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 
@@ -522,6 +523,17 @@ export interface ReplIo {
   readonly input: NodeJS.ReadableStream;
   readonly output: NodeJS.WritableStream;
   readonly terminal?: boolean;
+  /** Syntax coloring; defaults to on for a terminal unless NO_COLOR is set. */
+  readonly color?: boolean;
+}
+
+const RED = "\u001b[31m";
+const YELLOW = "\u001b[33m";
+const DIM = "\u001b[2m";
+const RESET = "\u001b[0m";
+
+function colorEnabled(terminal: boolean): boolean {
+  return terminal && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
 }
 
 /** Runs an interactive session until end of input or `:quit`. */
@@ -540,16 +552,48 @@ export async function runRepl(
     closed = true;
   });
   let pending: string[] = [];
+  const promptText = (): string => (pending.length === 0 ? "hd> " : "... ");
   const prompt = (): void => {
     if (!terminal || closed) return;
-    reader.setPrompt(pending.length === 0 ? "hd> " : "... ");
+    reader.setPrompt(promptText());
     reader.prompt();
   };
+  const color = io.color ?? colorEnabled(terminal);
+  const paint = (code: string, text: string): string => (color ? `${code}${text}${RESET}` : text);
+  if (color) {
+    // Readline echoes plain text; after it handles a key, redraw the edited
+    // line in color. The return key is handled first, so the submitted line
+    // stays colored after readline moves to the next line.
+    const redraw = (): void => {
+      if (closed) return;
+      const position = reader.getCursorPos();
+      const columns = (io.output as { columns?: number }).columns || 80;
+      if (position.rows > 0 || promptText().length + reader.line.length >= columns) return;
+      cursorTo(io.output, 0);
+      const line = reader.line.trimStart().startsWith(":") ? reader.line : highlight(reader.line);
+      io.output.write(promptText() + line);
+      clearLine(io.output, 1);
+      cursorTo(io.output, position.cols);
+    };
+    const isReturn = (key?: { name?: string }): boolean =>
+      key?.name === "return" || key?.name === "enter";
+    io.input.prependListener("keypress", (_text: string, key?: { name?: string }) => {
+      if (isReturn(key)) redraw();
+    });
+    io.input.on("keypress", (_text: string, key?: { name?: string }) => {
+      if (!isReturn(key)) redraw();
+    });
+  }
   const report = (outcome: ReplOutcome): void => {
     for (const text of outcome.output) write(text);
-    for (const warning of outcome.warnings) write(warning);
-    for (const error of outcome.errors) write(error);
-    if (outcome.value !== undefined) write(`${outcome.value} : ${outcome.type}`);
+    for (const warning of outcome.warnings) write(paint(YELLOW, warning));
+    for (const error of outcome.errors) write(paint(RED, error));
+    if (outcome.value !== undefined)
+      write(
+        color
+          ? `${highlight(outcome.value)}${paint(DIM, ` : ${outcome.type}`)}`
+          : `${outcome.value} : ${outcome.type}`,
+      );
   };
   if (terminal) write("hd repl. Type :help for commands, :quit to leave.");
   prompt();
@@ -563,11 +607,13 @@ export async function runRepl(
       else if (command === ":reset") {
         session.reset();
         write("session reset");
-      } else if (command === ":source") write(session.source().trimEnd());
-      else if (command === ":type" && argument !== "") {
+      } else if (command === ":source") {
+        const source = session.source().trimEnd();
+        write(color ? highlightLines(source) : source);
+      } else if (command === ":type" && argument !== "") {
         const result = session.typeOf(argument);
-        for (const error of result.errors) write(error);
-        if (result.type) write(result.type);
+        for (const error of result.errors) write(paint(RED, error));
+        if (result.type) write(color ? highlight(result.type) : result.type);
       } else write(`unknown command ${command}; type :help`);
       prompt();
       continue;

@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { classifyInput, needsMoreInput, ReplSession } from "../src/repl.ts";
+import { classify, highlight } from "../src/highlight.ts";
+import { classifyInput, needsMoreInput, ReplSession, runRepl } from "../src/repl.ts";
 
 const root = resolve(import.meta.dirname, "..");
+const ESC = String.fromCharCode(27);
+
+function stripColor(text: string): string {
+  return text
+    .split(ESC)
+    .map((part, index) => (index === 0 ? part : part.replace(/^\[[0-9;]*m/, "")))
+    .join("");
+}
 
 test("REPL inputs are classified by their leading words", () => {
   assert.equal(classifyInput("fn double(n: i32) -> i32: n * 2"), "declaration");
@@ -103,4 +113,42 @@ test("hd repl reads a session from standard input", async () => {
     child.stdin?.end('x := 2\nif x > 1:\n    println("big")\n\nx * 10\n:type x\n:quit\n');
   });
   assert.equal(output, "big\n20 : i32\ni32\n");
+});
+
+test("syntax coloring classifies hd tokens and keeps the text", () => {
+  const line = 'fn f(n: i32) -> string: "n=${n + 1} $n" # note';
+  const spans = classify(line);
+  assert.equal(spans.map(({ text }) => text).join(""), line);
+  const kinds = new Map(spans.map(({ text, kind }) => [text.trim(), kind]));
+  assert.equal(kinds.get("fn"), "keyword");
+  assert.equal(kinds.get("f"), "function");
+  assert.equal(kinds.get("i32"), "type");
+  assert.equal(kinds.get("${"), "interpolation");
+  assert.equal(kinds.get("$n"), "interpolation");
+  assert.equal(kinds.get("1"), "number");
+  assert.equal(kinds.get("# note"), "comment");
+  assert.equal(kinds.get("nil"), undefined);
+  assert.equal(classify("x := nil").find(({ text }) => text === "nil")?.kind, "literal");
+  // Partial input colors to the end of the line instead of failing.
+  assert.equal(
+    classify('"open ${a')
+      .map(({ text }) => text)
+      .join(""),
+    '"open ${a',
+  );
+  const colored = highlight(line);
+  assert.notEqual(colored, line);
+  assert.equal(stripColor(colored), line);
+});
+
+test("colored REPL output highlights values and errors", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let text = "";
+  output.on("data", (chunk: Buffer) => (text += chunk.toString()));
+  const done = runRepl({ input, output, terminal: false, color: true });
+  input.end('["a"]\nnope\n');
+  await done;
+  assert.ok(text.includes(`[${ESC}[32m"a"${ESC}[0m]${ESC}[2m : list[string]${ESC}[0m`), text);
+  assert.ok(text.includes(`${ESC}[31m1:1: unknown-name: unknown name 'nope'${ESC}[0m`), text);
 });
