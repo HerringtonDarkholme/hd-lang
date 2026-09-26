@@ -3,6 +3,9 @@
 These documents cover deferred or exploratory work outside the accepted
 language specification:
 
+- [Roadmap](ROADMAP.md) orders the remaining work into grammar, type
+  checking, runtime, standard library, packages, prototype, audit cleanup, and
+  agent tooling areas.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
