@@ -24,8 +24,10 @@ data User:
 Field names must be unique within the data type. Every field has an explicit type.
 Fields have no standalone `mut` modifier. `friend: mut User` declares a field
 whose type grants mutable access through that reference; `mut friend: User`
-is invalid. The same rule applies to embedded fields: `Base` embeds `Base`,
-but `mut Base` is invalid. Embedded fields cannot declare a mutable edge.
+is invalid. An embedded field is written without `mut`: `Base` embeds `Base`,
+and `mut Base` is a `mutable-embedded-field` error, because access to an
+embedded part already follows its container
+([Data Embedding](#data-embedding)).
 An ordinary named field may have a default expression. It must be assignable to
 the declared field type and obey the same requirement-free rule as a
 function-parameter default in [Functions](07-functions.md#default-values). A
@@ -86,7 +88,8 @@ field, so it does not evaluate defaults for unlisted fields.
 Each copied field is checked through the spread source's access view. A
 readonly source can supply its effective `U` value for a direct `mut U` field
 when the result is also readonly `T`; producing `mut T` requires a `mut U`
-replacement. Generic fields retain their substituted type in both views. See
+replacement. Embedded parts are copied rather than shared
+([Data Embedding](#data-embedding)). Generic fields retain their substituted type in both views. See
 [Data Expressions](05-expressions.md#data-expressions).
 
 Field access uses `value.field`. A `mut T` root may reassign any of its fields,
@@ -96,7 +99,8 @@ requires the field read to have a `mut` access type, as specified in
 [Mutable Paths](04-type-system.md#mutable-paths). Reading a
 `field: mut U` through a readonly value yields only `U`. A readonly data value
 may be constructed with `U` in that direct field, while a mutable data value
-requires `mut U`. A generic field declared `field: P` retains its substituted
+requires `mut U`. An embedded field instead receives a copy
+([Data Embedding](#data-embedding)). A generic field declared `field: P` retains its substituted
 type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
 Direct assignment to a visible field enforces its declared type, not arbitrary
 validation or cross-field invariants. Keep fields private and expose controlled
@@ -104,7 +108,8 @@ methods when writes to those fields must preserve such invariants. This does
 not control other mutable aliases to an object stored in a private field; the
 language permits shared mutable children and does not guarantee invariants
 over the entire reachable object graph.
-Cross-module field access additionally requires the field to be public.
+In another module, field access reaches only public fields; member lookup
+skips the others ([Member Resolution](03-names-and-scopes.md#member-resolution)).
 Data values may be destructured in `match` patterns using the same
 `DataName { ... }` form. The pattern may mention any subset of visible
 fields; omitted fields are not tested. Within the braces, `field` binds the
@@ -149,30 +154,112 @@ post := Post {
 }
 ```
 
-Embedding promotes the embedded type's fields and inherent methods for
-convenient access, but does not make the outer data type a subtype of the
-embedded type. An embedded type's trait methods are not promoted; method
-lookup skips them. Which field `x.name` or method `x.name(args)` selects,
-including when an outer member hides a promoted one and when two promoted
-members are ambiguous, is defined once in
-[Member Resolution](03-names-and-scopes.md#member-resolution).
-
-Embedding has no overriding. A promoted method runs as the embedded type's
-own method, with the embedded value as its receiver, so inside `Base`'s
-methods `self.m()` is always `Base`'s `m`, even when a type that embeds
-`Base` declares its own `m`.
-
-Embedding never grants trait conformance, and a promoted method never fills a
-method of a trait implementation; the implementation writes the method, as in
-[Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
-
 Embedded shorthand accepts a named data type, including one with generic
 arguments. For `Box[T]`, the embedded field's name and construction key are
 `Box`; type arguments are not part of the key. The name must be unique among
-the outer data type's fields, so embedding both `Box[i32]` and `Box[string]`
-is a duplicate-field error. Explicitly mutable embedded-field shorthand is
-not supported; use an ordinary named field with a `mut` type for a mutable
-edge, without promotion.
+the outer data type's fields: a duplicate name that involves an embedded
+field, such as embedding both `Box[i32]` and `Box[string]`, is a
+`duplicate-embedded-field` error.
+
+An embedded field holds a **part** of the outer value: a value of the embedded
+type that the outer value receives as its own copy.
+
+- **Construction copies.** Filling an embedded field stores a copy of the
+  supplied value, never the value itself. The copy of a value `e` of type `E`
+  is a new `E` whose ordinary fields hold the values of `e`'s fields,
+  copied shallowly as copy-update copies them, and whose embedded fields hold
+  copies of `e`'s parts, made by the same rule. `Post { Timestamps: ts }`
+  therefore never shares a part with `ts`: a later change to `post`'s part
+  is not seen through `ts`, and a change through `ts` is not seen in
+  `post`. Composite values that the part's ordinary fields reference are
+  still shared. The supplied value may be readonly.
+- **Copy-update copies.** A copy-update literal copies each embedded part of
+  its spread source that it does not replace, by the same rule, so a copy
+  never shares a part with its original.
+- **Stores copy.** Assigning an embedded field of a `mut` value, as in
+  `post.Timestamps = stamps`, stores a copy of `stamps` by the same rule.
+- **Access follows the container.** Reading an embedded field through a
+  `mut` outer value yields `mut` access to the part, and reading it through a
+  readonly outer value yields readonly access. If `post` has type
+  `mut Post`, `post.Timestamps` has type `mut Timestamps`; if `post` has type
+  `Post`, it has type `Timestamps`. This is the embedded-field step of
+  [Mutable Paths](04-type-system.md#mutable-paths). Promoted members are reached
+  through the same step, so through a `mut Post` a promoted field may be
+  assigned and a promoted `mut self` method called, while through a readonly
+  `Post` the field is readonly and the call is `mutable-receiver-required`.
+- **Reading a part out aliases it.** A read of an embedded field yields the
+  part itself, not a copy. `let stamps = post.Timestamps` on a `mut Post`
+  binds a `mut Timestamps` alias, and a mutation through either name is
+  observed through the other; on a readonly `Post` the alias is readonly. A
+  `:=` binding exposes a readonly view, as it does for every composite value.
+
+Copies are made only by construction, copy-update, and stores into an
+embedded field. Passing, returning, binding, or matching the outer value, or
+reading its part, never copies. A part is copied as soon as the value that
+fills it is evaluated: at the position of its field expression in a literal,
+before any later field expression runs, and for parts supplied by a spread,
+when the spread is evaluated, before every explicit field expression. A side
+effect of a later field expression on the source is therefore not seen in
+the copy.
+
+A copy of a readonly value has mutable access only when nothing mutable is
+read through a readonly view to make it. A data type has **mutable edges**
+when it declares a direct `field: mut U`, or embeds a type that has mutable
+edges. The copy of `e` has type `mut E` when `e` has type `mut E`, or when
+`E` has no mutable edges; otherwise it has readonly type `E`, because the
+copy reads each direct `mut U` field of the readonly `e` as `U`, as a
+readonly copy-update does. A literal with a readonly copy is readonly, and so
+is the stored value, as
+[Bindings And Fresh Values](04-type-system.md#bindings-and-fresh-values) states:
+where `mut Post` is required, such a literal is a `mutable-upgrade` error, and
+so is a store of such a copy. A copy's generic fields keep their substituted
+types, as generic fields always do.
+
+The part is owned by the outer value only in this sense: the language copies
+it whenever a part is filled, so no two outer values receive the same part.
+It does not track or prevent later aliases. A read of the part, as above,
+and a `mut self` method of the embedded type that stores `self` elsewhere
+both keep a reference to the part, and changes through that reference are
+observed through the outer value. An implementation may lay a part out
+inline or as a separate object referenced only by its outer value, and may
+omit the copy of a value that nothing else can reference, such as a fresh
+literal; neither choice is observable.
+
+```text
+impl Timestamps:
+    fn touch(mut self, at: i64) -> void:
+        self.updated_at = at
+
+fn edit(post: mut Post, stamps: Timestamps) -> void:
+    post.touch(1700000100)            # promoted mut self method
+    post.updated_at = 1700000200      # promoted field through a mut root
+    let alias = post.Timestamps       # mut Timestamps, the same part
+    alias.created_at = 1700000000     # observed as post.created_at
+    let copy: mut Post = Post { Timestamps: stamps, id: "p", title: "t" }
+    copy.touch(1700000300)            # changes copy's part, never stamps
+```
+
+For [Variance](04-type-system.md#variance), an embedded field is an invariant
+position, because access through it follows the container: a covariant or
+contravariant parameter used in an embedded field's type is an
+`invalid-variance` error.
+
+Embedding promotes the embedded type's fields and inherent methods for
+convenient access. Which field `x.name` or method `x.name(args)` selects is
+defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
+the receiver's own members come first, members not visible from the calling
+module are skipped, embedded fields are searched breadth first with the
+shortest path winning, and an embedded type's trait methods are never
+promoted.
+
+Embedding is composition, not subtyping. The outer data type is not
+assignable to the embedded type. Embedding has no overriding: a promoted
+method runs as the embedded type's own method, with the embedded value as its
+receiver, so inside `Base`'s methods `self.m()` is always `Base`'s `m`, even
+when a type that embeds `Base` declares its own `m`. Embedding never grants
+trait conformance, and a promoted method never fills a method of a trait
+implementation; see
+[Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
 
 An embedded field accepts the same prefix metadata decorators as a named field.
 The metadata is attached to the embedded field itself, whose name is the final
@@ -378,8 +465,8 @@ specified in [Generalized Algebraic Data Types](13-gadts.md).
 
 ## Unsupported Aggregate Extensions
 
-hd-lang has no variant field blocks or explicitly mutable embedded-field
-shorthand. Use an explicit named field with a `mut` type when a mutable
-reference edge is required.
+hd-lang has no variant field blocks. It has no `mut` embedded-field
+shorthand either, because access to an embedded part already follows its
+container.
 Stable object layout and component-model representation are ABI concerns and
 are not observable core-language semantics.

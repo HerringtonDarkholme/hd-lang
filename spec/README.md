@@ -262,3 +262,25 @@ existing source. Each entry names the decision that made the change.
   that fits no instantiation lists the available instantiations.
 - Trait value types as targets: `impl Marker for Display` or
   `impl Marker for Any` is now `trait-value-impl-target`.
+- P2 (revises E2): member lookup skips fields and inherent methods that are
+  not visible from the calling module. A use in another module whose own
+  member is private, previously `private-member`, now reaches a visible
+  promoted member; `private-member` is reported only when nothing visible is
+  found. An own trait method whose trait is not available still stops the
+  search with `trait-not-in-scope`.
+- VE1 to VE4: embedding is value embedding. Filling an embedded field, in a
+  literal, a copy-update, or a store, stores a copy of the value: its
+  ordinary fields are copied shallowly and its embedded parts recursively, so
+  two outer values never share a part, and a later change to the source is
+  no longer seen through the outer value. Access through an embedded field
+  follows its container: through a `mut` outer value, the embedded field, its
+  promoted fields, and its promoted `mut self` methods have `mut` access, so
+  a promoted `mut self` call on a `mut` receiver, previously
+  `mutable-receiver-required`, is valid, and so is assigning a promoted
+  field. An embedded field is no longer a readonly edge: a mutation through
+  one reached from a readonly value is `readonly-root`. `let alias =
+  post.Timestamps` on a `mut Post` now binds a `mut` alias. The copy of a
+  readonly value whose type has direct `mut U` fields, at any embedded depth,
+  is readonly, so using its literal as `mut T` is `mutable-upgrade`. An
+  embedded field is now an invariant position for variance, so
+  `data Holder[+T]: Box[T]` is `invalid-variance`.

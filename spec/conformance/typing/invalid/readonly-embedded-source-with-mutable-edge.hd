@@ -1,0 +1,14 @@
+# test: copying a readonly part whose type has a direct mut field gives a readonly copy, so a mut literal is rejected
+data Owner:
+    name: string
+
+data Stamp:
+    at: i32
+    owner: mut Owner
+
+data Post:
+    Stamp
+    id: string
+
+fn invalid(stamp: Stamp) -> void:
+    let post: mut Post = Post { Stamp: stamp, id: "p" }  # diagnostic: mutable-upgrade

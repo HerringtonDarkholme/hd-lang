@@ -1,0 +1,14 @@
+# test: a mut copy of a readonly original cannot copy a part whose type has a direct mut field
+data Owner:
+    name: string
+
+data Stamp:
+    at: i32
+    owner: mut Owner
+
+data Post:
+    Stamp
+    id: string
+
+fn invalid(post: Post) -> mut Post:
+    Post { ...post, id: "copy" }  # diagnostic: mutable-upgrade

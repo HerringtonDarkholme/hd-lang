@@ -781,3 +781,8 @@ parse/invalid/bound-method-value.hd	parse
 typing/invalid/bound-method-value-call.hd	type
 typing/invalid/trait-value-impl-target.hd	type
 typing/valid/trait-value-as-target-argument.hd	type
+runtime/valid/private-own-member-wins-in-module.hd	runtime
+typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type
+typing/invalid/promoted-field-assignment-readonly.hd	type
+typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	type
+typing/invalid/embedded-part-readonly-alias.hd	type

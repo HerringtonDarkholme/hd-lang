@@ -1,0 +1,6 @@
+# test: an embedded field is an invariant position, so a covariant parameter cannot appear in its type
+data Box[+T]:
+    value: T
+
+data Holder[+T]:
+    Box[T]  # diagnostic: invalid-variance

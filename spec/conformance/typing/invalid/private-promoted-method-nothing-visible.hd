@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: when no visible method matches at any depth, the skipped private embedded method is reported
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> string:
+    outer.audit()  # diagnostic: private-member

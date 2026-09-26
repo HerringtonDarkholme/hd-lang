@@ -1,14 +1,16 @@
 id	count	title
 F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 F-253	12	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
+VE	10	Value embedding is not implemented: embedded fields are still readonly edges, construction, copy-update, and stores share the part instead of copying it, and embedded fields are not invariant for variance
 F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	8	`$.use(mut K)` and other `mut` requirement keys are not implemented
 F-252	6	The parser rejects core grammar forms
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
-E2	4	Private own members and unavailable trait methods (`private-member`, `trait-not-in-scope`) are not tracked, and their fixtures need package roles
+P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every member is visible, and the fixtures need package roles
 F-257	3	`mut fn` closure literals do not parse
+E2	2	Unavailable trait methods (`trait-not-in-scope`) are not tracked, and their fixtures need package roles
 F-150	2	Two entry-point reject cases also report `private-type-leak`
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 F-704	2	`string.replace` is not implemented

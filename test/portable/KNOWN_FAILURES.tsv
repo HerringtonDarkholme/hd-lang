@@ -109,8 +109,8 @@ typing/valid/trait-argument-owner-impl.hd	check reports unknown-trait: the proto
 typing/invalid/orphan-impl-nested-trait-argument.hd	check reports unknown-trait instead of orphan-impl: the prototype has no Iterable trait	TQ-2
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
 typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2
-typing/invalid/invisible-outer-member-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; private-member is not implemented	E2
-typing/invalid/invisible-outer-field-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; private-member is not implemented	E2
+runtime/valid/invisible-outer-method-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
+runtime/valid/invisible-outer-field-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/unavailable-trait-method-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; trait availability is not tracked, so trait-not-in-scope is not implemented	E2
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	E2
 runtime/valid/mutable-provider-state.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
@@ -124,3 +124,15 @@ typing/invalid/mutable-host-entry-requirement.hd	the parser rejects a `mut` requ
 runtime/valid/iterable-and-iterator-for-loop.hd	check reports unknown-trait: the prototype has no Iterable trait, so the Iterable-over-Iterator preference cannot run	TQ-29
 runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type i64 (sized numeric types unimplemented); the TQ-4 literal-default preference is implemented but needs a second integer or float type to exercise	F-253
 typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type i64 and u8 (sized numeric types unimplemented) instead of ambiguous-method	F-253
+typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
+typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
+runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64, and the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+runtime/valid/embedded-construction-copies.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+typing/valid/readonly-embedded-source-mutable-result.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+typing/invalid/readonly-embedded-source-with-mutable-edge.hd	check accepts: the prototype does not make a readonly copy of a part with a mutable edge (VE not implemented)	VE
+runtime/valid/copy-update-copies-embedded-part.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+typing/invalid/copy-update-readonly-embedded-mutable-edge.hd	check accepts: the prototype does not make a readonly copy of a part with a mutable edge (VE not implemented)	VE
+runtime/valid/embedded-store-copies.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+runtime/valid/embedded-part-mut-alias.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+runtime/valid/embedded-copy-at-field-position.hd	check reports readonly-argument-to-mutable-parameter: the prototype still treats an embedded field as a readonly edge, and it shares the part instead of copying it (VE not implemented)	VE
+typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse, and embedded fields are not invariant positions (VE not implemented)	VE

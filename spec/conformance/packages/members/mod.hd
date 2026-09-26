@@ -15,9 +15,13 @@ impl Inner:
     pub fn secret(self) -> string:
         "inner secret"
 
+    fn audit(self) -> string:
+        "inner audit"
+
 pub data Outer:
     pub Inner
     code: string
+    revision: i32
 
 impl Outer:
     fn secret(self) -> string:
@@ -28,4 +32,4 @@ impl Tagged for Outer:
         "outer"
 
 pub fn make_outer() -> Outer:
-    Outer { Inner: Inner { note: "note", code: "inner field" }, code: "private" }
+    Outer { Inner: Inner { note: "note", code: "inner field" }, code: "private", revision: 1 }

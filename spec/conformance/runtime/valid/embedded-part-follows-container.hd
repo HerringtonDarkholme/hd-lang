@@ -1,0 +1,33 @@
+# test: through a mut outer value the embedded part is mut; reading it out aliases it; construction copies
+use std.testing.assert_equal
+
+data Timestamps:
+    created_at: i64
+    updated_at: i64
+
+impl Timestamps:
+    fn touch(mut self, at: i64) -> void:
+        self.updated_at = at
+
+data Post:
+    Timestamps
+    id: string
+    title: string
+
+fn edit(post: mut Post, stamps: Timestamps) -> void:
+    post.touch(1700000100)            # promoted mut self method
+    post.updated_at = 1700000200      # promoted field through a mut root
+    let alias = post.Timestamps       # mut Timestamps, the same part
+    alias.created_at = 1700000000     # observed as post.created_at
+    let copy: mut Post = Post { Timestamps: stamps, id: "p", title: "t" }
+    copy.touch(1700000300)            # changes copy's part, never stamps
+
+test "access follows the container":
+    let post: mut Post = Post { Timestamps: Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+    stamps := Timestamps { created_at: 5, updated_at: 5 }
+    edit(post, stamps)
+    assert_equal(post.updated_at, 1700000200, reason="promoted field assignment")
+    assert_equal(post.created_at, 1700000000, reason="mutation through the alias is seen in post")
+    assert_equal(stamps.updated_at, 5, reason="the copy never changes stamps")
+    post.Timestamps.updated_at = 7
+    assert_equal(post.updated_at, 7, reason="explicit path through a mut root")

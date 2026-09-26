@@ -109,8 +109,8 @@ read it, so prefer explicit, checkable rules and locality.
   Embedding carries only fields and inherent methods. Trait methods count
   only on the receiver's own type; method lookup skips an embedded type's
   trait methods and keeps searching below it.
-- **Embedding critique review (2026-09-26).** (P2, not yet applied;
-  revises E2) Members not visible from the calling module are skipped, as in
+- **Embedding critique review (2026-09-26).** (P2, applied to 03
+  Member Resolution, 08, 09, and the members fixtures; revises E2) Members not visible from the calling module are skipped, as in
   Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
   private member wins; if nothing visible is found, the private member is
   reported (`private-member`). Private additions never break outside
@@ -125,7 +125,8 @@ read it, so prefer explicit, checkable rules and locality.
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
 
-- **Owned embedding (OE1 to OE4), not yet applied.** (OE1) Access through an
+- **Owned embedding (OE1 to OE4), superseded by VE1 to VE4** (OE1 and OE4
+  survive as VE2 and VE4). (OE1) Access through an
   embedded field follows the container: a `mut` outer value gives `mut`
   access to the embedded part, a readonly one gives readonly; this replaces
   "embedded fields are readonly edges", so promoted `mut self` methods work
@@ -204,8 +205,13 @@ read it, so prefer explicit, checkable rules and locality.
   trait's members and its supertraits' members; `Self`'s fields are not
   accessible there.
 
-- **Value embedding (VE1 to VE4), not yet applied; replaces OE2 and OE3,
-  keeps OE1 and OE4.** (VE1) Construction copies: `Post { Timestamps: ts }`
+- **Value embedding (VE1 to VE4), applied to the specification (03 Member
+  Resolution, 04 Mutable Paths and Bindings And Fresh Values, 05 Data
+  Expressions and Member Access, 08 Data Embedding, 09 Embedding And Trait
+  Satisfaction); the prototype does not implement it yet (KNOWN_FAILURES tag
+  VE). Replaces OE2 and OE3, keeps OE1 and OE4.** The readings VE-A to VE-F
+  below are applied with it; under (D), parts supplied by a spread are
+  copied when the spread is evaluated. (VE1) Construction copies: `Post { Timestamps: ts }`
   stores a copy of `ts`; the part's ordinary fields are copied shallowly
   (they still reference the same objects), and nested embedded parts are
   copied recursively. `ts` may be readonly. (VE2) Access through an embedded
@@ -216,7 +222,8 @@ read it, so prefer explicit, checkable rules and locality.
   be a separate object held exclusively by the outer value; it need not be
   laid out inline.
 
-- **Value embedding readings (VE-A to VE-F), decided.** (A) Copying a
+- **Value embedding readings (VE-A to VE-F), decided and applied to the
+  specification with VE1 to VE4.** (A) Copying a
   readonly part whose type has `mut` fields at any embedded depth makes the
   outer value readonly; using it as `mut` is `mutable-upgrade`. A `mut`
   source, or a part type with no mutable edges, allows a `mut` result;

@@ -1,0 +1,29 @@
+# test: a part is copied when its field expression is evaluated, so a later field's side effect on the source is not seen
+use std.testing.assert_equal
+
+data Stamp:
+    at: i32
+
+data Post:
+    Stamp
+    label: string
+
+fn bump(stamp: mut Stamp) -> string:
+    stamp.at = stamp.at + 1
+    "bumped"
+
+data Holder:
+    Stamp
+    note: string
+
+test "copy happens at the field position":
+    let stamp: mut Stamp = Stamp { at: 1 }
+    post := Post { Stamp: stamp, label: bump(stamp) }
+    assert_equal(post.at, 1, reason="the copy was taken before the later field ran")
+    assert_equal(stamp.at, 2, reason="the side effect reached the source")
+
+test "spread parts are copied when the spread is evaluated":
+    let source: mut Holder = Holder { Stamp: Stamp { at: 1 }, note: "n" }
+    copy := Holder { ...source, note: bump(source.Stamp) }
+    assert_equal(copy.at, 1, reason="the spread's part was copied before the explicit field ran")
+    assert_equal(source.at, 2, reason="the side effect reached the source part")

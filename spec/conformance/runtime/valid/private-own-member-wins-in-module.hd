@@ -1,0 +1,22 @@
+# test: inside the defining module a private own member is visible, so it hides the promoted member
+use std.testing.assert_equal
+
+data Inner:
+    code: string
+
+impl Inner:
+    fn secret(self) -> string:
+        "inner"
+
+data Outer:
+    Inner
+    code: string
+
+impl Outer:
+    fn secret(self) -> string:
+        "outer"
+
+test "private own members win in their module":
+    outer := Outer { Inner: Inner { code: "inner" }, code: "outer" }
+    assert_equal(outer.code, "outer", reason="private own field wins")
+    assert_equal(outer.secret(), "outer", reason="private own method wins")

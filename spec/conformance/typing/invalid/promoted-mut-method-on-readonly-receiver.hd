@@ -1,0 +1,16 @@
+# test: through a readonly outer value the embedded part is readonly, so a promoted mut self call is rejected
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+impl Timestamps:
+    fn touch(mut self, at: i32) -> void:
+        self.updated_at = at
+
+data Post:
+    Timestamps
+    id: string
+    title: string
+
+fn invalid(post: Post) -> void:
+    post.touch(5)  # diagnostic: mutable-receiver-required

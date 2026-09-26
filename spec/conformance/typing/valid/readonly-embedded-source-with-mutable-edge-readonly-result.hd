@@ -1,0 +1,18 @@
+# test: a readonly copy of a part with a mutable edge is fine when the constructed value is readonly
+data Owner:
+    name: string
+
+data Stamp:
+    at: i32
+    owner: mut Owner
+
+data Post:
+    Stamp
+    id: string
+
+fn wrap(stamp: Stamp) -> Post:
+    Post { Stamp: stamp, id: "p" }
+
+fn inferred(stamp: Stamp) -> string:
+    let post = Post { Stamp: stamp, id: "p" }
+    post.id

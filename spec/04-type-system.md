@@ -364,7 +364,8 @@ described separately as **non-reassignable** when its name cannot be rebound.
 
 `mut` expresses access permission, not ownership, uniqueness, or a deep freeze
 of the object. A readonly `T` reference cannot reassign its fields. A direct
-data field declared `field: mut U` is read as `U` through readonly `T`, while a
+data field declared `field: mut U` is read as `U` through readonly `T`, and an
+embedded field follows its container's access, while a
 generic data field declared `field: P` retains its substituted type even when
 `P` is instantiated as `mut U`. Other extraction forms state their own
 permission rules below. A `mut T` may be viewed as `T`; a `T` must never be
@@ -374,7 +375,7 @@ that generic inference would produce: binding `keep(readonly_value)` to a
 inferring `T` as a mutable type.
 
 A readonly view blocks reassignment of its fields and removes the `mut` of its
-direct `mut U` fields ([Mutable Paths](#mutable-paths)). It is not a deep
+direct `mut U` fields and embedded fields ([Mutable Paths](#mutable-paths)). It is not a deep
 authority boundary: a `mut U` supplied as an optional, tuple, collection, or
 other generic argument keeps its permission when that nested value is
 extracted. APIs that require a deep no-mutation guarantee
@@ -405,11 +406,18 @@ the new object; each field or element keeps the permission of the supplied
 expression and declared edge.
 
 A data literal with a direct `field: mut U` may produce readonly `T` when that
-field is supplied only `U`. It produces `mut T` only when every direct mutable
-field is supplied mutable access. An expected readonly `T`, including a `:=`
-binding, permits the weaker field value; an expected `mut T` rejects it. An
-unannotated `let` infers readonly `T` when any such direct field is supplied
-only `U`. A generic field declared `field: P` still requires its substituted
+field is supplied only `U`. Each embedded field receives a copy, which has
+readonly access when it is made from a readonly value whose type has mutable
+edges ([Data Embedding](08-data-and-enums.md#data-embedding)). A literal
+produces `mut T` only when every direct mutable field is supplied mutable
+access and every embedded copy has mutable access; a value copied from a
+spread counts as supplied through the spread source's view. An expected
+readonly `T`, including a `:=` binding, permits the weaker field value; an
+expected `mut T` rejects it with `mutable-upgrade`. The expected type is
+`mut T` wherever the literal is used as `mut T`: an annotated `mut T`
+binding, a `mut T` argument or result, or a store into a `mut T` field or
+element. An unannotated `let` infers readonly `T` when any such field or copy
+is readonly. A generic field declared `field: P` still requires its substituted
 type, including `mut U` when `P = mut U`.
 
 `:=` always exposes a readonly composite view, even when its initializer creates a
@@ -440,13 +448,24 @@ time from the expression it extends:
 - A binding, parameter, or `self` has its declared or inferred type. A call has
   its callable's declared result type, whatever value the call was reached
   through.
-- A field read `e.field` where `e` has type `mut T` yields the field's declared
-  type after substitution.
-- A field read `e.field` where `e` has readonly type `T` yields the field's
-  declared type after substitution, except that a `mut` written directly in the
-  field declaration is removed: `field: mut U` yields `U`. A field declared
-  with a generic parameter, `field: P`, yields the substituted type unchanged,
-  so reading `value: P` from readonly `Box[mut User]` yields `mut User`.
+- A field read `e.field` depends on the kind of field, and on whether `e` has
+  type `mut T` or readonly type `T`:
+  - a **mutable edge**, declared `field: mut U`, yields `mut U` through
+    `mut T` and `U` through readonly `T`: the `mut` written directly in the
+    declaration is removed by a readonly container;
+  - a **readonly edge**, declared `field: U` with a composite `U`, yields `U`
+    through either;
+  - an **embedded field** `E` yields the container's access: `mut E` through
+    `mut T` and `E` through readonly `T`
+    ([Data Embedding](08-data-and-enums.md#data-embedding)). It is never a
+    readonly edge;
+  - a **generic field**, declared with a generic parameter `field: P`, yields
+    the substituted type unchanged through either, so reading `value: P` from
+    readonly `Box[mut User]` yields `mut User`.
+
+  Every type is read after substitution of the container's type arguments.
+  A promoted field or method is reached through its embedded fields step by
+  step ([Member Resolution](03-names-and-scopes.md#member-resolution)).
 - Indexing, iteration, and lookup on a built-in collection yield its declared
   element or value type, whatever the collection's own permission: indexing
   readonly `list[mut User]` yields `mut User`, and a successful lookup in a
@@ -471,18 +490,21 @@ account.profile.display_name = "Ada"   # account.profile has type mut Profile
 
 When `e` is readonly, the diagnostic names why:
 
-- `readonly-edge` when `e` is a field read whose declaration writes a
-  composite type without `mut`, `field: U`;
+- `readonly-edge` when `e` is a field read through a readonly edge,
+  `field: U`;
 - `readonly-root` otherwise: `e` is a readonly binding, parameter, `self`,
-  call result, element, or unwrapped value; a field read that lost `mut`
-  through a readonly value; or a generic field whose type argument is
+  call result, element, or unwrapped value; a mutable edge or embedded field
+  read through a readonly value; or a generic field whose type argument is
   readonly.
 
 A `mut T` value may reassign every field with a value assignable to the
 field's declared type, whether the field is `field: U` or `field: mut U`.
 Replacing a field does not mutate the old referenced value. Storing into a
 direct `field: mut U` of a mutable value requires `mut U`; a readonly value
-may store `U` there and cannot later be upgraded to `mut T`.
+may store `U` there and cannot later be upgraded to `mut T`. Storing into an
+embedded field stores a copy, which must have mutable access
+([Data Embedding](08-data-and-enums.md#data-embedding)); otherwise the store is
+a `mutable-upgrade` error.
 
 Container mutation and element mutation are independent:
 
@@ -494,7 +516,8 @@ Container mutation and element mutation are independent:
 | `mut list[mut User]` | yes | yes |
 
 Generic type arguments are never weakened because their enclosing value is
-readonly; only a `mut` written directly in a field declaration is removed.
+readonly; only a mutable edge or an embedded field loses `mut` through a
+readonly container.
 Data patterns and copy-update use the same access types as field reads on the
 subject.
 
@@ -613,6 +636,9 @@ Polarity is computed as follows:
   invariant;
 - occurrence beneath `mut` is invariant because the referenced storage can be
   both read and written;
+- occurrence in an embedded field's type is invariant, because access through
+  an embedded field follows its container
+  ([Data Embedding](08-data-and-enums.md#data-embedding));
 - a parameter used in both positive and negative positions must be invariant.
 
 A declared `+T` is rejected if any occurrence is negative or invariant. A

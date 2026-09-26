@@ -1,6 +1,0 @@
-# fixture-package-role: root-application
-# test: a present but invisible own method is a visibility error, not a fallthrough to the embedded method
-use dep.members.{Outer}
-
-fn invalid(outer: Outer) -> string:
-    outer.secret()  # diagnostic: private-member

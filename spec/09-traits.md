@@ -370,8 +370,9 @@ For a generic receiver, its declared bounds are also available. A dynamic trait
 value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module
 that can name the target type. It does make the name present on the target, so
-lookup does not fall through to embedded fields: when a name exists on `S` only
-through traits that are not available, the call is a `trait-not-in-scope`
+lookup does not fall through to embedded fields: when `S` has no visible
+inherent method with the name and every trait method of `S` with that name
+belongs to a trait that is not available, the call is a `trait-not-in-scope`
 error.
 
 A visible inherent method of the receiver's nominal type is always selected
@@ -560,15 +561,20 @@ has no default. A method promoted from an embedded field never fills a trait
 method, whether required or defaulted, and whatever its receiver. An
 implementation that reuses an embedded type's behavior forwards to it
 explicitly, for example `fn label(self) -> string: self.Base.label()`. A
-bodyless implementation of a trait with a required method is therefore a
+forwarding `mut self` method may call a `mut self` method of the embedded part,
+as in `fn reset(mut self) -> void: self.Base.reset()`, because `self.Base` has
+`mut` access through `mut self`
+([Data Embedding](08-data-and-enums.md#data-embedding)). A bodyless
+implementation of a trait with a required method is therefore a
 `missing-trait-method` error even when an embedded type has a matching method.
 
-An embedded type's trait methods are not promoted either: if `Label`
-implements `Display` and `Page` embeds `Label`, method lookup skips `Label`'s
-`to_string`. `page.to_string()` then reaches no `to_string` through `Label`'s
-implementation, unless `Page` itself implements `Display`.
+An embedded type's trait methods are not promoted either; member lookup skips
+them ([Member Resolution](03-names-and-scopes.md#member-resolution)). If
+`Label` implements `Display` and `Page` embeds `Label`, `page.to_string()`
+reaches no `to_string` through `Label`'s implementation, and `Page` satisfies
+no `Display` bound, unless `Page` itself implements `Display`.
 
-Embedding is still composition, not subtype inheritance. An outer data type is not
+Embedding is composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.
 
 ## Default-Method Conflicts
