@@ -1,4 +1,0 @@
-fn run() -> void:
-    pass
-    data Request:
-        query: string

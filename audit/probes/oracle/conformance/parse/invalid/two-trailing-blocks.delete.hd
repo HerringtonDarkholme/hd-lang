@@ -1,3 +1,0 @@
-transaction:
-    save_user()
-    save_again()

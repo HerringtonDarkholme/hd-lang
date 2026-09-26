@@ -1,3 +1,0 @@
-# test: function parameter defaults enforce order, type, and purity
-
-fn wait!() -> i32: 1

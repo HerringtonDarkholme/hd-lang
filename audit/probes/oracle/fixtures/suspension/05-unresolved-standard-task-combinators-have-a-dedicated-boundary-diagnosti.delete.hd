@@ -1,3 +1,0 @@
-# test: unresolved standard task combinators have a dedicated boundary diagnostic
-
-fn ready!() -> i32: 42

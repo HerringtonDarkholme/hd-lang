@@ -1,3 +1,0 @@
-fn nonoptional(value: i32) -> i32:
-    match value:
-        _ => 0

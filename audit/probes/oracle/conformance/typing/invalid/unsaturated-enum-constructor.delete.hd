@@ -1,2 +1,0 @@
-enum ToolError:
-    NotFound(resource: string)

@@ -1,4 +1,0 @@
-# test: collections / lists / empty needs context
-
-fn main() -> void:
-    pass

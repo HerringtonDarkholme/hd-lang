@@ -1,2 +1,0 @@
-fn run() -> void:
-    value := 1

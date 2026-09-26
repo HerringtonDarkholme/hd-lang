@@ -1,4 +1,0 @@
-data User:
-    name: string
-
-enum Witness[+T]:

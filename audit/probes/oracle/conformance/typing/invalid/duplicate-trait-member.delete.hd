@@ -1,2 +1,0 @@
-trait Named:
-    fn name(self) -> string

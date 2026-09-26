@@ -128,7 +128,9 @@ the reference lexer treats `fn` there as a suite header.
 
 ## Findings
 
-All are confirmed by replay; fixtures are in `audit/fuzz/findings/`.
+All were confirmed by replay. Fixtures for the findings still open (F-306, F-310,
+F-311, F-312, F-315, F-316) are in [`findings/`](findings/); the others were fixed or
+settled by the spec, and their fixtures were removed.
 
 | ID    | Severity       | Title                                                                              | Duplicate of |
 | ----- | -------------- | ---------------------------------------------------------------------------------- | ------------ |

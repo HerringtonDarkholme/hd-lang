@@ -1,6 +1,0 @@
-data User:
-    name: string
-
-user := User {
-    name: "Ada",
-}

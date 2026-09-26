@@ -1,7 +1,8 @@
-# F-559: two type-checked fixtures crash Wasm emission with an internal error
+# F-559: type-checked programs crash Wasm emission with an internal error
 Severity: minor
 Area: correctness
-Evidence: audit/evidence/05-requirements/emit-crash.md
-Effect: `hd check` accepts both files, but `hd test` and `hd build` exit 1 with a JS stack trace and no diagnostic. The files are `test/fixtures/frontend/30-parser-lowers-multi-provider-use-to-an-ordered-tuple.hd` (opaque externref providers stored unboxed in an anyref `$hd.list`) and `spec/conformance/typing/valid/resource-disposed-result.hd` (Binaryen cannot parse the WAT; the message is `[object Object]`). The suites only parse or check them, so this goes unnoticed.
-Update: the `_ := f()?` trigger for `Result[void, E]` (formerly F-305) is fixed. `hd build --wat` on `resource-disposed-result.hd` now fails later, with a Binaryen validator error in `poll0`: "return value should be a subtype of the function result type".
-Recommendation: implementation change. Box `externref` providers (`$hd.box-extern`) before putting them in tuple lists. Report emitter failures as a structured internal diagnostic that includes Binaryen's message.
+Evidence: audit/evidence/05-requirements/emit-crash.md (historical); current repros below
+Effect: `hd check` accepts these programs, but `hd build`/`test`/`run` exit 1 with a JS stack trace and no diagnostic:
+- `spec/conformance/typing/valid/resource-disposed-result.hd` fails the Binaryen validator in `poll0`: "return value should be a subtype of the function result type". The suite only checks this file.
+- A multi-provider use that mixes a host provider with a source provider, such as `con, c := $.use(Console, Clock)` inside `pub fn main() -> void $ Console` under `$.with(Clock=...)`, throws `cannot unbox 'provider:Console'` in src/emitter/context.ts.
+Recommendation: implementation change. Box `externref` providers before storing them in the tuple list. Report emitter failures as a structured internal diagnostic that includes Binaryen's message.

@@ -1,2 +1,0 @@
-fn same(left: i32, right: i32) -> bool:
-    pass

@@ -1,4 +1,0 @@
-data Secret:
-    value: string
-pass
-    Secret { value: "hidden" }

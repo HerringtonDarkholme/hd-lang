@@ -1,3 +1,0 @@
-# test: imported assert_equal compares supported structural values
-
-use std.testing.assert_equal

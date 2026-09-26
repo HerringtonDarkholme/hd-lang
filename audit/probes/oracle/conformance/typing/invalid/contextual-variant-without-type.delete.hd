@@ -1,5 +1,0 @@
-enum Status:
-    Queued
-
-fn invalid() -> void:
-    pass

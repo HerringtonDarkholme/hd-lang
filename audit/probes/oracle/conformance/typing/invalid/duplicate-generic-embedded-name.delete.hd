@@ -1,5 +1,0 @@
-data Box[T]:
-    value: T
-
-data Storage:
-    Box[i32]

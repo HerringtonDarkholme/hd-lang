@@ -1,4 +1,0 @@
-# test: documentation comments attach to AST declarations and members
-
-fn run() -> void:
-    value := 1

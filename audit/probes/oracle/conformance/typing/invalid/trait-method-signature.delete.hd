@@ -1,6 +1,0 @@
-trait Named:
-    fn name(self) -> string
-
-data User: pass
-
-impl Named for User:

@@ -1,1 +1,0 @@
-fn same[T](left: T, right: T) -> bool:

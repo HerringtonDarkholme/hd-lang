@@ -2,7 +2,7 @@
 Severity: note
 Area: correctness
 Related: F-250, F-252 (positional payloads), and F-254 (local declarations); empty pattern clauses, variant generics, and bodyless inherent impls are new here
-Evidence: audit/evidence/03-fuzz/round1/parse/signatures.tsv (expected-expression 431, expected-token 362, missing-impl-body 20); replay of audit/fuzz/findings/F-315-impl-local-data.hd
+Evidence: audit/evidence/03-fuzz/round1/parse/signatures.tsv (expected-expression 431, expected-token 362, missing-impl-body 20); replay of audit/evidence/03-fuzz/findings/F-315-impl-local-data.hd
 Effect: `hd parse` rejects these grammar-valid inputs with `expected-expression`, `expected-token`, or `missing-impl-body`, none of them spec codes:
 - local `data` and `type` declarations in bodies and trailing blocks;
 - empty pattern argument clauses (`A() => ...`);

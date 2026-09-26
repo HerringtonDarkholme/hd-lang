@@ -1,4 +1,0 @@
-data MaxLen:
-    value: i32
-
-fn invalid(field: FieldShape) -> MaxLen?:

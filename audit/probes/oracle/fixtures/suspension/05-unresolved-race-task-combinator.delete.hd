@@ -1,3 +1,0 @@
-# test: unresolved race task combinator has a dedicated boundary diagnostic
-
-fn ready!() -> i32: 42

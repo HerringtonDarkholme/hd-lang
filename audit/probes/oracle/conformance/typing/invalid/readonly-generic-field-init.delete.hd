@@ -1,7 +1,0 @@
-data Child:
-    name: string
-
-data Box[T]:
-    value: T
-
-readonly_child := Child { name: "Ada" }

@@ -1,39 +1,30 @@
 # All Findings
 
-Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each file's `Duplicates:` line.
+Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line).
 
-| ID | Severity | Area | Title | Duplicate of |
-| -- | -------- | ---- | ----- | ------------ |
-| [F-150](../findings/F-150-reject-cases-ignore-extra-errors.md) | minor | test-integrity | Reject cases pass even when unrelated errors are also reported |  |
+| ID | Severity | Area | Title | Merged duplicates |
+| -- | -------- | ---- | ----- | ----------------- |
+| [F-150](../findings/F-150-entry-cases-private-type-leak.md) | minor | test-integrity | Two entry-point reject cases also report `private-type-leak` |  |
 | [F-155](../findings/F-155-panic-line-unchecked-and-unreported.md) | minor | runtime | Runtime panics carry no source location, so panic marker lines are never checked |  |
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |
-| [F-162](../findings/F-162-cli-entry-misuse-crashes.md) | minor | runtime | `hd run` and `hd test` crash with stack traces on entry-shape errors |  |
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |
-| [F-201](../findings/F-201-fixtures-depend-on-undeclared-requirement-keys.md) | major | correctness | 29 fixtures use undeclared requirement keys that the compiler wrongly accepts |  |
+| [F-201](../findings/F-201-undeclared-requirement-key-accepted.md) | minor | correctness | The compiler accepts an undeclared requirement key on a non-entry function |  |
 | [F-205](../findings/F-205-fixture-codes-missing-from-spec.md) | major | spec | Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define |  |
-| [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-405 |
-| [F-252](../findings/F-252-parser-rejects-core-grammar.md) | major | correctness | The parser rejects core chapter-02 forms that the reference parser accepts |  |
+| [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-312 |
+| [F-252](../findings/F-252-parser-rejects-core-grammar.md) | major | correctness | The parser rejects core grammar forms | F-309 |
 | [F-253](../findings/F-253-sized-numeric-types-unsupported.md) | minor | coverage | Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred |  |
 | [F-254](../findings/F-254-type-and-local-declarations-unsupported.md) | minor | coverage | `type` declarations and local type/impl declarations are rejected as syntax errors |  |
 | [F-255](../findings/F-255-prelude-surface-gaps.md) | minor | coverage | Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown |  |
 | [F-256](../findings/F-256-row-kinded-arguments-unparsed.md) | minor | coverage | Row-kinded generic data arguments such as `Job[$()]` fail to parse |  |
-| [F-257](../findings/F-257-mut-fn-closures-unsupported.md) | minor | coverage | `mut fn` closures are unsupported | F-352 |
+| [F-257](../findings/F-257-mut-fn-closures-unsupported.md) | minor | coverage | `mut fn` closure literals do not parse | F-352 |
 | [F-258](../findings/F-258-least-common-type-code.md) | minor | correctness | Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type` |  |
 | [F-259](../findings/F-259-disposed-file-profile-missing.md) | minor | test-integrity | The `disposed-file` runtime profile named in spec/conformance/README.md does not exist |  |
-| [F-261](../findings/F-261-identity-rejects-mut-operands.md) | major | correctness | `is` rejects operands with `mut` access | F-353 |
-| [F-264](../findings/F-264-replay-code-identity-includes-comments.md) | minor | runtime | A comment inside an executed function invalidates a recorded replay | F-611 |
-| [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162 |
-| [F-266](../findings/F-266-order-fixtures-cannot-observe-order.md) | minor | test-integrity | Evaluation-order fixtures return the same value under any evaluation order | F-210 |
-| [F-268](../findings/F-268-typing-fixture-panics-when-run.md) | note | test-integrity | `typing/valid/explicit-generic-method.hd` panics when executed |  |
-| [F-306](../findings/F-306-run-without-main-crashes.md) | minor | correctness | `hd run` and `hd test` crash with a stack trace when there is no entry point |  |
-| [F-309](../findings/F-309-same-line-if-else-rejected.md) | major | correctness | hd rejects same-line `if c: a else: b`, a form chapter 01 uses as an example | F-252 |
+| [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162, F-306 |
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |
 | [F-311](../findings/F-311-continuation-suite-indentation.md) | minor | correctness | hd accepts a bracketed nested suite whose body is not indented past its header |  |
-| [F-312](../findings/F-312-decorators-misreported.md) | minor | correctness | Every decorator is rejected as `decorator-not-top-level`, even at top level | F-405 and F-250 |
 | [F-315](../findings/F-315-grammar-valid-forms-generic-codes.md) | note | correctness | Grammar-valid forms are rejected at parse with generic codes, not unsupported diagnostics |  |
 | [F-316](../findings/F-316-pub-inherent-method-false-doc-comment.md) | minor | correctness | A `pub fn` inside an inherent `impl` is rejected with `doc-comment-without-target` |  |
-| [F-352](../findings/F-352-mut-fn-closure-literal-unparsed.md) | minor | coverage | `mut fn` closure literals do not parse |  |
-| [F-353](../findings/F-353-identity-rejects-mut-operands.md) | minor | correctness | `is` rejects operands whose static type is `mut T` |  |
+| [F-353](../findings/F-353-identity-rejects-mut-operands.md) | major | correctness | `is` rejects operands whose static type is `mut T` | F-261 |
 | [F-354](../findings/F-354-map-value-covariance-missing.md) | minor | correctness | Readonly `map[K, V]` is not covariant in `V` |  |
 | [F-355](../findings/F-355-trim-uses-host-whitespace-set.md) | minor | correctness | `string.trim()` removes U+FEFF and keeps U+0085 |  |
 | [F-400](../findings/F-400-host-strings-drop-leading-bom.md) | major | correctness | Strings that start with U+FEFF lose it at the host boundary |  |
@@ -53,10 +44,9 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-553](../findings/F-553-linear-state-dispatch.md) | minor | runtime | resume and CFG dispatch use linear `if` chains instead of `br_table` |  |
 | [F-554](../findings/F-554-immediate-fn-bang-costs-13x.md) | minor | runtime | a `fn!` call that completes immediately costs about 13x a plain call, and -O2 does not help |  |
 | [F-555](../findings/F-555-entry-drive-spins-on-pending.md) | minor | runtime | the `main` entry export busy-polls forever when a host provider stays pending |  |
-| [F-556](../findings/F-556-driver-guard-stuck-after-panic.md) | note | runtime | after a panic inside a drive, later drives report `suspension-competing-driver` |  |
 | [F-557](../findings/F-557-runtime-library-always-inlined.md) | minor | architecture | every module embeds the full runtime library, used or not |  |
 | [F-558](../findings/F-558-string-boundary-byte-per-call.md) | minor | runtime | strings cross the host boundary one byte per import call |  |
-| [F-559](../findings/F-559-checked-programs-crash-emission.md) | minor | correctness | two type-checked fixtures crash Wasm emission with an internal error |  |
+| [F-559](../findings/F-559-checked-programs-crash-emission.md) | minor | correctness | type-checked programs crash Wasm emission with an internal error |  |
 | [F-560](../findings/F-560-cli-always-loads-binaryen.md) | minor | architecture | every CLI command loads binaryen.js, which dominates the edit loop |  |
 | [F-600](../findings/F-600-explain-requirements-skips-hir-kinds.md) | minor | correctness | explain-requirements skips 23 HIR kinds and reports real uses as "declared" |  |
 | [F-601](../findings/F-601-explain-requirements-closure-paths.md) | minor | correctness | explain-requirements shows closure-routed requirements as a direct `$.use` |  |
@@ -67,7 +57,7 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-608](../findings/F-608-order-dependent-numbering.md) | note | architecture | Program-wide numbering makes one inserted declaration rewrite half the WAT |  |
 | [F-609](../findings/F-609-lowering-split-and-triplicated.md) | note | architecture | Desugaring is split between checker and emitter, and control flow is lowered three times |  |
 | [F-610](../findings/F-610-dispatch-chains-defeat-exhaustiveness.md) | note | architecture | Expression dispatch is split into `??` chains, so missing kinds fail only at runtime |  |
-| [F-611](../findings/F-611-replay-identity-formatting.md) | note | runtime | Replay code identity changes on whitespace or comment edits inside a function |  |
+| [F-611](../findings/F-611-replay-identity-formatting.md) | note | runtime | Replay code identity changes on whitespace or comment edits inside a function | F-264 |
 | [F-612](../findings/F-612-explain-requirements-path-explosion.md) | note | architecture | explain-requirements prints every call path, so output grows exponentially |  |
 | [F-700](../findings/F-700-closure-propagation-invalid-wat.md) | major | correctness | Optional `?` inside a closure emits WAT that Binaryen cannot parse |  |
 | [F-701](../findings/F-701-generic-function-value-rejected.md) | minor | correctness | A generic function cannot be used as a value, even when its type arguments are known |  |

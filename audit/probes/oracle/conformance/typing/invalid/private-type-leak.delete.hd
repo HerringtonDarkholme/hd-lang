@@ -1,3 +1,0 @@
-data Secret:
-    value: string
-    Secret { value: "hidden" }

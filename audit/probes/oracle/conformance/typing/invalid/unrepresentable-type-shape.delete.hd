@@ -1,6 +1,0 @@
-data Cell:
-    value: i32
-
-data Holder:
-    cell: mut Cell
-
