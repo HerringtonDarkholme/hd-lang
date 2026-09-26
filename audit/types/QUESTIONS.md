@@ -270,6 +270,12 @@ read it, so prefer explicit, checkable rules and locality.
   `page.to_string()` when `Label` implements `Display` and embeds `Base`).
   Removes the one lookup surprise that neither Go nor Rust has.
 
+- **Embedded fields are always public, not yet applied.** The `pub` marker on
+  embedded fields is removed from the grammar; an embedded field is visible
+  wherever its outer type is. Embedding a non-`pub` type into a `pub` data
+  type is `private-type-leak`. Member lookup then checks only each member's
+  own visibility, not the embedded fields on its path.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
