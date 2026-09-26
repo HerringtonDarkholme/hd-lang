@@ -50,6 +50,17 @@ read it, so prefer explicit, checkable rules and locality.
   function-typed field; a field and a trait method with the same name are an
   ambiguity error at the use.
 
+- **TQ-4, not yet applied.** When a type implements one generic trait at
+  several instantiations, a dot call infers the instantiation from the
+  argument types (Rust); it is ambiguous only when more than one fits.
+- **TQ-28, not yet applied.** Two impls overlap when their full targets
+  unify: `Box[i32]` and `Box[string]` do not overlap; `Box[T]` and `Box[i32]`
+  do. Bounds stay ignored.
+- **TQ-29, not yet applied.** When a type implements both `Iterable[T]` and
+  `Iterator[T]`, `for` uses `Iterable`.
+- **TQ-27, reopened.** The owner is considering making `T?` sugar for an
+  ordinary `Option[T]` enum and removing `nil`; see the optional questions.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
