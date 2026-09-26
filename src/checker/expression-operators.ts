@@ -43,18 +43,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               span: expression.span,
             };
           }
-          let capture = this.captures.get(expression.name);
-          if (!capture) {
-            capture = { source, fieldIndex: this.captures.size };
-            this.captures.set(expression.name, capture);
-          }
-          return {
-            kind: "capture",
-            closureIndex: this.closureIndex,
-            fieldIndex: capture.fieldIndex,
-            type: source.type,
-            span: expression.span,
-          };
+          return this.captureReference(expression.name, source, expression.span);
         }
         const global = this.resolveGlobal(expression.name);
         if (global) return { kind: "global", global, type: global.type, span: expression.span };

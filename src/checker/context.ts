@@ -118,6 +118,13 @@ const TYPE_NAMES = new Set<ValueType>([
   "void",
   "ConsoleError",
 ]);
+const MUTABLE_ACCESS_CODES = new Set([
+  "mutable-receiver-required",
+  "readonly-argument-to-mutable-parameter",
+  "readonly-edge",
+  "readonly-root",
+]);
+
 export const PRELUDE_NAMES = new Set([
   "never",
   "bool",
@@ -393,6 +400,9 @@ export abstract class CheckerContext {
   protected inferredReturnType?: ValueType;
   protected readonly closureIndex: number;
   protected readonly captures = new Map<string, HirCapture>();
+  // Start offsets of capture references whose `mut T` access this plain
+  // closure weakened to readonly `T` (spec/07-functions.md#captures).
+  protected readonly weakenedCaptureOffsets = new Set<number>();
   protected readonly providerScopes: Map<string, HirLocal>[] = [new Map()];
   protected readonly diagnostics: Diagnostic[] = [];
   protected readonly scopes: Map<string, HirLocal>[] = [new Map()];
@@ -1111,21 +1121,27 @@ export abstract class CheckerContext {
 
   protected referenceLocal(local: HirLocal, span: SourceSpan): HirExpression {
     if (this.locals.includes(local)) return { kind: "local", local, type: local.type, span };
-    if (this.insideClosure && [...this.availableCaptures.values()].includes(local)) {
-      let capture = this.captures.get(local.name);
-      if (!capture) {
-        capture = { source: local, fieldIndex: this.captures.size };
-        this.captures.set(local.name, capture);
-      }
-      return {
-        kind: "capture",
-        closureIndex: this.closureIndex,
-        fieldIndex: capture.fieldIndex,
-        type: local.type,
-        span,
-      };
-    }
+    if (this.insideClosure && [...this.availableCaptures.values()].includes(local))
+      return this.captureReference(local.name, local, span);
     return { kind: "local", local, type: local.type, span };
+  }
+
+  // A read of a captured binding inside a closure. Every MVP closure is a plain
+  // `fn` closure, so captured `mut T` access is viewed as readonly `T`.
+  protected captureReference(name: string, source: HirLocal, span: SourceSpan): HirExpression {
+    let capture = this.captures.get(name);
+    if (!capture) {
+      capture = { source, fieldIndex: this.captures.size };
+      this.captures.set(name, capture);
+    }
+    if (mutableInner(source.type) !== undefined) this.weakenedCaptureOffsets.add(span.start.offset);
+    return {
+      kind: "capture",
+      closureIndex: this.closureIndex,
+      fieldIndex: capture.fieldIndex,
+      type: readonlyType(source.type),
+      span,
+    };
   }
 
   protected captureValue(source: HirLocal, span: SourceSpan): HirExpression {
@@ -1175,6 +1191,10 @@ export abstract class CheckerContext {
   }
 
   protected fail(code: string, message: string, span: SourceSpan): never {
+    if (MUTABLE_ACCESS_CODES.has(code) && this.weakenedCaptureOffsets.has(span.start.offset)) {
+      code = "mutable-capture-requires-mut-fn";
+      message = `a plain fn closure cannot obtain mutable access from a capture; ${message}`;
+    }
     this.diagnostics.push({ code, message, span });
     throw new CheckFailure(message);
   }

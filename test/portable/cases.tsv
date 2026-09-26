@@ -589,3 +589,10 @@ parse/valid/string-in-interpolation.hd	parse
 parse/valid/nested-named-arguments.hd	parse
 parse/valid/context-spread-after-binding.hd	parse
 runtime/valid/recursive-private-functions-least-row.hd	runtime
+typing/invalid/init-read-through-generic-bound.hd	type
+typing/invalid/init-read-through-trait-value.hd	type
+typing/invalid/result-ok-payload-type-mismatch.hd	type
+runtime/valid/discard-propagated-void-result.hd	runtime
+runtime/valid/result-entry-point-ok.hd	runtime
+typing/invalid/plain-closure-mutable-capture.hd	type
+typing/invalid/plain-closure-assigns-captured-let.hd	type

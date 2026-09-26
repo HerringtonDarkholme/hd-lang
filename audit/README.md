@@ -53,7 +53,6 @@ decision is already in the spec; the prototype compiler has not caught up.
 | -- | -------- |
 | G2 | A dynamically safe trait may declare method-level generic parameters when each is bounded by `Reference` (more bounds allowed, passed as dictionaries). |
 | G3 | Tuples are immutable: a tuple element is not a place (`invalid-assignment-target`). |
-| L1 | Module initialization: a trait method call through a generic bound or a trait value reaches every implementation of that method in the module. |
 | L2 | An integer exponent must have an unsigned integer type; an unsuffixed literal exponent is typed `u32`; a signed exponent is `type-mismatch`. |
 | L4 | An entry point is `pub fn main()` or `pub fn main!()`, returning `void` or `Result[void, E]` with `E < Display`, with an optional row of host capabilities. A non-`pub` `main` is an ordinary function. |
 | L6 | Inferring `mut T` from a readonly argument is `mutable-upgrade`. |

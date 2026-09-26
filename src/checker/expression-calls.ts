@@ -1036,7 +1036,11 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
       );
       const payload =
         expectedCount === 1
-          ? this.checkExpression(expression.arguments[0]!, payloadType)
+          ? this.requireCoercion(
+              this.checkExpression(expression.arguments[0]!, payloadType),
+              payloadType,
+              expression.arguments[0]!.span,
+            )
           : undefined;
       return {
         kind: "variant-wrap",

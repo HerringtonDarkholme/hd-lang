@@ -131,6 +131,7 @@ export function lowerCheckedProgram(
           : undefined,
         functions,
         closures,
+        implementations,
       ),
     );
   }

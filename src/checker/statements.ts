@@ -53,6 +53,15 @@ export abstract class StatementChecker extends CheckerContext {
             statement.span,
           );
         }
+        const captured = !local && !global ? this.availableCaptures.get(statement.name) : undefined;
+        if (captured)
+          this.fail(
+            captured.mutable ? "mutable-capture-requires-mut-fn" : "non-reassignable-binding",
+            captured.mutable
+              ? `a plain fn closure cannot assign captured binding '${statement.name}'`
+              : `binding '${statement.name}' is not reassignable`,
+            statement.span,
+          );
         if (!local && !global)
           this.fail("unknown-name", `unknown binding '${statement.name}'`, statement.span);
         if (local && !local.mutable) {
