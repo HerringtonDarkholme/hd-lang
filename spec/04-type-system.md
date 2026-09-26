@@ -311,6 +311,9 @@ one of these rules applies:
    transitive supertrait.
 8. `nil` is used with an expected optional type `T?`.
 9. A value of `T` is injected into `T?`.
+10. `S` is a specialized shape type returned by `shape[D]()` and `T` is its
+    generic shape type, `DataShape` or `EnumShape`; see
+    [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 No inheritance or structural record subtyping exists. Assignment never changes
 the declared or inferred type of a binding. In particular, later assignment to
@@ -521,7 +524,7 @@ bodies of generic and pack functions needed by downstream compilation. The
 reference strategy.
 
 A parameter marked `reified` carries runtime type metadata and may be used by operations
-such as `shape(T)` or passed to another reified operation. An erased parameter
+such as `shape[T]()` or passed to another reified operation. An erased parameter
 must not be used where runtime type identity is required.
 
 Identity comparison `is` on a type parameter is permitted only with the sealed
@@ -532,10 +535,12 @@ Reification is part of the function's public type and ABI, but its descriptor
 is not a source-level value argument. A backend may specialize a reified call
 only when doing so preserves observable reflection behavior.
 
-`shape(Target)` consumes this descriptor. For a concrete data type, enum,
-function, field, variant, or parameter declaration it returns the corresponding
-specialized shape type; for an otherwise generic concrete type it returns
-`TypeShape`. An erased generic parameter cannot be used as a shape target.
+The prelude intrinsic `shape[T]()` consumes this descriptor. For a data type or
+enum it returns the corresponding specialized shape type; for any other type,
+including a reified type parameter, it returns `TypeShape`. An erased generic
+parameter cannot be passed as its type argument. Field and variant shapes are
+selected from the specialized result, and `shape_of(f)` reflects a function
+declaration; see [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 Annotation lookup for a generic target has the same reification requirement.
 
 An identifier followed by `...` in a generic parameter list declares a type

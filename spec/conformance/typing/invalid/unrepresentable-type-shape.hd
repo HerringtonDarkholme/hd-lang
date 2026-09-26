@@ -4,4 +4,4 @@ data Cell:
 data Holder:
     cell: mut Cell
 
-holder_shape := shape(Holder)  # diagnostic: unrepresentable-type-shape
+holder_shape := shape[Holder]()  # diagnostic: unrepresentable-type-shape

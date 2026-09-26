@@ -10,7 +10,7 @@ parse/invalid/mutable-field-modifier.hd	parse
 parse/invalid/mutable-embedded-field.hd	parse
 parse/invalid/old-struct-declaration.hd	parse
 parse/invalid/declaration-without-let.hd	parse
-parse/invalid/reserved-name-collision.hd	parse
+parse/valid/shape-intrinsic-calls.hd	parse
 parse/invalid/old-import-declaration.hd	parse
 parse/invalid/old-export-declaration.hd	parse
 parse/invalid/pub-trait-method.hd	parse
@@ -103,6 +103,7 @@ typing/invalid/nonexhaustive-bool-match.hd	type
 typing/invalid/overload.hd	type
 typing/invalid/redeclare-core-type.hd	type
 typing/invalid/prelude-shadow.hd	type
+typing/invalid/prelude-shadow-shape-parameter.hd	type
 typing/invalid/function-equality.hd	type
 typing/invalid/unsaturated-enum-constructor.hd	type
 typing/invalid/contextual-variant-without-type.hd	type

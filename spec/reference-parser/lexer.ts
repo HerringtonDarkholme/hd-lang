@@ -26,7 +26,6 @@ const reserved = new Set([
   "reified",
   "return",
   "self",
-  "shape",
   "super",
   "trait",
   "true",

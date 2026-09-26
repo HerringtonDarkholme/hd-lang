@@ -91,7 +91,7 @@ typing/invalid/unknown-annotation-member.hd	MVP reports expected-expression at l
 typing/valid/parameter-decorator.hd	check fails: expected-expression at line 5: expected an expression, found 'type'	F-250
 typing/valid/retention-metadata.hd	check fails: expected-expression at line 1: expected an expression, found 'type'	F-250
 typing/invalid/parameter-decorator-type.hd	MVP reports expected-token at line 10 instead of invalid-parameter-metadata: expected a parameter name	F-250
-typing/invalid/retention-missing-field.hd	MVP reports expected-expression at line 4 instead of unknown-shape-target: expected an expression, found 'shape'	F-250
+typing/invalid/retention-missing-field.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 typing/valid/configured-facet.hd	check fails: decorator-not-top-level at line 28: decorators are only valid on top-level declarations	F-250
 typing/invalid/configured-facet-not-annotator.hd	MVP reports decorator-not-top-level at line 4 instead of decorator-not-annotator: decorators are only valid on top-level declarations	F-250
 typing/valid/generic-annotation-family.hd	check fails: expected-expression at line 11: expected an expression, found 'annotate'	F-250
@@ -118,11 +118,14 @@ typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or 
 typing/invalid/data-annotator-map-build.hd	MVP reports unknown-trait at line 5 instead of annotation-build-signature: unknown trait 'Annotation'	F-250
 typing/invalid/annotation-top-level-read.hd	MVP reports expected-expression at line 12 instead of annotation-top-level-read: expected an expression, found 'annotate'	F-250
 typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 10: expected an expression, found 'annotate'	F-250
-typing/valid/shape-api.hd	check fails: expected-expression at line 13: expected an expression, found 'shape'	F-250
+typing/valid/shape-api.hd	check fails: unknown-type at line 10 for TypeShape; the shape and shape_of intrinsics are unimplemented	K1
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
 typing/invalid/contravariant-representation-change.hd	MVP reports expected-token at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
 typing/invalid/variant-result-owner.hd	MVP reports expected-token at line 2 instead of variant-result-owner: expected ':', found ')'	F-252
-typing/invalid/unrepresentable-type-shape.hd	MVP reports expected-expression at line 7 instead of unrepresentable-type-shape: expected an expression, found 'shape'	F-250
+typing/invalid/unrepresentable-type-shape.hd	MVP reports unknown-name at line 7 instead of unrepresentable-type-shape: the shape intrinsic is unimplemented	K1
+typing/invalid/shape-of-local-binding.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
+typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
+typing/invalid/unknown-shape-variant.hd	MVP reports unknown-name at line 5 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
 parse/invalid/stray-dollar.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205

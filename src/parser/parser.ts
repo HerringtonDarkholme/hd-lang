@@ -155,7 +155,7 @@ class Parser extends ExpressionParser {
     if (!this.atText(")")) {
       do {
         const parameterDoc = this.parseDocComments();
-        if (["self", "Self", "super", "shape"].includes(this.current().text)) {
+        if (["self", "Self", "super"].includes(this.current().text)) {
           this.fail(
             "reserved-name",
             `'${this.current().text}' is reserved and cannot name a parameter`,

@@ -614,7 +614,6 @@ primary_expression = literal
                    | trait_qualified_call
                    | context_use
                    | context_create
-                   | shape_expression
                    | annotation_runtime_access
                    | pack_map_expression
                    | grouped_binding_expression
@@ -633,9 +632,6 @@ contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier,
                        [ function_type_arguments ],
                        ( argument_clause | suspension_call_suffix ) ;
-
-shape_expression = "shape", "(", shape_target, ")" ;
-shape_target = type ;
 
 annotation_runtime_access = qualified_name, "::", "annotation", "(",
                             annotation_target, ")"
@@ -707,6 +703,10 @@ data_items = [ "...", expression, "," ],
              ;
 data_field_item = identifier, ":", expression ;
 ```
+
+Declaration reflection has no dedicated syntax. `shape[User]()` and
+`shape_of(get_user)` are ordinary calls to prelude intrinsics specified in
+[Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 Name resolution distinguishes a data expression from a map expression and
 an enum variant selection from ordinary field access. It also distinguishes a

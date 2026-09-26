@@ -28,6 +28,7 @@ decision is already in the spec; the prototype compiler has not caught up.
 
 | #  | Decision |
 | -- | -------- |
+| K1 | `shape` is no longer a keyword: `shape[T]()` and `shape_of(f)` are prelude intrinsics, with typed `fields`/`variants` members on specialized shapes. The prototype has no shape intrinsics. |
 | G2 | A dynamically safe trait may declare method-level generic parameters when each is bounded by `Reference` (more bounds allowed, passed as dictionaries). |
 | G3 | Tuples are immutable: a tuple element is not a place (`invalid-assignment-target`). |
 | L2 | An integer exponent must have an unsigned integer type; an unsuffixed literal exponent is typed `u32`; a signed exponent is `type-mismatch`. |

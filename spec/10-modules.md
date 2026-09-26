@@ -140,10 +140,13 @@ prelude: prelude names are used directly and are not re-imported.
 | `std.iter` | `Iterator`, `Iterable` |
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
-| `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape` |
+| `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
 The prelude functions have these signatures: `panic(message: string) ->
-never` and `println[T < Display](value: T) -> void $ Console`. The standard
+never` and `println[T < Display](value: T) -> void $ Console`. `shape` and
+`shape_of` are compiler intrinsics whose result types depend on their
+arguments; they are specified in
+[Shape Intrinsics](14-annotations.md#shape-intrinsics). The standard
 console surface includes:
 
 ```text

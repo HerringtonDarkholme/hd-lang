@@ -222,12 +222,12 @@ than lexically distinct tokens.
 The grammar uses these reserved words:
 
 ```text
-Self      annotate  as        break     continue
-data      defer     else      enum      false     fn        for
+Self      annotate  as        break     continue  data
+defer     else      enum      false     fn        for
 if        impl      in        is        let       match
-mut       nil       pass      pub
-reified   return    self      shape     super     trait
-true      type      use       while
+mut       nil       pass      pub       reified   return
+self      super     trait     true      type      use
+while
 ```
 
 `pkg`, `std`, and `dep` have special meaning only in a use root position.

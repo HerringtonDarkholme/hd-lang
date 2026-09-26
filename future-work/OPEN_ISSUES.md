@@ -92,6 +92,27 @@ specified.
 **Unblocks.** Complete schema generation, annotation traversal, and reliable
 diagnostics for unsupported boundary types.
 
+### Shape Intrinsic Coverage
+
+**Problem.** `shape[T]()` gives typed `fields` and `variants` members, but
+three reflection targets have no typed spelling. Parameter shapes are reached
+only through `shape_of(f).params`, and variant payload fields only through a
+`VariantShape`'s `payload` list, both by position. `shape_of` of a generic
+function is unspecified: the old `shape(get_user)` form never said how a
+generic function's type parameters are supplied.
+
+**Options.** (1) Add typed `params` and `payload` records the same way as
+`fields`, keeping `param_list` and `payload_list` for iteration. (2) Accept
+`shape_of(identity[i32])` with a complete explicit type-argument list and
+reject a bare generic function name. (3) Reject generic functions in
+`shape_of` outright.
+
+**Recommendation.** Option 1 for consistency with `fields`, and option 2 for
+generic functions, since it reuses the generic function reference syntax.
+
+**Unblocks.** Statically checked parameter metadata lookups and tool adapters
+over generic functions.
+
 ### Serializable Closures And Incremental Computation
 
 **Problem.** Closures have per-evaluation identity but no

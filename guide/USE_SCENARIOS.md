@@ -293,7 +293,7 @@ data Post:
     userId: UserId
 
 annotate Post:
-    userId = [retention_owner(shape(User)), delete_when(shape(User.deleted))]
+    userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
 
 annotate Retention for Post: pass
 ```

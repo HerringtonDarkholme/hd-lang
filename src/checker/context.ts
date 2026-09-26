@@ -190,6 +190,8 @@ export const PRELUDE_NAMES = new Set([
   "VariantShape",
   "FnShape",
   "ParamShape",
+  "shape",
+  "shape_of",
 ]);
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
