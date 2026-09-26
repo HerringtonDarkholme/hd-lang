@@ -339,3 +339,7 @@ existing source. Each entry names the decision that made the change.
   on any other field is `copy-into-ordinary-field`. Copy-update keeps its
   leading spread. Source text in which `...` is immediately followed by `=`
   now lexes as `...=`.
+- Second embedding review, point 3: a prefix `...` means copy only, and a
+  suffix `...` always spreads. A provider-context spread is now written with
+  a suffix, as in `$.with(Tag=x, ctx...)` and `$.context(base..., Clock=c)`;
+  the former prefix form `$.with(...ctx)` is a `syntax-error`.

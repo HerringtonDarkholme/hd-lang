@@ -689,7 +689,8 @@ value it was built from. Copy-update and assignment to an embedded field copy
 the same way; the assignment is written `post.Timestamps ...= stamps`, and
 plain `Timestamps: stamps` or `post.Timestamps = stamps` is an error that
 suggests the `...` form. A prefix `...` always means "copy the named members
-of this value". Access to the part follows the container: through a `mut` outer
+of this value", while a suffix `...`, as in `f(xs...)` or `$.with(ctx...)`,
+always spreads. Access to the part follows the container: through a `mut` outer
 value the part, its promoted fields, and its promoted `mut self` methods are
 mutable; through a readonly one they are readonly. Reading the part out does
 not copy it:
@@ -2039,13 +2040,14 @@ fn prod_context() -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
 fn demo_context!() -> Result[User?, DbError] $ Logger + Metrics + Cache:
-    $.with(Database=mock_db, Logger=console_logger, ...prod_context()):
+    $.with(Database=mock_db, Logger=console_logger, prod_context()...):
         load_user!(UserId("user_123"))
 ```
 
 `$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache`
 part is an unordered requirement row. `$.context` creates a reusable context,
-`...prod_context()` spreads providers into a lexical scope, and `$.use`
+`prod_context()...` spreads providers into a lexical scope (a suffix `...`
+spreads, as it does in calls and lists), and `$.use`
 retrieves them in the requested order. Entries in these forms are trait-type
 requirement keys, not ordinary named-argument labels. Duplicate concrete keys
 cannot coexist in one scope; a nested binding for the same written key replaces

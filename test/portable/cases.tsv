@@ -606,6 +606,8 @@ parse/valid/curried-function-type.hd	parse
 parse/valid/string-in-interpolation.hd	parse
 parse/valid/nested-named-arguments.hd	parse
 parse/valid/context-spread-after-binding.hd	parse
+parse/invalid/prefix-context-spread-in-scope.hd	parse
+parse/invalid/prefix-context-spread-in-context.hd	parse
 runtime/valid/recursive-private-functions-least-row.hd	runtime
 typing/invalid/init-read-through-generic-bound.hd	type
 typing/invalid/init-read-through-trait-value.hd	type

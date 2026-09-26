@@ -1121,7 +1121,7 @@ pub fn hermetic(seed: u64 = 0) -> $.Context[Clock + Random + Env + FsRead + FsWr
     )
 
 test "a hermetic run can override one provider":
-    $.with(...hermetic(seed=7), Env=MapEnv { values: {"MODE": "ci"} }):
+    $.with(hermetic(seed=7)..., Env=MapEnv { values: {"MODE": "ci"} }):
         pass
 ```
 

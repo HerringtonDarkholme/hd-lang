@@ -25,10 +25,10 @@ test "nested scope override is lexical":
 
 test "context spreads apply left to right and later bindings win":
     base := $.context(Tag=FixedTag { value: "spread" })
-    first := $.with(...base, Tag=FixedTag { value: "explicit" }):
+    first := $.with(base..., Tag=FixedTag { value: "explicit" }):
         current()
     override := $.context(Tag=FixedTag { value: "explicit" })
-    second := $.with(...override, ...base):
+    second := $.with(override..., base...):
         current()
     assert_equal(first, "explicit", reason="explicit binding after the spread wins")
     assert_equal(second, "spread", reason="the later spread wins")

@@ -966,13 +966,42 @@ export abstract class ExpressionParser extends ParserBase {
     );
   }
 
+  /** Whether the next context entry is `[mut] Key[...] = value` rather than a spread. */
+  private atProviderBinding(): boolean {
+    let distance = this.peek(0).text === "mut" ? 1 : 0;
+    if (this.peek(distance).kind !== "identifier") return false;
+    distance += 1;
+    if (this.peek(distance).text === "[") {
+      let depth = 0;
+      for (; this.peek(distance).kind !== "eof"; distance += 1) {
+        const text = this.peek(distance).text;
+        if (text === "[") depth += 1;
+        else if (text === "]" && --depth === 0) break;
+      }
+      distance += 1;
+    }
+    return this.peek(distance).text === "=";
+  }
+
   protected parseProviderEntries(): ProviderContextEntry[] {
     const entries: ProviderContextEntry[] = [];
     do {
-      if (this.matchText("...")) {
-        const start = this.peek(-1).span.start;
+      // A context spread is a suffix spread `ctx...` (02-grammar.md#primary-expressions);
+      // a prefix `...` means copy and is a syntax error here.
+      if (this.atText("..."))
+        this.fail(
+          "syntax-error",
+          "a context spread is written with a suffix '...', as in 'ctx...'",
+          this.current().span,
+        );
+      if (!this.atProviderBinding()) {
         const value = this.parseExpression();
-        entries.push({ kind: "spread", value, span: { start, end: value.span.end } });
+        const marker = this.expectText("...");
+        entries.push({
+          kind: "spread",
+          value,
+          span: { start: value.span.start, end: marker.span.end },
+        });
       } else {
         const keyStart = this.current().span.start;
         const key = this.parseRequirementKey();

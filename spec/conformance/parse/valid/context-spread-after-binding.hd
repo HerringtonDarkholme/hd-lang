@@ -3,5 +3,5 @@ trait Tag:
     fn name(self) -> string
 
 fn run(x: Tag, ctx: $.Context[Tag]) -> void:
-    $.with(Tag=x, ...ctx):
+    $.with(Tag=x, ctx...):
         pass

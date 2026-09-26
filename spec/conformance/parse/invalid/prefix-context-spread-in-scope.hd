@@ -1,0 +1,7 @@
+# test: a provider-context spread is a suffix spread; a prefix ... means copy, so $.with(...ctx) is a syntax error
+trait Tag:
+    fn name(self) -> string
+
+fn run(ctx: $.Context[Tag]) -> void:
+    $.with(...ctx):  # diagnostic: syntax-error
+        pass

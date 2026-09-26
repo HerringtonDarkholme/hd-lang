@@ -792,9 +792,13 @@ in scope; a raw identifier `` `pack` `` never does.
 
 A list element ending in `...` is a spread that expands a list's elements in
 place ([List And Map Expressions](05-expressions.md#list-and-map-expressions)).
-Spreads follow one rule: a prefix `...` copies named members, in copy-update
-and provider-context entries, and a suffix `...` expands positional elements,
-in arguments, list elements, tuple elements, and pack expansions.
+The two positions of `...` never overlap. A prefix `...` always copies: it
+copies the named members of a value in a copy-update spread and after an
+embedded field label, and `...=` stores a copy into an embedded field. A
+suffix `...` always spreads: it expands the elements or entries of its operand
+in arguments, list elements, tuple elements, pack expansions, and
+provider-context entries, as in `$.with(ctx...)`. A prefix `...` anywhere
+else, including before a provider-context entry, is a `syntax-error`.
 A `::` member reference must be called: `Type::name` without an argument
 clause is not an expression. It is reserved for method values, and an
 implementation reports it as `deferred-method-value`
@@ -1023,7 +1027,7 @@ inline_context_scope = "$", ".", "with", "(", context_entries, ")",
 
 context_entries = context_entry, { ",", context_entry }, [ "," ] ;
 context_entry = requirement_key, "=", expression
-              | "...", expression
+              | continued_expression, "..."
               ;
 ```
 

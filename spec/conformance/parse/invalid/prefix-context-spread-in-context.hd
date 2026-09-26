@@ -1,0 +1,6 @@
+# test: a context value spreads with a suffix ...; $.context(...base) is a syntax error
+trait Tag:
+    fn name(self) -> string
+
+fn widen(base: $.Context[Tag]) -> $.Context[Tag]:
+    $.context(...base)  # diagnostic: syntax-error

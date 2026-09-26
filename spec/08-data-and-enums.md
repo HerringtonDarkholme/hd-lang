@@ -205,10 +205,12 @@ initialized without it, as in `Post { Timestamps: ts }`, or assigned with
 plain `=`, as in `post.Timestamps = ts`, is an `embedded-copy-required`
 error, whose message suggests the `...` form. A `...` after the label of any
 other field, or `...=` on any other place, is a `copy-into-ordinary-field`
-error. A prefix `...` in a data expression therefore always means "copy the
-named members of this value": a leading spread copies the source's fields
-into the new value, and `Label: ...value` copies `value`'s fields into the
-part.
+error. A prefix `...` therefore always means "copy the named members of this
+value": a leading spread copies the source's fields into the new value, and
+`Label: ...value` copies `value`'s fields into the part. A suffix `...`
+always spreads elements or entries, as in `f(xs...)`, `[0, xs...]`, and
+`$.with(ctx...)`, and never copies
+([Primary Expressions](02-grammar.md#primary-expressions)).
 
 Copies are made only by construction, copy-update, and stores into an
 embedded field. Passing, returning, binding, or matching the outer value, or

@@ -255,8 +255,10 @@ read it, so prefer explicit, checkable rules and locality.
   `Post { Timestamps: ...readonly_ts }` yields a readonly post when the part
   type has mutable edges, and a package adding a `mut` field breaking such
   code downstream is intended; adding a mutable edge is a significant change.
-  (3, not yet applied) Prefix `...` means copy only; context spreads become
-  suffix spreads: `$.with(ctx...)`, `$.context(ctx...)`. (4) Exclusivity of
+  (3, applied to 02, 08, 11, the tour, the fixtures, the reference parser,
+  and the prototype parser) Prefix `...` means copy only; context spreads
+  become suffix spreads: `$.with(ctx...)`, `$.context(ctx...)`. The prefix
+  form in a context is a `syntax-error`. (4) Exclusivity of
   embedded parts is deliberately not guaranteed. (5) Copy-update copying
   every embedded part is the intended semantics. (7) Embedding exists to
   replace subtyping and class inheritance, not to provide trait

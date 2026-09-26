@@ -2,7 +2,7 @@
 
 fn f[r](callback: fn() -> void $ r) -> void $ (r - mut Logger) + mut Clock:
     a, b := $.use(mut Clock, Logger)
-    $.with(mut Logger=a, Clock=b, ...ctx()):
+    $.with(mut Logger=a, Clock=b, ctx()...):
         callback()
 
 fn ctx() -> $.Context[mut Clock + Logger]:

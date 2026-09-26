@@ -1891,12 +1891,12 @@ Reusable contexts are provider-map values typed by a requirement row:
 fn prod_context() -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
-$.with(Database=mock_db, Logger=console_logger, ...prod_context()):
+$.with(Database=mock_db, Logger=console_logger, prod_context()...):
     db, logger, cache := $.use(Database, Logger, Cache)
     result := load_user!(UserId("user_123"))
 ```
 
-`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `$.with(Database=mock_db, ...prod_context())` opens a lexical provider scope and spreads reusable providers, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order.
+`$.Context[Metrics + Cache]` is not a variadic generic. The `Metrics + Cache` part is an unordered requirement row, using the same composition shape as function `$` requirements. `$.context(Metrics=metrics, Cache=cache)` creates a reusable context value, `$.with(Database=mock_db, prod_context()...)` opens a lexical provider scope and spreads reusable providers, and `$.use(Database, Logger, Cache)` retrieves providers in the requested return order.
 
 Requirement names in `$.context`, `$.with`, and `$.use` are requirement keys, usually trait or capability names, not ordinary named-argument labels.
 

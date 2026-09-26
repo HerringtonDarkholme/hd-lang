@@ -9,7 +9,7 @@ fn read() -> i32 $ Clock: 42
 
 fn run() -> i32 $ Clock + Backup:
     context := make_context()
-    $.with(Clock=$.use(Backup), ...context):
+    $.with(Clock=$.use(Backup), context...):
         read()
 
 test "run returns 42 with its providers":

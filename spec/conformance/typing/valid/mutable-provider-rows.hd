@@ -30,7 +30,7 @@ fn provide_readonly[r](callback: fn() -> void $ r) -> void $ (r - Counter):
         callback()
 
 pub fn main() -> void:
-    $.with(...counters()):
+    $.with(counters()...):
         _ := both()
         inferred()
     provide_mut(bump_it)

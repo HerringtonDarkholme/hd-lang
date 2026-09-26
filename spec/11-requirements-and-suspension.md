@@ -191,12 +191,16 @@ Reusable provider maps use `$.Context[Row]`:
 fn prod_context() -> $.Context[Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
-$.with(Database=db, Logger=logger, ...prod_context()):
+$.with(Database=db, Logger=logger, prod_context()...):
     ...
 ```
 
 `$.Context[A + B]` is indexed by one unordered, duplicate-free requirement row;
-it is not a variadic generic. `$.context` creates a context value. Context
+it is not a variadic generic. `$.context` creates a context value. An entry
+`ctx...` spreads the providers of the context value `ctx`; like every spread,
+it is written with a suffix `...`, and a prefix `...ctx` is a syntax error,
+because a prefix `...` means copy
+([Data Expressions](05-expressions.md#data-expressions)). Context
 spreads and explicit bindings are applied left to right, and the later binding
 wins when the same key appears more than once. The resulting context still has
 one provider per key.
@@ -212,7 +216,7 @@ context_scope = "$", ".", "with", "(", context_entries, ")",
 
 context_entries = context_entry, { ",", context_entry }, [ "," ] ;
 context_entry = requirement_key, "=", expression
-              | "...", expression
+              | continued_expression, "..."
               ;
 ```
 
