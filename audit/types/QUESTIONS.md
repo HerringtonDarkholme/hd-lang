@@ -424,6 +424,14 @@ read it, so prefer explicit, checkable rules and locality.
   `x::name(...)` a check error; the literal-default preference covers direct
   literal arguments only.
 
+- **Prototype-fix follow-ups C1 to C3, not yet applied.** (C1) Pin these
+  codes in the spec: `&`, `|`, `^` on non-integers and arithmetic on
+  non-numeric types are `type-mismatch`; a misplaced separator in a float
+  literal is `invalid-token`; `0b1z` and a bare `0x` are `syntax-error`.
+  (C2) `2 ** -1` is `type-mismatch` at compile time (signed exponent, L2).
+  (C3) An impl method's generic parameters and bounds must match the trait
+  method's exactly, in order; a mismatch is an error at the impl.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
