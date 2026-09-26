@@ -26,7 +26,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-266](../findings/F-266-order-fixtures-cannot-observe-order.md) | minor | test-integrity | Evaluation-order fixtures return the same value under any evaluation order | F-210 |
 | [F-268](../findings/F-268-typing-fixture-panics-when-run.md) | note | test-integrity | `typing/valid/explicit-generic-method.hd` panics when executed |  |
 | [F-306](../findings/F-306-run-without-main-crashes.md) | minor | correctness | `hd run` and `hd test` crash with a stack trace when there is no entry point |  |
-| [F-308](../findings/F-308-private-main-requirement-crash.md) | minor | correctness | A non-`pub` `main` with a non-host requirement passes check and crashes `run` |  |
 | [F-309](../findings/F-309-same-line-if-else-rejected.md) | major | correctness | hd rejects same-line `if c: a else: b`, a form chapter 01 uses as an example | F-252 |
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |
 | [F-311](../findings/F-311-continuation-suite-indentation.md) | minor | correctness | hd accepts a bracketed nested suite whose body is not indented past its header |  |

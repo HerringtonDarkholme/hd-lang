@@ -23,7 +23,6 @@ parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal in
 parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
 parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
-runtime/valid/no-entry-point-no-tests.hd	test exits 1 without a located report: "program has no main function or test blocks"	F-306
 parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
@@ -37,7 +36,6 @@ runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsuppo
 runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and keeps U+0085 (assertion-failed)	F-355
 runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	F-704
 runtime/valid/propagation-in-closure-targets-closure.hd	test crashes: optional ? inside a closure emits WAT that Binaryen cannot parse	F-700
-runtime/valid/private-main-is-ordinary-function.hd	test runs a non-pub main as an entry point (assertion-failed); only pub main is an entry point	L4
 runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a parenthesized multiline closure argument	F-252
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253

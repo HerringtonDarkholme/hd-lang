@@ -255,7 +255,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       compilation.hir.functions.forEach((declaration) =>
         functionNames.set(declaration.index, declaration.name),
       );
-      const mainDeclaration = compilation.hir.functions.find(({ name }) => name === "main");
+      const mainDeclaration = compilation.hir.functions.find(({ entry }) => entry);
       const scenarioProviders =
         mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
       if (scenario) {
@@ -264,17 +264,20 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         console.log(`${file}: 1 passed`);
         return 0;
       }
+      // Only the entry point and test blocks execute
+      // (spec/conformance/README.md#runtime-execution); `--entry` names any
+      // exported function for `run`.
       const selected = compilation.hir.functions.filter((declaration) => {
         if (command === "test")
-          return declaration.name === "main" || /^\$test\.\d+$/.test(declaration.name);
-        return declaration.name === entryName;
+          return declaration.entry === true || /^\$test\.\d+$/.test(declaration.name);
+        return entryName === "main" ? declaration.entry === true : declaration.name === entryName;
       });
-      if (selected.length === 0)
-        throw new Error(
-          command === "test"
-            ? "program has no main function or test blocks"
-            : `program has no exported ${entryName} function`,
-        );
+      if (selected.length === 0 && command === "test") {
+        replay.assertComplete();
+        console.log(`${file}: 0 passed`);
+        return 0;
+      }
+      if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
       let result: unknown;
       for (const declaration of selected) {
         if (declaration.parameters.length > 0)
@@ -286,7 +289,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         if (typeof entry !== "function")
           throw new Error(`${declaration.name} has no runnable export`);
         result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
-        if (declaration.name === "main" && resultParts(declaration.result)?.ok === "void") {
+        if (declaration.entry && resultParts(declaration.result)?.ok === "void") {
           if (result !== 0) {
             console.error(`${file}: main returned Err`);
             return 1;

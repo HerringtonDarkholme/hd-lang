@@ -133,7 +133,11 @@ export function createProgramSignatures(
         ];
       });
     });
-    if (declaration.genericParameters.length > 0 && declaration.name === "main") {
+    if (
+      declaration.genericParameters.length > 0 &&
+      declaration.name === "main" &&
+      declaration.public
+    ) {
       diagnostics.push({
         code: "generic-entry-point",
         message: "main cannot declare generic parameters",

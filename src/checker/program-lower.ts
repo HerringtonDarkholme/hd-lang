@@ -133,7 +133,13 @@ export function lowerCheckedProgram(
       globals,
     ).check();
     diagnostics.push(...checked.diagnostics);
-    if (checked.function) checkedFunctions.set(checked.function.index, checked.function);
+    if (checked.function)
+      checkedFunctions.set(
+        checked.function.index,
+        declaration.name === "main" && declaration.public
+          ? { ...checked.function, entry: true }
+          : checked.function,
+      );
   });
   declarations.forEach((declaration) => {
     const checked = checkedFunctions.get(signatures.get(declaration.name)!.index);

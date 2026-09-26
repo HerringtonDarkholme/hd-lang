@@ -219,6 +219,10 @@ export interface HirFunction {
   readonly synthetic: boolean;
   readonly closure: boolean;
   readonly captures: readonly HirCapture[];
+  // The executable entry point: a public top-level `main` or `main!`
+  // (10-modules.md#executable-entry-point), or the empty `main` synthesized
+  // for a script. A non-public `main` is an ordinary function.
+  readonly entry?: boolean;
 }
 
 export interface HirProgram {

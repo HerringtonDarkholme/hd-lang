@@ -631,3 +631,5 @@ typing/valid/mutual-recursion-one-annotated.hd	type
 typing/valid/inferred-row-through-private-callers.hd	type
 runtime/valid/private-function-inferred-result.hd	runtime
 runtime/valid/private-function-inferred-row.hd	runtime
+runtime/valid/private-main-is-ordinary-function.hd	runtime
+runtime/valid/no-entry-point-no-tests.hd	runtime
