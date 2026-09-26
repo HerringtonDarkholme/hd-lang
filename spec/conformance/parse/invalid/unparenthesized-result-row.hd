@@ -1,0 +1,6 @@
+# test: a function-typed result with its own row must be parenthesized
+
+trait Log
+
+fn make() -> fn() -> i32 $ Log $ Console:  # diagnostic: syntax-error
+    fn() -> i32 $ Log: 1

@@ -19,7 +19,22 @@ export abstract class ParserBase {
     this.tokens = tokens;
   }
 
+  // Set while parsing a declaration or closure result (02-grammar.md#types):
+  // function types along the result chain carry no row, so a trailing
+  // requirement clause belongs to the declaration.
+  protected rowlessResult = false;
+
   protected abstract parseType(): TypeRef;
+
+  protected parseResultType(): TypeRef {
+    this.rowlessResult = true;
+    try {
+      return this.parseType();
+    } finally {
+      this.rowlessResult = false;
+    }
+  }
+
   protected abstract parseSuite(): readonly Statement[];
   protected abstract parseStatement(topOrInline: boolean): Statement;
   protected abstract parseRequirements(): readonly string[];

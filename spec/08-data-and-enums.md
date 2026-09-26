@@ -108,7 +108,7 @@ Cross-module field access additionally requires the field to be public.
 Data values may be destructured in `match` patterns using the same
 `DataName { ... }` form. The pattern may mention any subset of visible
 fields; omitted fields are not tested. Within the braces, `field` binds the
-field value and `field=pattern` applies a nested pattern. See
+field value and `field: pattern` applies a nested pattern. See
 [Match Expressions](06-control-flow.md#match-expressions).
 
 Copy-update construction uses one leading spread:

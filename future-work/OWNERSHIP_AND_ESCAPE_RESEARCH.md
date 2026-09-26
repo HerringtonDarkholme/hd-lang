@@ -2009,7 +2009,7 @@ data HiddenFile:
     file: NonEscapableFile
 
 fn leak(file: NonEscapableFile) -> HiddenFile:
-    HiddenFile { file=file }  # must not turn the file into an escapable value
+    HiddenFile { file: file }  # must not turn the file into an escapable value
 ```
 
 The same rule must be defined for:

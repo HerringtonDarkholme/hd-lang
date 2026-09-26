@@ -235,11 +235,45 @@ class Scanner {
   private scanNewline(): void {
     const start = this.position();
     this.advanceNewline();
+    if (this.delimiters.length === 0 && this.lineHasToken && this.continuesWithLeadingDot()) return;
     if (this.delimiters.length === 0 && this.lineHasToken) {
       this.emit("newline", "\n", start, this.position());
     }
     this.lineStart = true;
     this.lineHasToken = false;
+  }
+
+  // Leading-dot continuation (01-lexical-structure.md#physical-and-logical-lines):
+  // a line starting with `.name`, indented farther than the logical line it
+  // follows, continues it unless that line ends in `:` or `=>`. On success the
+  // scanner is left at the `.` with the logical line still open.
+  private continuesWithLeadingDot(): boolean {
+    const last = this.tokens.at(-1)?.text;
+    if (last === ":" || last === "=>") return false;
+    let offset = this.offset;
+    let lineOffset = offset;
+    for (;;) {
+      let width = 0;
+      while (this.source[offset] === " ") {
+        width += 1;
+        offset += 1;
+      }
+      const value = this.source[offset];
+      if (value === "#" || value === "\n" || value === "\r") {
+        while (offset < this.source.length && this.source[offset] !== "\n") offset += 1;
+        if (offset >= this.source.length) return false;
+        offset += 1;
+        lineOffset = offset;
+        continue;
+      }
+      const next = this.source[offset + 1] ?? "";
+      if (value !== "." || !isIdentifierStart(next) || width <= this.indents.at(-1)!) return false;
+      break;
+    }
+    while (this.offset < lineOffset) this.advance();
+    while (this.peek() === " ") this.advance();
+    this.lineStart = false;
+    return true;
   }
 
   private skipComment(): void {

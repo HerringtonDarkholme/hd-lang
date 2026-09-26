@@ -31,7 +31,10 @@ checks and the TQ-2 ownership check. E1, E3, E4, E5, and M1 are implemented:
 own members before promoted ones, breadth-first promotion with
 `ambiguous-promoted-member`, no promotion of trait methods, no promoted
 methods filling implementations, field and inherent method name clashes, and
-calls of function-typed fields.
+calls of function-typed fields. The grammar decisions GQ1 (a trailing
+requirement clause belongs to the declaration), GQ5 (data patterns label
+fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2
+is implemented only for closure bodies of one statement.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |
@@ -40,3 +43,4 @@ calls of function-typed fields.
 | TQ-1 | An impl target starts with a type constructor; overlap is decided by trait, unifying trait arguments, and target constructor; `for` accepts `Iterable[T]` or `Iterator[T]` directly. The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail. |
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check is implemented, but its fixtures need `Iterable` or package roles (`--package-role`, `--dependency`), which the prototype lacks. |
 | E2 | An own member blocks promotion whatever its kind or visibility; an invisible one is `private-member`, and a name present only through an unavailable trait is `trait-not-in-scope`. The prototype tracks neither member visibility across modules nor trait availability, and its fixtures need package roles (`--package-role`, `--dependency`), which the prototype lacks. |
+| GQ2 | After an indented closure body inside brackets, the next line must start with `,` or a closing delimiter. The prototype rejects a closing delimiter on a body line, but it parses a closure body nested in brackets as a single statement, so multi-statement bodies fail, and it does not check how far the following line is indented. |

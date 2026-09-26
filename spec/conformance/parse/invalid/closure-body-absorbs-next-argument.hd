@@ -1,0 +1,9 @@
+# test: after an indented closure body inside brackets, the next line must start with ',' or a closing delimiter
+
+fn choice(first: fn(i32) -> void, second: i32) -> void:
+    first(second)
+
+fn run(fallback: i32) -> void:
+    choice(fn(a):
+        println(a)
+        fallback)  # diagnostic: syntax-error

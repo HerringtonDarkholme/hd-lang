@@ -6,4 +6,4 @@ data User:
 
 fn read(user: User) -> i32:
     match user:  # diagnostic: nonexhaustive-match
-        User { age=1 } => 1
+        User { age: 1 } => 1

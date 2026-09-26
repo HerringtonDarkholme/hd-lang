@@ -156,6 +156,26 @@ existing source. Each entry names the decision that made the change.
 - K3: the logical operators `and`, `or`, and `not` became `&&`, `||`, and
   prefix `!` at the same precedence levels. The three words are now ordinary
   identifiers.
+- GQ1: a requirement clause directly before a declaration's or closure's `:`,
+  or a bodyless trait method's line end, belongs to that declaration. In
+  `fn make() -> fn() -> i32 $ Console:`, `make` now requires `Console` and
+  returns a plain `fn() -> i32`; the returned type needs parentheses to carry
+  a row, as in `fn make() -> (fn() -> i32 $ Log) $ Console:`. A result such as
+  `fn() -> i32 $ Log $ Console` is now a `syntax-error`. Inside types the row
+  still attaches to the innermost ungrouped function type.
+- GQ2: after an indented closure body inside brackets, the next line must
+  start with `,` or a closing delimiter and be indented no farther than the
+  line holding the closure header. A closing delimiter at the end of a body
+  line, as in `apply(fn(a):` followed by `a + 1)`, and a header resuming
+  directly after a closure body are now `syntax-error`.
+- GQ5: data patterns label fields with `:`, as data literals do:
+  `Point { x: 0, y }` and `Point { x: px }`. The former
+  `Point { x = 0, y }` is now a `syntax-error`. Labels in parentheses (named
+  arguments, variant payloads, and their patterns) keep `=`.
+- GQ7: a line that starts with `.` and an identifier, indented farther than
+  the logical line it follows, continues that line unless the line ends in
+  `:` or `=>`. Leading-dot method chains, previously a syntax error, are
+  valid.
 - TQ-1: an implementation target must start with a type constructor; a bare
   type parameter target is `bare-parameter-impl-target`. Two implementations
   overlap when they share the trait, their trait arguments unify, and their

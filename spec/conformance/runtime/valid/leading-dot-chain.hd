@@ -1,0 +1,32 @@
+# test: leading-dot lines continue a method chain; a same-indent '.Variant' arm starts a new arm
+
+use std.testing.assert_equal
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn add(self, amount: i32) -> Counter: Counter { value: self.value + amount }
+    fn double(self) -> Counter: Counter { value: self.value * 2 }
+
+enum Step:
+    Grow
+    Keep
+
+fn apply(counter: Counter, step: Step) -> Counter:
+    match step:
+        .Grow => counter
+            .add(1)
+            .double()
+        .Keep => counter
+
+fn main() -> i32:
+    start := Counter { value: 10 }
+        .add(10)
+        # comment and blank lines do not end the chain
+
+        .double()
+    apply(start, .Grow).value - apply(start, .Keep).value
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="leading-dot lines continue a method chain")

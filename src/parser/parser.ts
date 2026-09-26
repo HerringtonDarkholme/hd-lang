@@ -213,7 +213,7 @@ class Parser extends ExpressionParser {
     readonly result: TypeRef;
     readonly resultOmitted: boolean;
   } {
-    if (this.matchText("->")) return { result: this.parseType(), resultOmitted: false };
+    if (this.matchText("->")) return { result: this.parseResultType(), resultOmitted: false };
     if (!this.atText("$") && !this.atText(":") && !this.atKind("newline")) this.expectText("->");
     return { result: { name: "void", span: close }, resultOmitted: true };
   }
@@ -936,6 +936,8 @@ class Parser extends ExpressionParser {
   }
 
   protected parseType(): TypeRef {
+    const rowless = this.rowlessResult;
+    this.rowlessResult = false;
     if (this.matchText("_")) return { name: "_", span: this.peek(-1).span };
     if (this.matchText("(")) {
       const start = this.peek(-1).span.start;
@@ -966,6 +968,7 @@ class Parser extends ExpressionParser {
     }
     if (this.matchText("mut")) {
       const start = this.peek(-1).span.start;
+      this.rowlessResult = rowless;
       const inner = this.parseType();
       if (inner.name.startsWith("mut:")) {
         this.fail(
@@ -1011,8 +1014,9 @@ class Parser extends ExpressionParser {
       }
       this.expectText(")");
       this.expectText("->");
+      this.rowlessResult = rowless;
       const result = this.parseType();
-      const hasRequirements = this.matchText("$");
+      const hasRequirements = !rowless && this.matchText("$");
       const requirements = hasRequirements ? this.parseRequirements() : [];
       const end = hasRequirements ? this.peek(-1).span.end : result.span.end;
       const row = requirements.length ? `$${requirements.join("+")}` : "";

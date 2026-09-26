@@ -533,12 +533,12 @@ println(user.email)
 ```
 
 Data types can also be matched by field. Unlisted fields are ignored;
-`field=pattern` can rename a binding or test a nested value:
+`field: pattern` can rename a binding or test a nested value:
 
 ```text
 fn email_of(user: User) -> string:
     match user:
-        User { email=address } => address
+        User { email: address } => address
 ```
 
 Composite fields may store either readonly or mutable references. Mutation through a path requires a mutable root and `mut` on every composite reference edge crossed by that path:

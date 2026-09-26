@@ -3,4 +3,4 @@ data User:
 
 fn invalid(user: User) -> string:
     match user:
-        User { name, name=alias } => alias  # diagnostic: duplicate-data-pattern-field
+        User { name, name: alias } => alias  # diagnostic: duplicate-data-pattern-field

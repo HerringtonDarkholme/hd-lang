@@ -1,0 +1,21 @@
+# test: a deeper line starting with '.name' continues the previous logical line
+# expect: parse
+
+enum Step:
+    Add
+    Double
+
+fn chain(users: list[string], step: Step) -> i32:
+    names := users
+        .filter(fn(user): user != "")
+        # a comment line does not end the chain
+
+        .map(fn(user): user.len())
+    match step:
+        .Add => names
+            .len()
+        .Double =>
+            .Double
+            0
+    total := names.len()
+    total

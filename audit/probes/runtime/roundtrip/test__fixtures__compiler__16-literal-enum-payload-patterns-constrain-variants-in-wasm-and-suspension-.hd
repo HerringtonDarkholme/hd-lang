@@ -35,7 +35,7 @@ fn inspect(box: Box[i32]) -> i32:
 
 fn inspect_shape!(item: Shape) -> i32:
     match item:
-        Shape.Point(Point { x=0, y }) => tick!() + y
+        Shape.Point(Point { x: 0, y }) => tick!() + y
         Shape.Point(Point { x, y }) => x + y
 
 fn inspect_nested!(item: Outer) -> i32:

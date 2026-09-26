@@ -259,6 +259,9 @@ typing/invalid/nonfinal-vararg-declaration.hd	type
 typing/invalid/nonfinal-vararg-function-type.hd	type
 runtime/valid/final-vararg.hd	runtime
 typing/invalid/method-without-requirement-clause.hd	type
+typing/valid/declaration-owns-requirement-clause.hd	type
+typing/invalid/declaration-requirement-not-on-result.hd	type
+parse/invalid/unparenthesized-result-row.hd	parse
 typing/valid/local-fn-in-provider-scope.hd	type
 runtime/valid/function-value-argument.hd	runtime
 runtime/valid/function-field-returns-mutable-data.hd	runtime
@@ -387,6 +390,8 @@ typing/invalid/data-pattern-repeated-field.hd	type
 typing/invalid/data-pattern-nonexhaustive.hd	type
 typing/invalid/data-pattern-unknown-field.hd	type
 runtime/valid/data-patterns.hd	runtime
+typing/valid/data-pattern-colon-labels.hd	type
+parse/invalid/data-pattern-equals-label.hd	parse
 runtime/valid/string-length-counts-scalars.hd	runtime
 runtime/valid/string-interpolation-built-ins.hd	runtime
 runtime/valid/string-ordering.hd	runtime
@@ -617,6 +622,13 @@ typing/invalid/plain-closure-assigns-captured-let.hd	type
 typing/valid/explicit-empty-row.hd	type
 parse/valid/defer-same-line-nested-suite.hd	parse
 parse/valid/header-resumes-after-nested-suite.hd	parse
+parse/invalid/closure-body-absorbs-next-argument.hd	parse
+parse/invalid/closure-body-followed-by-argument-line.hd	parse
+parse/invalid/closure-body-line-ends-in-closer.hd	parse
+parse/valid/leading-dot-continuation.hd	parse
+runtime/valid/leading-dot-chain.hd	runtime
+parse/invalid/leading-operator-does-not-continue.hd	parse
+parse/invalid/leading-tuple-index-does-not-continue.hd	parse
 parse/valid/bracketed-for-multi-name-binding.hd	parse
 runtime/valid/assert-equal-generic-primitive.hd	runtime
 runtime/panic/assert-equal-generic-primitive-unequal.hd	runtime

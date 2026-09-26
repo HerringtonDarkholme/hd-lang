@@ -343,6 +343,9 @@ export abstract class ExpressionParser extends ParserBase {
       const close = this.expectText(")");
       return { kind: "tuple", elements, span: { start: token.span.start, end: close.span.end } };
     }
+    // A deeper line that opens no suite and is not a leading-dot continuation
+    // (01-lexical-structure.md#physical-and-logical-lines) is a syntax error.
+    if (token.kind === "indent") this.fail("syntax-error", "unexpected indentation", token.span);
     this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
   }
 
@@ -672,9 +675,9 @@ export abstract class ExpressionParser extends ParserBase {
       } while (this.matchText(",") && !this.atText(")"));
     }
     this.expectText(")");
-    const result = this.matchText("->") ? this.parseType() : undefined;
+    const result = this.matchText("->") ? this.parseResultType() : undefined;
     const requirements = this.matchText("$") ? this.parseRequirements() : undefined;
-    const body = this.parseSuite();
+    const body = this.parseClosureBody();
     return {
       kind: "closure",
       ...(suspending ? { suspending: true } : {}),
@@ -684,6 +687,27 @@ export abstract class ExpressionParser extends ParserBase {
       body,
       span: { start: keyword.span.start, end: body.at(-1)!.span.end },
     };
+  }
+
+  // Inside brackets the lexer emits no layout tokens, so a closure body that
+  // starts on a later line than its `:` is an indented body nested in
+  // brackets. The line after it must start with `,` or a closing delimiter
+  // (01-lexical-structure.md#physical-and-logical-lines).
+  protected parseClosureBody(): readonly Statement[] {
+    const colon = this.current();
+    const first = this.peek(1);
+    const body = this.parseSuite();
+    const nested = first.kind !== "newline" && first.span.start.line > colon.span.start.line;
+    const next = this.current();
+    if (nested && [",", ")", "]", "}"].includes(next.text)) {
+      if (next.span.start.line <= this.peek(-1).span.end.line)
+        this.fail(
+          "syntax-error",
+          "an indented closure body inside brackets ends at a line that starts with ',' or a closing delimiter",
+          next.span,
+        );
+    }
+    return body;
   }
 
   protected parseLocalFunction(): Statement {
@@ -747,7 +771,7 @@ export abstract class ExpressionParser extends ParserBase {
       };
     }
     this.expectText("->");
-    const result = this.parseType();
+    const result = this.parseResultType();
     const requirements = this.matchText("$") ? this.parseRequirements() : [];
     const body = this.parseSuite();
     const end = body.at(-1)!.span.end;
@@ -913,7 +937,13 @@ export abstract class ExpressionParser extends ParserBase {
       if (!this.atText("}")) {
         do {
           const field = this.expectKind("identifier", "expected a data pattern field");
-          const pattern = this.matchText("=")
+          if (this.atText("="))
+            this.fail(
+              "syntax-error",
+              "a data pattern labels a field with ':', as in 'Point { x: 0 }'",
+              this.current().span,
+            );
+          const pattern = this.matchText(":")
             ? this.parsePattern()
             : { kind: "binding" as const, name: field.text, span: field.span };
           fields.push({

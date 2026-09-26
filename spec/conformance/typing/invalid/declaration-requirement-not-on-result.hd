@@ -1,0 +1,9 @@
+# test: the trailing requirement clause makes the declaration, not its result, require the key
+
+fn make() -> fn() -> i32 $ Console:
+    _ := $.use(Console)
+    fn() -> i32: 1
+
+pub fn caller() -> i32:
+    f := make()  # diagnostic: missing-requirement
+    f()

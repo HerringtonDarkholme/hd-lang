@@ -1,0 +1,6 @@
+# test: a leading-dot line continues only when an identifier follows the '.'
+
+fn first(pair: (i32, i32)) -> i32:
+    value := pair
+        .0  # diagnostic: syntax-error
+    value
