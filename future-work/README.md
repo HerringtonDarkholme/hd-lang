@@ -6,6 +6,8 @@ language specification:
 - [Roadmap](ROADMAP.md) orders the remaining work into grammar, type
   checking, runtime, standard library, packages, prototype, audit cleanup, and
   agent tooling areas.
+- [Durable Replay: Core Or Library](DURABLE_REPLAY.md) decides which parts of
+  durable replay the compiler and runtime provide and which a library builds.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
