@@ -135,7 +135,6 @@ typing/invalid/duplicate-trait-member.hd	type
 typing/invalid/mixed-numeric-power.hd	type
 typing/invalid/defer-suspends.hd	type
 typing/invalid/top-level-defer.hd	type
-typing/invalid/impure-data-default.hd	type
 typing/warnings/unreachable-code.hd	type
 typing/warnings/unused-local-binding.hd	type
 typing/warnings/variant-binding-name-mismatch.hd	type
@@ -164,7 +163,6 @@ typing/invalid/unresolved-generic-placeholder.hd	type
 typing/invalid/private-requirement-row.hd	type
 typing/invalid/private-type-leak.hd	type
 typing/invalid/discarded-result.hd	type
-typing/invalid/impure-shared-enum-default.hd	type
 typing/invalid/shared-enum-default-order.hd	type
 runtime/panic/integer-divide-by-zero.hd	runtime
 runtime/panic/signed-min-division-overflow.hd	runtime

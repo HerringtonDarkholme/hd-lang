@@ -51,6 +51,10 @@ data Validation: pass
 facet := Validation {}
 ```
 
+A value of a fieldless data type is canonical: every `Validation {}` is the
+same value with the same identity, and constructing it allocates nothing
+([Expressions](05-expressions.md#unary-and-binary-operators)).
+
 Data declarations may be directly recursive because composite fields use
 managed references. Module-level data types may also be mutually recursive;
 local data types follow declaration-point visibility and cannot refer to a later

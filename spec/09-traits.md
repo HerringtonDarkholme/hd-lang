@@ -58,7 +58,9 @@ trait Formattable: Display:
 
 An implementation of `Formattable` must also satisfy `Display`.
 The supertrait graph must be acyclic; a direct or indirect cycle is a
-`supertrait-cycle` compile-time error.
+`supertrait-cycle` compile-time error. An indirect cycle is reported once, on
+the member of the cycle that appears first: first by module identity, then
+by source position within the module.
 
 Member names must be unique within a trait; a repeated associated type, method,
 or associated function name is a `duplicate-trait-member` error.
@@ -318,8 +320,11 @@ fn audit[T: Display + Named](value: T) -> string:
 `T: mut Trait` additionally requires `T` to be a mutable-root type. `T: mut Any`
 requires mutable-root access without a type-specific behavior requirement.
 
-The compiler may monomorphize static calls or use another representation, but
-the choice must preserve reflection behavior for reified parameters.
+The compiler may monomorphize static calls, share one body among
+instantiations, or use another representation, as long as the choice preserves
+the observable semantics, including reflection behavior for reified
+parameters. See the non-normative
+[Implementation Model](04-type-system.md#implementation-model-non-normative).
 
 ## Dynamic Trait Values
 
@@ -336,8 +341,10 @@ There is no `dyn` marker. Only methods declared by the trait are available
 through the erased value.
 
 The trait must be dynamically safe: neither it nor a supertrait may declare an
-associated type, associated function, or method-level generic parameter, and
-`Self` may occur only as a method receiver.
+associated type or associated function, every method-level generic parameter
+must be bounded by `Reference`, and `Self` may occur only as a method
+receiver. Further bounds on such a parameter are allowed; see
+[Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 A trait that is not dynamically safe can still be implemented and used as a
 static generic bound. Generic parameters of the trait itself are allowed when
 the value type names one complete instantiation.

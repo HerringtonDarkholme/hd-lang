@@ -317,26 +317,18 @@ reports: provider values are ordinary values that may escape today, and a
 ### Questions From The Compiler Audit
 
 **Problem.** The 2026-09-25 audit of the Wasm GC compiler (commit `bd985d7`)
-found places where the specification leaves an outcome open, or where the
-compiler had to choose. Each item below is a question for a specification
-decision, not a default to implement. Evidence for each is in
+found places where the specification leaves an outcome open. The owner
+decided most of them the same day
+([`audit/proposals/SPEC_DECISIONS.md`](../audit/proposals/SPEC_DECISIONS.md)
+and [`audit/proposals/DECISION_SHEET.md`](../audit/proposals/DECISION_SHEET.md)).
+The questions below remain. Each is a question for a specification decision,
+not a default to implement; evidence is in
 [`audit/evidence/07-spec-feedback/DECISION_LOG.md`](../audit/evidence/07-spec-feedback/DECISION_LOG.md)
-under the tag in parentheses. Conformance-format questions were decided in
-[`audit/proposals/DECISION_SHEET.md`](../audit/proposals/DECISION_SHEET.md);
-the fixtures affected by the questions below stay out of `spec/conformance/`
-until each is answered.
+under the tag in parentheses. Fixtures affected by a question stay out of
+`spec/conformance/` until it is answered.
 
-**Diagnostics and fixtures.**
+**Conformance environments.**
 
-- Is `impure-parameter-default` a new code beside `impure-data-default` and
-  `impure-enum-default`, or does one generalized code cover all defaults?
-  Which code covers a default that names a later parameter? (A8, B6, AMB-15)
-- How is a non-final `...` in a function type diagnosed? (fuzzing)
-- In an indirect supertrait cycle (`trait A: B` and `trait B: A`), which
-  declaration reports `supertrait-cycle`: each member, the first in source
-  order, or the one that closes the cycle? The conformance fixture currently
-  covers only a direct self-cycle. (F-208)
-- Which code applies to a stray `$`? (F-303)
 - What does the `disposed-file` profile expose: any fixture `Files` and
   `FileHandle` pair by method name, or one trait declaration the suite
   supplies? What do reads before close and a second close return? (N1)
@@ -351,40 +343,13 @@ until each is answered.
 - Should the fixture format gain a stdout expectation for console output?
   (N5)
 
-**Language rules.**
-
-- Module initialization: does "functions reached by trait dispatch" include
-  bounded and dynamic dispatch, over every implementation in scope or only
-  reachable ones? Does "later function bodies" mean source order or execution
-  order? (B2)
-- May parameter and field defaults read reassignable top-level bindings?
-  Should the dropped `pure` qualifier return as an issue? (B6)
-- Are the three decisions closed with the first compiler commit confirmed:
-  provider values may escape their scope, no `pure` qualifier, and `all!` and
-  `race!` as compiler intrinsics? Should provider escape be qualified while
-  resource non-escape remains open? (B7)
-- Which construct raises `failed-checked-cast`, or should the category be
-  removed? Which category covers a negative integer exponent? (B8, N6)
-- Are shared-data enum variants canonical, and if so, are their shared fields
-  readonly? (AMB-08)
-- Is `let x: mut T = keep(readonly)` a `mutable-upgrade` or an inference
-  conflict? (AMB-17)
-- What are "compatible composite reference types" for `is`? (AMB-24)
-- Is distinct identity for fieldless data intended, given that fieldless
-  variants are canonical? (B10)
-- Is a non-`pub` `main` an entry point? Which `main` result types are
-  runnable? What must a runner do with a file that has no entry? (B11)
-
 **Representation and performance.**
 
-- Chapter 04 makes erasure and boxing normative, while chapter 09 says a
-  compiler may monomorphize. Which governs? May values without observable
-  identity use specialized layouts? (C1)
 - May a statically known suspension frame skip the uniform `Suspend[T]`
   wrapper and result boxing? (C2)
 - May requirement-row packs be positional under a canonical key order? (C3)
 - Should the specification state complexity bounds for map operations and
-  `string.len()`? (C5)
+  `string.len()`, beyond the non-normative implementation model? (C5)
 
 **Replay and host boundary** (see also
 [Replay Determinism And Durable Workflows](#replay-determinism-and-durable-workflows)).
@@ -396,14 +361,11 @@ until each is answered.
 - Is the runtime profile part of the provider-configuration identity? (D3)
 - Is an entry driver that busy-polls a pending provider, without returning to
   the host, conforming? (D4)
-- Should the runtime poison an instance after a panic, or leave that to the
-  host? (D5)
 - Should the specification define a development host boundary, or only the
   Component Model boundary with canonical-ABI strings? (D6)
 
-**Unblocks.** Promotion of the held-back fixtures, a complete diagnostic
-inventory, and a replacement compiler that can follow the specification
-without repeating the prototype's choices.
+**Unblocks.** Promotion of the held-back fixtures and a replacement compiler
+that can follow the specification without repeating the prototype's choices.
 
 ## Runtime, Library, ABI, And Tooling Work
 

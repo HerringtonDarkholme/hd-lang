@@ -112,8 +112,9 @@ call through a function value or dynamic trait method is rejected in a
 purity-checked context because function types do not carry purity; named
 callables with verified summaries remain usable. Purity here restricts
 observable writes, provider access, and suspension; it does not claim
-referential transparency. The containing default reports
-its ordinary context-specific impurity diagnostic.
+referential transparency. An impure default, in a parameter, data field, or
+shared enum constructor parameter, is an `impure-default` error. A default
+that names a later parameter is a `binding-not-yet-visible` error.
 
 Purity permits allocation and mutation of newly created local values when those
 values and mutable aliases do not escape the default expression. This is local
@@ -140,7 +141,9 @@ sum(1, 2, 3)
 sum(items...)
 ```
 
-A vararg must be the last positional parameter. Passing it by name supplies a
+A vararg must be the last positional parameter; a non-final vararg, in a
+declaration or in a function type, is a `nonfinal-vararg` error. Passing it by
+name supplies a
 list without spread syntax. A vararg has no default expression. At a call site,
 one list spread may supply the remaining vararg elements and must be the final
 positional argument; it does not fill fixed parameters. Homogeneous varargs and

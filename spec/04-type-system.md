@@ -269,8 +269,8 @@ Constructor-style calls involving nonnumeric types are not numeric casts: they
 must resolve to a nominal newtype constructor, enum constructor, or ordinary
 function.
 
-Integer arithmetic is checked. Overflow, invalid shifts, invalid integer
-exponents, and division errors cause checked runtime failure unless an explicit
+Integer arithmetic is checked. Overflow, invalid shifts, and division errors
+cause checked runtime failure unless an explicit
 wrapping or fallible library operation is used. Integer division truncates
 toward zero, and integer remainder has the sign of the dividend. A shift count
 must be non-negative and smaller than the bit width of the shifted value.
@@ -335,7 +335,10 @@ data field declared `field: mut U` is read as `U` through readonly `T`, while a
 generic data field declared `field: P` retains its substituted type even when
 `P` is instantiated as `mut U`. Other extraction forms state their own
 permission rules below. A `mut T` may be viewed as `T`; a `T` must never be
-upgraded to `mut T`.
+upgraded to `mut T`. An upgrade is a `mutable-upgrade` error, including one
+that generic inference would produce: binding `keep(readonly_value)` to a
+`mut T` declaration, where `keep[T](value: T) -> T`, is rejected rather than
+inferring `T` as a mutable type.
 
 A readonly root blocks reassignment of its fields and mutation through a direct
 `mut U` field. It is not a deep authority boundary: a `mut U` nested inside an
@@ -489,13 +492,16 @@ are not permitted. In a named generic-function reference, `_` may occupy a
 slot in the complete list and requests inference for that argument; it is not
 itself a type and is invalid in ordinary type applications.
 
-Function generic parameters are erased with dictionary passing and a uniform
-`anyref` runtime representation. Primitive values are boxed in generic
-positions. Trait bounds pass dictionaries containing the selected operations;
-associated types are represented through those dictionaries. Pack functions
-and calls with `reified` parameters are specialized, while ordinary erased
-calls are not required to be specialized. Package interfaces therefore carry
-the bodies of generic and pack functions needed by downstream compilation.
+The runtime representation of generic code is not observable. A program
+cannot distinguish an implementation that shares one body among
+instantiations from one that specializes each instantiation, except through
+the rules this chapter states: an erased generic parameter has no runtime
+type identity, `is` on a type parameter requires `T: Reference`, and variance
+conversions must be representation-preserving. Pack functions and calls with
+`reified` parameters are specialized. Package interfaces therefore carry the
+bodies of generic and pack functions needed by downstream compilation. The
+[Implementation Model](#implementation-model-non-normative) describes the
+reference strategy.
 
 A parameter marked `reified` carries runtime type metadata and may be used by operations
 such as `shape(T)` or passed to another reified operation. An erased parameter
@@ -594,10 +600,15 @@ contains a concrete value and dispatch metadata for that trait. Source syntax
 does not use a `dyn` marker.
 
 Only a dynamically safe trait may be used as a value type. A dynamically safe
-trait and every supertrait must have no associated types, associated functions,
-or method-level generic parameters, and `Self` may appear only as the receiver type. Trait declaration generic
-parameters are permitted because one concrete trait instantiation, such as
-`Repository[User]`, fixes them before erasure. Traits that fail these rules
+trait and every supertrait must have no associated types or associated
+functions, and `Self` may appear only as the receiver type. A method-level
+generic parameter is permitted only when it is bounded by `Reference`; further
+bounds such as `T: Reference + Display` are allowed. Every argument for such a
+parameter is a reference, so one method body serves every instantiation, and
+the further bounds are supplied with each call. A caller converts a primitive,
+tuple, or optional value explicitly before passing it. Trait declaration
+generic parameters are permitted because one concrete trait instantiation,
+such as `Repository[User]`, fixes them before dispatch. Traits that fail these rules
 remain valid for static generic bounds and explicit implementations.
 
 A dynamic child-trait value exposes methods declared by the child and all of
@@ -660,6 +671,98 @@ Inference must not select among overloaded functions because hd-lang has no
 function overloading. If inference has multiple valid solutions, compilation
 fails and the diagnostic must identify an annotation site that disambiguates
 the program.
+
+## Implementation Model (Non-Normative)
+
+This section is non-normative. It describes the reference strategy that the
+normative rules above are designed to allow, so that implementers and readers
+can predict costs. An implementation may choose any other representation
+that preserves the observable semantics.
+
+### Value Categories
+
+Runtime values fall into three categories:
+
+| Category | Types | Identity |
+| --- | --- | --- |
+| Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
+| Identity-free composites | `string`, tuples, optionals | none |
+| Reference values | data values, stored enum values (including `Result`), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
+
+The reference values are exactly the implementers of the sealed `Reference`
+trait ([Modules](10-modules.md#prelude)).
+
+Values without identity are immutable, so storing one by copy or by
+reference cannot be observed. A payload-free enum value and a fieldless data
+value store no data and have one canonical identity each. Converting a value
+without identity to a trait value or `Any` allocates a box with its own
+identity, as [Expressions](05-expressions.md#unary-and-binary-operators)
+specifies.
+
+### Shapes and Generic Code
+
+A **shape** is the machine representation a value occupies in generic code.
+The reference strategy uses five shapes:
+
+| Shape | Types |
+| --- | --- |
+| `i32` | `bool`, `char`, `i8`, `i16`, `i32`, `u8`, `u16`, `u32` |
+| `i64` | `i64`, `u64` |
+| `f32` | `f32` |
+| `f64` | `f64` |
+| reference | every other type, including strings, tuples, optionals, data, enums, collections, closures, and trait values |
+
+A generic function is compiled once per shape its instantiations use. All
+reference-shaped instantiations share one body. Scalar-shaped instantiations
+get a specialized body, so a generic function over `list[i32]` reads and
+writes unboxed `i32` elements. Trait bounds are passed as dictionaries of the
+selected operations; associated types are represented through those
+dictionaries. A dictionary for a statically known implementation is a
+constant, not a per-call allocation.
+
+When the set of shapes reachable from one generic function is unbounded, for
+example through polymorphic recursion such as `f[T]` calling `f[(T, T)]`, the
+implementation falls back to the reference shape with boxed scalars. This is
+unobservable, because values without identity cannot be distinguished by
+storage.
+
+A method called through a trait value has exactly one body at run time. The
+dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
+therefore limits method-level generic parameters of dynamically safe traits
+to reference types, which all share the reference shape.
+
+### Composite Representation
+
+- A data type is a record of its fields. Scalar fields are stored unboxed.
+- An enum is a tagged representation. Payload-free variants are canonical
+  constants.
+- A tuple is an immutable record typed by its element shapes. In locals,
+  parameters, and results, it may be split into its elements.
+- `T?` for a reference-shaped `T` may use a null reference for `nil`. For a
+  scalar `T`, it uses a tagged pair.
+- A list is a growable array of its element shape. A map is expected to use
+  hashing, with insertion order kept separately.
+- A closure is a function reference plus an environment record. A closure
+  without captures needs no environment.
+- A dynamic trait value is the underlying reference plus a shared method
+  table for the implementation.
+
+### Suspension Frames
+
+A suspending function is compiled to a frame record, a state number, and a
+poll function. The frame holds the arguments, construction-time providers,
+the active child suspension, and the locals that are live across suspension
+points. Frame contents are not observable, so an implementation may keep
+only live values.
+
+### Representation-Preserving Conversions
+
+A conversion is representation-preserving when the value after conversion is
+the same runtime value as before: the same identity and the same stored
+content, with no wrapper, copy, box, or re-encoding. Permission weakening
+`mut U -> U` preserves representation. Numeric widening, conversion to a
+trait value or `Any`, supertrait widening of a dynamic value, and optional
+injection do not, which is why [Variance](#variance) excludes them.
 
 ## Unsupported Type-System Extensions
 

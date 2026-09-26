@@ -29,7 +29,11 @@ The core place expressions are:
   storage.
 
 `:=` bindings, literals, calls, arithmetic, and temporary values are not places.
+A tuple element selection such as `pair.0` is not a place: tuples are
+immutable, and a changed tuple is built as a new tuple value.
 Assignment is a statement and requires a mutable place on its left side.
+Assigning to an expression that is not a place is an
+`invalid-assignment-target` error.
 
 Assignment evaluates the place before the right-hand side, then performs one
 store. A local place requires no subexpression evaluation; a field assignment
@@ -315,9 +319,11 @@ least as large as the left operand's bit width panics. The shift itself is a
 fixed-width bit operation; left-shifted high bits are discarded rather than
 reported as arithmetic overflow.
 
-For an integer base, `**` requires an integer exponent. A negative exponent
-panics, and exponentiation uses checked multiplication in the base's result
-type. For a floating-point base, the exponent must be floating point after
+For an integer base, `**` requires an exponent of an unsigned integer type,
+so a negative exponent cannot occur. An unsuffixed integer literal in
+exponent position has type `u32`. A signed integer exponent is a
+`type-mismatch` error. Exponentiation uses checked multiplication in the
+base's result type. For a floating-point base, the exponent must be floating point after
 ordinary floating widening. Floating `**` computes IEEE 754-2019 `pow` as
 specified in clause 9.2, including its special cases, and rounds the result
 correctly to the destination format. Integer and floating operands do not mix
@@ -364,11 +370,18 @@ that box's identity, and aliases of the converted value share it. Repeating the
 conversion allocates a distinct box even when the source values compare equal.
 A direct conversion of a heap composite continues to preserve the composite's
 underlying identity and does not allocate an identity wrapper. A
-payload-free enum value is canonical for its variant, so two occurrences of
-that same value have the same identity. Tuples have no identity and using `is`
+payload-free enum value is canonical for its variant, and a fieldless data
+value is canonical for its data type: two occurrences of the same such value
+have the same identity, and constructing one allocates nothing. An enum
+variant that carries shared constructor data stores that data, so each
+construction has its own allocation identity even when the variant has no
+payload of its own. Tuples have no identity and using `is`
 with a tuple is rejected even if it contains references. Primitive values,
 `nil`, and optional values likewise cannot be compared with `is`. Both operands
-must otherwise have compatible composite reference types. Use `not (a is b)`
+must otherwise have compatible composite reference types: after removing
+`mut` at every level, the two types are equal, or one is a trait value or
+`Any` type that the other converts to. Permissions never affect identity, so
+`list[User]` and `mut list[mut User]` are compatible. Use `not (a is b)`
 for distinct identities.
 
 Arithmetic and bitwise operators are built in for the numeric types specified

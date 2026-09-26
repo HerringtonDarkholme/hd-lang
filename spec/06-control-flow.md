@@ -333,8 +333,7 @@ promotes this warning to an error without changing language semantics.
 A runtime panic is an abrupt, unrecoverable failure of the current program
 instance. It is distinct from a recoverable `Result` error and is not catchable
 by core hd-lang source code. Integer overflow, division errors, invalid shifts,
-failed checked casts, out-of-bounds indexing, and invalidated built-in
-iterators panic when their owning chapters require a checked runtime failure.
+out-of-bounds indexing, and invalidated built-in iterators panic when their owning chapters require a checked runtime failure.
 
 When a panic occurs, ordinary evaluation stops immediately. No enclosing
 `else` suite, remaining expression, or caller statement executes. Runtime and
@@ -352,7 +351,7 @@ Hosts that require invocation isolation create a separate instance per
 invocation. Stable panic categories are exactly `annotation-reference-unresolved`,
 `annotation-resolution-reentry`, `assertion-failed`, `explicit-panic`,
 `integer-overflow`,
-`integer-division-by-zero`, `invalid-shift`, `failed-checked-cast`,
+`integer-division-by-zero`, `invalid-shift`,
 `index-out-of-bounds`, `iterator-invalidated`, `suspension-competing-driver`,
 `suspension-nested-driver`, `suspension-reentrant-poll`,
 `suspension-invalid-state`, and `stack-exhausted`.

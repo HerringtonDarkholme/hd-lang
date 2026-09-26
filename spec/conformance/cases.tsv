@@ -63,7 +63,7 @@ typing/invalid/implicit-data-ordering.hd	type	reject:missing-partial-ord	09-trai
 typing/valid/control-flow.hd	type	accept	06-control-flow.md
 typing/valid/enums.hd	type	accept	08-data-and-enums.md#matching-enums
 typing/valid/shared-enum-defaults.hd	type	accept	08-data-and-enums.md#shared-enum-constructor-data
-typing/invalid/impure-shared-enum-default.hd	type	reject:impure-enum-default	08-data-and-enums.md#shared-enum-constructor-data
+typing/invalid/impure-shared-enum-default.hd	type	reject:impure-default	08-data-and-enums.md#shared-enum-constructor-data
 typing/invalid/shared-enum-default-order.hd	type	reject:enum-default-order	08-data-and-enums.md#shared-enum-constructor-data
 typing/valid/match-guards.hd	type	accept	06-control-flow.md#match-expressions
 typing/valid/data-patterns.hd	type	accept	06-control-flow.md#match-expressions
@@ -101,7 +101,7 @@ typing/invalid/readonly-generic-field-init.hd	type	reject:mutable-upgrade	04-typ
 typing/invalid/readonly-spread-mutable-field.hd	type	reject:mutable-upgrade	05-expressions.md#data-expressions
 typing/invalid/copy-update-readonly-child.hd	type	reject:readonly-edge	04-type-system.md#mutable-paths
 typing/valid/data-field-defaults.hd	type	accept	08-data-and-enums.md#data-declarations
-typing/invalid/impure-data-default.hd	type	reject:impure-data-default	08-data-and-enums.md#data-declarations
+typing/invalid/impure-data-default.hd	type	reject:impure-default	08-data-and-enums.md#data-declarations
 typing/invalid/missing-required-data-field.hd	type	reject:missing-required-field	08-data-and-enums.md#construction-and-access
 typing/valid/trait-features.hd	type	accept	09-traits.md
 typing/valid/traits.hd	type	accept	09-traits.md

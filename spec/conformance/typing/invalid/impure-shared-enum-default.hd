@@ -4,5 +4,5 @@ fn next() -> i32:
     sequence = sequence + 1
     sequence
 
-enum Status(code: i32 = next()):  # diagnostic: impure-enum-default
+enum Status(code: i32 = next()):  # diagnostic: impure-default
     Unknown -> Status()

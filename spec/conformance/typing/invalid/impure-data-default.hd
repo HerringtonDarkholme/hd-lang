@@ -7,4 +7,4 @@ fn next() -> i32:
 let callback: fn() -> i32 = next
 
 data Counter:
-    value: i32 = callback()  # diagnostic: impure-data-default
+    value: i32 = callback()  # diagnostic: impure-default

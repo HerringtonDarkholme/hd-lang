@@ -75,7 +75,10 @@ The same callable name and optional requirement clause apply to trait methods
 and functions inside `impl` blocks. A trait requirement and its implementation
 must agree on suspension and normalized requirement row behavior.
 
-When a closure omits its requirement clause, the compiler infers the least row
+A named function, method, or local `fn` declaration without a requirement
+clause has the empty row; its body may use only requirements satisfied by an
+enclosing lexical provider scope. When a closure omits its requirement clause,
+the compiler infers the least row
 containing every requirement used by its body that is not satisfied by an
 enclosing lexical provider scope. Calls through function parameters contribute
 their normalized rows. If an expected function type contains a row parameter,

@@ -229,7 +229,8 @@ Before accepting a top-level executable statement, the compiler verifies that
 every top-level binding in the transitive read set of each referenced function
 or closure is already initialized. References passed as values and functions
 reached by trait dispatch, interpolation, iteration, or another implicit call
-are included. This definite-initialization check covers the whole module
+are included. A trait method call through a generic bound or a dynamic trait
+value reaches every implementation of that method in the module. This definite-initialization check covers the whole module
 value-flow and call graph.
 
 After dependency initialization, a script executes its top-level statements as
@@ -313,6 +314,13 @@ set of resolved interface files, so linking may reject a graph even when each
 package compiled independently.
 
 ## Executable Entry Point
+
+An executable entry point is a public top-level function named `main` or
+`main!` with no parameters. It returns `void` or `Result[void, E]` with
+`E: Display`, and it may declare a requirement row. Every key in that row must
+be a host capability trait of the selected runtime profile; any other key is a
+`nonhost-entry-requirement` error. A top-level `main` that is not public is an
+ordinary function and is not an entry point.
 
 The conventional non-suspending entry point is:
 
