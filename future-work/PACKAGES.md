@@ -685,6 +685,17 @@ Decided 2026-09-26:
    conflict before writing.
 7. **Question 7: adding an enum variant is breaking,** for now.
 8. **Question 8: each `0.MINOR` is its own compatibility line.**
+9. **Question 9: git and path dependencies are not allowed in published
+   packages.**
+10. **Question 10: a toolchain minimum plus an optional root pin** that `hd`
+    downloads; no editions yet.
+11. **Question 11: published packages contain sources and the interface
+    file;** Wasm components are decided with the component ABI.
+12. **Question 12: no optional features or conditional compilation.**
+13. **Question 13: only toolchain-defined runtime profile names,** until the
+    host capability catalog is settled.
+14. **Question 14: a public checksum transparency log** once a public
+    registry exists.
 
 ## 10. Questions For The Owner
 
