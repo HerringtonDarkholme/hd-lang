@@ -57,11 +57,12 @@ test("documented CLI commands work end to end", async () => {
   assert.ok(parsedHir.functions?.some((declaration) => declaration.name === "main"));
 
   const requirements = await hd(["explain-requirements", suspension]);
-  assert.match(requirements.stdout, /main: \$ Clock/);
-  assert.match(requirements.stdout, /Clock: main -> add_two/);
+  assert.match(requirements.stdout, /main: \$ Console/);
+  assert.match(requirements.stdout, /add_two: \$ Clock/);
+  assert.match(requirements.stdout, /compute: \$\(\)/);
 
   const trace = await hd(["trace", suspension]);
-  assert.match(trace.stdout, /construct main[\s\S]*poll main[\s\S]*ready main[\s\S]*42/);
+  assert.match(trace.stdout, /construct main[\s\S]*poll main[\s\S]*42[\s\S]*ready main/);
 
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -72,7 +73,7 @@ test("documented CLI commands work end to end", async () => {
     const replayPath = `${replaySource}.replay.json`;
     assert.match(
       recorded.stdout,
-      new RegExp(`${basename(replayPath).replaceAll(".", "\\.")}[\\s\\S]*42`),
+      new RegExp(`42[\\s\\S]*${basename(replayPath).replaceAll(".", "\\.")}`),
     );
     const events = JSON.parse(await readFile(replayPath, "utf8")) as unknown[];
     assert.ok(events.length > 0);

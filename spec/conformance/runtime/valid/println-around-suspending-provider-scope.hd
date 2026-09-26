@@ -1,0 +1,20 @@
+# expect-stdout: before
+# expect-stdout: 2
+# expect-stdout: after
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
+fn two!() -> i32 $ Clock:
+    _ := $.use(Clock)
+    2
+
+pub fn main!() -> void $ Console:
+    println("before")
+    $.with(Clock=FixedClock {}):
+        x := two!()
+        println("${x}")
+    println("after")

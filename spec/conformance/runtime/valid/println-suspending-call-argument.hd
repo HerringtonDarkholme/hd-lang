@@ -1,0 +1,8 @@
+# expect-stdout: 2
+# expect-stdout: done
+
+fn two!() -> i32: 2
+
+pub fn main!() -> void $ Console:
+    println("${two!()}")
+    println("done")

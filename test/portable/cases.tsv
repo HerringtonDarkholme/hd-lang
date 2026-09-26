@@ -659,3 +659,16 @@ typing/invalid/incompatible-identity-operands.hd	type
 typing/invalid/tuple-binding-non-tuple.hd	type
 typing/invalid/tuple-binding-arity.hd	type
 runtime/valid/println-console-stdout.hd	runtime
+typing/valid/default-reads-top-level-binding.hd	type
+runtime/valid/primitive-display-bound-and-trait-values.hd	runtime
+typing/invalid/public-function-missing-result-type.hd	type
+typing/invalid/trait-impl-method-missing-result-type.hd	type
+typing/invalid/mutual-recursion-omitted-results.hd	type
+typing/invalid/inferred-row-reaches-public-caller.hd	type
+typing/valid/private-function-inferred-void.hd	type
+typing/valid/mutual-recursion-one-annotated.hd	type
+typing/valid/inferred-row-through-private-callers.hd	type
+runtime/valid/private-function-inferred-result.hd	runtime
+runtime/valid/private-function-inferred-row.hd	runtime
+runtime/valid/private-main-is-ordinary-function.hd	runtime
+runtime/valid/no-entry-point-no-tests.hd	runtime

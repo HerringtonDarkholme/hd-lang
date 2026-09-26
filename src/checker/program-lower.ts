@@ -3,6 +3,7 @@ import type { HirFunction, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
+import { SignatureInference } from "./program-inference.ts";
 import { matchTraitImplementation, substituteGenericType } from "./shared.ts";
 
 import type { ImplementationPreparation, ProgramCheckContext } from "./program-context.ts";
@@ -36,7 +37,7 @@ function supertraitImplementationIndices(
 export function lowerCheckedProgram(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
-  signatures: ReadonlyMap<string, Signature>,
+  declaredSignatures: ReadonlyMap<string, Signature>,
 ): CheckResult {
   const {
     program,
@@ -61,7 +62,7 @@ export function lowerCheckedProgram(
       genericBounds:
         implementation.methods.length === 0
           ? []
-          : signatures
+          : declaredSignatures
               .get(implementation.methods[0]!.declaration.name)!
               .genericBounds.filter((bound) =>
                 implementation.declaration.genericParameters.includes(bound.parameter),
@@ -72,7 +73,7 @@ export function lowerCheckedProgram(
       ),
       methodFunctions: implementation.methods.map((method) => ({
         methodIndex: method.methodIndex,
-        functionIndex: signatures.get(method.declaration.name)!.index,
+        functionIndex: declaredSignatures.get(method.declaration.name)!.index,
       })),
       span: implementation.declaration.span,
     }),
@@ -90,9 +91,24 @@ export function lowerCheckedProgram(
         ...declarations.filter((declaration) => declaration !== moduleDeclaration),
       ]
     : declarations;
+  const inference = new SignatureInference(
+    context,
+    declarations,
+    declaredSignatures,
+    implementations,
+    moduleDeclaration,
+  );
+  const signatures: ReadonlyMap<string, Signature> = inference.active
+    ? inference.signatures
+    : declaredSignatures;
+  if (inference.active) {
+    inference.inferRows();
+    inference.useGlobals(globals);
+  }
   const checkedFunctions = new Map<number, HirFunction>();
   checkingOrder.forEach((declaration) => {
     const signature = signatures.get(declaration.name)!;
+    if (inference.failed.has(declaration.name)) return;
     const moduleBody = program.statements.length > 0 && declaration.body === program.statements;
     const checked = new FunctionChecker(
       declaration,
@@ -117,7 +133,15 @@ export function lowerCheckedProgram(
       globals,
     ).check();
     diagnostics.push(...checked.diagnostics);
-    if (checked.function) checkedFunctions.set(checked.function.index, checked.function);
+    if (checked.function)
+      checkedFunctions.set(
+        checked.function.index,
+        declaration.name === "main"
+          ? declaration.public
+            ? { ...checked.function, entry: true }
+            : { ...checked.function, developmentEntry: true }
+          : checked.function,
+      );
   });
   declarations.forEach((declaration) => {
     const checked = checkedFunctions.get(signatures.get(declaration.name)!.index);

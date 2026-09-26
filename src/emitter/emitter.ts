@@ -139,7 +139,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   // returns the Result tag (0 = Ok, 1 = Err) so the host can report failure.
   private emitResultEntryExport(declaration: HirFunction, internalName: string): string[] {
     if (
-      declaration.name !== "main" ||
+      !declaration.entry ||
       declaration.closure ||
       declaration.suspending ||
       declaration.parameters.length > 0 ||
@@ -264,7 +264,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
       `    (then (struct.set $s${suspensionIndex(declaration)} $s${suspensionIndex(declaration)}state (local.get $frame) (i32.const 3))))`,
       `)`,
     ].join("\n");
-    const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryExport =
+      declaration.entry || declaration.developmentEntry ? "main" : testExportName(declaration.name);
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
@@ -275,7 +276,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
+      declaration.entry || declaration.developmentEntry
+        ? this.emitSuspensionDevelopmentDriver(declaration)
+        : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
@@ -471,7 +474,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
     ]
       .filter(Boolean)
       .join("\n");
-    const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryExport =
+      declaration.entry || declaration.developmentEntry ? "main" : testExportName(declaration.name);
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
@@ -482,7 +486,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
+      declaration.entry || declaration.developmentEntry
+        ? this.emitSuspensionDevelopmentDriver(declaration)
+        : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
@@ -859,7 +865,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
     ]
       .filter(Boolean)
       .join("\n");
-    const entryExport = declaration.name === "main" ? "main" : testExportName(declaration.name);
+    const entryExport =
+      declaration.entry || declaration.developmentEntry ? "main" : testExportName(declaration.name);
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
@@ -870,7 +877,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
         ].join("\n")
       : "";
     const developmentDriver =
-      declaration.name === "main" ? this.emitSuspensionDevelopmentDriver(declaration) : "";
+      declaration.entry || declaration.developmentEntry
+        ? this.emitSuspensionDevelopmentDriver(declaration)
+        : "";
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");

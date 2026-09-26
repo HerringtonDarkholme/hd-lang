@@ -318,6 +318,7 @@ export function createProgramDeclarations(
     if (!declarations.some((declaration) => declaration.name === "main")) {
       declarations.push({
         kind: "function",
+        public: true,
         name: "main",
         suspending: false,
         genericParameters: [],

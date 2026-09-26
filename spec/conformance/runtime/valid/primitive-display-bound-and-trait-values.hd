@@ -1,0 +1,22 @@
+# test: every primitive satisfies a Display bound and converts to a Display trait value
+# expect: test
+use std.testing.assert_equal
+
+fn render[T < Display](value: T) -> string:
+    "$value"
+
+fn boxed(value: i32) -> Display:
+    value
+
+test "primitives satisfy a Display bound":
+    assert_equal(render(1), "1", reason="i32")
+    assert_equal(render(1.5), "1.5", reason="f64")
+    assert_equal(render(true), "true", reason="bool")
+    assert_equal(render("hd"), "hd", reason="string")
+
+test "primitives become Display trait values":
+    let number: Display = 5
+    let flag: Display = false
+    let text: Display = "hd"
+    assert_equal("$number $flag $text", "5 false hd", reason="bindings")
+    assert_equal("${boxed(7)}", "7", reason="return conversion")

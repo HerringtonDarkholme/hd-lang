@@ -32,6 +32,9 @@ export function check(program: Program, options: CheckOptions = {}): CheckResult
     hostCapabilities: new Set(["Console", ...(options.hostCapabilities ?? [])]),
   };
   validateProgram(context);
+  // A missing required result type leaves no signature to check against.
+  if (context.diagnostics.some((diagnostic) => diagnostic.code === "missing-result-type"))
+    return { diagnostics: context.diagnostics };
   declareProgramTypes(context);
   defineProgramData(context);
   defineProgramEnums(context);

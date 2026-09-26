@@ -217,6 +217,8 @@ function prepareInherentImplementation(
       ),
       result: substituteSelfType(method.result, implementation.targetName),
       requirements: method.requirements,
+      ...(method.resultOmitted ? { resultOmitted: true } : {}),
+      ...(method.requirementsOmitted ? { requirementsOmitted: true } : {}),
       body: method.body ?? [],
       span: method.span,
     });

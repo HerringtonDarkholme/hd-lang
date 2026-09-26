@@ -129,14 +129,17 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   const command = args.shift();
   let wat = false;
   let entryName = "main";
+  let explicitEntry = false;
   let scenario: RuntimeScenario | undefined;
   let pendingFunctionName: string | undefined;
   let profileName: RuntimeProfileName | undefined;
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
     if (option === "--wat") wat = true;
-    else if (option === "--entry") entryName = args.shift() ?? usage();
-    else if (option === "--scenario") scenario = runtimeScenario(args.shift());
+    else if (option === "--entry") {
+      entryName = args.shift() ?? usage();
+      explicitEntry = true;
+    } else if (option === "--scenario") scenario = runtimeScenario(args.shift());
     else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
     else if (option === "--profile") profileName = runtimeProfile(args.shift());
     else usage();
@@ -260,7 +263,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       compilation.hir.functions.forEach((declaration) =>
         functionNames.set(declaration.index, declaration.name),
       );
-      const mainDeclaration = compilation.hir.functions.find(({ name }) => name === "main");
+      const mainDeclaration = compilation.hir.functions.find(({ entry }) => entry);
       const scenarioProviders =
         mainDeclaration?.requirements.map((requirement) => ({ requirement })) ?? [];
       if (scenario) {
@@ -269,17 +272,25 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         console.log(`${file}: 1 passed`);
         return 0;
       }
+      // Only the entry point and test blocks execute
+      // (spec/conformance/README.md#runtime-execution); `--entry` names any
+      // exported function for `run`.
       const selected = compilation.hir.functions.filter((declaration) => {
         if (command === "test")
-          return declaration.name === "main" || /^\$test\.\d+$/.test(declaration.name);
-        return declaration.name === entryName;
-      });
-      if (selected.length === 0)
-        throw new Error(
-          command === "test"
-            ? "program has no main function or test blocks"
-            : `program has no exported ${entryName} function`,
+          return declaration.entry === true || /^\$test\.\d+$/.test(declaration.name);
+        if (entryName !== "main") return declaration.name === entryName;
+        // A non-`pub` `main` is not an entry point; implementation tests may
+        // still run it by naming it explicitly.
+        return (
+          declaration.entry === true || (explicitEntry && declaration.developmentEntry === true)
         );
+      });
+      if (selected.length === 0 && command === "test") {
+        replay.assertComplete();
+        console.log(`${file}: 0 passed`);
+        return 0;
+      }
+      if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
       let result: unknown;
       for (const declaration of selected) {
         if (declaration.parameters.length > 0)
@@ -291,7 +302,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         if (typeof entry !== "function")
           throw new Error(`${declaration.name} has no runnable export`);
         result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
-        if (declaration.name === "main" && resultParts(declaration.result)?.ok === "void") {
+        if (declaration.entry && resultParts(declaration.result)?.ok === "void") {
           if (result !== 0) {
             console.error(`${file}: main returned Err`);
             return 1;

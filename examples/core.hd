@@ -7,8 +7,8 @@ fn adjust(counter: Counter, enabled: bool) -> i32:
     else:
         counter.value
 
-fn main() -> i32:
+pub fn main() -> void $ Console:
     let total: i32 = 0
     while total < 6:
         total = total + 1
-    adjust(Counter { value: total }, true)
+    println("${adjust(Counter { value: total }, true)}")

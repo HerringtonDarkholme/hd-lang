@@ -30,6 +30,11 @@ export interface FunctionDecl {
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
+  // Set when the source omits `-> type` or the `$` clause. `result` is then a
+  // `void` placeholder and `requirements` is empty until the checker infers
+  // them (07-functions.md#declarations).
+  readonly resultOmitted?: boolean;
+  readonly requirementsOmitted?: boolean;
   readonly body: readonly Statement[];
   readonly doc?: string;
   readonly span: SourceSpan;
@@ -48,6 +53,8 @@ export interface MethodDecl {
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];
+  readonly resultOmitted?: boolean;
+  readonly requirementsOmitted?: boolean;
   readonly body?: readonly Statement[];
   readonly doc?: string;
   readonly span: SourceSpan;
@@ -255,6 +262,8 @@ export type Statement =
       readonly annotation?: TypeRef;
       readonly mutable: boolean;
       readonly value: Expression;
+      // A local `fn` declaration that omits its result type.
+      readonly localFunction?: boolean;
       readonly span: SourceSpan;
     }
   | {

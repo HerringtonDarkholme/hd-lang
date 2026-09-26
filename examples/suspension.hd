@@ -1,6 +1,17 @@
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
 fn add_two!(value: i32) -> i32 $ Clock:
     _ := $.use(Clock)
     value + 2
 
-fn main!() -> i32 $ Clock:
-    add_two!(40)
+fn compute!() -> i32:
+    $.with(Clock=FixedClock {}):
+        add_two!(40)
+
+pub fn main!() -> void $ Console:
+    x := compute!()
+    println("${x}")

@@ -805,3 +805,7 @@ typing/valid/identity-trait-value-operand.hd	type	accept	05-expressions.md#unary
 typing/invalid/tuple-binding-non-tuple.hd	type	reject:type-mismatch	05-expressions.md#binding-expressions
 typing/invalid/tuple-binding-arity.hd	type	reject:type-mismatch	05-expressions.md#binding-expressions
 runtime/valid/println-console-stdout.hd	runtime	accept	10-modules.md#prelude
+typing/valid/default-reads-top-level-binding.hd	type	accept	07-functions.md#default-values
+runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	09-traits.md#dynamic-trait-values
+runtime/valid/println-suspending-call-argument.hd	runtime	accept	05-expressions.md#literals
+runtime/valid/println-around-suspending-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes

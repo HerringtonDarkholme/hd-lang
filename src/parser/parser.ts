@@ -182,9 +182,9 @@ class Parser extends ExpressionParser {
         });
       } while (this.matchText(",") && !this.atText(")"));
     }
-    this.expectText(")");
-    this.expectText("->");
-    const result = this.parseType();
+    const close = this.expectText(")");
+    const { result, resultOmitted } = this.parseOptionalResult(close.span);
+    const requirementsOmitted = !this.atText("$");
     const requirements = this.matchText("$") ? this.parseRequirements() : [];
     const body = this.parseSuite();
     this.activeGenericParameters = new Set();
@@ -198,10 +198,23 @@ class Parser extends ExpressionParser {
       parameters,
       result,
       requirements,
+      ...(resultOmitted ? { resultOmitted } : {}),
+      ...(requirementsOmitted ? { requirementsOmitted } : {}),
       body,
       doc,
       span: { start, end: body.at(-1)?.span.end ?? result.span.end },
     };
+  }
+
+  // A declaration may omit `-> type` (07-functions.md#declarations); the
+  // checker decides whether that is allowed and infers the result.
+  protected parseOptionalResult(close: SourceSpan): {
+    readonly result: TypeRef;
+    readonly resultOmitted: boolean;
+  } {
+    if (this.matchText("->")) return { result: this.parseType(), resultOmitted: false };
+    if (!this.atText("$") && !this.atText(":") && !this.atKind("newline")) this.expectText("->");
+    return { result: { name: "void", span: close }, resultOmitted: true };
   }
 
   protected parseGenericParameters(): ParsedGenericParameters {
@@ -546,9 +559,9 @@ class Parser extends ExpressionParser {
         }
       } while (this.matchText(",") && !this.atText(")"));
     }
-    this.expectText(")");
-    this.expectText("->");
-    const result = this.parseType();
+    const close = this.expectText(")");
+    const { result, resultOmitted } = this.parseOptionalResult(close.span);
+    const requirementsOmitted = !this.atText("$");
     const requirements = this.matchText("$") ? this.parseRequirements() : [];
     if (!this.atText(":")) {
       if (requireBody)
@@ -568,6 +581,7 @@ class Parser extends ExpressionParser {
         parameters,
         result,
         requirements,
+        ...(resultOmitted ? { resultOmitted } : {}),
         doc,
         span: { start, end },
       };
@@ -582,6 +596,8 @@ class Parser extends ExpressionParser {
       parameters,
       result,
       requirements,
+      ...(resultOmitted ? { resultOmitted } : {}),
+      ...(requirementsOmitted ? { requirementsOmitted } : {}),
       body,
       doc,
       span: { start, end: body.at(-1)?.span.end ?? result.span.end },

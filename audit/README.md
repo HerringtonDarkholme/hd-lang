@@ -31,10 +31,7 @@ decision is already in the spec; the prototype compiler has not caught up.
 | G2 | A dynamically safe trait may declare method-level generic parameters when each is bounded by `Reference` (more bounds allowed, passed as dictionaries). |
 | G3 | Tuples are immutable: a tuple element is not a place (`invalid-assignment-target`). |
 | L2 | An integer exponent must have an unsigned integer type; an unsuffixed literal exponent is typed `u32`; a signed exponent is `type-mismatch`. |
-| L4 | An entry point is `pub fn main()` or `pub fn main!()`, returning `void` or `Result[void, E]` with `E < Display`, with an optional row of host capabilities. A non-`pub` `main` is an ordinary function. |
 | L6 | Inferring `mut T` from a readonly argument is `mutable-upgrade`. |
 | L7 | `is` operands are compatible when, with `mut` removed at every level, their types are equal, or one is a trait value or `Any` type the other converts to. |
 | L8 | Fieldless data values are canonical: one identity per fieldless data type. |
 | L9 | An indirect supertrait cycle is reported once, on the cycle member first in source order. |
-| I5 | A non-public function, inherent method, or local `fn` may omit its result type. Public functions, trait methods, and trait-impl methods must declare it (`missing-result-type`). A cycle among omitted results is `recursive-function-needs-result-type`. |
-| I6 | Such non-public callables may also omit their requirement clause; the row is inferred. Public ones keep "no clause means the empty row". |
