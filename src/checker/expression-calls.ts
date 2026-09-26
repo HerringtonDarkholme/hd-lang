@@ -25,7 +25,7 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { ExpressionOperatorChecker } from "./expression-operators.ts";
+import { MemberLookupChecker } from "./member-lookup.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
@@ -45,7 +45,7 @@ interface ResolvedTraitMethod {
   readonly trait: HirTrait;
 }
 
-export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
+export abstract class ExpressionCallChecker extends MemberLookupChecker {
   private findTraitMethods(
     trait: HirTrait,
     name: string,
@@ -181,65 +181,6 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
             type: "void",
             span: expression.span,
           };
-    }
-    const fieldReceiverType = readonlyType(receiver.type);
-    const fieldReceiverNominal = nominalGenericParts(fieldReceiverType);
-    const fieldDeclaration = this.dataTypes.get(fieldReceiverNominal?.name ?? fieldReceiverType);
-    const callableField = fieldDeclaration?.fields.find((field) => field.name === methodName);
-    if (fieldDeclaration && callableField) {
-      const substitutions = new Map<string, ValueType>();
-      if (fieldReceiverNominal)
-        fieldDeclaration.genericParameters.forEach((parameter, index) =>
-          substitutions.set(parameter, fieldReceiverNominal.arguments[index]!),
-        );
-      const callableType = substituteGenericType(callableField.type, substitutions);
-      const callable = functionParts(callableType);
-      if (callable) {
-        if (expression.argumentNames?.some((name) => name !== undefined)) {
-          this.fail(
-            "named-argument-needs-declaration",
-            "named arguments are unavailable through a stored function field",
-            expression.span,
-          );
-        }
-        const fieldCallee: HirExpression = {
-          kind: "member",
-          receiver,
-          dataIndex: fieldDeclaration.index,
-          fieldIndex: callableField.index,
-          erasedFieldType: genericTypeName(callableField.type) ? callableField.type : undefined,
-          type: callableType,
-          span: expression.callee.span,
-        };
-        const parameterNames = callable.parameters.map((_, index) => `$${index}`);
-        const checkedArguments = this.checkConcreteArguments(
-          expression,
-          callable.parameters,
-          parameterNames,
-          callable.variadic,
-          "function field",
-        );
-        const providers = callable.requirements.map((requirement) =>
-          this.resolveProvider(requirement, expression.span),
-        );
-        const missing = callable.requirements.filter((_, index) => !providers[index]);
-        if (missing.length > 0)
-          this.fail(
-            "missing-requirement",
-            `function field requires ${missing.join(" + ")}`,
-            expression.span,
-          );
-        return {
-          kind: "closure-call",
-          callee: fieldCallee,
-          arguments: checkedArguments.arguments,
-          providers: providers as HirExpression[],
-          type: callable.suspending
-            ? mutableType(nominalGenericType("Suspend", [callable.result]))
-            : callable.result,
-          span: expression.span,
-        };
-      }
     }
     const stringCall = this.checkStringMemberCall(expression, receiver);
     if (stringCall) return stringCall;
@@ -649,49 +590,20 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
   ): HirExpression {
     const methodName = expression.callee.name;
     const receiverImplementationType = readonlyType(receiver.type);
-    const inherent =
-      qualifiedTraitIndex === undefined &&
-      this.inherentMethods.find(
-        (method) =>
-          !method.associated &&
-          method.targetType === receiverImplementationType &&
-          method.name === methodName,
-      );
-    if (inherent) return this.checkInherentMethodCall(expression, receiver, inherent, expected);
-    const receiverData = this.dataTypes.get(receiverImplementationType);
-    const promoted =
-      qualifiedTraitIndex !== undefined
-        ? []
-        : (receiverData?.fields.flatMap((field) => {
-            if (!field.embedded) return [];
-            const fieldType = readonlyType(field.type);
-            return this.inherentMethods
-              .filter(
-                (method) =>
-                  !method.associated &&
-                  method.targetType === fieldType &&
-                  method.name === methodName,
-              )
-              .map((method) => ({ field, fieldType, method }));
-          }) ?? []);
-    if (promoted.length > 1)
-      this.fail(
-        "ambiguous-method",
-        `method '${methodName}' is promoted by multiple embedded fields`,
-        expression.callee.span,
-      );
-    if (promoted.length === 1) {
-      const selected = promoted[0]!;
-      const promotedReceiver: HirExpression = {
-        kind: "member",
-        receiver,
-        dataIndex: receiverData!.index,
-        fieldIndex: selected.field.index,
-        erasedFieldType: genericTypeName(selected.field.type) ? selected.field.type : undefined,
-        type: selected.fieldType,
-        span: expression.callee.receiver.span,
-      };
-      return this.checkInherentMethodCall(expression, promotedReceiver, selected.method, expected);
+    if (qualifiedTraitIndex === undefined) {
+      const selection = this.selectMember(receiver.type, methodName, expression.callee.span, true);
+      if (selection.kind === "field") {
+        const { declaration, field, substitutions } = selection.final;
+        const owner = this.memberPath(receiver, selection.steps, expression.callee.receiver.span);
+        return this.checkFieldValueCall(
+          expression,
+          this.dataMember(owner, declaration, field, substitutions, expression.callee.span),
+        );
+      }
+      if (selection.kind === "inherent") {
+        const owner = this.memberPath(receiver, selection.steps, expression.callee.receiver.span);
+        return this.checkInherentMethodCall(expression, owner, selection.method, expected);
+      }
     }
     const candidates = this.implementations.flatMap((implementation) => {
       const substitutions =

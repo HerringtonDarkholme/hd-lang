@@ -1,5 +1,6 @@
 import type { Diagnostic } from "../diagnostics.ts";
-import type { Expression, ImplDecl, Parameter, TypeRef } from "../ast.ts";
+import type { FunctionDecl, ImplDecl, Parameter, TypeRef } from "../ast.ts";
+import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
 import {
   functionParts,
@@ -211,6 +212,18 @@ function prepareInherentImplementation(
     }
     methodKeys.add(key);
     const associated = method.parameters[0]?.name !== "self";
+    const fields =
+      dataTypes.get(implementation.targetName)?.fields ??
+      enumTypes.get(implementation.targetName)?.sharedFields ??
+      [];
+    if (!associated && fields.some((field) => field.name === method.name)) {
+      diagnostics.push({
+        code: "duplicate-inherent-member",
+        message: `inherent method '${key}' has the name of a field of ${implementation.targetName}`,
+        span: method.span,
+      });
+      continue;
+    }
     const sourceParameters = associated ? method.parameters : method.parameters.slice(1);
     const genericParameters = new Set(method.genericParameters);
     sourceParameters.forEach((parameter, parameterIndex) => {
@@ -369,15 +382,8 @@ function prepareAssociatedTypes(
 }
 
 export function prepareImplementations(context: ProgramCheckContext): void {
-  const {
-    program,
-    diagnostics,
-    dataTypes,
-    enumTypes,
-    traitTypes,
-    implementationPreparations,
-    inherentMethods,
-  } = context;
+  const { program, diagnostics, dataTypes, enumTypes, traitTypes, implementationPreparations } =
+    context;
   const inherentMethodKeys = new Set<string>();
   const implementationTargets: RegisteredImplementationTarget[] = [];
   const orderedImplementationEntries = [...program.implementations.entries()].sort(
@@ -465,76 +471,9 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       const requiredResult = substituteGenericType(required.result, memberSubstitutions);
       const suppliedMethod = supplied.get(required.name);
       const defaultMethod = program.traits[trait.index]?.methods[required.index];
-      let method = suppliedMethod ?? (defaultMethod?.body ? defaultMethod : undefined);
-      if (!method && !required.associated) {
-        const target = dataTypes.get(implementation.targetName);
-        const promoted =
-          target?.fields.flatMap((field) => {
-            if (!field.embedded) return [];
-            const embeddedType = readonlyType(field.type);
-            return inherentMethods
-              .filter(
-                (candidate) =>
-                  !candidate.associated &&
-                  candidate.targetType === embeddedType &&
-                  candidate.name === required.name,
-              )
-              .map((candidate) => ({ field, candidate }));
-          }) ?? [];
-        if (required.receiverMutable && promoted.length > 0) {
-          diagnostics.push({
-            code: "promoted-mutable-requirement",
-            message: `mutable requirement '${trait.name}.${required.name}' cannot be filled through an embedded readonly edge`,
-            span: implementation.span,
-          });
-          continue;
-        }
-        const compatible = promoted.filter(
-          ({ candidate }) =>
-            !candidate.receiverMutable &&
-            candidate.suspending === required.suspending &&
-            candidate.parameters.length === requiredParameters.length &&
-            candidate.parameters.every(
-              (parameter, index) => parameter === requiredParameters[index],
-            ) &&
-            candidate.result === requiredResult &&
-            sameRequirements(candidate.requirements, required.requirements),
-        );
-        if (compatible.length === 1 && defaultMethod) {
-          const promotedMethod = compatible[0]!;
-          const receiver: Expression = {
-            kind: "member",
-            receiver: { kind: "name", name: "self", span: defaultMethod.span },
-            name: promotedMethod.field.name,
-            span: defaultMethod.span,
-          };
-          const call: Expression = {
-            kind: required.suspending ? "suspend-call" : "call",
-            callee: {
-              kind: "member",
-              receiver,
-              name: required.name,
-              span: defaultMethod.span,
-            },
-            arguments: defaultMethod.parameters.slice(1).map((parameter) => ({
-              kind: "name" as const,
-              name: parameter.name,
-              span: parameter.span,
-            })),
-            span: defaultMethod.span,
-          };
-          method = {
-            ...defaultMethod,
-            body: [
-              {
-                kind: "expression",
-                expression: call,
-                span: defaultMethod.span,
-              },
-            ],
-          };
-        }
-      }
+      // E5: only a written method or a trait default fills a trait method; a
+      // method promoted from an embedded field never does.
+      const method = suppliedMethod ?? (defaultMethod?.body ? defaultMethod : undefined);
       if (!method) {
         diagnostics.push({
           code: "missing-trait-method",
@@ -592,23 +531,22 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           });
         }
       }
-      methods.push({
-        methodIndex: required.index,
-        declaration: {
-          kind: "function",
-          name: `$impl${implementationIndex}.${method.name}`,
-          suspending: method.suspending,
-          genericParameters: [...implementation.genericParameters, ...method.genericParameters],
-          genericBounds: [...implementation.genericBounds, ...method.genericBounds],
-          parameters: method.parameters.map((parameter) =>
-            substituteSelfParameter(parameter, implementation.targetName),
-          ),
-          result: method.result,
-          requirements: method.requirements,
-          body: method.body ?? [],
-          span: method.span,
-        },
-      });
+      const declaration: FunctionDecl = {
+        kind: "function",
+        name: `$impl${implementationIndex}.${method.name}`,
+        suspending: method.suspending,
+        genericParameters: [...implementation.genericParameters, ...method.genericParameters],
+        genericBounds: [...implementation.genericBounds, ...method.genericBounds],
+        parameters: method.parameters.map((parameter) =>
+          substituteSelfParameter(parameter, implementation.targetName),
+        ),
+        result: method.result,
+        requirements: method.requirements,
+        body: method.body ?? [],
+        span: method.span,
+      };
+      if (!suppliedMethod) traitDefaultDeclarations.add(declaration);
+      methods.push({ methodIndex: required.index, declaration });
     }
     implementationPreparations.push({
       declaration: implementation,

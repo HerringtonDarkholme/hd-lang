@@ -73,7 +73,6 @@ typing/valid/recursive-local-closure.hd	type
 typing/valid/defer-cleanup.hd	type
 typing/valid/resource-disposed-result.hd	type
 typing/valid/mutable-paths.hd	type
-typing/valid/embedded-trait-opt-in.hd	type
 typing/valid/module-bindings.hd	type
 typing/valid/transitive-initialized-binding.hd	type
 typing/invalid/forward-module-binding.hd	type
@@ -112,7 +111,6 @@ typing/invalid/missing-trait-method.hd	type
 typing/invalid/trait-method-signature.hd	type
 typing/invalid/readonly-mut-field-method.hd	type
 typing/invalid/duplicate-inherent-member.hd	type
-typing/invalid/embedded-mut-trait-bodyless.hd	type
 typing/invalid/duplicate-generic-embedded-name.hd	type
 typing/invalid/duplicate-data-field.hd	type
 typing/invalid/present-pattern-nonoptional.hd	type
@@ -732,3 +730,17 @@ parse/invalid/old-or-operator.hd	parse
 parse/invalid/old-not-operator.hd	parse
 parse/invalid/associated-binding-outside-bound.hd	parse
 parse/invalid/old-where-clause.hd	parse
+runtime/valid/outer-trait-method-hides-embedded-method.hd	runtime
+runtime/valid/outer-field-hides-embedded-method.hd	runtime
+typing/invalid/outer-field-hides-embedded-method-call.hd	type
+runtime/valid/depth-two-promotion.hd	runtime
+typing/invalid/same-depth-promotion-clash.hd	type
+runtime/valid/shorter-promotion-path-wins.hd	runtime
+typing/invalid/embedded-trait-method-not-promoted.hd	type
+typing/invalid/bodyless-impl-via-promotion.hd	type
+typing/invalid/promoted-mut-self-method.hd	type
+typing/invalid/field-and-inherent-method-same-name.hd	type
+typing/invalid/embedded-field-and-inherent-method-same-name.hd	type
+runtime/valid/function-typed-field-call.hd	runtime
+typing/invalid/field-and-trait-method-same-name.hd	type
+runtime/valid/field-read-beside-trait-method.hd	runtime
