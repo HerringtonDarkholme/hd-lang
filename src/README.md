@@ -44,7 +44,7 @@ linked through npm.
 - named arguments for statically resolved functions and methods, including
   suspending and dynamic trait dispatch, plus enum payload constructors, with
   source-order evaluation;
-- pure function-parameter defaults evaluated per call after all explicit
+- requirement-free function-parameter defaults evaluated per call after all explicit
   arguments, including earlier-parameter references, erased generics, and
   suspending function construction;
 - homogeneous `T...` parameters lowered as `list[T]`, with positional values,
@@ -108,14 +108,14 @@ else`, `break`, `break value`, and `continue`;
   across short-circuit conditions;
 - lexical branch and loop scopes;
 - data declarations, literals, and field reads backed by Wasm GC structs,
-  including pure per-construction field defaults evaluated after explicit
+  including requirement-free per-construction field defaults evaluated after explicit
   initializers and shallow copy-update with source-first evaluation;
 - mutable data permissions with one-way `mut T` to `T` weakening, readonly
   aliases over shared identity, permission-aware direct and generic fields,
   mutable-path checking, and field assignment through Wasm GC `struct.set`;
 - tagged enums, constructors, exhaustive matching, and payload bindings backed
-  by Wasm GC structs, including shared constructor fields, pure ordered
-  defaults, per-variant factories, named or numeric shared-field access, and
+  by Wasm GC structs, including shared constructor fields,
+  requirement-free ordered defaults, per-variant factories, named or numeric shared-field access, and
   canonical fieldless-variant identities;
 - expected-type contextual enum constructors such as `.Ready(42)`;
 - exhaustive boolean matching, guarded patterns, and literal matching for
@@ -184,6 +184,9 @@ else`, `break`, `break value`, and `continue`;
   structural equality for tuples, lists, optionals, `Result`, and maps and
   lexicographic tuple/list plus nil-first optional ordering, recursively using
   explicit implementations and erased bound dictionaries for nested values;
+  primitives and those built-in composites also satisfy `PartialEq` and
+  `PartialOrd` bounds, and primitives satisfy `Display` bounds and become
+  `Display` trait values, through generated standard-library dictionaries;
 - generic data declarations with inferred or complete explicit construction
   arguments, precise instantiated member types, and uniform `anyref` field
   erasure in one Wasm GC layout per declaration;

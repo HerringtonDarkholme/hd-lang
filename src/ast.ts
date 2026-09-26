@@ -33,6 +33,11 @@ export interface FunctionDecl {
   readonly body: readonly Statement[];
   readonly doc?: string;
   readonly span: SourceSpan;
+  // Present on the synthetic function the checker builds for a parameter,
+  // data-field, or shared enum default. Such code must be requirement-free
+  // (07-functions.md#default-values); `laterNames` are the parameters declared
+  // after the defaulted one, which are not yet visible.
+  readonly defaultContext?: { readonly laterNames: readonly string[] };
 }
 
 export interface MethodDecl {

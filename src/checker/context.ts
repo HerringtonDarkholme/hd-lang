@@ -15,6 +15,7 @@ import type {
   HirProgram,
   HirStatement,
   HirTrait,
+  HirBuiltinTraitImplementation,
   HirTraitDictionaryPlan,
   HirTraitImplementation,
   ValueType,
@@ -669,6 +670,27 @@ export abstract class CheckerContext {
           span,
         };
       }
+      const builtin = mutableTrait
+        ? undefined
+        : this.builtinTraitDictionaryPlan(
+            trait.index,
+            implementationType,
+            expectedTraitArguments,
+            span,
+          );
+      if (builtin) {
+        return {
+          kind: "trait-wrap",
+          value:
+            value.type === implementationType
+              ? value
+              : this.coerce(value, implementationType, span),
+          traitIndex: trait.index,
+          dictionary: builtin,
+          type: expected,
+          span,
+        };
+      }
     }
     const inner = optionalInner(expected);
     if (inner !== undefined) {
@@ -836,12 +858,27 @@ export abstract class CheckerContext {
     const nested = this.implementations.find((candidate) =>
       Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
     );
-    if (!nested)
+    if (!nested) {
+      const builtin = this.builtinTraitDictionaryPlan(
+        bound.traitIndex,
+        actual,
+        traitArguments,
+        span,
+      );
+      if (builtin)
+        return {
+          kind: "trait-dictionary",
+          traitIndex: bound.traitIndex,
+          dictionary: builtin,
+          type: `trait:${traitKey}`,
+          span,
+        };
       this.fail(
         "missing-trait-implementation",
         `type '${actual}' does not implement ${bound.traitName}`,
         span,
       );
+    }
     return {
       kind: "trait-dictionary",
       traitIndex: bound.traitIndex,
@@ -849,6 +886,96 @@ export abstract class CheckerContext {
       type: `trait:${traitKey}`,
       span,
     };
+  }
+
+  // The standard library implements Display for the printable primitives and
+  // string, PartialEq for primitives and equality-comparable built-in
+  // composites, and PartialOrd for ordered ones (05-expressions.md). These
+  // have no source `impl`, so the dictionary is built from the same
+  // strategies the operators use.
+  protected builtinTraitDictionaryPlan(
+    traitIndex: number,
+    targetType: ValueType,
+    traitArguments: readonly ValueType[],
+    span: SourceSpan,
+  ): HirTraitDictionaryPlan | undefined {
+    if (traitArguments.length > 0) return undefined;
+    const type = readonlyType(targetType);
+    if (genericTypeName(type)) return undefined;
+    const traitName = [...this.traitTypes.values()].find(
+      (candidate) => candidate.index === traitIndex,
+    )?.name;
+    const plan = (
+      builtin: HirBuiltinTraitImplementation,
+      bounds: readonly HirExpression[] = [],
+    ): HirTraitDictionaryPlan => ({ bounds, implementationIndex: -1, supertraits: [], builtin });
+    if (traitName === "Display") {
+      return ["i32", "f64", "bool", "char", "string"].includes(type)
+        ? plan({ kind: "display", traitIndex, targetType: type })
+        : undefined;
+    }
+    if (traitName === "PartialEq" || traitName === "PartialOrd") {
+      const strategy =
+        traitName === "PartialEq" ? this.equalityStrategy(type) : this.orderingStrategy(type);
+      if (!strategy || strategy.kind === "dispatch") return undefined;
+      const bounds: HirExpression[] = [];
+      const renumbered = this.renumberBoundDispatches(strategy, bounds, new Map(), span);
+      return traitName === "PartialEq"
+        ? plan(
+            {
+              kind: "equality",
+              traitIndex,
+              targetType: type,
+              strategy: renumbered as HirEqualityStrategy,
+            },
+            bounds,
+          )
+        : plan(
+            {
+              kind: "ordering",
+              traitIndex,
+              targetType: type,
+              strategy: renumbered as HirOrderingStrategy,
+            },
+            bounds,
+          );
+    }
+    return undefined;
+  }
+
+  // Composite strategies over a bounded generic element dispatch through the
+  // caller's bound dictionaries. The built-in dictionary carries those in its
+  // bound pack, so each distinct bound gets a pack position.
+  private renumberBoundDispatches(
+    strategy: HirEqualityStrategy | HirOrderingStrategy,
+    bounds: HirExpression[],
+    positions: Map<number, number>,
+    span: SourceSpan,
+  ): HirEqualityStrategy | HirOrderingStrategy {
+    const visit = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(visit);
+      if (typeof value !== "object" || value === null) return value;
+      const node = value as Record<string, unknown>;
+      const dispatch = node.dispatch as HirEqualityDispatch | undefined;
+      if (node.kind === "dispatch" && dispatch?.kind === "bound") {
+        let position = positions.get(dispatch.boundIndex);
+        if (position === undefined) {
+          position = bounds.length;
+          positions.set(dispatch.boundIndex, position);
+          const bound = this.signature.genericBounds[dispatch.boundIndex]!;
+          bounds.push({
+            kind: "trait-bound-dictionary",
+            traitIndex: dispatch.traitIndex,
+            boundIndex: dispatch.boundIndex,
+            type: `trait:${bound.traitName}`,
+            span,
+          });
+        }
+        return { ...node, dispatch: { ...dispatch, boundIndex: position } };
+      }
+      return Object.fromEntries(Object.entries(node).map(([key, entry]) => [key, visit(entry)]));
+    };
+    return visit(strategy) as HirEqualityStrategy | HirOrderingStrategy;
   }
 
   protected displayValue(value: HirExpression, span: SourceSpan): HirExpression {
@@ -1195,7 +1322,29 @@ export abstract class CheckerContext {
       code = "mutable-capture-requires-mut-fn";
       message = `a plain fn closure cannot obtain mutable access from a capture; ${message}`;
     }
+    if (this.declaration.defaultContext) {
+      // A default runs with an empty row and outside any driver, so the
+      // ordinary row and bang checks decide requirement-freedom from callee
+      // signatures alone; only the reported code differs.
+      if (code === "missing-requirement") {
+        code = "requirement-in-default";
+        message = `a default must be requirement-free: ${message}`;
+      } else if (code === "bang-call-outside-suspension") {
+        code = "suspension-forbidden-context";
+        message = "a default must not suspend";
+      }
+    }
     this.diagnostics.push({ code, message, span });
     throw new CheckFailure(message);
+  }
+
+  protected failUnknownName(name: string, message: string, span: SourceSpan): never {
+    if (this.declaration.defaultContext?.laterNames.includes(name))
+      this.fail(
+        "binding-not-yet-visible",
+        `a default cannot refer to the later parameter '${name}'`,
+        span,
+      );
+    this.fail("unknown-name", message, span);
   }
 }

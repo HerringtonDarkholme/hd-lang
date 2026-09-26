@@ -77,7 +77,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
-        this.fail("unknown-name", `unknown name '${expression.name}'`, expression.span);
+        this.failUnknownName(expression.name, `unknown name '${expression.name}'`, expression.span);
       }
       case "unary": {
         if (

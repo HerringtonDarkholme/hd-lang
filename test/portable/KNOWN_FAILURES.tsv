@@ -1,8 +1,6 @@
 path	reason	finding
 typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
-runtime/valid/assert-equal-generic-primitive.hd	check fails: i32 and string do not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
-runtime/panic/assert-equal-generic-primitive-unequal.hd	check fails: i32 does not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
 runtime/valid/reference-bounded-dynamic-method.hd	check fails: MVP rejects Reference-bounded method generics in dynamic traits (trait-not-dynamically-safe at lines 27 and 30)	G2
 typing/invalid/tuple-element-assignment.hd	wrong code: MVP reports readonly-root instead of invalid-assignment-target	G3
 runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 type (unknown-type)	L2
@@ -11,7 +9,6 @@ typing/invalid/inferred-mutable-upgrade.hd	wrong code: MVP reports generic-type-
 runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is between list[User] and mut list[mut User] (type-mismatch)	L7
 runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
 typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait-cycle on every cycle member (lines 4 and 7)	L9
-typing/invalid/parameter-default-later-parameter.hd	wrong code: MVP reports impure-parameter-default instead of binding-not-yet-visible	L10
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
 typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205
@@ -26,24 +23,8 @@ parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal in
 parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
 parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
-typing/valid/data-default-calls-function-value.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/valid/shared-enum-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/valid/parameter-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/invalid/suspending-parameter-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/invalid/suspending-data-field-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/invalid/parameter-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/invalid/data-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/invalid/enum-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
-typing/valid/default-calls-requirement-free-trait-method.hd	compiler enforces the retired purity rule; defaults are now requirement-free (R1)	R1
 runtime/valid/no-entry-point-no-tests.hd	test exits 1 without a located report: "program has no main function or test blocks"	F-306
 parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
-runtime/valid/f64-nan-ordering.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
-runtime/valid/f64-ordering-operators.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
-runtime/valid/tuple-ordering-nan-unordered.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
-runtime/valid/generic-partial-eq-bound-primitives.hd	check fails: i32 and f64 do not satisfy a user-declared T: PartialEq bound (missing-trait-implementation)	F-500
-runtime/valid/nan-equality-through-generics.hd	check fails: f64 and list[f64] do not satisfy T: PartialEq (missing-trait-implementation)	F-500
-runtime/valid/signed-zero-and-infinity-through-generics.hd	check fails: f64 does not satisfy T: PartialEq or T: Display (missing-trait-implementation)	F-500
-runtime/valid/nan-ordering-composites.hd	check fails: f64 and list[f64] do not satisfy T: PartialOrd; direct f64 ordering also crashes codegen	F-500
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
 runtime/valid/boxed-primitive-identity.hd	check fails: i32 cannot become a Display trait value; unknown-type Any	F-350

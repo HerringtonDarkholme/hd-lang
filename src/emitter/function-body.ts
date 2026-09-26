@@ -180,19 +180,11 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
             this.emitExpression(expression.segments[0]!),
           );
       }
-      case "display": {
-        const operand = this.emitExpression(expression.operand);
-        if (expression.operand.type === "i32") return `(call $hd.i32_to_string ${operand})`;
-        if (expression.operand.type === "f64") {
-          this.floatDisplay = true;
-          return `(call $hd.f64_to_string ${operand})`;
-        }
-        if (expression.operand.type === "char") return `(call $hd.char_to_string ${operand})`;
-        if (expression.operand.type === "bool") {
-          return `(if (result (ref null $hd.bytes)) ${operand} (then (array.new_fixed $hd.bytes 4 (i32.const 116) (i32.const 114) (i32.const 117) (i32.const 101))) (else (array.new_fixed $hd.bytes 5 (i32.const 102) (i32.const 97) (i32.const 108) (i32.const 115) (i32.const 101))))`;
-        }
-        throw new Error(`unsupported Display operand ${expression.operand.type}`);
-      }
+      case "display":
+        return this.emitPrimitiveDisplay(
+          this.emitExpression(expression.operand),
+          expression.operand.type,
+        );
       case "console-print":
         this.consoleOutput = true;
         return `(call $hd.console_print ${this.emitExpression(expression.provider)} ${this.emitExpression(expression.value)})`;
@@ -1172,6 +1164,13 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
   }
 
   private emitTraitDictionaryPlan(plan: HirTraitDictionaryPlan, value: string): string {
+    if (plan.builtin)
+      return this.emitBuiltinTraitDictionary(
+        plan.builtin,
+        plan.bounds,
+        plan.bounds.map((bound) => this.emitExpression(bound)),
+        value,
+      );
     const implementation = this.implementationsByIndex.get(plan.implementationIndex)!;
     return this.emitTraitDictionary(
       implementation,

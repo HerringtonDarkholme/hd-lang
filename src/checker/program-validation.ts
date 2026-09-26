@@ -4,7 +4,6 @@ import {
   driverStartingFunctionNames,
   findDriverCall,
 } from "./program-effects.ts";
-import { expressionIsPure, pureFunctionNames } from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
@@ -48,10 +47,8 @@ export function validateProgram(context: ProgramCheckContext): void {
       span: topLevelDriverCall.span,
     });
   }
-  const pureFunctions = pureFunctionNames(program);
   for (const declaration of program.functions) {
     let sawDefault = false;
-    const earlierParameters = new Set<string>();
     for (const parameter of declaration.parameters) {
       if (parameter.default) {
         sawDefault = true;
@@ -62,14 +59,6 @@ export function validateProgram(context: ProgramCheckContext): void {
             message: `default for '${declaration.name}.${parameter.name}' cannot transitively start a suspension driver`,
             span: driverCall.span,
           });
-        } else if (
-          !expressionIsPure(parameter.default, earlierParameters, pureFunctions, program)
-        ) {
-          diagnostics.push({
-            code: "impure-parameter-default",
-            message: `default for '${declaration.name}.${parameter.name}' is not compile-time pure`,
-            span: parameter.default.span,
-          });
         }
       } else if (sawDefault && !parameter.variadic) {
         diagnostics.push({
@@ -78,7 +67,6 @@ export function validateProgram(context: ProgramCheckContext): void {
           span: parameter.span,
         });
       }
-      earlierParameters.add(parameter.name);
     }
   }
   for (const declaration of program.data) {
@@ -91,18 +79,11 @@ export function validateProgram(context: ProgramCheckContext): void {
           message: `default for '${declaration.name}.${field.name}' cannot transitively start a suspension driver`,
           span: driverCall.span,
         });
-      } else if (!expressionIsPure(field.default, new Set(), pureFunctions, program)) {
-        diagnostics.push({
-          code: "impure-data-default",
-          message: `default for '${declaration.name}.${field.name}' is not compile-time pure`,
-          span: field.default.span,
-        });
       }
     }
   }
   for (const declaration of program.enums) {
     let sawDefault = false;
-    const earlierFields = new Set<string>();
     for (const field of declaration.sharedFields) {
       if (field.default) {
         sawDefault = true;
@@ -113,12 +94,6 @@ export function validateProgram(context: ProgramCheckContext): void {
             message: `default for '${declaration.name}.${field.name}' cannot transitively start a suspension driver`,
             span: driverCall.span,
           });
-        } else if (!expressionIsPure(field.default, earlierFields, pureFunctions, program)) {
-          diagnostics.push({
-            code: "impure-enum-default",
-            message: `default for '${declaration.name}.${field.name}' is not compile-time pure`,
-            span: field.default.span,
-          });
         }
       } else if (sawDefault) {
         diagnostics.push({
@@ -127,7 +102,6 @@ export function validateProgram(context: ProgramCheckContext): void {
           span: field.span,
         });
       }
-      if (!/^\d/.test(field.name)) earlierFields.add(field.name);
     }
   }
 }

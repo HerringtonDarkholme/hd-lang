@@ -2,13 +2,10 @@ id	count	title
 F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 F-205	25	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
 F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
-R1	9	Defaults are requirement-free; the compiler still enforces the retired purity rule
 F-252	6	The parser rejects core chapter-02 forms that the reference parser accepts
 F-255	6	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
-F-500	6	Primitives do not satisfy `T: PartialEq` or `T: PartialOrd`
 I5	6	Non-public functions may omit their result type (inferred); public ones need missing-result-type
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
-F-160	3	Any f64 `<`, `<=`, `>`, or `>=` crashes code generation
 I6	3	Non-public functions may omit their requirement clause (row inferred, least row for cycles)
 L2	3	Exponent must be an unsigned integer type
 F-150	2	Reject cases pass even when unrelated errors are also reported
@@ -33,7 +30,6 @@ F-705	1	Declared variance is deferred, so covariant data cannot be written
 F-706	1	A backslash before a quote in a raw string is a lexer error
 G2	1	Reference-bounded method generics are allowed in dynamic traits
 G3	1	Assigning a tuple element is invalid-assignment-target
-L10	1	A default naming a later parameter is binding-not-yet-visible
 L4	1	Only a pub main is an entry point
 L6	1	Inferred mutable upgrade reports mutable-upgrade
 L7	1	`is` ignores permissions on its operands

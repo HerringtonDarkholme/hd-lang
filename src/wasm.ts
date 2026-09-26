@@ -20,7 +20,9 @@ export function assembleWat(wat: string): WasmArtifact {
   try {
     module = binaryen.parseText(wat);
   } catch (error) {
-    throw new WasmValidationError(`Binaryen could not parse generated WAT: ${String(error)}`);
+    throw new WasmValidationError(
+      `Binaryen could not parse generated WAT: ${binaryenErrorMessage(error)}`,
+    );
   }
 
   try {
@@ -36,4 +38,11 @@ export function assembleWat(wat: string): WasmArtifact {
   } finally {
     module.dispose();
   }
+}
+
+function binaryenErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error)
+    return String((error as { readonly message: unknown }).message);
+  return String(error);
 }

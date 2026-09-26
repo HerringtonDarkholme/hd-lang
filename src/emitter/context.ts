@@ -1,4 +1,5 @@
 import type {
+  HirBuiltinTraitImplementation,
   HirData,
   HirEnum,
   HirFunction,
@@ -19,6 +20,12 @@ import {
   tupleParts,
 } from "../types.ts";
 import type { SuspensionPlan } from "./suspension.ts";
+
+export interface BuiltinTraitAdapter {
+  readonly index: number;
+  readonly implementation: HirBuiltinTraitImplementation;
+  readonly boundTraits: readonly number[];
+}
 import { runtimePanicCode, type RuntimePanicName } from "../runtime-panic.ts";
 import {
   containsGenericValueType,
@@ -78,6 +85,7 @@ export class EmitterContext {
   protected consoleOutput = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
+  protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
   protected readonly providerKeys = new Map<string, number>();
 
   constructor(

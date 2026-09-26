@@ -1,4 +1,10 @@
-import type { HirEqualityStrategy, HirOrderingStrategy, ValueType } from "../hir.ts";
+import type {
+  HirBuiltinTraitImplementation,
+  HirEqualityStrategy,
+  HirExpression,
+  HirOrderingStrategy,
+  ValueType,
+} from "../hir.ts";
 import {
   nominalGenericParts,
   optionalInner,
@@ -14,6 +20,107 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const index = this.temporaryTypes.length;
     this.temporaryTypes.push(type);
     return `$tmp${index}`;
+  }
+
+  protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
+    if (type === "string") return operand;
+    if (type === "i32") return `(call $hd.i32_to_string ${operand})`;
+    if (type === "f64") {
+      this.floatDisplay = true;
+      return `(call $hd.f64_to_string ${operand})`;
+    }
+    if (type === "char") return `(call $hd.char_to_string ${operand})`;
+    if (type === "bool") {
+      return `(if (result (ref null $hd.bytes)) ${operand} (then (array.new_fixed $hd.bytes 4 (i32.const 116) (i32.const 114) (i32.const 117) (i32.const 101))) (else (array.new_fixed $hd.bytes 5 (i32.const 102) (i32.const 97) (i32.const 108) (i32.const 115) (i32.const 101))))`;
+    }
+    throw new Error(`unsupported Display operand ${type}`);
+  }
+
+  protected emitBuiltinTraitDictionary(
+    builtin: HirBuiltinTraitImplementation,
+    boundExpressions: readonly HirExpression[],
+    bounds: readonly string[],
+    value: string,
+  ): string {
+    const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+    const boundTraits = boundExpressions.map((bound) =>
+      bound.kind === "trait-bound-dictionary" ? bound.traitIndex : -1,
+    );
+    const key = JSON.stringify([builtin, boundTraits]);
+    let adapter = this.builtinTraitAdapters.get(key);
+    if (!adapter) {
+      adapter = { index: this.builtinTraitAdapters.size, implementation: builtin, boundTraits };
+      this.builtinTraitAdapters.set(key, adapter);
+    }
+    const boundPack =
+      bounds.length > 0
+        ? `(array.new_fixed $hd.list ${bounds.length} ${bounds.join(" ")})`
+        : `(ref.null $hd.list)`;
+    return `(struct.new $trait${trait.index} ${value} ${boundPack} (ref.func $tbuiltin${adapter.index}))`;
+  }
+
+  get builtinTraitAdapterNames(): readonly string[] {
+    return [...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`);
+  }
+
+  // Dictionary methods for standard-library implementations without a source
+  // `impl`. Each unboxes its erased operands and runs the operator strategy.
+  emitBuiltinTraitAdapters(): string {
+    const savedTemporaries = [...this.temporaryTypes];
+    const adapters = [...this.builtinTraitAdapters.values()].map((adapter) => {
+      const builtin = adapter.implementation;
+      const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+      const method = trait.methods[0]!;
+      this.temporaryTypes.length = 0;
+      const self = this.unboxValue(`(local.get $self)`, builtin.targetType);
+      const other = () => this.unboxValue(`(local.get $a0)`, builtin.targetType);
+      let body: string;
+      if (builtin.kind === "display") {
+        body = this.emitPrimitiveDisplay(self, builtin.targetType);
+      } else if (builtin.kind === "equality") {
+        body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
+      } else {
+        const compared = this.emitValueOrdering(
+          self,
+          other(),
+          builtin.targetType,
+          builtin.strategy,
+        );
+        const code = this.allocateTemporary("i32");
+        const orderingIndex = this.enumByName.get("Ordering")!.index;
+        const orderingType = `(ref $e${orderingIndex})`;
+        const variant = (tag: number) => `(global.get $e${orderingIndex}v${tag})`;
+        const ordering = `(if (result ${orderingType}) (i32.lt_s (local.get ${code}) (i32.const 0)) (then ${variant(0)}) (else (if (result ${orderingType}) (i32.eqz (local.get ${code})) (then ${variant(1)}) (else ${variant(2)}))))`;
+        const resultType = this.watType(method.result);
+        body = `(block (result ${resultType}) (local.set ${code} ${compared}) (if (result ${resultType}) (i32.eq (local.get ${code}) (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering}))))`;
+      }
+      const parameters = method.parameters.map(
+        (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
+      );
+      const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
+      const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds (ref.cast (ref $trait${trait.index}) (local.get $dictionary))))`;
+      const boundLocals = adapter.boundTraits.map(
+        (traitIndex, index) => `  (local $bound${index} (ref null $trait${traitIndex}))`,
+      );
+      const boundSetup = adapter.boundTraits.map(
+        (traitIndex, index) =>
+          `  (local.set $bound${index} (ref.cast (ref null $trait${traitIndex}) (array.get $hd.list ${boundPack} (i32.const ${index}))))`,
+      );
+      const temporaries = this.temporaryTypes.map(
+        (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
+      );
+      return [
+        `(func $tbuiltin${adapter.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""}${result}`,
+        ...boundLocals,
+        ...temporaries,
+        ...boundSetup,
+        `  ${body}`,
+        `)`,
+      ].join("\n");
+    });
+    this.temporaryTypes.length = 0;
+    this.temporaryTypes.push(...savedTemporaries);
+    return adapters.join("\n\n");
   }
 
   protected emitValueEquality(
@@ -96,8 +203,14 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     }
     if (readonly === "i32" || readonly === "char")
       return `(if (result i32) (i32.lt_s ${left} ${right}) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${left} ${right}) (then (i32.const 1)) (else (i32.const 0)))))`;
-    if (readonly === "f64")
-      return `(if (result i32) (f64.lt ${left} ${right}) (then (i32.const -1)) (else (if (result i32) (f64.gt ${left} ${right}) (then (i32.const 1)) (else (if (result i32) (f64.eq ${left} ${right}) (then (i32.const 0)) (else (i32.const 2))))))`;
+    if (readonly === "f64") {
+      // 2 marks an unordered pair (a NaN operand); every relational operator is false for it.
+      const leftTemporary = this.allocateTemporary("f64");
+      const rightTemporary = this.allocateTemporary("f64");
+      const a = `(local.get ${leftTemporary})`;
+      const b = `(local.get ${rightTemporary})`;
+      return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (f64.lt ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (f64.gt ${a} ${b}) (then (i32.const 1)) (else (if (result i32) (f64.eq ${a} ${b}) (then (i32.const 0)) (else (i32.const 2))))))))`;
+    }
     const tuple = tupleParts(readonly);
     if (tuple !== undefined)
       return this.emitTupleOrdering(

@@ -7,7 +7,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-101](../findings/F-101-defaults-reject-top-level-reads.md) | minor | correctness | Parameter and data-field defaults reject any read of a top-level binding |  |
 | [F-150](../findings/F-150-reject-cases-ignore-extra-errors.md) | minor | test-integrity | Reject cases pass even when unrelated errors are also reported |  |
 | [F-155](../findings/F-155-panic-line-unchecked-and-unreported.md) | minor | runtime | Runtime panics carry no source location, so panic marker lines are never checked |  |
-| [F-160](../findings/F-160-f64-relational-operators-crash-compiler.md) | major | correctness | Any f64 `<`, `<=`, `>`, or `>=` crashes code generation |  |
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |
 | [F-162](../findings/F-162-cli-entry-misuse-crashes.md) | minor | runtime | `hd run` and `hd test` crash with stack traces on entry-shape errors |  |
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |
@@ -48,7 +47,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-402](../findings/F-402-cli-provider-configuration-constant.md) | minor | runtime | `hd replay` accepts a history recorded under a different runtime profile |  |
 | [F-403](../findings/F-403-test-blocks-share-one-instance.md) | major | runtime | `hd test` runs `main` and every test block in one shared instance |  |
 | [F-404](../findings/F-404-failing-runs-leave-no-history.md) | minor | runtime | `hd record` writes no history when the run panics or never finishes |  |
-| [F-500](../findings/F-500-primitives-miss-comparison-bounds.md) | major | correctness | Primitives do not satisfy `T: PartialEq` or `T: PartialOrd` |  |
 | [F-501](../findings/F-501-map-is-linear-association-list.md) | major | runtime | `map[K, V]` is an unhashed association list with O(n) get and insert |  |
 | [F-502](../findings/F-502-bounded-calls-allocate-dictionaries.md) | major | runtime | Bounded generic calls rebuild dictionaries and allocate a trait value per method call |  |
 | [F-503](../findings/F-503-interpolation-pairwise-concat.md) | minor | runtime | String interpolation lowers to pairwise concatenation and re-allocates literals |  |
