@@ -1,4 +1,4 @@
-# test: x.name(args) calls a function-typed field, including a promoted one
+# test: a function stored in a field, own or promoted, is called by parenthesizing the field read
 use std.testing.assert_equal
 
 fn add_one(value: i32) -> i32: value + 1
@@ -9,8 +9,8 @@ data Button:
 data Panel:
     Button
 
-test "own and promoted function-typed fields are called":
+test "own and promoted function-typed fields are called through a field read":
     button := Button { on_click: add_one }
     panel := Panel { Button: button }
-    assert_equal(button.on_click(41), 42, reason="own field call")
-    assert_equal(panel.on_click(1), 2, reason="promoted field call")
+    assert_equal((button.on_click)(41), 42, reason="own field call")
+    assert_equal((panel.on_click)(1), 2, reason="promoted field call")

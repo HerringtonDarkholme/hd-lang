@@ -1,7 +1,0 @@
-# test: a field and an inherent method share one member namespace
-data User:
-    name: string
-
-impl User:
-    fn name(self) -> string:  # diagnostic: duplicate-inherent-member
-        "user"

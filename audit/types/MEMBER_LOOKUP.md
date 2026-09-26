@@ -49,20 +49,25 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5 and M1)
+### hd today (after E1 to E5 and M2)
 
-- One member namespace (M1).
+- Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
+  `x.name(args)` is method lookup, and a function-typed field is called as
+  `(x.callback)(args)`. A field and a method may share a name.
 - Embedding is a tree, searched breadth-first; shortest path wins; a
   same-depth clash is an error (E3).
-- Own members (fields, inherent methods, own trait methods) are searched first
-  (E1); presence by name stops the search (E2).
-- An embedded type's trait methods are not promoted (E4).
+- Each lookup checks the receiver's own members first: its fields, or its
+  inherent and trait methods (E1). Presence by name stops the search (E2).
+- Embedded types offer fields and inherent methods only. Trait methods count
+  only on the receiver's own type; the search skips an embedded type's trait
+  methods and continues below it (E4, TQ-31).
 - Embedding never grants trait conformance, and promoted methods never fill
   trait methods (E5).
+- No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
 
 ## Comparison
 
-| Dimension | Go | Rust | hd today | hd proposed |
+| Dimension | Go | Rust | hd with M1 | hd proposed |
 | --- | --- | --- | --- | --- |
 | Field and method namespaces | one | two, by syntax | one (M1) | **two, by syntax** |
 | Same-named field and method on one type | error | allowed | error | **allowed** |
@@ -72,7 +77,7 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 | Lookup order within one type | one set | inherent, then in-scope traits | inherent, then traits | inherent, then traits |
 | Deeper lookup | shallowest wins | next step | shallowest wins | shallowest wins |
 | Same-depth matches | error at use | impossible (chain) | error at use | error at use |
-| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** |
+| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** (not adopted; E4 kept) |
 | Composition satisfies traits | yes | no | no | no |
 | Promoted method fills a trait method | yes (structural) | no | no | no |
 | Overriding | no | no | no | no (stated) |
@@ -125,7 +130,10 @@ For a receiver of nominal type `S`:
 7. **Readonly edge.** A promoted `mut self` method is found and then rejected
    with `mutable-receiver-required`.
 
-Changes from the applied rules: M1 becomes two namespaces (a field and a
+Outcome: the owner adopted rules 1, 2, and 4 to 7 as M2. Rule 3 was not
+adopted for embedded depths: they offer inherent methods only, and E4 stays.
+
+Changes from the applied rules proposed at the time: M1 becomes two namespaces (a field and a
 method may share a name; `x.callback()` becomes `(x.callback)()`); E4 is
 reversed (trait methods of embedded types are promoted); E2's "an outer field
 hides an embedded method" no longer applies, because field and method lookups

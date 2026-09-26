@@ -1,22 +1,11 @@
-import type { Expression, FunctionDecl } from "../ast.ts";
+import type { FunctionDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
-import {
-  functionParts,
-  mutableInner,
-  mutableType,
-  nominalGenericParts,
-  nominalGenericType,
-  readonlyType,
-} from "../types.ts";
+import { mutableInner, nominalGenericParts, readonlyType } from "../types.ts";
 import { genericTypeName, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
-
-type MemberCallExpression = Extract<Expression, { kind: "call" }> & {
-  readonly callee: Extract<Expression, { kind: "member" }>;
-};
 
 /** One field read on a member path: `declaration.field` under `substitutions`. */
 interface MemberStep {
@@ -117,15 +106,25 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   }
 
   /**
-   * Spec 03 Member Resolution: own members (fields, inherent methods, trait
-   * methods) first; embedded fields breadth first only when no own member has
-   * the name. Embedded types contribute fields and inherent methods only.
+   * Spec 03 Member Resolution. `x.name` uses field lookup and `x.name(args)`
+   * uses method lookup; the two namespaces never interact (M2). Each lookup
+   * checks the receiver's own members first, then embedded fields breadth
+   * first. Embedded types offer fields to field lookup and inherent methods
+   * to method lookup; their trait methods are skipped.
    */
-  protected selectMember(
+  protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
+    return this.selectMember(receiverType, name, span, false);
+  }
+
+  protected selectMethod(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
+    return this.selectMember(receiverType, name, span, true);
+  }
+
+  private selectMember(
     receiverType: ValueType,
     name: string,
     span: SourceSpan,
-    call: boolean,
+    method: boolean,
   ): MemberSelection {
     const type = readonlyType(receiverType);
     const nominal = nominalGenericParts(type);
@@ -133,20 +132,17 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     const substitutions = declaration
       ? this.dataSubstitutions(declaration, type)
       : new Map<string, ValueType>();
-    const field = declaration?.fields.find((candidate) => candidate.name === name);
-    const inherent = this.findInherentMethod(type, name);
-    const trait = this.traitMemberPresent(type, name);
-    if (trait && traitDefaultDeclarations.has(this.declaration)) return { kind: "trait" };
-    if (field && trait && call)
-      this.fail(
-        "ambiguous-method",
-        `'${name}' names both a field of ${type} and a trait method; use Trait::${name}(value, ...) for the trait method`,
-        span,
-      );
-    if (declaration && field)
-      return { kind: "field", steps: [], final: { declaration, field, substitutions } };
-    if (inherent) return { kind: "inherent", steps: [], method: inherent };
-    if (trait) return { kind: "trait" };
+    if (method) {
+      const inherent = this.findInherentMethod(type, name);
+      const trait = this.traitMemberPresent(type, name);
+      if (trait && traitDefaultDeclarations.has(this.declaration)) return { kind: "trait" };
+      if (inherent) return { kind: "inherent", steps: [], method: inherent };
+      if (trait) return { kind: "trait" };
+    } else {
+      const field = declaration?.fields.find((candidate) => candidate.name === name);
+      if (declaration && field)
+        return { kind: "field", steps: [], final: { declaration, field, substitutions } };
+    }
     if (!declaration) return { kind: "none" };
     let frontier: {
       declaration: HirData;
@@ -170,21 +166,24 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             { declaration: node.declaration, field: embedded, substitutions: node.substitutions },
           ];
           const embeddedSubstitutions = this.dataSubstitutions(embeddedDeclaration, embeddedType);
-          const promotedField = embeddedDeclaration.fields.find(
-            (candidate) => candidate.name === name,
-          );
-          if (promotedField)
-            matches.push({
-              kind: "field",
-              steps,
-              final: {
-                declaration: embeddedDeclaration,
-                field: promotedField,
-                substitutions: embeddedSubstitutions,
-              },
-            });
-          const promotedMethod = this.findInherentMethod(embeddedType, name);
-          if (promotedMethod) matches.push({ kind: "inherent", steps, method: promotedMethod });
+          if (method) {
+            const promotedMethod = this.findInherentMethod(embeddedType, name);
+            if (promotedMethod) matches.push({ kind: "inherent", steps, method: promotedMethod });
+          } else {
+            const promotedField = embeddedDeclaration.fields.find(
+              (candidate) => candidate.name === name,
+            );
+            if (promotedField)
+              matches.push({
+                kind: "field",
+                steps,
+                final: {
+                  declaration: embeddedDeclaration,
+                  field: promotedField,
+                  substitutions: embeddedSubstitutions,
+                },
+              });
+          }
           next.push({
             declaration: embeddedDeclaration,
             substitutions: embeddedSubstitutions,
@@ -204,52 +203,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     return { kind: "none" };
   }
 
-  /** Calls the function stored in a field selected by member lookup. */
-  protected checkFieldValueCall(
-    expression: MemberCallExpression,
-    callee: HirExpression,
-  ): HirExpression {
-    const callable = functionParts(callee.type);
-    if (!callable)
-      this.fail(
-        "not-callable",
-        `field '${expression.callee.name}' has type '${callee.type}', which is not callable`,
-        expression.callee.span,
-      );
-    if (expression.argumentNames?.some((name) => name !== undefined)) {
-      this.fail(
-        "named-argument-needs-declaration",
-        "named arguments are unavailable through a stored function field",
-        expression.span,
-      );
-    }
-    const parameterNames = callable.parameters.map((_, index) => `$${index}`);
-    const checkedArguments = this.checkConcreteArguments(
-      expression,
-      callable.parameters,
-      parameterNames,
-      callable.variadic,
-      "function field",
-    );
-    const providers = callable.requirements.map((requirement) =>
-      this.resolveProvider(requirement, expression.span),
-    );
-    const missing = callable.requirements.filter((_, index) => !providers[index]);
-    if (missing.length > 0)
-      this.fail(
-        "missing-requirement",
-        `function field requires ${missing.join(" + ")}`,
-        expression.span,
-      );
-    return {
-      kind: "closure-call",
-      callee,
-      arguments: checkedArguments.arguments,
-      providers: providers as HirExpression[],
-      type: callable.suspending
-        ? mutableType(nominalGenericType("Suspend", [callable.result]))
-        : callable.result,
-      span: expression.span,
-    };
+  /** Whether field lookup would find `name`, for the `(x.name)(args)` hint. */
+  protected hasFieldNamed(receiverType: ValueType, name: string): boolean {
+    const type = readonlyType(receiverType);
+    const declaration = this.dataTypes.get(nominalGenericParts(type)?.name ?? type);
+    return declaration?.fields.some((field) => field.name === name) ?? false;
   }
 }

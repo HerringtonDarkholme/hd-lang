@@ -1,0 +1,23 @@
+# test: a type implementing both Iterable and Iterator is iterated through Iterable
+use std.testing.assert_equal
+
+data Ring:
+    items: list[i32]
+
+impl Iterable[i32] for Ring:
+    fn iter(self) -> mut Iterator[i32]:
+        self.items.iter()
+
+impl Iterator[i32] for Ring:
+    fn next(mut self) -> i32?: nil
+
+fn sum(ring: Ring) -> i32:
+    let total: i32 = 0
+    for value in ring:
+        total = total + value
+    total
+
+test "for and comprehensions call iter":
+    ring := Ring { items: [1, 2, 3] }
+    assert_equal(sum(ring), 6, reason="the loop uses Iterable on a readonly value")
+    assert_equal([for value in ring => value * 2].len(), 3, reason="the comprehension uses Iterable")

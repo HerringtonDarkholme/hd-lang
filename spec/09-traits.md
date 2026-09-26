@@ -208,13 +208,21 @@ through its enclosing suite and child scopes, not before or outside that scope.
 ### Implementation Targets
 
 The target of every implementation, trait or inherent, starts with a type
-constructor: a data, enum, or newtype declaration, or a built-in type
-constructor such as `i32`, `string`, `list`, or `map`. The constructor's
-arguments may be any types, including implementation parameters, as in
+constructor: a data, enum, or newtype declaration; a built-in type
+constructor such as `i32`, `string`, `list`, or `map`; or a tuple
+constructor. Tuples have one built-in constructor per arity, so `(A, B)` is
+the two-element tuple constructor applied to `A` and `B`, and
+`impl Display for (i32, string)` is a valid target. Tuples of different
+arity never share a constructor. The constructor's arguments may be any
+types, including implementation parameters, as in
 `impl[T < Display] Printable for Box[T]`. A target that is a bare type
 parameter, as in `impl[T] Describe for T`, is a `bare-parameter-impl-target`
 error. hd-lang has no blanket implementations over every type; a later
 revision may add them as a compatible extension.
+
+A function type is never an implementation target, whatever its parameter,
+result, or requirement types. `impl Marker for fn(i32) -> i32` is a
+`function-impl-target` error.
 
 A target must not be written with an outer `mut`. `impl Marker for mut Counter`
 is a `mutable-impl-target` error. Permission belongs to method receivers
@@ -237,12 +245,12 @@ Any other trait implementation is an `orphan-impl` error. For example, the
 package that declares `Money` may write `impl Add[Money] for i32`, because it
 owns the trait argument `Money`. The third case never applies to a target that
 is a bare type parameter. Transparent aliases do not create ownership; nominal
-newtypes do. The standard library owns primitives and built-in collection type
-constructors.
+newtypes do. The standard library owns primitives, built-in collection type
+constructors, and tuple constructors.
 
 An inherent implementation may be declared only in the package that owns its
-target nominal type. It cannot target a trait value, primitive, transparent
-alias, or type owned by another package.
+target nominal type. It cannot target a trait value, primitive, tuple,
+transparent alias, or type owned by another package.
 
 These ownership rules prevent downstream packages from creating globally
 surprising conformance. The compiler must also reject a resolved dependency
@@ -271,14 +279,16 @@ impl[T < Display] Printable for Box[T]:
 All generic implementation parameters must be constrained by the implemented
 trait, target type, or a bound reachable from them.
 
-Two implementations overlap when they implement the same trait, their trait
-arguments unify, and their targets start with the same type constructor.
-Overlap is decided from the implementation heads alone. Bounds, including
-associated type bindings, are never used to claim that two implementations
-are disjoint, and neither are the constructor's arguments. Thus
-`impl[T] Marker for list[T]` overlaps `impl Marker for list[i32]`, and
-`impl Marker for Box[i32]` overlaps `impl Marker for Box[string]`, while
-`impl Add[i32] for Money` and `impl Add[Money] for Money` do not overlap.
+Two implementations overlap when they implement the same trait and their
+full heads unify: after each implementation's parameters are renamed apart,
+one substitution makes both their trait arguments and their complete target
+types equal. Overlap is decided from the implementation heads alone. Bounds,
+including associated type bindings, are never used to claim that two
+implementations are disjoint. Thus `impl[T] Marker for list[T]` overlaps
+`impl Marker for list[i32]`, and `impl[T] Marker for Box[T]` overlaps
+`impl Marker for Box[i32]`. `impl Marker for Box[i32]` and
+`impl Marker for Box[string]` do not overlap, nor do
+`impl Add[i32] for Money` and `impl Add[Money] for Money`.
 Overlapping implementations are an `overlapping-impl` error. Because bounds
 are ignored, an implementation added later in a dependency cannot make two
 existing implementations overlap.
@@ -315,9 +325,9 @@ implementation. A trait has one visibility level for all its methods; it
 cannot mix public and private methods.
 
 An inherent member name must not duplicate another inherent member on the same
-type; a duplicate is a `duplicate-inherent-member` error. An inherent method
-must not share its name with a field of the type, named or embedded, which is
-also a `duplicate-inherent-member` error
+type; a duplicate is a `duplicate-inherent-member` error. An inherent member
+may share its name with a field of the type, named or embedded, because fields
+and methods are separate namespaces
 ([Member Resolution](03-names-and-scopes.md#member-resolution)). hd-lang has no
 method or associated-function overloading.
 
@@ -334,9 +344,10 @@ guest := User::guest()
 ## Method Resolution
 
 For a receiver of nominal type `S` or `mut S`, `value.method(args)` selects a
-member with the algorithm in
+method with the method lookup in
 [Member Resolution](03-names-and-scopes.md#member-resolution), which covers
-fields, inherent methods, trait methods, and promoted members together. This
+inherent methods, trait methods, and promoted methods together; it never
+selects a field. This
 section defines which trait methods are usable at a use and how trait
 candidates are reported.
 
@@ -362,6 +373,20 @@ is an `ambiguous-method` error. This holds whether each method is
 written in its implementation or comes from a default. The compiler does not
 select by conversion ranking or declaration order. A trait-qualified call
 resolves the ambiguity.
+
+When the receiver implements one generic trait at several instantiations that
+each supply the method, as with `impl Add[i32] for Money` and
+`impl Add[Money] for Money`, the call chooses the instantiation. Each
+instantiation is a candidate. A candidate **fits** when the call's arguments
+check against its method's parameter types, with that instantiation's trait
+arguments substituted, and, when the call has an expected type, the method's
+result type is assignable to it. Exactly one fitting candidate is selected, so
+`price.add(5)` calls the `Add[i32]` method. Two or more fitting candidates are
+an `ambiguous-method` error, and a trait-qualified call such as
+`Add[i32]::add(price, 5)` resolves it. When no candidate fits, the call is a
+`type-mismatch` error. This choice applies only among instantiations of one
+trait; methods of two different traits stay `ambiguous-method` whatever the
+argument types.
 
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
@@ -521,8 +546,9 @@ bodyless implementation of a trait with a required method is therefore a
 `missing-trait-method` error even when an embedded type has a matching method.
 
 An embedded type's trait methods are not promoted either: if `Label`
-implements `Display` and `Page` embeds `Label`, `page.to_string()` finds no
-`to_string` member unless `Page` itself implements `Display`.
+implements `Display` and `Page` embeds `Label`, method lookup skips `Label`'s
+`to_string`. `page.to_string()` then reaches no `to_string` through `Label`'s
+implementation, unless `Page` itself implements `Display`.
 
 Embedding is still composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.

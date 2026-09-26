@@ -1,0 +1,24 @@
+# test: method lookup skips an embedded type's trait method and continues to a deeper inherent method
+use std.testing.assert_equal
+
+data Base:
+    name: string
+
+impl Base:
+    fn to_string(self) -> string:
+        "base " + self.name
+
+data Label:
+    Base
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        "label"
+
+data Page:
+    Label
+
+test "depth-two inherent method is selected past a depth-one trait method":
+    page := Page { Label: Label { Base: Base { name: "home" } } }
+    assert_equal(page.to_string(), "base home", reason="Label's Display method is skipped")
+    assert_equal(page.Label.to_string(), "label", reason="Label's own trait method")

@@ -1,0 +1,32 @@
+# test: implementations whose full targets do not unify do not overlap
+use std.testing.assert_equal
+
+data Box[T]:
+    value: T
+
+trait Describe:
+    fn describe(self) -> string
+
+trait Convert[T]:
+    fn convert(self) -> string
+
+impl Describe for Box[i32]:
+    fn describe(self) -> string:
+        "int box"
+
+impl Describe for Box[string]:
+    fn describe(self) -> string:
+        "string box " + self.value
+
+impl[T] Convert[T] for Box[T]:
+    fn convert(self) -> string:
+        "same"
+
+impl Convert[i32] for Box[string]:
+    fn convert(self) -> string:
+        "cross"
+
+test "each exact instantiation has its own implementation":
+    assert_equal(Box { value: 1 }.describe(), "int box", reason="Box[i32]")
+    assert_equal(Box { value: "s" }.describe(), "string box s", reason="Box[string]")
+    assert_equal(Convert[i32]::convert(Box { value: "s" }), "cross", reason="joint substitution keeps them apart")

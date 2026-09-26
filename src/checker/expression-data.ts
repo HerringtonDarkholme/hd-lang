@@ -287,12 +287,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const typeName = nominal?.name ?? receiverReadonly;
         const dataDeclaration = this.dataTypes.get(typeName);
         if (dataDeclaration) {
-          const selection = this.selectMember(
-            receiver.type,
-            expression.name,
-            expression.span,
-            false,
-          );
+          const selection = this.selectField(receiver.type, expression.name, expression.span);
           if (selection.kind !== "field")
             this.fail(
               "unknown-data-field",

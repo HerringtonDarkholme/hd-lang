@@ -1,0 +1,9 @@
+# test: a generic target overlaps an exact target that it unifies with
+
+data Box[T]:
+    value: T
+
+trait Marker
+
+impl[T] Marker for Box[T]
+impl Marker for Box[i32]  # diagnostic: overlapping-impl

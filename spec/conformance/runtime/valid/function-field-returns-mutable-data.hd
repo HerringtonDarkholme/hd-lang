@@ -9,7 +9,7 @@ data Holder:
 fn make() -> mut Child: Child { value: 42 }
 fn main() -> i32:
     holder := Holder { get: make }
-    let child: mut Child = holder.get()
+    let child: mut Child = (holder.get)()
     child.value
 
 test "main returns 42":

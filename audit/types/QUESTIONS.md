@@ -5,11 +5,13 @@
 Decided 2026-09-26.
 
 Applied to the specification on 2026-09-26 (see the spec README revision
-notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6, E1 to E5, and M1):
+notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6, E1 to E5, M1, and later M2, TQ-4,
+TQ-27 (partial), TQ-28, and TQ-29):
 
 - **TQ-1** (applied): impl targets start with a type constructor
   (`bare-parameter-impl-target`); overlap is decided by trait, unifying trait
-  arguments, and target constructor; the prelude adapter is gone and `for`
+  arguments, and target constructor (TQ-28 later refined this to full-head
+  unification); the prelude adapter is gone and `for`
   accepts `Iterable[T]` or `Iterator[T]`.
 - **TQ-2** (applied): the owner of a trait argument's outer constructor may
   write the impl; this covers facet packages annotating primitives.
@@ -47,7 +49,8 @@ read it, so prefer explicit, checkable rules and locality.
   methods only; an embedded type's trait methods never promote. (E5) A
   promoted method never fills a required trait method; the impl writes the
   body. Replaces TQ-7 and TQ-8.
-- **Member namespace (M1), applied** to 03 Member Resolution, 05 Member
+- **Member namespace (M1), superseded by M2.** Was applied to 03 Member
+  Resolution, 05 Member
   Access, and 09 Inherent Implementations; a field and an inherent method
   reuse `duplicate-inherent-member`. Fields and methods share one
   member namespace per type. A field and an inherent method with the same
@@ -55,15 +58,22 @@ read it, so prefer explicit, checkable rules and locality.
   function-typed field; a field and a trait method with the same name are an
   ambiguity error at the use.
 
-- **TQ-4, not yet applied.** When a type implements one generic trait at
-  several instantiations, a dot call infers the instantiation from the
-  argument types (Rust); it is ambiguous only when more than one fits.
-- **TQ-28, not yet applied.** Two impls overlap when their full targets
-  unify: `Box[i32]` and `Box[string]` do not overlap; `Box[T]` and `Box[i32]`
-  do. Bounds stay ignored.
-- **TQ-29, not yet applied.** When a type implements both `Iterable[T]` and
-  `Iterator[T]`, `for` uses `Iterable`.
-- **Optionals (O1 to O3) and TQ-27, not yet applied.** (O1) `T?` is exact
+- **TQ-4, applied** to 09 Method Resolution. When a type implements one
+  generic trait at several instantiations, a dot call infers the
+  instantiation from the argument types and expected type (Rust); it is
+  `ambiguous-method` only when more than one fits, and `type-mismatch` when
+  none fits.
+- **TQ-28, applied** to 09 Overlap. Two impls overlap when their trait
+  arguments and full targets unify under one substitution: `Box[i32]` and
+  `Box[string]` do not overlap; `Box[T]` and `Box[i32]` do. Bounds stay
+  ignored. Chapter 14 did not repeat the old wording.
+- **TQ-29, applied** to 06 For Loops. When a type implements both
+  `Iterable[T]` and `Iterator[T]`, `for` and comprehensions use `Iterable`.
+- **TQ-27, tuple and function parts applied** to 09 Implementation Targets
+  and Implementation Ownership: tuples are targets (one standard-library
+  constructor per arity); a function type target is `function-impl-target`.
+  The `Option` part waits on O1 to O3.
+- **Optionals (O1 to O3) and TQ-27's `Option` part, not yet applied.** (O1) `T?` is exact
   sugar for a prelude `enum Option[T]: Some(value: T); None`; `T??` is
   `Option[Option[T]]`; `nil` is removed as keyword and literal; the
   representation stays an implementation detail. (O2) The absent value is
@@ -73,25 +83,25 @@ read it, so prefer explicit, checkable rules and locality.
   collections, `Option` (now an enum), and tuples (arity-indexed
   constructors); function types are never impl targets.
 
-- **No overriding and data patterns with `:`, not yet applied.** A promoted
-  method runs as the embedded type's method (inside `Base`, `self.m()` is
-  `Base.m`); state it. Data patterns use `:` like data literals
+- **No overriding, applied** to 03 Member Resolution and 08 Data Embedding.
+  A promoted method runs as the embedded type's method (inside `Base`,
+  `self.m()` is `Base.m`).
+- **Data patterns with `:`, not yet applied.** Data patterns use `:` like data literals
   (`Point { x: 0, y }`, `Point { x: px }`); labels in `Type { }` use `:`,
   labels in `( )` use `=` (grammar Q5).
 - **Bound methods stay deferred.** Revisit later.
-- **M2: separate field and method namespaces, not yet applied (replaces
-  M1).** `x.name` looks up fields only; `x.name(args)` looks up methods only;
-  a field and a method may share a name; a function-typed field is called as
-  `(x.callback)(args)`. A trait adding or renaming a method can never collide
-  with a user's field. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md). 
-- **E4 confirmed and TQ-31 settled.** hd picks Go's side of the one-versus-many
-  split: many embedded fields, and embedding carries only members that are
-  unique per type (fields and inherent methods). Trait methods are counted
-  only on the receiver's own type (inherent beats trait; two traits are
-  ambiguous). Trait methods of embedded types are never promoted and never
-  searched: in TQ-31, `page.to_string()` skips `Label`'s `Display` and may
-  reach an inherent `Base.to_string` deeper down.
-
+- **M2: separate field and method namespaces, applied (replaces M1)** to 03
+  Member Resolution (a field lookup and a method lookup), 05 Member Access and
+  Calls, 08 Data Embedding, and 09 Inherent Implementations and Method
+  Resolution. `x.name` looks up fields only; `x.name(args)` looks up methods
+  only; a field and a method may share a name; a function-typed field is
+  called as `(x.callback)(args)`. A trait adding or renaming a method can
+  never collide with a user's field. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md).
+  TQ-32, TQ-33, and TQ-35 no longer arise.
+- **Trait-method promotion, decided and applied (E4 kept; resolves TQ-31).**
+  Embedding carries only fields and inherent methods. Trait methods count
+  only on the receiver's own type; method lookup skips an embedded type's
+  trait methods and keeps searching below it.
 - **Embedding critique review (2026-09-26).** (P2, not yet applied;
   revises E2) Members not visible from the calling module are skipped, as in
   Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
@@ -374,6 +384,8 @@ matches), so depth 2 finds `Base.to_string`. Yet `label.to_string()` reaches
 Label's `Display` method. The applied text follows the literal reading.
 Options: (A) keep; (B) a trait method of an embedded type blocks the search
 through that path.
+**Resolved: A.** The search skips embedded trait methods; see
+`runtime/valid/embedded-trait-method-skipped.hd`.
 
 ## TQ-32: Bare field read beside a trait method of the same name
     impl Named for User:
@@ -382,6 +394,7 @@ M1 makes a field and a trait method with one name ambiguous "at the use".
 The applied text makes only the call `x.name(args)` ambiguous; a bare
 `x.name` reads the field, because bare method values are deferred. Under the
 other reading, nothing could read the field except a pattern. Confirm.
+**Moot under M2:** `x.name` is always a field read.
 
 ## TQ-33: Field and inherent associated function with one name
     data User:
@@ -391,6 +404,7 @@ other reading, nothing could read the field except a pattern. Confirm.
 M1 names inherent methods only. Associated functions are reached through
 `User::guest()`, never with a dot. Options: (A) allowed; (B)
 `duplicate-inherent-member`.
+**Moot under M2:** a field and any inherent member may share a name.
 
 ## TQ-34: Visibility of promoted members at depth
 E2 makes an own member present regardless of visibility. The applied text
@@ -403,3 +417,6 @@ searching. Confirm.
     # S has a private field `tag` and implements an unimported trait with `tag`
 The applied text reports `private-member` when a field or inherent method is
 present but not visible, and `trait-not-in-scope` otherwise. Confirm.
+**Moot under M2:** the field and the trait method are in different
+namespaces, so `x.tag` reports `private-member` and `x.tag()` reports
+`trait-not-in-scope`.

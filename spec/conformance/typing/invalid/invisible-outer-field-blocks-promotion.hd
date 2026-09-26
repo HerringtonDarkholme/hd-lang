@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: a present but invisible own field is a visibility error, not a fallthrough to the embedded field
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> string:
+    outer.code  # diagnostic: private-member

@@ -151,10 +151,16 @@ post := Post {
 
 Embedding promotes the embedded type's fields and inherent methods for
 convenient access, but does not make the outer data type a subtype of the
-embedded type. An embedded type's trait methods are not promoted. Which member
-`x.name` selects, including when an outer member hides a promoted one and when
-two promoted members are ambiguous, is defined once in
+embedded type. An embedded type's trait methods are not promoted; method
+lookup skips them. Which field `x.name` or method `x.name(args)` selects,
+including when an outer member hides a promoted one and when two promoted
+members are ambiguous, is defined once in
 [Member Resolution](03-names-and-scopes.md#member-resolution).
+
+Embedding has no overriding. A promoted method runs as the embedded type's
+own method, with the embedded value as its receiver, so inside `Base`'s
+methods `self.m()` is always `Base`'s `m`, even when a type that embeds
+`Base` declares its own `m`.
 
 Embedding never grants trait conformance, and a promoted method never fills a
 method of a trait implementation; the implementation writes the method, as in

@@ -333,7 +333,7 @@ export abstract class ExpressionParser extends ParserBase {
       const first = this.parseExpression();
       if (!this.matchText(",")) {
         this.expectText(")");
-        return first;
+        return first.kind === "member" ? { ...first, parenthesized: true } : first;
       }
       const elements = [first];
       while (!this.atText(")")) {

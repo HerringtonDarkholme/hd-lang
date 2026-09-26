@@ -1,0 +1,19 @@
+# test: a field and a trait method may share a name; the call form picks the method
+use std.testing.assert_equal
+
+trait Named:
+    fn name(self) -> string
+
+data User:
+    name: fn() -> string
+
+impl Named for User:
+    fn name(self) -> string:
+        "trait"
+
+fn field_value() -> string: "field"
+
+test "method call and parenthesized field call":
+    user := User { name: field_value }
+    assert_equal(user.name(), "trait", reason="x.name() is a method call")
+    assert_equal((user.name)(), "field", reason="(x.name)() calls the stored function")

@@ -1,0 +1,36 @@
+# test: a dot call chooses among instantiations of one generic trait by argument and expected types
+use std.testing.assert_equal
+
+trait Combine[T]:
+    fn combine(self, other: T) -> Money
+
+trait Pick[T]:
+    fn pick(self) -> T
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> Money:
+        Money { cents: self.cents + other }
+
+impl Combine[Money] for Money:
+    fn combine(self, other: Money) -> Money:
+        Money { cents: self.cents * other.cents }
+
+impl Pick[i32] for Money:
+    fn pick(self) -> i32:
+        self.cents
+
+impl Pick[string] for Money:
+    fn pick(self) -> string:
+        "money"
+
+test "argument and expected types select the instantiation":
+    price := Money { cents: 10 }
+    assert_equal(price.combine(5).cents, 15, reason="i32 argument selects Combine[i32]")
+    assert_equal(price.combine(Money { cents: 3 }).cents, 30, reason="Money argument selects Combine[Money]")
+    let count: i32 = price.pick()
+    let label: string = price.pick()
+    assert_equal(count, 10, reason="expected i32 selects Pick[i32]")
+    assert_equal(label, "money", reason="expected string selects Pick[string]")
