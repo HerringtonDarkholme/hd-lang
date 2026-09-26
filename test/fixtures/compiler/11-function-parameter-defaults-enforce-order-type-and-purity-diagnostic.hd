@@ -1,3 +1,0 @@
-# test: function parameter defaults enforce order, type, and purity
-
-fn bad(first: i32 = 1, second: i32) -> i32: second  # diagnostic: parameter-default-order

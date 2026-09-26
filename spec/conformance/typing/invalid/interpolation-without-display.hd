@@ -4,4 +4,4 @@ data Secret:
     value: i32
 
 fn render(value: Secret) -> string:
-    "secret=$value"  # diagnostic: missing-display
+    "secret=$value"  # diagnostic: unsatisfied-trait-bound

@@ -253,7 +253,9 @@ The first spelling preserves the source-level bang-call operation; the second
 is its lowered callable type. Assignment or argument checking may convert the
 first to the second, but not back. Calling either form without `!` constructs
 the cold mutable `Suspend[T]`. Only the first form supports `callee!(...)`
-directly. A `:=` binding weakens that fresh result to readonly `Suspend[T]`;
+directly. A bang call whose callee is neither a suspending function or
+function value nor a `Suspend[T]` value is a `not-suspending` error. A `:=`
+binding weakens that fresh result to readonly `Suspend[T]`;
 it cannot call `poll` or `cancel`. Store it with
 `let pending: mut Suspend[T] = callee(...)` when it must be driven later.
 

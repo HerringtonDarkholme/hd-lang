@@ -78,6 +78,8 @@ export abstract class PatternChecker extends CallChecker {
       variant.fields.map((field) => field.name),
       false,
       `variant '${variantName}'`,
+      new Set(),
+      "unknown-data-field",
     );
     const substitutions = new Map<string, ValueType>();
     const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
@@ -110,7 +112,7 @@ export abstract class PatternChecker extends CallChecker {
     );
     if (unresolved.length > 0) {
       this.fail(
-        "generic-enum-needs-context",
+        "unresolved-generic-placeholder",
         `could not infer generic enum parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
         span,
       );
@@ -317,7 +319,7 @@ export abstract class PatternChecker extends CallChecker {
             : variant.fields.findIndex((field) => field.name === name);
         if (index < 0)
           this.fail(
-            "unknown-variant-pattern-field",
+            "unknown-data-field",
             `variant '${variant.name}' has no payload field '${name}'`,
             pattern.span,
           );

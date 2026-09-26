@@ -1,0 +1,14 @@
+# test: is accepts a composite and a trait value it converts to
+# expect: accept
+
+trait Named:
+    fn name(self) -> string
+
+data User:
+    name: string
+
+impl Named for User:
+    fn name(self) -> string: self.name
+
+fn same(user: User, named: Named) -> bool:
+    user is named

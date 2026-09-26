@@ -1,0 +1,4 @@
+# test: an empty map literal needs an expected type
+
+fn main() -> void:
+    values := {}  # diagnostic: unresolved-generic-placeholder

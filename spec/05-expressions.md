@@ -66,7 +66,9 @@ defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in
 Interpreted strings support `$name` and `${expression}` interpolation. Embedded
 expressions are evaluated from left to right at the position of their segment.
 Each expression's type must implement the canonical `std.format.Display`
-trait; the compiler appends the string returned by that implementation. There
+trait; the compiler appends the string returned by that implementation. An
+embedded expression whose type does not implement `Display` is an
+`unsatisfied-trait-bound` error. There
 is no fallback conversion through `Any`, runtime reflection, or debug output.
 The standard library provides `Display` implementations for ordinary
 printable primitive types and `string`. Optional and user-defined values are
@@ -126,22 +128,15 @@ Key validity and equality/hash requirements are defined in
 [Type System](04-type-system.md#map-key-types).
 
 Empty `[]` and `{}` literals require an expected collection type because they
-contain no values from which to infer type arguments.
+contain no values from which to infer type arguments. Without one, the literal
+is an `unresolved-generic-placeholder` error.
 
 When an expected `list[T]` or `map[K, V]` type is available, each literal
 element is checked directly against the corresponding expected type. Without
-an expected type, the compiler computes a unique least common type using only
-the implicit conversions in [Type System](04-type-system.md). Numeric widening,
-permission weakening, and declared readonly variance may contribute, but
-least-common-type inference never combines permission weakening with a
-variance step for the same candidate conversion. If no unique least type
-exists, inference fails and the user must add an expected
-type. The compiler never falls back to `Any` merely to make a heterogeneous
-literal type-check. Unconstrained inference also does not introduce a dynamic
-trait-value conversion, because a concrete type may satisfy multiple unrelated
-traits; an expected `list[Display]` or `map[K, Display]` may request that
-conversion explicitly. When `nil` occurs with non-`nil` elements having one
-unique least type `T`, the inferred element or value type is `T?`.
+an expected type, the element type of a list, and the key type and the value
+type of a map, are the
+[least common type](04-type-system.md#least-common-type) of the corresponding
+entries.
 
 ### Data Expressions
 
@@ -228,13 +223,18 @@ Positional arguments must precede named arguments:
 resize(640, height=480)
 ```
 
-Each named argument identifies a parameter by its declared name. A parameter
-must receive exactly one argument after defaults are applied. Evaluation order
-follows source argument order, not parameter declaration order.
+Each named argument identifies a parameter by its declared name; a named
+argument that names no parameter is an `unknown-named-argument` error. A
+parameter must receive exactly one argument after defaults are applied.
+Supplying one parameter more than once, such as positionally and again by
+name, is a `duplicate-argument` error. Evaluation order follows source argument
+order, not parameter declaration order.
 
 An argument ending in `...` is a positional spread. It is evaluated once, must
 have `list[T]` compatible with the callee's final `T...` parameter, and supplies
 that vararg's remaining positional elements. It cannot fill fixed parameters.
+A positional spread in a call whose callee has no vararg parameter is a
+`positional-spread-needs-vararg` error.
 A call has at most one positional spread; it must be the final positional
 argument and therefore precedes every named argument. Passing a vararg by name
 uses one ordinary list value without `...`, and the same call must not also
@@ -270,7 +270,10 @@ interact with suspension by itself.
 
 Postfix `?` is invalid when there is no enclosing named function or closure
 with the required optional or `Result` return type. Module top-level statements
-and `test` blocks do not provide an implicit propagation target.
+and `test` blocks do not provide an implicit propagation target. Both misuses
+of `?` are `invalid-result-propagation` errors: an operand that is neither
+optional nor a `Result`, and a `?` whose enclosing function or closure does not
+return a compatible optional or `Result`.
 
 ## Unary And Binary Operators
 
@@ -383,8 +386,10 @@ with a tuple is rejected even if it contains references. Primitive values,
 must otherwise have compatible composite reference types: after removing
 `mut` at every level, the two types are equal, or one is a trait value or
 `Any` type that the other converts to. Permissions never affect identity, so
-`list[User]` and `mut list[mut User]` are compatible. Use `not (a is b)`
-for distinct identities.
+`list[User]` and `mut list[mut User]` are compatible. Two composite reference
+operands that are not compatible, such as `list[User]` and `list[Order]`, are
+an `incompatible-identity-operands` error. Use `not (a is b)` for distinct
+identities.
 
 Arithmetic and bitwise operators are built in for the numeric types specified
 by this chapter and [Type System](04-type-system.md). `string + string`
@@ -405,7 +410,8 @@ It has the lowest precedence. Parentheses are required when a binding appears
 as an operand of another expression, as above. Its scope is defined in
 [Names and Scopes](03-names-and-scopes.md).
 
-For tuple binding, the right side must have the same arity. The value of the
+For tuple binding, the right side must be a tuple of the same arity; any
+other value is a `type-mismatch` error. The value of the
 whole binding expression is the original tuple value.
 
 ## Comprehensions

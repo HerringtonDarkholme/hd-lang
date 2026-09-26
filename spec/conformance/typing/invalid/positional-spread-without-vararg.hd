@@ -1,0 +1,4 @@
+# test: a positional spread needs a vararg parameter
+
+fn fixed(value: i32) -> i32: value
+fn total(values: list[i32]) -> i32: fixed(values...)  # diagnostic: positional-spread-needs-vararg

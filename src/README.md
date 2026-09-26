@@ -273,7 +273,7 @@ Task combinator intrinsics, strings and structural values in the host-provider
 ABI, and annotations remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
-Interpolation and `println` report `missing-display` when the displayed type
+Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
 does not implement the canonical prelude trait.
 
 ## Layout

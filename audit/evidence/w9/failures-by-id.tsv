@@ -1,6 +1,6 @@
 id	count	title
 F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-205	25	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
+F-205	23	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
 F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-252	6	The parser rejects core chapter-02 forms that the reference parser accepts
 F-255	6	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
@@ -10,10 +10,11 @@ I6	3	Non-public functions may omit their requirement clause (row inferred, least
 L2	3	Exponent must be an unsigned integer type
 F-150	2	Reject cases pass even when unrelated errors are also reported
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
+F-257	2	`mut fn` closures are unsupported
 F-353	2	`is` rejects operands whose static type is `mut T`
 F-704	2	`string.replace` is not implemented
 F-707	2	A comma at depth zero does not end a same-line suite
-F-257	1	`mut fn` closures are unsupported
+L7	2	`is` ignores permissions on its operands
 F-258	1	Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 F-306	1	`hd run` and `hd test` crash with a stack trace when there is no entry point
@@ -21,7 +22,6 @@ F-309	1	hd rejects same-line `if c: a else: b`, a form chapter 01 uses as an exa
 F-350	1	Primitives do not satisfy `T: Display` and cannot become `Display` trait values
 F-352	1	`mut fn` closure literals do not parse
 F-355	1	`string.trim()` removes U+FEFF and keeps U+0085
-F-356	1	A default that names a later parameter reports a code outside the spec inventory
 F-700	1	Optional `?` inside a closure emits WAT that Binaryen cannot parse
 F-701	1	A generic function cannot be used as a value, even when its type arguments are known
 F-702	1	`pub` on a path-only `use` is accepted
@@ -32,6 +32,5 @@ G2	1	Reference-bounded method generics are allowed in dynamic traits
 G3	1	Assigning a tuple element is invalid-assignment-target
 L4	1	Only a pub main is an entry point
 L6	1	Inferred mutable upgrade reports mutable-upgrade
-L7	1	`is` ignores permissions on its operands
 L8	1	Fieldless data values are canonical under `is`
 L9	1	supertrait-cycle is reported once per cycle

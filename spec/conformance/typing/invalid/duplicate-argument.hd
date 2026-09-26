@@ -1,0 +1,4 @@
+# test: a call cannot supply one parameter positionally and by name
+
+fn resize(width: i32, height: i32) -> i32: width * height
+fn area() -> i32: resize(640, width=480)  # diagnostic: duplicate-argument

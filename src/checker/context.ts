@@ -843,8 +843,8 @@ export abstract class CheckerContext {
       );
       if (boundIndex < 0)
         this.fail(
-          "missing-trait-implementation",
-          `generic parameter '${forwarded}' does not satisfy ${bound.traitName}`,
+          "unsatisfied-trait-bound",
+          `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
           span,
         );
       return {
@@ -874,8 +874,8 @@ export abstract class CheckerContext {
           span,
         };
       this.fail(
-        "missing-trait-implementation",
-        `type '${actual}' does not implement ${bound.traitName}`,
+        "unsatisfied-trait-bound",
+        `type '${actual}' does not implement ${bound.traitName}, required by the implementation bound on '${bound.parameter}'`,
         span,
       );
     }
@@ -978,7 +978,11 @@ export abstract class CheckerContext {
     return visit(strategy) as HirEqualityStrategy | HirOrderingStrategy;
   }
 
-  protected displayValue(value: HirExpression, span: SourceSpan): HirExpression {
+  protected displayValue(
+    value: HirExpression,
+    span: SourceSpan,
+    origin = "string interpolation",
+  ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
     if (["i32", "f64", "bool", "char"].includes(type)) {
@@ -1041,7 +1045,11 @@ export abstract class CheckerContext {
         span,
       };
     }
-    return this.fail("missing-display", `type '${value.type}' does not implement Display`, span);
+    return this.fail(
+      "unsatisfied-trait-bound",
+      `type '${value.type}' does not implement Display, required by ${origin}`,
+      span,
+    );
   }
 
   protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
@@ -1160,8 +1168,8 @@ export abstract class CheckerContext {
     }
     if (this.inferredReturnType !== type) {
       this.fail(
-        "closure-result-type",
-        `closure return paths have types ${this.inferredReturnType} and ${type}`,
+        "no-common-type",
+        `closure return paths have types ${this.inferredReturnType} and ${type} with no common type`,
         span,
       );
     }

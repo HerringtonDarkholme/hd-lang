@@ -1,4 +1,4 @@
-# test: supertraits reject missing parent implementations
+# test: an implementation needs its supertrait implementations
 
 trait Parent
 

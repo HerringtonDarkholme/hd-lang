@@ -94,8 +94,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           );
         if (!info) {
           this.fail(
-            "not-iterable",
-            `type '${iterable.type}' does not implement the MVP iteration protocol`,
+            "unsatisfied-trait-bound",
+            `type '${iterable.type}' does not implement Iterable, required by the for loop`,
             expression.iterable.span,
           );
         }
@@ -103,7 +103,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         const bindingTypes = expression.bindings.length === 1 ? [yieldType] : tupleParts(yieldType);
         if (!bindingTypes || bindingTypes.length !== expression.bindings.length) {
           this.fail(
-            "for-binding-arity",
+            "type-mismatch",
             `loop binding has ${expression.bindings.length} names but '${yieldType}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
             expression.span,
           );
@@ -392,7 +392,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
               : variant.fields.findIndex((field) => field.name === fieldName);
           if (fieldIndex < 0)
             this.fail(
-              "unknown-variant-pattern-field",
+              "unknown-data-field",
               `variant '${variant.name}' has no payload field '${fieldName}'`,
               pattern.span,
             );

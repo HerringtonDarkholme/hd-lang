@@ -356,7 +356,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
           const index = Number(expression.name);
           if (!Number.isSafeInteger(index) || index >= tuple.length) {
             this.fail(
-              "tuple-index-range",
+              "unknown-method",
               `tuple index ${expression.name} is outside a ${tuple.length}-element tuple`,
               expression.span,
             );

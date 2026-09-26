@@ -213,6 +213,10 @@ come before named arguments:
 error := ToolError.NotFound(resource="user_123")
 ```
 
+A named argument that names no payload field of the variant is an
+`unknown-data-field` error. Other argument errors use the call codes in
+[Expressions](05-expressions.md#calls), such as `duplicate-argument`.
+
 A payload-bearing variant constructor is not itself a first-class function
 value  and must be called. Use an explicit closure to pass construction as
 a function value. A payload-free variant, including one whose declaration
@@ -239,7 +243,8 @@ after `->`. The constructor call follows ordinary positional/named argument
 ordering and must initialize each shared parameter without a default. A shared
 parameter may declare a default expression. After the first defaulted
 parameter, every following shared parameter must also have a default, as with
-function parameters. The default must satisfy the same requirement-free rule as a
+function parameters; a later parameter without one is a `default-order`
+error. The default must satisfy the same requirement-free rule as a
 function-parameter or data-field default and is evaluated for each construction
 when omitted. Explicit argument expressions are evaluated first, then omitted
 defaults in parameter declaration order. A default may refer to earlier named

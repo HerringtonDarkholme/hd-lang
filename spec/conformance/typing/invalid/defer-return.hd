@@ -1,6 +1,6 @@
-# test: defer rejects escaping control flow
+# test: a defer suite cannot return
 
-fn main() -> i32:
+fn run() -> i32:
     defer:
         return 1  # diagnostic: defer-control-flow
     0

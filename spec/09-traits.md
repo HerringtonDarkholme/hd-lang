@@ -56,7 +56,9 @@ trait Formattable < Display:
     fn format(self) -> string
 ```
 
-An implementation of `Formattable` must also satisfy `Display`.
+An implementation of `Formattable` must also satisfy `Display`. An
+`impl Child for X` for which `X` has no implementation of a supertrait of
+`Child` is a `missing-supertrait-implementation` error.
 The supertrait graph must be acyclic; a direct or indirect cycle is a
 `supertrait-cycle` compile-time error. An indirect cycle is reported once, on
 the member of the cycle that appears first: first by module identity, then
@@ -320,8 +322,16 @@ fn audit[T < Display + Named](value: T) -> string:
     value.to_string() + " / " + value.name()
 ```
 
+A bound may list the same trait more than once, as in `T < Display + Display`.
+The repetition adds no requirement and is not diagnosed.
+
 `T < mut Trait` additionally requires `T` to be a mutable-root type. `T < mut Any`
 requires mutable-root access without a type-specific behavior requirement.
+
+A type argument, explicit or inferred, that does not implement a trait its
+parameter's bound requires is an `unsatisfied-trait-bound` error. This includes
+a non-reference type for `T < Reference`, and a readonly argument for
+`T < mut Trait`.
 
 The compiler may monomorphize static calls, share one body among
 instantiations, or use another representation, as long as the choice preserves

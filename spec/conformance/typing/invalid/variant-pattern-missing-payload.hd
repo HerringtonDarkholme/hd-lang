@@ -1,10 +1,10 @@
-# test: match checking rejects missing payload patterns
+# test: a variant pattern must list the variant's payload
 
 enum Flag:
     On(value: i32)
     Off
 
-fn main(flag: Flag) -> i32:
+fn choose(flag: Flag) -> i32:
     match flag:
         Flag.On => 1  # diagnostic: pattern-arity
         Flag.Off => 0

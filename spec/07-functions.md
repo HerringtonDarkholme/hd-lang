@@ -24,8 +24,10 @@ Named functions must declare every parameter type. A public function, a trait
 method, and a method of a trait implementation must also declare its result
 type; omitting it is a `missing-result-type` error. A non-public function,
 inherent method, or local `fn` declaration may omit `-> type`: its result type
-is then inferred from its body, as for a nonrecursive closure, and is `void`
-when the body produces no value. Such a function may also omit its
+is then inferred from its body, as for a nonrecursive closure: it is the
+[least common type](04-type-system.md#least-common-type) of the body's final
+value and every `return` operand, and is `void` when the body produces no
+value. Such a function may also omit its
 requirement clause; its row is then inferred as specified in
 [Requirements and Suspension](11-requirements-and-suspension.md). Suspension is
 never inferred: it is part of the function's name. A function whose result
@@ -98,8 +100,10 @@ resize(640, height=480)
 ```
 
 Named argument labels are parameter names and are part of the source-level
-calling interface. A positional argument must not follow a named argument. A
-parameter must receive one value, either explicitly or from its default.
+calling interface. A named argument that names no parameter is an
+`unknown-named-argument` error. A positional argument must not follow a named
+argument. A parameter must receive one value, either explicitly or from its
+default; supplying it more than once is a `duplicate-argument` error.
 
 ### Default Values
 
@@ -111,7 +115,8 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
 ```
 
 After the first parameter with a default, every following non-vararg parameter
-must also have a default. Calls may omit only parameters that have defaults.
+must also have a default; a later parameter without one is a `default-order`
+error. Calls may omit only parameters that have defaults.
 
 Defaults are evaluated for each call, in parameter declaration order, after
 all explicit argument expressions have been evaluated. A default may refer to
@@ -155,8 +160,9 @@ declaration or in a function type, is a `nonfinal-vararg` error. Passing it by
 name supplies a
 list without spread syntax. A vararg has no default expression. At a call site,
 one list spread may supply the remaining vararg elements and must be the final
-positional argument; it does not fill fixed parameters. Homogeneous varargs and
-heterogeneous type-pack expansion share the ellipsis token; name resolution
+positional argument; it does not fill fixed parameters. A spread passed to a
+callee without a vararg is a `positional-spread-needs-vararg` error.
+Homogeneous varargs and heterogeneous type-pack expansion share the ellipsis token; name resolution
 distinguishes them as specified in [Variadic Generics](12-variadic-generics.md).
 
 ## Function Types And Values
@@ -225,9 +231,12 @@ parameter and result annotations:
 lower := names.map(fn(name): name.lower())
 ```
 
-Without a sufficient expected type, parameters must be annotated. A
-nonrecursive closure may infer its result type from its body; an expected
-function type may instead supply the result type. A recursive local closure
+Without a sufficient expected type, parameters must be annotated; an
+unannotated parameter is then a `closure-parameter-needs-annotation` error. A
+nonrecursive closure may infer its result type from its body: the result is
+the [least common type](04-type-system.md#least-common-type) of the body's
+final value and every `return` operand. An expected function type may instead
+supply the result type. A recursive local closure
 must always write its result type explicitly, even if an expected function
 type could supply it.
 

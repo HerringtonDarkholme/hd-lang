@@ -16,9 +16,10 @@ removed from this folder. What remains:
 
 ## Specification Follow-Ups
 
-- 24 held-back fixtures in `test/fixtures` mark checker rejections that
-  have no code in `spec/README.md` (F-205).
-- No code covers `is` between incompatible composite types (L7).
+- F-205: every held-back fixture with a decided code is now in
+  `spec/conformance`. The prototype still emits its own code for 22
+  conformance cases (tagged F-205 in `test/portable/KNOWN_FAILURES.tsv`),
+  mostly parser codes and `generic-type-mismatch`.
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 
