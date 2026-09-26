@@ -1,5 +1,5 @@
 # fixture-package-role: root-application
-# test: when no visible field matches, the skipped private field is reported
+# test: when no visible field matches, the skipped private own field of the receiver's type is reported
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> i32:

@@ -358,3 +358,8 @@ existing source. Each entry names the decision that made the change.
   is visible wherever its outer type is. Embedding a module-private data type
   in a public data type is now `private-type-leak`. A promoted member no
   longer needs every embedded field on its path to be visible, only itself.
+- Private embedded members: a field or inherent method of an embedded type
+  that is not visible from the calling module is now ignored entirely. A use
+  that found only such a member, previously `private-member`, is now
+  `unknown-data-field` or `unknown-method`; `private-member` is reported
+  only for an invisible own member of the receiver's type.

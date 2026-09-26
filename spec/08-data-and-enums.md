@@ -280,7 +280,8 @@ Embedding promotes the embedded type's fields and inherent methods for
 convenient access. Which field `x.name` or method `x.name(args)` selects is
 defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
 the receiver's own members come first, members not visible from the calling
-module are skipped, embedded fields are searched breadth first with the
+module are skipped (an invisible member of an embedded type is never
+reported), embedded fields are searched breadth first with the
 shortest path winning, and an embedded type's trait methods are never
 promoted: a method name that an embedded type has only through a trait stops
 the search with `embedded-trait-method-not-promoted`, and the call is written

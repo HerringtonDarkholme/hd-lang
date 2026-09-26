@@ -4,6 +4,7 @@ pub trait Tagged:
 pub data Inner:
     pub note: string
     pub code: string
+    serial: i32
 
 impl Inner:
     pub fn tag(self) -> string:
@@ -27,9 +28,12 @@ impl Outer:
     fn secret(self) -> string:
         "outer secret"
 
+    fn stamp(self) -> string:
+        "outer stamp"
+
 impl Tagged for Outer:
     fn tag(self) -> string:
         "outer"
 
 pub fn make_outer() -> Outer:
-    Outer { Inner: ...Inner { note: "note", code: "inner field" }, code: "private", revision: 1 }
+    Outer { Inner: ...Inner { note: "note", code: "inner field", serial: 7 }, code: "private", revision: 1 }

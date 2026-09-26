@@ -289,7 +289,10 @@ read it, so prefer explicit, checkable rules and locality.
 - **No diamond check.** A type may be reachable through several embedding
   paths (each path holds its own copy); the language does not diagnose it.
 
-- **Private members of embedded types never participate, not yet applied.**
+- **Private members of embedded types never participate, applied** to 03
+  Member Resolution (field and method lookup step 3 and the skip rule), 08,
+  the tour, MEMBER_LOOKUP.md, the members package and its fixtures, and the
+  prototype (`member-lookup.ts`, which only reports an invisible own member).
   A field or inherent method of an embedded type that is not visible from
   the calling module is ignored entirely: it neither matches nor produces
   `private-member`. `private-member` is reported only for an invisible own

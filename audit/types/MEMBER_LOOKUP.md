@@ -49,7 +49,7 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5, M2, P2, and TQ-31 revised)
+### hd today (after E1 to E5, M2, P2, TQ-31 revised, and private embedded members)
 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
@@ -60,8 +60,10 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   inherent and trait methods (E1). A visible member, or any own trait
   method, stops the search whatever its signature (E2).
 - Members not visible from the calling module are skipped, at every depth,
-  as in Rust's privacy-aware lookup; `private-member` is reported only when
-  nothing visible matches. Inside the defining module the private member
+  as in Rust's privacy-aware lookup. An invisible member of an embedded type
+  is ignored entirely; `private-member` is reported only for an invisible
+  own member of the receiver's type, when nothing visible matches, and
+  otherwise the use is `unknown-data-field` or `unknown-method`. Inside the defining module the private member
   wins. An own trait method whose trait is not imported still stops the
   search with `trait-not-in-scope` (P2). Embedded fields are always public,
   so only a promoted member's own visibility matters, never its path.
@@ -150,7 +152,9 @@ For a receiver of nominal type `S`:
 Outcome: the owner adopted rules 1, 2, and 4 to 7 as M2. Rule 3 was not
 adopted for embedded depths: they offer inherent methods only, and E4 stays.
 P2 later revised rule 4: an invisible member is skipped rather than
-reported, and only an unavailable trait still stops the search.
+reported, and only an unavailable trait still stops the search. A later
+decision ignores an invisible member of an embedded type entirely: only an
+invisible own member of `S` is reported as `private-member`.
 
 Changes from the applied rules proposed at the time: M1 becomes two namespaces (a field and a
 method may share a name; `x.callback()` becomes `(x.callback)()`); E4 is

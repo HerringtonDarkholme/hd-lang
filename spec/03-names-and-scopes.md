@@ -379,10 +379,12 @@ to a promoted member never affects its visibility: only the member's own
 visibility matters.
 
 Lookup **skips** a field or inherent method that is not visible, as if it
-were absent, and keeps searching. It never stops at an invisible member, and
-it reports one only when nothing visible is found. Inside the defining module
-every member is visible, so a private own member hides a promoted one there;
-in another module, the same use reaches the visible promoted member. Adding a
+were absent, and keeps searching. It never stops at an invisible member. An
+invisible member of an embedded type is ignored entirely: it neither matches
+nor leads to an error. Only an invisible own member of `S` is ever reported,
+and only when nothing visible is found. Inside the defining module every
+member is visible, so a private own member hides a promoted one there; in
+another module, the same use reaches the visible promoted member. Adding a
 private member therefore never changes or breaks a use in another module.
 This is privacy-aware lookup as in Rust, and matches Go, where another
 package's unexported names never match.
@@ -400,8 +402,9 @@ package's unexported names never match.
    reached through two different paths, are an `ambiguous-promoted-member`
    error.
 3. **No visible field.** If neither step selects a field, the use is a
-   `private-member` error when lookup skipped a field named `name`, and an
-   `unknown-data-field` error otherwise.
+   `private-member` error when `S` itself declares a field named `name` that
+   is not visible, and an `unknown-data-field` error otherwise. An invisible
+   field of an embedded type never leads to `private-member`.
 
 **Method lookup** proceeds as follows:
 
@@ -442,9 +445,11 @@ package's unexported names never match.
      starts at the embedded type and finds the trait method as an own
      method.
 3. **No visible method.** If neither step selects a method, the use is a
-   `private-member` error when lookup skipped an inherent method named
-   `name`, and an `unknown-method` error otherwise. When the receiver has a
-   field named `name`, the message should suggest `(x.name)(args)`.
+   `private-member` error when `S` itself has an inherent method named `name`
+   that is not visible, and an `unknown-method` error otherwise. An invisible
+   inherent method of an embedded type never leads to `private-member`. When
+   the receiver has a field named `name`, the message should suggest
+   `(x.name)(args)`.
 
 For example, if `Page` embeds `Label`, `Label` implements `Display` and
 embeds `Base`, and `Base` has an inherent `to_string`, then

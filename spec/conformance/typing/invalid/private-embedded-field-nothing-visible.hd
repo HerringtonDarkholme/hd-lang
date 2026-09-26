@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: a private field of an embedded type is ignored entirely, so a read that finds only it is an unknown field
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> i32:
+    outer.serial  # diagnostic: unknown-data-field

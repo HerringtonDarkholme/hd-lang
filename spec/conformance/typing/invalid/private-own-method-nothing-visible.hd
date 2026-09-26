@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: when no visible method matches, the skipped private own method of the receiver's type is reported
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> string:
+    outer.stamp()  # diagnostic: private-member

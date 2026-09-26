@@ -303,10 +303,10 @@ of a package in the named role. That package depends on every package under
 - [`dep.members`](packages/members/mod.hd) declares the public trait
   `Tagged`, the public data types `Inner` and `Outer`, and the public function
   `make_outer`. `Outer` embeds `Inner` (embedded fields are always public), has
-  private fields `code` and `revision` and a private inherent method
-  `secret`, and implements `Tagged`. `Inner` has public fields `note` and
-  `code`, public inherent methods `tag`, `code`, and `secret`, and a private
-  inherent method `audit`.
+  private fields `code` and `revision` and private inherent methods `secret`
+  and `stamp`, and implements `Tagged`. `Inner` has public fields `note` and
+  `code`, a private field `serial`, public inherent methods `tag`, `code`,
+  and `secret`, and a private inherent method `audit`.
 - Neither package annotates `User`, so no library in the graph owns the pair
   `(Validation, User)`.
 

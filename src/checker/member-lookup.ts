@@ -129,8 +129,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * first. Embedded types offer fields to field lookup and inherent methods
    * to method lookup. Their trait methods are never selected, but an embedded
    * type that has `name` only through a trait blocks the search at its depth
-   * (TQ-31 revised). Members that are not visible are skipped (P2) and
-   * reported only when nothing visible matches.
+   * (TQ-31 revised). Members that are not visible are skipped (P2). An
+   * invisible member of an embedded type is ignored entirely; only an
+   * invisible own member of the receiver's type is reported, and only when
+   * nothing visible matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -152,7 +154,8 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     const substitutions = declaration
       ? this.dataSubstitutions(declaration, type)
       : new Map<string, ValueType>();
-    let skipped = false;
+    // An own member of `S` that is not visible; the only source of private-member.
+    let ownInvisible = false;
     if (method) {
       const inherent = this.findInherentMethod(type, name);
       const trait = this.traitMemberPresent(type, name);
@@ -160,12 +163,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (inherent && this.memberVisible(inherent))
         return { kind: "inherent", steps: [], method: inherent };
       if (trait) return { kind: "trait" };
-      if (inherent) skipped = true;
+      if (inherent) ownInvisible = true;
     } else {
       const field = declaration?.fields.find((candidate) => candidate.name === name);
       if (declaration && field && this.memberVisible(field))
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
-      if (field) skipped = true;
+      if (field) ownInvisible = true;
     }
     if (!declaration) return { kind: "none" };
     let frontier: {
@@ -194,10 +197,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
           const embeddedSubstitutions = this.dataSubstitutions(embeddedDeclaration, embeddedType);
           if (method) {
             const promotedMethod = this.findInherentMethod(embeddedType, name);
+            // An invisible inherent method of an embedded type is ignored entirely.
             if (promotedMethod && this.memberVisible(promotedMethod))
               matches.push({ kind: "inherent", steps, method: promotedMethod });
             else {
-              if (promotedMethod) skipped = true;
               const trait = this.traitWithMember(embeddedType, name);
               if (trait) blockers.push({ steps, trait });
             }
@@ -205,6 +208,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             const promotedField = embeddedDeclaration.fields.find(
               (candidate) => candidate.name === name,
             );
+            // An invisible field of an embedded type is ignored entirely.
             if (promotedField && this.memberVisible(promotedField))
               matches.push({
                 kind: "field",
@@ -215,7 +219,6 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
                   substitutions: embeddedSubstitutions,
                 },
               });
-            else if (promotedField) skipped = true;
           }
           next.push({
             declaration: embeddedDeclaration,
@@ -248,7 +251,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       }
       frontier = next;
     }
-    if (skipped)
+    if (ownInvisible)
       this.fail(
         "private-member",
         `${method ? "method" : "field"} '${name}' is not visible from this module`,

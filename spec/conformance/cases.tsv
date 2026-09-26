@@ -956,7 +956,9 @@ typing/invalid/generic-trait-literal-without-default.hd	type	reject:ambiguous-me
 typing/invalid/trait-value-impl-target.hd	type	reject:trait-value-impl-target	09-traits.md#implementation-targets
 typing/valid/trait-value-as-target-argument.hd	type	accept	09-traits.md#implementation-targets
 typing/invalid/private-field-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
-typing/invalid/private-promoted-method-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
+typing/invalid/private-promoted-method-nothing-visible.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
+typing/invalid/private-own-method-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
+typing/invalid/private-embedded-field-nothing-visible.hd	type	reject:unknown-data-field	03-names-and-scopes.md#member-resolution
 runtime/valid/private-own-member-wins-in-module.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/embedded-part-follows-container.hd	runtime	accept	08-data-and-enums.md#data-embedding
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type	reject:mutable-receiver-required	08-data-and-enums.md#data-embedding
