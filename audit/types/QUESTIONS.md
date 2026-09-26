@@ -31,6 +31,21 @@ of this file.
 Each question stands alone. Guiding preference: agents write the code and humans
 read it, so prefer explicit, checkable rules and locality.
 
+- **Embedding (E1 to E5), not yet applied.** For `x.name` on nominal type
+  `S`: (E1) resolve against `S`'s own members first (fields, inherent
+  methods, trait methods of `S`); look into embedded fields only when `S`
+  has no member with that name. (E2) Only "no member named `name`"
+  triggers the fallback; presence is by name regardless of kind, arity,
+  argument types, or visibility. A name present only through a trait that
+  is not imported in the calling module is an error ("import or qualify"),
+  not a fallthrough. (E3) The fallback searches embedded fields at any
+  depth, shortest path wins, and two matches at the same depth are an
+  ambiguity error at the use. (E4) The fallback finds fields and inherent
+  methods only; an embedded type's trait methods never promote. (E5) A
+  promoted method never fills a required trait method; the impl writes the
+  body. Replaces TQ-7 and TQ-8. Open: whether fields and methods share one
+  member namespace (see the member-namespace questions).
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
