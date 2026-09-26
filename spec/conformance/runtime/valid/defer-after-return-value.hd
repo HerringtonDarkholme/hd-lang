@@ -1,0 +1,12 @@
+# test: defer runs after a return value is evaluated
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let value: i32 = 1
+    defer:
+        value = value + 10
+    return value
+
+test "main returns 1":
+    assert_equal(main(), 1, reason="defer runs after a return value is evaluated")

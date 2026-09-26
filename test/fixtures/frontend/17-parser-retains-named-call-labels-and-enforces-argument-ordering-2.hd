@@ -1,3 +1,0 @@
-# test: parser retains named call labels and enforces argument ordering
-
-value := resize(width=640, 480)  # diagnostic: argument-order

@@ -1,4 +1,0 @@
-# test: parser retains explicit generic data arguments
-# expect: parse
-
-value := Box[i32] { value: 1 }

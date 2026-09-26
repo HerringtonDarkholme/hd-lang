@@ -1,8 +1,0 @@
-# test: requirements / provider scopes
-# expect-result: main = 42
-
-fn main() -> i32 $ Clock + Backup:
-    _ := $.use(Clock)
-    $.with(Clock=$.use(Backup)):
-        _ := $.use(Clock)
-        42

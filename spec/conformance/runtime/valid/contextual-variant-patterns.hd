@@ -1,0 +1,17 @@
+# test: contextual variant patterns
+
+use std.testing.assert_equal
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn read(flag: Flag) -> i32:
+    match flag:
+        .On(value) => value
+        .Off => 0
+
+fn main() -> i32: read(Flag.On(42))
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="contextual variant patterns")

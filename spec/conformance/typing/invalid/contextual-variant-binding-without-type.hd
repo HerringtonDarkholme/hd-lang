@@ -1,0 +1,6 @@
+# test: contextual variant binding without type
+
+enum Status:
+    Queued
+fn main() -> void:
+    status := .Queued  # diagnostic: missing-contextual-enum-type

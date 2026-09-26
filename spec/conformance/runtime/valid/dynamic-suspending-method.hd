@@ -1,0 +1,21 @@
+# test: dynamic suspending method
+
+use std.testing.assert_equal
+
+trait Reader:
+    fn read!(self, value: i32) -> i32
+
+data FixedReader:
+    offset: i32
+
+impl Reader for FixedReader:
+    fn read!(self, value: i32) -> i32: self.offset + value
+
+fn combine!(reader: Reader) -> i32:
+    reader.read!(20) + reader.read!(22)
+
+fn main!() -> i32:
+    combine!(FixedReader { offset: 0 })
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="dynamic suspending method")

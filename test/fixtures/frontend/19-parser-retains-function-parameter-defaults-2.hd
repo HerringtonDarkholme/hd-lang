@@ -1,3 +1,0 @@
-# test: parser retains function parameter defaults
-
-fn bad(values: i32... = [1]) -> i32: 0  # diagnostic: vararg-default

@@ -1,0 +1,3 @@
+# test: positional after spread
+
+result := sum(values..., 3)  # diagnostic: nonfinal-positional-spread

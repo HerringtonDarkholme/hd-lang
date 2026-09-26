@@ -1,0 +1,4 @@
+# test: bang call in plain function
+
+fn work!() -> i32: 42
+fn main() -> i32: work!()  # diagnostic: bang-call-outside-suspension

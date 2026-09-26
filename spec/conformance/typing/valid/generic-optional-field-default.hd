@@ -1,0 +1,5 @@
+# test: generic optional field default
+
+data Box[T]:
+    value: T? = nil
+fn make() -> Box[i32]: Box {}

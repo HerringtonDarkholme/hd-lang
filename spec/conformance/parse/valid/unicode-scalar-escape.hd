@@ -1,0 +1,3 @@
+# test: unicode scalar escape
+
+value := "\u{1F600}"

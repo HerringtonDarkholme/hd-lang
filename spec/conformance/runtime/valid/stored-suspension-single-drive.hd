@@ -1,0 +1,11 @@
+# test: stored suspension single drive
+
+use std.testing.assert_equal
+
+fn ready!() -> i32: 42
+fn main!() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    pending!()
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="stored suspension single drive")

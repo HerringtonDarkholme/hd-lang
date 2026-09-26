@@ -1,3 +1,0 @@
-# test: requirements / context errors / wrong context type
-
-fn main() -> $.Context[Clock] $ Clock + Backup: $.context(Backup=$.use(Backup))  # diagnostic: type-mismatch

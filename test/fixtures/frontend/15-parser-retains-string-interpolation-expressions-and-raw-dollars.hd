@@ -1,4 +1,0 @@
-# test: parser retains string interpolation expressions and raw dollars
-# expect: parse
-
-fn label(name: string, count: i32) -> string: "Hi $name: ${count + 1}"

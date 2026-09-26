@@ -1,0 +1,26 @@
+# test: blanket impl for list
+
+use std.testing.assert_equal
+
+trait Score:
+    fn score(self) -> i32
+
+data Point:
+    value: i32
+
+impl Score for Point:
+    fn score(self) -> i32:
+        self.value
+
+impl[Item: Score] Score for list[Item]:
+    fn score(self) -> i32:
+        let total: i32 = 0
+        for item in self:
+            total = total + item.score()
+        total
+
+fn total_score() -> i32:
+    [Point { value: 20 }, Point { value: 22 }].score()
+
+test "total_score returns 42":
+    assert_equal(total_score(), 42, reason="blanket impl for list")

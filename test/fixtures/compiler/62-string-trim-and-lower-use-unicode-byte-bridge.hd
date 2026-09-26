@@ -1,9 +1,0 @@
-# test: string trim and lower use the Unicode byte bridge
-# expect-result: main = 42
-
-fn main() -> i32:
-    value := " \tÄBC Σİ ".trim().lower()
-    if value == "äbc σi̇":
-        42
-    else:
-        0

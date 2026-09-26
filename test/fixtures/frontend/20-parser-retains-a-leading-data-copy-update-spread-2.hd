@@ -1,3 +1,0 @@
-# test: parser retains a leading data copy-update spread
-
-copy := User { name: "Ada", ...source }  # diagnostic: data-spread-position

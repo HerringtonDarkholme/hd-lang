@@ -1,0 +1,52 @@
+# test: generic trait-qualified calls select one instantiated implementation
+
+use std.testing.assert_equal
+
+trait Add[T]:
+    fn add(self, other: T) -> T
+
+data Number:
+    value: i32
+
+impl Add[Number] for Number:
+    fn add(self, other: Number) -> Number:
+        Number { value: self.value + other.value }
+
+fn add_qualified() -> i32:
+    left := Number { value: 20 }
+    right := Number { value: 22 }
+    Add[Number]::add(left, right).value
+
+fn apply_add(value: Add[Number], other: Number) -> Number:
+    value.add(other)
+
+fn add_dynamic() -> i32:
+    let left: Add[Number] = Number { value: 20 }
+    apply_add(left, Number { value: 22 }).value
+
+fn bounded_add[T: Add[Number]](value: T, other: Number) -> Number:
+    value.add(other)
+
+fn add_bounded() -> i32:
+    bounded_add(Number { value: 20 }, Number { value: 22 }).value
+
+data Keep[T]:
+    value: T
+
+impl[T] Add[T] for Keep[T]:
+    fn add(self, other: T) -> T: other
+
+fn add_blanket() -> i32:
+    20 + Add[i32]::add(Keep[i32] { value: 0 }, 22)
+
+test "add_qualified returns 42":
+    assert_equal(add_qualified(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+
+test "add_dynamic returns 42":
+    assert_equal(add_dynamic(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+
+test "add_bounded returns 42":
+    assert_equal(add_bounded(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+
+test "add_blanket returns 42":
+    assert_equal(add_blanket(), 42, reason="generic trait-qualified calls select one instantiated implementation")

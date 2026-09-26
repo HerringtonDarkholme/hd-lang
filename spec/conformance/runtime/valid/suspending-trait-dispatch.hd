@@ -1,0 +1,28 @@
+# test: traits / suspending dispatch
+
+use std.testing.assert_equal
+
+trait Read:
+    fn read!(self, delta: i32) -> i32
+
+data Counter:
+    value: i32
+
+impl Read for Counter:
+    fn read!(self, delta: i32) -> i32: self.value + delta
+
+fn bounded![T: Read](value: T) -> i32:
+    value.read!(1)
+
+fn main!() -> i32:
+    value := Counter { value: 10 }
+    static := value.read!(0)
+    let dynamic: Read = value
+    let pending: mut Suspend[i32] = dynamic.read(1)
+    stored := pending!()
+    direct := dynamic.read!(0)
+    generic := bounded!(value)
+    static + stored + direct + generic
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="traits / suspending dispatch")

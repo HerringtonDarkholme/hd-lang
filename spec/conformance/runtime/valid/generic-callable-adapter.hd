@@ -1,0 +1,14 @@
+# test: generics / callable adapter
+
+use std.testing.assert_equal
+
+fn apply[T](value: T, transform: fn(T) -> T) -> T:
+    transform(value)
+
+fn increment(value: i32) -> i32: value + 1
+
+fn main() -> i32:
+    apply(40, increment) + apply(0, fn(value): value + 1)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="generics / callable adapter")

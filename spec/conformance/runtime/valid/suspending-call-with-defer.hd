@@ -1,0 +1,13 @@
+# test: suspending call with defer
+
+use std.testing.assert_equal
+
+fn child!() -> i32: 2
+fn main!() -> i32:
+    defer:
+        pass
+    value := child!()
+    value
+
+test "main returns 2":
+    assert_equal(main!(), 2, reason="suspending call with defer")

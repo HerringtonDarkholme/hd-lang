@@ -1,4 +1,0 @@
-# test: parser retains vararg and positional spread markers
-# expect: parse
-
-result := tagged(values..., tag="score")

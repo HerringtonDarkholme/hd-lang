@@ -1,0 +1,7 @@
+# test: data / generic / mismatched field type
+
+data Box[T]:
+    value: T
+
+fn main() -> void:
+    let box: Box[i32] = Box { value: true }  # diagnostic: type-mismatch

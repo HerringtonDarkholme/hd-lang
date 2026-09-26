@@ -1,0 +1,5 @@
+# test: vararg and spread
+
+fn apply(callback: fn(i32...) -> i32) -> i32: callback()
+fn sum(values: i32...) -> i32: 0
+result := sum(values...)

@@ -1,0 +1,18 @@
+# test: requirements / row union
+
+use std.testing.assert_equal
+
+fn invoke[r](callback: fn() -> i32 $ r + Logger) -> i32 $ r + Logger:
+    callback()
+fn logged() -> i32 $ Logger: 42
+fn run() -> i32 $ Logger: invoke(logged)
+
+test "run returns 42 with its providers":
+    $.with(Logger=FixedLogger {}):
+        assert_equal(run(), 42, reason="requirements / row union")
+
+trait Logger
+
+data FixedLogger: pass
+
+impl Logger for FixedLogger

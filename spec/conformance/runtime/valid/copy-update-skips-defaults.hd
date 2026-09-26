@@ -1,0 +1,14 @@
+# test: copy update skips defaults
+
+use std.testing.assert_equal
+
+data Counter:
+    value: i32 = panic("copy-update evaluated a default")
+
+fn main() -> i32:
+    original := Counter { value: 42 }
+    copied := Counter { ...original }
+    copied.value
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="copy update skips defaults")

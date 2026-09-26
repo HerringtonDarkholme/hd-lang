@@ -1,0 +1,12 @@
+# test: suspending call preserves locals
+
+use std.testing.assert_equal
+
+fn child!() -> i32: 2
+fn main!() -> i32:
+    base := 40
+    value := child!()
+    base + value
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="suspending call preserves locals")

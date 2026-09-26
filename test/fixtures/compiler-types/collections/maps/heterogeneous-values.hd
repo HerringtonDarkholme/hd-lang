@@ -1,4 +1,0 @@
-# test: collections / maps / heterogeneous values
-
-fn main() -> void:
-    values := {1: 1, 2: true}  # diagnostic: type-mismatch

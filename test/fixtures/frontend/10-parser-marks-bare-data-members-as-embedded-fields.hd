@@ -1,8 +1,0 @@
-# test: parser marks bare data members as embedded fields
-# expect: parse
-
-data Box[T]:
-    value: T
-data Pair:
-    Box[i32]
-    name: string

@@ -1,0 +1,5 @@
+# test: requirements / context errors / non context spread
+
+fn main() -> void:
+    $.with(...1):  # diagnostic: type-mismatch
+        pass

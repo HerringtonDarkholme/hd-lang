@@ -1,0 +1,14 @@
+# test: nonrecursive closures infer result types from fallthrough and returns
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    identity := fn(value: i32): value
+    choose := fn(value: i32):
+        if value > 0:
+            return value
+        0
+    identity(40) + choose(2)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="nonrecursive closures infer result types from fallthrough and returns")

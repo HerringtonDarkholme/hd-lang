@@ -1,0 +1,10 @@
+# test: second drive of completed suspension
+
+fn ready!() -> i32: 42
+fn main!() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    _ := pending!()
+    pending!()  # panic: suspension-invalid-state
+
+test "a completed suspension cannot be driven again":
+    _ := main!()

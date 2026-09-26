@@ -4,17 +4,17 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { fixture } from "./fixture.ts";
+import { conformance, fixture } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
-  const source = fixture("compiler-types/callbacks/function-values");
+  const source = conformance("runtime/valid/function-value-argument");
   const compilation = compile(source);
   assert.match(compilation.wat, /func \$fv0 \(type \$sig/);
   assert.match(compilation.wat, /ref\.func \$fv0/);
 });
 
 test("erased generic functions box primitive values", () => {
-  const source = fixture("compiler-types/generics/functions/inference-and-boxing");
+  const source = conformance("runtime/valid/generic-inference-scalars-and-data");
   const compilation = compile(source);
   assert.match(compilation.wat, /param \$l0 anyref/);
   assert.match(compilation.wat, /struct\.new \$hd\.box-i32/);
@@ -22,14 +22,14 @@ test("erased generic functions box primitive values", () => {
 });
 
 test("higher-order erased generics adapt concrete callable ABIs", () => {
-  const source = fixture("compiler-types/generics/callable-adapter");
+  const source = conformance("runtime/valid/generic-callable-adapter");
   const compilation = compile(source);
   assert.match(compilation.wat, /func \$adapt0/);
   assert.match(compilation.wat, /ref\.cast \(ref \$closure/);
 });
 
 test("generic requirement rows pack callback providers for Wasm GC", () => {
-  const source = fixture("compiler-types/requirements/row-pack");
+  const source = conformance("runtime/valid/row-variable-binds-union");
   const compilation = compile(source);
   assert.deepEqual(compilation.hir.functions[0]?.rowParameters, ["r"]);
   assert.equal(compilation.hir.functions[0]?.parameters[0]?.type, "fn()->i32$row:r");
@@ -39,20 +39,20 @@ test("generic requirement rows pack callback providers for Wasm GC", () => {
 });
 
 test("empty generic requirement rows lower to null provider packs", () => {
-  const empty = fixture("compiler-types/requirements/row-inference/inferred-empty-row");
+  const empty = conformance("runtime/valid/row-inference-empty-row");
   const compilation = compile(empty);
   assert.match(compilation.wat, /ref\.null \$hd\.providers/);
 });
 
 test("generic row subtraction lowers a locally supplied provider", () => {
-  const source = fixture("compiler-types/requirements/row-subtraction/provider-restoration");
+  const source = conformance("runtime/valid/row-subtraction-provider-restoration");
   const compilation = compile(source);
   assert.deepEqual(compilation.hir.functions[0]?.requirements, ["Backup", "row:r\\Logger"]);
   assert.match(compilation.wat, /struct\.new \$hd\.providers/);
 });
 
 test("generic row forwarding composes symbolic and concrete provider packs", () => {
-  const source = fixture("compiler-types/requirements/row-forwarding");
+  const source = conformance("runtime/valid/row-polymorphic-forwarding");
   const compilation = compile(source);
   const forwarded = compilation.hir.functions[1]?.body[0];
   assert.equal(forwarded?.kind, "expression");
@@ -68,19 +68,19 @@ test("generic row forwarding composes symbolic and concrete provider packs", () 
 });
 
 test("generic row forwarding unions multiple symbolic provider packs", () => {
-  const source = fixture("compiler-types/requirements/row-multi-forwarding");
+  const source = conformance("runtime/valid/row-polymorphic-union-forwarding");
   const compilation = compile(source);
   assert.match(compilation.wat, /func \$hd\.provider_concat/);
 });
 
 test("distinct generic provider keys emit valid Wasm", () => {
-  const distinct = fixture("compiler-types/requirements/generic-provider-keys/distinct");
+  const distinct = conformance("typing/valid/generic-provider-keys-distinct");
   const compilation = compile(distinct);
   assert.ok(WebAssembly.validate(compilation.bytes));
 });
 
 test("trait implementations lower static and Wasm GC dynamic dispatch", () => {
-  const source = fixture("compiler-types/traits/dispatch");
+  const source = conformance("runtime/valid/static-and-dynamic-trait-dispatch");
   const compilation = compile(source);
   assert.match(compilation.wat, /type \$trait0 \(struct/);
   assert.match(compilation.wat, /func \$tadapt0_0/);
@@ -88,27 +88,27 @@ test("trait implementations lower static and Wasm GC dynamic dispatch", () => {
 });
 
 test("mutable trait receivers retain permission in HIR", () => {
-  const source = fixture("compiler-types/traits/mutable-receivers");
+  const source = conformance("runtime/valid/mutable-receivers");
   const compilation = compile(source);
   assert.equal(compilation.hir.traits[0]?.methods[0]?.receiverMutable, true);
   assert.equal(compilation.hir.traits[0]?.methods[1]?.receiverMutable, true);
 });
 
 test("inherent methods lower as direct functions", () => {
-  const source = fixture("compiler-types/traits/inherent-methods");
+  const source = conformance("runtime/valid/inherent-methods");
   const compilation = compile(source);
   assert.match(compilation.wat, /func \$f\d+/);
 });
 
 test("default trait methods lower into static and dynamic dispatch", () => {
-  const source = fixture("compiler-types/traits/defaults/inherited-method");
+  const source = conformance("runtime/valid/trait-default-method-inherited");
   const compilation = compile(source);
   assert.equal(compilation.hir.implementations[0]?.methodFunctions.length, 2);
   assert.match(compilation.wat, /func \$tadapt0_1/);
 });
 
 test("suspending trait methods use concrete and dynamic Wasm GC frames", () => {
-  const source = fixture("compiler-types/traits/suspending-dispatch");
+  const source = conformance("runtime/valid/suspending-trait-dispatch");
   const compilation = compile(source);
   assert.match(compilation.wat, /type \$ts0_0 \(struct/);
   assert.match(compilation.wat, /ref\.func \$tspolladapt0_0/);
@@ -116,7 +116,24 @@ test("suspending trait methods use concrete and dynamic Wasm GC frames", () => {
 });
 
 test("cancelling a dynamic suspending trait method reaches child cleanup", async () => {
-  const source = fixture("compiler-types/traits/suspending-cancel");
+  const source = `trait Job:
+    fn run!(self) -> void
+
+data Worker:
+    value: i32
+
+fn wait!() -> void: pass
+
+impl Job for Worker:
+    fn run!(self) -> void:
+        defer:
+            _ := self.value
+        wait!()
+
+fn main!() -> void:
+    let job: Job = Worker { value: 42 }
+    job.run!()
+`;
   const events: Array<[number, number]> = [];
   const { instance } = await instantiate(source, {
     trace: (functionIndex, event) => events.push([functionIndex, event]),
@@ -129,21 +146,21 @@ test("cancelling a dynamic suspending trait method reaches child cleanup", async
 });
 
 test("default suspending trait methods lower for each implementation", () => {
-  const source = fixture("compiler-types/traits/suspending-defaults");
+  const source = conformance("runtime/valid/suspending-trait-default-method");
   const compilation = compile(source);
   assert.equal(compilation.hir.implementations[0]?.methodFunctions.length, 2);
   assert.match(compilation.wat, /func \$tadapt0_1/);
 });
 
 test("trait providers lower through generic row subtraction", () => {
-  const source = fixture("compiler-types/traits/providers");
+  const source = conformance("runtime/valid/trait-value-as-provider");
   const compilation = compile(source);
   assert.match(compilation.wat, /field \$hd\.provider-value anyref/);
   assert.match(compilation.wat, /ref\.cast \(ref null \$trait0\)/);
 });
 
 test("erased generic trait bounds lower dictionary dispatch", () => {
-  const source = fixture("compiler-types/traits/generic-bounds/dictionary-dispatch");
+  const source = conformance("runtime/valid/generic-bound-dispatch");
   const compilation = compile(source);
   assert.match(compilation.wat, /param \$bound0 \(ref null \$trait0\)/);
   assert.match(compilation.wat, /struct\.new \$trait0 \(ref\.null any\)/);
@@ -151,7 +168,7 @@ test("erased generic trait bounds lower dictionary dispatch", () => {
 });
 
 test("multiple trait bounds lower independent dictionaries", () => {
-  const source = fixture("compiler-types/traits/multiple-bounds/dictionary-forwarding");
+  const source = conformance("runtime/valid/multiple-bounds-dispatch");
   const compilation = compile(source);
   assert.match(
     compilation.wat,
@@ -162,9 +179,12 @@ test("multiple trait bounds lower independent dictionaries", () => {
 });
 
 test("generic data uses one erased GC layout with precise instantiated member types", () => {
-  const source = fixture("compiler-types/data/generic/erased-layout");
+  const source = conformance("runtime/valid/generic-data-fields");
   const compilation = compile(source);
-  assert.equal(compilation.hir.functions.at(-1)?.locals[0]?.type, "Box[i32]");
+  assert.equal(
+    compilation.hir.functions.find(({ name }) => name === "main")?.locals[0]?.type,
+    "Box[i32]",
+  );
   assert.match(compilation.wat, /field \$d0f0 \(mut anyref\)/);
   assert.match(compilation.wat, /struct\.new \$hd\.box-i32/);
   assert.match(compilation.wat, /ref\.cast \(ref null \$d0\)/);
@@ -180,16 +200,19 @@ test("explicit generic data construction records its instantiated HIR type", () 
 });
 
 test("generic enums erase payloads and recover instantiated match bindings", () => {
-  const source = fixture("compiler-types/enums/generic/erased-payloads");
+  const source = conformance("runtime/valid/generic-enum-payloads");
   const compilation = compile(source);
-  assert.equal(compilation.hir.functions.at(-1)?.locals[0]?.type, "Maybe[i32]");
+  assert.equal(
+    compilation.hir.functions.find(({ name }) => name === "main")?.locals[0]?.type,
+    "Maybe[i32]",
+  );
   assert.match(compilation.wat, /field \$e0f0 \(mut anyref\)/);
   assert.match(compilation.wat, /struct\.new \$hd\.box-i32/);
   assert.match(compilation.wat, /ref\.cast \(ref \$hd\.box-i32\)/);
 });
 
 test("generic lists lower to growable GC vectors with erased element storage", () => {
-  const source = fixture("compiler-types/collections/lists/erased-storage");
+  const source = conformance("runtime/valid/generic-list-element");
   const compilation = compile(source);
   assert.match(compilation.wat, /type \$hd\.vector \(struct/);
   assert.match(compilation.wat, /type \$hd\.list \(array \(mut anyref\)\)/);
@@ -198,7 +221,7 @@ test("generic lists lower to growable GC vectors with erased element storage", (
 });
 
 test("generic maps lower to GC storage with lookup and replacement", () => {
-  const source = fixture("compiler-types/collections/maps/lookup-replacement");
+  const source = conformance("runtime/valid/map-lookup-and-duplicate-keys");
   const compilation = compile(source);
   assert.match(compilation.wat, /type \$hd\.map \(struct/);
   assert.match(compilation.wat, /call \$hd\.map_insert/);
@@ -206,14 +229,14 @@ test("generic maps lower to GC storage with lookup and replacement", () => {
 });
 
 test("capturing closures store outer locals in GC environments", () => {
-  const source = fixture("compiler-types/closures/captures");
+  const source = conformance("runtime/valid/closure-captures-local");
   const compilation = compile(source);
   assert.match(compilation.wat, /\(type \$env0 \(struct/);
   assert.match(compilation.wat, /struct\.new \$closure0/);
 });
 
 test("reference identity lowers to Wasm GC identity", () => {
-  const source = fixture("compiler-types/identity/references/gc-identity");
+  const source = conformance("runtime/valid/reference-identity");
   const compilation = compile(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.match(compilation.wat, /ref\.eq/);
@@ -221,14 +244,14 @@ test("reference identity lowers to Wasm GC identity", () => {
 });
 
 test("heterogeneous tuples lower to Wasm GC storage", () => {
-  const source = fixture("compiler-types/tuples/heterogeneous/gc-storage");
+  const source = conformance("runtime/valid/heterogeneous-tuples");
   const compilation = compile(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.match(compilation.wat, /array\.new_fixed \$hd\.list/);
 });
 
 test("nested closures propagate grandparent captures through GC environments", () => {
-  const source = fixture("compiler-types/closures/nested-captures");
+  const source = conformance("runtime/valid/nested-closure-captures");
   const compilation = compile(source);
   assert.match(compilation.wat, /\(type \$env0 \(struct/);
   assert.match(compilation.wat, /\(type \$env1 \(struct/);
@@ -236,50 +259,83 @@ test("nested closures propagate grandparent captures through GC environments", (
 });
 
 test("closures store escaped lexical provider overrides in GC environments", () => {
-  const source = fixture("compiler-types/closures/provider-captures");
+  const source = `fn make_reader() -> (fn() -> i32) $ Backup:
+    $.with(Clock=$.use(Backup)):
+        fn() -> i32:
+            _ := $.use(Clock)
+            42
+
+fn main() -> i32 $ Backup:
+    reader := make_reader()
+    reader()
+`;
   const compilation = compile(source);
   assert.match(compilation.wat, /\(type \$env0 \(struct\n\s*\(field \$env0f0 externref\)/);
 });
 
 test("requirement-bearing closures lower provider parameters", () => {
-  const source = fixture("compiler-types/closures/requirements");
+  const source = `fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
+    callback()
+
+fn main() -> i32 $ Clock:
+    reader := fn() -> i32 $ Clock:
+        _ := $.use(Clock)
+        42
+    invoke(reader)
+`;
   const compilation = compile(source);
   assert.match(compilation.wat, /type \$sig0 \(func \(param anyref\) \(param externref\)/);
   assert.match(compilation.wat, /call_ref \$sig0/);
 });
 
 test("requirement-bearing function values lower provider parameters", () => {
-  const source = fixture("compiler-types/callbacks/requirement-function-values");
+  const source = `fn read() -> i32 $ Clock:
+    _ := $.use(Clock)
+    42
+
+fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
+    callback()
+
+fn main() -> i32 $ Clock: invoke(read)
+`;
   const compilation = compile(source);
   assert.match(compilation.wat, /func \$fv0[^]*param \$provider0 externref/);
 });
 
 test("closure HIR records inferred unsatisfied requirements", () => {
-  const source = fixture("compiler-types/closures/requirement-inference/inferred-row");
+  const source = conformance("runtime/valid/closure-inferred-requirement-row");
   const analysis = analyze(source);
   assert.deepEqual(analysis.diagnostics, []);
   assert.equal(analysis.hir?.functions[0]?.locals[0]?.type, "fn()->i32$Clock");
 });
 
 test("concrete requirement rows lower hidden externref providers", () => {
-  const source = fixture("compiler-types/requirements/abi");
+  const source = `fn read() -> i32 $ Clock: 40
+fn middle() -> i32 $ Clock: read() + 1
+fn main() -> i32 $ Clock: middle() + 1
+`;
   const compilation = compile(source);
   assert.match(compilation.wat, /param \$provider0 externref/);
   assert.match(compilation.wat, /call \$f0 \(local\.get \$provider0\)/);
 });
 
 test("provider scopes lower hidden provider locals", () => {
-  const source = fixture("compiler-types/requirements/provider-scopes");
+  const source = `fn main() -> i32 $ Clock + Backup:
+    _ := $.use(Clock)
+    $.with(Clock=$.use(Backup)):
+        _ := $.use(Clock)
+        42
+`;
   const compilation = compile(source);
   assert.match(compilation.wat, /local\.set \$l0 \(local\.get \$provider0\)/);
 });
 
 test("concrete requirement rows normalize union and subtraction as sets", () => {
-  const result = analyze(fixture("compiler-types/requirements/normalization/ungrouped"));
+  const result = analyze(conformance("typing/valid/requirement-row-ungrouped-subtraction"));
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(result.hir?.functions[0]?.requirements, ["Clock"]);
 
-  const grouped = analyze(fixture("compiler-types/requirements/normalization/grouped"));
+  const grouped = analyze(conformance("typing/valid/requirement-row-grouped-subtraction"));
   assert.deepEqual(grouped.diagnostics, []);
   assert.deepEqual(grouped.hir?.functions[0]?.requirements, ["Clock"]);
 
@@ -288,7 +344,7 @@ test("concrete requirement rows normalize union and subtraction as sets", () => 
 });
 
 test("provider contexts lower to GC structs and lexical call arguments", () => {
-  const source = fixture("compiler-types/requirements/contexts");
+  const source = conformance("runtime/valid/context-values-install-providers");
   const compilation = compile(source);
   assert.match(compilation.wat, /\(type \$context0 \(struct/);
   assert.match(compilation.wat, /struct\.new \$context0/);
@@ -297,7 +353,7 @@ test("provider contexts lower to GC structs and lexical call arguments", () => {
 });
 
 test("context creation accepts spreads and normalizes exact replacement keys", () => {
-  const source = fixture("compiler-types/requirements/context-normalization");
+  const source = conformance("typing/valid/context-spread-normalization");
   const result = analyze(source);
   assert.deepEqual(result.diagnostics, []);
   const final = result.hir?.functions[0]?.body.at(-1);

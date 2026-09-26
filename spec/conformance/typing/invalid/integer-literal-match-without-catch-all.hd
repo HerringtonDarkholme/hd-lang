@@ -1,0 +1,5 @@
+# test: integer literal match without catch all
+
+fn classify(value: i32) -> i32:
+    match value:  # diagnostic: nonexhaustive-match
+        1 => 1

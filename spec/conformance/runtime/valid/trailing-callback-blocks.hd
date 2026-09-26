@@ -1,0 +1,14 @@
+# test: callbacks / trailing
+
+use std.testing.assert_equal
+
+fn apply(callback: fn() -> i32) -> i32: callback()
+fn add(base: i32, callback: fn() -> i32) -> i32: base + callback()
+fn main() -> i32:
+    left := apply:
+        40
+    add(left):
+        2
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="callbacks / trailing")

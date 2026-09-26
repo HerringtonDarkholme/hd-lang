@@ -1,0 +1,28 @@
+# test: generics / option result
+
+use std.testing.assert_equal
+
+data Failure:
+    code: i32
+
+fn keep_optional[T](value: T?) -> T?: value
+
+fn keep_result[T, E](value: Result[T, E]) -> Result[T, E]: value
+
+fn inspect_optional(value: i32?) -> i32:
+    match value:
+        actual? => actual
+        nil => 0
+
+fn inspect_result(value: Result[i32, Failure]) -> i32:
+    match value:
+        Ok(actual) => actual
+        Err(error) => -error.code
+
+fn main() -> i32:
+    let optional: i32? = 40
+    let result: Result[i32, Failure] = Ok(2)
+    inspect_optional(keep_optional(optional)) + inspect_result(keep_result(result))
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="generics / option result")

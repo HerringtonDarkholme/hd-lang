@@ -1,0 +1,43 @@
+# test: generic methods
+
+use std.testing.assert_equal
+
+data Identity: pass
+
+data Label:
+    value: string
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        self.value
+
+impl Identity:
+    fn pair[Left, Right](self, left: Left, right: Right) -> (Left, Right):
+        (left, right)
+
+    fn render[Value: Display](self, value: Value) -> string:
+        value.to_string()
+
+fn explicit_right() -> i32:
+    identity := Identity {}
+    pair := identity.pair[string, i32]("left", 42)
+    pair.1
+
+fn inferred_right() -> i32:
+    identity := Identity {}
+    pair := identity.pair("left", 7)
+    pair.1
+
+fn bounded_display() -> i32:
+    identity := Identity {}
+    if identity.render[Label](Label { value: "label" }) == "label": 1
+    else: 0
+
+test "explicit_right returns 42":
+    assert_equal(explicit_right(), 42, reason="generic methods")
+
+test "inferred_right returns 7":
+    assert_equal(inferred_right(), 7, reason="generic methods")
+
+test "bounded_display returns 1":
+    assert_equal(bounded_display(), 1, reason="generic methods")

@@ -1,4 +1,0 @@
-# test: parser retains function parameter defaults
-# expect: parse
-
-fn connect(host: string, port: i32 = 443, secure: bool = true) -> string: host

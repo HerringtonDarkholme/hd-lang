@@ -1,0 +1,14 @@
+# test: strings concatenate and unnamed enum fields use numeric selectors
+
+use std.testing.assert_equal
+
+enum StatusCode(i32):
+    Answer -> StatusCode(40)
+
+fn main() -> i32:
+    status := StatusCode.Answer
+    message := "A" + "界"
+    status.0 + message.len()
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="strings concatenate and unnamed enum fields use numeric selectors")

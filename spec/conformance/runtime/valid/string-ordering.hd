@@ -1,0 +1,12 @@
+# test: strings compare by UTF-8 value order
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    if "same" == "same" and "a" < "é" and "é" < "界" and "abc" < "abcd" and "界面".starts_with("界") and "abc".starts_with("") and not "a".starts_with("ab"):
+        42
+    else:
+        0
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="strings compare by UTF-8 value order")

@@ -1,0 +1,11 @@
+# test: fieldless data argument
+
+use std.testing.assert_equal
+
+data Unit: pass
+
+fn consume(value: Unit) -> i32: 42
+fn main() -> i32: consume(Unit {})
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="fieldless data argument")

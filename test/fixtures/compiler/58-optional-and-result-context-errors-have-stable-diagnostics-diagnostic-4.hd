@@ -1,4 +1,0 @@
-# test: optional and Result context errors have stable diagnostics
-
-fn main() -> void:
-    let nested: string?? = nil  # warning: unused-local-binding

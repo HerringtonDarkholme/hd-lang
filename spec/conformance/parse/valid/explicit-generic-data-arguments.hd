@@ -1,0 +1,3 @@
+# test: parser retains explicit generic data arguments
+
+value := Box[i32] { value: 1 }

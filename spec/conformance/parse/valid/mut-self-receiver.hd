@@ -1,0 +1,4 @@
+# test: mut self receiver
+
+trait Counter:
+    fn add(mut self, value: i32) -> void

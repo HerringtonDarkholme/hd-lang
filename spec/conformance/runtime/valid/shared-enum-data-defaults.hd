@@ -1,0 +1,20 @@
+# test: shared enum data uses per-variant factories and pure ordered defaults
+
+use std.testing.assert_equal
+
+enum Status(code: i32, doubled: i32 = code * 2):
+    Unknown -> Status(21)
+
+enum Tagged[T](tag: T):
+    Value(value: T) -> Tagged(value)
+
+fn read_tagged(value: Tagged[i32]) -> i32:
+    match value:
+        Tagged.Value(payload) => value.tag + payload
+
+fn main() -> i32:
+    status := Status.Unknown
+    status.doubled + read_tagged(Tagged.Value(21))
+
+test "main returns 84":
+    assert_equal(main(), 84, reason="shared enum data uses per-variant factories and pure ordered defaults")

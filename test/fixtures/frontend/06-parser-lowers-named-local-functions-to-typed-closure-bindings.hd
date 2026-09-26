@@ -1,7 +1,0 @@
-# test: parser lowers named local functions to typed closure bindings
-# expect: parse
-
-fn outer(bonus: i32) -> i32:
-    fn add(value: i32) -> i32:
-        value + bonus
-    add(1)

@@ -1,0 +1,16 @@
+# test: while else break value
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let cleanup: i32 = 0
+    value := while true:
+        defer:
+            cleanup = cleanup + 1
+        break 41
+    else:
+        0
+    value + cleanup
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="while else break value")

@@ -1,6 +1,0 @@
-# test: optional values may be explicitly discarded
-# expect: accept
-
-fn maybe() -> i32?: nil
-
-fn main() -> void: _ := maybe()

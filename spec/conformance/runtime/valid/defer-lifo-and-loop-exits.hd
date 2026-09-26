@@ -1,0 +1,26 @@
+# test: defer is LIFO and runs on loop continue and break
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let value: i32 = 0
+    if true:
+        defer:
+            value = value * 10 + 1
+        defer:
+            value = value * 10 + 2
+        pass
+    let iterations: i32 = 0
+    while iterations < 2:
+        defer:
+            value = value + 100
+        iterations = iterations + 1
+        continue
+    while true:
+        defer:
+            value = value + 1000
+        break
+    value
+
+test "main returns 1221":
+    assert_equal(main(), 1221, reason="defer is LIFO and runs on loop continue and break")

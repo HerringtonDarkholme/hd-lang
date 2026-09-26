@@ -1,0 +1,6 @@
+# test: named local function
+
+fn outer(bonus: i32) -> i32:
+    fn add(value: i32) -> i32:
+        value + bonus
+    add(1)

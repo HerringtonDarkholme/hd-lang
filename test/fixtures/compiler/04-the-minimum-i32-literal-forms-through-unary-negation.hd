@@ -1,4 +1,0 @@
-# test: the minimum i32 literal forms through unary negation
-# expect-result: main = -2147483648
-
-fn main() -> i32: -2147483648

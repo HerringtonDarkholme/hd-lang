@@ -1,0 +1,15 @@
+# test: while else exhaustion value
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let index: i32 = 0
+    value := while index < 2:
+        index = index + 1
+        continue
+    else:
+        40
+    value + index
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="while else exhaustion value")

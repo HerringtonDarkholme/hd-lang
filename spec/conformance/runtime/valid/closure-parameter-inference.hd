@@ -1,0 +1,13 @@
+# test: expected function types infer inline closure parameters and results
+
+use std.testing.assert_equal
+
+fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
+    transform(value)
+
+fn main() -> i32:
+    let increment: fn(i32) -> i32 = fn(value): value + 1
+    apply(40, increment) + apply(0, fn(value): value + 1)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="expected function types infer inline closure parameters and results")

@@ -1,0 +1,6 @@
+# test: parser distinguishes grouped expressions from tuple types and literals
+
+fn pair(value: (i32, string)) -> (i32,): (value.0,)
+empty := ()
+left, right := (1, 2)
+let name, score: (string, i32) = ("Ada", 10)

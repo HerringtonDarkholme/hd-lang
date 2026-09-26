@@ -1,4 +1,0 @@
-# test: parser retains a leading data copy-update spread
-# expect: parse
-
-copy := User { ...source, name: "Ada" }

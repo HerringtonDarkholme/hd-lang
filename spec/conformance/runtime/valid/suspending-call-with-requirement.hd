@@ -1,0 +1,20 @@
+# test: suspending call with requirement
+
+use std.testing.assert_equal
+
+fn add_two!(value: i32) -> i32 $ Clock:
+    _ := $.use(Clock)
+    value + 2
+
+fn run!() -> i32 $ Clock:
+    add_two!(40)
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}):
+        assert_equal(run!(), 42, reason="suspending call with requirement")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock

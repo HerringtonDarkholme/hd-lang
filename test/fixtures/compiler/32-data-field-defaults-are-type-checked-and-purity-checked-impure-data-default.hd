@@ -1,6 +1,0 @@
-# test: data field defaults are type checked and purity checked
-# expect: accept
-
-data Box[T]:
-    value: T? = nil
-fn make() -> Box[i32]: Box {}

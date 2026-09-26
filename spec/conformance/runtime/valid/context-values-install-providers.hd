@@ -1,0 +1,33 @@
+# test: requirements / contexts
+
+use std.testing.assert_equal
+
+fn make_context() -> $.Context[Clock + Backup] $ Clock + Backup:
+    $.context(Clock=$.use(Clock), Backup=$.use(Backup))
+
+fn read() -> i32 $ Clock: 42
+
+fn run() -> i32 $ Clock + Backup:
+    context := make_context()
+    $.with(Clock=$.use(Backup), ...context):
+        read()
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
+        assert_equal(run(), 42, reason="requirements / contexts")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
+trait Backup: Clock:
+    fn label(self) -> i32
+
+data FixedBackup: pass
+
+impl Clock for FixedBackup
+
+impl Backup for FixedBackup:
+    fn label(self) -> i32: 0

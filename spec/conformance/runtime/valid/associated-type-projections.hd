@@ -1,0 +1,49 @@
+# test: associated types specialize Self projections in generic implementations
+
+use std.testing.assert_equal
+
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+data Box[T]:
+    value: T
+
+impl[T] Source for Box[T]:
+    type Item = T
+
+    fn get(self) -> T: self.value
+
+fn projected_value() -> i32:
+    Box[i32] { value: 42 }.get()
+
+data FixedSource: pass
+
+impl Source for FixedSource:
+    type Item = i32
+
+    fn get(self) -> i32: 42
+
+fn concrete_projected_value() -> i32:
+    FixedSource {}.get()
+
+fn read_source[S: Source](source: S) -> S::Item:
+    source.get()
+
+fn bounded_projected_value() -> i32:
+    read_source(FixedSource {})
+
+fn generic_bounded_projected_value() -> i32:
+    read_source(Box[i32] { value: 42 })
+
+test "projected_value returns 42":
+    assert_equal(projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+
+test "concrete_projected_value returns 42":
+    assert_equal(concrete_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+
+test "bounded_projected_value returns 42":
+    assert_equal(bounded_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+
+test "generic_bounded_projected_value returns 42":
+    assert_equal(generic_bounded_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")

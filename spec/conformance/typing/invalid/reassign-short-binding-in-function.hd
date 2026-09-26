@@ -1,0 +1,6 @@
+# test: reassign short binding in function
+
+fn main() -> i32:
+    x := 1
+    x = 2  # diagnostic: non-reassignable-binding
+    x

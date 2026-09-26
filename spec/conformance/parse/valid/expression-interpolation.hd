@@ -1,0 +1,3 @@
+# test: expression interpolation
+
+fn label(name: string, count: i32) -> string: "Hi $name: ${count + 1}"

@@ -1,0 +1,6 @@
+# test: parser retains nested Result payload patterns
+
+fn main(value: Result[i32, Error]) -> void:
+    match value:
+        Err(Error.Disposed) => pass
+        _ => pass

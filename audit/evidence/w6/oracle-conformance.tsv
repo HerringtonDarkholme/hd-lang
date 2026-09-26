@@ -1,0 +1,299 @@
+# commit bd985d7; command: node --experimental-strip-types audit/scripts/w6/oracle-conformance.ts; date: 2026-09-26
+body	case	marker	marker_count	selection	original_stage:exit	marker_observed	extra_errors	extra_list	marker_on_structural_line	neutralize	neutral_stage:exit	verdict
+spec/conformance	parse/invalid/mutable-field-modifier.hd	diagnostic:mutable-field-modifier@2	1	selected	parse:1	yes	no		no	pass	parse:1	isolated-other-errors:expected-token
+spec/conformance	parse/invalid/mutable-embedded-field.hd	diagnostic:mutable-embedded-field@5	1	selected	parse:1	yes	no		no	pass	parse:1	isolated-other-errors:expected-token
+spec/conformance	runtime/panic/map-iterator-invalidated.hd	panic:iterator-invalidated@4	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/for-loop-iterator-invalidated.hd	panic:iterator-invalidated@3	1	selected	test:1	yes	n/a		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	runtime/panic/removed-map-iterator-invalidated.hd	panic:iterator-invalidated@4	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/explicit-panic.hd	panic:explicit-panic@1	1	selected	test:1	yes	n/a		no	delete	test:1	isolated-other-errors:unlocated
+spec/conformance	runtime/panic/integer-add-overflow.hd	panic:integer-overflow@1	1	selected	test:1	yes	n/a		no	delete	test:1	isolated-other-errors:unlocated
+spec/conformance	runtime/panic/invalid-shift.hd	panic:invalid-shift@1	1	selected	test:1	yes	n/a		no	delete	test:1	isolated-other-errors:unlocated
+spec/conformance	runtime/panic/list-index-out-of-bounds.hd	panic:index-out-of-bounds@2	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/integer-negation-overflow.hd	panic:integer-overflow@2	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/list-set-out-of-bounds.hd	panic:index-out-of-bounds@2	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	typing/invalid/duplicate-generic-embedded-name.hd	diagnostic:duplicate-embedded-field@6	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	parse/invalid/old-struct-declaration.hd	diagnostic:old-struct-declaration@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/declaration-without-let.hd	diagnostic:missing-let@2	1	selected	parse:1	yes	no		no	pass	parse:0	isolated-accepts
+spec/conformance	parse/invalid/trailing-block-in-brackets.hd	diagnostic:trailing-block-position@3	1	selected	parse:1	yes	no		yes	pass	parse:1	isolated-other-errors:mismatched-delimiter
+spec/conformance	parse/invalid/reserved-name-collision.hd	diagnostic:reserved-name@1	1	selected	parse:1	yes	no		yes	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/direct-variant-use.hd	diagnostic:direct-variant-use@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/old-import-declaration.hd	diagnostic:old-import-declaration@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/old-export-declaration.hd	diagnostic:old-export-declaration@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/pub-trait-method.hd	diagnostic:trait-method-visibility@2	1	selected	parse:1	yes	no		yes	pass	parse:1	isolated-other-errors:doc-comment-without-target
+spec/conformance	parse/invalid/chained-comparison.hd	diagnostic:comparison-chaining@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/invalid-escape.hd	diagnostic:invalid-escape@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/named-pattern-before-positional.hd	diagnostic:pattern-order@6	1	selected	parse:1	yes	no		no	pass	parse:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/bare-variant-pattern.hd	diagnostic:bare-variant-pattern@6	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	parse/invalid/mid-file-bom.hd	diagnostic:unexpected-bom@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/semicolon.hd	diagnostic:reserved-semicolon@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/tab-indentation.hd	diagnostic:tab-whitespace@2	1	selected	parse:1	yes	no		no	pass	parse:1	code-persists
+spec/conformance	parse/invalid/positional-after-named.hd	diagnostic:argument-order@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	typing/invalid/nonfinal-spread.hd	diagnostic:nonfinal-positional-spread@5	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/missing-return-value.hd	diagnostic:missing-return-value@2	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-list-element-replacement.hd	diagnostic:readonly-root@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/implicit-data-equality.hd	diagnostic:missing-partial-eq@5	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/primitive-identity.hd	diagnostic:identity-requires-references@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/implicit-data-ordering.hd	diagnostic:missing-partial-ord@5	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/impure-shared-enum-default.hd	diagnostic:impure-default@7	1	unselected	check:1	no	yes	impure-enum-default@7	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/shared-enum-default-order.hd	diagnostic:enum-default-order@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/recursive-closure-inferred-result.hd	diagnostic:recursive-closure-needs-result-type@2	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/readonly-map-entry-replacement.hd	diagnostic:readonly-root@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-mut-field-reassignment.hd	diagnostic:readonly-root@8	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-mut-field-mutation.hd	diagnostic:readonly-root@8	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-mut-field-method.hd	diagnostic:mutable-receiver-required@12	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/forward-module-binding.hd	diagnostic:binding-not-yet-visible@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/readonly-generic-field-init.hd	diagnostic:mutable-upgrade@8	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-spread-mutable-field.hd	diagnostic:mutable-upgrade@8	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/copy-update-readonly-child.hd	diagnostic:readonly-edge@9	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/impure-data-default.hd	diagnostic:impure-default@10	1	unselected	check:1	no	yes	impure-data-default@10	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/missing-required-data-field.hd	diagnostic:missing-required-field@5	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/break-value-without-else.hd	diagnostic:break-value-context@4	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/top-level-return.hd	diagnostic:return-outside-function@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/reassign-short-binding.hd	diagnostic:non-reassignable-binding@3	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/possibly-uninitialized-binding.hd	diagnostic:possibly-uninitialized-binding@5	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/readonly-mutation.hd	diagnostic:readonly-root@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-function-result.hd	diagnostic:readonly-argument-to-mutable-parameter@11	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/mut-upgrade.hd	diagnostic:mutable-upgrade@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/integer-narrowing.hd	diagnostic:implicit-narrowing@3	1	unselected	check:1	no	yes	unknown-type@2	no	pass	check:1	isolated-other-errors:unknown-type
+spec/conformance	typing/invalid/integer-literal-range.hd	diagnostic:integer-literal-range@2	1	unselected	check:1	no	yes	unknown-type@2	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/float-literal-range.hd	diagnostic:float-literal-range@1	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/heterogeneous-list.hd	diagnostic:no-common-type@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/invalid-map-key.hd	diagnostic:invalid-map-key@3	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/nominal-map-key.hd	diagnostic:invalid-map-key@4	1	unselected	check:1	no	yes	expected-expression@2	no	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/tuple-map-key.hd	diagnostic:invalid-map-key@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/float-map-key.hd	diagnostic:invalid-map-key@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/pack-map-mapper-mismatch.hd	diagnostic:pack-map-mapper-mismatch@5	1	unselected	check:1	no	yes	unknown-name@5	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-suspension-cancel.hd	diagnostic:mutable-receiver-required@6	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/user-suspend-implementation.hd	diagnostic:sealed-trait-implementation@3	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	runtime/panic/invalidated-iterator.hd	panic:iterator-invalidated@5	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	typing/invalid/mixed-signedness.hd	diagnostic:mixed-signedness@3	1	unselected	check:1	no	yes	unknown-type@2	no	pass	check:1	isolated-other-errors:unknown-type
+spec/conformance	typing/invalid/unsigned-negation.hd	diagnostic:unsigned-negation@3	1	unselected	check:1	no	yes	unknown-type@2	no	delete	check:1	isolated-other-errors:unknown-type
+spec/conformance	typing/invalid/nonnumeric-unary-plus.hd	diagnostic:nonnumeric-unary-plus@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	runtime/panic/integer-divide-by-zero.hd	panic:integer-division-by-zero@2	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	typing/invalid/missing-mutable-edge.hd	diagnostic:readonly-edge@8	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/nil-to-any.hd	diagnostic:nil-to-nonoptional@2	1	unselected	check:1	no	yes	unknown-type@2	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/nonexhaustive-match.hd	diagnostic:nonexhaustive-match@6	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/discarded-result.hd	diagnostic:discarded-must-use-value@9	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/discarded-suspension.hd	diagnostic:discarded-must-use-value@4	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/guarded-match-not-exhaustive.hd	diagnostic:nonexhaustive-match@6	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/duplicate-data-pattern-field.hd	diagnostic:duplicate-data-pattern-field@6	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/contextual-variant-without-type.hd	diagnostic:missing-contextual-enum-type@5	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/nonexhaustive-bool-match.hd	diagnostic:nonexhaustive-match@2	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/overload.hd	diagnostic:duplicate-module-name@2	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/redeclare-core-type.hd	diagnostic:prelude-name-shadow@2	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/prelude-shadow.hd	diagnostic:prelude-name-shadow@1	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/function-equality.hd	diagnostic:unsupported-equality@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/unsaturated-enum-constructor.hd	diagnostic:unsaturated-enum-constructor@3	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/ambiguous-trait-method.hd	diagnostic:ambiguous-method@17	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/unsafe-dynamic-trait.hd	diagnostic:trait-not-dynamically-safe@5	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/orphan-impl.hd	diagnostic:orphan-impl@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/local-impl-nonlocal-pair.hd	diagnostic:local-impl-nonlocal-pair@9	1	unselected	check:1	no	yes	expected-expression@9	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/private-type-leak.hd	diagnostic:private-type-leak@3	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/variance-position.hd	diagnostic:invalid-variance@3	1	unselected	check:1	no	yes	expected-token@2	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/warnings/unreachable-code.hd	warning:unreachable-code@3	1	selected	check:0	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/warnings/unused-local-binding.hd	warning:unused-local-binding@2	1	selected	check:0	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/duplicate-data-field.hd	diagnostic:duplicate-field@6	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/missing-child-annotation.hd	diagnostic:missing-child-annotation@29	1	unselected	check:1	no	yes	expected-expression@29	no	delete	check:1	isolated-other-errors:unknown-trait
+spec/conformance	typing/invalid/embedded-field-decorator-type.hd	diagnostic:invalid-field-metadata@14	1	unselected	check:1	no	yes	expected-token@14	no	delete	check:1	isolated-other-errors:unknown-type+void-data-field+unknown-trait
+spec/conformance	typing/invalid/derived-hash-field-not-hash.hd	diagnostic:field-not-hash@6	1	unselected	check:1	no	yes	decorator-not-top-level@4	no	pass	check:1	isolated-other-errors:decorator-not-top-level
+spec/conformance	typing/invalid/derived-total-order-float.hd	diagnostic:field-not-eq@4	1	unselected	check:1	no	yes	decorator-not-top-level@2	no	pass	check:1	isolated-other-errors:decorator-not-top-level
+spec/conformance	typing/invalid/present-pattern-nonoptional.hd	diagnostic:optional-pattern-requires-optional@3	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/missing-requirement.hd	diagnostic:missing-requirement@7	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/bang-call-outside-suspension.hd	diagnostic:bang-call-outside-suspension@5	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/pack-length-mismatch.hd	diagnostic:pack-length-mismatch@11	1	unselected	check:1	no	yes	unsupported-generic-parameter@2	yes	pass	check:1	isolated-other-errors:unsupported-generic-parameter
+spec/conformance	typing/invalid/impossible-gadt-pattern.hd	diagnostic:impossible-gadt-pattern@9	1	unselected	check:1	no	yes	unknown-type@3 void-data-field@3 unsupported-gadt-result@3 unsupported-gadt-result@4 unknown-type@6	no	delete	check:1	isolated-other-errors:unknown-type+void-data-field+unsupported-gadt-result
+spec/conformance	typing/invalid/unknown-annotation-member.hd	diagnostic:unknown-annotation-member@6	1	unselected	check:1	no	yes	expected-expression@5	no	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/partial-generic-arguments.hd	diagnostic:partial-generic-arguments@4	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/unresolved-generic-placeholder.hd	diagnostic:unresolved-generic-placeholder@4	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/partial-generic-method-arguments.hd	diagnostic:partial-generic-arguments@9	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/reassign-parameter.hd	diagnostic:non-reassignable-parameter-binding@2	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/parameter-decorator-type.hd	diagnostic:invalid-parameter-metadata@10	1	unselected	check:1	no	yes	expected-token@10	no	delete	check:1	isolated-other-errors:unknown-trait
+spec/conformance	typing/invalid/retention-missing-field.hd	diagnostic:unknown-shape-target@4	1	unselected	check:1	no	yes	expected-expression@4	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/configured-facet-not-annotator.hd	diagnostic:decorator-not-annotator@4	1	unselected	check:1	no	yes	decorator-not-top-level@4	no	delete	check:0	isolated-accepts
+spec/conformance	parse/invalid/local-decorator.hd	diagnostic:decorator-not-top-level@2	1	selected	parse:1	yes	no		no	pass	parse:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/overlapping-generic-annotation.hd	diagnostic:overlapping-annotation-impl@15	1	unselected	check:1	no	yes	expected-expression@11	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/duplicate-direct-annotation-impl.hd	diagnostic:duplicate-annotation-impl@30	1	unselected	check:1	no	yes	expected-expression@30	yes	delete	check:1	isolated-other-errors:unknown-trait
+spec/conformance	typing/invalid/covariant-gadt-result.hd	diagnostic:invalid-variance@5	1	unselected	check:1	no	yes	expected-token@4	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/variance-representation-change.hd	diagnostic:variance-representation-change@5	1	unselected	check:1	no	yes	expected-token@1	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/transitive-uninitialized-binding.hd	diagnostic:top-level-read-before-initialization@1	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/row-subtraction-unsound.hd	diagnostic:missing-requirement@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/warnings/requirement-subtract-absent.hd	warning:requirement-subtract-absent@17	1	selected	check:0	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/permission-target-overlap.hd	diagnostic:overlapping-impl@7	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/library-orphan-annotation.hd	diagnostic:orphan-annotation-in-library@5	1	unselected	check:1	no	yes	expected-expression@5	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/annotation-direct-reentry.hd	diagnostic:annotation-resolution-reentry@10	1	unselected	check:1	no	yes	expected-expression@12	no	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/nonhost-entry-requirement.hd	diagnostic:nonhost-entry-requirement@3	1	unselected	check:1	yes	yes	private-type-leak@3	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/embedded-mut-trait-bodyless.hd	diagnostic:promoted-mutable-requirement@14	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/derived-generic-bound.hd	diagnostic:missing-derived-bound@6	1	unselected	check:1	no	yes	decorator-not-top-level@1	no	pass	check:1	isolated-other-errors:decorator-not-top-level
+spec/conformance	typing/invalid/row-kind-mismatch.hd	diagnostic:generic-kind-mismatch@4	1	unselected	check:1	no	yes	expected-token@4	yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/multiple-positional-value-packs.hd	diagnostic:multiple-positional-value-packs@1	1	unselected	check:1	no	yes	unsupported-generic-parameter@1	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/least-type-weakening-variance.hd	diagnostic:no-least-common-type@5	1	unselected	check:1	no	yes	no-common-type@5	no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/plain-closure-mutable-capture.hd	diagnostic:mutable-capture-requires-mut-fn@3	1	unselected	check:0	no	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/warnings/variant-binding-name-mismatch.hd	warning:variant-binding-name-mismatch@6	1	selected	check:0	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/string-indexing.hd	diagnostic:unsupported-string-indexing@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	runtime/panic/signed-min-division-overflow.hd	panic:integer-overflow@3	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/data-annotator-map-build.hd	diagnostic:annotation-build-signature@21	1	unselected	check:1	no	yes	unknown-trait@5 unknown-trait@8	no	delete	check:1	isolated-other-errors:unknown-trait
+spec/conformance	typing/invalid/unbounded-generic-identity.hd	diagnostic:identity-needs-reference-bound@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/tuple-identity.hd	diagnostic:identity-requires-references@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/annotation-top-level-read.hd	diagnostic:annotation-top-level-read@10	1	unselected	check:1	no	yes	expected-expression@12	no	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/private-requirement-row.hd	diagnostic:private-type-leak@3	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/metadata-type-as-value.hd	diagnostic:type-used-as-value@5	1	unselected	check:1	no	yes	unknown-type@4	no	pass	check:1	isolated-other-errors:unknown-type
+spec/conformance	parse/invalid/doc-comment-without-target.hd	diagnostic:doc-comment-without-target@2	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/two-trailing-blocks.hd	diagnostic:trailing-block-position@3	1	selected	parse:1	yes	no		yes	delete	parse:0	isolated-accepts
+spec/conformance	typing/invalid/contravariant-representation-change.hd	diagnostic:variance-representation-change@5	1	unselected	check:1	no	yes	expected-token@1	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/generic-requirement-key-collision.hd	diagnostic:generic-requirement-key-collision@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	runtime/panic/nested-block-on.hd	panic:suspension-nested-driver@7	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/assert-equal-non-eq.hd	diagnostic:missing-partial-eq@8	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/supertrait-cycle.hd	diagnostic:supertrait-cycle@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/missing-trait-method.hd	diagnostic:missing-trait-method@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/trait-method-signature.hd	diagnostic:trait-method-signature@7	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:doc-comment-without-target
+spec/conformance	typing/invalid/duplicate-inherent-member.hd	diagnostic:duplicate-inherent-member@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/variant-result-owner.hd	diagnostic:variant-result-owner@5	1	unselected	check:1	no	yes	expected-token@2	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/duplicate-trait-member.hd	diagnostic:duplicate-trait-member@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/unrepresentable-type-shape.hd	diagnostic:unrepresentable-type-shape@7	1	unselected	check:1	no	yes	expected-expression@7	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/suspension-forbidden-context.hd	diagnostic:suspension-forbidden-context@9	1	selected	check:1	yes	no		yes	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/reimport-prelude-name.hd	diagnostic:prelude-name-shadow@1	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	parse/invalid/multi-binding-needs-parentheses.hd	diagnostic:multi-binding-needs-parentheses@3	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	typing/invalid/mixed-numeric-power.hd	diagnostic:mixed-numeric-types@2	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	runtime/panic/second-suspension-drive.hd	panic:suspension-invalid-state@8	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/test-block-on.hd	panic:suspension-nested-driver@7	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	runtime/panic/reentrant-cancel.hd	panic:suspension-reentrant-poll@17	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/competing-suspension-drivers.hd	panic:suspension-competing-driver@5	1	selected	test:1	yes	n/a		no	pass	test:1	code-persists
+spec/conformance	runtime/panic/reentrant-suspension-poll.hd	panic:suspension-reentrant-poll@5	1	selected	test:1	yes	n/a		no	pass	test:1	code-persists
+spec/conformance	typing/invalid/nonfinal-positional-value-pack.hd	diagnostic:nonfinal-positional-value-pack@1	1	unselected	check:1	no	yes	unsupported-generic-parameter@1	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/nondisplay-entry-error.hd	diagnostic:entry-error-not-display@3	1	unselected	check:1	yes	yes	private-type-leak@3	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/top-level-defer.hd	diagnostic:defer-outside-cleanup-scope@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/defer-suspends.hd	diagnostic:suspending-defer@6	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/defer-block-on.hd	diagnostic:suspension-forbidden-context@12	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	parse/invalid/brace-escape.hd	diagnostic:invalid-escape@2	1	unselected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/stray-dollar.hd	diagnostic:syntax-error@2	1	unselected	parse:1	no	yes	invalid-string-interpolation@2	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/same-line-suite-comma.hd	diagnostic:syntax-error@6	1	unselected	parse:0	no	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/same-line-let-comma.hd	diagnostic:syntax-error@4	1	unselected	parse:0	no	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/discard-binding-ends-in-suite.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	expected-newline@3	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/return-binding-ends-in-suite.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	expected-newline@3	no	pass	parse:0	isolated-accepts
+spec/conformance	parse/invalid/repeated-numeric-separator.hd	diagnostic:invalid-token@1	1	unselected	parse:1	no	yes	invalid-integer-literal@1	no	delete	parse:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-bool-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-char-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-f64-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-generic-nominal-unequal.hd	panic:assertion-failed@12	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-generic-primitive-unequal.hd	panic:assertion-failed@4	1	unselected	check:1	no	n/a	missing-trait-implementation@7	no	pass	check:1	isolated-other-errors:missing-trait-implementation
+spec/conformance	runtime/panic/assert-equal-i32-unequal.hd	panic:assertion-failed@7	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-list-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-map-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-nominal-unequal.hd	panic:assertion-failed@14	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-optional-unequal.hd	panic:assertion-failed@6	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-result-unequal.hd	panic:assertion-failed@6	1	selected	test:1	yes	n/a		no	delete	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-string-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-tuple-unequal.hd	panic:assertion-failed@4	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	typing/invalid/non-reference-bound-dynamic-method.hd	diagnostic:trait-not-dynamically-safe@4	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/tuple-element-assignment.hd	diagnostic:invalid-assignment-target@3	1	unselected	check:1	no	yes	readonly-root@3	no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/init-read-through-generic-bound.hd	diagnostic:top-level-read-before-initialization@10	1	unselected	check:0	no	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/init-read-through-trait-value.hd	diagnostic:top-level-read-before-initialization@8	1	unselected	check:0	no	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/signed-exponent.hd	diagnostic:type-mismatch@2	1	unselected	check:0	no	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/inferred-mutable-upgrade.hd	diagnostic:mutable-upgrade@8	1	unselected	check:1	no	yes	generic-type-mismatch@8	no	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/indirect-supertrait-cycle.hd	diagnostic:supertrait-cycle@1	1	unselected	check:1	yes	yes	supertrait-cycle@4 supertrait-cycle@7	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/parameter-default-later-parameter.hd	diagnostic:binding-not-yet-visible@1	1	unselected	check:1	no	yes	impure-parameter-default@1	yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/impure-parameter-default.hd	diagnostic:impure-default@7	1	unselected	check:1	no	yes	impure-parameter-default@7	yes	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/nonfinal-vararg-declaration.hd	diagnostic:nonfinal-vararg@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/nonfinal-vararg-function-type.hd	diagnostic:nonfinal-vararg@1	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/method-without-requirement-clause.hd	diagnostic:missing-requirement@15	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/closure-inferred-row-missing-requirement.hd	diagnostic:missing-requirement@7	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/heterogeneous-list-bool-int.hd	diagnostic:no-common-type@4	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/float-literal-map-key.hd	diagnostic:invalid-map-key@4	1	unselected	check:1	no	yes	unsupported-map-key@4	no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/heterogeneous-map-values.hd	diagnostic:no-common-type@4	1	unselected	check:1	no	yes	type-mismatch@4	no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/generic-data-field-type-mismatch.hd	diagnostic:type-mismatch@7	1	unselected	check:1	no	yes	generic-type-mismatch@7	no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/generic-inference-conflict.hd	diagnostic:type-mismatch@4	1	unselected	check:1	no	yes	generic-type-mismatch@4	yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/unresolved-generic-return-placeholder.hd	diagnostic:unresolved-generic-placeholder@4	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/provider-spread-of-non-context.hd	diagnostic:type-mismatch@4	1	unselected	check:1	no	yes	context-spread-type@4	yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/context-result-type-mismatch.hd	diagnostic:type-mismatch@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/generic-provider-key-collision-nested.hd	diagnostic:generic-requirement-key-collision@6	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/generic-provider-key-collision-spread.hd	diagnostic:generic-requirement-key-collision@6	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/call-missing-requirement.hd	diagnostic:missing-requirement@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/use-without-provider.hd	diagnostic:missing-requirement@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/provider-value-type-mismatch.hd	diagnostic:type-mismatch@4	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/row-inference-conflict.hd	diagnostic:type-mismatch@7	1	unselected	check:1	no	yes	generic-type-mismatch@7	yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/row-inference-unavailable-provider.hd	diagnostic:missing-requirement@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/warnings/row-subtraction-absent-key.hd	warning:requirement-subtract-absent@7	1	selected	check:0	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/row-subtraction-without-provider.hd	diagnostic:missing-requirement@4	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/ambiguous-method-two-traits.hd	diagnostic:ambiguous-method@13	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/trait-method-result-type-mismatch.hd	diagnostic:trait-method-signature@8	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:doc-comment-without-target
+spec/conformance	typing/invalid/trait-impl-missing-method.hd	diagnostic:missing-trait-method@7	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-trait-value-mutating-method.hd	diagnostic:mutable-receiver-required@9	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-data-mutating-trait-method.hd	diagnostic:mutable-receiver-required@9	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/trait-method-receiver-mismatch.hd	diagnostic:trait-method-signature@8	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:doc-comment-without-target
+spec/conformance	runtime/panic/i32-add-overflow-in-function.hd	panic:integer-overflow@3	1	selected	test:1	yes	n/a		yes	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/unary-plus-i32-literal-range.hd	diagnostic:integer-literal-range@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	runtime/panic/i32-min-divided-by-minus-one.hd	panic:integer-overflow@3	1	selected	test:1	yes	n/a		yes	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/signed-integer-exponent.hd	diagnostic:type-mismatch@3	1	unselected	check:0	no	no		yes	delete	check:0	isolated-accepts
+spec/conformance	runtime/panic/integer-power-overflow.hd	panic:integer-overflow@3	1	selected	test:1	yes	n/a		yes	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/power-mixed-numeric-types.hd	diagnostic:mixed-numeric-types@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/reassign-short-binding-in-function.hd	diagnostic:non-reassignable-binding@5	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/function-result-type-mismatch.hd	diagnostic:type-mismatch@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/nonfinal-vararg-then-parameter.hd	diagnostic:nonfinal-vararg@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/unknown-value-name.hd	diagnostic:unknown-name@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/list-function-to-vararg-function-type.hd	diagnostic:type-mismatch@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/parameter-default-type-mismatch.hd	diagnostic:type-mismatch@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/suspending-parameter-default.hd	diagnostic:impure-default@4	1	unselected	check:1	no	yes	impure-parameter-default@4	yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/literal-payload-pattern-nonexhaustive.hd	diagnostic:nonexhaustive-match@6	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/prelude-shadow-console-parameter.hd	diagnostic:prelude-name-shadow@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/prelude-shadow-hash-local.hd	diagnostic:prelude-name-shadow@4	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:unknown-name
+spec/conformance	typing/invalid/prelude-shadow-println-function.hd	diagnostic:prelude-name-shadow@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/prelude-shadow-result-generic.hd	diagnostic:prelude-name-shadow@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/branch-binding-does-not-leak.hd	diagnostic:unknown-name@6	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/break-outside-loop.hd	diagnostic:break-outside-loop@3	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/plain-break-in-value-loop.hd	diagnostic:break-value-context@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/break-value-in-void-loop.hd	diagnostic:break-value-context@5	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-list-append.hd	diagnostic:mutable-receiver-required@4	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/readonly-map-remove.hd	diagnostic:mutable-receiver-required@4	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/suspending-data-field-default.hd	diagnostic:impure-default@5	1	unselected	check:1	no	yes	impure-data-default@5	no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/data-field-default-type-mismatch.hd	diagnostic:type-mismatch@4	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/copy-update-source-type-mismatch.hd	diagnostic:type-mismatch@7	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/data-literal-missing-field.hd	diagnostic:missing-required-field@6	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/data-literal-unknown-field.hd	diagnostic:unknown-data-field@6	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/data-literal-field-type-mismatch.hd	diagnostic:type-mismatch@6	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/data-pattern-repeated-field.hd	diagnostic:duplicate-data-pattern-field@9	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/data-pattern-nonexhaustive.hd	diagnostic:nonexhaustive-match@8	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/data-pattern-unknown-field.hd	diagnostic:unknown-data-field@9	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	runtime/panic/explicit-panic-skips-defer.hd	panic:explicit-panic@6	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/bare-variant-pattern-in-match.hd	diagnostic:bare-variant-pattern@9	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:nonexhaustive-match
+spec/conformance	typing/invalid/enum-match-missing-variant.hd	diagnostic:nonexhaustive-match@8	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/warnings/variant-binding-names-swapped.hd	warning:variant-binding-name-mismatch@7	1	selected	check:0	yes	no		no	pass	check:1	isolated-other-errors:expected-token
+spec/conformance	typing/invalid/contextual-variant-binding-without-type.hd	diagnostic:missing-contextual-enum-type@6	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/bool-match-missing-false.hd	diagnostic:nonexhaustive-match@4	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/integer-literal-match-without-catch-all.hd	diagnostic:nonexhaustive-match@4	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/guarded-catch-all-not-exhaustive.hd	diagnostic:nonexhaustive-match@4	1	selected	check:1	yes	no		yes	pass	check:1	isolated-other-errors:expected-expression
+spec/conformance	typing/invalid/match-guard-type-mismatch.hd	diagnostic:type-mismatch@5	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/warnings/unused-nested-optional-binding.hd	warning:unused-local-binding@4	1	selected	check:0	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/discarded-optional-result.hd	diagnostic:discarded-must-use-value@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/bang-call-in-comprehension.hd	diagnostic:suspension-forbidden-context@6	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/closure-argument-type-mismatch.hd	diagnostic:type-mismatch@5	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/binding-expression-redeclaration.hd	diagnostic:duplicate-binding@5	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/readonly-iterator-in-comprehension.hd	diagnostic:mutable-receiver-required@10	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/overlapping-generic-impl-heads.hd	diagnostic:overlapping-impl@6	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/generic-supertrait-upcast-mismatch.hd	diagnostic:type-mismatch@10	1	selected	check:1	yes	no		no	pass	check:1	isolated-other-errors:missing-return-value
+spec/conformance	runtime/panic/assert-failure-outside-test.hd	panic:assertion-failed@6	1	selected	test:1	yes	n/a		no	pass	test:0	isolated-accepts
+spec/conformance	parse/invalid/mut-non-self-parameter.hd	diagnostic:syntax-error@5	1	unselected	parse:1	no	yes	expected-token@5	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/dedent-to-unused-column.hd	diagnostic:invalid-dedent@5	1	unselected	parse:1	no	yes	inconsistent-dedent@5	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/tab-in-function-body.hd	diagnostic:tab-whitespace@4	1	selected	parse:1	yes	no		no	pass	parse:1	code-persists
+spec/conformance	parse/invalid/double-numeric-separator.hd	diagnostic:invalid-token@3	1	unselected	parse:1	no	yes	invalid-integer-literal@3	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/binary-literal-bad-digit.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	invalid-integer-literal@3	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/stray-dollar-in-string.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	invalid-string-interpolation@3	no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/semicolon-after-binding.hd	diagnostic:reserved-semicolon@3	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/comparison-chaining-with-names.hd	diagnostic:comparison-chaining@3	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/positional-after-named-argument.hd	diagnostic:argument-order@3	1	selected	parse:1	yes	no		no	delete	parse:0	isolated-accepts
+spec/conformance	typing/invalid/positional-after-spread.hd	diagnostic:nonfinal-positional-spread@3	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	parse/invalid/vararg-with-default.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	vararg-default@3	yes	delete	parse:0	isolated-accepts
+spec/conformance	parse/invalid/copy-update-spread-not-first.hd	diagnostic:syntax-error@3	1	unselected	parse:1	no	yes	data-spread-position@3	no	delete	parse:0	isolated-accepts
+spec/conformance	typing/invalid/bang-call-in-plain-function.hd	diagnostic:bang-call-outside-suspension@4	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/drive-readonly-suspension.hd	diagnostic:mutable-receiver-required@6	1	selected	check:1	yes	no		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/warnings/unused-cold-suspension.hd	warning:unused-local-binding@5	1	selected	check:0	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	runtime/panic/second-drive-of-completed-suspension.hd	panic:suspension-invalid-state@7	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	runtime/panic/drive-cancelled-suspension.hd	panic:suspension-invalid-state@7	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/cancel-readonly-suspension.hd	diagnostic:mutable-receiver-required@6	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/bang-call-in-defer.hd	diagnostic:suspending-defer@6	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	typing/invalid/println-without-console.hd	diagnostic:missing-requirement@4	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	runtime/panic/block-on-inside-driver.hd	panic:suspension-nested-driver@9	1	selected	test:1	yes	n/a		no	delete	check:1	isolated-other-errors:missing-return-value
+spec/conformance	typing/invalid/block-on-in-defer.hd	diagnostic:suspension-forbidden-context@8	1	selected	check:1	yes	no		no	pass	check:0	isolated-accepts
+spec/conformance	runtime/panic/assert-equal-lists-outside-test.hd	panic:assertion-failed@5	1	selected	test:1	yes	n/a		yes	delete	test:1	isolated-other-errors:unlocated
+spec/conformance	typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	diagnostic:missing-partial-eq@5	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/reassign-short-module-binding.hd	diagnostic:non-reassignable-binding@4	1	selected	check:1	yes	no		yes	delete	check:0	isolated-accepts
+spec/conformance	typing/invalid/suspension-constructor-to-bang-function.hd	diagnostic:type-mismatch@9	1	selected	check:1	yes	no		no	delete	check:0	isolated-accepts

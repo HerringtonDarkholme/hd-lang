@@ -1,5 +1,0 @@
-# test: imported assert_equal compares supported structural values
-
-use std.testing.assert_equal
-data Value: pass
-fn main() -> void: assert_equal(Value {}, Value {}, reason="not derived")  # diagnostic: missing-partial-eq

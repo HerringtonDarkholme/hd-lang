@@ -1,3 +1,0 @@
-# test: integer power is right-associative, checked, and rejects negative exponents
-
-fn main() -> i32: 2 ** -1  # panic: runtime-error

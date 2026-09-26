@@ -1,0 +1,8 @@
+# test: parser retains top-level public visibility
+
+pub trait Service
+pub data Token: pass
+pub enum State:
+    Ready
+pub fn run() -> void:
+    pass

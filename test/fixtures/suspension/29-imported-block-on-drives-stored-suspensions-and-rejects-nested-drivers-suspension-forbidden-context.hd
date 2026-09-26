@@ -1,8 +1,0 @@
-# test: imported block_on drives stored suspensions and rejects nested drivers
-
-use std.task.block_on
-fn ready!() -> i32: 42
-fn main() -> void:
-    let pending: mut Suspend[i32] = ready()
-    defer:
-        _ := block_on(pending)  # diagnostic: suspension-forbidden-context

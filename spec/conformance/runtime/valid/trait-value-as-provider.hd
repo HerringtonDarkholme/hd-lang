@@ -1,0 +1,25 @@
+# test: traits / providers
+
+use std.testing.assert_equal
+
+trait Logger:
+    fn adjust(self, value: i32) -> i32
+
+data OffsetLogger:
+    offset: i32
+
+impl Logger for OffsetLogger:
+    fn adjust(self, value: i32) -> i32: value + self.offset
+
+fn read() -> i32 $ Logger:
+    $.use(Logger).adjust(40)
+
+fn provide_logger[r](callback: fn() -> i32 $ r, logger: Logger) -> i32 $ (r - Logger):
+    $.with(Logger=logger):
+        callback()
+
+fn main() -> i32:
+    provide_logger(read, OffsetLogger { offset: 2 })
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="traits / providers")

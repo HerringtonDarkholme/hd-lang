@@ -1,0 +1,4 @@
+# test: suspending parameter default
+
+fn wait!() -> i32: 1
+fn bad(value: i32 = wait!()) -> i32: value  # diagnostic: impure-default

@@ -1,0 +1,22 @@
+# test: closures / requirements
+
+use std.testing.assert_equal
+
+fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
+    callback()
+
+fn run() -> i32 $ Clock:
+    reader := fn() -> i32 $ Clock:
+        _ := $.use(Clock)
+        42
+    invoke(reader)
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}):
+        assert_equal(run(), 42, reason="closures / requirements")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock

@@ -1,9 +1,0 @@
-# test: string interpolation displays built-ins from left to right
-# expect-result: main = 29
-
-fn main() -> i32:
-    text := "${-2147483648}|${0}|${42}|${true}|${false}|${'😀'}"
-    if text == "-2147483648|0|42|true|false|😀":
-        text.len()
-    else:
-        0

@@ -1,4 +1,0 @@
-# test: parser retains mutable permission types and field assignments
-# expect: parse
-
-fn set(values: mut list[i32]) -> void: values[0] = 1

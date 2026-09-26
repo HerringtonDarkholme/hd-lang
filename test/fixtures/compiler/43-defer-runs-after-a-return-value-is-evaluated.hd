@@ -1,8 +1,0 @@
-# test: defer runs after a return value is evaluated
-# expect-result: main = 1
-
-fn main() -> i32:
-    let value: i32 = 1
-    defer:
-        value = value + 10
-    return value

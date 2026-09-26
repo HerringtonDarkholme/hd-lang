@@ -1,5 +1,0 @@
-# test: parser retains single and grouped use declarations
-# expect: parse
-
-use std.task.block_on
-use std.testing.{assert, assert_equal as equal,}

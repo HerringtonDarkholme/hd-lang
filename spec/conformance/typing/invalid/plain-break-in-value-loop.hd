@@ -1,0 +1,7 @@
+# test: plain break in value loop
+
+fn main() -> i32:
+    while true:
+        break  # diagnostic: break-value-context
+    else:
+        1

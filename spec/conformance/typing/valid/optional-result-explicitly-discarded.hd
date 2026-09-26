@@ -1,0 +1,5 @@
+# test: optional values may be explicitly discarded
+
+fn maybe() -> i32?: nil
+
+fn main() -> void: _ := maybe()

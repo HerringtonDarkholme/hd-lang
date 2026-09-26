@@ -1,0 +1,30 @@
+# test: named local suspending functions capture, recurse, and forward requirements
+
+use std.testing.assert_equal
+
+trait Increment:
+    fn next!(self, value: i32) -> i32
+
+data FixedIncrement: pass
+
+impl Increment for FixedIncrement:
+    fn next!(self, value: i32) -> i32:
+        value + 1
+
+fn drive_local!() -> i32:
+    let base: i32 = 39
+    fn count!(remaining: i32) -> i32 $ Increment:
+        provider := $.use(Increment)
+        if remaining == 0:
+            provider.next!(base)
+        else:
+            count!(remaining - 1) + 1
+    $.with(Increment=FixedIncrement {}):
+        count!(2)
+
+test "a named local suspending function keeps its environment through recursion":
+    assert_equal(
+        drive_local!(),
+        42,
+        reason="the local frame must retain captures and its forwarded provider",
+    )

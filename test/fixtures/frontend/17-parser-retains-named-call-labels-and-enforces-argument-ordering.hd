@@ -1,4 +1,0 @@
-# test: parser retains named call labels and enforces argument ordering
-# expect: parse
-
-value := resize(width=640, height=480)

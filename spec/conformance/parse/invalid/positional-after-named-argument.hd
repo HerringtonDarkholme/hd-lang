@@ -1,0 +1,3 @@
+# test: positional after named argument
+
+value := resize(width=640, 480)  # diagnostic: argument-order

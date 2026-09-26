@@ -1,0 +1,10 @@
+# test: requirements / context normalization
+
+fn make() -> $.Context[Clock + Backup] $ Clock + Backup:
+    base := $.context(Clock=$.use(Clock))
+    $.context(...base, Backup=$.use(Backup), Clock=$.use(Backup))
+
+trait Clock
+
+trait Backup: Clock:
+    fn label(self) -> i32

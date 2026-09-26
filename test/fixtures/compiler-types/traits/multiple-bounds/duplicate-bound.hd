@@ -25,7 +25,7 @@ fn inspect[T: Describe + Describe](value: T) -> i32:  # diagnostic: duplicate-tr
 fn inspect_first[T: Describe](values: list[T]) -> i32:
     values[0].describe()
 
-fn identity[T: Describe + Describe](value: T) -> T:
+fn identity[T: Describe + Named](value: T) -> T:
     value
 
 fn main() -> i32:

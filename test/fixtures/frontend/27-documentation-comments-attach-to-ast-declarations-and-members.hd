@@ -1,5 +1,0 @@
-# test: documentation comments attach to AST declarations and members
-
-fn run() -> void:
-    ## Not a declaration.  # diagnostic: doc-comment-without-target
-    value := 1

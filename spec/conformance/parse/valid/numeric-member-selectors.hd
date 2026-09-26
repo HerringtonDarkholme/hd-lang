@@ -1,0 +1,3 @@
+# test: parser retains decimal numeric member selectors
+
+first := nested.0.1

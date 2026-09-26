@@ -14,13 +14,11 @@ fn calculate!() -> i32 $ Counter:
 
 pub fn main!() -> void $ Counter:
     provider_result = calculate!()
-
-pub fn recorded_result() -> i32:
-    provider_result
-
-test "host provider returned its scalar result":
     assert_equal(
         provider_result,
         42,
         reason="host arguments and result must cross the boundary intact",
     )
+
+pub fn recorded_result() -> i32:
+    provider_result

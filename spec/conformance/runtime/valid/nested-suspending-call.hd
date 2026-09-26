@@ -1,0 +1,9 @@
+# test: nested suspending call
+
+use std.testing.assert_equal
+
+fn child!() -> i32: 41
+fn main!() -> i32: child!() + 1
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="nested suspending call")

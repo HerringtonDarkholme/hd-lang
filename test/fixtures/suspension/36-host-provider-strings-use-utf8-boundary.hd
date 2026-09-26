@@ -14,8 +14,6 @@ fn request!() -> string $ TextBridge:
 
 pub fn main!() -> void $ TextBridge:
     provider_result = request!()
-
-test "host string arguments and result preserve UTF-8 bytes":
     assert_equal(
         provider_result,
         "host: λ🙂",

@@ -1,0 +1,7 @@
+# test: mutable parameter field assignment
+
+data User:
+    name: string
+fn rename(user: mut User) -> mut User:
+    user.name = "Grace"
+    user

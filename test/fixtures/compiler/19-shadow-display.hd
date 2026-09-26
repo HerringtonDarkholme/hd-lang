@@ -1,3 +1,0 @@
-# test: prelude Display cannot be shadowed
-
-data Display: pass  # diagnostic: prelude-name-shadow

@@ -1,7 +1,0 @@
-# test: requirements / row union
-# expect-result: main = 42
-
-fn invoke[r](callback: fn() -> i32 $ r + Logger) -> i32 $ r + Logger:
-    callback()
-fn logged() -> i32 $ Logger: 42
-fn main() -> i32 $ Logger: invoke(logged)

@@ -1,3 +1,0 @@
-# test: parser retains vararg and positional spread markers
-
-result := sum(values..., 3)  # diagnostic: nonfinal-positional-spread

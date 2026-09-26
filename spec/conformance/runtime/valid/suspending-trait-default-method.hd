@@ -1,0 +1,21 @@
+# test: traits / suspending defaults
+
+use std.testing.assert_equal
+
+trait Named:
+    fn value(self) -> i32
+    fn load!(self) -> i32:
+        self.value()
+
+data Number:
+    value: i32
+
+impl Named for Number:
+    fn value(self) -> i32: self.value
+
+fn main!() -> i32:
+    let named: Named = Number { value: 42 }
+    named.load!()
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="traits / suspending defaults")

@@ -1,4 +1,0 @@
-# test: parser retains explicit generic arguments and trailing callbacks
-# expect: parse
-
-value := pair[_, i32]("left", 1)

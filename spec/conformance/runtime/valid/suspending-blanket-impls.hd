@@ -1,0 +1,53 @@
+# test: suspending blanket impls
+
+use std.testing.assert_equal
+
+trait Read[T]:
+    fn read!(self) -> T
+
+data Box[T]:
+    value: T
+
+impl[T] Read[T] for Box[T]:
+    fn read!(self) -> T: self.value
+
+fn read_bound![T: Read[i32]](value: T) -> i32:
+    value.read!()
+
+trait Score:
+    fn score(self) -> i32
+
+trait AsyncScore:
+    fn score!(self) -> i32
+
+data Point:
+    value: i32
+
+impl Score for Point:
+    fn score(self) -> i32: self.value
+
+impl[Item: Score] AsyncScore for list[Item]:
+    fn score!(self) -> i32: self[0].score()
+
+fn score_bound![T: AsyncScore](value: T) -> i32:
+    value.score!()
+
+test "blanket dictionaries retain their erased suspending ABI":
+    let dynamic: Read[i32] = Box[i32] { value: 20 }
+    direct := dynamic.read!()
+    bounded := read_bound!(Box[i32] { value: 22 })
+    assert_equal(
+        direct + bounded,
+        42,
+        reason="dynamic and bounded blanket suspensions both return their concrete result",
+    )
+
+test "suspending blanket adapters retain captured bound dictionaries":
+    let first: list[Point] = [Point { value: 20 }]
+    let second: list[Point] = [Point { value: 22 }]
+    let dynamic: AsyncScore = first
+    assert_equal(
+        dynamic.score!() + score_bound!(second),
+        42,
+        reason="nested dictionaries remain available while the blanket frame is suspended",
+    )

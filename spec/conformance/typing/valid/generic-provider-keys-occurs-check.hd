@@ -1,0 +1,6 @@
+# test: requirements / generic provider keys / occurs check
+
+trait Repo[T]
+fn safe[T](plain: Repo[T], nested: Repo[T?]) -> void:
+    $.with(Repo[T]=plain, Repo[T?]=nested):
+        pass

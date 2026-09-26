@@ -1,0 +1,19 @@
+# test: resource error operation payload
+
+use std.testing.assert_equal
+
+use std.resource.ResourceError
+
+data Failure:
+    code: i32
+
+fn make() -> ResourceError[Failure]:
+    ResourceError.Operation(Failure { code: 42 })
+
+fn main() -> i32:
+    match make():
+        ResourceError.Operation(error) => error.code
+        ResourceError.Disposed => 0
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="resource error operation payload")

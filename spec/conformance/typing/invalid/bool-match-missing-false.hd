@@ -1,0 +1,5 @@
+# test: bool match missing false
+
+fn choose(flag: bool) -> i32:
+    match flag:  # diagnostic: nonexhaustive-match
+        true => 1

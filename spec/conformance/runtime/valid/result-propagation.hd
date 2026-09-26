@@ -1,0 +1,26 @@
+# test: result propagation
+
+use std.testing.assert_equal
+
+data ParseError:
+    code: i32
+
+fn parse(ok: bool) -> Result[i32, ParseError]:
+    if ok:
+        Ok(40)
+    else:
+        Err(ParseError { code: 7 })
+
+fn lifted(ok: bool) -> Result[i32, ParseError]:
+    value := parse(ok)?
+    Ok(value + 2)
+
+fn inspect(value: Result[i32, ParseError]) -> i32:
+    match value:
+        Ok(actual) => actual
+        Err(error) => -error.code
+
+fn main() -> i32: inspect(lifted(true)) + inspect(lifted(false))
+
+test "main returns 35":
+    assert_equal(main(), 35, reason="result propagation")

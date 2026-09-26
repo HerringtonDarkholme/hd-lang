@@ -1,0 +1,15 @@
+# test: sequential suspending calls
+
+use std.testing.assert_equal
+
+fn left!(value: i32) -> i32: value
+fn right!(value: i32) -> i32: value
+fn main!() -> i32:
+    base := 1
+    left_value := left!(20)
+    middle := 1
+    right_value := right!(20)
+    base + left_value + middle + right_value
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="sequential suspending calls")

@@ -1,0 +1,22 @@
+# test: suspending function values
+
+use std.testing.assert_equal
+
+fn add_one!(value: i32) -> i32:
+    value + 1
+
+fn drive_stored!(operation: fn!(i32) -> i32) -> i32:
+    let pending: mut Suspend[i32] = operation(41)
+    pending!()
+
+fn drive_direct!(operation: fn!(i32) -> i32) -> i32:
+    operation!(41)
+
+fn drive_lowered!(constructor: fn(i32) -> mut Suspend[i32]) -> i32:
+    let pending: mut Suspend[i32] = constructor(41)
+    pending!()
+
+test "suspending function values preserve constructor and bang-call behavior":
+    assert_equal(drive_stored!(add_one), 42, reason="ordinary call constructs a suspension")
+    assert_equal(drive_direct!(add_one), 42, reason="bang call constructs and drives a suspension")
+    assert_equal(drive_lowered!(add_one), 42, reason="fn! weakens to its constructor type")

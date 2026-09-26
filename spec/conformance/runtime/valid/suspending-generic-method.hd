@@ -1,0 +1,17 @@
+# test: suspending generic methods preserve explicit type arguments through bang calls
+
+use std.testing.assert_equal
+
+data Identity: pass
+
+impl Identity:
+    fn echo![Value](self, value: Value) -> Value:
+        value
+
+test "a generic method constructs and drives its erased suspension frame":
+    identity := Identity {}
+    assert_equal(
+        identity.echo[i32]!(42),
+        42,
+        reason="the explicit method type argument reaches suspension construction",
+    )

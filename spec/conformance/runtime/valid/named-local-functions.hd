@@ -1,0 +1,24 @@
+# test: named local functions capture enclosing values and recurse
+
+use std.testing.assert_equal
+
+fn total_with_bonus(values: list[i32], bonus: i32) -> i32:
+    fn add_bonus(value: i32) -> i32:
+        value + bonus
+    let total: i32 = 0
+    for value in values:
+        total = total + add_bonus(value)
+    total
+
+fn factorial(n: i32) -> i32:
+    fn step(value: i32) -> i32:
+        if value <= 1:
+            1
+        else:
+            value * step(value - 1)
+    step(n)
+
+fn main() -> i32: total_with_bonus([1, 2, 3], 10) + factorial(3)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="named local functions capture enclosing values and recurse")

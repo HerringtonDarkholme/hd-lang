@@ -1,8 +1,0 @@
-# test: character literals carry Unicode scalar values and compare in scalar order
-# expect-result: main = 128512
-
-fn main() -> char:
-    if 'A' < '界' and '😀' == '\u{1F600}':
-        '😀'
-    else:
-        'x'

@@ -1,0 +1,4 @@
+# test: parser retains shared enum fields, defaults, and variant results
+
+enum Status(code: i32, phrase: string = "unknown"):
+    Known -> Status(200, phrase="known")

@@ -1,0 +1,23 @@
+# test: traits / defaults / inherited method
+
+use std.testing.assert_equal
+
+trait Named:
+    fn name(self) -> i32
+    fn label(self) -> i32:
+        self.name() + 2
+
+data Number:
+    value: i32
+
+impl Named for Number:
+    fn name(self) -> i32: self.value
+
+fn show(value: Named) -> i32:
+    value.label()
+
+fn main() -> i32:
+    show(Number { value: 40 })
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="traits / defaults / inherited method")

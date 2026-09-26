@@ -1,0 +1,4 @@
+# test: tab in function body
+
+fn f() -> i32:
+	1  # diagnostic: tab-whitespace

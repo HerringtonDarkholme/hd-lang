@@ -1,0 +1,19 @@
+# test: closures / requirement inference / inferred row
+
+use std.testing.assert_equal
+
+fn run() -> i32 $ Clock:
+    reader := fn() -> i32:
+        _ := $.use(Clock)
+        42
+    reader()
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}):
+        assert_equal(run(), 42, reason="closures / requirement inference / inferred row")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock

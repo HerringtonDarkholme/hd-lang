@@ -1,0 +1,5 @@
+# test: dedent to unused column
+
+fn f() -> i32:
+    1
+  2  # diagnostic: invalid-dedent

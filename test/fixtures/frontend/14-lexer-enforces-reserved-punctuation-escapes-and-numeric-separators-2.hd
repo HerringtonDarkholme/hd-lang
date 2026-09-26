@@ -1,3 +1,0 @@
-# test: lexer enforces reserved punctuation, escapes, and numeric separators
-
-value := 1__0  # diagnostic: invalid-integer-literal

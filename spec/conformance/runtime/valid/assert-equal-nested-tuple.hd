@@ -1,0 +1,10 @@
+# test: assert equal nested tuple
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    assert_equal((1, ["a", "b"]), (1, ["a", "b"]), reason="same structure")
+    42
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="assert equal nested tuple")

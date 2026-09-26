@@ -1,0 +1,19 @@
+# test: contextual variant expressions
+
+use std.testing.assert_equal
+
+enum Status:
+    Queued
+    Ready(value: i32)
+
+fn queued() -> Status: .Queued
+fn unwrap(status: Status) -> i32:
+    match status:
+        .Queued => 0
+        .Ready(value) => value
+
+fn accept(status: Status) -> i32: unwrap(status)
+fn main() -> i32: unwrap(queued()) + accept(.Ready(42))
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="contextual variant expressions")

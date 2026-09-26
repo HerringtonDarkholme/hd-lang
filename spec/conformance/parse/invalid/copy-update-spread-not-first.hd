@@ -1,0 +1,3 @@
+# test: copy update spread not first
+
+copy := User { name: "Ada", ...source }  # diagnostic: syntax-error

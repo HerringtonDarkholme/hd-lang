@@ -1,4 +1,0 @@
-# test: integer power is right-associative, checked, and rejects negative exponents
-# expect-result: main = 508
-
-fn main() -> i32: -2 ** 2 + 2 ** 3 ** 2

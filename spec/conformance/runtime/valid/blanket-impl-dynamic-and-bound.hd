@@ -1,0 +1,43 @@
+# test: blanket impl dynamic and bound
+
+use std.testing.assert_equal
+
+trait Value[T]:
+    fn value(self) -> T
+
+data Box[T]:
+    item: T
+
+impl[T] Value[T] for Box[T]:
+    fn value(self) -> T: self.item
+
+fn blanket_dynamic() -> i32:
+    let dynamic: Value[i32] = Box[i32] { item: 42 }
+    dynamic.value()
+
+fn read_value[T: Value[i32]](value: T) -> i32:
+    value.value()
+
+fn blanket_bound() -> i32:
+    read_value(Box[i32] { item: 42 })
+
+trait Accept[T]:
+    fn accept(self, value: T) -> i32
+
+data Receiver: pass
+
+impl[T] Accept[T] for Receiver:
+    fn accept(self, value: T) -> i32: 42
+
+fn trait_argument_only_blanket() -> i32:
+    let dynamic: Accept[string] = Receiver {}
+    dynamic.accept("ignored")
+
+test "blanket_dynamic returns 42":
+    assert_equal(blanket_dynamic(), 42, reason="blanket impl dynamic and bound")
+
+test "blanket_bound returns 42":
+    assert_equal(blanket_bound(), 42, reason="blanket impl dynamic and bound")
+
+test "trait_argument_only_blanket returns 42":
+    assert_equal(trait_argument_only_blanket(), 42, reason="blanket impl dynamic and bound")

@@ -1,3 +1,0 @@
-# test: lexer enforces reserved punctuation, escapes, and numeric separators
-
-value := "price: $"  # diagnostic: invalid-string-interpolation

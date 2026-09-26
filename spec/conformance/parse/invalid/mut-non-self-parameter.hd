@@ -1,0 +1,6 @@
+# test: mut before a non-self parameter is not a parameter form
+
+trait Invalid:
+    fn add(
+        mut value: i32,  # diagnostic: syntax-error
+    ) -> void

@@ -1,0 +1,13 @@
+# test: string interpolation displays built-ins from left to right
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    text := "${-2147483648}|${0}|${42}|${true}|${false}|${'😀'}"
+    if text == "-2147483648|0|42|true|false|😀":
+        text.len()
+    else:
+        0
+
+test "main returns 29":
+    assert_equal(main(), 29, reason="string interpolation displays built-ins from left to right")

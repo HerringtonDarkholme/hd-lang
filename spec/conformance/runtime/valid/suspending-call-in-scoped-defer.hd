@@ -1,0 +1,16 @@
+# test: suspending call in scoped defer
+
+use std.testing.assert_equal
+
+fn child!() -> i32: 2
+
+fn main!() -> i32:
+    if true:
+        defer:
+            pass
+        child!() + 40
+    else:
+        0
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="suspending call in scoped defer")

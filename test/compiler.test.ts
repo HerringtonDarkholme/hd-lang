@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { fixture } from "./fixture.ts";
+import { conformance, fixture } from "./fixture.ts";
 
-const PROGRAM = fixture("compiler/00-case-program");
+const PROGRAM = conformance("runtime/valid/conditional-call-program");
 
 test("checker creates typed HIR with resolved locals and calls", () => {
   const result = analyze(PROGRAM);
@@ -22,76 +22,56 @@ test("compiler emits genuine Wasm GC and executes the entry point", async () => 
 });
 
 test("checked i32 arithmetic traps on overflow", async () => {
-  const { instance } = await instantiate(
-    fixture("compiler/03-checked-i32-arithmetic-traps-on-overflow"),
-  );
+  const { instance } = await instantiate(conformance("runtime/panic/i32-add-overflow-in-function"));
   assert.throws(() => (instance.exports.main as CallableFunction)());
 });
 
 test("the minimum i32 literal forms through unary negation", async () => {
-  const { instance } = await instantiate(
-    fixture("compiler/04-the-minimum-i32-literal-forms-through-unary-negation"),
-  );
+  const { instance } = await instantiate(conformance("runtime/valid/i32-minimum-literal"));
   assert.equal((instance.exports.main as CallableFunction)(), -2_147_483_648);
   assert.equal(
-    analyze(fixture("compiler/04-the-minimum-i32-literal-forms-through-unary-negation-diagnostic"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/unary-plus-i32-literal-range")).diagnostics[0]?.code,
     "integer-literal-range",
   );
-  const division = await instantiate(
-    fixture("compiler/04-the-minimum-i32-literal-forms-through-unary-negation-division"),
-  );
+  const division = await instantiate(conformance("runtime/panic/i32-min-divided-by-minus-one"));
   assert.throws(() => (division.instance.exports.main as CallableFunction)());
 });
 
 test("integer power is right-associative, checked, and rejects negative exponents", async () => {
   const { instance, compilation } = await instantiate(
-    fixture("compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent"),
+    conformance("runtime/valid/integer-power-associativity"),
   );
   assert.match(compilation.wat, /call \$hd\.pow_i32/);
   assert.equal((instance.exports.main as CallableFunction)(), 508);
 
-  const negative = await instantiate(
-    fixture(
-      "compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-negative",
-    ),
-  );
+  // Current MVP behavior; spec L2 makes a signed exponent a type error (known failure).
+  const negative = await instantiate("fn main() -> i32: 2 ** -1\n");
   assert.throws(() => (negative.instance.exports.main as CallableFunction)());
-  const overflow = await instantiate(
-    fixture(
-      "compiler/05-integer-power-is-right-associative-checked-and-rejects-negative-exponent-overflow",
-    ),
-  );
+  const overflow = await instantiate(conformance("runtime/panic/integer-power-overflow"));
   assert.throws(() => (overflow.instance.exports.main as CallableFunction)());
 });
 
 test("floating power uses the host IEEE pow primitive", async () => {
-  const { instance, compilation } = await instantiate(
-    fixture("compiler/06-floating-power-uses-the-host-ieee-pow-primitive"),
-  );
+  const { instance, compilation } = await instantiate(conformance("runtime/valid/floating-power"));
   assert.match(compilation.wat, /import "hd" "pow_f64"/);
   assert.equal((instance.exports.main as CallableFunction)(), 3);
   assert.equal(
-    analyze(fixture("compiler/06-floating-power-uses-the-host-ieee-pow-primitive-diagnostic"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/power-mixed-numeric-types")).diagnostics[0]?.code,
     "mixed-numeric-types",
   );
 });
 
 test("checker rejects name, mutability, and type errors", () => {
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/unknown-value-name")).diagnostics[0]?.code,
     "unknown-name",
   );
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-2"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/reassign-short-binding-in-function")).diagnostics[0]?.code,
     "non-reassignable-binding",
   );
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-3"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/function-result-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
   assert.equal(
@@ -105,8 +85,7 @@ test("checker rejects name, mutability, and type errors", () => {
     "invalid-binary-operands",
   );
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-6"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/nonfinal-vararg-then-parameter")).diagnostics[0]?.code,
     "nonfinal-vararg",
   );
   assert.equal(
@@ -120,7 +99,7 @@ test("checker rejects name, mutability, and type errors", () => {
 });
 
 test("homogeneous varargs lower through the existing list ABI", async () => {
-  const source = fixture("compiler/08-homogeneous-varargs-lower-through-the-existing-list-abi");
+  const source = conformance("runtime/valid/homogeneous-varargs");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 34);
@@ -129,26 +108,19 @@ test("homogeneous varargs lower through the existing list ABI", async () => {
 });
 
 test("first-class vararg functions retain their calling convention", async () => {
-  const source = fixture(
-    "compiler/09-first-class-vararg-functions-retain-their-calling-convention",
-  );
+  const source = conformance("runtime/valid/vararg-function-values");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 23);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/09-first-class-vararg-functions-retain-their-calling-convention-type-mismatch",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/list-function-to-vararg-function-type")).diagnostics[0]
+      ?.code,
     "type-mismatch",
   );
 });
 
 test("function parameter defaults evaluate after explicit arguments", async () => {
-  const source = fixture(
-    "compiler/10-function-parameter-defaults-evaluate-after-explicit-arguments",
-  );
+  const source = conformance("runtime/valid/parameter-defaults-after-explicit-arguments");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 1438);
@@ -172,39 +144,27 @@ test("function parameter defaults enforce order, type, and purity", () => {
     "parameter-default-order",
   );
   assert.equal(
-    analyze(
-      fixture("compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic-2"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/parameter-default-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/11-function-parameter-defaults-enforce-order-type-and-purity-impure-parameter-default",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/suspending-parameter-default")).diagnostics[0]?.code,
     "impure-parameter-default",
   );
 });
 
 test("varargs work in suspending and trait method calls", async () => {
-  const source = fixture("compiler/12-varargs-work-in-suspending-and-trait-method-calls");
+  const source = conformance("runtime/valid/varargs-in-trait-and-suspending-methods");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 108);
 });
 
 test("named arguments map to parameters without changing source evaluation order", async () => {
-  const ordinary = await instantiate(
-    fixture(
-      "compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord-2",
-    ),
-  );
+  const ordinary = await instantiate(conformance("runtime/valid/named-arguments-reordered"));
   assert.equal((ordinary.instance.exports.main as CallableFunction)(), 42);
 
-  const source = fixture(
-    "compiler/13-named-arguments-map-to-parameters-without-changing-source-evaluation-ord",
-  );
+  const source = conformance("runtime/valid/named-arguments-source-evaluation-order");
   const polls: number[] = [];
   const suspended = await instantiate(source, {
     trace: (functionIndex, event) => {
@@ -216,7 +176,7 @@ test("named arguments map to parameters without changing source evaluation order
 });
 
 test("named enum payloads preserve source evaluation order", async () => {
-  const source = fixture("compiler/14-named-enum-payloads-preserve-source-evaluation-order");
+  const source = conformance("runtime/valid/named-enum-payload-evaluation-order");
   const polls: number[] = [];
   const { instance, compilation } = await instantiate(source, {
     trace: (functionIndex, event) => {
@@ -246,7 +206,7 @@ test("named enum payloads preserve source evaluation order", async () => {
 });
 
 test("named enum payload patterns resolve bindings by field name", async () => {
-  const source = fixture("compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name");
+  const source = conformance("runtime/valid/named-enum-payload-patterns");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
@@ -261,26 +221,19 @@ test("named enum payload patterns resolve bindings by field name", async () => {
 });
 
 test("literal enum payload patterns constrain variants in Wasm and suspension CFG", async () => {
-  const source = fixture(
-    "compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension-",
-  );
+  const source = conformance("runtime/valid/literal-payload-patterns");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 138);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/16-literal-enum-payload-patterns-constrain-variants-in-wasm-and-suspension--nonexhaustive-match",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/literal-payload-pattern-nonexhaustive")).diagnostics[0]
+      ?.code,
     "nonexhaustive-match",
   );
 });
 
 test("shared enum data uses per-variant factories and pure ordered defaults", async () => {
-  const source = fixture(
-    "compiler/17-shared-enum-data-uses-per-variant-factories-and-pure-ordered-defaults",
-  );
+  const source = conformance("runtime/valid/shared-enum-data-defaults");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 84);
@@ -297,20 +250,18 @@ test("shared enum data uses per-variant factories and pure ordered defaults", as
 });
 
 test("named arguments work through static and dynamic trait dispatch", async () => {
-  const source = fixture(
-    "compiler/18-named-arguments-work-through-static-and-dynamic-trait-dispatch",
-  );
+  const source = conformance("runtime/valid/named-arguments-trait-dispatch");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
 test("prelude names cannot be shadowed by declarations or bindings", () => {
   const cases = [
-    fixture("compiler/19-shadow-display"),
-    fixture("compiler/19-shadow-println"),
-    fixture("compiler/19-shadow-result"),
-    fixture("compiler/19-shadow-console"),
-    fixture("compiler/19-shadow-hash"),
+    conformance("typing/invalid/prelude-shadow"),
+    conformance("typing/invalid/prelude-shadow-println-function"),
+    conformance("typing/invalid/prelude-shadow-result-generic"),
+    conformance("typing/invalid/prelude-shadow-console-parameter"),
+    conformance("typing/invalid/prelude-shadow-hash-local"),
   ];
   for (const source of cases) {
     assert.equal(analyze(source).diagnostics[0]?.code, "prelude-name-shadow", source);
@@ -318,68 +269,51 @@ test("prelude names cannot be shadowed by declarations or bindings", () => {
 });
 
 test("branch scopes do not leak and may shadow each other", () => {
-  const source = fixture("compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other");
+  const source = conformance("runtime/valid/branch-scopes-shadow");
   assert.deepEqual(analyze(source).diagnostics, []);
   assert.equal(
-    analyze(fixture("compiler/20-branch-scopes-do-not-leak-and-may-shadow-each-other-diagnostic"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/branch-binding-does-not-leak")).diagnostics[0]?.code,
     "unknown-name",
   );
 });
 
 test("else if chains preserve value typing and selection order", async () => {
-  const source = fixture("compiler/21-else-if-chains-preserve-value-typing-and-selection-order");
+  const source = conformance("runtime/valid/else-if-chain");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
 test("while, break, and continue lower to structured Wasm control flow", async () => {
-  const source = fixture(
-    "compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow",
-  );
+  const source = conformance("runtime/valid/while-break-and-continue");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(loop \$loop/);
   assert.equal((instance.exports.main as CallableFunction)(), 7);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/22-while-break-and-continue-lower-to-structured-wasm-control-flow-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/break-outside-loop")).diagnostics[0]?.code,
     "break-outside-loop",
   );
 });
 
 test("while else produces values on break or normal exhaustion", async () => {
-  const broken = fixture(
-    "compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-broken",
-  );
+  const broken = conformance("runtime/valid/while-else-break-value");
   const brokenResult = await instantiate(broken);
   assert.equal((brokenResult.instance.exports.main as CallableFunction)(), 42);
 
-  const exhausted = fixture(
-    "compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-exhausted",
-  );
+  const exhausted = conformance("runtime/valid/while-else-exhaustion-value");
   const exhaustedResult = await instantiate(exhausted);
   assert.equal((exhaustedResult.instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture("compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/break-value-in-void-loop")).diagnostics[0]?.code,
     "break-value-context",
   );
   assert.equal(
-    analyze(
-      fixture("compiler/23-while-else-produces-values-on-break-or-normal-exhaustion-diagnostic-2"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/plain-break-in-value-loop")).diagnostics[0]?.code,
     "break-value-context",
   );
 });
 
 test("for loops iterate lists and maps with continue, destructuring, and else values", async () => {
-  const source = fixture(
-    "compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va",
-  );
+  const source = conformance("runtime/valid/for-loops-lists-and-maps");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
@@ -402,7 +336,7 @@ test("for loops iterate lists and maps with continue, destructuring, and else va
 });
 
 test("data declarations lower to Wasm GC structs", async () => {
-  const source = fixture("compiler/25-data-declarations-lower-to-wasm-gc-structs");
+  const source = conformance("runtime/valid/data-fields-named-in-any-order");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$d0 \(struct/);
   assert.match(compilation.wat, /\(struct\.new \$d0/);
@@ -411,9 +345,7 @@ test("data declarations lower to Wasm GC structs", async () => {
 });
 
 test("mutable data paths weaken one way and share Wasm GC identity", async () => {
-  const source = fixture(
-    "compiler/26-mutable-data-paths-weaken-one-way-and-share-wasm-gc-identity",
-  );
+  const source = conformance("runtime/valid/mutable-data-paths-share-identity");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /struct\.set \$d0/);
@@ -421,7 +353,7 @@ test("mutable data paths weaken one way and share Wasm GC identity", async () =>
 });
 
 test("mutable list and map roots support indexed replacement", async () => {
-  const source = fixture("compiler/27-mutable-list-and-map-roots-support-indexed-replacement");
+  const source = conformance("runtime/valid/indexed-replacement-list-and-map");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /array\.set \$hd\.list/);
@@ -429,41 +361,33 @@ test("mutable list and map roots support indexed replacement", async () => {
 });
 
 test("mutable lists append through growable Wasm GC storage", async () => {
-  const source = fixture("compiler/28-mutable-lists-append-through-growable-wasm-gc-storage");
+  const source = conformance("runtime/valid/list-append-grows");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /type \$hd\.vector \(struct/);
   assert.match(compilation.wat, /call \$hd\.vector_append/);
   assert.ok(
-    analyze(
-      fixture(
-        "compiler/28-mutable-lists-append-through-growable-wasm-gc-storage-mutable-receiver-required",
-      ),
-    ).diagnostics.some((diagnostic) => diagnostic.code === "mutable-receiver-required"),
+    analyze(conformance("typing/invalid/readonly-list-append")).diagnostics.some(
+      (diagnostic) => diagnostic.code === "mutable-receiver-required",
+    ),
   );
 });
 
 test("mutable maps grow from empty storage and remove entries in insertion order", async () => {
-  const source = fixture(
-    "compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord",
-  );
+  const source = conformance("runtime/valid/map-grow-and-remove");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.match(compilation.wat, /call \$hd\.map_remove/);
   assert.match(compilation.wat, /struct\.set \$hd\.map \$hd\.map-keys/);
 
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/29-mutable-maps-grow-from-empty-storage-and-remove-entries-in-insertion-ord-mutable-receiver-required",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/readonly-map-remove")).diagnostics[0]?.code,
     "mutable-receiver-required",
   );
 });
 
 test("data field initializers preserve source evaluation order", async () => {
-  const source = fixture("compiler/30-data-field-initializers-preserve-source-evaluation-order");
+  const source = conformance("runtime/valid/data-field-evaluation-order");
   const polls: number[] = [];
   const { instance, compilation } = await instantiate(source, {
     trace: (functionIndex, event) => {
@@ -476,9 +400,7 @@ test("data field initializers preserve source evaluation order", async () => {
 });
 
 test("data field defaults run per construction after explicit fields", async () => {
-  const source = fixture(
-    "compiler/31-data-field-defaults-run-per-construction-after-explicit-fields",
-  );
+  const source = conformance("runtime/valid/data-field-defaults");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 12);
@@ -495,31 +417,21 @@ test("data field defaults run per construction after explicit fields", async () 
 
 test("data field defaults are type checked and purity checked", () => {
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default",
-      ),
-    ).diagnostics.length,
+    analyze(conformance("typing/valid/generic-optional-field-default")).diagnostics.length,
     0,
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/32-data-field-defaults-are-type-checked-and-purity-checked-impure-data-default-2",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/suspending-data-field-default")).diagnostics[0]?.code,
     "impure-data-default",
   );
   assert.equal(
-    analyze(
-      fixture("compiler/32-data-field-defaults-are-type-checked-and-purity-checked-type-mismatch"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-field-default-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
 
 test("data copy-update evaluates its source before replacements", async () => {
-  const source = fixture("compiler/33-data-copy-update-evaluates-its-source-before-replacements");
+  const source = conformance("runtime/valid/copy-update-evaluation-order");
   const polls: number[] = [];
   const { instance, compilation } = await instantiate(source, {
     trace: (functionIndex, event) => {
@@ -532,24 +444,18 @@ test("data copy-update evaluates its source before replacements", async () => {
 });
 
 test("data copy-update supplies omitted fields without running defaults", async () => {
-  const source = fixture(
-    "compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults",
-  );
+  const source = conformance("runtime/valid/copy-update-skips-defaults");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/34-data-copy-update-supplies-omitted-fields-without-running-defaults-type-mismatch",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/copy-update-source-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
 
 test("fieldless data lowers to an empty Wasm GC struct", async () => {
-  const source = fixture("compiler/35-fieldless-data-lowers-to-an-empty-wasm-gc-struct");
+  const source = conformance("runtime/valid/fieldless-data-argument");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$d0 \(struct\s*\)\)/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
@@ -557,48 +463,48 @@ test("fieldless data lowers to an empty Wasm GC struct", async () => {
 
 test("data initialization checks field names, presence, and types", () => {
   assert.equal(
-    analyze(fixture("compiler/36-data-initialization-unknown-field")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-literal-unknown-field")).diagnostics[0]?.code,
     "unknown-data-field",
   );
   assert.equal(
-    analyze(fixture("compiler/36-data-initialization-missing-field")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-literal-missing-field")).diagnostics[0]?.code,
     "missing-required-field",
   );
   assert.equal(
-    analyze(fixture("compiler/36-data-initialization-wrong-field-type")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-literal-field-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
 
 test("data patterns destructure nested fields and test literals", async () => {
-  const source = fixture("compiler/37-data-patterns-destructure-nested-fields-and-test-literals");
+  const source = conformance("runtime/valid/data-patterns");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /struct\.get \$d0 \$d0f0 \(struct\.get \$d1 \$d1f0/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 
   assert.equal(
-    analyze(fixture("compiler/37-data-pattern-duplicate-field")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-pattern-repeated-field")).diagnostics[0]?.code,
     "duplicate-data-pattern-field",
   );
   assert.equal(
-    analyze(fixture("compiler/37-data-pattern-unknown-field")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-pattern-unknown-field")).diagnostics[0]?.code,
     "unknown-data-field",
   );
   assert.equal(
-    analyze(fixture("compiler/37-data-pattern-nonexhaustive")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/data-pattern-nonexhaustive")).diagnostics[0]?.code,
     "nonexhaustive-match",
   );
 });
 
 test("strings use GC byte arrays and len counts Unicode scalars", async () => {
-  const source = fixture("compiler/38-strings-use-gc-byte-arrays-and-len-counts-unicode-scalars");
+  const source = conformance("runtime/valid/string-length-counts-scalars");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /array\.new_fixed \$hd\.bytes 8/);
   assert.equal((instance.exports.main as CallableFunction)(), 3);
 });
 
 test("string interpolation displays built-ins from left to right", async () => {
-  const source = fixture("compiler/39-string-interpolation-displays-built-ins-left-to-right");
+  const source = conformance("runtime/valid/string-interpolation-built-ins");
   const { instance, compilation } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 29);
   assert.match(compilation.wat, /call \$hd\.i32_to_string/);
@@ -606,7 +512,7 @@ test("string interpolation displays built-ins from left to right", async () => {
 });
 
 test("strings compare by UTF-8 value order", async () => {
-  const source = fixture("compiler/40-strings-compare-by-utf-8-value-order");
+  const source = conformance("runtime/valid/string-ordering");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /call \$hd\.string_compare/);
   assert.match(compilation.wat, /call \$hd\.string_starts_with/);
@@ -614,9 +520,7 @@ test("strings compare by UTF-8 value order", async () => {
 });
 
 test("strings concatenate and unnamed enum fields use numeric selectors", async () => {
-  const source = fixture(
-    "compiler/41-strings-concatenate-and-unnamed-enum-fields-use-numeric-selectors",
-  );
+  const source = conformance("runtime/valid/string-concatenation-and-numeric-selectors");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.match(compilation.wat, /call \$hd\.string_concat/);
@@ -624,15 +528,13 @@ test("strings concatenate and unnamed enum fields use numeric selectors", async 
 });
 
 test("character literals carry Unicode scalar values and compare in scalar order", async () => {
-  const source = fixture(
-    "compiler/42-character-literals-carry-unicode-scalar-values-and-compare-in-scalar-ord",
-  );
+  const source = conformance("runtime/valid/character-literals");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 0x1f600);
 });
 
 test("defer runs after a return value is evaluated", async () => {
-  const source = fixture("compiler/43-defer-runs-after-a-return-value-is-evaluated");
+  const source = conformance("runtime/valid/defer-after-return-value");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /local\.set \$tmp0/);
   assert.equal((instance.exports.main as CallableFunction)(), 1);
@@ -644,22 +546,20 @@ test("defer rejects escaping control flow", () => {
 });
 
 test("defer is LIFO and runs on loop continue and break", async () => {
-  const source = fixture("compiler/45-defer-is-lifo-and-runs-on-loop-continue-and-break");
+  const source = conformance("runtime/valid/defer-lifo-and-loop-exits");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 1221);
 });
 
 test("explicit panic lowers to unreachable and skips pending defer", async () => {
-  const source = fixture(
-    "compiler/46-explicit-panic-lowers-to-unreachable-and-skips-pending-defer",
-  );
+  const source = conformance("runtime/panic/explicit-panic-skips-defer");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /unreachable/);
   assert.throws(() => (instance.exports.main as CallableFunction)());
 });
 
 test("enums use tagged GC structs and match binds payloads", async () => {
-  const source = fixture("compiler/47-enums-use-tagged-gc-structs-and-match-binds-payloads");
+  const source = conformance("runtime/valid/enum-payload-match");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$e0 \(struct/);
   assert.match(compilation.wat, /\(struct\.new \$e0 \(i32\.const 0\)/);
@@ -669,7 +569,7 @@ test("enums use tagged GC structs and match binds payloads", async () => {
 
 test("match checking enforces coverage, payload arity, and arm reachability", () => {
   assert.equal(
-    analyze(fixture("compiler/48-match-nonexhaustive")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/enum-match-missing-variant")).diagnostics[0]?.code,
     "nonexhaustive-match",
   );
   assert.equal(
@@ -681,21 +581,17 @@ test("match checking enforces coverage, payload arity, and arm reachability", ()
     "unreachable-match-arm",
   );
   assert.equal(
-    analyze(fixture("compiler/48-match-bare-variant")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/bare-variant-pattern-in-match")).diagnostics[0]?.code,
     "bare-variant-pattern",
   );
 });
 
 test("contextual enum variant patterns use the subject type", async () => {
-  const source = fixture("compiler/49-contextual-enum-variant-patterns-use-the-subject-type");
+  const source = conformance("runtime/valid/contextual-variant-patterns");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 
-  const swapped = analyze(
-    fixture(
-      "compiler/49-contextual-enum-variant-patterns-use-the-subject-type-variant-binding-name-mismatch",
-    ),
-  );
+  const swapped = analyze(conformance("typing/warnings/variant-binding-names-swapped"));
   assert.ok(swapped.hir);
   assert.ok(
     swapped.diagnostics.some(
@@ -706,26 +602,23 @@ test("contextual enum variant patterns use the subject type", async () => {
 });
 
 test("contextual enum variant expressions use their expected type", async () => {
-  const source = fixture("compiler/50-contextual-enum-variant-expressions-use-their-expected-type");
+  const source = conformance("runtime/valid/contextual-variant-expressions");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture("compiler/50-contextual-enum-variant-expressions-use-their-expected-type-diagnostic"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/contextual-variant-binding-without-type")).diagnostics[0]
+      ?.code,
     "missing-contextual-enum-type",
   );
 });
 
 test("boolean matches are exhaustive and lower to scalar tests", async () => {
-  const source = fixture("compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests");
+  const source = conformance("runtime/valid/bool-match");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /i32\.eq[\s\S]*local\.get \$tmp/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture("compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-diagnostic"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/bool-match-missing-false")).diagnostics[0]?.code,
     "nonexhaustive-match",
   );
   assert.equal(
@@ -739,19 +632,14 @@ test("boolean matches are exhaustive and lower to scalar tests", async () => {
 });
 
 test("numeric, character, and string literal patterns require a catch-all", async () => {
-  const source = fixture(
-    "compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all",
-  );
+  const source = conformance("runtime/valid/literal-patterns");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /call \$hd\.string_compare/);
   assert.match(compilation.wat, /f64\.eq/);
   assert.equal((instance.exports.main as CallableFunction)(), 32);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/integer-literal-match-without-catch-all")).diagnostics[0]
+      ?.code,
     "nonexhaustive-match",
   );
   assert.equal(
@@ -765,41 +653,25 @@ test("numeric, character, and string literal patterns require a catch-all", asyn
 });
 
 test("match guards see pattern bindings and do not contribute coverage", async () => {
-  const source = fixture(
-    "compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage",
-  );
+  const source = conformance("runtime/valid/match-guards");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/guarded-catch-all-not-exhaustive")).diagnostics[0]?.code,
     "nonexhaustive-match",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch",
-      ),
-    ).diagnostics.length,
+    analyze(conformance("typing/valid/match-guard-reads-binding")).diagnostics.length,
     0,
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/53-match-guards-see-pattern-bindings-and-do-not-contribute-coverage-type-mismatch-2",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/match-guard-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
 
 test("optionals inject plain values, match both cases, and propagate nil", async () => {
-  const source = fixture(
-    "compiler/54-optionals-inject-plain-values-match-both-cases-and-propagate-nil",
-  );
+  const source = conformance("runtime/valid/optional-propagation");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /type \$hd\.variant/);
   assert.match(compilation.wat, /struct\.new \$hd\.box-i32/);
@@ -807,15 +679,13 @@ test("optionals inject plain values, match both cases, and propagate nil", async
 });
 
 test("Result constructors, matching, and error propagation use the erased carrier", async () => {
-  const source = fixture(
-    "compiler/55-result-constructors-matching-and-error-propagation-use-the-erased-carrie",
-  );
+  const source = conformance("runtime/valid/result-propagation");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 35);
 });
 
 test("imported ResourceError is a generic Wasm GC enum", async () => {
-  const source = fixture("compiler/56-imported-resourceerror-is-a-generic-wasm-gc-enum");
+  const source = conformance("runtime/valid/resource-error-operation-payload");
   const { instance, compilation } = await instantiate(source);
   assert.equal(compilation.hir.enums.at(-1)?.name, "ResourceError");
   assert.match(compilation.wat, /type \$e\d+ \(struct/);
@@ -823,7 +693,7 @@ test("imported ResourceError is a generic Wasm GC enum", async () => {
 });
 
 test("Result patterns recursively match imported enum payloads", async () => {
-  const source = fixture("compiler/57-result-patterns-recursively-match-imported-enum-payloads");
+  const source = conformance("runtime/valid/result-pattern-nested-enum");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
@@ -851,46 +721,36 @@ test("optional and Result context errors have stable diagnostics", () => {
     ).diagnostics[0]?.code,
     "invalid-result-propagation",
   );
-  const nested = analyze(
-    fixture("compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-4"),
-  );
+  const nested = analyze(conformance("typing/warnings/unused-nested-optional-binding"));
   assert.ok(nested.hir);
   assert.equal(nested.diagnostics[0]?.code, "unused-local-binding");
 });
 
 test("optional and Result values are must-use unless explicitly discarded", () => {
   assert.equal(
-    analyze(fixture("compiler/59-optional-result-discarded")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/discarded-optional-result")).diagnostics[0]?.code,
     "discarded-must-use-value",
   );
   assert.deepEqual(
-    analyze(fixture("compiler/59-optional-result-explicitly-discarded")).diagnostics,
+    analyze(conformance("typing/valid/optional-result-explicitly-discarded")).diagnostics,
     [],
   );
 });
 
 test("typed noncapturing closures lower to Wasm typed function references", async () => {
-  const source = fixture(
-    "compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references",
-  );
+  const source = conformance("runtime/valid/closure-as-function-argument");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /\(type \$sig0 \(func/);
   assert.match(compilation.wat, /call_ref \$sig0/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/60-typed-noncapturing-closures-lower-to-wasm-typed-function-references-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/closure-argument-type-mismatch")).diagnostics[0]?.code,
     "type-mismatch",
   );
 });
 
 test("expected function types infer inline closure parameters and results", async () => {
-  const source = fixture(
-    "compiler/61-expected-function-types-infer-inline-closure-parameters-and-results",
-  );
+  const source = conformance("runtime/valid/closure-parameter-inference");
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
@@ -904,9 +764,7 @@ test("expected function types infer inline closure parameters and results", asyn
 });
 
 test("nonrecursive closures infer result types from fallthrough and returns", async () => {
-  const source = fixture(
-    "compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns",
-  );
+  const source = conformance("runtime/valid/closure-result-inference");
   const analysis = analyze(source);
   assert.deepEqual(analysis.diagnostics, []);
   assert.equal(analysis.hir?.functions[0]?.locals[0]?.type, "fn(i32)->i32");
@@ -923,9 +781,7 @@ test("nonrecursive closures infer result types from fallthrough and returns", as
 });
 
 test("explicitly typed local closures recurse through their current environment", async () => {
-  const source = fixture(
-    "compiler/63-explicitly-typed-local-closures-recurse-through-their-current-environmen",
-  );
+  const source = conformance("runtime/valid/recursive-local-closure");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /ref\.func \$c0\) \(local\.get \$env\)/);
   assert.equal(compilation.hir.closures[0]?.captures.length, 0);
@@ -933,7 +789,7 @@ test("explicitly typed local closures recurse through their current environment"
 });
 
 test("named local functions capture enclosing values and recurse", async () => {
-  const source = fixture("compiler/64-named-local-functions-capture-enclosing-values-and-recurse");
+  const source = conformance("runtime/valid/named-local-functions");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);

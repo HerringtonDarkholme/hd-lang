@@ -1,0 +1,3 @@
+# test: double numeric separator
+
+value := 1__0  # diagnostic: invalid-token

@@ -1,6 +1,0 @@
-# test: requirements / context normalization
-# expect: accept
-
-fn make() -> $.Context[Clock + Backup] $ Clock + Backup:
-    base := $.context(Clock=$.use(Clock))
-    $.context(...base, Backup=$.use(Backup), Clock=$.use(Backup))

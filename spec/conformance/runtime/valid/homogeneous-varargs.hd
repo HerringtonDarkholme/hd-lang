@@ -1,0 +1,18 @@
+# test: homogeneous varargs
+
+use std.testing.assert_equal
+
+fn count(values: i32...) -> i32: values.len()
+fn first_or(values: i32...) -> i32:
+    if values.len() == 0:
+        9
+    else:
+        values[0]
+fn generic_first[T](values: T...) -> T: values[0]
+fn tagged(tag: i32, values: i32...) -> i32: tag * 10 + values[0]
+fn main() -> i32:
+    items := [4, 5, 6]
+    count() + count(1, 2, 3) + first_or() + first_or(items...) + generic_first(6) + tagged([2]..., tag=1)
+
+test "main returns 34":
+    assert_equal(main(), 34, reason="homogeneous varargs")

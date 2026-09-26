@@ -1,0 +1,13 @@
+# test: closure as function argument
+
+use std.testing.assert_equal
+
+fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
+    transform(value)
+
+fn main() -> i32:
+    increment := fn(value: i32) -> i32: value + 1
+    apply(41, increment)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="closure as function argument")

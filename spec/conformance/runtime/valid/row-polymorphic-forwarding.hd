@@ -1,0 +1,33 @@
+# test: requirements / row forwarding
+
+use std.testing.assert_equal
+
+fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+    callback()
+
+fn forward[s](callback: fn() -> i32 $ s + Clock) -> i32 $ s + Clock:
+    invoke(callback)
+
+fn read() -> i32 $ Clock + Logger:
+    _ := $.use(Clock)
+    _ := $.use(Logger)
+    42
+
+fn run() -> i32 $ Clock + Logger:
+    forward(read)
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}, Logger=FixedLogger {}):
+        assert_equal(run(), 42, reason="requirements / row forwarding")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
+trait Logger
+
+data FixedLogger: pass
+
+impl Logger for FixedLogger

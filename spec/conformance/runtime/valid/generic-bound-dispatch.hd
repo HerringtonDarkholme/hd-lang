@@ -1,0 +1,25 @@
+# test: generic bound dispatch
+
+use std.testing.assert_equal
+
+trait Describe:
+    fn describe(self) -> i32
+
+data Number:
+    value: i32
+
+impl Describe for Number:
+    fn describe(self) -> i32: self.value
+
+fn show[T: Describe](value: T) -> i32:
+    value.describe()
+
+fn identity[T: Describe](value: T) -> T:
+    value
+
+fn main() -> i32:
+    returned := identity(Number { value: 22 })
+    show(Number { value: 20 }) + returned.value
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="generic bound dispatch")

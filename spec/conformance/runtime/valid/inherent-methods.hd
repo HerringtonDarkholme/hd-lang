@@ -1,0 +1,20 @@
+# test: traits / inherent methods
+
+use std.testing.assert_equal
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn add(mut self, amount: i32) -> void:
+        self.value = self.value + amount
+    fn load!(self, amount: i32) -> i32:
+        self.value + amount
+
+fn main!() -> i32:
+    let counter: mut Counter = Counter { value: 10 }
+    counter.add(amount=12)
+    counter.load!(20)
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="traits / inherent methods")

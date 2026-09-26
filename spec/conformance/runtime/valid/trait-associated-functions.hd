@@ -1,0 +1,44 @@
+# test: trait associated functions use implementing type qualification
+
+use std.testing.assert_equal
+
+trait Factory:
+    fn create() -> string
+
+data UserFactory: pass
+
+impl Factory for UserFactory:
+    fn create() -> string: "guest"
+
+trait DefaultFactory:
+    fn create() -> i32: 42
+
+data DefaultValue: pass
+
+impl DefaultFactory for DefaultValue
+
+fn guest_length() -> i32:
+    UserFactory::create().len()
+
+fn default_value() -> i32:
+    DefaultValue::create()
+
+trait Convert[T]:
+    fn convert(value: T) -> T
+
+data IntConverter: pass
+
+impl Convert[i32] for IntConverter:
+    fn convert(value: i32) -> i32: value
+
+fn converted_value() -> i32:
+    IntConverter::convert(42)
+
+test "guest_length returns 5":
+    assert_equal(guest_length(), 5, reason="trait associated functions use implementing type qualification")
+
+test "default_value returns 42":
+    assert_equal(default_value(), 42, reason="trait associated functions use implementing type qualification")
+
+test "converted_value returns 42":
+    assert_equal(converted_value(), 42, reason="trait associated functions use implementing type qualification")

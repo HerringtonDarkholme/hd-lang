@@ -1,8 +1,0 @@
-# test: parser retains mutable permission types and field assignments
-# expect: parse
-
-data User:
-    name: string
-fn rename(user: mut User) -> mut User:
-    user.name = "Grace"
-    user

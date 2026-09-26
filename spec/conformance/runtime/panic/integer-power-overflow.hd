@@ -1,0 +1,6 @@
+# test: integer power overflow
+
+fn main() -> i32: 2 ** 31  # panic: integer-overflow
+
+test "an overflowing integer power panics":
+    _ := main()

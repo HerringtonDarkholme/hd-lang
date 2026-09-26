@@ -1,0 +1,3 @@
+# test: mutable list parameter index assignment
+
+fn set(values: mut list[i32]) -> void: values[0] = 1

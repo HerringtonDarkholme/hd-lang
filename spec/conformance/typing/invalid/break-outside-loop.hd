@@ -1,0 +1,3 @@
+# test: break outside loop
+
+fn main() -> void: break  # diagnostic: break-outside-loop

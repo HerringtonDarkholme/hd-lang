@@ -15,13 +15,11 @@ fn wait_once!() -> void $ Gate:
 pub fn main!() -> void $ Gate:
     wait_once!()
     provider_result = 42
-
-pub fn recorded_result() -> i32:
-    provider_result
-
-test "host provider completed":
     assert_equal(
         provider_result,
         42,
-        reason="the host suspension must complete before the test runs",
+        reason="the host suspension must complete before main! continues",
     )
+
+pub fn recorded_result() -> i32:
+    provider_result

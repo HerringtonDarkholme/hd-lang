@@ -1,0 +1,14 @@
+# test: branch scopes shadow
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    if true:
+        value := 1
+        value
+    else:
+        value := 2
+        value
+
+test "main returns 1":
+    assert_equal(main(), 1, reason="branch scopes shadow")

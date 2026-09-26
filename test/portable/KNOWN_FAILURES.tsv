@@ -17,3 +17,19 @@ runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldle
 typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait-cycle on every cycle member (lines 4 and 7)	L9
 typing/invalid/parameter-default-later-parameter.hd	wrong code: MVP reports impure-parameter-default instead of binding-not-yet-visible	L10
 typing/invalid/impure-parameter-default.hd	wrong code: MVP reports impure-parameter-default instead of impure-default	L10
+typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
+typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
+typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
+typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
+typing/invalid/provider-spread-of-non-context.hd	MVP reports context-spread-type instead of type-mismatch	F-205
+typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
+typing/invalid/signed-integer-exponent.hd	MVP accepts a signed integer exponent; L2 makes it type-mismatch	F-153
+typing/invalid/suspending-parameter-default.hd	MVP reports impure-parameter-default instead of impure-default (L10)	F-205
+typing/invalid/suspending-data-field-default.hd	MVP reports impure-data-default instead of impure-default (L10)	F-205
+parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
+parse/invalid/dedent-to-unused-column.hd	MVP reports inconsistent-dedent instead of invalid-dedent	F-205
+parse/invalid/double-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
+parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal instead of syntax-error	F-205
+parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error (S3)	F-205
+parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
+parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205

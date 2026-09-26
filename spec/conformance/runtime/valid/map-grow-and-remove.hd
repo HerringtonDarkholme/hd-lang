@@ -1,0 +1,26 @@
+# test: map grow and remove
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let values: mut map[string, i32] = {}
+    values["a"] = 1
+    values["b"] = 2
+    values["c"] = 3
+    values["d"] = 4
+    values["e"] = 5
+    values["f"] = 27
+    removed := match values.remove(key="c"):
+        value? => value
+        nil => 0
+    missing := match values.get("c"):
+        value? => value
+        nil => 0
+    let remaining = 0
+    for key, value in values:
+        _ := key
+        remaining = remaining + value
+    removed + missing + remaining
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="map grow and remove")

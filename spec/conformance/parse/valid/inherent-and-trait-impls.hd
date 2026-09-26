@@ -1,0 +1,10 @@
+# test: parser distinguishes inherent and trait implementation blocks
+
+data User:
+    value: i32
+trait Read:
+    fn read(self) -> i32
+impl User:
+    fn read(self) -> i32: self.value
+impl Read for User:
+    fn read(self) -> i32: self.value

@@ -1,0 +1,4 @@
+# test: reassign short module binding
+
+answer := 41
+fn change() -> void: answer = 42  # diagnostic: non-reassignable-binding

@@ -1,0 +1,16 @@
+# test: list append grows
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let values: mut list[i32] = []
+    values.append(1)
+    values.append(2)
+    values.append(3)
+    values.append(4)
+    values.append(5)
+    values.append(36)
+    values.len() + values[5]
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="list append grows")

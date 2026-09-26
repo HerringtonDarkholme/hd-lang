@@ -1,5 +1,0 @@
-# test: parser retains shared enum fields, defaults, and variant results
-# expect: parse
-
-enum Status(code: i32, phrase: string = "unknown"):
-    Known -> Status(200, phrase="known")

@@ -1,0 +1,19 @@
+# test: suspending match guards
+
+use std.testing.assert_equal
+
+enum Number:
+    Value(value: i32)
+    Empty
+
+fn number!(value: Number) -> Number: value
+fn probe!(value: i32) -> i32: value
+
+fn main!() -> i32:
+    match number!(Number.Value(20)):
+        Number.Value(value) if probe!(value) == 20 => probe!(value) + 22
+        Number.Value(value) => value
+        Number.Empty => 0
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="suspending match guards")

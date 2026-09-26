@@ -1,0 +1,6 @@
+# test: match guard reads binding
+
+fn classify(value: bool) -> i32:
+    match value:
+        candidate if candidate => 1
+        _ => 0

@@ -1,0 +1,13 @@
+# test: string trim and lower
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    value := " \tÄBC Σİ ".trim().lower()
+    if value == "äbc σi̇":
+        42
+    else:
+        0
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="string trim and lower")

@@ -1,0 +1,3 @@
+# test: unknown value name
+
+fn main() -> i32: missing  # diagnostic: unknown-name

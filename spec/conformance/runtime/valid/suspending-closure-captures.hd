@@ -1,0 +1,25 @@
+# test: suspending closure captures
+
+use std.testing.assert_equal
+
+fn delayed!(value: i32) -> i32:
+    value
+
+fn drive_captured_closure!(base: i32) -> i32:
+    loader := fn!(offset: i32) -> i32:
+        delayed!(base + offset)
+    loader!(2)
+
+fn drive_stored_captured_closure!(base: i32) -> i32:
+    loader := fn!(offset: i32) -> i32:
+        delayed!(base + offset)
+    let pending: mut Suspend[i32] = loader(2)
+    pending!()
+
+test "captured values survive direct and stored suspension driving":
+    assert_equal(drive_captured_closure!(40), 42, reason="direct drive retains the environment")
+    assert_equal(
+        drive_stored_captured_closure!(40),
+        42,
+        reason="stored drive retains the environment",
+    )

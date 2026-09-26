@@ -1,0 +1,24 @@
+# test: suspending calls in loops
+
+use std.testing.assert_equal
+
+fn step!(value: i32) -> i32: value
+
+fn main!() -> i32:
+    let index: i32 = 0
+    let total: i32 = 0
+    value := while index < 5:
+        defer:
+            total = total + 10
+        index = step!(index + 1)
+        if index == 2:
+            continue
+        total = total + step!(index)
+        if index == 4:
+            break total
+    else:
+        0
+    value + total - 44
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="suspending calls in loops")

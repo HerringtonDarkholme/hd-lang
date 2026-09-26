@@ -1,0 +1,25 @@
+# test: data patterns destructure nested fields and test literals
+
+use std.testing.assert_equal
+
+data User:
+    age: i32
+    active: bool
+
+data Envelope:
+    user: User
+
+fn label(user: User) -> i32:
+    match user:
+        User { age, active=true } => age
+        User { age=alias } => alias
+
+fn nested(envelope: Envelope) -> i32:
+    match envelope:
+        Envelope { user=User { age } } => age
+
+fn main() -> i32:
+    label(User { age: 40, active: true }) + label(User { age: 1, active: false }) + nested(Envelope { user: User { age: 1, active: false } })
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="data patterns destructure nested fields and test literals")

@@ -1,0 +1,25 @@
+# test: trait-qualified calls select one implementation when dot lookup is ambiguous
+
+use std.testing.assert_equal
+
+trait LeftValue:
+    fn value(self) -> i32
+
+trait RightValue:
+    fn value(self) -> i32
+
+data Number:
+    value: i32
+
+impl LeftValue for Number:
+    fn value(self) -> i32: self.value
+
+impl RightValue for Number:
+    fn value(self) -> i32: self.value + 2
+
+fn qualified_total() -> i32:
+    number := Number { value: 20 }
+    LeftValue::value(number) + RightValue::value(number)
+
+test "qualified_total returns 42":
+    assert_equal(qualified_total(), 42, reason="trait-qualified calls select one implementation when dot lookup is ambiguous")

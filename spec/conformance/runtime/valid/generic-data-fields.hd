@@ -1,0 +1,20 @@
+# test: generic data fields
+
+use std.testing.assert_equal
+
+data Box[T]:
+    value: T
+
+data Pair[A, B]:
+    first: A
+    second: B
+
+fn keep[T](box: Box[T]) -> Box[T]: box
+
+fn main() -> i32:
+    box := Box { value: 40 }
+    pair := Pair { first: keep(box), second: "hd" }
+    pair.first.value + pair.second.len()
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="generic data fields")

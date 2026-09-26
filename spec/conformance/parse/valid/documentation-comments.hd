@@ -1,0 +1,13 @@
+# test: documentation comments attach to AST declarations and members
+
+## A point.
+## Stored in two dimensions.
+data Point:
+    ## Horizontal coordinate.
+    x: i32
+
+## Read one coordinate.
+fn read(
+    ## Point to inspect.
+    point: Point,
+) -> i32: point.x

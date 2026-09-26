@@ -1,0 +1,22 @@
+# test: traits / dispatch
+
+use std.testing.assert_equal
+
+trait Describe:
+    fn describe(self) -> i32
+
+data User:
+    value: i32
+
+impl Describe for User:
+    fn describe(self) -> i32: self.value
+
+fn dynamic_show(value: Describe) -> i32:
+    value.describe()
+
+fn main() -> i32:
+    user := User { value: 21 }
+    user.describe() + dynamic_show(user)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="traits / dispatch")

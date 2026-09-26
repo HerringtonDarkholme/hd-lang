@@ -1,0 +1,16 @@
+# test: while break and continue
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    let value: i32 = 0
+    while value < 10:
+        value = value + 1
+        if value == 3:
+            continue
+        if value == 7:
+            break
+    value
+
+test "main returns 7":
+    assert_equal(main(), 7, reason="while break and continue")

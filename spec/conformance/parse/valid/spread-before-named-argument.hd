@@ -1,0 +1,3 @@
+# test: spread before named argument
+
+result := tagged(values..., tag="score")

@@ -1,0 +1,26 @@
+# test: cancellation runs the defer of a suspended dynamic trait method
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+
+let cleaned: bool = false
+
+trait Job:
+    fn run!(self) -> void
+
+data Worker:
+    value: i32
+
+fn wait!() -> void: pass
+
+impl Job for Worker:
+    fn run!(self) -> void:
+        defer:
+            cleaned = self.value == 42
+        wait!()
+
+pub fn main!() -> void:
+    let job: Job = Worker { value: 42 }
+    job.run!()
+
+pub fn cleanup_ran() -> bool:
+    cleaned

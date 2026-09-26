@@ -1,0 +1,3 @@
+# test: stray dollar in string
+
+value := "price: $"  # diagnostic: syntax-error

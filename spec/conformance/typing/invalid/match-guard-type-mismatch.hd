@@ -1,0 +1,6 @@
+# test: match guard type mismatch
+
+fn classify(value: bool) -> i32:
+    match value:
+        _ if 1 => 1  # diagnostic: type-mismatch
+        _ => 0

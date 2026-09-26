@@ -1,4 +1,0 @@
-# test: requirements / normalization / ungrouped
-# expect: accept
-
-fn main() -> void $ Logger + Clock + Logger - Logger: pass

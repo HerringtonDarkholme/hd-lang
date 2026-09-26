@@ -1,6 +1,0 @@
-# test: parser retains explicit generic arguments and trailing callbacks
-# expect: parse
-
-fn main() -> i32:
-    apply:
-        42

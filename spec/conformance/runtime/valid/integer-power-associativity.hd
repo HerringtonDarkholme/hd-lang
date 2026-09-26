@@ -1,0 +1,8 @@
+# test: integer power associativity
+
+use std.testing.assert_equal
+
+fn main() -> i32: -2 ** 2 + 2 ** 3 ** 2
+
+test "main returns 508":
+    assert_equal(main(), 508, reason="integer power associativity")

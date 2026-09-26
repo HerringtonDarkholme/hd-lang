@@ -1,0 +1,3 @@
+# test: explicit generic arguments with placeholder
+
+value := pair[_, i32]("left", 1)

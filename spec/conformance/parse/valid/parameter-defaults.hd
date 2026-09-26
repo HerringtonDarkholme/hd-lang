@@ -1,0 +1,3 @@
+# test: parameter defaults
+
+fn connect(host: string, port: i32 = 443, secure: bool = true) -> string: host

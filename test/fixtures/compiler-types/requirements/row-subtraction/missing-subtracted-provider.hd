@@ -1,6 +1,0 @@
-# test: requirements / row subtraction / missing subtracted provider
-
-fn drop_logger[r](callback: fn() -> i32 $ r) -> i32 $ (r - Logger):
-    callback()  # diagnostic: missing-requirement
-fn read() -> i32 $ Logger: 42
-fn main() -> i32: drop_logger(read)

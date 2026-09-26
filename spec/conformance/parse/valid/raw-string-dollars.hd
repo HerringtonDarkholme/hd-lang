@@ -1,0 +1,3 @@
+# test: raw string dollars
+
+value := r"$name ${count}"

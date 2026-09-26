@@ -1,0 +1,13 @@
+# test: generic list element
+
+use std.testing.assert_equal
+
+fn first[T](items: list[T]) -> T:
+    items[0]
+
+fn main() -> i32:
+    numbers := [40, 2]
+    first(numbers) + numbers.len()
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="generic list element")

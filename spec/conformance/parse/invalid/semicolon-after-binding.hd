@@ -1,0 +1,3 @@
+# test: semicolon after binding
+
+value := 1;  # diagnostic: reserved-semicolon

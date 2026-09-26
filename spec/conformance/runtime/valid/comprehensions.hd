@@ -1,0 +1,17 @@
+# test: comprehensions
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    pairs := [for left in [1, 2, 3] for right in [10, 20] if left != 2 => left + right]
+    by_left := {for left in [1, 2] for right in [10, 20] => left: left + right}
+    let map_total: i32 = 0
+    for key, value in by_left:
+        map_total = map_total + key + value
+    if pairs.len() == 4 and pairs[0] == 11 and pairs[3] == 23 and map_total == 46:
+        42
+    else:
+        0
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="comprehensions")

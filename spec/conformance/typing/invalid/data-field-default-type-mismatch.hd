@@ -1,0 +1,4 @@
+# test: data field default type mismatch
+
+data Bad:
+    value: i32 = true  # diagnostic: type-mismatch

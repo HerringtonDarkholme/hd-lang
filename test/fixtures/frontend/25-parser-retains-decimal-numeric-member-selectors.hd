@@ -1,4 +1,0 @@
-# test: parser retains decimal numeric member selectors
-# expect: parse
-
-first := nested.0.1

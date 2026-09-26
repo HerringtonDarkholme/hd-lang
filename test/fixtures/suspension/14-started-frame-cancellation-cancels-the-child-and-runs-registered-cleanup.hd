@@ -1,9 +1,0 @@
-# test: started-frame cancellation cancels the child and runs registered cleanup
-# expect-result: main = 2
-
-fn child!() -> i32: 2
-fn main!() -> i32:
-    defer:
-        pass
-    value := child!()
-    value

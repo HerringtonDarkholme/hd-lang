@@ -1,0 +1,3 @@
+# test: power mixed numeric types
+
+fn main() -> f64: 2 ** 2.0  # diagnostic: mixed-numeric-types

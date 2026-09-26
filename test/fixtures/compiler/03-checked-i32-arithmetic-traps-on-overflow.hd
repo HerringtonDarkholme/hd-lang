@@ -1,3 +1,0 @@
-# test: checked i32 arithmetic traps on overflow
-
-fn main() -> i32: 2147483647 + 1  # panic: integer-overflow

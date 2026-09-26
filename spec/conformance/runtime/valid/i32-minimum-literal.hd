@@ -1,0 +1,8 @@
+# test: i32 minimum literal
+
+use std.testing.assert_equal
+
+fn main() -> i32: -2147483648
+
+test "main returns -2147483648":
+    assert_equal(main(), -2147483648, reason="i32 minimum literal")

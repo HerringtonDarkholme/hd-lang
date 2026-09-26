@@ -1,0 +1,16 @@
+# test: data copy-update evaluates its source before replacements
+
+use std.testing.assert_equal
+
+data Pair[T]:
+    first: T
+    second: T
+
+fn source!() -> Pair[i32]: Pair { first: 20, second: 1 }
+fn replacement!() -> i32: 22
+fn main!() -> i32:
+    pair := Pair { ...source!(), second: replacement!() }
+    pair.first + pair.second
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="data copy-update evaluates its source before replacements")

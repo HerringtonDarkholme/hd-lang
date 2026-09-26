@@ -1,7 +1,0 @@
-# test: first-class vararg functions retain their calling convention
-# expect-result: main = 23
-
-fn count(values: i32...) -> i32: values.len()
-fn invoke(callback: fn(i32...) -> i32, items: list[i32]) -> i32:
-    callback(1, 2) * 10 + callback(items...)
-fn main() -> i32: invoke(count, [3, 4, 5])

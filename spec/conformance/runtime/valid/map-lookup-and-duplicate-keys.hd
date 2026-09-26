@@ -1,0 +1,32 @@
+# test: collections / maps / lookup replacement
+
+use std.testing.assert_equal
+
+fn lookup[T](values: map[string, T], key: string) -> T?:
+    values[key]
+
+fn unwrap(value: i32?) -> i32:
+    match value:
+        actual? => actual
+        nil => 0
+
+fn main() -> i32:
+    scores := {"answer": 20, "other": 2, "answer": 40}
+    unwrap(lookup(scores, "answer")) + scores.len()
+
+fn scalar_keys() -> i32:
+    values := {1: 20, 2: 2, 1: 40}
+    unwrap(values[1]) + values.len()
+
+fn empty() -> i32:
+    let values: map[string, i32] = {}
+    values.len()
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="collections / maps / lookup replacement")
+
+test "scalar_keys returns 42":
+    assert_equal(scalar_keys(), 42, reason="collections / maps / lookup replacement")
+
+test "empty returns 0":
+    assert_equal(empty(), 0, reason="collections / maps / lookup replacement")

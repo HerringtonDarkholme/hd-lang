@@ -1,0 +1,19 @@
+# test: Result patterns recursively match imported enum payloads
+
+use std.testing.assert_equal
+
+use std.resource.ResourceError
+
+data Failure:
+    code: i32
+
+fn outcome() -> Result[i32, ResourceError[Failure]]:
+    Err(ResourceError.Disposed)
+
+fn main() -> i32:
+    match outcome():
+        Err(ResourceError.Disposed) => 42
+        _ => 0
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="Result patterns recursively match imported enum payloads")

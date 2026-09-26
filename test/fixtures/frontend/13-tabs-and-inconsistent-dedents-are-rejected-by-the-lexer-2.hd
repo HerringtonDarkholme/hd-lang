@@ -1,5 +1,0 @@
-# test: tabs and inconsistent dedents are rejected by the lexer
-
-fn f() -> i32:
-    1
-  2  # diagnostic: inconsistent-dedent

@@ -1,0 +1,11 @@
+# test: vararg function values
+
+use std.testing.assert_equal
+
+fn count(values: i32...) -> i32: values.len()
+fn invoke(callback: fn(i32...) -> i32, items: list[i32]) -> i32:
+    callback(1, 2) * 10 + callback(items...)
+fn main() -> i32: invoke(count, [3, 4, 5])
+
+test "main returns 23":
+    assert_equal(main(), 23, reason="vararg function values")

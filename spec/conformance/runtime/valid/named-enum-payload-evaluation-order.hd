@@ -1,0 +1,16 @@
+# test: named enum payloads preserve source evaluation order
+
+use std.testing.assert_equal
+
+enum Pair[T]:
+    Value(first: T, second: T)
+
+fn first!() -> i32: 1
+fn second!() -> i32: 2
+fn main!() -> i32:
+    let pair: Pair[i32] = .Value(second=first!(), first=second!())
+    match pair:
+        Pair.Value(first, second) => first * 10 + second
+
+test "main returns 21":
+    assert_equal(main!(), 21, reason="named enum payloads preserve source evaluation order")

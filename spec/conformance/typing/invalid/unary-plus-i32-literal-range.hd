@@ -1,0 +1,3 @@
+# test: unary plus i32 literal range
+
+fn main() -> i32: +2147483648  # diagnostic: integer-literal-range

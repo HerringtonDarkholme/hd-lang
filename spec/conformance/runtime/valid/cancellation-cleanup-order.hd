@@ -1,0 +1,25 @@
+# test: cancellation runs child cleanup before parent cleanup
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+
+let order: i32 = 0
+
+fn wait!() -> void: pass
+
+fn leaf!() -> void:
+    defer:
+        order = order * 10 + 1
+    wait!()
+
+fn middle!() -> void:
+    defer:
+        order = order * 10 + 2
+    leaf!()
+
+pub fn main!() -> void:
+    defer:
+        order = order * 10 + 3
+    middle!()
+
+pub fn cleanup_ran() -> bool:
+    order == 123

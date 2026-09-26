@@ -1,0 +1,37 @@
+# test: requirements / row subtraction / provider restoration
+
+use std.testing.assert_equal
+
+fn provide_logger[r](callback: fn() -> i32 $ r) -> i32 $ (r - Logger) + Backup:
+    $.with(Logger=$.use(Backup)):
+        callback()
+
+fn read() -> i32 $ Clock + Logger:
+    _ := $.use(Clock)
+    _ := $.use(Logger)
+    42
+
+fn run() -> i32 $ Clock + Backup:
+    provide_logger(read)
+
+test "run returns 42 with its providers":
+    $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
+        assert_equal(run(), 42, reason="requirements / row subtraction / provider restoration")
+
+trait Clock
+
+data FixedClock: pass
+
+impl Clock for FixedClock
+
+trait Logger
+
+trait Backup: Logger:
+    fn label(self) -> i32
+
+data FixedBackup: pass
+
+impl Logger for FixedBackup
+
+impl Backup for FixedBackup:
+    fn label(self) -> i32: 0

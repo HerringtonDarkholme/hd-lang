@@ -1,0 +1,14 @@
+# test: explicitly typed local closures recurse through their current environment
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    sum := fn(value: i32) -> i32:
+        if value == 0:
+            0
+        else:
+            value + sum(value - 1)
+    sum(9) - 3
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="explicitly typed local closures recurse through their current environment")

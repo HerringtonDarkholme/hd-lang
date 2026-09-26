@@ -1,0 +1,10 @@
+# test: named arguments reordered
+
+use std.testing.assert_equal
+
+fn combine(first: i32, second: i32) -> i32: first * 10 + second
+fn identity[T](value: T, fallback: T) -> T: value
+fn main() -> i32: combine(second=2, first=4) + identity(fallback=0, value=0)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="named arguments reordered")

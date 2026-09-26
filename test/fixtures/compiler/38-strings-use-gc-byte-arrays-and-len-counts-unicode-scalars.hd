@@ -1,9 +1,0 @@
-# test: strings use GC byte arrays and len counts Unicode scalars
-# expect-result: main = 3
-
-data User:
-    name: string
-
-fn name_length(user: User) -> i32: user.name.len()
-
-fn main() -> i32: name_length(User { name: "A界😀" })

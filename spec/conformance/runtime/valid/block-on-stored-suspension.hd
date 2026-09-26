@@ -1,0 +1,13 @@
+# test: block_on drives a stored suspension outside a driver context
+
+use std.task.block_on
+use std.testing.assert_equal
+
+fn ready!() -> i32: 42
+
+fn drive() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    block_on(pending)
+
+pub fn main() -> void:
+    assert_equal(drive(), 42, reason="a plain entry point is not a driver, so block_on may drive")

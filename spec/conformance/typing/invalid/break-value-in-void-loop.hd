@@ -1,0 +1,5 @@
+# test: break value in void loop
+
+fn main() -> void:
+    while true:
+        break 1  # diagnostic: break-value-context

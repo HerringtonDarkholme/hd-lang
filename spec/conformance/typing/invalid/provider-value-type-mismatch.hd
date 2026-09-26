@@ -1,0 +1,7 @@
+# test: requirements / provider errors / wrong provider type
+
+fn main() -> void:
+    $.with(Clock=1):  # diagnostic: type-mismatch
+        pass
+
+trait Clock

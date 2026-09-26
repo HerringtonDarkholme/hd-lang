@@ -1,0 +1,24 @@
+# test: named arguments work through static and dynamic trait dispatch
+
+use std.testing.assert_equal
+
+trait Mixer:
+    fn blend(self, left: i32, right: i32) -> i32
+    fn load!(self, left: i32, right: i32) -> i32
+
+data Calculator: pass
+
+impl Mixer for Calculator:
+    fn blend(self, left: i32, right: i32) -> i32: left * 10 + right
+    fn load!(self, left: i32, right: i32) -> i32: left * 10 + right
+
+fn main!() -> i32:
+    calculator := Calculator {}
+    static := calculator.blend(right=2, left=4)
+    let dynamic: Mixer = calculator
+    direct := dynamic.blend(right=0, left=0)
+    suspended := dynamic.load!(right=0, left=0)
+    static + direct + suspended
+
+test "main returns 42":
+    assert_equal(main!(), 42, reason="named arguments work through static and dynamic trait dispatch")

@@ -1,0 +1,7 @@
+# test: requirements / normalization / ungrouped
+
+fn main() -> void $ Logger + Clock + Logger - Logger: pass
+
+trait Logger
+
+trait Clock

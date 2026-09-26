@@ -1,0 +1,11 @@
+# test: closures / captures
+
+use std.testing.assert_equal
+
+fn main() -> i32:
+    base := 40
+    add := fn(value: i32) -> i32: base + value
+    add(2)
+
+test "main returns 42":
+    assert_equal(main(), 42, reason="closures / captures")
