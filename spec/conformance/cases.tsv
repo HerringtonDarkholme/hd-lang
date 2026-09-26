@@ -766,3 +766,5 @@ typing/valid/explicit-empty-row.hd	type	accept	02-grammar.md#types
 parse/valid/defer-same-line-nested-suite.hd	parse	accept	02-grammar.md#statements
 parse/valid/header-resumes-after-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/valid/bracketed-for-multi-name-binding.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+typing/valid/default-reads-top-level-binding.hd	type	accept	07-functions.md#default-values
+runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	09-traits.md#dynamic-trait-values

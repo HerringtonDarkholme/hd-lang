@@ -1,6 +1,0 @@
-# F-350: Primitives do not satisfy `T: Display` and cannot become `Display` trait values
-Severity: major
-Area: correctness
-Evidence: audit/evidence/03-blind-run/probes.log (p-bound-Display-{i32,string,bool}.hd, p-f64-generic-display.hd: `missing-trait-implementation: type 'i32' does not implement Display`); audit/evidence/03-blind-run/run.log (a5-boxed-primitive-identity: `type-mismatch: expected trait:Display, found i32`; a4-signed-zero-and-infinity line 33)
-Effect: `fn render[T: Display](v: T) -> string: "$v"` rejects `render(1)`, `render("a")`, `render(true)`, and `render(1.5)`. `let d: Display = 5` and `fn f(v: i32) -> Display: v` are rejected. spec/04-type-system.md#assignability-and-coercion rule 6 and #variance name `i32 -> Display` as a trait-value construction, and 09-traits.md#dynamic-trait-values says the concrete type "can be composite or primitive". Interpolation of a primitive works, because it is special-cased. This extends F-500 (same gap for `PartialEq`/`PartialOrd`); the bound check in src/checker/calls.ts `resolveBoundDictionaries` only consults source `impl` declarations.
-Recommendation: implementation change: register the prelude `Display` implementations as dictionaries and trait-value tables, and add a portable case with a Display-bounded generic and a `Display`-typed binding over each primitive.

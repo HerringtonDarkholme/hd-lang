@@ -4,7 +4,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 
 | ID | Severity | Area | Title | Duplicate of |
 | -- | -------- | ---- | ----- | ------------ |
-| [F-101](../findings/F-101-defaults-reject-top-level-reads.md) | minor | correctness | Parameter and data-field defaults reject any read of a top-level binding |  |
 | [F-150](../findings/F-150-reject-cases-ignore-extra-errors.md) | minor | test-integrity | Reject cases pass even when unrelated errors are also reported |  |
 | [F-155](../findings/F-155-panic-line-unchecked-and-unreported.md) | minor | runtime | Runtime panics carry no source location, so panic marker lines are never checked |  |
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |
@@ -25,7 +24,6 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-264](../findings/F-264-replay-code-identity-includes-comments.md) | minor | runtime | A comment inside an executed function invalidates a recorded replay | F-611 |
 | [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162 |
 | [F-266](../findings/F-266-order-fixtures-cannot-observe-order.md) | minor | test-integrity | Evaluation-order fixtures return the same value under any evaluation order | F-210 |
-| [F-267](../findings/F-267-later-parameter-default-code.md) | minor | spec | A default that reads a later parameter is reported as impure | F-356 |
 | [F-268](../findings/F-268-typing-fixture-panics-when-run.md) | note | test-integrity | `typing/valid/explicit-generic-method.hd` panics when executed |  |
 | [F-306](../findings/F-306-run-without-main-crashes.md) | minor | correctness | `hd run` and `hd test` crash with a stack trace when there is no entry point |  |
 | [F-308](../findings/F-308-private-main-requirement-crash.md) | minor | correctness | A non-`pub` `main` with a non-host requirement passes check and crashes `run` |  |
@@ -36,12 +34,10 @@ Generated from `audit/findings/` on 2026-09-25. "Duplicate of" comes from each f
 | [F-314](../findings/F-314-grammar-layout-mismatch.md) | note | spec | The EBNF derives same-line suite forms that layout processing cannot produce |  |
 | [F-315](../findings/F-315-grammar-valid-forms-generic-codes.md) | note | correctness | Grammar-valid forms are rejected at parse with generic codes, not unsupported diagnostics |  |
 | [F-316](../findings/F-316-pub-inherent-method-false-doc-comment.md) | minor | correctness | A `pub fn` inside an inherent `impl` is rejected with `doc-comment-without-target` |  |
-| [F-350](../findings/F-350-primitives-miss-display-bound-and-trait-values.md) | major | correctness | Primitives do not satisfy `T: Display` and cannot become `Display` trait values |  |
 | [F-352](../findings/F-352-mut-fn-closure-literal-unparsed.md) | minor | coverage | `mut fn` closure literals do not parse |  |
 | [F-353](../findings/F-353-identity-rejects-mut-operands.md) | minor | correctness | `is` rejects operands whose static type is `mut T` |  |
 | [F-354](../findings/F-354-map-value-covariance-missing.md) | minor | correctness | Readonly `map[K, V]` is not covariant in `V` |  |
 | [F-355](../findings/F-355-trim-uses-host-whitespace-set.md) | minor | correctness | `string.trim()` removes U+FEFF and keeps U+0085 |  |
-| [F-356](../findings/F-356-later-parameter-default-code.md) | note | spec | A default that names a later parameter reports a code outside the spec inventory |  |
 | [F-400](../findings/F-400-host-strings-drop-leading-bom.md) | major | correctness | Strings that start with U+FEFF lose it at the host boundary |  |
 | [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay accepts a changed body in an executed non-suspending function |  |
 | [F-402](../findings/F-402-cli-provider-configuration-constant.md) | minor | runtime | `hd replay` accepts a history recorded under a different runtime profile |  |
