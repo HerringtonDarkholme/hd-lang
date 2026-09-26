@@ -155,6 +155,17 @@ read it, so prefer explicit, checkable rules and locality.
   derived in the same list; if any partner is hand-written, all of them must
   be hand-written.
 
+- **TQ-13.** `@derive` stays limited to the comparison and hash traits; a
+  single typed derivation protocol, shared by `std` and libraries, comes
+  later with the Typed Derivation issue. No ad-hoc additions meanwhile.
+- **TQ-14: assignability stays single-step.** `let wide: i64? = small_i8`
+  and passing a `User` to a `Display?` parameter need explicit conversions.
+- **TQ-15, not yet applied.** Least-common-type inference never constructs
+  trait values or widens to a supertrait; a mixed list needs an expected
+  type.
+- **TQ-16, not yet applied.** Trait parameters are invariant; variance
+  markers on trait parameters are rejected.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
