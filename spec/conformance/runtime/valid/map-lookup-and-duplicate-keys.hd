@@ -7,8 +7,8 @@ fn lookup[T](values: map[string, T], key: string) -> T?:
 
 fn unwrap(value: i32?) -> i32:
     match value:
-        actual? => actual
-        nil => 0
+        .Some(actual) => actual
+        .None => 0
 
 fn main() -> i32:
     scores := {"answer": 20, "other": 2, "answer": 40}

@@ -2,7 +2,7 @@ import { closeToOpen, maskLiterals, openToClose } from "./lexer.ts";
 import type { Diagnostic } from "./types.ts";
 
 const reserved = new Set(
-  "Self annotate as break continue data defer else enum false fn for if impl in is let match mut nil pass pub reified return self super trait true type use while".split(
+  "Self annotate as break continue data defer else enum false fn for if impl in is let match mut pass pub reified return self super trait true type use while".split(
     " ",
   ),
 );
@@ -113,6 +113,11 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
+  // `Type::name` or `x::name` without a call is reserved for method values.
+  // Associated type projections such as `I::Item` are capitalized by
+  // convention, so only a lowercase member is checked.
+  if (/::[a-z_][\p{L}\p{N}_]*(?:\[[^\]]*\])?(?![\p{L}\p{N}_[(!])/u.test(clean))
+    diagnostics.push(diagnostic("deferred-method-value", line));
   if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
   // A bracketed control-flow expression or closure may end its header line

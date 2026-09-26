@@ -28,9 +28,9 @@ test "composite ordering stops at the first unordered element":
 
 test "optional ordering with NaN payloads":
     nan := 0.0 / 0.0
-    let absent: f64? = nil
+    let absent: f64? = .None
     let present: f64? = nan
     let one: f64? = 1.0
-    assert(absent < present, reason="nil sorts before every present value")
+    assert(absent < present, reason=".None sorts before every present value")
     assert(!(present < one), reason="present NaN is unordered")
     assert(!(one < present), reason="present NaN is unordered")

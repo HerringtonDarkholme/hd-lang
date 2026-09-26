@@ -5,15 +5,15 @@ data Slot:
 fn inner!(slot: mut Slot) -> i32:
     defer:
         match slot.task:
-            task? => task.cancel()
-            nil => pass
+            .Some(task) => task.cancel()
+            .None => pass
     1
 
 fn outer!(slot: mut Slot) -> i32:
     inner!(slot)
 
 pub fn main!() -> void:
-    let slot: mut Slot = Slot { task: nil }
+    let slot: mut Slot = Slot { task: .None }
     let pending: mut Suspend[i32] = outer(slot)
     slot.task = pending
     _ := pending!()  # panic: suspension-reentrant-poll

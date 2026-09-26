@@ -7,6 +7,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
   readonlyType,
   resultParts,
   storedSuspensionParts,
@@ -80,6 +81,14 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
 
   private checkCall(expression: CallExpression, expected?: ValueType): HirExpression {
     if (expression.callee.kind === "contextual-variant") {
+      if (expected && optionalInner(expected) !== undefined)
+        return this.checkOptionVariant(
+          expression.callee.name,
+          expression,
+          expected,
+          expression.span,
+          false,
+        );
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -118,6 +127,17 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
   }
 
   private checkMemberCall(expression: MemberCallExpression, expected?: ValueType): HirExpression {
+    if (
+      expression.callee.receiver.kind === "name" &&
+      this.namesOptionEnum(expression.callee.receiver.name)
+    )
+      return this.checkOptionVariant(
+        expression.callee.name,
+        expression,
+        expected,
+        expression.span,
+        true,
+      );
     if (expression.callee.receiver.kind === "name") {
       const declaration = this.enumTypes.get(expression.callee.receiver.name);
       if (declaration) {
@@ -626,7 +646,9 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       const mapping =
         method &&
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
-      return trait && method && mapping ? [{ trait, method, mapping, substitutions }] : [];
+      return trait && method && mapping
+        ? [{ trait, method, mapping, substitutions, implementation }]
+        : [];
     });
     const callCandidate = (candidate: (typeof candidates)[number]): HirExpression => {
       if (candidate.method.receiverMutable && mutableInner(receiver.type) === undefined) {
@@ -754,32 +776,49 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
           `method '${expression.callee.name}' is supplied by multiple traits`,
           expression.callee.span,
         );
-      const fitting = candidates.filter((candidate) => {
+      const trial = (candidate: (typeof candidates)[number]): HirExpression | undefined => {
         const diagnosticCount = this.diagnostics.length;
         try {
           const call = callCandidate(candidate);
           if (expected) this.requireCoercion(call, expected, expression.span);
-          return true;
+          return call;
         } catch (error) {
           if (!(error instanceof CheckFailure)) throw error;
-          return false;
+          return undefined;
         } finally {
           this.diagnostics.length = diagnosticCount;
         }
-      });
+      };
+      const trials = candidates.map((candidate) => ({ candidate, call: trial(candidate) }));
+      let fitting = trials.filter((entry) => entry.call !== undefined);
+      if (fitting.length > 1) {
+        // TQ-4 follow-up: when several instantiations fit only because a
+        // numeric literal accepts several types, prefer the literal's
+        // default type (`i32`, `f64`).
+        const preferred = fitting.filter((entry) =>
+          literalArgumentsUseDefaults(expression.arguments, entry.call!),
+        );
+        if (preferred.length === 1) fitting = preferred;
+      }
       if (fitting.length > 1)
         this.fail(
           "ambiguous-method",
           `method '${expression.callee.name}' fits ${fitting.length} instantiations of trait '${trait.name}'; qualify the call as ${trait.name}[...]::${expression.callee.name}(value, ...)`,
           expression.callee.span,
         );
-      if (fitting.length === 0)
+      if (fitting.length === 0) {
+        const available = candidates
+          .map(
+            (candidate) => `${trait.name}[${candidate.implementation.traitArguments.join(", ")}]`,
+          )
+          .join(", ");
         this.fail(
           "type-mismatch",
-          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${trait.name}' implemented by '${receiverImplementationType}'`,
+          `the arguments of '${expression.callee.name}' fit no instantiation of trait '${trait.name}' implemented by '${receiverImplementationType}'; available: ${available}`,
           expression.span,
         );
-      return callCandidate(fitting[0]!);
+      }
+      return callCandidate(fitting[0]!.candidate);
     }
     this.fail(
       "unknown-method",
@@ -1197,6 +1236,15 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     expected?: ValueType,
   ): HirExpression {
     const owner = expression.callee.owner;
+    if (
+      !this.traitTypes.has(owner) &&
+      (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))
+    )
+      this.fail(
+        "deferred-method-value",
+        `'${owner}::${expression.callee.name}' is a bound method value, which is deferred; call '${owner}.${expression.callee.name}(...)'`,
+        expression.callee.span,
+      );
     const trait = this.traitTypes.get(owner);
     if (trait) {
       const sourceArguments = expression.callee.ownerTypeArguments ?? [];
@@ -1340,6 +1388,17 @@ const SPECULATION_UNSAFE_KINDS = new Set([
  * Whether call arguments can be checked once per candidate without lasting
  * effects: no nested scopes, bindings, or closures.
  */
+/** True when every numeric-literal argument was checked at its default type. */
+function literalArgumentsUseDefaults(sources: readonly Expression[], call: HirExpression): boolean {
+  const checked = "arguments" in call ? (call.arguments as readonly HirExpression[]) : [];
+  return sources.every((source, index) => {
+    const literal = source.kind === "unary" && source.operator === "-" ? source.operand : source;
+    if (literal.kind !== "integer" && literal.kind !== "float") return true;
+    const type = checked[index + 1]?.type;
+    return type === (literal.kind === "integer" ? "i32" : "f64");
+  });
+}
+
 function speculationSafeArguments(value: unknown): boolean {
   if (Array.isArray(value)) return value.every(speculationSafeArguments);
   if (value === null || typeof value !== "object") return true;

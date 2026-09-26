@@ -37,8 +37,8 @@ test "optional and Result unwrapping keep mut":
     let user: mut User = User { name: "a" }
     let maybe: (mut User)? = user
     match maybe:
-        present? => present.name = "opt"
-        nil => pass
+        .Some(present) => present.name = "opt"
+        .None => pass
     let outcome: Result[mut User, string] = Ok(user)
     match outcome:
         Ok(value) => value.name = value.name + "+ok"

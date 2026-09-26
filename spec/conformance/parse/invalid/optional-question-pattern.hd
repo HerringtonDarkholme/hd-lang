@@ -1,0 +1,6 @@
+# test: value? is not a pattern; optionals use .Some(value)
+
+fn value_or_zero(value: i32?) -> i32:
+    match value:
+        number? => number  # diagnostic: syntax-error
+        .None => 0

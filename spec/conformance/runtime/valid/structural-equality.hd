@@ -10,8 +10,8 @@ test "map equality ignores insertion order":
 test "optional and Result equality compares tags and payloads":
     let present: i32? = 42
     let same_present: i32? = 42
-    let absent: i32? = nil
-    let same_absent: i32? = nil
+    let absent: i32? = .None
+    let same_absent: i32? = .None
     let ok: Result[i32, string] = Ok(42)
     let same_ok: Result[i32, string] = Ok(42)
     let error: Result[i32, string] = Err("failed")

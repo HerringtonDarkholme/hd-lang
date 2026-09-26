@@ -232,7 +232,7 @@ continue to receive `missing-partial-eq`; data and enum declarations do not
 acquire equality implicitly.
 `PartialOrd.partial_cmp` follows the same concrete and generic dictionary paths
 through the canonical `Ordering?` result. Built-in tuple and list ordering is
-lexicographic, optional ordering places `nil` first, and unordered floating
+lexicographic, optional ordering places `.None` first, and unordered floating
 components make all four relational operators false. Both comparison paths
 carry nested strategies through erased composites, so a `list[T]`, tuple,
 optional, `Result`, or map can invoke explicit element implementations and

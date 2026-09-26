@@ -1,0 +1,25 @@
+# test: Option[T] is an ordinary implementation target; string? and i32? do not overlap
+use std.testing.assert_equal
+
+trait Validation:
+    fn check(self) -> string
+
+impl Validation for string?:
+    fn check(self) -> string:
+        match self:
+            .Some(text) => "text $text"
+            .None => "no text"
+
+impl Validation for Option[i32]:
+    fn check(self) -> string:
+        match self:
+            .Some(number) => "number $number"
+            .None => "no number"
+
+test "impls for different Option instantiations dispatch separately":
+    let name: string? = "ada"
+    let missing: Option[string] = .None
+    let count: i32? = 3
+    assert_equal(name.check(), "text ada", reason="string? impl")
+    assert_equal(missing.check(), "no text", reason="Option[string] is string?")
+    assert_equal(count.check(), "number 3", reason="i32? impl")

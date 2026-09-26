@@ -48,20 +48,20 @@ test "if chain stops at the first true condition":
 
 test "a guard is not evaluated when its pattern fails":
     let log: mut Log = Log { text: "" }
-    let value: i32? = nil
+    let value: i32? = .None
     label := match value:
-        present? if flag(log, "g", true) => "present $present"
-        nil => "absent"
+        .Some(present) if flag(log, "g", true) => "present $present"
+        .None => "absent"
         _ => "other"
-    assert_equal(label, "absent", reason="nil arm selected")
+    assert_equal(label, "absent", reason=".None arm selected")
     assert_equal(log.text, "", reason="guard of a failed pattern never runs")
 
 test "a false guard falls through to the next arm":
     let log: mut Log = Log { text: "" }
     let value: i32? = 5
     label := match value:
-        present? if flag(log, "g", false) => "guarded $present"
-        present? => "plain $present"
-        nil => "absent"
+        .Some(present) if flag(log, "g", false) => "guarded $present"
+        .Some(present) => "plain $present"
+        .None => "absent"
     assert_equal(label, "plain 5", reason="false guard continues matching")
     assert_equal(log.text, "g", reason="guard ran exactly once")

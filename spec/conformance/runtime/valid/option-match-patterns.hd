@@ -1,0 +1,20 @@
+# test: optionals are matched with ordinary enum patterns
+use std.testing.assert_equal
+
+fn describe(value: i32?) -> string:
+    match value:
+        .Some(0) => "zero"
+        .Some(number) => "some $number"
+        .None => "none"
+
+fn qualified(value: Option[string]) -> string:
+    match value:
+        Option.Some(text) => text
+        Option.None => "missing"
+
+test "contextual and qualified variant patterns":
+    assert_equal(describe(0), "zero", reason="a literal payload pattern")
+    assert_equal(describe(7), "some 7", reason="a binding payload pattern")
+    assert_equal(describe(.None), "none", reason="the absent case")
+    assert_equal(qualified("ada"), "ada", reason="qualified Some pattern")
+    assert_equal(qualified(.None), "missing", reason="qualified None pattern")

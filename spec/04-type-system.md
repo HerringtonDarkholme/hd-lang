@@ -111,10 +111,8 @@ available, the literal is converted directly to that type and must be
 representable as a finite value under its IEEE 754 rounding rules.
 
 `true` and `false` have type `bool`. A string literal has type `string`, and a
-character literal has type `char`.
-
-`nil` has no standalone concrete type. It is valid only where an optional type
-`T?` is expected.
+character literal has type `char`. There is no literal for an absent optional;
+it is the enum variant `.None` ([Optional Types](#optional-types)).
 
 ## Nominal And Structural Types
 
@@ -178,27 +176,53 @@ both `Eq` and `Hash`.
 
 ## Optional Types
 
-`T?` is an optional type containing either a `T` or `nil`. `T` and `T?` are
-different types; a non-optional type never contains `nil`.
-A value of `T` is implicitly accepted where `T?` is expected, constructing a
-present optional. This applies to assignments, arguments, and return values;
-the source expression is evaluated once. `nil` constructs the absent case.
-There is no built-in `Some(value)` constructor for `T?`.
+The prelude declares the ordinary generic enum `Option`:
 
-Optionality may nest: `T??` is `(T?)?`, preserving the distinction between an
-absent outer value and a present outer value containing an absent inner value.
-`nil` with an expected nested optional type constructs absence at the outermost
-level. Postfix `?` removes and propagates one optional layer at a time.
+```text
+enum Option[T]:
+    Some(value: T)
+    None
+```
 
-Optional syntax is equivalent in role to `Option[T]`, but its representation is
-an implementation detail. Postfix `?` on an optional expression either
-produces its contained value or returns `nil` from the nearest function. That
-function must itself return a compatible optional type. A present value keeps
-the optional's declared contained type `T`, including `mut U` when
-`T = mut U`; unwrapping does not weaken that generic argument.
+`T?` is exact sugar for `Option[T]`: the two spellings denote the same type
+everywhere a type may appear, including implementation targets. `T` and `T?`
+are different types; a non-optional type never contains an absent value.
+`Option` is the only prelude name this adds; `Some` and `None` are variants,
+not prelude names.
 
-`Any` does not include `nil`. An optional value may be erased to `Any?`, not to
-`Any`.
+The absent value is written `.None` where an optional type is expected, or
+`Option.None`. A present value is written `.Some(value)` or
+`Option.Some(value)`. These follow the ordinary enum construction rules
+([Enum Declarations](08-data-and-enums.md#enum-declarations)); in
+particular `.None` without an expected optional type is a
+`missing-contextual-enum-type` error.
+
+A value of `T` is also implicitly accepted where `T?` is expected,
+constructing `.Some(value)`. This applies to assignments, arguments, and return
+values; the source expression is evaluated once. The implicit wrap adds one
+layer only. Optionality may nest: `T??` is `Option[Option[T]]`, preserving the
+distinction between an absent outer value and a present outer value
+containing an absent inner value. A `T?` value is accepted where `T??` is
+expected, but a plain `T` is not; the inner layer needs an explicit
+`.Some(...)`, as in `let nested: i32?? = .Some(1)`. `.None` with an expected
+`T??` is the outer absent value, and `.Some(.None)` is a present outer value
+holding an absent inner value.
+
+Optionals are matched with ordinary enum patterns, `.Some(pattern)`,
+`.None`, and their `Option.`-qualified forms
+([Match Expressions](06-control-flow.md#match-expressions)).
+
+The representation of `Option[T]` is an implementation detail; for example, an
+implementation may represent `.None` as a null reference. Postfix `?` on an
+optional expression either produces its contained value or returns `.None`
+from the nearest function. That function must itself return a compatible
+optional type. Postfix `?` removes and propagates one optional layer at a
+time. A present value keeps the optional's declared contained type `T`,
+including `mut U` when `T = mut U`; unwrapping does not weaken that generic
+argument.
+
+`Any` does not include absence. An optional value may be erased to `Any?`, not
+to `Any`.
 
 Optional is covariant in its contained type for a readonly outer value.
 `Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer
@@ -309,11 +333,11 @@ one of these rules applies:
    trait value.
 7. `S` is a dynamic child-trait value whose trait has `T` as a direct or
    transitive supertrait.
-8. `nil` is used with an expected optional type `T?`.
-9. A value of `T` is injected into `T?`.
-10. `S` is a specialized shape type returned by `shape[D]()` and `T` is its
-    generic shape type, `DataShape` or `EnumShape`; see
-    [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+8. A value of `T` is injected into `T?`. The injection adds one layer only,
+   so a `T` is not injected into `T??`.
+9. `S` is a specialized shape type returned by `shape[D]()` and `T` is its
+   generic shape type, `DataShape` or `EnumShape`; see
+   [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 
 No inheritance or structural record subtyping exists. Assignment never changes
 the declared or inferred type of a binding. In particular, later assignment to
@@ -644,7 +668,8 @@ variance conversion.
 satisfies it automatically. As a value type, `Any` erases the concrete type.
 `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
 
-`Any` is not a top type containing `nil`; use `Any?` when absence is permitted.
+`Any` is not a top type containing absence; an optional value does not convert
+to `Any`. Use `Any?` when absence is permitted.
 
 ## Map Key Types
 
@@ -702,8 +727,9 @@ The compiler never falls back to `Any` merely to make heterogeneous values
 type-check. Unconstrained inference also does not introduce a dynamic
 trait-value conversion, because a concrete type may satisfy multiple unrelated
 traits; an expected type such as `list[Display]` or `map[K, Display]` may
-request that conversion explicitly. When `nil` occurs with non-`nil` values
-having one unique least type `T`, the least common type is `T?`.
+request that conversion explicitly. When `.None` or `Option.None` occurs
+without an expected type beside other values having one unique least type `T`,
+the least common type is `T?`, and `.None` is checked against it.
 
 If no unique least type exists, inference fails and the user must add an
 expected type. When the values have no common type, the failure is a
@@ -800,7 +826,7 @@ to reference types, which all share the reference shape.
   constants.
 - A tuple is an immutable record typed by its element shapes. In locals,
   parameters, and results, it may be split into its elements.
-- `T?` for a reference-shaped `T` may use a null reference for `nil`. For a
+- `T?` for a reference-shaped `T` may use a null reference for `.None`. For a
   scalar `T`, it uses a tagged pair.
 - A list is a growable array of its element shape. A map is expected to use
   hashing, with insertion order kept separately.

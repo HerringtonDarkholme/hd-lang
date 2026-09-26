@@ -1,0 +1,4 @@
+fn nonoptional(value: i32) -> i32:
+    match value:
+        .Some(present) => present  # diagnostic: missing-contextual-enum-type
+        _ => 0

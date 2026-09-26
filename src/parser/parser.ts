@@ -1043,7 +1043,11 @@ class Parser extends ExpressionParser {
           `generic type '${name.text}' requires type arguments`,
           name.span,
         );
-      rendered = `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
+      // `Option[T]` is exactly `T?`; both spellings render to one type.
+      rendered =
+        name.text === "Option" && arguments_.length === 1
+          ? `${arguments_[0]!.name}?`
+          : `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
       end = close.span.end;
     }
     if (this.matchText("::")) {

@@ -11,11 +11,11 @@ fn main() -> i32:
     values["e"] = 5
     values["f"] = 27
     removed := match values.remove(key="c"):
-        value? => value
-        nil => 0
+        .Some(value) => value
+        .None => 0
     missing := match values.get("c"):
-        value? => value
-        nil => 0
+        .Some(value) => value
+        .None => 0
     let remaining = 0
     for key, value in values:
         _ := key

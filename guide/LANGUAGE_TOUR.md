@@ -87,7 +87,7 @@ Use `let` for a local variable that may be reassigned. Type annotation is option
 
 ```text
 let display_name: string = "Ada"
-let nickname: string? = nil
+let nickname: string? = .None
 let inferred = 1
 let attempts: i32 = 0
 let counter = 1
@@ -314,7 +314,7 @@ let name, score = ("Ada", 10)
 
 Use data types instead of named tuples when field names are part of the meaning.
 
-Optional values use Swift-style `?`. A plain `string` must contain a string. A `string?` may be `nil`.
+Optional values use Swift-style `?`. A plain `string` must contain a string. A `string?` may be absent, written `.None`.
 
 ```text
 data Profile:
@@ -407,7 +407,7 @@ fn find_name(names: list[string], prefix: string) -> string?:
     for name in names:
         if name.starts_with(prefix):
             return name
-    nil
+    .None
 ```
 
 Loops can be used for control flow. `break` exits a loop, and `continue` skips to the next iteration:
@@ -450,7 +450,7 @@ first_large := for value in values:
     if value > 100:
         break value
 else:
-    nil
+    .None
 ```
 
 The same rule applies to `while`:
@@ -461,7 +461,7 @@ found := while index < names.len():
         break names[index]
     index = index + 1
 else:
-    nil
+    .None
 ```
 
 Without an `else` block, a loop evaluates to `void`, even if it contains plain `break`. `break value` is only valid in a value-producing loop with an `else`; use plain `break` in statement-only loops.
@@ -510,7 +510,7 @@ not value-type copies:
 data User:
     id: string
     email: string
-    display_name: string? = nil
+    display_name: string? = .None
 ```
 
 Construct a data value with a typed literal:
@@ -917,19 +917,20 @@ In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; th
 
 Because the compiler knows every variant, it checks that callers handle every state. This matters for AI-generated code: missing cases become compiler diagnostics instead of latent production behavior.
 
-`T?` (in the role commonly called `Option[T]`) and `Result[T, E]` are
-standard enum-like forms, though only `T?` is the optional source spelling:
+`T?` is sugar for the prelude enum `Option[T]` (variants `Some(value)` and
+`None`), and `Result[T, E]` is a standard enum-like form:
 
 ```text
-let name: string? = nil
+let name: string? = .None
 fn loaded() -> Result[User, DbError]:
     ...
 ```
 
-`nil` is the empty optional case, and `?` propagates `nil` or `Result` errors from the current function.
-A plain `User` can be assigned to `User?` without writing a wrapper. In a
-`match`, `user?` matches a present optional and binds `user` as `User`; `nil`
-matches absence. A bare `user` pattern would bind the entire optional.
+`.None` (or `Option.None`) is the absent case, and `?` propagates `.None` or `Result` errors from the current function.
+A plain `User` can be assigned to `User?` without writing `.Some(...)`; the
+implicit wrap adds one layer only. In a `match`, `.Some(user)` matches a
+present optional and binds `user` as `User`; `.None` matches absence. A bare
+`user` pattern would bind the entire optional.
 
 Construct `Result` values with capitalized helper constructors:
 
@@ -1222,7 +1223,7 @@ Generic functions put generic arguments after the function name:
 ```text
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
-        nil
+        .None
     else:
         items[0]
 ```
@@ -1532,7 +1533,7 @@ let scores: map[string, i32] = {"Ada": 10, "Grace": 12}
 
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
-        nil
+        .None
     else:
         items[0]
 ```
@@ -1644,13 +1645,13 @@ fn accept_mutable[T < mut Any](value: T) -> void:
 
 `mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut list[User]` satisfies `mut Any`; `list[mut User]` does not, because its root is readonly.
 
-There is no implicit nullability. `T` and `T?` are different types, and `nil` only belongs to optional values:
+There is no implicit nullability. `T` and `T?` are different types, and only optional values can be `.None`:
 
 ```text
 let name: string = "Ada"
-let nickname: string? = nil
-let value: Any = nil         # invalid
-let maybe_value: Any? = nil
+let nickname: string? = .None
+let value: Any = .None       # invalid
+let maybe_value: Any? = .None
 ```
 
 Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
@@ -1956,8 +1957,8 @@ trait Cache:
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     match cache.get_user(id):
-        user? => return Ok(user)
-        nil => pass
+        .Some(user) => return Ok(user)
+        .None => pass
     db.get_user!(id)
 ```
 
