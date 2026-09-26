@@ -1261,6 +1261,9 @@ export function emitWat(program: HirProgram): string {
           `(param anyref)`,
           `(param anyref)`,
           ...method.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
+          ...(method.genericBounds ?? []).map(
+            (bound) => `(param (ref null $trait${bound.traitIndex}))`,
+          ),
           ...method.requirements.map(
             (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
           ),

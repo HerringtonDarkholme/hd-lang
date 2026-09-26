@@ -577,18 +577,24 @@ class SuspensionPlanBuilder {
           context,
         );
       case "trait-call":
-      case "trait-suspend-construct":
+      case "trait-suspend-construct": {
+        const bounds = expression.bounds ?? [];
+        const argumentEnd = 1 + expression.arguments.length;
         return this.lowerValueList(
-          [expression.receiver, ...expression.arguments, ...expression.providers],
+          [expression.receiver, ...expression.arguments, ...bounds, ...expression.providers],
           (values) =>
             continuation({
               ...expression,
               receiver: values[0]!,
-              arguments: values.slice(1, 1 + expression.arguments.length),
-              providers: values.slice(1 + expression.arguments.length),
+              arguments: values.slice(1, argumentEnd),
+              bounds: expression.bounds
+                ? values.slice(argumentEnd, argumentEnd + bounds.length)
+                : undefined,
+              providers: values.slice(argumentEnd + bounds.length),
             } as HirExpression),
           context,
         );
+      }
       case "provider-pack":
         return this.lowerValueList(
           [...expression.bases, ...expression.providers],

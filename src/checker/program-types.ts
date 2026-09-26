@@ -1,5 +1,5 @@
 import type { HirData, HirTrait } from "../hir.ts";
-import { nominalGenericParts, nominalGenericType } from "../types.ts";
+import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import { resolveGenericType, typeName } from "./shared.ts";
 
@@ -517,11 +517,40 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
       const result =
         typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??
         "void";
+      const referenceParameters: string[] = [];
+      const genericBounds = method.genericBounds.flatMap((bound) =>
+        bound.traits.flatMap((sourceTraitName) => {
+          const mutable = mutableInner(sourceTraitName) !== undefined;
+          const traitKey = mutableInner(sourceTraitName) ?? sourceTraitName;
+          const application = nominalGenericParts(traitKey);
+          const traitName = application?.name ?? traitKey;
+          if (traitName === "Reference") {
+            referenceParameters.push(bound.parameter);
+            return [];
+          }
+          const boundTrait = traitName === "Any" ? undefined : traitTypes.get(traitName);
+          if (!boundTrait) return [];
+          const traitArguments = (application?.arguments ?? []).map((argument) =>
+            resolveGenericType(argument, memberGenerics, new Set()),
+          );
+          return [
+            {
+              parameter: bound.parameter,
+              traitName: boundTrait.name,
+              traitIndex: boundTrait.index,
+              traitArguments,
+              mutable,
+            },
+          ];
+        }),
+      );
       return {
         name: method.name,
         index,
         associated,
         genericParameters: method.genericParameters,
+        genericBounds,
+        referenceParameters,
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

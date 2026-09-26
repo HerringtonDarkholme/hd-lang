@@ -678,6 +678,7 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
           `  (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
           `  ${dispatch.dictionary}`,
           ...ordered.values.map((argument) => `  ${argument}`),
+          ...(expression.bounds ?? []).map((bound) => `  ${this.emitExpression(bound)}`),
           ...expression.providers.map((provider) => `  ${this.emitExpression(provider)}`),
           `  (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
         ].join("\n");
@@ -719,6 +720,7 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
           `    (struct.get $trait${receiverTrait.index} $trait${receiverTrait.index}value ${receiver})`,
           `    ${dispatch.dictionary}`,
           ...ordered.values.map((argument) => `    ${argument}`),
+          ...(expression.bounds ?? []).map((bound) => `    ${this.emitExpression(bound)}`),
           ...expression.providers.map((provider) => `    ${this.emitExpression(provider)}`),
           `    (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dispatch.dictionary}))`,
           `)`,
@@ -1199,9 +1201,15 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
           const parameters = method.parameters.map(
             (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
           );
-          const providers = method.requirements.map(
-            (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
+          const methodBounds = (method.genericBounds ?? []).map(
+            (bound, index) => `(param $b${index} (ref null $trait${bound.traitIndex}))`,
           );
+          const providers = [
+            ...methodBounds,
+            ...method.requirements.map(
+              (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
+            ),
+          ];
           const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
           const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
           const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
@@ -1229,6 +1237,7 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
                 }`,
               ),
             ),
+            ...methodBounds.map((_, index) => `(local.get $b${index})`),
             ...method.requirements.map((_, index) => `(local.get $p${index})`),
           ];
           if (!method.suspending) {

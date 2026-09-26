@@ -680,3 +680,4 @@ typing/invalid/signed-integer-exponent.hd	type
 runtime/valid/identity-ignores-permissions.hd	runtime
 typing/valid/identity-trait-value-operand.hd	type
 runtime/valid/copy-update-shallow.hd	runtime
+runtime/valid/reference-bounded-dynamic-method.hd	runtime

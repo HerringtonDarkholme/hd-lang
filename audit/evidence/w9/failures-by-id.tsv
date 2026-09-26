@@ -21,7 +21,6 @@ F-702	1	`pub` on a path-only `use` is accepted
 F-703	1	`pub` on a top-level binding is accepted
 F-705	1	Declared variance is deferred, so covariant data cannot be written
 F-706	1	A backslash before a quote in a raw string is a lexer error
-G2	1	Reference-bounded method generics are allowed in dynamic traits
 L8	1	Fieldless data values are canonical under `is`
 F-708	1	A bang call inside a println argument drops all console output of main!
 F-709	1	A $.with block containing a bang call drops all console output of main!
