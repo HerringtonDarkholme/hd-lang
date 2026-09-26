@@ -100,10 +100,11 @@ still open. After the suite closes, implicit continuation resumes.
 The indentation reference for such a nested suite is the indentation of the
 physical line containing its suite header. Its first body line must be indented
 farther than that reference and farther than the first physical line of the
-logical line that contains the header; otherwise it is a `syntax-error`. A
-header on a continuation line therefore cannot place its body to the left of,
-or level with, the statement that contains it: in `x := run(` followed by a
-less indented `fn(v):`, the body must still be deeper than `x := run(`.
+logical line that contains the header; otherwise it is an
+`unexpected-indentation` error. A header on a continuation line therefore
+cannot place its body to the left of, or level with, the statement that
+contains it: in `x := run(` followed by a less indented `fn(v):`, the body
+must still be deeper than `x := run(`.
 Except after a closure body, a closing delimiter at the nested suite's
 delimiter depth ends the last body line: layout processing emits `NEWLINE`
 and all pending `DEDENT` tokens before emitting the closing delimiter.
@@ -341,7 +342,10 @@ The following contextual words have special meaning only in fixed positions:
   root (`pkg`, `std`, `dep`, `self`, or `super`) follows it, and as the
   operation name in the dedicated `$.use(...)` provider expression;
 - `reified` first in a generic parameter, directly before the parameter name,
-  as in `fn pick[reified T]() -> T`;
+  as in `fn pick[reified T]() -> T`. In that position an unbackticked
+  `reified` is always the modifier, so a lone `reified`, as in
+  `fn f[reified]()` or `[T, reified < Show]`, is a `syntax-error`; a
+  parameter named reified is written `` [`reified`] ``;
 - `test` at the beginning of a module-level test block;
 - `annotation` and `annotation_ref` after `::` in annotation materialization;
 - `context`, `with`, and `Context` after `$.`;
@@ -411,6 +415,12 @@ begin or end a literal, occur twice consecutively, or touch a decimal point,
 exponent marker, or exponent sign. Separators do not affect the literal's value
 or inferred type.
 
+A misplaced separator makes the literal form no token, so `1__0`, `1_`,
+`0x_`, `1_.5`, `1.5_`, `1_e5`, and `1e_5` are `invalid-token` errors. A radix
+prefix followed by neither a digit of its radix nor a separator, as in a bare
+`0x`, is a `syntax-error`. So is a radix literal followed directly by a letter
+or digit outside its radix, as in `0b1z` or `0b12`.
+
 ### Floating-Point Literals
 
 Floating-point literals use a decimal fraction, an exponent, or both. A
@@ -426,9 +436,10 @@ decimal_digits = DECIMAL_DIGIT, { [ "_" ], DECIMAL_DIGIT } ;
 ```
 
 Thus `1e9`, `1.5e-6`, and `2E+8` are floating-point literals. Separators may
-occur between digits in the integer, fractional, and exponent parts. `.5` and
-`1.` are invalid; write `0.5` and `1.0`. Hexadecimal floating-point notation is
-not supported.
+occur between digits in the integer, fractional, and exponent parts; a
+separator anywhere else in a floating-point literal, as in `1_.5`, `1.5_`,
+or `1e+_5`, is an `invalid-token` error. `.5` and `1.` are invalid; write
+`0.5` and `1.0`. Hexadecimal floating-point notation is not supported.
 
 ### String And Character Literals
 

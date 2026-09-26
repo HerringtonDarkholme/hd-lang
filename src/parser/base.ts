@@ -115,7 +115,7 @@ export abstract class ParserBase {
     const reference = Math.max(this.lineIndentAt(colonIndex), this.logicalLineIndentAt(colonIndex));
     if (first.span.start.column - 1 <= reference)
       this.fail(
-        "syntax-error",
+        "unexpected-indentation",
         "a nested suite's body must be deeper than the statement that contains its header",
         first.span,
       );

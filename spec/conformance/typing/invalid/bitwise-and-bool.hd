@@ -1,0 +1,3 @@
+# test: & accepts integers only; bool operands are a type mismatch
+
+fn both(a: bool, b: bool) -> bool: a & b  # diagnostic: type-mismatch

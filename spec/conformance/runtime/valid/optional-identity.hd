@@ -1,0 +1,26 @@
+# test: is compares optionals like any enum value: .None is canonical and each .Some construction has its own identity
+# expect: test
+
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+fn same[T < Reference](left: T, right: T) -> bool:
+    left is right
+
+test "optional identity follows the enum rules":
+    user := User { name: "Ada" }
+    let first: User? = user
+    let second: User? = user
+    alias := first
+    let absent: User? = .None
+    let other_absent: User? = Option.None
+    assert_equal(first is alias, true, reason="an alias shares the construction")
+    assert_equal(first is second, false, reason="each implicit wrap is its own construction")
+    assert_equal(absent is other_absent, true, reason=".None is canonical")
+    assert_equal(first is absent, false, reason="a present value is not .None")
+    let count: i32? = 1
+    let other_count: i32? = 1
+    assert_equal(count is other_count, false, reason="scalar payloads are wrapped per construction")
+    assert_equal(same(first, alias), true, reason="an optional satisfies Reference")

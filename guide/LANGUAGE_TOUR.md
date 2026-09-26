@@ -1650,7 +1650,7 @@ fn print_display(value: Describe) -> void $ Console:
     println(value.describe())
 ```
 
-`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically. Use `Any` for an erased dynamic value and `T < Any` when generic code must preserve the concrete type:
+`Any` is the built-in universal empty trait, analogous to Go's `any`. Every value type, optionals included, satisfies it automatically. Use `Any` for an erased dynamic value and `T < Any` when generic code must preserve the concrete type:
 
 ```text
 fn keep_erased(value: Any) -> Any:
@@ -1681,11 +1681,12 @@ There is no implicit nullability. `T` and `T?` are different types, and only opt
 ```text
 let name: string = "Ada"
 let nickname: string? = .None
-let value: Any = .None       # invalid
+let value: Any = .None       # invalid: .None needs an expected optional type
 let maybe_value: Any? = .None
+let erased: Any = nickname   # an optional erases to Any like any enum value
 ```
 
-Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
+An optional is an ordinary enum value, so `T?` erases to `Any` and `is` compares optionals like other enum values. A bare `.None` still needs an expected optional type.
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 

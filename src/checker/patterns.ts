@@ -37,6 +37,9 @@ export abstract class PatternChecker extends CallChecker {
     const generic = genericTypeName(type);
     if (generic) return (this.signature.referenceParameters ?? []).includes(generic);
     if (type.startsWith("trait:")) return true;
+    // An optional is an ordinary enum value (04 Optional Types): `.None` is
+    // canonical and each `.Some` construction has its own identity.
+    if (optionalInner(type) !== undefined) return true;
     if (
       functionParts(type) ||
       storedSuspensionParts(type) ||

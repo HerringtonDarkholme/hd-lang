@@ -6,6 +6,6 @@ fn main() -> void:
     if true:
         x := run(
     fn(v):
-        v  # diagnostic: syntax-error
+        v  # diagnostic: unexpected-indentation
 )
         pass

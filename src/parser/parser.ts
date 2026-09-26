@@ -240,7 +240,17 @@ class Parser extends ExpressionParser {
       do {
         // `reified` modifies a parameter only directly before its name; the
         // prototype erases every generic parameter.
-        if (this.atText("reified") && this.peek(1).kind === "identifier") this.advance();
+        // An unbackticked `reified` is always the modifier, so a lone one is
+        // an error; a parameter named reified is written `` `reified` ``.
+        if (this.atText("reified") && !this.current().raw) {
+          if (this.peek(1).kind !== "identifier")
+            this.fail(
+              "syntax-error",
+              "`reified` must be followed by a generic parameter name; write `reified` in backticks to name a parameter reified",
+              this.current().span,
+            );
+          this.advance();
+        }
         const parameter = this.expectKind("identifier", "expected a generic parameter name");
         if (parameters.includes(parameter.text))
           this.fail(

@@ -347,12 +347,17 @@ bitwise complement on integers.
 every binary operator except `**`, and `&&` binds tighter than `||`.
 
 Exponentiation binds less tightly on its right than unary negation, following
-the grammar: `2 ** -3` is valid, while `-2 ** 2` means `-(2 ** 2)`.
+the grammar: `2 ** -3` parses as `2 ** (-3)`, while `-2 ** 2` means
+`-(2 ** 2)`. With an integer base, `2 ** -3` is then rejected because its
+exponent is signed, as described below.
 
 Comparisons do not chain. Write `low <= value && value < high` rather than
 `low <= value < high`.
 
-Arithmetic operators require compatible numeric operands. Mixed-width result
+Arithmetic operators require compatible numeric operands. A binary `+`, `-`,
+`*`, `/`, `%`, or `**` with an operand of a non-numeric type, such as
+`true + false` or `[1] * [2]`, is a `type-mismatch` error; `string + string`
+is the only non-numeric arithmetic form. Mixed-width result
 types, overflow, division, and shifts are defined in
 [Type System](04-type-system.md). Signed/unsigned and integer/floating mixing
 requires an explicit cast.
@@ -363,7 +368,9 @@ corresponding remainder, and a zero divisor panics. Unary `+` accepts all
 numeric types, preserves its operand's type and value, and evaluates the operand
 once. Unary `-` accepts signed integers and floating-point values, but not
 unsigned integers. `~`, `&`, `|`,
-and `^` accept integer values only and produce the operand common type.
+and `^` accept integer values only and produce the operand common type. A
+binary `&`, `|`, or `^` with an operand that is not an integer, such as a
+`bool`, floating-point, or `string` operand, is a `type-mismatch` error.
 
 Shifts are the exception to ordinary binary numeric unification. The left
 operand may have any integer type, the right operand may have any integer type,
@@ -375,7 +382,10 @@ reported as arithmetic overflow.
 For an integer base, `**` requires an exponent of an unsigned integer type,
 so a negative exponent cannot occur. An unsuffixed integer literal in
 exponent position has type `u32`. A signed integer exponent is a
-`type-mismatch` error. Exponentiation uses checked multiplication in the
+`type-mismatch` error. A negated literal is signed: in `2 ** -1` the literal
+`1` is the operand of unary `-`, not the exponent itself, so `-1` has a signed
+type and the expression is a compile-time `type-mismatch` error, not
+`unsigned-negation` and not a runtime panic. Exponentiation uses checked multiplication in the
 base's result type. For a floating-point base, the exponent must be floating point after
 ordinary floating widening. Floating `**` computes IEEE 754-2019 `pow` as
 specified in clause 9.2, including its special cases, and rounds the result
@@ -417,7 +427,7 @@ payloads, lists, maps, and other heap composites have allocation identity;
 access permission (`mut`) does not change it. Converting such a value to a
 trait value or `Any` preserves the underlying identity. Each evaluation of a
 closure expression creates one closure identity, retained by aliases. A
-conversion of a primitive, tuple, or optional value to a dynamic trait value or
+conversion of a primitive or tuple value to a dynamic trait value or
 `Any` allocates one fresh immutable box; the resulting trait or `Any` value has
 that box's identity, and aliases of the converted value share it. Repeating the
 conversion allocates a distinct box even when the source values compare equal.
@@ -428,9 +438,12 @@ value is canonical for its data type: two occurrences of the same such value
 have the same identity, and constructing one allocates nothing. An enum
 variant that carries shared constructor data stores that data, so each
 construction has its own allocation identity even when the variant has no
-payload of its own. Tuples have no identity and using `is`
-with a tuple is rejected even if it contains references. Primitive values and
-optional values, including `.None`, likewise cannot be compared with `is`. Both operands
+payload of its own. Optionals follow the same enum rules: `.None` is payload-free and canonical, so
+every `.None` of one optional type is the same value, and each construction of
+`.Some(value)`, including the implicit wrap of a `T` where `T?` is expected,
+has its own identity, distinct from its payload's. Tuples have no identity and
+using `is` with a tuple is rejected even if it contains references. Primitive
+values likewise cannot be compared with `is`. Both operands
 must otherwise have compatible composite reference types: after removing
 `mut` at every level, the two types are equal, or one is a trait value or
 `Any` type that the other converts to. Permissions never affect identity, so

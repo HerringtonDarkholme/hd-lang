@@ -370,8 +370,9 @@ class Scanner {
         // Misplaced separators among valid digits form no token; any other
         // character splits the text into tokens the grammar rejects.
         const radixDigit = radix === "b" ? /[01_]/ : radix === "o" ? /[0-7_]/ : /[0-9a-fA-F_]/;
+        const scanned = text.slice(2);
         const separatorsOnly =
-          digits.length > 0 && [...digits].every((digit) => radixDigit.test(digit));
+          scanned.length > 0 && [...scanned].every((digit) => radixDigit.test(digit));
         this.report(
           separatorsOnly ? "invalid-token" : "syntax-error",
           `invalid integer literal '${text}'`,

@@ -1,0 +1,3 @@
+# test: a letter directly after a binary literal is a syntax error, not an invalid token
+
+value := 0b1z  # diagnostic: syntax-error

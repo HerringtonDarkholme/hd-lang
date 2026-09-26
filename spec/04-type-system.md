@@ -221,8 +221,12 @@ time. A present value keeps the optional's declared contained type `T`,
 including `mut U` when `T = mut U`; unwrapping does not weaken that generic
 argument.
 
-`Any` does not include absence. An optional value may be erased to `Any?`, not
-to `Any`.
+Optionals follow the ordinary enum rules in every other respect. An optional
+value may be erased to `Any` like any other enum value, and `is` compares
+optionals as it compares other enum values: `.None` is payload-free and has
+one canonical identity, and each construction of `.Some(value)`, including an
+implicit wrap, has its own identity
+([Unary And Binary Operators](05-expressions.md#unary-and-binary-operators)).
 
 Optional is covariant in its contained type for a readonly outer value.
 `Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer
@@ -691,12 +695,9 @@ cannot be reversed without an unsupported downcast. This direct widening may
 rewrap dispatch metadata and is therefore not representation-preserving for a
 variance conversion.
 
-`Any` is the built-in universal empty trait. Every non-optional value type
-satisfies it automatically. As a value type, `Any` erases the concrete type.
+`Any` is the built-in universal empty trait. Every value type, including an
+optional type, satisfies it automatically. As a value type, `Any` erases the concrete type.
 `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
-
-`Any` is not a top type containing absence; an optional value does not convert
-to `Any`. Use `Any?` when absence is permitted.
 
 ## Map Key Types
 
@@ -754,9 +755,11 @@ The compiler never falls back to `Any` merely to make heterogeneous values
 type-check. Unconstrained inference also does not introduce a dynamic
 trait-value conversion, because a concrete type may satisfy multiple unrelated
 traits; an expected type such as `list[Display]` or `map[K, Display]` may
-request that conversion explicitly. When `.None` or `Option.None` occurs
-without an expected type beside other values having one unique least type `T`,
-the least common type is `T?`, and `.None` is checked against it.
+request that conversion explicitly. A contextual variant, `.None` included,
+takes its type only from an expected type, never from the other values: `[1,
+.None]` or `if c: 1 else: .None` without an expected type is a
+`missing-contextual-enum-type` error, and `let values: list[i32?] = [1,
+.None]` supplies the type.
 
 If no unique least type exists, inference fails and the user must add an
 expected type. When the values have no common type, the failure is a
@@ -799,8 +802,8 @@ Runtime values fall into three categories:
 | Category | Types | Identity |
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
-| Identity-free composites | `string`, tuples, optionals | none |
-| Reference values | data values, stored enum values (including `Result`), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
+| Identity-free composites | `string`, tuples | none |
+| Reference values | data values, stored enum values (including `Result` and optionals), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
 
 The reference values are exactly the implementers of the sealed `Reference`
 trait ([Modules](10-modules.md#prelude)).
@@ -853,8 +856,11 @@ to reference types, which all share the reference shape.
   constants.
 - A tuple is an immutable record typed by its element shapes. In locals,
   parameters, and results, it may be split into its elements.
-- `T?` for a reference-shaped `T` may use a null reference for `.None`. For a
-  scalar `T`, it uses a tagged pair.
+- `T?` is an enum like any other: `.None` is a canonical constant, which a
+  null reference may represent, and `.Some(value)` is a tagged record holding
+  the value (unboxed for a scalar `T`). Because each `.Some` construction has
+  its own identity, a present value cannot be represented by the payload
+  itself.
 - A list is a growable array of its element shape. A map is expected to use
   hashing, with insertion order kept separately.
 - A closure is a function reference plus an environment record. A closure

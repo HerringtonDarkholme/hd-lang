@@ -295,7 +295,9 @@ function numberEnd(source: string, start: number, afterDot: boolean): NumberScan
     end += /^[0-9][0-9_]*/.exec(source.slice(end))![0].length;
   }
   if (/[eE]/.test(source[end] ?? "")) {
-    const exponent = /^[eE][+-]?[0-9][0-9_]*/.exec(source.slice(end));
+    // Separators after the marker or sign stay in the literal, so a misplaced
+    // one, as in `1e_5`, is an invalid token rather than `1` then `e_5`.
+    const exponent = /^[eE][+-]?(?=[0-9_]*[0-9])[0-9_]+/.exec(source.slice(end));
     if (exponent) {
       floating = true;
       end += exponent[0].length;
@@ -515,7 +517,7 @@ export function lexSource(source: string): LexResult {
             pendingForcedSuite.indent,
             pendingForcedSuite.logicalIndent ?? 0,
           );
-          if (indent <= reference) diagnostics.push(diagnostic("syntax-error", line));
+          if (indent <= reference) diagnostics.push(diagnostic("unexpected-indentation", line));
           forcedIndents.push({ ...pendingForcedSuite, indent });
           tokens.push(token("INDENT", line, "<indent>"));
           pendingForcedSuite = undefined;

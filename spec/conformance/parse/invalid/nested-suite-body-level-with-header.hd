@@ -1,0 +1,8 @@
+# test: a nested suite's body level with the statement holding its header is unexpected indentation
+
+fn run(callback: fn(i32) -> i32) -> i32: callback(1)
+
+fn main() -> void:
+    x := run(fn(v):
+    v + 1  # diagnostic: unexpected-indentation
+)

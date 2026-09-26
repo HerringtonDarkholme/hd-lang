@@ -1,6 +1,6 @@
-# test: every non-optional value type converts to Any
-# Spec 09 Any: "`Any` is the universal empty trait. Every non-optional value type implements it
-# automatically."
+# test: primitive, string, data, enum, tuple, and list values convert to Any
+# Spec 09 Any: "`Any` is the universal empty trait. Every value type, including an optional
+# type, implements it automatically." runtime/valid/optional-erased-to-any.hd covers optionals.
 use std.testing.assert_equal
 
 data User:

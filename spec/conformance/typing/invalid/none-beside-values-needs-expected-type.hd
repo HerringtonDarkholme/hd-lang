@@ -1,0 +1,3 @@
+# test: .None beside other values gets no least-common-type special case; it needs an expected type
+
+values := [1, .None]  # diagnostic: missing-contextual-enum-type

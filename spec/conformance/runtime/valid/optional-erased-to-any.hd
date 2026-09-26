@@ -1,0 +1,10 @@
+# test: an optional value may be erased to Any like any other enum value
+# expect: test
+
+use std.testing.assert_equal
+
+test "optionals convert to Any":
+    let present: i32? = 1
+    let absent: i32? = .None
+    let values: list[Any] = [present, absent, 3]
+    assert_equal(values.len(), 3, reason="three erased values")

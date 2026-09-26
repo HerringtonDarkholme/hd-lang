@@ -1,0 +1,3 @@
+# test: a radix prefix followed by nothing of its radix is a syntax error
+
+value := 0x  # diagnostic: syntax-error

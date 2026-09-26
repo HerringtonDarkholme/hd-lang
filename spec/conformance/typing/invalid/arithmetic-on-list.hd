@@ -1,0 +1,3 @@
+# test: arithmetic on list operands is a type mismatch
+
+fn product(a: list[i32], b: list[i32]) -> list[i32]: a * b  # diagnostic: type-mismatch

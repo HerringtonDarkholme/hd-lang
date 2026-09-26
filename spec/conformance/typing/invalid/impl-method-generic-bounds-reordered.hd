@@ -1,0 +1,15 @@
+# test: an impl method's generic parameters match the trait method's in order, so moving a bound is a mismatch
+
+trait Show:
+    fn show(self) -> string
+
+trait Tag:
+    fn tag(self) -> string
+
+trait Describe:
+    fn describe[T < Show, U](self, first: T, second: U) -> string
+
+data Describer: pass
+
+impl Describe for Describer:
+    fn describe[T, U < Show](self, first: T, second: U) -> string: "x"  # diagnostic: trait-method-signature

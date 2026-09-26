@@ -427,7 +427,14 @@ read it, so prefer explicit, checkable rules and locality.
   implementation, and an associated function with a trait default keeps the
   default; a type embedding a too-deep type is itself too deep.
 
-- **Option follow-ups, not yet applied (A2, A3).** (A1) A `.None` where a
+- **Option follow-ups (A2, A3 applied** to 04 Optional Types, Least Common
+  Type, `Any`, and Implementation Model, 05 identity, 09 `Any`, 10
+  `Reference`, the tour, SYNTAX_NOTES, the fixtures, and the prototype;
+  readings: each `.Some` construction, including an implicit wrap, has its
+  own identity, so a present value is a tagged record, not its bare payload;
+  optionals implement `Reference`; `let value: Any = .None` stays
+  `missing-contextual-enum-type` by A1; the prototype cannot exercise `Any`,
+  F-255**). (A1) A `.None` where a
   non-optional is expected stays `missing-contextual-enum-type`. (A2) No
   least-common-type special case for `.None`: `[1, .None]` needs an expected
   type like any contextual variant. (A3) Optionals follow ordinary enum
@@ -437,7 +444,16 @@ read it, so prefer explicit, checkable rules and locality.
   `x::name(...)` a check error; the literal-default preference covers direct
   literal arguments only.
 
-- **Prototype-fix follow-ups C1 to C3, not yet applied.** (C1) Pin these
+- **Prototype-fix follow-ups C1 to C3, applied** to 01 Integer and
+  Floating-Point Literals, 05 Unary And Binary Operators, 09 Implementation
+  Declarations, the fixtures, both parsers (the reference parser now keeps
+  `1e_5` as one invalid token; the prototype reports `0b1z` as
+  `syntax-error`), and the prototype checker. Readings: C3 reuses
+  `trait-method-signature`, since the generic parameter list is part of the
+  exact signature; parameters correspond by position and may be renamed;
+  `reified` and pack markers must match too; bounds match trait by trait, in
+  written order, including `mut` and associated type bindings. The prototype
+  parser erases `reified`, so it does not compare that marker. (C1) Pin these
   codes in the spec: `&`, `|`, `^` on non-integers and arithmetic on
   non-numeric types are `type-mismatch`; a misplaced separator in a float
   literal is `invalid-token`; `0b1z` and a bare `0x` are `syntax-error`.
