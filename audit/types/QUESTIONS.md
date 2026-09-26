@@ -43,8 +43,12 @@ read it, so prefer explicit, checkable rules and locality.
   ambiguity error at the use. (E4) The fallback finds fields and inherent
   methods only; an embedded type's trait methods never promote. (E5) A
   promoted method never fills a required trait method; the impl writes the
-  body. Replaces TQ-7 and TQ-8. Open: whether fields and methods share one
-  member namespace (see the member-namespace questions).
+  body. Replaces TQ-7 and TQ-8.
+- **Member namespace (M1), not yet applied.** Fields and methods share one
+  member namespace per type. A field and an inherent method with the same
+  name are an error at the declaration; `x.callback()` calls a
+  function-typed field; a field and a trait method with the same name are an
+  ambiguity error at the use.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
