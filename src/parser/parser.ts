@@ -1258,21 +1258,43 @@ class Parser extends ExpressionParser {
         span: { start, end },
       };
     }
-    if (this.atKind("identifier") && this.peek(1).text === "=") {
+    if (this.atKind("identifier") && (this.peek(1).text === "=" || this.peek(1).text === "...=")) {
       const name = this.advance();
-      this.advance();
+      const copy = this.advance().text === "...=";
       const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
-      return { kind: "assignment", name: name.text, value, span: { start, end } };
+      return {
+        kind: "assignment",
+        name: name.text,
+        value,
+        ...(copy ? { copy } : {}),
+        span: { start, end },
+      };
     }
     const expression = this.parseTrailingBlockCall(this.parseExpression());
-    if (this.matchText("=")) {
+    if (this.atText("=") || this.atText("...=")) {
+      // `place ...= value` is the copy assignment into an embedded field; the
+      // checker rejects it on any other place (02-grammar.md#statements).
+      const copy = this.advance().text === "...=";
       const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
+      const marker = copy ? { copy } : {};
       if (expression.kind === "member")
-        return { kind: "field-assignment", target: expression, value, span: { start, end } };
+        return {
+          kind: "field-assignment",
+          target: expression,
+          value,
+          ...marker,
+          span: { start, end },
+        };
       if (expression.kind === "index")
-        return { kind: "index-assignment", target: expression, value, span: { start, end } };
+        return {
+          kind: "index-assignment",
+          target: expression,
+          value,
+          ...marker,
+          span: { start, end },
+        };
       this.fail(
         "invalid-assignment-target",
         "assignment requires a binding, data member, list element, or map entry",

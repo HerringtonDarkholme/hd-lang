@@ -506,10 +506,14 @@ export abstract class ExpressionParser extends ParserBase {
         }
         const field = this.expectKind("identifier", "expected a data field name");
         this.expectText(":");
+        // `Label: ...value` copies the value into an embedded field; the checker
+        // decides whether the label names one (02-grammar.md#primary-expressions).
+        const copy = this.matchText("...");
         const value = this.parseExpression();
         fields.push({
           name: field.text,
           value,
+          ...(copy ? { copy } : {}),
           span: { start: field.span.start, end: value.span.end },
         });
       } while (this.matchText(",") && !this.atText("}"));

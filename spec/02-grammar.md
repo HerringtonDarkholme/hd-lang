@@ -116,7 +116,7 @@ binding_pattern = identifier, { ",", identifier } ;
 
 inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
-                 | postfix_expression, "=", inline_expression
+                 | postfix_expression, ( "=" | "...=" ), inline_expression
                  | "return", [ inline_expression ]
                  | "break", [ inline_expression ]
                  | continue_statement

@@ -45,9 +45,9 @@ import {
   andThen,
   matchTestTag,
 } from "./shared.ts";
-import { IteratorEmitter } from "./iterator.ts";
+import { DataEmitter } from "./data.ts";
 
-export abstract class FunctionBodyEmitter extends IteratorEmitter {
+export abstract class FunctionBodyEmitter extends DataEmitter {
   protected abstract emitLinearContinuation(
     declaration: HirFunction,
     sites: readonly LinearSuspensionSite[],
@@ -776,48 +776,8 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
 
   private emitContainerExpression(expression: HirExpression): string | undefined {
     switch (expression.kind) {
-      case "data": {
-        const declaration = this.dataByIndex.get(expression.dataIndex)!;
-        if (declaration.fields.length === 0) {
-          const canonical = `(global.get $d${expression.dataIndex}c)`;
-          return expression.spread
-            ? `(block (result ${this.watType(expression.type)}) (drop ${this.emitExpression(expression.spread)}) ${canonical})`
-            : canonical;
-        }
-        const spreadTemporary = expression.spread
-          ? this.allocateTemporary(expression.spread.type)
-          : undefined;
-        const temporaries = expression.fields.map((field) => this.allocateTemporary(field.type));
-        const sourceByField = new Map(
-          expression.fieldIndices.map(
-            (fieldIndex, sourceIndex) => [fieldIndex, sourceIndex] as const,
-          ),
-        );
-        const storedFields = declaration.fields.map((field) => {
-          const sourceIndex = sourceByField.get(field.index);
-          if (sourceIndex === undefined) {
-            if (!spreadTemporary)
-              throw new Error(`data field '${field.name}' has no construction source`);
-            return `(struct.get $d${expression.dataIndex} $d${expression.dataIndex}f${field.index} (local.get ${spreadTemporary}))`;
-          }
-          const value = `(local.get ${temporaries[sourceIndex]})`;
-          return expression.erasedFieldTypes &&
-            isGenericValueType(expression.erasedFieldTypes[field.index]!)
-            ? this.boxWatValue(value, expression.fields[sourceIndex]!.type)
-            : value;
-        });
-        return [
-          `(block (result ${this.watType(expression.type)})`,
-          ...(expression.spread
-            ? [`  (local.set ${spreadTemporary} ${this.emitExpression(expression.spread)})`]
-            : []),
-          ...expression.fields.map(
-            (field, index) => `  (local.set ${temporaries[index]} ${this.emitExpression(field)})`,
-          ),
-          `  (struct.new $d${expression.dataIndex} ${storedFields.join(" ")})`,
-          `)`,
-        ].join("\n");
-      }
+      case "data":
+        return this.emitDataExpression(expression);
       case "enum": {
         if (expression.fields.length === 0) {
           return `(global.get $e${expression.enumIndex}v${expression.tag})`;
@@ -852,6 +812,8 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
           ? this.unboxValue(value, expression.type)
           : value;
       }
+      case "embedded-copy":
+        return this.emitEmbeddedCopy(expression);
       case "field-set": {
         const value = this.emitExpression(expression.value);
         const stored =

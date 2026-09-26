@@ -1,4 +1,4 @@
-import type { Expression, Statement } from "../ast.ts";
+import type { Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
   functionType,
@@ -6,17 +6,31 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
-  readonlyType,
   resultParts,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import { CheckerContext, PRELUDE_NAMES } from "./context.ts";
-import { genericTypeName, substituteGenericType, statementsReferenceName } from "./shared.ts";
+import { statementsReferenceName } from "./shared.ts";
 
 export abstract class StatementChecker extends CheckerContext {
+  /** `place.field = value` and `place.Part ...= value`; see `expression-data.ts`. */
+  protected abstract checkFieldAssignment(
+    statement: Extract<Statement, { kind: "field-assignment" }>,
+  ): HirStatement;
+
+  /** `...=` on a local or an indexed place (08 Data Embedding). */
+  protected failCopyIntoOrdinaryPlace(span: SourceSpan): never {
+    this.fail(
+      "copy-into-ordinary-field",
+      "the copy assignment '...=' stores into an embedded field only; use '=' for any other place",
+      span,
+    );
+  }
+
   protected checkStatement(
     statement: Statement,
     expected?: ValueType,
@@ -45,6 +59,7 @@ export abstract class StatementChecker extends CheckerContext {
       case "tuple-binding":
         throw new Error("tuple bindings are expanded by checkStatements");
       case "assignment": {
+        if (statement.copy) this.failCopyIntoOrdinaryPlace(statement.span);
         const local = this.resolveLocal(statement.name);
         const global = local ? undefined : this.resolveGlobal(statement.name);
         if (!local && !global && this.globals.has(statement.name)) {
@@ -88,73 +103,10 @@ export abstract class StatementChecker extends CheckerContext {
           ? { kind: "assignment", local, value, span: statement.span }
           : { kind: "global-assignment", global: global!, value, span: statement.span };
       }
-      case "field-assignment": {
-        const receiver = this.checkExpression(statement.target.receiver);
-        if (tupleParts(readonlyType(receiver.type)) !== undefined)
-          this.fail(
-            "invalid-assignment-target",
-            `tuple element '${statement.target.name}' is not assignable; tuples are immutable`,
-            statement.target.span,
-          );
-        const mutableReceiver = mutableInner(receiver.type);
-        if (mutableReceiver === undefined) {
-          let root: Expression = statement.target.receiver;
-          while (root.kind === "member") root = root.receiver;
-          const rootBinding =
-            root.kind === "name"
-              ? (this.resolveLocal(root.name) ?? this.resolveGlobal(root.name))
-              : undefined;
-          const code =
-            rootBinding && mutableInner(rootBinding.type) !== undefined
-              ? "readonly-edge"
-              : "readonly-root";
-          this.fail(
-            code,
-            `field '${statement.target.name}' cannot be assigned through readonly type '${receiver.type}'`,
-            statement.target.span,
-          );
-        }
-        const nominal = nominalGenericParts(mutableReceiver);
-        const declaration = this.dataTypes.get(nominal?.name ?? mutableReceiver);
-        if (!declaration)
-          this.fail(
-            "member-on-non-data",
-            `type '${mutableReceiver}' has no assignable data fields`,
-            statement.target.receiver.span,
-          );
-        const field = declaration.fields.find(
-          (candidate) => candidate.name === statement.target.name,
-        );
-        if (!field)
-          this.fail(
-            "unknown-data-field",
-            `type '${declaration.name}' has no field '${statement.target.name}'`,
-            statement.target.span,
-          );
-        const substitutions = new Map<string, ValueType>();
-        if (nominal)
-          declaration.genericParameters.forEach((parameter, index) =>
-            substitutions.set(parameter, nominal.arguments[index]!),
-          );
-        const fieldType = substituteGenericType(field.type, substitutions);
-        const value = this.requireCoercion(
-          this.checkExpression(statement.value, fieldType),
-          fieldType,
-          statement.value.span,
-        );
-        const expression: HirExpression = {
-          kind: "field-set",
-          receiver,
-          value,
-          dataIndex: declaration.index,
-          fieldIndex: field.index,
-          erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
-          type: "void",
-          span: statement.span,
-        };
-        return { kind: "expression", expression, span: statement.span };
-      }
+      case "field-assignment":
+        return this.checkFieldAssignment(statement);
       case "index-assignment": {
+        if (statement.copy) this.failCopyIntoOrdinaryPlace(statement.span);
         const receiver = this.checkExpression(statement.target.receiver);
         const mutableReceiver = mutableInner(receiver.type);
         if (mutableReceiver === undefined) {

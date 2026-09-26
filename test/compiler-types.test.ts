@@ -191,11 +191,10 @@ test("generic data uses one erased GC layout with precise instantiated member ty
 });
 
 test("explicit generic data construction records its instantiated HIR type", () => {
-  // The prototype predates the VE-S copy marker (`Box: ...value`), so strip it.
   const source = readFileSync(
     resolve(import.meta.dirname, "../spec/conformance/runtime/valid/generic-data-embedding.hd"),
     "utf8",
-  ).replaceAll(": ...", ": ");
+  );
   const compilation = compile(source);
   assert.equal(compilation.hir.functions.at(-1)?.locals[0]?.type, "Shipment[i32]");
 });

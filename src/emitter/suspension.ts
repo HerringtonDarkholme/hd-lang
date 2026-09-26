@@ -565,6 +565,7 @@ class SuspensionPlanBuilder {
           context,
         );
       case "trait-wrap":
+      case "embedded-copy":
         return this.lowerExpression(
           expression.value,
           (value) => continuation({ ...expression, value: value! }),

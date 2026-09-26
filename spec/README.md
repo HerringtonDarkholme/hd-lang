@@ -426,3 +426,9 @@ existing source. Each entry names the decision that made the change.
   `page.Label.to_string()` is `ambiguous-method` between `Label`'s `Display`
   method and `Base`'s promoted `to_string`, as the rules already required;
   the example previously said it called `Label`'s `Display` method.
+- VE-S in same-line suites: the inline statement form now accepts the copy
+  assignment, as in `if fresh: post.Timestamps ...= stamps`. The grammar
+  allowed `...=` only in a full assignment statement, while a plain `=` on
+  an embedded field is `embedded-copy-required`, so a same-line suite could
+  not store into an embedded field at all; that source, previously a
+  `syntax-error`, is now accepted.

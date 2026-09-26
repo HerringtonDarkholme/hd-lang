@@ -82,6 +82,7 @@ export const KEYWORDS = new Set([
 ]);
 
 const MULTI_SYMBOLS = [
+  "...=",
   "...",
   ":=",
   "->",
