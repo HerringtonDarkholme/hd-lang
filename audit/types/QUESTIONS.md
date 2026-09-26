@@ -119,6 +119,15 @@ read it, so prefer explicit, checkable rules and locality.
   Pending: embedding as an owned part (access follows the container,
   construction needs mut or fresh values, copy-update copies embedded parts).
 
+- **TQ-4 follow-ups, not yet applied.** When several instantiations fit only
+  because of an unsuffixed literal, prefer the literal's default type (`i32`,
+  `f64`); otherwise ambiguous. When no instantiation fits, report
+  `type-mismatch`, listing the available instantiations.
+- **Trait value types are not impl targets, not yet applied.**
+  `impl Marker for Display` is an error.
+- **Mutable provider install syntax confirmed.** `$.with(mut Clock=clock)`,
+  `$.use(mut Clock)`, `$ mut Clock` (applied in chapter 11).
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
