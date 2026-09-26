@@ -1,3 +1,4 @@
+import type { SourceSpan } from "../diagnostics.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
   deferredDriverCalls,
@@ -47,6 +48,7 @@ export function validateProgram(context: ProgramCheckContext): void {
       span: topLevelDriverCall.span,
     });
   }
+  validateResultTypes(context);
   for (const declaration of program.functions) {
     let sawDefault = false;
     for (const parameter of declaration.parameters) {
@@ -102,6 +104,35 @@ export function validateProgram(context: ProgramCheckContext): void {
           span: field.span,
         });
       }
+    }
+  }
+}
+
+// A public function, a trait method, and a method of a trait implementation
+// must declare a result type (07-functions.md#declarations). Other functions
+// and inherent methods may omit it; the checker infers it.
+function validateResultTypes(context: ProgramCheckContext): void {
+  const { program, diagnostics } = context;
+  const report = (kind: string, name: string, span: SourceSpan): void => {
+    diagnostics.push({
+      code: "missing-result-type",
+      message: `${kind} '${name}' must declare its result type`,
+      span,
+    });
+  };
+  for (const declaration of program.functions) {
+    if (declaration.public && declaration.resultOmitted)
+      report("public function", declaration.name, declaration.span);
+  }
+  for (const trait of program.traits) {
+    for (const method of trait.methods) {
+      if (method.resultOmitted) report("trait method", method.name, method.span);
+    }
+  }
+  for (const implementation of program.implementations) {
+    if (implementation.traitName === undefined) continue;
+    for (const method of implementation.methods) {
+      if (method.resultOmitted) report("trait implementation method", method.name, method.span);
     }
   }
 }

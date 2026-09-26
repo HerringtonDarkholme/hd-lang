@@ -57,8 +57,6 @@ decision is already in the spec; the prototype compiler has not caught up.
 | L7 | `is` operands are compatible when, with `mut` removed at every level, their types are equal, or one is a trait value or `Any` type the other converts to. |
 | L8 | Fieldless data values are canonical: one identity per fieldless data type. |
 | L9 | An indirect supertrait cycle is reported once, on the cycle member first in source order. |
-| I5 | A non-public function, inherent method, or local `fn` may omit its result type. Public functions, trait methods, and trait-impl methods must declare it (`missing-result-type`). A cycle among omitted results is `recursive-function-needs-result-type`. |
-| I6 | Such non-public callables may also omit their requirement clause; the row is inferred. Public ones keep "no clause means the empty row". |
 
 ## Evidence for Open Questions
 

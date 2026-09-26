@@ -711,7 +711,30 @@ export abstract class ExpressionParser extends ParserBase {
         });
       } while (this.matchText(",") && !this.atText(")"));
     }
-    this.expectText(")");
+    const close = this.expectText(")");
+    // A local `fn` may omit its result type; it then lowers to an unannotated
+    // closure whose result and row are inferred (07-functions.md#declarations).
+    if (!this.atText("->")) {
+      if (!this.atText("$") && !this.atText(":")) this.expectText("->");
+      const requirements = this.matchText("$") ? this.parseRequirements() : undefined;
+      const body = this.parseSuite();
+      const end = body.at(-1)?.span.end ?? close.span.end;
+      return {
+        kind: "binding",
+        name: name.text,
+        mutable: false,
+        localFunction: true,
+        value: {
+          kind: "closure",
+          ...(suspending ? { suspending: true } : {}),
+          parameters,
+          ...(requirements ? { requirements } : {}),
+          body,
+          span: { start, end },
+        },
+        span: { start, end },
+      };
+    }
     this.expectText("->");
     const result = this.parseType();
     const requirements = this.matchText("$") ? this.parseRequirements() : [];

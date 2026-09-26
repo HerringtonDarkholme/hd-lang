@@ -457,8 +457,10 @@ export abstract class StatementChecker extends CheckerContext {
       !(annotation && functionParts(annotation))
     ) {
       this.fail(
-        "recursive-closure-needs-result-type",
-        `recursive closure '${statement.name}' needs an explicit result type`,
+        statement.localFunction
+          ? "recursive-function-needs-result-type"
+          : "recursive-closure-needs-result-type",
+        `recursive ${statement.localFunction ? "local function" : "closure"} '${statement.name}' needs an explicit result type`,
         statement.value.span,
       );
     }

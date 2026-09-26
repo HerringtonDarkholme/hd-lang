@@ -129,15 +129,6 @@ parse/invalid/discard-binding-ends-in-suite.hd	MVP reports expected-newline inst
 parse/invalid/return-binding-ends-in-suite.hd	MVP reports expected-newline instead of syntax-error	F-205
 parse/valid/raw-string-escaped-quote.hd	parse rejects a backslash-escaped quote inside a raw string (unexpected-character)	F-706
 parse/invalid/repeated-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
-typing/invalid/public-function-missing-result-type.hd	MVP reports expected-token at line 3 instead of missing-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-typing/invalid/trait-impl-method-missing-result-type.hd	MVP reports expected-token at line 10 instead of missing-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-typing/invalid/mutual-recursion-omitted-results.hd	MVP reports expected-token at line 3 instead of recursive-function-needs-result-type: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-typing/invalid/inferred-row-reaches-public-caller.hd	MVP reports expected-token at line 5 instead of missing-requirement: expected '->', found ':'; requirement-row inference (I6) is not implemented	I6
-typing/valid/private-function-inferred-void.hd	check fails: expected-token at line 3: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-typing/valid/mutual-recursion-one-annotated.hd	check fails: expected-token at line 7: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-typing/valid/inferred-row-through-private-callers.hd	check fails: missing-requirement at line 6: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
-runtime/valid/private-function-inferred-result.hd	check fails: expected-token at line 5: expected '->', found ':'; result-type inference (I5) is not implemented	I5
-runtime/valid/private-function-inferred-row.hd	check fails: missing-requirement at line 12: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
 typing/invalid/generic-enum-variant-without-context.hd	MVP reports generic-enum-needs-context instead of unresolved-generic-placeholder	F-205
 typing/invalid/generic-function-value-without-arguments.hd	MVP reports generic-function-value-needs-arguments instead of unresolved-generic-placeholder	F-205
 typing/invalid/result-constructor-without-context.hd	MVP reports result-constructor-needs-context instead of unresolved-generic-placeholder	F-205
