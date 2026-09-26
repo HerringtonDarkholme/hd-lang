@@ -1,6 +1,5 @@
 import type { Expression } from "../ast.ts";
-import type { SourceSpan } from "../diagnostics.ts";
-import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
+import type { HirExpression, ValueType } from "../hir.ts";
 import {
   mutableInner,
   mutableType,
@@ -18,93 +17,7 @@ import {
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
 
-interface PromotedDataField {
-  readonly embeddedField: HirDataField;
-  readonly declaration: HirData;
-  readonly field: HirDataField;
-  readonly substitutions: ReadonlyMap<string, ValueType>;
-}
-
 export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker {
-  private dataSubstitutions(declaration: HirData, type: ValueType): ReadonlyMap<string, ValueType> {
-    const substitutions = new Map<string, ValueType>();
-    const nominal = nominalGenericParts(readonlyType(type));
-    if (nominal?.name === declaration.name) {
-      declaration.genericParameters.forEach((parameter, index) =>
-        substitutions.set(parameter, nominal.arguments[index]!),
-      );
-    }
-    return substitutions;
-  }
-
-  private dataMember(
-    receiver: HirExpression,
-    declaration: HirData,
-    field: HirDataField,
-    substitutions: ReadonlyMap<string, ValueType>,
-    span: SourceSpan,
-  ): HirExpression {
-    const declaredType = substituteGenericType(field.type, substitutions);
-    const type =
-      mutableInner(receiver.type) !== undefined || genericTypeName(field.type)
-        ? declaredType
-        : readonlyType(declaredType);
-    return {
-      kind: "member",
-      receiver,
-      dataIndex: declaration.index,
-      fieldIndex: field.index,
-      erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
-      type,
-      span,
-    };
-  }
-
-  private promotedDataMember(
-    receiver: HirExpression,
-    declaration: HirData,
-    substitutions: ReadonlyMap<string, ValueType>,
-    name: string,
-    span: SourceSpan,
-  ): HirExpression | undefined {
-    const candidates: PromotedDataField[] = declaration.fields.flatMap((embeddedField) => {
-      if (!embeddedField.embedded) return [];
-      const embeddedType = substituteGenericType(embeddedField.type, substitutions);
-      const embeddedNominal = nominalGenericParts(readonlyType(embeddedType));
-      const embeddedDeclaration = this.dataTypes.get(
-        embeddedNominal?.name ?? readonlyType(embeddedType),
-      );
-      const field = embeddedDeclaration?.fields.find((candidate) => candidate.name === name);
-      if (!embeddedDeclaration || !field) return [];
-      return [
-        {
-          embeddedField,
-          declaration: embeddedDeclaration,
-          field,
-          substitutions: this.dataSubstitutions(embeddedDeclaration, embeddedType),
-        },
-      ];
-    });
-    if (candidates.length > 1)
-      this.fail("ambiguous-field", `field '${name}' is promoted by multiple embedded fields`, span);
-    const selected = candidates[0];
-    if (!selected) return undefined;
-    const embeddedReceiver = this.dataMember(
-      receiver,
-      declaration,
-      selected.embeddedField,
-      substitutions,
-      span,
-    );
-    return this.dataMember(
-      embeddedReceiver,
-      selected.declaration,
-      selected.field,
-      selected.substitutions,
-      span,
-    );
-  }
-
   protected checkDataExpression(
     expression: Expression,
     expected?: ValueType,
@@ -374,26 +287,26 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const typeName = nominal?.name ?? receiverReadonly;
         const dataDeclaration = this.dataTypes.get(typeName);
         if (dataDeclaration) {
-          const substitutions = this.dataSubstitutions(dataDeclaration, receiver.type);
-          const field = dataDeclaration.fields.find(
-            (candidate) => candidate.name === expression.name,
+          const selection = this.selectMember(
+            receiver.type,
+            expression.name,
+            expression.span,
+            false,
           );
-          if (!field) {
-            const promoted = this.promotedDataMember(
-              receiver,
-              dataDeclaration,
-              substitutions,
-              expression.name,
-              expression.span,
-            );
-            if (promoted) return promoted;
+          if (selection.kind !== "field")
             this.fail(
               "unknown-data-field",
               `type '${dataDeclaration.name}' has no field '${expression.name}'`,
               expression.span,
             );
-          }
-          return this.dataMember(receiver, dataDeclaration, field, substitutions, expression.span);
+          const { declaration, field, substitutions } = selection.final;
+          return this.dataMember(
+            this.memberPath(receiver, selection.steps, expression.span),
+            declaration,
+            field,
+            substitutions,
+            expression.span,
+          );
         }
         const enumDeclaration = this.enumTypes.get(typeName);
         if (enumDeclaration) {

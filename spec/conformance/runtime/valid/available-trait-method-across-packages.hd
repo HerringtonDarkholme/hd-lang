@@ -1,0 +1,10 @@
+# fixture-package-role: root-application
+# test: with the trait available the own trait method is selected; a public embedded field promotes its public field
+use std.testing.assert_equal
+use dep.members.{Tagged, make_outer}
+
+test "own trait method and promoted public field":
+    outer := make_outer()
+    assert_equal(outer.tag(), "outer", reason="own trait method wins")
+    assert_equal(outer.Inner.tag(), "inner", reason="qualified call reaches Inner")
+    assert_equal(outer.note, "note", reason="promoted public field")

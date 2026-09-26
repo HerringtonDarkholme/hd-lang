@@ -1,0 +1,24 @@
+# test: an outer trait method is an own member and hides an embedded inherent method
+use std.testing.assert_equal
+
+trait Describe:
+    fn describe(self) -> string
+
+data Base:
+    name: string
+
+impl Base:
+    fn describe(self) -> string:
+        "base " + self.name
+
+data Page:
+    Base
+
+impl Describe for Page:
+    fn describe(self) -> string:
+        "page " + self.Base.name
+
+test "the outer trait method wins over the embedded inherent method":
+    page := Page { Base: Base { name: "home" } }
+    assert_equal(page.describe(), "page home", reason="own trait method")
+    assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")

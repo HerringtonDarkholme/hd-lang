@@ -1,0 +1,10 @@
+# test: an embedded field's name is a member name, so an inherent method may not reuse it
+data Base:
+    id: string
+
+data Page:
+    Base
+
+impl Page:
+    fn Base(self) -> string:  # diagnostic: duplicate-inherent-member
+        "page"

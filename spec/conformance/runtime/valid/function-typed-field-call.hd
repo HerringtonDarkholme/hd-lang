@@ -1,0 +1,16 @@
+# test: x.name(args) calls a function-typed field, including a promoted one
+use std.testing.assert_equal
+
+fn add_one(value: i32) -> i32: value + 1
+
+data Button:
+    on_click: fn(i32) -> i32
+
+data Panel:
+    Button
+
+test "own and promoted function-typed fields are called":
+    button := Button { on_click: add_one }
+    panel := Panel { Button: button }
+    assert_equal(button.on_click(41), 42, reason="own field call")
+    assert_equal(panel.on_click(1), 2, reason="promoted field call")

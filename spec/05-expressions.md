@@ -183,13 +183,16 @@ Postfix operations bind more tightly than every infix operator.
 
 ### Member Access
 
-`value.member` selects a field, and `tuple.0` selects a tuple element. When a
+`value.member` selects a member, and `tuple.0` selects a tuple element. When a
 member suffix is immediately followed by an argument clause,
-`value.method(arguments...)` performs method lookup and invocation. Whether a
+`value.name(arguments...)` performs member lookup and invokes the result: a
+selected method is called with `value` as its receiver, and a selected field
+whose type is a function type is read and its value called, so
+`handler.callback(event)` calls the function stored in the field `callback`.
+Fields, methods, and promoted members are selected by the single algorithm in
+[Member Resolution](03-names-and-scopes.md#member-resolution). Whether a
 bare `value.method` can form a bound function value is deferred; explicit
-closures can adapt method calls where a function value is needed. Embedded
-field and method promotion follows
-[Names and Scopes](03-names-and-scopes.md).
+closures can adapt method calls where a function value is needed.
 
 Member access through a readonly data root weakens a direct `mut U` field to
 `U`, but does not weaken a generic field's substituted type. Other member

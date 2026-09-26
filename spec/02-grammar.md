@@ -319,8 +319,8 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
 implementation. A trait declaration without a body is a marker trait. A trait
 implementation may omit its body when the trait is a marker or when every
-required method is filled by an unambiguous promoted `self` method of an
-embedded field. A
+trait method has a default; a method promoted from an embedded field never
+fills a trait method. A
 `pub` method is permitted only in an inherent implementation; trait method
 visibility follows the trait. A
 bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a

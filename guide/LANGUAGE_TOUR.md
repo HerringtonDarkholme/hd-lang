@@ -703,7 +703,7 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Embedded-field name conflicts follow Go-style promotion rules. A promoted field can be accessed directly only when it is unambiguous. If two embedded data types promote the same field name, direct access is ambiguous and the code must qualify through the embedded field:
+Lookup checks the outer type's own members first: its fields, inherent methods, and trait methods. Embedded fields are searched only when the outer type has no member with that name, at any depth, shortest path first. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
 
 ```text
 data CreatedBySystem:
@@ -1390,24 +1390,12 @@ impl Add[Money] for Money:
 
 Trait implementation is explicit. A type does not implement a trait just because it has matching methods.
 
-Data embedding interacts with traits through promoted methods in the same spirit as promoted fields: embedded methods can be called when unambiguous. Embedding never grants trait conformance. Inside an explicit `impl`, one unambiguous promoted method may fill a requirement; an ambiguous requirement needs an explicit method body with a qualified embedded-field call.
-
-When promoted methods conflict during trait checking, diagnostics should show the missing trait requirement, list the ambiguous promoted methods, and suggest an explicit impl:
+Data embedding does not interact with traits. Embedding never grants trait conformance, an embedded type's trait methods are not promoted, and a promoted method never fills a trait method. An implementation that wants the embedded behavior forwards to it:
 
 ```text
-C does not satisfy Describe
-
-required method:
-  fn describe(self) -> string
-
-ambiguous promoted methods:
-  A.describe(self) -> string
-  B.describe(self) -> string
-
-fix:
-  give describe an explicit body in impl Describe for C,
-  calling self.A.describe() or self.B.describe()
-  or call the embedded method through c.A.describe() / c.B.describe()
+impl Describe for C:
+    fn describe(self) -> string:
+        self.A.describe()
 ```
 
 Dynamic dispatch follows the Go interface style: use the trait name as a value type, and method calls through that trait value dispatch to the concrete implementation at runtime.
@@ -1669,20 +1657,22 @@ Likewise, an optional `T?` can erase to `Any?`, but not to `Any`.
 
 Data embedding is composition, not inheritance. It promotes fields and methods for convenience, but it does not make the outer data a subtype of the embedded data.
 
-An explicit impl may reuse an unambiguous promoted method:
+An explicit impl forwards to the embedded value when it wants that behavior:
 
 ```text
 data Logger:
     name: string
 
-impl Describe for Logger:
+impl Logger:
     fn describe(self) -> string:
         self.name
 
 data Service:
     Logger
 
-impl Describe for Service
+impl Describe for Service:
+    fn describe(self) -> string:
+        self.Logger.describe()
 
 fn show(value: Describe) -> void $ Console:
     println(value.describe())
@@ -1691,15 +1681,12 @@ service := Service {
     Logger: Logger { name: "api" }
 }
 
-show(service)       # ok: explicit impl uses Logger's promoted method
+show(service)       # ok: the impl forwards to Logger
 ```
 
-Embedding never grants trait conformance: the explicit bodyless `impl` above
-opts `Service` in and may reuse the one unambiguous promoted `self` method. A
-promoted `mut self` method cannot fill a trait requirement because the embedded
-field is a readonly edge; that implementation needs an explicit body. If
-multiple fields promote conflicting methods, the implementation must likewise
-provide a body and use a qualified embedded-field call.
+Embedding never grants trait conformance, and a promoted method never fills a
+trait method: `impl Describe for Service` must write `describe`, even though
+`service.describe()` would reach `Logger`'s inherent method by promotion.
 
 ### Small Typed Idioms
 

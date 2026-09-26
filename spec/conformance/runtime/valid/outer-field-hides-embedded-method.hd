@@ -1,0 +1,18 @@
+# test: an outer field hides an embedded method of the same name
+use std.testing.assert_equal
+
+data Base:
+    note: string
+
+impl Base:
+    fn label(self) -> string:
+        "base " + self.note
+
+data Page:
+    Base
+    label: string
+
+test "the outer field is selected and the embedded method stays reachable":
+    page := Page { Base: Base { note: "x" }, label: "outer" }
+    assert_equal(page.label, "outer", reason="own field")
+    assert_equal(page.Base.label(), "base x", reason="qualified call reaches Base")
