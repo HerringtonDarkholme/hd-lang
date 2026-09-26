@@ -53,10 +53,13 @@ questions were decided separately (K1 to K3).
   start on the same physical line as the end of its operand; otherwise the
   line starts a new element (a missing comma is an error).
 
-- **Q9 (partly decided), not yet applied.** A same-line `if` directly inside
-  another same-line suite is forbidden (Python's rule). The owner floated an
-  exception using explicit curly-brace blocks; open, because `{ }` already
-  means map and data literals (see the parenthesized alternative).
+- **Q9, not yet applied.** A same-line `if` directly inside another same-line
+  suite is forbidden (Python's rule); nest with parentheses:
+  `if a: (if b: 1 else: 2) else: 3`. No curly-brace blocks.
+- **Q10, not yet applied.** A trailing block is allowed wherever a suite
+  expression may be a right-hand side (`=`, `return`, `break`, `_ :=`, as
+  after `:=` and `let`); chained multi-name bindings (`a, b := c, d := x`) are
+  removed.
 - **Q12, not yet applied.** `!` stays on the name in both declaration and
   call: `fn all![Ts...](...)` and `all![i32, string](a, b)`, since
   `all[i32]` reads like indexing.
