@@ -421,3 +421,26 @@ Options:
 - C. Keep them reserved.
 
 (Keyword Set)
+
+## Questions From Applying The Grammar Decisions (held until embedding is settled)
+
+1. Q6: a raw identifier for a non-reserved word (`` `name` ``) is the same
+   identifier as `name`, and a raw identifier is never a keyword or
+   contextual word. Confirm.
+2. Q12: free `all[i32]!(a)` is still valid (a generic function value followed
+   by a bang call); `x.m[T]!(...)` is invalid without a named code. Reject
+   both, and with which code?
+3. Q13: list spreads accept only `list[U]`. Allow other iterables, or value
+   packs?
+4. Q9: the ban covers every same-line suite (`fn f() -> i32: if c: 1 else: 2`
+   is an error), while same-line `for` and `while` may still nest. Intended?
+5. Q8: the rule includes the `!` of a suspension call (`[a` newline `!(b)]` is
+   a missing comma). Confirm.
+6. Q10: single-name chains (`a := b := if ...`) stay, with trailing blocks
+   allowed; only a multi-name pattern after the first `:=` is removed.
+   Confirm.
+7. Q3: an insufficiently indented nested body reports `syntax-error`. Right
+   code?
+8. Q17: `[reified]` declares a parameter named `reified`. Confirm.
+9. Six earlier audit fixtures pass the prototype but are in neither the
+   portable selection nor the known failures; add them?
