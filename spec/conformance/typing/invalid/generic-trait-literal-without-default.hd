@@ -1,0 +1,17 @@
+# test: a literal that fits several instantiations, none at its default type, stays ambiguous
+trait Combine[T]:
+    fn combine(self, other: T) -> string
+
+data Money:
+    cents: i32
+
+impl Combine[i64] for Money:
+    fn combine(self, other: i64) -> string:
+        "i64"
+
+impl Combine[u8] for Money:
+    fn combine(self, other: u8) -> string:
+        "u8"
+
+fn invalid(price: Money) -> string:
+    price.combine(5)  # diagnostic: ambiguous-method

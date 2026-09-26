@@ -127,12 +127,13 @@ read it, so prefer explicit, checkable rules and locality.
   Pending: embedding as an owned part (access follows the container,
   construction needs mut or fresh values, copy-update copies embedded parts).
 
-- **TQ-4 follow-ups, not yet applied.** When several instantiations fit only
+- **TQ-4 follow-ups, applied** to 09 Method Resolution. When several instantiations fit only
   because of an unsuffixed literal, prefer the literal's default type (`i32`,
   `f64`); otherwise ambiguous. When no instantiation fits, report
   `type-mismatch`, listing the available instantiations.
-- **Trait value types are not impl targets, not yet applied.**
-  `impl Marker for Display` is an error.
+- **Trait value types are not impl targets, applied** to 09 Implementation
+  Targets with the code `trait-value-impl-target` (settles TQ-22's target
+  half). `impl Marker for Display` is an error.
 - **Mutable provider install syntax confirmed.** `$.with(mut Clock=clock)`,
   `$.use(mut Clock)`, `$ mut Clock` (applied in chapter 11).
 

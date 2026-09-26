@@ -42,7 +42,11 @@ optionals, the implicit wrap adds one layer only, and `Option[T]` targets
 behave like `T?` targets. P6 is implemented: `Type::name` and `x::name`
 without a call are rejected while parsing, a called `x::name(...)` while
 checking, both as `deferred-method-value`, and `x.callback(args)` with only a
-function-typed field reports `unknown-method` suggesting `(x.callback)(...)`.
+function-typed field reports `unknown-method` suggesting `(x.callback)(...)`. The TQ-4
+follow-ups (numeric literals prefer their default type among fitting
+instantiations; a no-fit `type-mismatch` lists the instantiations) and
+`trait-value-impl-target` are implemented; the literal-default fixtures need
+sized numeric types and are tagged F-253.
 The grammar decisions GQ1 (a trailing
 requirement clause belongs to the declaration), GQ5 (data patterns label
 fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2

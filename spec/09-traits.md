@@ -227,6 +227,12 @@ A function type is never an implementation target, whatever its parameter,
 result, or requirement types. `impl Marker for fn(i32) -> i32` is a
 `function-impl-target` error.
 
+A trait value type is never an implementation target either: `Display` used
+as a type names a dynamic trait value, not a type constructor.
+`impl Marker for Display` and `impl Marker for Any` are
+`trait-value-impl-target` errors. A trait value type may still be a
+constructor's argument, as in `impl Marker for list[Display]`.
+
 A target must not be written with an outer `mut`. `impl Marker for mut Counter`
 is a `mutable-impl-target` error. Permission belongs to method receivers
 (`self` and `mut self`) and to bounds (`T < mut Trait`), not to
@@ -387,12 +393,17 @@ instantiation is a candidate. A candidate **fits** when the call's arguments
 check against its method's parameter types, with that instantiation's trait
 arguments substituted, and, when the call has an expected type, the method's
 result type is assignable to it. Exactly one fitting candidate is selected, so
-`price.add(5)` calls the `Add[i32]` method. Two or more fitting candidates are
-an `ambiguous-method` error, and a trait-qualified call such as
-`Add[i32]::add(price, 5)` resolves it. When no candidate fits, the call is a
-`type-mismatch` error. This choice applies only among instantiations of one
-trait; methods of two different traits stay `ambiguous-method` whatever the
-argument types.
+`price.add(5)` calls the `Add[i32]` method. When two or more candidates fit,
+and exactly one of them fits with every integer literal argument at `i32`
+and every floating-point literal argument at `f64`, the literals' default
+types, that candidate is selected: with `impl Add[i32] for Money` and
+`impl Add[i64] for Money`, `price.add(5)` calls the `Add[i32]` method.
+Otherwise two or more fitting candidates are an `ambiguous-method` error, and
+a trait-qualified call such as `Add[i64]::add(price, 5)` resolves it. When no
+candidate fits, the call is a `type-mismatch` error whose message lists the
+available instantiations. This choice applies only among instantiations of
+one trait; methods of two different traits stay `ambiguous-method` whatever
+the argument types.
 
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 

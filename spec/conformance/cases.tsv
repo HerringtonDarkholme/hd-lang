@@ -914,3 +914,7 @@ parse/invalid/optional-question-pattern.hd	parse	reject:syntax-error	02-grammar.
 parse/invalid/unbound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
 parse/invalid/bound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
 typing/invalid/bound-method-value-call.hd	type	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
+runtime/valid/generic-trait-literal-default-instantiation.hd	runtime	accept	09-traits.md#method-resolution
+typing/invalid/generic-trait-literal-without-default.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
+typing/invalid/trait-value-impl-target.hd	type	reject:trait-value-impl-target	09-traits.md#implementation-targets
+typing/valid/trait-value-as-target-argument.hd	type	accept	09-traits.md#implementation-targets

@@ -779,3 +779,5 @@ parse/invalid/optional-question-pattern.hd	parse
 parse/invalid/unbound-method-value.hd	parse
 parse/invalid/bound-method-value.hd	parse
 typing/invalid/bound-method-value-call.hd	type
+typing/invalid/trait-value-impl-target.hd	type
+typing/valid/trait-value-as-target-argument.hd	type

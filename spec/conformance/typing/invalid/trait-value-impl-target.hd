@@ -1,0 +1,4 @@
+# test: a trait value type is never an implementation target
+trait Marker
+
+impl Marker for Display  # diagnostic: trait-value-impl-target
