@@ -106,11 +106,21 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   }
 
   /**
+   * Spec 03 Member Resolution: a field or inherent method is visible when it is
+   * declared in the calling module or marked `pub`. The prototype compiles a
+   * single module, so every member is declared in the calling module.
+   */
+  private memberVisible(_member: HirDataField | InherentMethod): boolean {
+    return true;
+  }
+
+  /**
    * Spec 03 Member Resolution. `x.name` uses field lookup and `x.name(args)`
    * uses method lookup; the two namespaces never interact (M2). Each lookup
    * checks the receiver's own members first, then embedded fields breadth
    * first. Embedded types offer fields to field lookup and inherent methods
-   * to method lookup; their trait methods are skipped.
+   * to method lookup; their trait methods are skipped. Members that are not
+   * visible are skipped (P2) and reported only when nothing visible matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -132,23 +142,28 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     const substitutions = declaration
       ? this.dataSubstitutions(declaration, type)
       : new Map<string, ValueType>();
+    let skipped = false;
     if (method) {
       const inherent = this.findInherentMethod(type, name);
       const trait = this.traitMemberPresent(type, name);
       if (trait && traitDefaultDeclarations.has(this.declaration)) return { kind: "trait" };
-      if (inherent) return { kind: "inherent", steps: [], method: inherent };
+      if (inherent && this.memberVisible(inherent))
+        return { kind: "inherent", steps: [], method: inherent };
       if (trait) return { kind: "trait" };
+      if (inherent) skipped = true;
     } else {
       const field = declaration?.fields.find((candidate) => candidate.name === name);
-      if (declaration && field)
+      if (declaration && field && this.memberVisible(field))
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
+      if (field) skipped = true;
     }
     if (!declaration) return { kind: "none" };
     let frontier: {
       declaration: HirData;
       substitutions: ReadonlyMap<string, ValueType>;
       steps: readonly MemberStep[];
-    }[] = [{ declaration, substitutions, steps: [] }];
+      pathVisible: boolean;
+    }[] = [{ declaration, substitutions, steps: [], pathVisible: true }];
     for (let depth = 1; depth <= MAX_EMBEDDING_DEPTH && frontier.length > 0; depth += 1) {
       const next: typeof frontier = [];
       const matches: MemberSelection[] = [];
@@ -165,15 +180,18 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             ...node.steps,
             { declaration: node.declaration, field: embedded, substitutions: node.substitutions },
           ];
+          const pathVisible = node.pathVisible && this.memberVisible(embedded);
           const embeddedSubstitutions = this.dataSubstitutions(embeddedDeclaration, embeddedType);
           if (method) {
             const promotedMethod = this.findInherentMethod(embeddedType, name);
-            if (promotedMethod) matches.push({ kind: "inherent", steps, method: promotedMethod });
+            if (promotedMethod && pathVisible && this.memberVisible(promotedMethod))
+              matches.push({ kind: "inherent", steps, method: promotedMethod });
+            else if (promotedMethod) skipped = true;
           } else {
             const promotedField = embeddedDeclaration.fields.find(
               (candidate) => candidate.name === name,
             );
-            if (promotedField)
+            if (promotedField && pathVisible && this.memberVisible(promotedField))
               matches.push({
                 kind: "field",
                 steps,
@@ -183,11 +201,13 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
                   substitutions: embeddedSubstitutions,
                 },
               });
+            else if (promotedField) skipped = true;
           }
           next.push({
             declaration: embeddedDeclaration,
             substitutions: embeddedSubstitutions,
             steps,
+            pathVisible,
           });
         }
       }
@@ -200,6 +220,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (matches.length === 1) return matches[0]!;
       frontier = next;
     }
+    if (skipped)
+      this.fail(
+        "private-member",
+        `${method ? "method" : "field"} '${name}' is not visible from this module`,
+        span,
+      );
     return { kind: "none" };
   }
 

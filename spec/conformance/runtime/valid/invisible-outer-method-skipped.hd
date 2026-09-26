@@ -1,0 +1,8 @@
+# fixture-package-role: root-application
+# test: a private own method is skipped outside its module, so the call reaches the public embedded method
+use std.testing.assert_equal
+use dep.members.{make_outer}
+
+test "private own method skipped":
+    outer := make_outer()
+    assert_equal(outer.secret(), "inner secret", reason="Outer.secret is private; Inner.secret is promoted")

@@ -49,7 +49,7 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5 and M2)
+### hd today (after E1 to E5, M2, and P2)
 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
@@ -57,7 +57,13 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Embedding is a tree, searched breadth-first; shortest path wins; a
   same-depth clash is an error (E3).
 - Each lookup checks the receiver's own members first: its fields, or its
-  inherent and trait methods (E1). Presence by name stops the search (E2).
+  inherent and trait methods (E1). A visible member, or any own trait
+  method, stops the search whatever its signature (E2).
+- Members not visible from the calling module are skipped, at every depth,
+  as in Rust's privacy-aware lookup; `private-member` is reported only when
+  nothing visible matches. Inside the defining module the private member
+  wins. An own trait method whose trait is not imported still stops the
+  search with `trait-not-in-scope` (P2).
 - Embedded types offer fields and inherent methods only. Trait methods count
   only on the receiver's own type; the search skips an embedded type's trait
   methods and continues below it (E4, TQ-31).
@@ -92,7 +98,8 @@ Who can break or silently change a working call, and how:
 | --- | --- | --- | --- |
 | A trait adds or renames a method | n/a | ambiguity errors only | ambiguity errors only; never collides with a field |
 | The type's package adds a method | local | inherent silently shadows a trait method | same as Rust, local to the type's owner |
-| An embedded type adds a shallower member | silent switch | n/a | silent switch (accepted in E3) |
+| An embedded type adds a shallower member | silent switch | n/a | silent switch (accepted in E3, P3) |
+| A type adds a private member | none | none (privacy-aware lookup) | none (skipped, P2) |
 | A module imports a trait | n/a | can silently switch across `Deref` steps | no switch: presence counts known impls |
 
 With one namespace, a trait author who adds or renames a method to a name
@@ -132,6 +139,8 @@ For a receiver of nominal type `S`:
 
 Outcome: the owner adopted rules 1, 2, and 4 to 7 as M2. Rule 3 was not
 adopted for embedded depths: they offer inherent methods only, and E4 stays.
+P2 later revised rule 4: an invisible member is skipped rather than
+reported, and only an unavailable trait still stops the search.
 
 Changes from the applied rules proposed at the time: M1 becomes two namespaces (a field and a
 method may share a name; `x.callback()` becomes `(x.callback)()`); E4 is

@@ -7,8 +7,9 @@ F-252	6	The parser rejects core grammar forms
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
-E2	4	Private own members and unavailable trait methods (`private-member`, `trait-not-in-scope`) are not tracked, and their fixtures need package roles
+P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every member is visible, and the fixtures need package roles
 F-257	3	`mut fn` closure literals do not parse
+E2	2	Unavailable trait methods (`trait-not-in-scope`) are not tracked, and their fixtures need package roles
 F-150	2	Two entry-point reject cases also report `private-type-leak`
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 F-704	2	`string.replace` is not implemented

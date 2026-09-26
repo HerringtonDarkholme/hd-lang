@@ -703,7 +703,7 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Each lookup checks the outer type first: its fields, or its inherent and trait methods. Embedded fields are searched only when the outer type has no field (or method) with that name, at any depth, shortest path first. An embedded type contributes its fields and inherent methods, never its trait methods. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
+Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Each lookup checks the outer type first: its fields, or its inherent and trait methods. Embedded fields are searched only when the outer type has no field (or method) with that name, at any depth, shortest path first. An embedded type contributes its fields and inherent methods, never its trait methods. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual, and `private-member` is reported only when nothing visible matches. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
 
 ```text
 data CreatedBySystem:

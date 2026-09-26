@@ -102,8 +102,8 @@ read it, so prefer explicit, checkable rules and locality.
   Embedding carries only fields and inherent methods. Trait methods count
   only on the receiver's own type; method lookup skips an embedded type's
   trait methods and keeps searching below it.
-- **Embedding critique review (2026-09-26).** (P2, not yet applied;
-  revises E2) Members not visible from the calling module are skipped, as in
+- **Embedding critique review (2026-09-26).** (P2, applied to 03
+  Member Resolution, 08, 09, and the members fixtures; revises E2) Members not visible from the calling module are skipped, as in
   Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
   private member wins; if nothing visible is found, the private member is
   reported (`private-member`). Private additions never break outside

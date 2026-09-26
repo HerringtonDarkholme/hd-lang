@@ -766,3 +766,4 @@ runtime/valid/impl-distinct-target-arguments.hd	runtime
 runtime/valid/tuple-impl-target.hd	runtime
 typing/invalid/overlapping-tuple-impl.hd	type
 typing/invalid/function-impl-target.hd	type
+runtime/valid/private-own-member-wins-in-module.hd	runtime

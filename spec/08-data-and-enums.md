@@ -104,7 +104,8 @@ methods when writes to those fields must preserve such invariants. This does
 not control other mutable aliases to an object stored in a private field; the
 language permits shared mutable children and does not guarantee invariants
 over the entire reachable object graph.
-Cross-module field access additionally requires the field to be public.
+In another module, field access reaches only public fields; member lookup
+skips the others ([Member Resolution](03-names-and-scopes.md#member-resolution)).
 Data values may be destructured in `match` patterns using the same
 `DataName { ... }` form. The pattern may mention any subset of visible
 fields; omitted fields are not tested. Within the braces, `field` binds the
@@ -149,30 +150,34 @@ post := Post {
 }
 ```
 
-Embedding promotes the embedded type's fields and inherent methods for
-convenient access, but does not make the outer data type a subtype of the
-embedded type. An embedded type's trait methods are not promoted; method
-lookup skips them. Which field `x.name` or method `x.name(args)` selects,
-including when an outer member hides a promoted one and when two promoted
-members are ambiguous, is defined once in
-[Member Resolution](03-names-and-scopes.md#member-resolution).
-
-Embedding has no overriding. A promoted method runs as the embedded type's
-own method, with the embedded value as its receiver, so inside `Base`'s
-methods `self.m()` is always `Base`'s `m`, even when a type that embeds
-`Base` declares its own `m`.
-
-Embedding never grants trait conformance, and a promoted method never fills a
-method of a trait implementation; the implementation writes the method, as in
-[Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
-
 Embedded shorthand accepts a named data type, including one with generic
 arguments. For `Box[T]`, the embedded field's name and construction key are
 `Box`; type arguments are not part of the key. The name must be unique among
-the outer data type's fields, so embedding both `Box[i32]` and `Box[string]`
-is a duplicate-field error. Explicitly mutable embedded-field shorthand is
-not supported; use an ordinary named field with a `mut` type for a mutable
-edge, without promotion.
+the outer data type's fields: a duplicate name that involves an embedded
+field, such as embedding both `Box[i32]` and `Box[string]`, is a
+`duplicate-embedded-field` error.
+
+An embedded field is a readonly edge
+([Mutable Paths](04-type-system.md#mutable-paths)): reading it yields readonly
+access to the embedded value even through a `mut` outer value. Use an ordinary
+named field with a `mut` type for a mutable edge, without promotion.
+
+Embedding promotes the embedded type's fields and inherent methods for
+convenient access. Which field `x.name` or method `x.name(args)` selects is
+defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
+the receiver's own members come first, members not visible from the calling
+module are skipped, embedded fields are searched breadth first with the
+shortest path winning, and an embedded type's trait methods are never
+promoted.
+
+Embedding is composition, not subtyping. The outer data type is not
+assignable to the embedded type. Embedding has no overriding: a promoted
+method runs as the embedded type's own method, with the embedded value as its
+receiver, so inside `Base`'s methods `self.m()` is always `Base`'s `m`, even
+when a type that embeds `Base` declares its own `m`. Embedding never grants
+trait conformance, and a promoted method never fills a method of a trait
+implementation; see
+[Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
 
 An embedded field accepts the same prefix metadata decorators as a named field.
 The metadata is attached to the embedded field itself, whose name is the final

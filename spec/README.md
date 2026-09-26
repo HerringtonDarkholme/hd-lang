@@ -231,3 +231,9 @@ existing source. Each entry names the decision that made the change.
   no longer overlap; `impl[T] Tr for Box[T]` still overlaps both.
 - TQ-29: a `for` loop or comprehension over a type that implements both
   `Iterable[T]` and `Iterator[T]` uses `Iterable[T]`.
+- P2 (revises E2): member lookup skips fields and inherent methods that are
+  not visible from the calling module. A use in another module whose own
+  member is private, previously `private-member`, now reaches a visible
+  promoted member; `private-member` is reported only when nothing visible is
+  found. An own trait method whose trait is not available still stops the
+  search with `trait-not-in-scope`.
