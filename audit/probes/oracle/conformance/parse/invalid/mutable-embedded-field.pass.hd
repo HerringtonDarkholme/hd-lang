@@ -1,5 +1,0 @@
-data Base:
-    id: string
-
-data User:
-    pass

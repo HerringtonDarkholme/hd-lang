@@ -1,7 +1,0 @@
-fn cleanup!() -> void:
-    pass
-
-fn invalid!() -> void:
-    defer:
-        pass
-    pass

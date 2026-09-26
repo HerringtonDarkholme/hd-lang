@@ -1,3 +1,0 @@
-data User:
-    id: i32
-    active: bool = true

@@ -1,3 +1,0 @@
-
-fn render(value: Display) -> string:
-    value.to_string()

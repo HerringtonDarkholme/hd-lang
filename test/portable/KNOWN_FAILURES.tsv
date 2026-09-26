@@ -23,13 +23,13 @@ parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal in
 parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error	F-205
 parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
 parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
-parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
+parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-252
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
 runtime/valid/boxed-primitive-identity.hd	check fails: unknown-type Any	F-255
 runtime/valid/composite-identity-and-views.hd	check fails: is rejects mut T operands; unknown-type Any	F-353
 runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
-runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-352
+runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-257
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	F-705
 runtime/valid/copy-update-shallow.hd	check fails: is rejects mut Child operands (identity-requires-references)	F-353
 runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	F-704

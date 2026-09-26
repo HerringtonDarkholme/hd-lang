@@ -1,5 +1,0 @@
-data Consumer[-T]:
-    consume: fn(T) -> void
-
-fn narrow(value: Consumer[Display]) -> Consumer[i32]:
-    pass

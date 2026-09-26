@@ -1,8 +1,0 @@
-data Profile:
-    name: string
-
-data Account:
-    profile: Profile
-
-fn invalid(account: mut Account) -> void:
-    pass

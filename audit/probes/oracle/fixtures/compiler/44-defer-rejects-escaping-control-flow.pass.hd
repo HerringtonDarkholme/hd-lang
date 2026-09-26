@@ -1,6 +1,0 @@
-# test: defer rejects escaping control flow
-
-fn main() -> i32:
-    defer:
-        pass
-    0

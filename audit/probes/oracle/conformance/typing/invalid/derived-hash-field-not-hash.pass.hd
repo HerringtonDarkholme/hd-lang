@@ -1,6 +1,0 @@
-
-data Opaque: pass
-
-@derive(Hash)
-data Key:
-    pass

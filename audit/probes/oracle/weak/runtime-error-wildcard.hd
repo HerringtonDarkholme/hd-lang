@@ -1,2 +1,0 @@
-# test: a runtime-error marker accepts any failing run, here an out-of-bounds index
-fn main() -> i32: [1][5]  # panic: runtime-error

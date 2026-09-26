@@ -6,8 +6,8 @@ removed from this folder. What remains:
 
 - [`REPORT.md`](REPORT.md): the audit's verdict, architecture review, and the
   findings still open.
-- [`findings/`](findings/): one file per open finding. Most are prototype
-  compiler bugs or performance notes; the index is
+- [`findings/`](findings/): one file per open finding (65 as of 2026-09-26).
+  Most are prototype compiler bugs or performance notes; the index is
   [`evidence/findings-table.md`](evidence/findings-table.md).
 - [`evidence/`](evidence/), [`probes/`](probes/), [`scripts/`](scripts/):
   the runs that back those findings. [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv)
@@ -17,9 +17,13 @@ removed from this folder. What remains:
 ## Specification Follow-Ups
 
 - F-205: every held-back fixture with a decided code is now in
-  `spec/conformance`. The prototype still emits its own code for 22
+  `spec/conformance`. The prototype still emits its own code for 23
   conformance cases (tagged F-205 in `test/portable/KNOWN_FAILURES.tsv`),
   mostly parser codes and `generic-type-mismatch`.
+- F-150: `typing/invalid/nondisplay-entry-error.hd` and
+  `nonhost-entry-requirement.hd` use a private declaration in the signature of
+  `pub fn main`, so every conforming implementation also reports
+  `private-type-leak`. The fixtures need `pub` on those declarations.
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 

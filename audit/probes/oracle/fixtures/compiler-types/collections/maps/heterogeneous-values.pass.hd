@@ -1,4 +1,0 @@
-# test: collections / maps / heterogeneous values
-
-fn main() -> void:
-    pass

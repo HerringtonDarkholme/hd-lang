@@ -1,3 +1,0 @@
-# test: generics / functions / inconsistent inference
-
-fn choose[T](left: T, right: T) -> T: left

@@ -1,6 +1,0 @@
-# test: data / generic / mismatched field type
-
-data Box[T]:
-    value: T
-
-fn main() -> void:

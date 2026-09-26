@@ -1,2 +1,0 @@
-    fn to_string(self) -> string:
-        "$self"

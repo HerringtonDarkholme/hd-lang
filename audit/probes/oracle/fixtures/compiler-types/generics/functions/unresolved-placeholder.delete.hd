@@ -1,3 +1,0 @@
-# test: generics / functions / unresolved placeholder
-
-fn missing[T]() -> i32: 1

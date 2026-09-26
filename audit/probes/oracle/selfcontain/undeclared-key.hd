@@ -1,2 +1,0 @@
-fn read() -> i32 $ Zork: 1
-fn main() -> i32 $ Zork: read()

@@ -1,16 +1,17 @@
 # F-611: Replay code identity changes on whitespace or comment edits inside a function
 Severity: note
 Area: runtime
-Evidence: audit/evidence/06-compiler/replay-identity.md
+Duplicates: F-264 (merged)
+Evidence: audit/evidence/06-compiler/replay-identity.md; audit/evidence/02-coverage/s5-replay.tsv row comment-inside-executed
   (`hd record` then `hd replay` on formatting-only variants)
 Effect: Adding a comment line, or changing `value + 2` to `value  +  2`, makes
   replay fail with `replay event 1 does not match function code identity`.
   The failure is an uncaught JavaScript stack trace, not a diagnostic. A
   comment added above the function keeps replay working. A formatter run
-  invalidates every recording.
-  codeId is sha256 of the raw source slice of the function span
-  (src/compiler.ts:215-226). spec/07-functions.md:258 defers code identity.
-Recommendation: implementation change. Decided rule (future-work/RUNTIME_AND_LIBRARY.md "Replay Rules"): code
-  identity is a hash of the whole module's semantic content, so formatting and
-  comment edits never change it. Hash a normalized form such as typed HIR, not
-  raw source text.
+  invalidates every recording. codeId is sha256 of the raw source slice of
+  the function span (src/compiler.ts:215-227). Site IDs also embed source
+  offsets (for example `child:provider:Counter.add:44`).
+Recommendation: implementation change. Decided rule (future-work/RUNTIME_AND_LIBRARY.md,
+  Replay Rules): code identity is a hash of the whole module's semantic content,
+  so formatting and comment edits never change it. Hash a normalized form such
+  as typed HIR, not raw source text, and drop source offsets from site IDs.

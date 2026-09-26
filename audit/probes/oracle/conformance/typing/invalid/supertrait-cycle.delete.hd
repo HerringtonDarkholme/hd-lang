@@ -1,4 +1,0 @@
-trait Left: Right:
-    fn left(self) -> void
-
-    fn right(self) -> void

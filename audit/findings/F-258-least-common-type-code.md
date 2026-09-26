@@ -1,9 +1,10 @@
 # F-258: Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 Severity: minor
 Area: correctness
-Evidence: audit/evidence/02-coverage/unselected.tsv row typing/invalid/least-type-weakening-variance.hd; `hd check` prints `5:21: no-common-type: list elements have no common type: mut:list[mut:User] and list[User]`
-Effect: The right line is rejected with a different stable code than the one the spec
-names (05-expressions.md#list-and-map-expressions). A conformance runner reports a failure,
-and tooling keyed on the code misclassifies the error.
-Recommendation: implementation change to emit `no-least-common-type` for this case.
-OPEN_ISSUES question: should the spec state when each of the two codes applies?
+Evidence: `hd check spec/conformance/typing/invalid/least-type-weakening-variance.hd` prints `5:21: no-common-type: list elements have no common type: mut:list[mut:User] and list[User]`
+Effect: The elements have common types but no unique least one, which
+spec/04-type-system.md ("Least Common Type") names `no-least-common-type`. The
+prototype reports `no-common-type` on the right line, so a conformance runner
+reports a failure and tooling keyed on the code misclassifies the error.
+Recommendation: implementation change: emit `no-least-common-type` when common types
+exist but no least one does.

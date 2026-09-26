@@ -1,5 +1,0 @@
-fn enabled() -> bool:
-    true
-
-fn health() -> string:
-    "ok"

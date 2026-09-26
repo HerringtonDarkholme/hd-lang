@@ -1,4 +1,0 @@
-
-fn invalid(flag: bool) -> string:
-    if flag and (name := "Ada") != "":
-        pass

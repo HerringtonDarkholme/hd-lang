@@ -10,7 +10,7 @@ Effect: The checker fully lowers varargs, field defaults, trailing blocks, and
   emission path. There are three: direct (function-body.ts), linear suspension,
   and CFG suspension (emitter.ts plus suspension.ts, which handles 79 of 80
   kinds). Match-condition code is copied almost verbatim at
-  function-body.ts:1358-1386 and emitter.ts:640-669. 31.5% of emitter.ts lines
+  function-body.ts:1361-1389 and emitter.ts:669-697. 31.7% of emitter.ts lines
   sit in windows duplicated within the file.
 Recommendation: OPEN_ISSUES question. Should a lowered IR sit between HIR and
   WAT, with explicit argument order, defaults, loops, boxing, and a CFG?

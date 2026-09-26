@@ -1,3 +1,0 @@
-fn read_count() -> i32:
-
-let count: i32 = 0

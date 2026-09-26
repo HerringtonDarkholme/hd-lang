@@ -1,5 +1,0 @@
-data Replay: pass
-
-pass
-    fn poll(mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)
-    fn cancel(mut self) -> void: pass
