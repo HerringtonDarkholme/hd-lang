@@ -766,3 +766,4 @@ typing/valid/explicit-empty-row.hd	type	accept	02-grammar.md#types
 parse/valid/defer-same-line-nested-suite.hd	parse	accept	02-grammar.md#statements
 parse/valid/header-resumes-after-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/valid/bracketed-for-multi-name-binding.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+runtime/valid/println-console-stdout.hd	runtime	accept	10-modules.md#prelude

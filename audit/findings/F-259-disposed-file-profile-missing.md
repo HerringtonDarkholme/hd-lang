@@ -5,4 +5,6 @@ Evidence: audit/evidence/02-coverage/unselected.tsv.log section runtime/valid/re
 Effect: The only runtime case for `ResourceError.Disposed` cannot run. The CLI answers
 with a usage error, not a diagnostic, so the portable runner reports "did not type-check".
 Recommendation: implementation change: add the profile to src/cli.ts RUNTIME_PROFILES
-and select the case.
+and select the case. The profile's surface is now fixed in spec/conformance/README.md
+(Runtime Profiles): `open!`, `read!` (`Ok("")` before close), and `close`, with every
+operation after a successful close returning `Err(ResourceError.Disposed)`.

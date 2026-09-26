@@ -7,5 +7,5 @@ Effect: Adding `# unrelated comment` inside `add_two` makes `hd replay` fail wit
 `replay event 1 does not match function code identity`. The identity is a hash of the raw
 source slice (src/compiler.ts line 219, UNVERIFIED as the cause), so formatting and comment
 edits count as code changes. Unrelated declaration insertion does survive, as claimed.
-Recommendation: OPEN_ISSUES question: should replay code identity hash a normalized
-form (tokens or typed IR) so that comment and whitespace edits keep recordings valid?
+Recommendation: implementation change. Decided rule (future-work/RUNTIME_AND_LIBRARY.md "Replay Rules"): code identity is a
+hash of the whole module's semantic content, so comment and whitespace edits keep recordings valid.

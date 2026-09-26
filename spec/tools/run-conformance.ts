@@ -24,7 +24,7 @@
 // Exit status: 0 when every selected case passes, 1 when any fails, 2 on a
 // usage or index error.
 import { spawn } from "node:child_process";
-import { readFile, realpath } from "node:fs/promises";
+import { readdir, readFile, realpath } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { dirname, resolve } from "node:path";
 
@@ -47,7 +47,9 @@ interface IndexRow {
 
 interface Fixture {
   readonly expectHeader?: string;
+  readonly expectedStdout?: string;
   readonly markerLine?: number;
+  readonly packageRole?: string;
   readonly pendingFunction?: string;
   readonly profile?: string;
   readonly scenario?: string;
@@ -82,6 +84,7 @@ const defaultCases = resolve(specRoot, "conformance/cases.tsv");
 const defaultCommand = "node --experimental-strip-types bin/hd.js";
 const timeoutMs = 10_000;
 const indexHeader = "path\tphase\texpectation\tspecification";
+const packageRoles = new Set(["library", "root-application"]);
 const headerDirectives = new Set([
   "test",
   "expect",
@@ -164,12 +167,46 @@ async function readManifest(path: string): Promise<string[]> {
   return entries;
 }
 
+// Decodes the TEXT of one `# expect-stdout:` line (README, Standard Output).
+// Returns undefined for an invalid escape or trailing whitespace.
+function decodeStdoutLine(text: string): string | undefined {
+  if (/\s$/.test(text)) return undefined;
+  let decoded = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!;
+    if (char !== "\\") {
+      decoded += char;
+      continue;
+    }
+    const next = text[index + 1];
+    if (next === "\\") decoded += "\\";
+    else if (next === "t") decoded += "\t";
+    else if (next === "u") {
+      const escape = /^\{([0-9A-Fa-f]{1,6})\}/.exec(text.slice(index + 2));
+      const scalar = escape ? Number.parseInt(escape[1]!, 16) : Number.NaN;
+      if (!escape || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) return undefined;
+      decoded += String.fromCodePoint(scalar);
+      index += escape[0].length;
+    } else return undefined;
+    index += 1;
+  }
+  return decoded;
+}
+
 // Reads the fixture's directives. Returns a string when the fixture does not
 // agree with its index row; such a case fails without running.
 function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixture | string {
   const headers = new Map<string, string>();
   const markers: Array<{ expectation: string; line: number }> = [];
+  const stdoutLines: string[] = [];
   for (const [index, line] of source.split("\n").entries()) {
+    const stdout = /^# expect-stdout:(?: (.*))?$/.exec(line);
+    if (stdout) {
+      const decoded = decodeStdoutLine(stdout[1] ?? "");
+      if (decoded === undefined) return `invalid '# expect-stdout:' text on line ${index + 1}`;
+      stdoutLines.push(decoded);
+      continue;
+    }
     const header = /^# ([a-z-]+): (.*?)\s*$/.exec(line);
     if (header && headerDirectives.has(header[1]!)) {
       if (headers.has(header[1]!)) return `header directive '${header[1]}' appears twice`;
@@ -198,11 +235,25 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   const pendingFunction = headers.get("fixture-runtime-pending-function");
   if (pendingFunction !== undefined && scenario !== "cancellation-cleanup")
     return "'# fixture-runtime-pending-function' requires the cancellation-cleanup scenario";
+  const packageRole = headers.get("fixture-package-role");
+  if (packageRole !== undefined && !packageRoles.has(packageRole))
+    return `unknown package role '${packageRole}'`;
+  const profile = headers.get("fixture-runtime-profile");
+  if (stdoutLines.length > 0) {
+    if (row.phase !== "runtime" || row.expectation !== "accept")
+      return "'# expect-stdout' is valid only in a runtime accept case";
+    if (profile !== undefined || scenario !== undefined)
+      return "'# expect-stdout' requires the console profile and no scenario";
+  }
   return {
     expectHeader: expect,
+    expectedStdout: stdoutLines.length
+      ? stdoutLines.map((text) => `${text}\n`).join("")
+      : undefined,
     markerLine: markers[0]?.line,
+    packageRole,
     pendingFunction,
-    profile: headers.get("fixture-runtime-profile"),
+    profile,
     scenario,
   };
 }
@@ -343,6 +394,23 @@ function snippet(results: readonly CommandResult[]): string {
   return shown.join("\n");
 }
 
+// The package-role options (README, Package Roles): the role, then one
+// --dependency NAME=DIR per directory under packages/, in ascending name order.
+async function packageOptions(options: Options, role: string | undefined): Promise<string[]> {
+  if (role === undefined) return [];
+  const directory = resolve(options.root, "packages");
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  const names = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  return [
+    "--package-role",
+    role,
+    ...names.flatMap((name) => ["--dependency", `${name}=${resolve(directory, name)}`]),
+  ];
+}
+
 async function runCase(options: Options, row: IndexRow, panics: Set<string>): Promise<Verdict> {
   const file = resolve(options.root, row.path);
   let source: string;
@@ -353,7 +421,10 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   }
   const fixture = readFixture(source, row, panics);
   if (typeof fixture === "string") return { path: row.path, reason: fixture };
-  const profile = fixture.profile ? ["--profile", fixture.profile] : [];
+  const profile = [
+    ...(fixture.profile ? ["--profile", fixture.profile] : []),
+    ...(await packageOptions(options, fixture.packageRole)),
+  ];
   const fail = (reason: string, results: readonly CommandResult[]): Verdict => ({
     output: snippet(results),
     path: row.path,
@@ -389,10 +460,20 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   const tested = await invoke(options.command, "test", testOptions, file);
   const testViolation = await contractViolation(tested, file, panics);
   if (testViolation) return fail(`test: ${testViolation}`, [checked, tested]);
-  if (row.expectation === "accept")
-    return tested.status === 0
-      ? { path: row.path }
-      : fail("test: expected exit 0, got exit 1", [tested]);
+  if (row.expectation === "accept") {
+    if (tested.status !== 0) return fail("test: expected exit 0, got exit 1", [tested]);
+    if (fixture.expectedStdout === undefined) return { path: row.path };
+    const ran = await invoke(options.command, "run", [], file);
+    const runViolation = await contractViolation(ran, file, panics);
+    if (runViolation) return fail(`run: ${runViolation}`, [ran]);
+    if (ran.status !== 0) return fail("run: expected exit 0, got exit 1", [ran]);
+    if (ran.stdout !== fixture.expectedStdout)
+      return fail(
+        `run: stdout ${JSON.stringify(ran.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
+        [ran],
+      );
+    return { path: row.path };
+  }
   const code = row.expectation.slice("panic:".length);
   if (tested.status !== 1) return fail(`test: expected panic ${code}, got exit 0`, [tested]);
   const reports = panicReports(tested, panics);

@@ -619,3 +619,4 @@ runtime/valid/generic-partial-eq-bound-primitives.hd	runtime
 runtime/valid/nan-equality-through-generics.hd	runtime
 runtime/valid/signed-zero-and-infinity-through-generics.hd	runtime
 runtime/valid/nan-ordering-composites.hd	runtime
+runtime/valid/println-console-stdout.hd	runtime

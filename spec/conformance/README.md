@@ -10,8 +10,8 @@ outside `spec/` to run the suite.
 
 ## Terms
 
-- **Fixture:** one UTF-8 `.hd` file under `spec/conformance/`, the single
-  primary input of one case.
+- **Fixture:** one UTF-8 `.hd` file under `spec/conformance/`, outside
+  `packages/`, the single primary input of one case.
 - **Case:** one row of `cases.tsv`. It names a fixture, a phase, and an
   expectation.
 - **Implementation under test:** a command prefix, such as `hd` or
@@ -49,21 +49,24 @@ A fixture may rely only on:
   `std.task`, and `std.resource`;
 - its own declarations;
 - the environment its fixture directives name (see
-  [Fixture Environments](#fixture-environments)).
+  [Fixture Environments](#fixture-environments)), including the package
+  sources a package role supplies.
 
 Every other user-defined type, trait, and function must be declared in the
 fixture, including every requirement key.
 
 A fixture must not depend on:
 
-- its file name, its directory, the working directory, or other files;
+- its file name, its directory, the working directory, or other files,
+  except the package sources its package role supplies;
 - the clock, randomness, or timing;
 - diagnostic message text;
 - map iteration order beyond insertion order;
 - any value rendering the specification does not define.
 
 Runtime results are observed with `assert` and `assert_equal` from
-`std.testing`, inside named test blocks.
+`std.testing`, inside named test blocks, and console output is observed with
+`# expect-stdout:` (see [Standard Output](#standard-output)).
 
 ## Comment Directives
 
@@ -72,7 +75,8 @@ language. There are two forms:
 
 - **Header directives** occupy a whole line: `# `, the directive name, `: `,
   and a value. They may appear on any line; by convention they come first.
-  Each appears at most once per fixture.
+  Each appears at most once per fixture, except `# expect-stdout:`, which
+  may repeat.
 - **Line markers** end a source line, in the form `# KIND: CODE`. `KIND` is
   `diagnostic`, `warning`, or `panic`, and `CODE` matches `[a-z0-9-]+`,
   followed by optional trailing whitespace and the line end. The marker names
@@ -93,6 +97,7 @@ directive not listed below.
 | `# fixture-runtime-scenario: NAME`          | header      | Replaces ordinary execution with a named driving procedure. See [Runtime Scenarios](#runtime-scenarios). |
 | `# fixture-runtime-pending-function: NAME`  | header      | Holds the named suspending function pending. Valid only with the `cancellation-cleanup` scenario. |
 | `# fixture-package-role: ROLE`              | header      | Selects the synthetic multi-package environment. See [Package Roles](#package-roles). |
+| `# expect-stdout: TEXT`                     | header      | One line of the entry point's exact standard output, in order. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 
 ## Case Index
 
@@ -141,6 +146,7 @@ judged only by the rules below.
 | `type`    | `reject:CODE` | `check FILE`                   | exit 1, a located error `CODE` on the marker line, and no other located error |
 | `type`    | `warn:CODE`   | `check FILE`                   | exit 0, and a located warning `CODE` on the marker line |
 | `runtime` | `accept`      | `check FILE`, then `test FILE` | both exit 0 |
+| `runtime` | `accept` with `# expect-stdout:` | `check FILE`, `test FILE`, then `run FILE` | all exit 0, and the stdout of `run` equals the expected text |
 | `runtime` | `panic:CODE`  | `check FILE`, then `test FILE` | `check` exits 0; `test` exits 1 and reports panic category `CODE` |
 
 Rules that apply to every case:
@@ -197,17 +203,30 @@ appear in entry-point rows. A fixture declares every trait a profile
 implements, with the exact method signatures below, and the profile supplies
 one provider value per trait.
 
-- `disposed-file` implements the fixture's `Files` and `FileHandle` traits:
-  - `Files.open!(self) -> mut FileHandle` completes on its first poll with a
-    fresh open handle;
-  - `FileHandle.close(mut self) -> Result[void, ResourceError[E]]` returns
-    `Ok` on the first call;
-  - after a successful close, every `FileHandle` operation returns
-    `Err(ResourceError.Disposed)` and must not trap. `E` is the fixture's
-    error type.
+- `console` is the profile a fixture gets when it names no profile. The
+  runner passes no `--profile` option for it. It implements the prelude
+  `Console` ([Prelude](../10-modules.md#prelude)): each
+  `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
+  of `text` followed by one U+000A to standard output, and returns `Ok`.
+- `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
+  The fixture declares exactly these three methods, where `E` is the
+  fixture's own error type:
 
-  The complete trait surface is an open question
-  ([Open Issues](../../future-work/OPEN_ISSUES.md#questions-from-the-compiler-audit)).
+  ```text
+  trait Files:
+      fn open!(self) -> mut FileHandle
+
+  trait FileHandle:
+      fn read!(mut self) -> Result[string, ResourceError[E]]
+      fn close(mut self) -> Result[void, ResourceError[E]]
+  ```
+
+  - `open!` completes on its first poll with a fresh open handle.
+  - Before the handle is closed, `read!` completes on its first poll with
+    `Ok("")`.
+  - The first `close` returns `Ok`.
+  - After a successful close, every operation on that handle, including a
+    second `close`, returns `Err(ResourceError.Disposed)` and must not trap.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
 
@@ -219,7 +238,21 @@ fixture may name only the profiles listed here.
 A scenario is a fixed host procedure for protocol states that
 single-threaded source cannot create by itself. Each scenario starts from a
 fresh instance, with the entry `main!` and its row supplied by the selected
-profile.
+profile. Its steps use only host operations on the `main!` suspension: poll
+it with a `PollContext`, and cancel it
+([`Suspend[T]` Protocol](../11-requirements-and-suspension.md#suspendt-protocol)).
+It also uses two actions of the deterministic fixture runtime:
+
+- **Hold** a suspending call: answer every poll of that call's suspension
+  with pending, without evaluating its body and without a host call.
+- **Intercept** a suspension point: when the body of the `main!` suspension
+  first reaches a bang call, give control to the scenario before the callee's
+  suspension is polled. The scenario's next step runs there, inside the poll
+  that reached the bang call.
+
+A **driver** is one host drive loop that owns a suspension from its first
+poll until the suspension completes or is cancelled. Each driver polls with
+its own `PollContext`.
 
 - `cancellation-cleanup`:
   1. Construct the `main!` suspension.
@@ -230,36 +263,76 @@ profile.
   4. Call the fixture's top-level `cleanup_ran() -> bool` in the same
      instance. The case passes when it returns `true`.
 - `competing-drivers`:
-  1. Construct the `main!` suspension.
-  2. Poll it once, holding every suspending callee pending, so that the poll
-     returns pending.
-  3. While the first driver still owns that suspension, start a second drive
-     of the same entry.
-  4. The case passes when step 3 raises `suspension-competing-driver`.
+  1. Construct the `main!` suspension `S`.
+  2. Driver A polls `S` once, holding the first suspending call that `S`'s
+     body reaches. The poll returns pending. A still owns `S`, which is
+     unfinished but not active.
+  3. A second driver B, which has never polled `S`, polls `S` with its own
+     `PollContext`.
+  4. The case passes when the poll in step 3 raises
+     `suspension-competing-driver`.
 - `reentrant-poll`:
-  1. Construct the `main!` suspension, and poll it.
-  2. During that poll, at its first suspension point, poll the same
-     suspension again before the first poll returns.
-  3. The case passes when step 2 raises `suspension-reentrant-poll`.
-
-How a "second drive" and a "re-entrant poll" are expressed without an
-implementation hook is an open question
-([Open Issues](../../future-work/OPEN_ISSUES.md#questions-from-the-compiler-audit)).
+  1. Construct the `main!` suspension `S`.
+  2. Driver A polls `S` once, intercepting the first suspension point that
+     `S`'s body reaches.
+  3. At that interception, while A's poll of `S` is still active, A polls `S`
+     again with the same `PollContext`.
+  4. The case passes when the poll in step 3 raises
+     `suspension-reentrant-poll`.
 
 `# fixture-runtime-pending-function: NAME` makes the deterministic runtime
-hold the named suspending function pending at every poll. The runtime makes
-no host call for it. The directive is valid only with
-`cancellation-cleanup`.
+hold every call of the named suspending function. The directive is valid only
+with `cancellation-cleanup`.
 
 ### Package Roles
 
 `# fixture-package-role: library` and
 `# fixture-package-role: root-application` select the synthetic
-multi-package environment. The primary file is the only case input. It is
-compiled as the root module of a package in the named role. The runner also
-supplies the packages `dep.validation` and `dep.models`. Where their sources
-live is an open question
-([Open Issues](../../future-work/OPEN_ISSUES.md#questions-from-the-compiler-audit)).
+multi-package environment. The primary file is compiled as the root module
+of a package in the named role. That package depends on every package under
+[`packages/`](packages), each in the library role:
+
+- Each directory `packages/NAME/` is the source root of one package, used as
+  `dep.NAME` ([Use Roots](../10-modules.md#use-roots)). Its `mod.hd` is the
+  package's root module.
+- [`dep.validation`](packages/validation/mod.hd) declares the facet
+  `Validation`, with its `Annotation`, `TypeAnnotator`, and `DataAnnotator`
+  implementations, and annotates `string`.
+- [`dep.models`](packages/models/mod.hd) declares `data User` with one
+  public `name: string` field.
+- Neither package annotates `User`, so no library in the graph owns the pair
+  `(Validation, User)`.
+
+Package files are not cases. They have no row in `cases.tsv`, carry no
+directives, and are never judged on their own.
+
+The runner passes `--package-role ROLE` to `check` and `test`. It also
+passes `--dependency NAME=DIR` once for each package directory, in ascending
+order of `NAME`, where `DIR` is the absolute path of `packages/NAME`.
+
+### Standard Output
+
+A `runtime` `accept` case may state the exact standard output of its entry
+point with one or more `# expect-stdout: TEXT` lines. Such a fixture names no
+runtime profile and no scenario, so it runs under the `console` profile, and
+it declares an entry point.
+
+- Each directive is one output line. The directives are read in source
+  order.
+- `TEXT` is the rest of the line after `# expect-stdout: `. It is taken
+  literally, except for three escapes: `\\` is one backslash, `\t` is
+  U+0009, and `\u{H}` is the scalar value with 1 to 6 hexadecimal digits
+  `H`. Any other backslash sequence makes the fixture invalid.
+- `TEXT` may not end in whitespace; write a trailing space as `\u{20}`. The
+  line `# expect-stdout:` with nothing after the colon is an empty line.
+- The expected output is each decoded `TEXT` followed by one U+000A,
+  concatenated in order. Output that does not end in U+000A cannot be
+  expected.
+
+After `check` and `test` pass, the runner invokes `run FILE`. The case
+passes when `run` exits 0 and its standard output, decoded as UTF-8, equals
+the expected output exactly. No carriage return, trailing newline, or
+whitespace is normalized. Standard error is not judged.
 
 ## Command Contract
 
@@ -276,8 +349,14 @@ IMPL ACTION [OPTION VALUE]... FILE
 | Action  | Options the runner may pass                                     | Used for |
 | ------- | --------------------------------------------------------------- | -------- |
 | `parse` | none                                                            | `parse` phase |
-| `check` | `--profile NAME`                                                | `type` phase, and the first step of `runtime` |
-| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`  | `runtime` phase |
+| `check` | `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `type` phase, and the first step of `runtime` |
+| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `runtime` phase |
+| `run`   | none                                                            | `runtime` cases with `# expect-stdout:` |
+
+`run FILE` executes only the entry point, in a fresh program instance under
+the `console` profile, as in step 1 of
+[Runtime Execution](#runtime-execution). Its standard output is exactly the
+program's console output.
 
 Exit statuses and limits:
 

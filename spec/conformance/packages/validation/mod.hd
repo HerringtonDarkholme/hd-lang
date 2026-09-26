@@ -1,0 +1,33 @@
+pub data Validation: pass
+
+pub data Validator: pass
+
+pub data FieldValidator: pass
+
+impl Annotation for Validation:
+    type Info = Validator
+
+impl TypeAnnotator for Validation:
+    fn build(self, target: TypeShape) -> Validator:
+        panic("exact annotation supplies build")
+
+impl DataAnnotator for Validation:
+    type FieldTarget = FieldValidator
+
+    fn map_field(
+        self,
+        field: FieldShape,
+        type_metadata: AnnotationRef[Validator],
+    ) -> FieldValidator:
+        FieldValidator {}
+
+    fn build(
+        self,
+        target: DataShape,
+        fields: list[(string, FieldValidator)],
+    ) -> Validator:
+        Validator {}
+
+annotate Validation for string:
+    fn build(self, target: TypeShape) -> Validator:
+        Validator {}

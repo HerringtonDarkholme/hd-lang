@@ -110,15 +110,24 @@ fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
     Ok()
 ```
 
-When a durable runner starts `sync_user!`, it records the entry function's stable identity, code version, arguments, and provider configuration identity. It then runs the function normally until a `!` call suspends.
+When a durable runner starts `sync_user!`, it records the entry function's stable identity, code identity, arguments, and provider configuration identity. It then runs the function normally until a `!` call suspends.
 
 The runner maintains an append-only event history. On replay:
 
 1. A completed event matching the next `!` call supplies its recorded result, so the external operation is not repeated.
 2. A scheduled event without a completion keeps the workflow suspended.
-3. A new `!` call appends a command event and pauses execution. A worker performs the operation, appends its completion, and schedules another replay.
+3. A `!` call past the end of the history stops the replay, as described under Replay Rules below. The runner then appends a command event for that call. A worker performs the operation, appends its completion, and the runner schedules another replay over the longer history.
 
-Code between suspension points must be deterministic. Time, randomness, external reads, and other nondeterministic inputs must go through suspending dependencies so their results enter the history. Runs are pinned to a compatible code version, and suspension sites need stable compiler-generated identities so source edits can be checked during replay.
+Code between suspension points must be deterministic. Time, randomness, external reads, and other nondeterministic inputs must go through suspending dependencies so their results enter the history. Suspension sites need stable compiler-generated identities so that events match their calls during replay.
+
+### Replay Rules
+
+These rules are decided. They bind every runtime that records or replays histories.
+
+- **Code identity.** A history records one code identity for the whole module: a hash of the module's semantic content. Any semantic change anywhere in the module invalidates every history recorded against it, and replay rejects such a history. Formatting and comment changes never change the code identity.
+- **Every run records a history.** Recording covers every run, including a run that panics and a run that never finishes. The history holds every event up to the panic, or up to the point where the host stops the run.
+- **End of history.** When replay reaches a `!` call past the end of its history, it stops with a distinct history-exhausted failure. Replay never continues live: it does not perform the operation and does not append to the history.
+- **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected.
 
 External operations may run more than once if a worker fails after performing an operation but before recording its completion. The runtime therefore supplies an idempotency key for each scheduled event, and durable providers must either honor it or document weaker delivery guarantees.
 
