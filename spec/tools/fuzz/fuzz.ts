@@ -1,16 +1,18 @@
 // Implementation-neutral hd-lang fuzzer. Entry point.
 //
-//   node --experimental-strip-types audit/fuzz/fuzz.ts \
+//   node --experimental-strip-types spec/tools/fuzz/fuzz.ts \
 //     [--compiler "<cmd>"]... [--seed S] [--cases N] [--jobs J] [--fuzzer NAME]... \
-//     [--timeout MS] [--out DIR] [--max-signatures 20] [--minimize] [--adapter wasm]
-//   node --experimental-strip-types audit/fuzz/fuzz.ts --replay FILE [--fuzzer NAME]...
+//     [--timeout MS] [--out DIR] [--max-signatures 20] [--minimize] [--adapter wasm] \
+//     [--fail-on NAME,...]
+//   node --experimental-strip-types spec/tools/fuzz/fuzz.ts --replay FILE [--fuzzer NAME]...
+//   node --experimental-strip-types spec/tools/fuzz/fuzz.ts --reference-only --fail-on all
 //
 // It imports only Node built-ins, its own modules, and `spec/`. See README.md.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { parseSource } from "../../spec/reference-parser/parser.ts";
+import { parseSource } from "../../reference-parser/parser.ts";
 import { validateBuild, wasmToolsAvailable } from "./adapters/wasm.ts";
 import {
   type Action,
@@ -43,6 +45,7 @@ const allFuzzers: readonly FuzzerName[] = ["parse", "contract", "phase", "cross"
 interface Options {
   readonly adapters: ReadonlySet<string>;
   readonly cases: number;
+  readonly failOn: ReadonlySet<FuzzerName>;
   readonly compilers: readonly (readonly string[])[];
   readonly fuzzers: readonly FuzzerName[];
   readonly jobs: number;
@@ -50,10 +53,19 @@ interface Options {
   readonly minTests: number;
   readonly minimize: boolean;
   readonly out: string;
+  readonly referenceOnly: boolean;
   readonly replay?: string;
   readonly seed: string;
   readonly timeoutMs: number;
   readonly work: string;
+}
+
+function fuzzerList(value: string): FuzzerName[] {
+  return value.split(",").flatMap((name) => {
+    if (name === "all") return allFuzzers;
+    if ((allFuzzers as readonly string[]).includes(name)) return [name as FuzzerName];
+    throw new Error(`unknown fuzzer ${name}`);
+  });
 }
 
 function parseOptions(args: readonly string[]): Options {
@@ -61,13 +73,15 @@ function parseOptions(args: readonly string[]): Options {
   const fuzzers: FuzzerName[] = [];
   const adapters = new Set<string>();
   let cases = 5000;
-  let jobs = Math.min(8, availableParallelism());
+  let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()));
   let seed = "1";
   let timeoutMs = 10_000;
-  let out = resolve(process.cwd(), "fuzz-out");
+  let out = join(tmpdir(), `hd-fuzz-out-${process.pid}`);
   let maxSignatures = 20;
   let minTests = 300;
   let doMinimize = false;
+  let referenceOnly = false;
+  const failOn = new Set<FuzzerName>();
   let replay: string | undefined;
   let work = join(tmpdir(), `hd-fuzz-${process.pid}`);
   for (let index = 0; index < args.length; index += 1) {
@@ -90,15 +104,14 @@ function parseOptions(args: readonly string[]): Options {
     else if (option === "--replay") replay = resolve(need());
     else if (option === "--adapter") adapters.add(need());
     else if (option === "--minimize") doMinimize = true;
-    else if (option === "--fuzzer") {
-      for (const name of need().split(",")) {
-        if (name === "all") fuzzers.push(...allFuzzers);
-        else if ((allFuzzers as readonly string[]).includes(name)) fuzzers.push(name as FuzzerName);
-        else throw new Error(`unknown fuzzer ${name}`);
-      }
-    } else throw new Error(`unknown option ${option}`);
+    else if (option === "--reference-only") referenceOnly = true;
+    else if (option === "--fail-on") for (const name of fuzzerList(need())) failOn.add(name);
+    else if (option === "--fuzzer") fuzzers.push(...fuzzerList(need()));
+    else throw new Error(`unknown option ${option}`);
   }
-  if (compilers.length === 0)
+  if (referenceOnly && (compilers.length > 0 || adapters.size > 0))
+    throw new Error("--reference-only takes no --compiler or --adapter");
+  if (compilers.length === 0 && !referenceOnly)
     compilers.push(
       splitCommand(process.env.HD_FUZZ_COMMAND ?? "node --experimental-strip-types bin/hd.js"),
     );
@@ -109,16 +122,20 @@ function parseOptions(args: readonly string[]): Options {
   let selected = fuzzers.length ? [...new Set(fuzzers)] : [...allFuzzers];
   if (compilers.length < 2) selected = selected.filter((name) => name !== "cross");
   if (!adapters.has("wasm")) selected = selected.filter((name) => name !== "wasm");
+  // Without an implementation, `phase` would repeat the `contract` inputs.
+  if (referenceOnly) selected = selected.filter((name) => name === "parse" || name === "contract");
   return {
     adapters,
     cases,
     compilers,
+    failOn,
     fuzzers: selected,
     jobs,
     maxSignatures,
     minTests,
     minimize: doMinimize,
     out,
+    referenceOnly,
     replay,
     seed,
     timeoutMs,
@@ -200,7 +217,7 @@ class Executor {
   calls = 0;
   callMs = 0;
   private readonly options: Options;
-  private readonly inventory: Inventory;
+  readonly inventory: Inventory;
 
   constructor(options: Options, inventory: Inventory) {
     this.options = options;
@@ -279,6 +296,15 @@ async function evaluate(
   const reference = referenceCodes(input.source);
   if (!Array.isArray(reference))
     return { executions: [], observations: [reference], reference: [] };
+  if (options.referenceOnly) {
+    // No implementation: the only oracle is that the reference parser emits
+    // codes the spec inventory knows about.
+    const { diagnostics, referenceParser } = executor.inventory;
+    const observations = [...new Set(reference)]
+      .filter((code) => !diagnostics.has(code) && !referenceParser.has(code))
+      .map((code) => ({ detail: code, signature: `reference|unlisted-code|${code}` }));
+    return { executions: [], observations, reference };
+  }
   if (fuzzer === "wasm") {
     const observations: Observation[] = [];
     const executions = await executor.execute(input.source, ["check"]);
@@ -541,6 +567,7 @@ async function main(): Promise<number> {
   process.stdout.write(
     `seed=${options.seed} cases=${options.cases} jobs=${options.jobs} fuzzers=${options.fuzzers.join(",")} compilers=${options.compilers.length} seeds=${corpus.seeds.length} (${corpus.accepted.length} reference-accepted) wasm-tools=${options.adapters.has("wasm") ? wasmToolsAvailable().join("+") || "none" : "off"}\n`,
   );
+  let failed = 0;
   for (const fuzzer of options.fuzzers) {
     const report = await runFuzzer(fuzzer, corpus, executor, options, inventory);
     writeReport(report, options, executor);
@@ -548,8 +575,21 @@ async function main(): Promise<number> {
       await minimizeReport(report, corpus, executor, options);
       writeReport(report, options, executor);
     }
+    if (options.failOn.has(fuzzer)) failed += report.signatures.size;
   }
-  return 0;
+  process.stdout.write(`report: ${options.out}\n`);
+  if (failed > 0)
+    process.stderr.write(
+      `fuzz: ${failed} signature(s) in a --fail-on fuzzer; see ${options.out}\n`,
+    );
+  return failed > 0 ? 1 : 0;
 }
 
-process.exitCode = await main();
+const defaultWork = !process.argv.includes("--work");
+try {
+  process.exitCode = await main();
+} finally {
+  // The default scratch directory is private to this process; reports go to --out.
+  if (defaultWork)
+    rmSync(join(tmpdir(), `hd-fuzz-${process.pid}`), { force: true, recursive: true });
+}

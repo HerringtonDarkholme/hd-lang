@@ -1,6 +1,6 @@
-// Fails if any file under audit/fuzz imports something other than a Node
-// built-in, a sibling module inside audit/fuzz, or a module under spec/.
-//   node --experimental-strip-types audit/fuzz/check-imports.ts
+// Fails if any file under spec/tools/fuzz imports something other than a Node
+// built-in, a sibling module inside spec/tools/fuzz, or a module under spec/.
+//   node --experimental-strip-types spec/tools/fuzz/check-imports.ts
 import { readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 
@@ -36,4 +36,4 @@ for (const file of specFiles(fuzzRoot, ".ts")) {
 if (failures.length) {
   process.stderr.write(`${failures.join("\n")}\n`);
   process.exitCode = 1;
-} else process.stdout.write("check-imports: ok (node built-ins, audit/fuzz, spec/ only)\n");
+} else process.stdout.write("check-imports: ok (node built-ins, spec/tools/fuzz, spec/ only)\n");

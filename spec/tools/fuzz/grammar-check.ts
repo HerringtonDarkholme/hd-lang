@@ -3,8 +3,8 @@
 // on a derivation means the grammar, the layout rules, the reference parser,
 // or this generator's layout rendering disagree. Every sample needs triage.
 //
-//   node --experimental-strip-types audit/fuzz/grammar-check.ts [--seed S] [--cases N] [--show K]
-import { parseSource } from "../../spec/reference-parser/parser.ts";
+//   node --experimental-strip-types spec/tools/fuzz/grammar-check.ts [--seed S] [--cases N] [--show K]
+import { parseSource } from "../../reference-parser/parser.ts";
 import { Rng } from "./common.ts";
 import { Generator, loadGrammar, render } from "./generate.ts";
 

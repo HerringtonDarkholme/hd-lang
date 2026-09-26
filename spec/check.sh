@@ -96,6 +96,21 @@ done
 node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
 
+# Fuzzer (spec/tools/fuzz): the import gate, then a seeded smoke run whose only
+# oracles are the reference parser and the spec inventory. No implementation
+# is invoked here; implementation smoke runs live in `npm run fuzz:smoke`.
+fuzz_dir="$spec_dir/tools/fuzz"
+node --experimental-strip-types "$fuzz_dir/check-imports.ts" ||
+    fail "spec/tools/fuzz imports something outside Node built-ins and spec/"
+fuzz_tmp=$(mktemp -d "${TMPDIR:-/tmp}/hd-spec-fuzz.XXXXXX")
+trap 'rm -rf "$fuzz_tmp"' EXIT
+node --experimental-strip-types "$fuzz_dir/grammar-check.ts" --seed smoke --cases 200 --show 0 ||
+    fail "grammar-check smoke run crashed"
+node --experimental-strip-types "$fuzz_dir/fuzz.ts" --reference-only --fail-on all \
+    --seed smoke --cases 200 --out "$fuzz_tmp/out" --work "$fuzz_tmp/work" \
+    ${HD_SPEC_JOBS:+--jobs "$HD_SPEC_JOBS"} ||
+    fail "reference-only fuzz smoke run found a signature"
+
 awk -F "$tab" '
     NR == 1 {
         if ($0 != "specification\tblock\tclassification\tfixture") exit 1

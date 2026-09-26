@@ -1,4 +1,4 @@
-// Oracle: every command result obeys audit/fuzz/CONTRACT.md.
+// Oracle: every command result obeys spec/tools/fuzz/CONTRACT.md.
 import type { Action } from "../common.ts";
 import { type Observation, type OracleInput, who } from "./types.ts";
 

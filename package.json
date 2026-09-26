@@ -7,12 +7,13 @@
   },
   "type": "module",
   "scripts": {
-    "check": "npm run check:types && npm run lint && npm run format:check && npm test && bash spec/check.sh",
+    "check": "npm run check:types && npm run lint && npm run format:check && npm test && npm run fuzz:smoke && bash spec/check.sh",
     "check:types": "tsc --noEmit",
     "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
     "test": "npm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts'",
+    "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer contract,phase --fail-on phase --seed smoke --cases 100",
     "test:portable": "node --experimental-strip-types test/run-portable.ts",
     "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
     "hd": "node --experimental-strip-types src/cli.ts"

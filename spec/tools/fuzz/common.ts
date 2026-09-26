@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-export const repoRoot = resolve(import.meta.dirname, "../..");
+export const repoRoot = resolve(import.meta.dirname, "../../..");
 export const specRoot = resolve(repoRoot, "spec");
 
 export type Action = "build" | "check" | "parse" | "run" | "test";
@@ -223,7 +223,7 @@ export function messageLabel(output: string, path: string): string {
 }
 
 /**
- * Classifies one command result under the command contract (audit/fuzz/CONTRACT.md).
+ * Classifies one command result under the command contract (spec/tools/fuzz/CONTRACT.md).
  * Only exit status, signals, and `PATH:LINE:COL: CODE:` / `CODE:` lines are read.
  */
 export function classify(

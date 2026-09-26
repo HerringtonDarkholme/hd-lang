@@ -1,0 +1,14 @@
+### planted: import { main } from "../../src/cli.ts" in spec/tools/fuzz/zz-planted.ts
+specification links and anchors passed
+spec/tools/fuzz/zz-planted.ts: references src/: import { main } from "../../src/cli.ts";
+spec check failed: spec/tools/fuzz imports something outside Node built-ins and spec/
+spec/check.sh exit=1
+### planted: import { main } from "../../../src/cli.ts" in spec/tools/fuzz/zz-planted.ts
+specification links and anchors passed
+spec/tools/fuzz/zz-planted.ts: imports src/cli.ts
+spec/tools/fuzz/zz-planted.ts: references src/: import { main } from "../../../src/cli.ts";
+spec check failed: spec/tools/fuzz imports something outside Node built-ins and spec/
+spec/check.sh exit=1
+### after removal
+spec check passed
+exit=0
