@@ -1,5 +1,6 @@
 import type { Expression } from "../ast.ts";
 import type { HirExpression, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import type { Signature } from "./context.ts";
 import {
   functionParts,
   mutableInner,
@@ -525,17 +526,70 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
       const methodParameters = method.parameters.map((parameter) =>
         substituteGenericType(parameter, traitSubstitutions),
       );
-      const methodResult = substituteGenericType(method.result, traitSubstitutions);
+      let methodResult = substituteGenericType(method.result, traitSubstitutions);
       const methodRequirements = method.requirements.map((requirement) =>
         substituteGenericType(requirement, traitSubstitutions),
       );
-      const checkedArguments = this.checkConcreteArguments(
-        expression,
-        methodParameters,
-        method.parameterNames,
-        method.variadic,
-        `method '${method.name}'`,
-      );
+      let checkedArguments: {
+        readonly arguments: readonly HirExpression[];
+        readonly parameterIndices?: readonly number[];
+      };
+      let bounds: HirExpression[] | undefined;
+      if (method.genericParameters.length > 0) {
+        // Method-level generics are inferred per call; their non-Reference
+        // bounds travel as dictionary arguments, also through a trait value.
+        const methodSignature: Signature = {
+          name: method.name,
+          index: -1,
+          suspending: method.suspending,
+          genericParameters: method.genericParameters,
+          genericBounds: (method.genericBounds ?? []).map((bound) => ({
+            ...bound,
+            traitArguments: bound.traitArguments.map((argument) =>
+              substituteGenericType(argument, traitSubstitutions),
+            ),
+          })),
+          referenceParameters: method.referenceParameters,
+          rowParameters: [],
+          parameters: methodParameters,
+          parameterNames: method.parameterNames,
+          defaultFunctionNames: method.parameters.map(() => undefined),
+          variadic: method.variadic,
+          result: methodResult,
+          requirements: methodRequirements,
+          span: method.span,
+        };
+        const checkedSignature = this.checkSignatureArguments(
+          expression,
+          methodSignature,
+          undefined,
+          `method '${method.name}'`,
+        );
+        const unresolved = method.genericParameters.filter(
+          (parameter) => !checkedSignature.substitutions.has(parameter),
+        );
+        if (unresolved.length > 0)
+          this.fail(
+            "unresolved-generic-placeholder",
+            `could not infer generic parameter${unresolved.length === 1 ? "" : "s"} ${unresolved.join(", ")}`,
+            expression.span,
+          );
+        methodResult = substituteGenericType(methodResult, checkedSignature.substitutions);
+        bounds = this.resolveBoundDictionaries(
+          methodSignature,
+          checkedSignature.substitutions,
+          expression.span,
+        );
+        checkedArguments = checkedSignature;
+      } else {
+        checkedArguments = this.checkConcreteArguments(
+          expression,
+          methodParameters,
+          method.parameterNames,
+          method.variadic,
+          `method '${method.name}'`,
+        );
+      }
       const providers = methodRequirements.map((requirement) =>
         this.resolveProvider(requirement, expression.span),
       );
@@ -555,6 +609,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
             supertraitPath: selectedMethod.path.length > 0 ? selectedMethod.path : undefined,
             arguments: checkedArguments.arguments,
             argumentParameterIndices: checkedArguments.parameterIndices,
+            bounds,
             providers: providers as HirExpression[],
             erasedParameterTypes: method.parameters.some(containsGenericType)
               ? method.parameters
@@ -570,6 +625,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
             supertraitPath: selectedMethod.path.length > 0 ? selectedMethod.path : undefined,
             arguments: checkedArguments.arguments,
             argumentParameterIndices: checkedArguments.parameterIndices,
+            bounds,
             providers: providers as HirExpression[],
             erasedParameterTypes: method.parameters.some(containsGenericType)
               ? method.parameters

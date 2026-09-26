@@ -6,6 +6,7 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
+  readonlyType,
   resultParts,
   storedSuspensionParts,
   suspensionParts,
@@ -89,6 +90,12 @@ export abstract class StatementChecker extends CheckerContext {
       }
       case "field-assignment": {
         const receiver = this.checkExpression(statement.target.receiver);
+        if (tupleParts(readonlyType(receiver.type)) !== undefined)
+          this.fail(
+            "invalid-assignment-target",
+            `tuple element '${statement.target.name}' is not assignable; tuples are immutable`,
+            statement.target.span,
+          );
         const mutableReceiver = mutableInner(receiver.type);
         if (mutableReceiver === undefined) {
           let root: Expression = statement.target.receiver;

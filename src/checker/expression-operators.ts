@@ -5,10 +5,11 @@ import {
   functionParts,
   mutableInner,
   nominalGenericParts,
+  readonlyType,
   tupleParts,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { genericTypeName } from "./shared.ts";
+import { genericTypeName, traitTypeName } from "./shared.ts";
 
 import { ExpressionLiteralChecker } from "./expression-literals.ts";
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
@@ -119,16 +120,19 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const left = this.checkExpression(expression.left);
         const right = this.checkExpression(expression.right);
         if (expression.operator === "is") {
-          if (left.type !== right.type) {
+          const operands = this.identityOperands(left, right);
+          if (!operands) {
             this.fail(
-              this.isIdentityType(left.type) && this.isIdentityType(right.type)
+              this.isIdentityType(withoutPermissions(left.type)) &&
+                this.isIdentityType(withoutPermissions(right.type))
                 ? "incompatible-identity-operands"
                 : "type-mismatch",
               `identity operands have types ${left.type} and ${right.type}`,
               expression.span,
             );
           }
-          const generic = genericTypeName(left.type);
+          const identityType = withoutPermissions(operands[0].type);
+          const generic = genericTypeName(identityType);
           if (generic && !(this.signature.referenceParameters ?? []).includes(generic)) {
             this.fail(
               "identity-needs-reference-bound",
@@ -136,7 +140,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               expression.span,
             );
           }
-          if (!this.isIdentityType(left.type)) {
+          if (!this.isIdentityType(identityType)) {
             this.fail(
               "identity-requires-references",
               `identity comparison does not accept '${left.type}'`,
@@ -146,8 +150,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           return {
             kind: "binary",
             operator: expression.operator,
-            left,
-            right,
+            left: operands[0],
+            right: operands[1],
             type: "bool",
             span: expression.span,
           };
@@ -170,6 +174,20 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
+        // An integer exponent must be unsigned. This prototype has no unsigned
+        // types, so only an exponent built from unsuffixed literals (typed u32
+        // in exponent position) is accepted; it is represented as i32.
+        if (
+          expression.operator === "**" &&
+          left.type === "i32" &&
+          right.type === "i32" &&
+          !isLiteralExponent(expression.right)
+        )
+          this.fail(
+            "type-mismatch",
+            `an integer exponent must have an unsigned integer type, found '${right.type}'`,
+            expression.right.span,
+          );
         if (left.type !== right.type) {
           if (expression.operator === "**")
             this.fail(
@@ -241,16 +259,12 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         }
         if (bitwise && left.type !== "i32")
           this.fail(
-            "invalid-binary-operands",
+            "type-mismatch",
             `operator '${expression.operator}' requires i32 operands`,
             expression.span,
           );
         if (remainder && left.type !== "i32")
-          this.fail(
-            "invalid-binary-operands",
-            "operator '%' requires integer operands",
-            expression.span,
-          );
+          this.fail("type-mismatch", "operator '%' requires integer operands", expression.span);
         if (
           comparison &&
           left.type === "bool" &&
@@ -258,8 +272,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           expression.operator !== "!="
         ) {
           this.fail(
-            "invalid-binary-operands",
-            `operator '${expression.operator}' does not accept bool`,
+            "missing-partial-ord",
+            `type 'bool' does not implement PartialOrd, required by operator '${expression.operator}'`,
             expression.span,
           );
         }
@@ -272,7 +286,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           !(comparison && (left.type === "bool" || left.type === "char" || left.type === "string"))
         ) {
           this.fail(
-            "invalid-binary-operands",
+            "type-mismatch",
             `operator '${expression.operator}' does not accept ${left.type}`,
             expression.span,
           );
@@ -289,6 +303,30 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       default:
         return undefined;
     }
+  }
+
+  /** The operands of `is` made comparable, or undefined when they are incompatible. */
+  private identityOperands(
+    left: HirExpression,
+    right: HirExpression,
+  ): readonly [HirExpression, HirExpression] | undefined {
+    // The emitter compares trait values through their readonly trait type.
+    const readonlyTrait = (value: HirExpression): HirExpression =>
+      traitTypeName(value.type) ? this.coerce(value, readonlyType(value.type), value.span) : value;
+    if (withoutPermissions(left.type) === withoutPermissions(right.type))
+      return [readonlyTrait(left), readonlyTrait(right)];
+    for (const [trait, other] of [
+      [left, right],
+      [right, left],
+    ] as const) {
+      if (!traitTypeName(trait.type)) continue;
+      const target = readonlyType(trait.type);
+      const converted = this.coerce(other, target, other.span);
+      if (converted.type !== target) continue;
+      const traitValue = readonlyTrait(trait);
+      return trait === left ? [traitValue, converted] : [converted, traitValue];
+    }
+    return undefined;
   }
 
   private checkBindingExpression(
@@ -347,4 +385,22 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       span: expression.span,
     };
   }
+}
+
+const LITERAL_EXPONENT_OPERATORS = new Set(["+", "*", "**"]);
+
+/** True for an exponent whose leaves are integer literals, which take type u32. */
+function isLiteralExponent(expression: Expression): boolean {
+  if (expression.kind === "integer") return true;
+  return (
+    expression.kind === "binary" &&
+    LITERAL_EXPONENT_OPERATORS.has(expression.operator) &&
+    isLiteralExponent(expression.left) &&
+    isLiteralExponent(expression.right)
+  );
+}
+
+/** The type with `mut` removed at every level; permissions never affect identity. */
+function withoutPermissions(type: ValueType): ValueType {
+  return type.replaceAll("mut:", "");
 }

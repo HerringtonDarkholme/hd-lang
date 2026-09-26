@@ -221,31 +221,28 @@ canonical ID, and the other IDs are listed. The 65 findings still open are in
 | 1    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
 | 2    | F-252 (F-309)         | major    | the parser rejects core forms: same-line `if`/`else`, `use self.`/`super.`, unnamed payloads, tuple patterns |
 | 3    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
-| 4    | F-353 (F-261)         | major    | `is` rejects operands with `mut` access (decision L7 not applied)                          |
-| 5    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in replay                                 |
-| 6    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
-| 7    | F-401                 | minor    | replay accepts a changed executed non-suspending function and prints a different result     |
+| 4    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in replay                                 |
+| 5    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
+| 6    | F-401                 | minor    | replay accepts a changed executed non-suspending function and prints a different result     |
 
 ### Unimplemented features and codes
 
 | Rank | ID    | Severity | Finding                                                                                      |
 | ---- | ----- | -------- | -------------------------------------------------------------------------------------------- |
-| 8    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
-| 9    | F-205 | major    | the compiler emits its own code instead of the spec's in 23 conformance cases                |
-| 10   | F-155 | minor    | runtime panics carry no source location                                                      |
+| 7    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
+| 8    | F-155 | minor    | runtime panics carry no source location                                                      |
 
 ### Performance and architecture
 
 | Rank | ID    | Severity | Finding                                                                        |
 | ---- | ----- | -------- | ------------------------------------------------------------------------------ |
-| 11   | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
-| 12   | F-501 | major    | maps have no hashing                                                           |
-| 13   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
-| 14   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
+| 9    | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
+| 10   | F-501 | major    | maps have no hashing                                                           |
+| 11   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
+| 12   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
 
 Merged duplicates:
 
-- F-353 = F-261;
 - F-611 = F-264;
 - F-265 = F-162 = F-306;
 - F-257 = F-352;
@@ -273,7 +270,7 @@ four fuzzers, plus 1,000 cross-implementation cases:
 - Round 2 repeated 16 of 19 parse classes and every contract and Wasm
   class, so the common failure classes are exhausted.
 - 58.5% of `check` rejections carry one of 48 codes missing from the spec
-  inventory (F-205).
+  inventory (since fixed in the prototype).
 - Implementation bugs still open: F-310, F-311, F-315, F-316 (front end).
 - Minimized findings are portable `.hd` fixtures in
   [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/); the ones the

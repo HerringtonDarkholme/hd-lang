@@ -212,7 +212,7 @@ class Scanner {
       }
       if (width !== this.indents.at(-1)) {
         this.report(
-          "inconsistent-dedent",
+          "invalid-dedent",
           `column ${width + 1} is not an active indentation level`,
           start,
         );
@@ -285,13 +285,22 @@ class Scanner {
         : validDigits.test(digits);
       if (!validPrefixed || /[\p{ID_Continue}]/u.test(this.peek())) {
         while (/[\p{ID_Continue}]/u.test(this.peek())) text += this.advance();
-        this.report("invalid-integer-literal", `invalid integer literal '${text}'`, start);
+        // Misplaced separators among valid digits form no token; any other
+        // character splits the text into tokens the grammar rejects.
+        const radixDigit = radix === "b" ? /[01_]/ : radix === "o" ? /[0-7_]/ : /[0-9a-fA-F_]/;
+        const separatorsOnly =
+          digits.length > 0 && [...digits].every((digit) => radixDigit.test(digit));
+        this.report(
+          separatorsOnly ? "invalid-token" : "syntax-error",
+          `invalid integer literal '${text}'`,
+          start,
+        );
         return;
       }
       try {
         this.emit("integer", text, start, this.position(), BigInt(clean));
       } catch {
-        this.report("invalid-integer-literal", `invalid integer literal '${text}'`, start);
+        this.report("syntax-error", `invalid integer literal '${text}'`, start);
       }
       return;
     }
@@ -314,11 +323,7 @@ class Scanner {
       text.includes("__") ||
       /_\.|\._|_[eE]|[eE]_|[+-]_/.test(text)
     ) {
-      this.report(
-        floating ? "invalid-float-literal" : "invalid-integer-literal",
-        `invalid numeric literal '${text}'`,
-        start,
-      );
+      this.report("invalid-token", `invalid numeric literal '${text}'`, start);
       return;
     }
     const clean = text.replaceAll("_", "");
@@ -447,7 +452,7 @@ class Scanner {
           }
         } else {
           this.report(
-            "invalid-string-interpolation",
+            "syntax-error",
             "an unescaped '$' must be followed by an identifier or '{'",
             start,
           );

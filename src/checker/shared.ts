@@ -943,7 +943,9 @@ function traitIsDynamicallySafe(
     trait.methods.some(
       (method) =>
         method.associated ||
-        method.genericParameters.length > 0 ||
+        method.genericParameters.some(
+          (parameter) => !(method.referenceParameters ?? []).includes(parameter),
+        ) ||
         method.parameters.some((parameter) => parameter.includes("generic:Self")) ||
         method.result.includes("generic:Self"),
     )

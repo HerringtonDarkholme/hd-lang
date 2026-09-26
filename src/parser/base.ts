@@ -64,10 +64,41 @@ export abstract class ParserBase {
     return lines.join("\n");
   }
 
+  private depths?: number[];
+
+  /** The number of open `(`, `[`, and `{` before the token at `index`. */
+  protected delimiterDepth(index: number): number {
+    if (!this.depths) {
+      const depths: number[] = [];
+      let depth = 0;
+      for (const token of this.tokens) {
+        depths.push(depth);
+        if (token.text === "(" || token.text === "[" || token.text === "{") depth += 1;
+        else if (token.text === ")" || token.text === "]" || token.text === "}")
+          depth = Math.max(0, depth - 1);
+      }
+      this.depths = depths;
+    }
+    return this.depths[index] ?? 0;
+  }
+
+  /**
+   * Outside brackets, a control-flow header cannot end in a suite
+   * (02-grammar.md#statements): layout would carry that suite over the `:`.
+   */
+  protected rejectHeaderEndingInSuite(keyword: Token, header: Expression): void {
+    if (this.peek(-1).kind === "dedent" && this.delimiterDepth(this.tokens.indexOf(keyword)) === 0)
+      this.fail(
+        "syntax-error",
+        "a control-flow header outside brackets cannot end in an indented suite",
+        header.span,
+      );
+  }
+
   protected expectText(text: string): Token {
     if (!this.atText(text))
       this.fail(
-        "expected-token",
+        "syntax-error",
         `expected '${text}', found '${this.current().text}'`,
         this.current().span,
       );
@@ -75,7 +106,7 @@ export abstract class ParserBase {
   }
 
   protected expectKind(kind: Token["kind"], message: string): Token {
-    if (!this.atKind(kind)) this.fail("expected-token", message, this.current().span);
+    if (!this.atKind(kind)) this.fail("syntax-error", message, this.current().span);
     return this.advance();
   }
 

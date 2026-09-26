@@ -9,7 +9,6 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |
 | [F-201](../findings/F-201-undeclared-requirement-key-accepted.md) | minor | correctness | The compiler accepts an undeclared requirement key on a non-entry function |  |
-| [F-205](../findings/F-205-fixture-codes-missing-from-spec.md) | major | spec | Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define |  |
 | [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-312 |
 | [F-252](../findings/F-252-parser-rejects-core-grammar.md) | major | correctness | The parser rejects core grammar forms | F-309 |
 | [F-253](../findings/F-253-sized-numeric-types-unsupported.md) | minor | coverage | Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred |  |
@@ -24,7 +23,6 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-311](../findings/F-311-continuation-suite-indentation.md) | minor | correctness | hd accepts a bracketed nested suite whose body is not indented past its header |  |
 | [F-315](../findings/F-315-grammar-valid-forms-generic-codes.md) | note | correctness | Grammar-valid forms are rejected at parse with generic codes, not unsupported diagnostics |  |
 | [F-316](../findings/F-316-pub-inherent-method-false-doc-comment.md) | minor | correctness | A `pub fn` inside an inherent `impl` is rejected with `doc-comment-without-target` |  |
-| [F-353](../findings/F-353-identity-rejects-mut-operands.md) | major | correctness | `is` rejects operands whose static type is `mut T` | F-261 |
 | [F-354](../findings/F-354-map-value-covariance-missing.md) | minor | correctness | Readonly `map[K, V]` is not covariant in `V` |  |
 | [F-355](../findings/F-355-trim-uses-host-whitespace-set.md) | minor | correctness | `string.trim()` removes U+FEFF and keeps U+0085 |  |
 | [F-400](../findings/F-400-host-strings-drop-leading-bom.md) | major | correctness | Strings that start with U+FEFF lose it at the host boundary |  |
@@ -67,5 +65,3 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-705](../findings/F-705-declared-variance-deferred.md) | note | coverage | Declared variance is deferred, so covariant data cannot be written |  |
 | [F-706](../findings/F-706-raw-string-escaped-quote.md) | minor | correctness | A backslash before a quote in a raw string is a lexer error |  |
 | [F-707](../findings/F-707-same-line-suite-comma-accepted.md) | minor | correctness | A comma at depth zero does not end a same-line suite |  |
-| [F-708](../findings/F-708-println-suspending-argument-drops-output.md) | major | correctness | A bang call inside a `println` argument drops all console output of `main!` |  |
-| [F-709](../findings/F-709-provider-scope-suspension-drops-output.md) | major | correctness | A `$.with` block containing a bang call drops all console output of `main!` |  |

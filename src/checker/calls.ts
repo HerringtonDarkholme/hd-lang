@@ -542,7 +542,11 @@ export abstract class CallChecker extends StatementChecker {
         substitutions.set(signature.genericParameters[index]!, this.resolveType(argument));
       });
     }
+    const inferredBeforeExpected = new Set(substitutions.keys());
     if (expected) inferGenericType(signature.result, expected, substitutions, rowSubstitutions);
+    const inferredFromExpected = new Set(
+      [...substitutions.keys()].filter((name) => !inferredBeforeExpected.has(name)),
+    );
     const defaultParameters = new Set(
       signature.defaultFunctionNames.flatMap((name, index) => (name ? [index] : [])),
     );
@@ -578,7 +582,22 @@ export abstract class CallChecker extends StatementChecker {
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
         const inferredActual = weakenBoundedGenericActual(formal, checked.type, boundedParameters);
         const conflict = inferGenericType(formal, inferredActual, substitutions, rowSubstitutions);
-        if (conflict) this.fail("generic-type-mismatch", conflict, source.span);
+        if (conflict) {
+          // A readonly argument never infers a mutable type from the expected result.
+          const fromArgument = new Map<string, ValueType>();
+          inferGenericType(formal, inferredActual, fromArgument);
+          const upgraded = [...fromArgument].find(
+            ([name, type]) =>
+              inferredFromExpected.has(name) && substitutions.get(name) === mutableType(type),
+          );
+          if (upgraded)
+            this.fail(
+              "mutable-upgrade",
+              `readonly argument '${checked.type}' cannot infer '${upgraded[0]}' as mutable '${substitutions.get(upgraded[0])}'`,
+              source.span,
+            );
+          this.fail("type-mismatch", conflict, source.span);
+        }
         const instantiatedFormal = substituteGenericType(formal, substitutions, rowSubstitutions);
         if (mutableInner(instantiatedFormal) === checked.type) {
           this.fail(
@@ -608,7 +627,7 @@ export abstract class CallChecker extends StatementChecker {
           substitutions,
           rowSubstitutions,
         );
-        if (conflict) this.fail("generic-type-mismatch", conflict, source.span);
+        if (conflict) this.fail("type-mismatch", conflict, source.span);
         return this.requireCoercion(
           checked,
           substituteGenericType(elementFormal, substitutions, rowSubstitutions),
@@ -668,7 +687,7 @@ export abstract class CallChecker extends StatementChecker {
       const keys = contextKeys(value.type);
       if (!keys)
         this.fail(
-          "context-spread-type",
+          "type-mismatch",
           `context spread requires a $.Context value, found '${value.type}'`,
           entry.value.span,
         );

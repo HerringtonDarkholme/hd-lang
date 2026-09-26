@@ -72,7 +72,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       case "nil": {
         if (!expected || optionalInner(expected) === undefined) {
           this.fail(
-            "nil-needs-optional-type",
+            "nil-to-nonoptional",
             "nil requires an expected optional type",
             expression.span,
           );
@@ -167,16 +167,28 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         const entries = expression.entries.map((entry) => {
           const checkedKey = this.checkExpression(entry.key, keyType);
           if (!keyType) keyType = checkedKey.type;
+          if (!contextualKey && checkedKey.type !== keyType)
+            this.fail(
+              "no-common-type",
+              `map keys have no common type: ${keyType} and ${checkedKey.type}`,
+              entry.key.span,
+            );
           const key = this.requireCoercion(checkedKey, keyType!, entry.key.span);
           const checkedValue = this.checkExpression(entry.value, valueType);
           if (!valueType) valueType = checkedValue.type;
+          if (!contextualValue && checkedValue.type !== valueType)
+            this.fail(
+              "no-common-type",
+              `map values have no common type: ${valueType} and ${checkedValue.type}`,
+              entry.value.span,
+            );
           const value = this.requireCoercion(checkedValue, valueType!, entry.value.span);
           return { key, value };
         });
         const keyKind = mapKeyKind(keyType!);
         if (keyKind === undefined) {
           this.fail(
-            "unsupported-map-key",
+            "invalid-map-key",
             `type '${keyType}' does not have the MVP's built-in Eq and Hash support`,
             expression.span,
           );

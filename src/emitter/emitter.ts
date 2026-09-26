@@ -47,6 +47,8 @@ import {
   traitSuspensionResultName,
   type HirSuspendDrive,
   type LinearSuspensionSite,
+  dataSingletons,
+  methodBoundParameters,
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
@@ -1261,6 +1263,7 @@ export function emitWat(program: HirProgram): string {
           `(param anyref)`,
           `(param anyref)`,
           ...method.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
+          ...methodBoundParameters(method),
           ...method.requirements.map(
             (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
           ),
@@ -1382,16 +1385,17 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .join(
       "\n",
     )}\n    (type $hd.runtime (struct\n      (field $status (mut i32))\n      (field $scratch (mut (ref null $hd.bytes)))))\n  )\n`;
-  const enumSingletons = program.enums
-    .flatMap((declaration) =>
+  const enumSingletons = [
+    ...dataSingletons(program),
+    ...program.enums.flatMap((declaration) =>
       declaration.variants
         .filter((variant) => declaration.sharedFields.length === 0 && variant.fields.length === 0)
         .map(
           (variant) =>
             `  (global $e${declaration.index}v${variant.tag} (ref $e${declaration.index})\n    (struct.new $e${declaration.index} (i32.const ${variant.tag})${declaration.fields.map((field) => ` ${emitter.defaultValue(field.type)}`).join("")}))`,
         ),
-    )
-    .join("\n");
+    ),
+  ].join("\n");
   const globals = program.globals
     .map(
       (global) =>

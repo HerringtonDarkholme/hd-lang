@@ -44,9 +44,8 @@ test("integer power is right-associative, checked, and rejects negative exponent
   assert.match(compilation.wat, /call \$hd\.pow_i32/);
   assert.equal((instance.exports.main as CallableFunction)(), 508);
 
-  // Current MVP behavior; spec L2 makes a signed exponent a type error (known failure).
-  const negative = await instantiate("fn main() -> i32: 2 ** -1\n");
-  assert.throws(() => (negative.instance.exports.main as CallableFunction)());
+  // A negated exponent is signed, so it is rejected before it can run.
+  assert.equal(analyze("fn main() -> i32: 2 ** -1\n").diagnostics[0]?.code, "type-mismatch");
   const overflow = await instantiate(conformance("runtime/panic/integer-power-overflow"));
   assert.throws(() => (overflow.instance.exports.main as CallableFunction)());
 });
@@ -76,11 +75,11 @@ test("checker rejects name, mutability, and type errors", () => {
   );
   assert.equal(
     analyze(conformance("typing/invalid/float-remainder")).diagnostics[0]?.code,
-    "invalid-binary-operands",
+    "type-mismatch",
   );
   assert.equal(
     analyze(conformance("typing/invalid/bool-ordering")).diagnostics[0]?.code,
-    "invalid-binary-operands",
+    "missing-partial-ord",
   );
   assert.equal(
     analyze(conformance("typing/invalid/nonfinal-vararg-then-parameter")).diagnostics[0]?.code,
@@ -665,7 +664,7 @@ test("Result patterns recursively match imported enum payloads", async () => {
 test("optional and Result context errors have stable diagnostics", () => {
   assert.equal(
     analyze(conformance("typing/invalid/nil-without-expected-type")).diagnostics[0]?.code,
-    "nil-needs-optional-type",
+    "nil-to-nonoptional",
   );
   assert.equal(
     analyze(conformance("typing/invalid/result-constructor-without-context")).diagnostics[0]?.code,

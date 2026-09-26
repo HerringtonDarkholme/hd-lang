@@ -100,7 +100,7 @@ test("parser represents mut self as a mutable Self receiver", () => {
 
   assert.equal(
     parse(conformanceBody("parse/invalid/mut-non-self-parameter")).diagnostics[0]?.code,
-    "expected-token",
+    "syntax-error",
   );
 });
 
@@ -163,7 +163,7 @@ test("tabs and inconsistent dedents are rejected by the lexer", () => {
   );
   assert.ok(
     lex(conformanceBody("parse/invalid/dedent-to-unused-column")).diagnostics.some(
-      (item) => item.code === "inconsistent-dedent",
+      (item) => item.code === "invalid-dedent",
     ),
   );
 });
@@ -175,16 +175,16 @@ test("lexer enforces reserved punctuation, escapes, and numeric separators", () 
   );
   assert.equal(
     lex(conformanceBody("parse/invalid/double-numeric-separator")).diagnostics[0]?.code,
-    "invalid-integer-literal",
+    "invalid-token",
   );
   assert.equal(
     lex(conformanceBody("parse/invalid/binary-literal-bad-digit")).diagnostics[0]?.code,
-    "invalid-integer-literal",
+    "syntax-error",
   );
   assert.deepEqual(lex(conformanceBody("parse/valid/identifier-interpolation")).diagnostics, []);
   assert.equal(
     lex(conformanceBody("parse/invalid/stray-dollar-in-string")).diagnostics[0]?.code,
-    "invalid-string-interpolation",
+    "syntax-error",
   );
   assert.equal(
     lex(conformanceBody("parse/valid/unicode-scalar-escape")).tokens.find(
@@ -270,7 +270,7 @@ test("parser retains function parameter defaults", () => {
   assert.equal(result.program?.functions[0]?.parameters[2]?.default?.kind, "boolean");
   assert.equal(
     parse(conformanceBody("parse/invalid/vararg-with-default")).diagnostics[0]?.code,
-    "vararg-default",
+    "syntax-error",
   );
 });
 
@@ -290,7 +290,7 @@ test("parser retains a leading data copy-update spread", () => {
   }
   assert.equal(
     parse(conformanceBody("parse/invalid/copy-update-spread-not-first")).diagnostics[0]?.code,
-    "data-spread-position",
+    "syntax-error",
   );
 });
 

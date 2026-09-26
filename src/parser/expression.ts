@@ -117,7 +117,7 @@ export abstract class ExpressionParser extends ParserBase {
           member.kind !== "identifier" &&
           !(member.kind === "integer" && /^[0-9]+$/.test(member.text))
         ) {
-          this.fail("expected-token", "expected a member name after '.'", member.span);
+          this.fail("syntax-error", "expected a member name after '.'", member.span);
         }
         this.advance();
         left = {
@@ -240,7 +240,7 @@ export abstract class ExpressionParser extends ParserBase {
         const diagnostic = parsed.diagnostics[0];
         if (diagnostic || !parsed.expression) {
           this.fail(
-            diagnostic?.code ?? "invalid-string-interpolation",
+            diagnostic?.code ?? "syntax-error",
             diagnostic?.message ?? "invalid interpolation expression",
             segment.span,
           );
@@ -383,7 +383,7 @@ export abstract class ExpressionParser extends ParserBase {
       do {
         if (this.atText("...")) {
           this.fail(
-            "data-spread-position",
+            "syntax-error",
             "a data spread must be the first and only spread in a data expression",
             this.current().span,
           );
@@ -482,6 +482,7 @@ export abstract class ExpressionParser extends ParserBase {
 
   protected parseIf(keyword: Token): Expression {
     const condition = this.parseExpression();
+    this.rejectHeaderEndingInSuite(keyword, condition);
     const thenBody = this.parseSuite();
     let elseBody: readonly Statement[] = [];
     if (this.matchText("else")) {
@@ -507,6 +508,7 @@ export abstract class ExpressionParser extends ParserBase {
 
   protected parseWhile(keyword: Token): Expression {
     const condition = this.parseExpression();
+    this.rejectHeaderEndingInSuite(keyword, condition);
     const body = this.parseSuite();
     const elseBody = this.matchText("else") ? this.parseSuite() : [];
     return {
@@ -524,6 +526,7 @@ export abstract class ExpressionParser extends ParserBase {
       names.push(this.expectKind("identifier", "expected a loop binding name after ','"));
     this.expectText("in");
     const iterable = this.parseExpression();
+    this.rejectHeaderEndingInSuite(keyword, iterable);
     const body = this.parseSuite();
     const elseBody = this.matchText("else") ? this.parseSuite() : [];
     return {
@@ -605,6 +608,7 @@ export abstract class ExpressionParser extends ParserBase {
 
   protected parseMatch(keyword: Token): Expression {
     const subject = this.parseExpression();
+    this.rejectHeaderEndingInSuite(keyword, subject);
     this.expectText(":");
     this.expectKind("newline", "expected a line ending after a match header");
     this.expectKind("indent", "expected indented match arms");
@@ -766,11 +770,7 @@ export abstract class ExpressionParser extends ParserBase {
     this.expectText(".");
     const operation = this.current();
     if (!new Set(["use", "with", "context"]).has(operation.text)) {
-      this.fail(
-        "expected-token",
-        "expected a provider-context operation after '$.'",
-        operation.span,
-      );
+      this.fail("syntax-error", "expected a provider-context operation after '$.'", operation.span);
     }
     this.advance();
     if (operation.text === "use") {

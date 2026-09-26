@@ -168,7 +168,7 @@ class Parser extends ExpressionParser {
         const defaultValue = this.matchText("=") ? this.parseExpression() : undefined;
         if (variadic && defaultValue)
           this.fail(
-            "vararg-default",
+            "syntax-error",
             "a variadic parameter cannot declare a default",
             defaultValue.span,
           );
@@ -529,7 +529,7 @@ class Parser extends ExpressionParser {
           : this.expectKind("identifier", "expected a method parameter name");
         if (mutableReceiver && parameterName.text !== "self") {
           this.fail(
-            "expected-token",
+            "syntax-error",
             "'mut' in a method parameter list must be followed by self",
             parameterName.span,
           );
@@ -941,7 +941,7 @@ class Parser extends ExpressionParser {
       this.expectText(".");
       const context = this.expectKind("identifier", "expected Context after '$.'");
       if (context.text !== "Context")
-        this.fail("expected-token", "expected Context after '$.'", context.span);
+        this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
       const requirements = this.parseRequirements();
       const close = this.expectText("]");
@@ -1215,7 +1215,7 @@ class Parser extends ExpressionParser {
     if (_topOrInline && (this.atText(")") || this.atText(",") || this.atText("]")))
       return previous.span.end;
     this.fail(
-      "expected-newline",
+      "syntax-error",
       `expected a line ending, found '${this.current().text}'`,
       this.current().span,
     );
