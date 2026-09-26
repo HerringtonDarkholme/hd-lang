@@ -279,7 +279,8 @@ signed width, `MIN / -1` panics with `integer-overflow`, while `MIN % -1`
 produces zero.
 
 `Display` formats integers in base ten and floating values with the shortest
-round-trip decimal digits. Finite floats use fixed notation when the normalized
+round-trip decimal digits. The digits round-trip at the value's own width, so
+an `f32` displays its `f32` digits even when formatted through generic code. Finite floats use fixed notation when the normalized
 decimal exponent is in `[-6, 21)` and lowercase scientific notation otherwise;
 scientific exponents always include `+` or `-` and no leading zeroes. Fixed
 notation always contains a decimal point and at least one fractional digit, so

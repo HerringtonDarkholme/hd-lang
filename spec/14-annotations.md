@@ -425,7 +425,7 @@ facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
                         "for", annotation_target, [ where_clause ], ":",
                         facet_annotation_suite ;
 
-annotation_facet = type | continued_expression ;
+annotation_facet = type | closed_expression ;
 
 annotation_target = type ;
 

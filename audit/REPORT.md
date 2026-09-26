@@ -286,8 +286,8 @@ four fuzzers, plus 1,000 cross-implementation cases:
   - F-307: a `main` returning `Result[void, E]` passes `check` but cannot
     run;
   - F-308, F-310, F-311, F-316: smaller front-end bugs.
-- The grammar itself derives same-line-suite forms that layout cannot
-  produce (F-314).
+- The grammar itself derived same-line-suite forms that layout cannot
+  produce (F-314, since resolved in chapters 01 and 02).
 - Minimized findings are portable `.hd` fixtures in
   [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/); the ones the
   spec settles are now conformance cases.

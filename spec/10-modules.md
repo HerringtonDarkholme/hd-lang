@@ -184,6 +184,8 @@ uses Unicode Default Case Conversion with full mappings. `trim` removes the
 Unicode `White_Space` property at both ends. `split(separator)` retains empty
 pieces between adjacent separators and at either end; an empty separator
 splits into one-scalar strings, with an empty input producing an empty list.
+With a non-empty separator, an input without that separator, including the
+empty string, yields one piece, so `"".split(",")` is `[""]`.
 `replace` replaces non-overlapping matches from left to right, and an empty
 `old` inserts the replacement at scalar boundaries. `starts_with` compares
 scalar sequences exactly and performs no normalization or case folding.

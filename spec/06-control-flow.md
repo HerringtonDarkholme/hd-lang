@@ -111,7 +111,8 @@ additional mutable-iteration APIs with separate aliasing rules.
 
 Built-in list and map iterators capture a structural-version counter. Inserting,
 removing, clearing, or otherwise changing collection shape invalidates existing
-iterators; their next `next` call causes a checked runtime panic. Replacing an
+iterators; their next `next` call causes a checked runtime panic, even when
+the iterator was already exhausted. Replacing an
 existing list element or map value without changing collection shape does not
 invalidate the iterator, and later visits observe the replacement. User-defined
 iterables must document equivalent mutation behavior in their own contract.

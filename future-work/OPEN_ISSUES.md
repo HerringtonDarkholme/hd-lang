@@ -341,16 +341,6 @@ answered.
 - Should the fixture format gain a stdout expectation for console output?
   (N5)
 
-**Permissions.**
-
-- Section 04 Mutable Paths requires a mutable root expression, while its
-  permission table lets `list[mut User]` mutate its elements. Is
-  `users[0].name = x` or `box.value.name = x` legal through a readonly root
-  whose generic argument is `mut`? (AMB-14)
-- When a plain closure passes a captured `mut T` to a `mut T` parameter, is
-  the error `mutable-capture-requires-mut-fn` or
-  `readonly-argument-to-mutable-parameter`? (AMB-16)
-
 **Representation and performance.**
 
 - May a statically known suspension frame skip the uniform `Suspend[T]`

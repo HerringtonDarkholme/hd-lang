@@ -152,13 +152,22 @@ indented suite. A multi-name binding such as `a, b := pair` needs an
 indented body or parentheses, as in `(a, b := pair)`. A `let` or `for` over
 several names needs an indented body.
 
-Where another token follows an expression, the grammar uses
-`continued_expression`: in a control-flow header before `:`, a match guard, a
-comprehension clause, a map key, a spread before `...`, a parameter decorator,
-and an annotation facet before `for`. It cannot end in a same-line suite,
-because layout would extend that suite over the following token; layout ends a
+Where another token follows an expression inside brackets, the grammar uses
+`continued_expression`: in the header of a control-flow expression written
+directly inside brackets, a comprehension clause, a map key, a spread before
+`...`, and a parameter decorator. It cannot end in a same-line suite, because
+layout would extend that suite over the following token; layout ends a
 same-line suite only at a line boundary outside brackets, at a comma or closing
 delimiter at its depth, or before `else`. It may end in an indented suite.
+
+Outside brackets, an expression followed by another token cannot end in any
+suite. A control-flow header in a statement, a match guard, and an annotation
+facet before `for` therefore take a `closed_expression`. A suite may still
+appear inside brackets within the header, as in `if check(fn(x): ...):`. But a
+statement `if fn() -> bool:`, followed by the closure's indented body and then
+a line beginning `: 1 else: 2`, is a syntax error: its header ends in an
+indented suite. The statements of a suite nested inside brackets follow the
+same rule, because they are statements too.
 
 Whether a statement may appear in a particular value-producing block is a
 semantic rule. In particular, `break` is valid only inside a loop, and `break`
@@ -477,10 +486,10 @@ conditional_expression = if_expression
                        | logical_or_expression
                        ;
 
-suite_expression = if_expression
-                 | for_expression
-                 | while_expression
-                 | match_expression
+suite_expression = statement_if_expression
+                 | statement_for_expression
+                 | statement_while_expression
+                 | statement_match_expression
                  | closure_expression
                  | context_scope
                  ;
@@ -605,7 +614,9 @@ function_type_arguments = "[", function_type_argument,
                           { ",", function_type_argument }, [ "," ], "]" ;
 function_type_argument = type_argument | "_" ;
 contextual_variant_expression = ".", identifier ;
-trait_qualified_call = trait_type, "::", identifier, argument_clause ;
+trait_qualified_call = trait_type, "::", identifier,
+                       [ function_type_arguments ],
+                       ( argument_clause | suspension_call_suffix ) ;
 
 shape_expression = "shape", "(", shape_target, ")" ;
 shape_target = type ;
@@ -689,6 +700,13 @@ to a named generic function. A parser may preserve this syntactic ambiguity
 until name resolution. Each argument is a type, a type-pack expansion, or the
 inference placeholder `_`. The placeholder is not part of ordinary
 `type_arguments` and therefore cannot occur in a type such as `list[_]`.
+In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or
+`Type::name[T]!(...)`, type arguments of the qualifying type or trait stay
+before `::`, as in `Add[Money]::add`. Method-level type arguments follow the
+member name, as in the dot call `parser.parse[User](text)`. Name resolution
+treats that bracket like any other generic reference: it is valid only when
+the selected member is generic, and it follows the explicit-list rules of
+[Generic Functions](07-functions.md#generic-functions).
 After `::`, the contextual words `annotation` and `annotation_ref` always
 select `annotation_runtime_access`, not an ordinary trait-qualified call.
 
@@ -800,13 +818,33 @@ match_expression = "match", continued_expression, ":", NEWLINE, INDENT,
                    match_arm, { match_arm }, DEDENT
                    ;
 
-match_arm = pattern, [ "if", continued_expression ], "=>", arm_body ;
+statement_if_expression = "if", closed_expression, ":", suite_body,
+                          { "else", "if", closed_expression, ":",
+                            suite_body },
+                          [ "else", ":", suite_body ]
+                          ;
+
+statement_for_expression = "for", binding_pattern, "in", closed_expression,
+                           ":", suite_body, [ "else", ":", suite_body ]
+                           ;
+
+statement_while_expression = "while", closed_expression, ":", suite_body,
+                             [ "else", ":", suite_body ]
+                             ;
+
+statement_match_expression = "match", closed_expression, ":", NEWLINE,
+                             INDENT, match_arm, { match_arm }, DEDENT
+                             ;
+
+match_arm = pattern, [ "if", closed_expression ], "=>", arm_body ;
 arm_body = suite_expression
          | simple_statement, NEWLINE
          | NEWLINE, INDENT, statement, { statement }, DEDENT
          ;
 ```
 
+A `for` loop is an expression, so it may also appear inside brackets, as in
+`[for x in xs: body]` or `(for k, v in m: body)`.
 An `if` used where a value is required must have an `else`; statement-position
 `if` may omit it. A loop without `else` has type `void`. These are semantic
 rules, not separate grammar productions.
@@ -926,7 +964,7 @@ facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
                         "for", annotation_target, [ where_clause ], ":",
                         facet_annotation_suite ;
 
-annotation_facet = type | continued_expression ;
+annotation_facet = type | closed_expression ;
 
 annotation_target = type ;
 
