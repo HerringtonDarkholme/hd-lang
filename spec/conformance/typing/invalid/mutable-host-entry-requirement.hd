@@ -1,0 +1,4 @@
+# test: requirements / mutable providers / host providers are readonly
+
+pub fn main() -> void $ mut Console:  # diagnostic: mutable-upgrade
+    println("host capability")

@@ -1,0 +1,20 @@
+# test: requirements / mutable providers / install readonly value as mut
+
+pub fn main() -> void:
+    counter := MemoryCounter { value: 0 }
+    $.with(mut Counter=counter):  # diagnostic: mutable-upgrade
+        _ := $.use(Counter).count()
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1

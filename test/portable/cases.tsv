@@ -744,3 +744,4 @@ typing/invalid/embedded-field-and-inherent-method-same-name.hd	type
 runtime/valid/function-typed-field-call.hd	runtime
 typing/invalid/field-and-trait-method-same-name.hd	type
 runtime/valid/field-read-beside-trait-method.hd	runtime
+typing/invalid/readonly-provider-mut-method.hd	type

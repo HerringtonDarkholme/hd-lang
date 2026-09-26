@@ -110,32 +110,34 @@ fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
     Ok()
 ```
 
-When a durable runner starts `sync_user!`, it records the entry function's stable identity, code identity, arguments, and provider configuration identity. It then runs the function normally until a `!` call suspends.
+When a durable runner starts `sync_user!` with recording enabled, it records the entry function's stable identity, code identity, arguments, and provider configuration identity. It then runs the function normally. Calls that cross into the host append events to an append-only history; which calls are recorded, and how much each event holds, depend on the recording level (see Replay Rules below).
 
-The runner maintains an append-only event history. On replay:
+On replay, the runtime re-executes the entry function from the start:
 
-1. A completed event matching the next `!` call supplies its recorded result, so the external operation is not repeated.
-2. A scheduled event without a completion keeps the workflow suspended.
-3. A `!` call past the end of the history stops the replay, as described under Replay Rules below. The runner then appends a command event for that call. A worker performs the operation, appends its completion, and the runner schedules another replay over the longer history.
+1. A host call whose event has a recorded result receives that result; the host operation is not repeated. Providers written in hd are not intercepted: they re-execute, and only the host calls they make are served from the history.
+2. A host call whose event was started but has no recorded result is handled by the in-flight policy in Replay Rules.
+3. When execution reaches the end of the history, the instance switches to live execution and continues. Reaching the end of the history is not an exit.
 
-Code between suspension points must be deterministic. Time, randomness, external reads, and other nondeterministic inputs must go through suspending dependencies so their results enter the history. Suspension sites need stable compiler-generated identities so that events match their calls during replay.
+The language guarantees that code between host calls is deterministic ([Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary)): an instance's behavior depends only on its code identity, runtime profile, entry arguments, and the ordered host-call results and wake and cancellation events it receives, apart from the exceptions listed there. Time, randomness, and external reads are host calls, so their results enter the history like any other input. How events are matched to calls, and which host calls a history must hold, are still open ([Durable Replay](DURABLE_REPLAY.md), questions 2 and 6).
 
 ### Replay Rules
 
-These rules are decided. They bind every runtime that records or replays histories.
+These rules are decided. They bind every runtime that records or replays histories. The analysis behind them is in [Durable Replay](DURABLE_REPLAY.md).
 
-- **Code identity.** A history records one code identity for the whole module: a hash of the module's semantic content. Any semantic change anywhere in the module invalidates every history recorded against it, and replay rejects such a history. Formatting and comment changes never change the code identity.
-- **Every run records a history.** Recording covers every run, including a run that panics and a run that never finishes. The history holds every event up to the panic, or up to the point where the host stops the run.
-- **End of history.** When replay reaches a `!` call past the end of its history, it stops with a distinct history-exhausted failure. Replay never continues live: it does not perform the operation and does not append to the history.
+- **Core and library split.** Durable replay is a runtime feature with a small specification and compiler contract. The specification owns the determinism clause; the compiler emits a semantic code identity; the runtime intercepts host calls, records executor scheduling events, detects divergence, and supplies idempotency keys. History storage, runners, retry, workflow APIs, and deployment routing are library work. There is no workflow keyword, no source label syntax, and no `Durable` trait.
+- **Interception at the host boundary only.** The runtime intercepts calls where they cross into the host. It does not intercept calls to providers written in hd; those re-execute on replay.
+- **Recording is opt-in.** A run records nothing unless its host or command line asks for recording. A REPL session and an ordinary `hd run` record no history. The recording level is chosen per run, never in source: none (the default), provider calls only, or everything. What each level records is still open ([Durable Replay](DURABLE_REPLAY.md), question 2). A run that records keeps every event, including in a run that panics and a run that never finishes: the history holds every event up to the panic, or up to the point where the host stops the run.
+- **Code identity.** A history records one code identity for the whole module: a hash of the module's semantic content. Any semantic change anywhere in the module invalidates every history recorded against it, and replay rejects such a history. Formatting and comment changes never change the code identity. Which dependencies the identity covers is still open ([Durable Replay](DURABLE_REPLAY.md), question 4).
 - **Runtime profile.** The runtime profile is part of the provider configuration identity. Replay under a different runtime profile is rejected.
+- **Pinning and continue-as-new.** A run stays on the code artifact it started with. A long-running workflow reaches new code only through a library `continue_as_new`, which ends the run and hands boundary-safe state to a new run on the new artifact. There are no patch markers.
+- **End of history.** Reaching the end of a history is not an exit. By default the instance resumes: it switches to live execution and makes its next host calls live. `defer` suites run only on a real exit or a real cancellation, never merely because the history ended. A host that wants to abort instead cancels the resumed instance, which then runs its cleanup live.
+- **In-flight host calls.** A host call that was started but has no recorded result follows the policy that its runtime profile marks for that method. An idempotent method is re-run, and the runtime passes the host a stable idempotency key made of the execution ID and the event index. Any other method returns an `outcome-unknown` error to the program, which decides whether to check, compensate, or fail.
 
-External operations may run more than once if a worker fails after performing an operation but before recording its completion. The runtime therefore supplies an idempotency key for each scheduled event, and durable providers must either honor it or document weaker delivery guarantees.
+There is no `checkpoint` keyword. In hd-lang, the runtime does not serialize the active WebAssembly call stack. It reconstructs local state by replaying from the entry point and reusing recorded host-call results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures are not the primary workflow continuation mechanism, and their separate semantics remain in the backlog.
 
-There is no `checkpoint` keyword. In hd-lang, the runtime does not serialize the active WebAssembly call stack. It reconstructs local state by replaying from the entry point and reusing recorded suspension results. Capability providers and live resource handles are not stored in workflow history; compatible providers are rebound when execution resumes. Serializable closures are not the primary workflow continuation mechanism, and their separate semantics remain in the backlog.
+Interactive notebook-style sessions combine a live kernel with a deterministic execution journal. The journal exists only when the notebook host enables recording; a plain REPL session records nothing. While the kernel remains alive, closing and reconnecting a client reuses its current namespace without replay. Each successful cell atomically commits a run containing its cell and code identity, parent state, suspension events, state delta, and output.
 
-Interactive notebook-style sessions combine a live kernel with a deterministic execution journal. While the kernel remains alive, closing and reconnecting a client reuses its current namespace without replay. Each successful cell atomically commits a run containing its cell and code identity, parent state, suspension events, state delta, and output.
-
-If the kernel is lost, the runtime restores the latest serializable namespace snapshot and replays subsequent committed cell runs in their actual execution order. Recorded `!` results are reused, giving recovery the same deterministic boundary as durable workflows. Editing and rerunning an earlier cell starts a new history branch from that cell's parent state; runs descended from the previous version become stale. Resume reproduces an existing history, while rerun deliberately creates new computation.
+If the kernel is lost, the runtime restores the latest serializable namespace snapshot and replays subsequent committed cell runs in their actual execution order. Recorded host-call results are reused, giving recovery the same deterministic boundary as durable workflows. Editing and rerunning an earlier cell starts a new history branch from that cell's parent state; runs descended from the previous version become stale. Resume reproduces an existing history, while rerun deliberately creates new computation.
 
 ## Observability
 
@@ -405,7 +407,7 @@ That contract must define:
 
 Durable workflow resumption does not depend on this feature. Its accepted
 initial model reconstructs execution through deterministic replay and recorded
-suspension results rather than serializing a closure or active Wasm stack.
+host-call results rather than serializing a closure or active Wasm stack.
 
 ## Incremental Computation
 

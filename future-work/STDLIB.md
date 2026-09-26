@@ -1176,8 +1176,10 @@ Decided 2026-09-26:
 1. **Question 1: `$.use` can return `mut`.** A provider installed with
    `mut` access may be used as `$.use(mut Clock)`, so a deterministic
    provider such as `ManualClock` changes its own state through ordinary
-   `mut self` methods. The access rules for installing and using a `mut`
-   provider still need to be written into chapter 11.
+   `mut self` methods. Applied 2026-09-26: the access rules are in
+   [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
+   A provider is installed with `$.with(mut Clock=clock)`, requested in rows
+   as `$ mut Clock`, and retrieved with `$.use(mut Clock)`.
 
 ## Questions For The Owner
 

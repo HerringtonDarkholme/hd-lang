@@ -53,10 +53,12 @@ requirement_union = requirement_term, { "+", requirement_term } ;
 requirement_term = requirement_key
                  | "(", requirement_expression, ")"
                  ;
-requirement_key = trait_type ;
+requirement_key = [ "mut" ], trait_type ;
 ```
 
-The clause `$()` writes the empty row explicitly.
+The clause `$()` writes the empty row explicitly. A key written `mut K`
+requires mutable access to the provider for `K`; see
+[Mutable Providers](#mutable-providers).
 
 Function declarations, closure expressions, and function types use the same
 requirement clause:
@@ -143,7 +145,9 @@ those host providers is a pre-execution host configuration error. `$.use` is
 non-suspending and performs no dynamic handler search that can fail at runtime
 below that boundary.
 
-A provider value returned by `$.use` is an ordinary value of its trait type. It
+A provider value returned by `$.use(K)` is an ordinary readonly value of type
+`K`; `$.use(mut K)` returns `mut K` under the rules of
+[Mutable Providers](#mutable-providers). It
 may flow anywhere an ordinary value of that type may flow, including fields,
 collections, closure captures, return values, and suspension frames, and it
 remains usable after its provider scope ends. A requirement row therefore
@@ -217,6 +221,89 @@ reference type; and `context_scope` is a suite expression.
 
 Provider values are ordinary values and use ordinary trait implementations.
 There is no separate `handler` declaration.
+
+## Mutable Providers
+
+A provider may be installed and retrieved with mutable access, so a provider
+written in hd can change its own state through `mut self` methods:
+
+```text
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+fn tick() -> i32 $ mut Counter:
+    $.use(mut Counter).bump()
+    $.use(Counter).count()
+
+fn demo() -> i32:
+    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+    $.with(mut Counter=counter):
+        _ := tick()
+        tick()   # 2
+```
+
+The `mut` in a requirement key states the access with which a provider is
+installed, required, or retrieved. It is not part of the key's identity:
+`mut Counter` and `Counter` name the same key. Duplicate-key normalization,
+nested-scope replacement, later-binding-wins for contexts, and the
+`generic-requirement-key-collision` check all compare keys without `mut`.
+
+**Installing.** A binding `mut K=expression` in `$.with` or `$.context`
+installs a provider with mutable access. Its expression must have type `mut T`
+for a type `T` implementing `K`; a readonly expression is a `mutable-upgrade`
+error. A binding written `K=expression` installs readonly access, whatever the
+access type of the expression. A nested binding for the same key replaces the
+outer binding together with its access, so a readonly inner binding hides an
+outer mutable one within its block.
+
+**Retrieving.** `$.use(mut K)` yields a value of type `mut K`, on which `mut
+self` methods of `K` may be called. `$.use(K)` yields readonly `K` even when
+the provider was installed with mutable access. Requesting `mut K` where the
+provider in effect for `K` has only readonly access is a `mutable-upgrade`
+error. The ordinary binding rules still apply to the result: a `:=` binding
+exposes a readonly view, so code that keeps a mutable provider in a local
+writes `let counter: mut Counter = $.use(mut Counter)`.
+
+**Rows.** A row entry `mut K` requires mutable access to `K`; an entry `K`
+requires either access. A row that would contain both normalizes to `mut K`.
+Mutable access available for `K` satisfies both entries; readonly access
+satisfies only `K`. When a required `mut K` is available only with readonly
+access, whether from the declared row or from a lexical provider scope, the
+error is `mutable-upgrade`; when `K` is not available at all it is
+`missing-requirement`. An inferred row contains `mut K` when its body retrieves
+`mut K` or calls a callable whose row contains `mut K`. The access in a
+trait method's row is part of the normalized row that its implementations must
+match.
+
+Subtraction follows the same access: `r - K` removes a readonly `K` entry from
+`r` and leaves a `mut K` entry in place, while `r - mut K` removes `K` with
+either access. The entailment rules of [Requirement Rows](#requirement-rows)
+read accordingly: `r` is entailed by `(r - K) + S` exactly when `S` contains
+`K` with either access, and by `(r - mut K) + S` exactly when `S` contains
+`mut K`.
+
+**Contexts.** A `$.Context[Row]` row may contain `mut` entries. The binding
+`mut K=expression` in `$.context` contributes `mut K` to the created context's
+row, and spreading that context installs `K` with mutable access.
+
+**Entry points.** Runtime profiles bind host providers with readonly access. An
+entry-point row or a registered boundary's row that contains `mut K` is a
+`mutable-upgrade` error.
+
+A cold suspension captures each provider with the access its body requires, so
+[Construction-Time Requirement Binding](#construction-time-requirement-binding)
+also fixes the access a stored computation later uses.
 
 ## Suspending Functions
 
@@ -516,6 +603,16 @@ panic rules above without exposing a way to upgrade an arbitrary readonly
 reference. Provider selection is never implicit: a provider comes from an
 enclosing `$.with` scope or from the host configuration of an entry point.
 
-Scheduling APIs, durable replay, and affine resource ownership are runtime or
-library concerns. Cancellation participates in synchronous `defer` cleanup but
+A program instance is deterministic in its inputs. Its observable behavior
+depends only on its code identity, its runtime profile, its entry arguments,
+and the ordered sequence of host-call results and waker and cancellation
+deliveries it receives. Code between host calls has no other source of
+nondeterminism; a runtime may therefore reproduce an instance by supplying the
+same inputs in the same order. Two things are outside this guarantee: hash
+values, which are not guaranteed stable across processes
+([Comparison Traits](09-traits.md#comparison-traits)), and failures caused by
+host stack or memory limits.
+
+Scheduling APIs, durable replay storage and runners, and affine resource
+ownership are runtime or library concerns. Cancellation participates in synchronous `defer` cleanup but
 does not replace an ownership or resource-lifetime design.

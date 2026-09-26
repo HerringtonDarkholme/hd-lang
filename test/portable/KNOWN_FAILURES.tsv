@@ -111,3 +111,11 @@ typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text:
 typing/invalid/invisible-outer-member-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; private-member is not implemented	E2
 typing/invalid/unavailable-trait-method-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; trait availability is not tracked, so trait-not-in-scope is not implemented	E2
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	E2
+runtime/valid/mutable-provider-state.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/valid/mutable-provider-rows.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+parse/valid/mutable-requirement-keys.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/invalid/mutable-provider-use-from-readonly-scope.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/invalid/mutable-provider-install-readonly-value.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/invalid/mutable-provider-readonly-row.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/invalid/mutable-provider-call-from-readonly-scope.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
+typing/invalid/mutable-host-entry-requirement.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT

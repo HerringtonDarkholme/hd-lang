@@ -868,3 +868,12 @@ typing/invalid/embedded-field-and-inherent-method-same-name.hd	type	reject:dupli
 runtime/valid/function-typed-field-call.hd	runtime	accept	05-expressions.md#member-access
 typing/invalid/field-and-trait-method-same-name.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
 runtime/valid/field-read-beside-trait-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+runtime/valid/mutable-provider-state.hd	runtime	accept	11-requirements-and-suspension.md#mutable-providers
+typing/valid/mutable-provider-rows.hd	type	accept	11-requirements-and-suspension.md#mutable-providers
+parse/valid/mutable-requirement-keys.hd	parse	accept	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-provider-use-from-readonly-scope.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-provider-install-readonly-value.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-provider-readonly-row.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-provider-call-from-readonly-scope.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/readonly-provider-mut-method.hd	type	reject:mutable-receiver-required	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-host-entry-requirement.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
