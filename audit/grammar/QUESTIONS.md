@@ -67,6 +67,15 @@ questions were decided separately (K1 to K3).
   (`[0, xs...]`); every declaration suite (data, annotate) accepts both
   `pass` forms.
 
+- **Q11, not yet applied.** `[` directly after `annotate` always opens
+  generic parameters, as after `impl`.
+- **Q15, not yet applied.** `"$self"` interpolates `self`; a bare `$` that
+  starts neither `$name` nor `${` stays an error.
+- **Q16: `type` and `data` stay reserved** (the backtick escape from Q6
+  covers names like `type`).
+- **Q17, not yet applied.** `reified`, `super`, and `as` become contextual
+  words; `use` stays reserved. The reserved set shrinks by three.
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
