@@ -351,7 +351,46 @@ export function needsMoreInput(lines: readonly string[]): boolean {
 
 function valueType(hir: HirProgram): string | undefined {
   const main = hir.functions.find(({ name }) => name === "main");
-  return main?.locals.findLast(({ name }) => name === VALUE)?.type;
+  if (!main) return undefined;
+  // `:=` always binds a readonly view, so the binding's own type loses `mut`.
+  // Report the type of the expression the user wrote instead.
+  const binding = findValueBinding(main.body);
+  if (binding) {
+    const value = binding.value;
+    return value.kind === "permission-weaken" && value.operand ? value.operand.type : value.type;
+  }
+  return main.locals.findLast(({ name }) => name === VALUE)?.type;
+}
+
+interface BindingNode {
+  readonly kind: "binding";
+  readonly local: { readonly name: string };
+  readonly value: {
+    readonly kind: string;
+    readonly type: string;
+    readonly operand?: { readonly type: string };
+  };
+}
+
+function findValueBinding(node: unknown): BindingNode | undefined {
+  let found: BindingNode | undefined;
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value !== "object" || value === null) return;
+    const record = value as Record<string, unknown>;
+    if (
+      record.kind === "binding" &&
+      (record.local as { name?: string } | undefined)?.name === VALUE &&
+      typeof record.value === "object"
+    )
+      found = record as unknown as BindingNode;
+    for (const child of Object.values(record)) visit(child);
+  };
+  visit(node);
+  return found;
 }
 
 function displayType(type: string): string {

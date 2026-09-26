@@ -96,6 +96,16 @@ test("REPL rejects invalid inputs without changing the session", async () => {
   assert.equal((await session.evaluate("x + 1")).value, "2");
 });
 
+test("REPL value types keep mut access", async () => {
+  const session = new ReplSession();
+  await session.evaluate("let b: mut list[i32] = [1, 2]");
+  assert.equal((await session.evaluate("b")).type, "mut list[i32]");
+  assert.deepEqual(session.typeOf("b"), { type: "mut list[i32]", errors: [] });
+  await session.evaluate("c := b");
+  assert.equal((await session.evaluate("c")).type, "list[i32]");
+  assert.equal((await session.evaluate("[1]")).type, "list[i32]");
+});
+
 test("REPL type queries do not run or keep the expression", () => {
   const session = new ReplSession();
   assert.deepEqual(session.typeOf("[1, 2]"), { type: "list[i32]", errors: [] });
