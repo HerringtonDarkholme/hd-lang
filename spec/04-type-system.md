@@ -333,8 +333,8 @@ one of these rules applies:
    trait value.
 7. `S` is a dynamic child-trait value whose trait has `T` as a direct or
    transitive supertrait.
-8. A value of `T` is injected into `T?`, one layer only: `S` is `T` itself,
-   or `S` is assignable to `T` by rules 1 to 7.
+8. A value of `T` is injected into `T?`. The injection adds one layer only,
+   so a `T` is not injected into `T??`.
 9. `S` is a specialized shape type returned by `shape[D]()` and `T` is its
    generic shape type, `DataShape` or `EnumShape`; see
    [Shape Intrinsics](14-annotations.md#shape-intrinsics).
