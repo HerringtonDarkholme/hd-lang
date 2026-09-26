@@ -110,8 +110,12 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
       case "global-binding":
       case "global-assignment":
         return `(global.set ${globalName(statement.global.index)} ${this.emitExpression(statement.value)})`;
-      case "discard":
-        return `(drop ${this.emitExpression(statement.value)})`;
+      case "discard": {
+        const value = this.emitExpression(statement.value);
+        return statement.value.type === "void" || statement.value.type === "never"
+          ? value
+          : `(drop ${value})`;
+      }
       case "return":
         if (statement.value) {
           const temporary = this.allocateTemporary(statement.value.type);

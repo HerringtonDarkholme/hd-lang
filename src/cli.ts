@@ -15,6 +15,7 @@ import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
+import { resultParts } from "./types.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
 type RuntimeProfileName =
@@ -285,6 +286,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         if (typeof entry !== "function")
           throw new Error(`${declaration.name} has no runnable export`);
         result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
+        if (declaration.name === "main" && resultParts(declaration.result)?.ok === "void") {
+          if (result !== 0) {
+            console.error(`${file}: main returned Err`);
+            return 1;
+          }
+          result = undefined;
+        }
       }
       replay.assertComplete();
       if (command === "record") {

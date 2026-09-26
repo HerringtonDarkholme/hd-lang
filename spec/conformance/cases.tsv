@@ -224,6 +224,7 @@ typing/invalid/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	02-grammar
 typing/invalid/multiple-positional-value-packs.hd	type	reject:multiple-positional-value-packs	12-variadic-generics.md#pattern-expansion
 typing/invalid/least-type-weakening-variance.hd	type	reject:no-least-common-type	05-expressions.md#list-and-map-expressions
 typing/invalid/plain-closure-mutable-capture.hd	type	reject:mutable-capture-requires-mut-fn	07-functions.md#captures
+typing/invalid/plain-closure-assigns-captured-let.hd	type	reject:mutable-capture-requires-mut-fn	07-functions.md#captures
 typing/valid/mutable-closure-capture.hd	type	accept	07-functions.md#captures
 typing/warnings/variant-binding-name-mismatch.hd	type	warn:variant-binding-name-mismatch	06-control-flow.md#match-expressions
 typing/valid/named-variant-bindings.hd	type	accept	06-control-flow.md#match-expressions

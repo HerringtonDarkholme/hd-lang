@@ -131,7 +131,30 @@ class FunctionEmitter extends FunctionBodyEmitter {
       ...temporaries,
       indent(body),
       `)`,
+      ...this.emitResultEntryExport(declaration, internalName),
     ].join("\n");
+  }
+
+  // A `main` returning `Result[void, E]` is exported through a wrapper that
+  // returns the Result tag (0 = Ok, 1 = Err) so the host can report failure.
+  private emitResultEntryExport(declaration: HirFunction, internalName: string): string[] {
+    if (
+      declaration.name !== "main" ||
+      declaration.closure ||
+      declaration.suspending ||
+      declaration.parameters.length > 0 ||
+      declaration.genericBounds.length > 0 ||
+      resultParts(declaration.result)?.ok !== "void"
+    )
+      return [];
+    const providers = declaration.requirements.map(
+      (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
+    );
+    const call = `(call ${internalName}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")})`;
+    return [
+      `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
+      `  (struct.get $hd.variant $hd.variant-tag ${call}))`,
+    ];
   }
 
   emitSuspensionSupport(declaration: HirFunction): string {
