@@ -28,6 +28,11 @@ export interface Token {
   readonly text: string;
   readonly value?: string | number | bigint | InterpolatedStringValue;
   readonly span: SourceSpan;
+  // A backtick raw identifier: never a keyword or contextual word
+  // (01-lexical-structure.md#raw-identifiers).
+  readonly raw?: boolean;
+  // The `.` that starts a leading-dot continuation line.
+  readonly continuation?: boolean;
 }
 
 export interface LexResult {
@@ -50,7 +55,6 @@ interface InterpolationScanResult {
 export const KEYWORDS = new Set([
   "Self",
   "annotate",
-  "as",
   "break",
   "continue",
   "data",
@@ -69,14 +73,11 @@ export const KEYWORDS = new Set([
   "mut",
   "pass",
   "pub",
-  "reified",
   "return",
   "self",
-  "super",
   "trait",
   "true",
   "type",
-  "use",
   "while",
 ]);
 
@@ -115,6 +116,7 @@ class Scanner {
   private column = 1;
   private lineStart = true;
   private lineHasToken = false;
+  private continuationDot = false;
 
   constructor(source: string) {
     this.source = source;
@@ -161,6 +163,8 @@ class Scanner {
         this.scanNumber();
       } else if (isIdentifierStart(value)) {
         this.scanIdentifier();
+      } else if (value === "`") {
+        this.scanRawIdentifier();
       } else {
         this.scanSymbol();
       }
@@ -272,6 +276,7 @@ class Scanner {
     while (this.offset < lineOffset) this.advance();
     while (this.peek() === " ") this.advance();
     this.lineStart = false;
+    this.continuationDot = true;
     return true;
   }
 
@@ -298,6 +303,39 @@ class Scanner {
     }
     const kind: TokenKind = text === "_" ? "symbol" : KEYWORDS.has(text) ? "keyword" : "identifier";
     this.emit(kind, text, start, this.position(), text);
+  }
+
+  // A raw identifier (01-lexical-structure.md#raw-identifiers): an identifier
+  // or reserved word between backticks is one identifier token.
+  private scanRawIdentifier(): void {
+    const start = this.position();
+    let offset = this.offset + 1;
+    let text = "";
+    while (offset < this.source.length && isIdentifierContinue(this.source[offset]!)) {
+      text += this.source[offset];
+      offset += 1;
+    }
+    const valid =
+      text !== "" &&
+      text !== "_" &&
+      isIdentifierStart(text[0]!) &&
+      this.source[offset] === "`" &&
+      text.normalize("NFC") === text;
+    if (!valid) {
+      this.advance();
+      this.report("invalid-token", "a backtick must enclose an identifier or reserved word", start);
+      return;
+    }
+    while (this.offset <= offset) this.advance();
+    this.tokens.push({
+      kind: "identifier",
+      text,
+      value: text,
+      span: { start, end: this.position() },
+      raw: true,
+    });
+    this.lineHasToken = true;
+    this.lineStart = false;
   }
 
   private scanNumber(): void {
@@ -467,6 +505,14 @@ class Scanner {
             source += next;
             text += next;
           }
+          // `$name` takes an identifier or `self`; any other reserved word
+          // leaves a bare `$` (01-lexical-structure.md#string-and-character-literals).
+          if (KEYWORDS.has(source) && source !== "self")
+            this.report(
+              "syntax-error",
+              "an unescaped '$' must be followed by an identifier, 'self', or '{'",
+              start,
+            );
           segments.push({
             kind: "expression",
             source,
@@ -620,8 +666,16 @@ class Scanner {
     end: SourcePosition,
     value?: Token["value"],
   ): void {
-    this.tokens.push({ kind, text, value, span: { start, end } });
+    const continuation = this.continuationDot && kind === "symbol" && text === ".";
+    this.tokens.push({
+      kind,
+      text,
+      value,
+      span: { start, end },
+      ...(continuation ? { continuation } : {}),
+    });
     if (!(["newline", "indent", "dedent", "eof"] as TokenKind[]).includes(kind)) {
+      this.continuationDot = false;
       this.lineHasToken = true;
       this.lineStart = false;
     }

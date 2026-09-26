@@ -3,7 +3,9 @@
 ## Owner Decisions
 
 Decided 2026-09-26 and applied to the specification, the reference parser,
-and the prototype (see `spec/README.md`, Revision Notes GQ1, GQ2, GQ5, GQ7).
+and the prototype (see `spec/README.md`, Revision Notes GQ1 to GQ17). Every
+decision below is applied; `audit/README.md` lists the parts the prototype
+does not follow yet.
 
 - **Q1: the declaration owns a trailing requirement clause.** A clause
   directly before a declaration's or closure's `:` (or a bodyless trait
@@ -36,47 +38,63 @@ questions were decided separately (K1 to K3).
 - **Q2 confirmed as applied.** `apply(fn(a):` then `    a + 1)` stays an
   error: the closure body ends, then a line starting with `,` or a closing
   delimiter no deeper than the header line.
-- **Q7 refinement, not yet applied.** A leading-dot continuation is allowed
+- **Q7 refinement, applied.** A leading-dot continuation is allowed
   only when no same-line suite is open on the logical line being continued;
   with one open (for example `f := fn(x): x` then a deeper `.len()`), the
   continuation line is a syntax error.
 
-- **Q3, not yet applied.** A nested suite's body must be indented deeper than
+- **Q3, applied.** A nested suite's body must be indented deeper than
   the logical line that contains its header, not only the physical header
   line.
-- **Q4, not yet applied.** `pack.map(` and `pack.map_list(` always form the
+- **Q4, applied.** `pack.map(` and `pack.map_list(` always form the
   pack operation, even when a local is named `pack`.
-- **Q6, not yet applied.** Reserved words stay unusable as plain identifiers;
+- **Q6, applied.** Reserved words stay unusable as plain identifiers;
   a raw-identifier escape with backticks (`` `type` ``) makes any reserved
   word usable as a member name, label, field, parameter, or binding.
-- **Q8, not yet applied.** Inside brackets, a `(`, `[`, or `{` suffix must
+- **Q8, applied.** Inside brackets, a `(`, `[`, or `{` suffix must
   start on the same physical line as the end of its operand; otherwise the
   line starts a new element (a missing comma is an error).
 
-- **Q9, not yet applied.** A same-line `if` directly inside another same-line
+- **Q9, applied.** A same-line `if` directly inside another same-line
   suite is forbidden (Python's rule); nest with parentheses:
   `if a: (if b: 1 else: 2) else: 3`. No curly-brace blocks.
-- **Q10, not yet applied.** A trailing block is allowed wherever a suite
+- **Q10, applied.** A trailing block is allowed wherever a suite
   expression may be a right-hand side (`=`, `return`, `break`, `_ :=`, as
   after `:=` and `let`); chained multi-name bindings (`a, b := c, d := x`) are
   removed.
-- **Q12, not yet applied.** `!` stays on the name in both declaration and
+- **Q12, applied.** `!` stays on the name in both declaration and
   call: `fn all![Ts...](...)` and `all![i32, string](a, b)`, since
   `all[i32]` reads like indexing.
-- **Q13 and Q14, not yet applied.** List literals accept a suffix spread
+- **Q13 and Q14, applied.** List literals accept a suffix spread
   (`[0, xs...]`); every declaration suite (data, annotate) accepts both
   `pass` forms.
 
-- **Q11, not yet applied.** `[` directly after `annotate` always opens
+- **Q11, applied.** `[` directly after `annotate` always opens
   generic parameters, as after `impl`.
-- **Q15, not yet applied.** `"$self"` interpolates `self`; a bare `$` that
+- **Q15, applied.** `"$self"` interpolates `self`; a bare `$` that
   starts neither `$name` nor `${` stays an error.
 - **Q16: `type` and `data` stay reserved** (the backtick escape from Q6
   covers names like `type`).
-- **Q17, not yet applied.** `reified`, `super`, `as`, and `use` become
+- **Q17, applied.** `reified`, `super`, `as`, and `use` become
   contextual words (`use` starts a use declaration only when followed by a
   use root; `$.use(` stays its dedicated form). The reserved set shrinks by
   four.
+
+Applied as follows. Q3: a body not deeper than both lines is a
+`syntax-error`. Q4: `pack.map(5)` on a local named `pack` is a
+`syntax-error`; a method named `map` on it is called as `` `pack`.map(5) ``.
+Q6: a raw identifier is an identifier token everywhere, never a keyword or
+contextual word, and `` `name` `` is the same name as `name`. Q8: the rule
+also covers the `!` of a suspension call, so `[a` then `!(b)]` is a missing
+comma. Q9: the rule covers every same-line suite, including same-line
+function, closure, `defer`, and loop bodies, so
+`fn f() -> i32: if c: 1 else: 2` is a `syntax-error`; same-line `for` and
+`while` may still nest. Q10: single-name chains such as
+`a := b := if c: 1 else: 2` stay valid. Q12: `Type::name[T]!(...)` is a
+`syntax-error`, and a method's explicit list must be followed by an ordinary
+call. Q13: a list may hold any number of spreads in any position, each of
+type `list[U]`. Q15: `$` before any other reserved word stays a
+`syntax-error`.
 
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
@@ -126,6 +144,8 @@ line at body indentation as part of the body.
 
 ## Q3. Must a nested suite be indented farther than the statement that contains it?
 
+Decided: option A. Applied.
+
 ```text
     if ready:
         x := run(
@@ -143,6 +163,8 @@ Today the body only has to be deeper than the line holding `fn(v):`.
 (GR-05)
 
 ## Q4. Is `pack.map(...)` always the pack operation, even when a local is named `pack`?
+
+Decided: option A. Applied.
 
 ```text
 pack := Packer {}
@@ -178,6 +200,8 @@ m := { x: 1 }                   # map: x is a value
 
 ## Q6. May reserved words be used as member names and argument labels?
 
+Decided: option B. Applied.
+
 ```text
 kind := token.type      # syntax error today
 f(match = true)         # syntax error today
@@ -212,6 +236,8 @@ Today this is a syntax error; the chain must be wrapped in parentheses.
 
 ## Q8. Must a `(` or `[` suffix start on the same line as its operand?
 
+Decided: option A. Applied.
+
 ```text
 xs := [
     first
@@ -229,6 +255,8 @@ xs := [
 
 ## Q9. Which `if` does a second same-line `else` belong to?
 
+Decided: option B. Applied.
+
 ```text
 v := if a: if b: 1 else: 2 else: 3     # syntax error today
 ```
@@ -243,6 +271,8 @@ v := if a: if b: 1 else: 2 else: 3     # syntax error today
 (GR-15)
 
 ## Q10. Should suite and trailing-block right-hand sides work in every statement form?
+
+Decided: option A. Applied.
 
 ```text
 r := compute(1):      # valid
@@ -262,6 +292,8 @@ a, b := c, d := pair              # syntax error today
 
 ## Q11. Does `[` right after `annotate` always open generic parameters?
 
+Decided: option A. Applied.
+
 ```text
 annotate [T] (Validation(max = 3)) for Box[T]:
     pass
@@ -277,6 +309,8 @@ facet expression.
 
 ## Q12. Where does `!` go in a generic suspending declaration?
 
+Decided: option B. Applied.
+
 ```text
 fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):   # today
 results := all[i32, string]!(a, b)                      # call
@@ -289,6 +323,8 @@ results := all[i32, string]!(a, b)                      # call
 (GR-18)
 
 ## Q13. Should list literals accept a suffix spread?
+
+Decided: option A. Applied.
 
 ```text
 f(xs...)                    # argument spread (suffix)
@@ -303,6 +339,8 @@ ys := [0, xs...]            # syntax error today
 (GR-19)
 
 ## Q14. Should every declaration suite accept both `pass` forms?
+
+Decided: option A. Applied.
 
 ```text
 annotate Validation for Point: pass     # valid
@@ -320,6 +358,8 @@ data P:
 
 ## Q15. May `$self` be interpolated, and is a bare `$` in a string an error?
 
+Decided: option A. Applied.
+
 ```text
 fn show(self) -> string:
     "value: $self"      # spec: error (self is not an identifier); reference parser accepts
@@ -335,6 +375,8 @@ price := "costs $5"     # error today; Kotlin prints it literally
 (GR-10 d, GR-22)
 
 ## Q16. Should `type` and `data` become contextual words?
+
+Decided: option C. Both stay reserved.
 
 ```text
 fn describe(type: string, data: Bytes) -> void:   # both syntax errors today
@@ -357,6 +399,8 @@ rules and the reference lexer would apply the same test.
 (Keyword Set)
 
 ## Q17. Should `reified`, `super`, `as`, and `use` become contextual words?
+
+Decided: option A. Applied.
 
 ```text
 use super.shared.{Email as E}    # still use-declaration syntax

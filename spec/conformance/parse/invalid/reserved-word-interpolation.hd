@@ -1,0 +1,4 @@
+# test: '$' before a reserved word other than self is a bare '$'
+
+fn main() -> string:
+    "flag: $true"  # diagnostic: syntax-error

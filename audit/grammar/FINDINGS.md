@@ -149,7 +149,7 @@ non-final multiline closure.
 
 ### GR-05: A nested suite's body may sit to the left of its enclosing block
 
-Severity: Medium. Question: Q3.
+Severity: Medium. Question: Q3. Status: fixed (option A; spec Revision Note GQ3).
 
 ```text
 fn main() -> void:
@@ -168,7 +168,9 @@ than the logical line that contains the header.
 
 ### GR-06: `pack.map(...)` is ambiguous with a method call on a local named `pack`
 
-Severity: Medium. Question: Q4.
+Severity: Medium. Question: Q4. Status: fixed (option A; spec Revision Note GQ4).
+The reference lexer gives `pack` no identifier reading in `pack.map(`, so the
+fixtures no longer show this ambiguity.
 
 `pack`, `map`, and `map_list` are contextual only in `pack.map(...)`, and
 `pack` is not a prelude name, so `pack := Packer {}` then `pack.map(items,
@@ -201,14 +203,14 @@ Fixtures: `parse/invalid/colon-generic-bound.hd`,
 
 ### GR-10: Reference-parser heuristics disagreed with the spec
 
-Severity: Medium. Status: a to c fixed; d to g open.
+Severity: Medium. Status: a to d fixed; e to g open.
 
 | # | Input | Reference | Spec | Status |
 | - | ----- | --------- | ---- | ------ |
 | a | `[for x in xs:` or `[fn(x: i32) -> i32:` ending a line | `trailing-block-position` | valid bracketed expression | fixed |
 | b | literal line `on: a == b,` or `a != b` | `missing-let` | valid | fixed |
 | c | `c := r'a'` | accepted as a raw string | no raw character literal | fixed |
-| d | `"$self"`, `"$true"` | accepted | `$name` takes an identifier | Q15 |
+| d | `"$self"`, `"$true"` | accepted | `$name` takes an identifier | fixed (Q15: `$self` valid, `$true` error) |
 | e | `f(x = 1, fn (y): y)` | accepted | positional after named is `argument-order` | open |
 | f | dedent to an unused column inside a bracketed suite | `syntax-error` | `invalid-dedent` | open |
 | g | `t.1_0` | accepted | a tuple index is decimal digits only | open |
@@ -236,7 +238,7 @@ Fix (recommended): data literals use `=`, with `Point { x, y }` shorthand;
 
 ### GR-12: Reserved words cannot be member names or argument labels
 
-Severity: Medium. Question: Q6.
+Severity: Medium. Question: Q6. Status: fixed (option B, raw identifiers; spec Revision Note GQ6).
 
 `token.type`, `f(type = 1)`, and a field named `type` are syntax errors. Host
 APIs and serialized data use such names often. Swift accepts most keywords
@@ -246,7 +248,7 @@ named-argument label, and in field and parameter declarations.
 
 ### GR-13: Leading-dot chains and trailing operators cannot continue a line
 
-Severity: Medium. Question: Q7. Status: fixed for leading `.` (option B; spec Revision Note GQ7).
+Severity: Medium. Question: Q7. Status: fixed for leading `.` (option B; spec Revision Notes GQ7 and its refinement).
 
 Only brackets continue a logical line, so a chain written with leading `.`
 lines is a syntax error. Fix (recommended): a line that starts with `.`
@@ -255,7 +257,7 @@ continues it.
 
 ### GR-14: A missing comma inside brackets joins two elements silently
 
-Severity: Low. Question: Q8.
+Severity: Low. Question: Q8. Status: fixed (option A; spec Revision Note GQ8).
 
 Inside brackets a line break is not a token, so `first` newline `[1]` becomes
 `first[1]`, and a following `-b` or `(c)` becomes subtraction or a call.
@@ -265,7 +267,7 @@ line as its operand.
 
 ### GR-15: Nested same-line `if` with two `else` branches cannot be written
 
-Severity: Low. Question: Q9.
+Severity: Low. Question: Q9. Status: fixed (option B, Python's rule; spec Revision Note GQ9).
 
 `v := if a: if b: 1 else: 2 else: 3` is a syntax error because `else` closes
 only the innermost same-line suite. Fix (recommended): Kotlin's rule, `else`
@@ -274,7 +276,7 @@ closes suites up to the nearest same-line `if`, `for`, or `while` without an
 
 ### GR-16: Statement forms accept suites and trailing blocks unevenly
 
-Severity: Low. Question: Q10.
+Severity: Low. Question: Q10. Status: fixed (option A; spec Revision Note GQ10).
 
 A trailing block may follow `:=` and `let ... =` but not `=`, `return`, or
 `_ :=`; chained multi-name bindings parse only when the chain ends in a
@@ -283,27 +285,28 @@ may be a right-hand side, and drop chained multi-name bindings.
 
 ### GR-17: `annotate [` opens generic parameters or a list-literal facet
 
-Severity: Low. Question: Q11. `annotate [T] (Validation(max = 3)) for
+Severity: Low. Question: Q11. Status: fixed (option A; spec Revision Note GQ11). `annotate [T] (Validation(max = 3)) for
 Box[T]:` also reads as a list literal called as the facet. Fix
 (recommended): `[` directly after `annotate` always opens generic
 parameters.
 
 ### GR-18: `!` goes before generic parameters in a declaration, after type arguments in a call
 
-Severity: Low. Question: Q12. `fn all![Ts...](...)` versus
+Severity: Low. Question: Q12. Status: fixed (option B, `all![i32, string](a, b)`; spec Revision Note GQ12). `fn all![Ts...](...)` versus
 `all[i32, string]!(a, b)`. Fix (recommended): declare as
 `fn all[Ts...]!(...)`.
 
 ### GR-19: Spread `...` is a prefix in some places and a suffix in others
 
-Severity: Low. Question: Q13. Prefix `...` copies named members
+Severity: Low. Question: Q13. Status: fixed (option A; spec Revision Note GQ13). Prefix `...` copies named members
 (copy-update, context entries); suffix `...` expands positional elements.
 List literals accept neither. Fix (recommended): document the rule and add
 `[a, xs...]`.
 
 ### GR-20: Empty bodies use `pass` inconsistently
 
-Severity: Low. Question: Q14.
+Severity: Low. Question: Q14. Status: fixed (option A; spec Revision Note GQ14);
+the table shows the forms before the fix.
 
 | Body | same-line `pass` | indented `pass` | no body |
 | ---- | ---------------- | --------------- | ------- |
@@ -323,7 +326,7 @@ Teaching material should call this out.
 
 ### GR-22: A bare `$` in a string is an error
 
-Severity: Low. Question: Q15. `"costs $5"` must be written `"costs \$5"`.
+Severity: Low. Question: Q15. Status: decided (option A); a bare `$` stays an error and `"$self"` is valid (spec Revision Note GQ15). `"costs $5"` must be written `"costs \$5"`.
 The strict rule catches typos such as `"$ name"`; recorded because Kotlin
 users will expect otherwise.
 
@@ -358,12 +361,12 @@ lexer and the parser.
 
 | Word | Grammar positions | Evidence | Recommendation |
 | ---- | ----------------- | -------- | -------------- |
-| `type` | `type_decl`, `associated_type_decl` | Statement-initial and followed by an identifier; Python 3.12 made `type` soft. | **Contextual** (Q16) |
-| `data` | `data_decl` | `data` then an identifier at statement start; Kotlin's `data` is soft. | **Contextual** (Q16) |
-| `reified` | `generic_parameter` | Only first inside generic parameters, before an identifier. | **Contextual** (Q17) |
-| `super` | `use_root` only | Same position as the contextual `pkg`, `std`, `dep`. | **Contextual** (Q17) |
-| `as` | `use_decl`, `use_item` only | No `as` cast is planned. | **Contextual** (Q17) |
-| `use` | `use_decl`, `context_use` | Line-initial `use` followed by a use root, a closed set. | **Contextual** (Q17) |
+| `type` | `type_decl`, `associated_type_decl` | Statement-initial and followed by an identifier; Python 3.12 made `type` soft. | Stays reserved (Q16); `` `type` `` escapes it |
+| `data` | `data_decl` | `data` then an identifier at statement start; Kotlin's `data` is soft. | Stays reserved (Q16) |
+| `reified` | `generic_parameter` | Only first inside generic parameters, before an identifier. | **Contextual** (Q17, applied) |
+| `super` | `use_root` only | Same position as the contextual `pkg`, `std`, `dep`. | **Contextual** (Q17, applied) |
+| `as` | `use_decl`, `use_item` only | No `as` cast is planned. | **Contextual** (Q17, applied) |
+| `use` | `use_decl`, `context_use` | Line-initial `use` followed by a use root, a closed set. | **Contextual** (Q17, applied) |
 | `enum` | `enum_decl` | Same argument as `data`. | Optional (Q16) |
 | `trait` | `trait_decl` | Same argument as `data`. | Optional (Q16) |
 | `let` | statements | Rarely an identifier. | Keep reserved; no gain |
@@ -392,14 +395,13 @@ lexer and the parser.
 ### Contextual words already in the spec
 
 `test`, `pkg`, `std`, `dep`, `derive`, `annotation`, `annotation_ref`,
-`context`, `with`, `Context`, `pack`, `map`, and `map_list`. Only `pack` has
-a reachable ambiguity (GR-06).
+`context`, `with`, `Context`, `pack`, `map`, and `map_list`. Only `pack` had
+a reachable ambiguity (GR-06, fixed).
 
 ### Net effect
 
-After K1 to K3 the set has 31 words. Q16 and Q17 would remove `type`,
-`data`, `reified`, `super`, `as`, and `use` (25 words), or also `enum` and
-`trait` (23 words).
+After K1 to K3 the set had 31 words. Q17 removed `reified`, `super`, `as`,
+and `use`, and Q16 kept `type` and `data`.
 
 ### Grammar facts for prefix `!` (K3)
 

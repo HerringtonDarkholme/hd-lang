@@ -104,7 +104,12 @@ once per position.
 `pack.map(items, mapper, extras...)` maps a statically known tuple to another
 tuple. `pack.map_list(items, mapper, extras...)` maps the same input to a
 homogeneous `list[R]`. Both are compiler-recognized operations on tuples, not
-ordinary first-class functions or runtime reflection. The first argument is
+ordinary first-class functions or runtime reflection. The token sequences
+`pack.map(` and `pack.map_list(` always denote these operations, even where a
+local or parameter named `pack` is in scope
+([Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words));
+a method named `map` on such a value is called through the raw identifier, as
+in `` `pack`.map(x) ``. The first argument is
 evaluated once and must have tuple type `(T1, ..., Tn)`. The second argument
 names a non-suspending function; it is not evaluated as a function
 value. The compiler type-checks and instantiates one call

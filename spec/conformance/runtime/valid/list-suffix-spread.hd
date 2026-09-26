@@ -1,0 +1,13 @@
+# test: a list element ending in '...' inserts a list's elements in place
+# expect: test
+
+use std.testing.assert_equal
+
+test "list spreads expand in order":
+    xs := [1, 2]
+    ys := [0, xs...]
+    assert_equal(ys.len(), 3, reason="one element and two spread elements")
+    assert_equal(ys[0] * 100 + ys[1] * 10 + ys[2], 12, reason="the spread follows the element")
+    zs := [xs..., 3, xs...]
+    assert_equal(zs.len(), 5, reason="two spreads around an element")
+    assert_equal(zs[2] + zs[4], 5, reason="elements keep their positions")

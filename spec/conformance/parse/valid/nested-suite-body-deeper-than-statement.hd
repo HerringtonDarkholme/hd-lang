@@ -1,0 +1,12 @@
+# test: a nested suite whose header sits left of its statement is valid when the body is deeper than that statement
+# expect: parse
+
+fn run(callback: fn(i32) -> i32) -> i32: callback(1)
+
+fn main() -> void:
+    if true:
+        x := run(
+    fn(v):
+            v + 1
+)
+        pass

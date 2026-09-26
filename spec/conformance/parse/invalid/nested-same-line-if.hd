@@ -1,0 +1,5 @@
+# test: a same-line if cannot sit directly inside another same-line suite
+
+fn pick(a: bool, b: bool) -> i32:
+    v := if a: if b: 1 else: 2 else: 3  # diagnostic: syntax-error
+    v

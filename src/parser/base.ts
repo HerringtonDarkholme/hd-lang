@@ -81,6 +81,51 @@ export abstract class ParserBase {
 
   private depths?: number[];
 
+  // Delimiter depths of the same-line suites being parsed, innermost last.
+  protected readonly inlineSuiteDepths: number[] = [];
+
+  /** The indentation of the physical line holding the token at `index`. */
+  protected lineIndentAt(index: number): number {
+    let first = index;
+    const line = this.tokens[index]!.span.start.line;
+    const layout = ["newline", "indent", "dedent"];
+    while (
+      first > 0 &&
+      this.tokens[first - 1]!.span.start.line === line &&
+      !layout.includes(this.tokens[first - 1]!.kind)
+    )
+      first -= 1;
+    return this.tokens[first]!.span.start.column - 1;
+  }
+
+  /** The indentation of the first physical line of the logical line holding `index`. */
+  protected logicalLineIndentAt(index: number): number {
+    let first = index;
+    while (first > 0 && !["newline", "indent", "dedent"].includes(this.tokens[first - 1]!.kind))
+      first -= 1;
+    return this.lineIndentAt(first);
+  }
+
+  /**
+   * An indented suite nested inside brackets must start deeper than both its
+   * header's line and the logical line containing the header
+   * (01-lexical-structure.md#physical-and-logical-lines).
+   */
+  protected checkNestedSuiteIndent(colonIndex: number, first: Token): void {
+    const reference = Math.max(this.lineIndentAt(colonIndex), this.logicalLineIndentAt(colonIndex));
+    if (first.span.start.column - 1 <= reference)
+      this.fail(
+        "syntax-error",
+        "a nested suite's body must be deeper than the statement that contains its header",
+        first.span,
+      );
+  }
+
+  /** True when the current token starts on the line where the previous token ends. */
+  protected onPreviousLine(): boolean {
+    return this.current().span.start.line === this.peek(-1).span.end.line;
+  }
+
   /** The number of open `(`, `[`, and `{` before the token at `index`. */
   protected delimiterDepth(index: number): number {
     if (!this.depths) {
@@ -137,8 +182,10 @@ export abstract class ParserBase {
     return true;
   }
 
+  // A raw identifier never matches a keyword or contextual word.
   protected atText(text: string): boolean {
-    return this.current().text === text;
+    const token = this.current();
+    return token.text === text && !token.raw;
   }
 
   protected atKind(kind: Token["kind"]): boolean {

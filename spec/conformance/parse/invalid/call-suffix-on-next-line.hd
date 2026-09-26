@@ -1,0 +1,7 @@
+# test: inside brackets a line starting with '(' is not a call of the previous line's operand
+
+fn pair(first: i32, second: i32) -> (i32, i32):
+    (
+        first
+        (second)  # diagnostic: syntax-error
+    )

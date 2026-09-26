@@ -51,6 +51,14 @@ result := choice(
 )
 ```
 
+A continued line still cannot extend the previous line's last operand with a
+bracketed suffix. A call `(`, an index or type-argument `[`, a data-literal
+`{`, and the `!` of a suspension call must start on the same physical line as
+the end of their operand. Inside delimiters, a line whose first token is
+`(`, `[`, `{`, or `!` therefore begins a new operand, and the separator before
+it is required: a list written as `first` on one line and `[1]` on the next,
+without a comma between them, is a `syntax-error`, not `first[1]`.
+
 A physical line also continues the previous logical line when all of these
 hold:
 
@@ -63,8 +71,11 @@ hold:
 
 Such a leading-dot line emits no `NEWLINE`, `INDENT`, or `DEDENT`; blank lines
 and comment-only lines before it do not matter. The joined text is read as if
-it were written on one physical line, so a same-line suite still open at the
-end of the previous line extends over the leading-dot line.
+it were written on one physical line. A leading-dot line is a `syntax-error`
+when a same-line suite is still open at the end of the logical line it would
+continue, as after `f := fn(x): x`, because the chain would silently join that
+suite's body. A same-line suite that closed earlier on the line, such as one
+inside `xs.map(fn(x): x)`, does not prevent the continuation.
 
 ```text
 names := users
@@ -88,10 +99,14 @@ still open. After the suite closes, implicit continuation resumes.
 
 The indentation reference for such a nested suite is the indentation of the
 physical line containing its suite header. Its first body line must be indented
-farther than that reference. Except after a closure body, a closing
-delimiter at the nested suite's delimiter depth ends the last body line:
-layout processing emits `NEWLINE` and all pending `DEDENT` tokens before
-emitting the closing delimiter.
+farther than that reference and farther than the first physical line of the
+logical line that contains the header; otherwise it is a `syntax-error`. A
+header on a continuation line therefore cannot place its body to the left of,
+or level with, the statement that contains it: in `x := run(` followed by a
+less indented `fn(v):`, the body must still be deeper than `x := run(`.
+Except after a closure body, a closing delimiter at the nested suite's
+delimiter depth ends the last body line: layout processing emits `NEWLINE`
+and all pending `DEDENT` tokens before emitting the closing delimiter.
 
 This exception permits explicit multiline closures in calls:
 
@@ -139,9 +154,10 @@ Layout recognition and parsing therefore cooperate at a suite-introducing
 colon; a lexer may implement this with parser feedback or with equivalent
 parser-state tracking. Ordinary colons in maps, data fields, named types, and
 arguments do not open a suite. Trailing-block call colons occur only at
-delimiter depth zero when the call is the complete statement or the outermost
-right-hand side of a binding. They are not recognized in `if`, `while`, `for`,
-or `match` headers or inside brackets.
+delimiter depth zero when the call is the complete statement or the complete
+right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`. They
+are not recognized in `if`, `while`, `for`, or `match` headers or inside
+brackets.
 
 A same-line suite ends with the abstract token `SUITE_END`. At a logical line
 boundary, layout closes every same-line suite opened on that logical line,
@@ -158,11 +174,10 @@ closure's closing `)`.
 
 `else` is also a boundary for the immediately preceding same-line `if`, `for`,
 or `while` suite: layout emits that suite's `SUITE_END` before `else` and keeps
-the enclosing conditional or loop open, as the `inline_if_expression`,
-`inline_for_expression`, and `inline_while_expression` productions require.
-Thus `x := if c: 1 else: 2` is one conditional expression; the line boundary
-after `2` closes the `else` suite and then any enclosing same-line suite,
-innermost first.
+the enclosing conditional or loop open, as the conditional and loop
+productions require. Thus `x := if c: 1 else: 2` is one conditional
+expression; the line boundary after `2` closes the `else` suite and then any
+enclosing same-line suite, innermost first.
 `SUITE_END` has no source spelling; parser-aware layout processing identifies
 the boundary from the expected suite and enclosing delimiter structure.
 
@@ -273,29 +288,75 @@ The complete reserved-word set is listed below. Built-in
 type names such as `i32`, `string`, `list`, and `map` are ordinary names rather
 than lexically distinct tokens.
 
+### Raw Identifiers
+
+A raw identifier writes a name between backticks. Any reserved word may be
+written this way, so it can name a field, a member, a named-argument label,
+a parameter, or a binding:
+
+```text
+data Token:
+    `type`: string
+    text: string
+
+fn describe(`in`: Token, `match`: bool) -> string:
+    if `match`: `in`.`type` else: `in`.text
+
+label := describe(Token { `type`: "word", text: "hi" }, `match` = true)
+```
+
+```ebnf
+raw_identifier = "`", identifier_start, { identifier_continue }, "`" ;
+```
+
+A raw identifier is one identifier token, accepted wherever the grammar
+accepts `identifier`. Its name is the enclosed text without the backticks, so
+the field above is named `type`, and `` `name` `` denotes the same identifier
+as `name`. The enclosed text follows the identifier rules, including NFC and
+the rule for a leading `_`. An empty pair of backticks, an unclosed backtick,
+a backtick around any other text, and a backtick anywhere else are each an
+`invalid-token`. A raw identifier is never a reserved word or a contextual
+word: `` `use` `` never begins a use declaration, and `` `pack`.map(xs, f) ``
+is an ordinary method call. `$name` interpolation takes a plain identifier;
+`` ${`type`} `` interpolates a raw one.
+
 ## Keywords And Reserved Words
 
 The grammar uses these reserved words:
 
 ```text
-Self      annotate  as        break     continue  data
-defer     else      enum      false     fn        for
-if        impl      in        is        let       match
-mut       pass      pub       reified   return    self
-super     trait     true      type      use       while
+Self      annotate  break     continue  data      defer
+else      enum      false     fn        for       if
+impl      in        is        let       match     mut
+pass      pub       return    self      trait     true
+type      while
 ```
 
-`pkg`, `std`, and `dep` have special meaning only in a use root position.
-`test` has special meaning only at the beginning of a module-level test block.
-`annotation` and `annotation_ref` are contextual after `::` in annotation
-materialization;
-`context`, `with`, and `Context` are contextual after `$.`; `pack`, `map`, and
-`map_list` are contextual in the `pack.map(...)` and `pack.map_list(...)`
-forms; and `derive` is contextual immediately after `@`. These contextual words
-remain ordinary identifiers elsewhere, so declarations such as `fn test() ->
-void`, `fn map_list() -> void`, and `fn derive() -> void` are lexically valid;
-the separate prelude shadowing rule still applies. The reserved
-word `use` is also accepted in the dedicated `$.use(...)` provider expression.
+The following contextual words have special meaning only in fixed positions:
+
+- `pkg`, `std`, and `dep` in a use root position, and `super` as a use root,
+  alone or repeated, as in `use super.shared.{Email}`;
+- `as` directly after a use path or use item, before its alias;
+- `use` at the start of a module-level item, alone or after `pub`, when a use
+  root (`pkg`, `std`, `dep`, `self`, or `super`) follows it, and as the
+  operation name in the dedicated `$.use(...)` provider expression;
+- `reified` first in a generic parameter, directly before the parameter name,
+  as in `fn pick[reified T]() -> T`;
+- `test` at the beginning of a module-level test block;
+- `annotation` and `annotation_ref` after `::` in annotation materialization;
+- `context`, `with`, and `Context` after `$.`;
+- `pack`, `map`, and `map_list` in the `pack.map(...)` and
+  `pack.map_list(...)` forms. The token sequences `pack . map (` and
+  `pack . map_list (` always form the pack operation, even when a local or
+  parameter named `pack` is in scope; every other use of such a `pack`, as in
+  `pack.size()`, is ordinary;
+- `derive` immediately after `@`.
+
+These contextual words remain ordinary identifiers elsewhere, so declarations
+such as `fn test() -> void`, `fn map_list() -> void`, `fn derive() -> void`,
+and `fn use() -> void`, and expressions such as `resource.use(f)` and
+`super := parent`, are lexically valid; the separate prelude shadowing rule
+still applies.
 
 ## Literals
 
@@ -433,9 +494,13 @@ contributes one line-feed scalar to the value. The literal continues until an
 unescaped `"""` delimiter.
 
 Interpreted single-line and multiline strings use Kotlin-style interpolation.
-`$name` interpolates one identifier, and `${expression}` interpolates an
-arbitrary expression with balanced nested delimiters. An unescaped `$` must
-begin one of those forms; `\$` produces a literal dollar sign. Braces without a
+`$name` interpolates one identifier, `$self` interpolates the receiver, and
+`${expression}` interpolates an arbitrary expression with balanced nested
+delimiters. The name after `$` extends over every identifier character. An
+unescaped `$` must begin one of those forms, so a `$` followed by any other
+reserved word, as in `"$true"`, or by a character that cannot start an
+identifier, as in `"costs $5"`, is a `syntax-error`; `\$` produces a literal
+dollar sign. Braces without a
 leading `$` are ordinary string content. The lexer switches back to normal
 expression tokenization inside `${...}` and resumes string scanning at the
 matching `}`.
@@ -497,6 +562,7 @@ processing occurs after token recognition as described above.
 
 ```ebnf
 token = identifier
+      | raw_identifier
       | keyword
       | literal_token
       | operator

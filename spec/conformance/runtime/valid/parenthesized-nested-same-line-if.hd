@@ -1,0 +1,15 @@
+# test: parentheses nest a same-line if inside another same-line suite
+# expect: test
+
+use std.testing.assert_equal
+
+fn classify(a: bool, b: bool) -> i32:
+    if a: (if b: 1 else: 2) else: 3
+
+fn sign(x: i32) -> i32: (if x < 0: -1 else: 1)
+
+test "each else belongs to one conditional":
+    assert_equal(classify(true, true), 1, reason="inner then")
+    assert_equal(classify(true, false), 2, reason="inner else")
+    assert_equal(classify(false, true), 3, reason="outer else")
+    assert_equal(sign(-5) + sign(5), 0, reason="parenthesized function body")

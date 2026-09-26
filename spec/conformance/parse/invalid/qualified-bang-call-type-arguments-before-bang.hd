@@ -1,0 +1,10 @@
+# test: a qualified bang call writes its type arguments after the '!'
+
+data Identity: pass
+
+impl Identity:
+    fn echo![Value](value: Value) -> Value:
+        value
+
+fn run!() -> i32:
+    Identity::echo[i32]!(42)  # diagnostic: syntax-error

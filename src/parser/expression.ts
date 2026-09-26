@@ -76,6 +76,10 @@ export abstract class ExpressionParser extends ParserBase {
       // `match`, or `if` body) is complete: the next line, such as `.None`,
       // starts a new statement.
       if (this.peek(-1).kind === "dedent") break;
+      // A call, index, data-literal, or suspension suffix starts on its
+      // operand's line (01-lexical-structure.md#physical-and-logical-lines).
+      const suffixToken = ["(", "[", "{", "!"].includes(this.current().text);
+      if (suffixToken && !this.onPreviousLine()) break;
       if (
         this.atText("[") &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
@@ -83,14 +87,41 @@ export abstract class ExpressionParser extends ParserBase {
       ) {
         const start = left.span.start;
         this.advance();
-        const typeArguments: TypeRef[] = [];
-        if (!this.atText("]")) {
-          do typeArguments.push(this.parseType());
-          while (this.matchText(",") && !this.atText("]"));
-        }
+        const typeArguments = this.parseTypeArgumentList();
         const close = this.expectText("]");
+        // A bang call writes its type arguments after the `!`
+        // (02-grammar.md#primary-expressions).
+        if (left.kind === "qualified-name" && this.atText("!"))
+          this.fail(
+            "syntax-error",
+            "a qualified bang call writes its type arguments after '!', as in 'Type::name![T](...)'",
+            this.current().span,
+          );
         left = { ...left, typeArguments, span: { start, end: close.span.end } };
         if (left.kind === "qualified-name") this.rejectMethodValue(left.span);
+        continue;
+      }
+      if (
+        this.atText("!") &&
+        this.peek(1).text === "[" &&
+        (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name")
+      ) {
+        if (12 < minimumPrecedence) break;
+        const start = left.span.start;
+        this.advance();
+        this.advance();
+        const typeArguments = this.parseTypeArgumentList();
+        const close = this.expectText("]");
+        if (!this.atText("("))
+          this.fail(
+            "syntax-error",
+            "expected '(' after a bang call's type arguments",
+            this.current().span,
+          );
+        left = this.parseCall(
+          { ...left, typeArguments, span: { start, end: close.span.end } },
+          true,
+        );
         continue;
       }
       if (this.atText("::") && left.kind === "name") {
@@ -125,6 +156,14 @@ export abstract class ExpressionParser extends ParserBase {
       }
       if (this.atText(".")) {
         if (12 < minimumPrecedence) break;
+        // A leading-dot line cannot continue a line whose same-line suite is
+        // still open (01-lexical-structure.md#physical-and-logical-lines).
+        if (this.current().continuation && this.inlineSuiteDepths.includes(0))
+          this.fail(
+            "syntax-error",
+            "a leading-dot line cannot continue a line whose same-line suite is still open",
+            this.current().span,
+          );
         this.advance();
         const member = this.current();
         if (
@@ -188,6 +227,15 @@ export abstract class ExpressionParser extends ParserBase {
     return left;
   }
 
+  private parseTypeArgumentList(): TypeRef[] {
+    const typeArguments: TypeRef[] = [];
+    if (!this.atText("]")) {
+      do typeArguments.push(this.parseType());
+      while (this.matchText(",") && !this.atText("]"));
+    }
+    return typeArguments;
+  }
+
   protected typeArgumentsFollowedBySuffix(): boolean {
     let depth = 0;
     for (let distance = 0; ; distance += 1) {
@@ -221,7 +269,17 @@ export abstract class ExpressionParser extends ParserBase {
         span: { start: token.span.start, end: operand.span.end },
       };
     }
-    if (this.matchText("if")) return this.parseIf(token);
+    if (this.matchText("if")) {
+      // A same-line `if` cannot sit directly in another same-line suite
+      // (02-grammar.md#statements).
+      if (this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index - 1))
+        this.fail(
+          "syntax-error",
+          "a same-line if cannot sit directly in another same-line suite; parenthesize it",
+          token.span,
+        );
+      return this.parseIf(token);
+    }
     if (this.matchText("for")) return this.parseFor(token);
     if (this.matchText("while")) return this.parseWhile(token);
     if (this.matchText("match")) return this.parseMatch(token);
@@ -267,13 +325,14 @@ export abstract class ExpressionParser extends ParserBase {
       this.advance();
       return { kind: "character", value: token.value as string, span: token.span };
     }
-    if (token.text === "true" || token.text === "false") {
+    if (token.kind === "keyword" && (token.text === "true" || token.text === "false")) {
       this.advance();
       return { kind: "boolean", value: token.text === "true", span: token.span };
     }
     if (this.matchText("[")) {
       if (this.atText("for")) return this.parseListComprehension(token);
       const elements: Expression[] = [];
+      const spreads: boolean[] = [];
       if (!this.atText("]")) {
         do {
           const multiBinding = this.unparenthesizedMultiBindingOperator();
@@ -297,10 +356,17 @@ export abstract class ExpressionParser extends ParserBase {
               this.current().span,
             );
           elements.push(element);
+          // A suffix `...` spreads a list's elements (05-expressions.md#list-and-map-expressions).
+          spreads.push(this.matchText("..."));
         } while (this.matchText(",") && !this.atText("]"));
       }
       const close = this.expectText("]");
-      return { kind: "list", elements, span: { start: token.span.start, end: close.span.end } };
+      return {
+        kind: "list",
+        elements,
+        ...(spreads.some(Boolean) ? { spreads } : {}),
+        span: { start: token.span.start, end: close.span.end },
+      };
     }
     if (this.matchText("{")) {
       if (this.atText("for")) return this.parseMapComprehension(token);
@@ -317,9 +383,10 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "map", entries, span: { start: token.span.start, end: close.span.end } };
     }
     if (token.kind === "identifier" || token.text === "self") {
+      if (this.atPackOperation()) this.checkPackOperationArguments();
       this.advance();
       const name: NameExpression = { kind: "name", name: token.text, span: token.span };
-      if (this.atText("{")) return this.parseDataExpression(name);
+      if (this.atText("{") && this.onPreviousLine()) return this.parseDataExpression(name);
       return name;
     }
     if (this.matchText("(")) {
@@ -350,6 +417,42 @@ export abstract class ExpressionParser extends ParserBase {
     // (01-lexical-structure.md#physical-and-logical-lines) is a syntax error.
     if (token.kind === "indent") this.fail("syntax-error", "unexpected indentation", token.span);
     this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
+  }
+
+  /** `pack.map(` and `pack.map_list(` always form the pack operation (01-lexical-structure.md). */
+  private atPackOperation(): boolean {
+    const token = this.current();
+    return (
+      token.text === "pack" &&
+      !token.raw &&
+      this.peek(1).text === "." &&
+      ["map", "map_list"].includes(this.peek(2).text) &&
+      !this.peek(2).raw &&
+      this.peek(3).text === "("
+    );
+  }
+
+  /** The pack operation takes an expression, then a mapper name (02-grammar.md#primary-expressions). */
+  private checkPackOperationArguments(): void {
+    let distance = 4;
+    let depth = 0;
+    while (this.peek(distance).kind !== "eof") {
+      const text = this.peek(distance).text;
+      if (["(", "[", "{"].includes(text)) depth += 1;
+      else if ([")", "]", "}"].includes(text)) {
+        if (depth === 0) break;
+        depth -= 1;
+      } else if (text === "," && depth === 0) {
+        if (this.peek(distance + 1).kind === "identifier") return;
+        break;
+      }
+      distance += 1;
+    }
+    this.fail(
+      "syntax-error",
+      "pack.map( takes a tuple expression and a mapper name",
+      this.peek(distance).span,
+    );
   }
 
   private parseGroupedBindingExpression(open: Token): Expression | undefined {
@@ -803,7 +906,7 @@ export abstract class ExpressionParser extends ParserBase {
   protected parseProviderExpression(namespace: Token): Expression {
     this.expectText(".");
     const operation = this.current();
-    if (!new Set(["use", "with", "context"]).has(operation.text)) {
+    if (operation.raw || !new Set(["use", "with", "context"]).has(operation.text)) {
       this.fail("syntax-error", "expected a provider-context operation after '$.'", operation.span);
     }
     this.advance();
@@ -855,7 +958,7 @@ export abstract class ExpressionParser extends ParserBase {
    * values (the unbound method function and the bound method value).
    */
   private rejectMethodValue(span: SourceSpan): void {
-    if (this.atText("(") || (this.atText("!") && this.peek(1).text === "(")) return;
+    if (this.atText("(") || (this.atText("!") && ["(", "["].includes(this.peek(1).text))) return;
     this.fail(
       "deferred-method-value",
       "method values are deferred: 'Type::name' and 'x::name' must be called",

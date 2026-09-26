@@ -396,7 +396,7 @@ function modeFixtures(): void {
 }
 
 const reservedWords = new Set(
-  "Self and annotate as break continue data defer else enum false fn for if impl in is let match mut nil not or pass pub reified return self shape super trait true type use where while".split(
+  "Self annotate break continue data defer else enum false fn for if impl in is let match mut nil pass pub return self trait true type while".split(
     " ",
   ),
 );

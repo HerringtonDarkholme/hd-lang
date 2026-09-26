@@ -1,0 +1,3 @@
+# test: a same-line function body cannot be a same-line if
+
+fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # diagnostic: syntax-error

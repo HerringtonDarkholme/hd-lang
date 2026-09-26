@@ -1,0 +1,18 @@
+# test: "$self" interpolates the receiver
+# expect: test
+
+use std.testing.assert_equal
+
+data Money:
+    cents: i32
+
+impl Display for Money:
+    fn to_string(self) -> string:
+        "${self.cents}c"
+
+impl Money:
+    fn label(self) -> string:
+        "value: $self"
+
+test "self interpolates through Display":
+    assert_equal(Money { cents: 5 }.label(), "value: 5c", reason="the receiver's Display")

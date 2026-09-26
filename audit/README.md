@@ -49,8 +49,16 @@ instantiations; a no-fit `type-mismatch` lists the instantiations) and
 sized numeric types and are tagged F-253.
 The grammar decisions GQ1 (a trailing
 requirement clause belongs to the declaration), GQ5 (data patterns label
-fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2
-is implemented only for closure bodies of one statement.
+fields with `:`), and GQ7 (leading-dot continuation, with its refinement) are
+implemented; GQ2 is implemented only for closure bodies of one statement.
+GQ3 (nested suite indentation), GQ6 (raw identifiers), GQ8 (bracket suffixes
+on a new line), GQ9 (no same-line `if` directly in a same-line suite), GQ10
+(trailing blocks after `=`, `_ :=`, `return`, `break`), GQ12 (`name![T](...)`
+bang calls), GQ13 (list suffix spreads, lowered to a comprehension), GQ15
+(`"$self"`), and GQ17 (contextual `reified`, `super`, `as`, `use`) are
+implemented. GQ3 compares a nested body with the statement's first line even
+when its header sits on a body line of an outer nested suite, and GQ12 still
+accepts the former `value.method[T]!(...)` spelling of a method bang call.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |
@@ -64,3 +72,6 @@ is implemented only for closure bodies of one statement.
 | VE | Value embedding: filling an embedded field (literal, copy-update, store) stores a copy, shallow for ordinary fields and recursive for embedded parts; access through an embedded field follows its container, so a promoted `mut self` method works on a `mut` receiver; reading a part out aliases it; a readonly copy of a part whose type has direct `mut U` fields is readonly; a part is copied at its field position; an embedded field is invariant for variance. The prototype implements none of it, by the owner's request to settle the design first: embedded fields are still readonly edges and parts are shared. |
 | R-MUT | A provider installed with `$.with(mut K=value)` may be retrieved as `$.use(mut K)`, and rows carry `mut K`; retrieving or requiring `mut K` where only readonly access is installed is `mutable-upgrade`, and host providers are readonly. The prototype parser rejects a `mut` requirement key. |
 | GQ2 | After an indented closure body inside brackets, the next line must start with `,` or a closing delimiter. The prototype rejects a closing delimiter on a body line, but it parses a closure body nested in brackets as a single statement, so multi-statement bodies fail, and it does not check how far the following line is indented. |
+| GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
+| GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
+| GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |

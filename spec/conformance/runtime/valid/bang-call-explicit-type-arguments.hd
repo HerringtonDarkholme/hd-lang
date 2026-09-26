@@ -1,0 +1,10 @@
+# test: a bang call writes explicit type arguments after the '!'
+# expect: test
+
+use std.testing.assert_equal
+
+fn echo![Value](value: Value) -> Value:
+    value
+
+test "a generic suspending function takes its type arguments after the bang":
+    assert_equal(echo![i32](42), 42, reason="the explicit type argument follows the bang")

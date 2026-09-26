@@ -1,0 +1,10 @@
+# test: inside brackets, a line starting with '.' or a binary operator still continues the previous operand
+# expect: parse
+
+fn total(values: list[i32], offset: i32) -> i32:
+    result := (
+        values
+        .len()
+        + offset
+    )
+    result

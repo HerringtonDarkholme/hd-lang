@@ -331,7 +331,9 @@ transaction:
 Ordinary arguments remain in parentheses. If there are no ordinary arguments,
 empty `()` is omitted. The trailing block is equivalent to a zero-argument
 closure whose result and behavior are contextually inferred from the final
-parameter.
+parameter. A trailing block call may be a complete statement or the complete
+right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`, as in
+`total = sum_of(items):` or `return retry(3):` followed by the block.
 
 Only one trailing block is permitted, and only for a zero-argument final
 parameter. Parameterized callbacks use explicit closure syntax. `return` inside
@@ -388,9 +390,14 @@ parser.convert[_, User](payload)
 
 They also apply to qualified calls of generic associated functions and trait
 methods. The method-level list follows the member name, as in
-`Type::name[T](...)`, `Trait::name[T](receiver, ...)`, and the suspending
-`Type::name[T]!(...)`. Type arguments of the qualifying type or trait stay
-before `::`, as in `Add[Money]::add(left, right)`.
+`Type::name[T](...)` and `Trait::name[T](receiver, ...)`. Type arguments of
+the qualifying type or trait stay before `::`, as in
+`Add[Money]::add(left, right)`.
+
+A bang call keeps the `!` on the name, as the declaration does, and writes the
+list after it: `fn all![Ts...](...)` is called as `all![i32, string](a, b)`,
+and suspending methods as `parser.load![User](text)` and
+`Store::load![User](key)`.
 
 Name resolution distinguishes the brackets from an indexing operation. A
 generic method may still rely entirely on inference by omitting the list. Bare

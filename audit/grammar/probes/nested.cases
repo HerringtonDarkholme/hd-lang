@@ -1,4 +1,4 @@
-#### N01 nested suite body to the left of the enclosing statement
+#### N01 nested suite body to the left of the enclosing statement (spec: error, Q3)
 fn main() -> void:
     if ready:
         x := run(
@@ -23,7 +23,7 @@ fn main() -> void:
     choice(fn(a):
         x, y := pair
         fallback)
-#### N05 chained multi-name binding with suite rhs (grammar allows)
+#### N05 chained multi-name binding with suite rhs (spec: error, Q10)
 fn main() -> void:
     a, b := c, d := fn() -> i32: 1
 #### N06 chained multi-name binding with closed rhs (grammar rejects)

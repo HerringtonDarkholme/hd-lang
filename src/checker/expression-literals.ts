@@ -12,6 +12,44 @@ import {
 import { mapKeyKind } from "./context.ts";
 
 import { PatternChecker } from "./patterns.ts";
+
+type ListExpression = Extract<Expression, { kind: "list" }>;
+
+const SPREAD_PART = "__list_spread_part";
+const SPREAD_ITEM = "__list_spread_item";
+
+// `[a, xs..., b]` checks as `[for part in [[a], xs, [b]] for item in part => item]`,
+// so each spread is evaluated once, in element order
+// (05-expressions.md#list-and-map-expressions).
+function listSpreadComprehension(expression: ListExpression): Expression {
+  const span = expression.span;
+  const parts: Expression[] = expression.elements.map((element, index) =>
+    expression.spreads?.[index]
+      ? element
+      : { kind: "list", elements: [element], span: element.span },
+  );
+  const partList: ListExpression & { readonly spreadOperands: readonly boolean[] } = {
+    kind: "list",
+    elements: parts,
+    spreadOperands: expression.spreads ?? [],
+    span,
+  };
+  return {
+    kind: "list-comprehension",
+    clauses: [
+      { kind: "for", bindings: [{ name: SPREAD_PART, span }], iterable: partList, span },
+      {
+        kind: "for",
+        bindings: [{ name: SPREAD_ITEM, span }],
+        iterable: { kind: "name", name: SPREAD_PART, span },
+        span,
+      },
+    ],
+    value: { kind: "name", name: SPREAD_ITEM, span },
+    span,
+  };
+}
+
 export abstract class ExpressionLiteralChecker extends PatternChecker {
   protected checkLiteralExpression(
     expression: Expression,
@@ -69,6 +107,10 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       case "boolean":
         return { ...expression, type: "bool" };
       case "list": {
+        if (expression.spreads?.some(Boolean))
+          return this.checkExpression(listSpreadComprehension(expression), expected);
+        const spreadOperands = (expression as { readonly spreadOperands?: readonly boolean[] })
+          .spreadOperands;
         const expectedDataType = expected ? readonlyType(expected) : undefined;
         const expectedNominal = expectedDataType
           ? nominalGenericParts(expectedDataType)
@@ -85,10 +127,21 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           );
         }
         let elementType = contextualElement;
-        const elements = expression.elements.map((element) => {
+        const elements = expression.elements.map((element, index) => {
           const checked = this.checkExpression(element, contextualElement);
-          if (!elementType) elementType = checked.type;
-          if (!contextualElement && checked.type !== elementType) {
+          if (
+            spreadOperands?.[index] &&
+            nominalGenericParts(readonlyType(checked.type))?.name !== "list"
+          )
+            this.fail(
+              "type-mismatch",
+              `a list spread needs a list, found '${checked.type}'`,
+              element.span,
+            );
+          // Spread parts compare as readonly lists: `[0]` is a fresh mutable list.
+          const partType = spreadOperands ? readonlyType(checked.type) : checked.type;
+          if (!elementType) elementType = partType;
+          if (!contextualElement && partType !== elementType) {
             this.fail(
               "no-common-type",
               `list elements have no common type: ${elementType} and ${checked.type}`,

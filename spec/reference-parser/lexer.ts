@@ -3,7 +3,6 @@ import type { Diagnostic, GrammarToken, LexResult } from "./types.ts";
 const reserved = new Set([
   "Self",
   "annotate",
-  "as",
   "break",
   "continue",
   "data",
@@ -22,14 +21,11 @@ const reserved = new Set([
   "mut",
   "pass",
   "pub",
-  "reified",
   "return",
   "self",
-  "super",
   "trait",
   "true",
   "type",
-  "use",
   "while",
 ]);
 export const openToClose = new Map([
@@ -80,6 +76,9 @@ interface NestedLevel {
   readonly indent: number;
   // Set on a closure body: the indentation of the line holding its header.
   readonly closureReference?: number;
+  // The indentation of the first physical line of the logical line holding
+  // the header; the body must also be deeper than it.
+  readonly logicalIndent?: number;
   saved?: DepthEntry[];
 }
 
@@ -108,6 +107,13 @@ function startsInterpolatedName(source: string, index: number): boolean {
   if (isLetter(first)) return true;
   const second = source[index + 1] ?? "";
   return first === "_" && (second === "_" || isLetterOrNumber(second));
+}
+
+function interpolatedName(source: string, index: number): boolean {
+  let end = index;
+  while (end < source.length && (source[end] === "_" || isLetterOrNumber(source[end]!))) end += 1;
+  const word = source.slice(index, end);
+  return word === "self" || !reserved.has(word);
 }
 
 function escapeEnd(source: string, index: number): number | undefined {
@@ -228,7 +234,9 @@ function scanString(source: string, start: number, initialLine: number): StringS
         }
         continue;
       }
-      if (!startsInterpolatedName(source, index + 1))
+      // `$name` takes an identifier or `self`; any other reserved word, like
+      // a character that cannot start an identifier, leaves a bare `$`.
+      if (!startsInterpolatedName(source, index + 1) || !interpolatedName(source, index + 1))
         diagnostics.push(diagnostic("syntax-error", line));
       index += 1;
       continue;
@@ -334,8 +342,15 @@ function leadingDotContinuation(
 // A nested suite level. Only a closure written directly inside the brackets
 // records its header line; a closure statement in a nested suite body ends
 // like any statement.
-function nestedLevel(delimiters: number, indent: number, closure: boolean): NestedLevel {
-  return closure ? { closureReference: indent, delimiters, indent } : { delimiters, indent };
+function nestedLevel(
+  delimiters: number,
+  indent: number,
+  closure: boolean,
+  logicalIndent: number,
+): NestedLevel {
+  return closure
+    ? { closureReference: indent, delimiters, indent, logicalIndent }
+    : { delimiters, indent, logicalIndent };
 }
 
 // A closure body nested in brackets ends only at a line no deeper than its
@@ -343,6 +358,106 @@ function nestedLevel(delimiters: number, indent: number, closure: boolean): Nest
 function badClosureEnd(level: NestedLevel, indent: number, next: string | undefined): boolean {
   const reference = level.closureReference;
   return reference !== undefined && (indent > reference || !",)]}".includes(next ?? ""));
+}
+
+// Chapter 02: `[` directly after `annotate` always opens generic parameters.
+// True when that bracket cannot be generic parameters, or when what follows it
+// can only continue a facet expression that began with the bracket.
+function annotateBracketError(source: string, start: number): boolean {
+  let open = start;
+  while (source[open] === " ") open += 1;
+  if (source[open] !== "[") return false;
+  const parts: string[] = [];
+  let depth = 0;
+  let partStart = open + 1;
+  let close = open;
+  for (; close < source.length; close += 1) {
+    if (startsString(source, close)) {
+      close = scanString(source, close, 1).end - 1;
+      continue;
+    }
+    const character = source[close]!;
+    if (openToClose.has(character)) depth += 1;
+    else if (closeToOpen.has(character)) {
+      depth -= 1;
+      if (depth === 0) break;
+    } else if (character === "," && depth === 1) {
+      parts.push(source.slice(partStart, close));
+      partStart = close + 1;
+    }
+  }
+  if (close >= source.length) return false;
+  const last = source.slice(partStart, close);
+  if (last.trim() !== "" || parts.length === 0) parts.push(last);
+  const parameter = /^\s*(?:reified\s+)?[\p{L}_][\p{L}\p{N}_]*\s*(?:\.\.\.)?\s*(?:<[^]*)?$/u;
+  if (!parts.every((part) => parameter.test(part))) return true;
+  // After valid parameters, only a token that cannot begin a facet shows that
+  // the bracket started one: `for`, `is`, `?`, `:`, or a binary-only operator.
+  return /^\s*(?:(?:for|is)(?![\p{L}\p{N}_])|!=|[*/%=<>&|^?:])/u.test(source.slice(close + 1));
+}
+
+// A token that can end an operand, so that a following `(`, `[`, `{`, or `!`
+// on the same line would be a suffix.
+function endsOperand(previous: GrammarToken | undefined): boolean {
+  if (!previous) return false;
+  const operandKinds = [
+    "identifier",
+    "integer_literal",
+    "float_literal",
+    "string_literal",
+    "char_literal",
+    "boolean_literal",
+  ];
+  return (
+    operandKinds.some((kind) => previous.kinds.has(kind)) ||
+    [")", "]", "}", "?", "self", "Self", "pass"].includes(previous.text)
+  );
+}
+
+// Words whose next suite-opening `:` layout must recognize.
+const suiteWords = new Set([
+  "defer",
+  "fn",
+  "if",
+  "while",
+  "match",
+  "else",
+  "data",
+  "test",
+  "annotate",
+  "with",
+]);
+
+// Tokens after which `for` starts a loop expression rather than a
+// comprehension clause.
+const loopExpressionFollows = new Set([
+  "",
+  ":=",
+  "=",
+  "return",
+  "break",
+  ":",
+  "=>",
+  "(",
+  "[",
+  "{",
+  ",",
+  "...",
+  "@",
+  "if",
+  "while",
+  "in",
+  "match",
+]);
+
+function wordKinds(word: string, source: string, end: number): ReadonlySet<string> {
+  if (word === "true" || word === "false") return new Set([word, "boolean_literal"]);
+  if (reserved.has(word)) return new Set([word]);
+  // `pack.map(` and `pack.map_list(` always form the pack operation, even when
+  // a local named `pack` is in scope.
+  if (word === "pack" && /^\s*\.\s*(?:map|map_list)\s*\(/u.test(source.slice(end, end + 64)))
+    return new Set([word]);
+  return new Set([word, "identifier"]);
 }
 
 // True when the token before the just-pushed `fn` is `->` (or `->` then `mut`).
@@ -367,6 +482,8 @@ export function lexSource(source: string): LexResult {
   const forcedIndents: NestedLevel[] = [];
   // Indentation of the first physical line of the current logical line.
   let lineIndent = 0;
+  // The physical line on which the previous token ended.
+  let lastTokenLine = 0;
 
   while (index < source.length) {
     if (atLineStart) {
@@ -391,8 +508,13 @@ export function lexSource(source: string): LexResult {
       }
       if (delimiters.length > 0) {
         if (pendingForcedSuite) {
-          if (indent <= pendingForcedSuite.indent)
-            diagnostics.push(diagnostic("unexpected-indentation", line));
+          // The first body line must be deeper than the header's line and the
+          // logical line that contains the header.
+          const reference = Math.max(
+            pendingForcedSuite.indent,
+            pendingForcedSuite.logicalIndent ?? 0,
+          );
+          if (indent <= reference) diagnostics.push(diagnostic("syntax-error", line));
           forcedIndents.push({ ...pendingForcedSuite, indent });
           tokens.push(token("INDENT", line, "<indent>"));
           pendingForcedSuite = undefined;
@@ -454,19 +576,23 @@ export function lexSource(source: string): LexResult {
         atLineStart = false;
         continue;
       }
-      const continuation =
-        lineHasToken && !pendingForcedSuite
-          ? leadingDotContinuation(source, index, lineIndent, previousText)
-          : undefined;
-      if (continuation) {
-        line += continuation.lines;
-        index = continuation.index;
-        continue;
-      }
       // Same-line suites and headers opened at a shallower delimiter depth end
       // at their own comma or closing delimiter, not at this line break.
       const depth = delimiters.length;
       const closing = inlineSuites.filter((entry) => entry >= depth).length;
+      const continuation =
+        lineHasToken && !pendingForcedSuite
+          ? leadingDotContinuation(source, index, lineIndent, previousText)
+          : undefined;
+      // A leading-dot line cannot continue a line whose same-line suite is
+      // still open: the chain would silently join that suite's body.
+      if (continuation && closing > 0)
+        diagnostics.push(diagnostic("syntax-error", line + continuation.lines));
+      else if (continuation) {
+        line += continuation.lines;
+        index = continuation.index;
+        continue;
+      }
       if (closing > 0) {
         for (let count = 0; count < closing; count += 1)
           tokens.push(token("SUITE_END", line, "<suite-end>"));
@@ -495,6 +621,7 @@ export function lexSource(source: string): LexResult {
       line = found.line;
       index = found.end;
       lineHasToken = true;
+      lastTokenLine = line;
       previousText = text;
       continue;
     }
@@ -507,6 +634,7 @@ export function lexSource(source: string): LexResult {
       tokens.push(token("_", line, character));
       index += 1;
       lineHasToken = true;
+      lastTokenLine = line;
       previousText = character;
       continue;
     }
@@ -520,48 +648,16 @@ export function lexSource(source: string): LexResult {
         inlineSuites.pop();
         tokens.push(token("SUITE_END", line, "<suite-end>"));
       }
-      let kinds: ReadonlySet<string>;
-      if (word === "true" || word === "false") kinds = new Set([word, "boolean_literal"]);
-      else if (reserved.has(word)) kinds = new Set([word]);
-      else kinds = new Set([word, "identifier"]);
-      tokens.push(token(kinds, line, word));
-      let suiteWord = new Set([
-        "defer",
-        "fn",
-        "if",
-        "while",
-        "match",
-        "else",
-        "data",
-        "test",
-        "annotate",
-        "with",
-      ]).has(word);
+      tokens.push(token(wordKinds(word, source, end), line, word));
+      if (word === "annotate" && annotateBracketError(source, end))
+        diagnostics.push(diagnostic("syntax-error", line));
+      let suiteWord = suiteWords.has(word);
       // A function type in a closure's result position never takes a `:`.
       if (word === "fn" && typeResultStart(tokens)) suiteWord = false;
       // A `for` loop expression follows an operator, an opening delimiter, or
       // a header word. A comprehension clause `for` follows a complete
       // expression; a leading one after `[` or `{` loses its header at `=>`.
-      if (word === "for")
-        suiteWord = new Set([
-          "",
-          ":=",
-          "=",
-          "return",
-          "break",
-          ":",
-          "=>",
-          "(",
-          "[",
-          "{",
-          ",",
-          "...",
-          "@",
-          "if",
-          "while",
-          "in",
-          "match",
-        ]).has(previousText);
+      if (word === "for") suiteWord = loopExpressionFollows.has(previousText);
       // A closure `fn` is followed by `(` or `!`; a declaration `fn` by a name.
       const closure = word === "fn" && /^[ \t]*[(!]/.test(source.slice(end, end + 40));
       if (suiteWord) pendingHeaders.push({ depth, text: closure ? "closure" : word });
@@ -573,6 +669,7 @@ export function lexSource(source: string): LexResult {
       }
       index = end;
       lineHasToken = true;
+      lastTokenLine = line;
       previousText = word;
       continue;
     }
@@ -583,7 +680,26 @@ export function lexSource(source: string): LexResult {
       tokens.push(token(found.floating ? "float_literal" : "integer_literal", line, text));
       index = found.end;
       lineHasToken = true;
+      lastTokenLine = line;
       previousText = text;
+      continue;
+    }
+
+    // A raw identifier: any identifier or reserved word between backticks is
+    // one identifier token that never acts as a keyword or contextual word.
+    if (character === "`") {
+      const raw = /^`([\p{L}_][\p{L}\p{N}_]*)`/u.exec(source.slice(index, index + 256));
+      const word = raw?.[1];
+      if (!raw || word === "_") {
+        diagnostics.push(diagnostic("invalid-token", line));
+        index += 1;
+        continue;
+      }
+      tokens.push(token("identifier", line, word!));
+      index += raw[0].length;
+      lineHasToken = true;
+      lastTokenLine = line;
+      previousText = raw[0];
       continue;
     }
 
@@ -622,9 +738,20 @@ export function lexSource(source: string): LexResult {
       const inForBinding = text === "," && !closedSuite && innermost?.text === "for";
       if (!inForBinding) pendingHeaders = pendingHeaders.filter((entry) => entry.depth < depth);
     }
+    // A call, index, data-literal, or suspension suffix starts on its operand's
+    // line: inside delimiters, a line starting with one begins a new operand.
+    const layoutDepth = forcedIndents.at(-1)?.delimiters ?? 0;
+    if (
+      ["(", "[", "{", "!"].includes(text) &&
+      lastTokenLine < line &&
+      delimiters.length > layoutDepth &&
+      endsOperand(tokens.at(-1))
+    )
+      diagnostics.push(diagnostic("syntax-error", line));
     tokens.push(token(text, line, text));
     index += text.length;
     lineHasToken = true;
+    lastTokenLine = line;
     previousText = text;
     if (openToClose.has(text)) delimiters.push({ depth: line, text });
     else if (closeToOpen.has(text)) {
@@ -650,7 +777,7 @@ export function lexSource(source: string): LexResult {
           const headerIndent = /^ */.exec(source.slice(lineStart))![0].length;
           const closure = pendingHeaders[match]!.text === "closure";
           const direct = depth > (forcedIndents.at(-1)?.delimiters ?? 0);
-          pendingForcedSuite = nestedLevel(depth, headerIndent, closure && direct);
+          pendingForcedSuite = nestedLevel(depth, headerIndent, closure && direct, lineIndent);
         }
         pendingHeaders.splice(match);
       }

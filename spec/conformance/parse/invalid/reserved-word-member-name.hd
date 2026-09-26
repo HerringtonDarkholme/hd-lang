@@ -1,0 +1,7 @@
+# test: a reserved word after '.' needs backticks
+
+data Token:
+    `type`: string
+
+fn kind(token: Token) -> string:
+    token.type  # diagnostic: syntax-error

@@ -1,0 +1,19 @@
+# test: reified, super, as, and use are ordinary names outside their fixed positions
+# expect: test
+
+use std.testing.assert_equal
+
+fn use(value: i32) -> i32:
+    value + 1
+
+data Resource:
+    as: i32
+
+impl Resource:
+    fn use(self, step: i32) -> i32:
+        self.as + step
+
+test "contextual words name functions, fields, methods, and bindings":
+    super := Resource { as: 40 }
+    reified := super.use(use(0))
+    assert_equal(reified, 41, reason="a method and a function named use")
