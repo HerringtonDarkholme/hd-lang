@@ -59,7 +59,7 @@ requirement clause:
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                "->", type, [ requirement_clause ], ":", suite_body ;
+                [ "->", type ], [ requirement_clause ], ":", suite_body ;
 
 function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
@@ -75,10 +75,14 @@ The same callable name and optional requirement clause apply to trait methods
 and functions inside `impl` blocks. A trait requirement and its implementation
 must agree on suspension and normalized requirement row behavior.
 
-A named function, method, or local `fn` declaration without a requirement
-clause has the empty row; its body may use only requirements satisfied by an
-enclosing lexical provider scope. When a closure omits its requirement clause,
-the compiler infers the least row
+A public function, a trait method, or a method of a trait implementation
+without a requirement clause has the empty row; its body may use only
+requirements satisfied by an enclosing lexical provider scope. A non-public
+function, inherent method, or local `fn` declaration without a requirement
+clause has an inferred row, computed by the same rule as a closure's below.
+Inferred rows of functions that call each other in a cycle are the least rows
+that satisfy every member of the cycle. When a closure omits its requirement
+clause, the compiler infers the least row
 containing every requirement used by its body that is not satisfied by an
 enclosing lexical provider scope. Calls through function parameters contribute
 their normalized rows. If an expected function type contains a row parameter,

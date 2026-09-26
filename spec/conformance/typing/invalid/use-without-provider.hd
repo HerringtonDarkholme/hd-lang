@@ -1,5 +1,5 @@
 # test: requirements / provider errors / missing provider
 
-fn main() -> void: _ := $.use(Clock)  # diagnostic: missing-requirement
+pub fn main() -> void: _ := $.use(Clock)  # diagnostic: missing-requirement
 
 trait Clock

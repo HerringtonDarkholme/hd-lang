@@ -3,5 +3,5 @@ trait Database
 fn query() -> void $ Database:
     pass
 
-fn invalid() -> void:
+pub fn invalid() -> void:
     query()  # diagnostic: missing-requirement

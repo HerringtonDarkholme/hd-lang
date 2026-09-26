@@ -661,7 +661,10 @@ solution is unambiguous.
 
 The following declarations require explicit types:
 
-- named function parameters and results;
+- named function parameters;
+- the results of public functions, trait methods, methods of trait
+  implementations, and recursive functions (a non-public, nonrecursive
+  function may infer its result from its body);
 - public and private data fields;
 - enum payload fields and constructor data;
 - trait method parameters and results;

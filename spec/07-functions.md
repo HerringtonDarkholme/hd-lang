@@ -8,8 +8,8 @@ library metadata or calling conventions.
 
 ## Declarations
 
-A named function declares typed parameters and an explicit result type. A name
-ending in `!` declares a suspending function, and a trailing `$` clause declares
+A named function declares typed parameters and a result type. A name ending in
+`!` declares a suspending function, and a trailing `$` clause declares
 requirements:
 
 ```text
@@ -20,9 +20,23 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
     ...
 ```
 
-Named functions must declare every parameter type and their result type. The
-body's normal final value must be assignable to the declared result. Explicit
-`return` may complete the function earlier.
+Named functions must declare every parameter type. A public function, a trait
+method, and a method of a trait implementation must also declare its result
+type; omitting it is a `missing-result-type` error. A non-public function,
+inherent method, or local `fn` declaration may omit `-> type`: its result type
+is then inferred from its body, as for a nonrecursive closure, and is `void`
+when the body produces no value. Such a function may also omit its
+requirement clause; its row is then inferred as specified in
+[Requirements and Suspension](11-requirements-and-suspension.md). Suspension is
+never inferred: it is part of the function's name. A function whose result
+type is omitted must not be recursive: if
+functions with omitted result types call each other in a cycle, directly or
+through one another, the cycle is a `recursive-function-needs-result-type`
+error, reported once on the member of the cycle that appears first in source
+order. Adding a result type to any member of the cycle resolves it.
+
+The body's normal final value must be assignable to the declared or inferred
+result. Explicit `return` may complete the function earlier.
 
 Every reachable control path must either return a value assignable to the
 declared result, fall through with such a final value, or complete abruptly by
@@ -385,7 +399,9 @@ function value is deferred; see [Member Access](05-expressions.md#member-access)
 
 ## Recursion
 
-Named functions may call themselves or other visible named functions recursively.
+Named functions may call themselves or other visible named functions
+recursively, provided every function in a recursive cycle has a declared
+result type (see [Declarations](#declarations)).
 Closures do not acquire an implicit self-name. A closure directly initialized
 by a statement-form local `:=` or `let` binding may refer to that binding's
 name inside its body. Its result type after `->` is mandatory. Parameter types

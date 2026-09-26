@@ -178,7 +178,7 @@ not independently named module members.
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                "->", type, [ requirement_clause ], ":", suite_body ;
+                [ "->", type ], [ requirement_clause ], ":", suite_body ;
 
 callable_name = identifier, [ "!" ] ;
 
@@ -293,7 +293,7 @@ impl_decl = "impl", [ generic_params ], type, [ "for", type ],
 impl_member = associated_type_decl | method_decl ;
 
 method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
-              parameter_clause, "->", type, [ requirement_clause ],
+              parameter_clause, [ "->", type ], [ requirement_clause ],
               ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
