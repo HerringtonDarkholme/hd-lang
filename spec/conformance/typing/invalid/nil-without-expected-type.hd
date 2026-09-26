@@ -1,0 +1,3 @@
+# test: nil without an expected optional type is rejected
+
+value := nil  # diagnostic: nil-to-nonoptional

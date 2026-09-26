@@ -22,7 +22,7 @@ removed from this folder. What remains:
   clause, or explicit type arguments in a qualified call
   (`Type::name[T](...)`, `Trait::name[T](...)`). Four held-back fixtures in
   `test/fixtures` wait on this.
-- 31 held-back fixtures in `test/fixtures` mark checker rejections that
+- 24 held-back fixtures in `test/fixtures` mark checker rejections that
   have no code in `spec/README.md` (F-205).
 - No code covers `is` between incompatible composite types (L7).
 - The reference lexer does not treat `defer` as a suite keyword

@@ -1,0 +1,3 @@
+# test: remainder is integer-only, so f64 % f64 is rejected
+
+fn main() -> f64: 2.0 % 1.0  # diagnostic: type-mismatch

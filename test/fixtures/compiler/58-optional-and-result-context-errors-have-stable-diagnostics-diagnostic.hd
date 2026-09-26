@@ -1,3 +1,0 @@
-# test: optional and Result context errors have stable diagnostics
-
-value := nil  # diagnostic: nil-needs-optional-type

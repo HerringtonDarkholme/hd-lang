@@ -754,3 +754,10 @@ typing/valid/inferred-row-through-private-callers.hd	type	accept	11-requirements
 runtime/valid/private-function-inferred-result.hd	runtime	accept	07-functions.md#declarations
 runtime/valid/private-function-inferred-row.hd	runtime	accept	11-requirements-and-suspension.md#requirement-rows
 runtime/valid/recursive-private-functions-least-row.hd	runtime	accept	11-requirements-and-suspension.md#requirement-rows
+typing/invalid/generic-enum-variant-without-context.hd	type	reject:unresolved-generic-placeholder	04-type-system.md#type-inference-boundaries
+typing/invalid/generic-function-value-without-arguments.hd	type	reject:unresolved-generic-placeholder	07-functions.md#function-types-and-values
+typing/invalid/result-constructor-without-context.hd	type	reject:unresolved-generic-placeholder	04-type-system.md#type-inference-boundaries
+typing/invalid/nil-without-expected-type.hd	type	reject:nil-to-nonoptional	04-type-system.md#literal-types
+typing/invalid/float-remainder.hd	type	reject:type-mismatch	05-expressions.md#unary-and-binary-operators
+typing/invalid/bool-ordering.hd	type	reject:missing-partial-ord	05-expressions.md#unary-and-binary-operators
+typing/invalid/tuple-index-out-of-range.hd	type	reject:unknown-method	05-expressions.md#member-access

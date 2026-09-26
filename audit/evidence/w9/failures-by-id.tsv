@@ -1,6 +1,6 @@
 id	count	title
 F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-205	18	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
+F-205	25	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
 F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 R1	9	Defaults are requirement-free; the compiler still enforces the retired purity rule
 F-252	6	The parser rejects core chapter-02 forms that the reference parser accepts

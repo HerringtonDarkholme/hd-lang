@@ -1,3 +1,0 @@
-# test: tuples / heterogeneous / index out of range
-
-fn bad(value: (i32,)) -> i32: value.1  # diagnostic: tuple-index-range

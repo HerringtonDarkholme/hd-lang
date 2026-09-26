@@ -75,13 +75,11 @@ test("checker rejects name, mutability, and type errors", () => {
     "type-mismatch",
   );
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-4"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/float-remainder")).diagnostics[0]?.code,
     "invalid-binary-operands",
   );
   assert.equal(
-    analyze(fixture("compiler/07-checker-rejects-name-mutability-and-type-errors-diagnostic-5"))
-      .diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/bool-ordering")).diagnostics[0]?.code,
     "invalid-binary-operands",
   );
   assert.equal(
@@ -700,17 +698,11 @@ test("Result patterns recursively match imported enum payloads", async () => {
 
 test("optional and Result context errors have stable diagnostics", () => {
   assert.equal(
-    analyze(
-      fixture("compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic"),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/nil-without-expected-type")).diagnostics[0]?.code,
     "nil-needs-optional-type",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-2",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/result-constructor-without-context")).diagnostics[0]?.code,
     "result-constructor-needs-context",
   );
   assert.equal(

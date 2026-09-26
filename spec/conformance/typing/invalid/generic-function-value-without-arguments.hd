@@ -2,4 +2,4 @@
 
 fn identity[T](value: T) -> T: value
 fn main() -> void:
-    value := identity  # diagnostic: generic-function-value-needs-arguments
+    value := identity  # diagnostic: unresolved-generic-placeholder

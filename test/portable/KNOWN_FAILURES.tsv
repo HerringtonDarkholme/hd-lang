@@ -164,3 +164,10 @@ typing/valid/mutual-recursion-one-annotated.hd	check fails: expected-token at li
 typing/valid/inferred-row-through-private-callers.hd	check fails: missing-requirement at line 6: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
 runtime/valid/private-function-inferred-result.hd	check fails: expected-token at line 5: expected '->', found ':'; result-type inference (I5) is not implemented	I5
 runtime/valid/private-function-inferred-row.hd	check fails: missing-requirement at line 12: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
+typing/invalid/generic-enum-variant-without-context.hd	MVP reports generic-enum-needs-context instead of unresolved-generic-placeholder	F-205
+typing/invalid/generic-function-value-without-arguments.hd	MVP reports generic-function-value-needs-arguments instead of unresolved-generic-placeholder	F-205
+typing/invalid/result-constructor-without-context.hd	MVP reports result-constructor-needs-context instead of unresolved-generic-placeholder	F-205
+typing/invalid/nil-without-expected-type.hd	MVP reports nil-needs-optional-type instead of nil-to-nonoptional	F-205
+typing/invalid/float-remainder.hd	MVP reports invalid-binary-operands instead of type-mismatch	F-205
+typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of missing-partial-ord	F-205
+typing/invalid/tuple-index-out-of-range.hd	MVP reports tuple-index-range instead of unknown-method	F-205

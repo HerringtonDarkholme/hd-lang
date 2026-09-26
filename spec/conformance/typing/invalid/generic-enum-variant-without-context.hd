@@ -5,4 +5,4 @@ enum Maybe[T]:
     None
 
 fn main() -> void:
-    value := Maybe.None  # diagnostic: generic-enum-needs-context
+    value := Maybe.None  # diagnostic: unresolved-generic-placeholder

@@ -8,8 +8,8 @@ evidence folder for each section is linked in place.
 **Since the audit:** the conformance work fixed every test-integrity,
 fixture-format, and reference-parser finding, and the owner's decisions are
 in the specification. This report now keeps only what is still open. The
-current compiler status is 590 of 755 conformance cases passing; each of the
-165 failures is listed in `test/portable/KNOWN_FAILURES.tsv` with a finding or
+current compiler status is 590 of 762 conformance cases passing; each of the
+172 failures is listed in `test/portable/KNOWN_FAILURES.tsv` with a finding or
 decision ID, and [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv)
 groups them. Decision IDs are in [`README.md`](README.md).
 
