@@ -2,7 +2,6 @@ path	reason	finding
 typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 or i64 type (unknown-type)	F-253
-runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
 typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205

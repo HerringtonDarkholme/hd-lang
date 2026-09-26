@@ -774,9 +774,13 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
   private emitContainerExpression(expression: HirExpression): string | undefined {
     switch (expression.kind) {
       case "data": {
-        if (!expression.spread && expression.fields.length === 0)
-          return `(struct.new $d${expression.dataIndex})`;
         const declaration = this.dataByIndex.get(expression.dataIndex)!;
+        if (declaration.fields.length === 0) {
+          const canonical = `(global.get $d${expression.dataIndex}c)`;
+          return expression.spread
+            ? `(block (result ${this.watType(expression.type)}) (drop ${this.emitExpression(expression.spread)}) ${canonical})`
+            : canonical;
+        }
         const spreadTemporary = expression.spread
           ? this.allocateTemporary(expression.spread.type)
           : undefined;

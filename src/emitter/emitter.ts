@@ -1385,16 +1385,25 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .join(
       "\n",
     )}\n    (type $hd.runtime (struct\n      (field $status (mut i32))\n      (field $scratch (mut (ref null $hd.bytes)))))\n  )\n`;
-  const enumSingletons = program.enums
-    .flatMap((declaration) =>
+  // A fieldless data value is canonical for its type (05-expressions.md), like
+  // a payload-free enum variant.
+  const dataSingletons = program.data
+    .filter((declaration) => declaration.fields.length === 0)
+    .map(
+      (declaration) =>
+        `  (global $d${declaration.index}c (ref $d${declaration.index}) (struct.new $d${declaration.index}))`,
+    );
+  const enumSingletons = [
+    ...dataSingletons,
+    ...program.enums.flatMap((declaration) =>
       declaration.variants
         .filter((variant) => declaration.sharedFields.length === 0 && variant.fields.length === 0)
         .map(
           (variant) =>
             `  (global $e${declaration.index}v${variant.tag} (ref $e${declaration.index})\n    (struct.new $e${declaration.index} (i32.const ${variant.tag})${declaration.fields.map((field) => ` ${emitter.defaultValue(field.type)}`).join("")}))`,
         ),
-    )
-    .join("\n");
+    ),
+  ].join("\n");
   const globals = program.globals
     .map(
       (global) =>
