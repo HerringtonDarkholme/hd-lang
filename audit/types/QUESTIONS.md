@@ -92,9 +92,12 @@ read it, so prefer explicit, checkable rules and locality.
   searched: in TQ-31, `page.to_string()` skips `Label`'s `Display` and may
   reach an inherent `Base.to_string` deeper down.
 
-- **Embedding critique review (2026-09-26).** (P2) E2 stays: the defining
-  type always wins; a private member that collides with an embedded member
-  reports `private-member` to outside callers rather than being skipped.
+- **Embedding critique review (2026-09-26).** (P2, not yet applied;
+  revises E2) Members not visible from the calling module are skipped, as in
+  Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
+  private member wins; if nothing visible is found, the private member is
+  reported (`private-member`). Private additions never break outside
+  callers. An un-imported trait still stops the search.
   (P3) E3 stays: shortest path wins, accepting silent switches when an
   embedded type in another package gains a shallower member, as Rust accepts
   trait imports changing `Deref` resolution. (P4) Accepted: a trait impl for
