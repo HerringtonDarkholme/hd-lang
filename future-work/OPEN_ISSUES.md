@@ -88,6 +88,13 @@ target-indexed output. Generate boundary adapters in the compiler and include
 invocation, validation at the boundary, and reliable secret redaction. These
 are language-design tasks, not merely library work.
 
+**Secret values (deferred).** The owner removed `Secret[T]` from the current
+standard-library design as too early (2026-09-26). Revisit it together with
+typed derivation. Options already discussed: whether standard capability
+traits may take `Secret[T]` parameters so the host receives the real value
+without an `expose()` in hd code; whether exported functions may take
+`Secret[T]` inputs; and that a secret never encodes or appears in outputs.
+
 ### Complete Runtime Shape Coverage
 
 **Problem.** `TypeShape` does not yet represent mutable access, dynamic trait

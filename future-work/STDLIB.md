@@ -1212,6 +1212,11 @@ Decided 2026-09-26:
     infinity; accessors `is_i64`, `is_u64`, `is_f64`, `as_i64() -> i64?`,
     `as_u64()`, `as_f64()`; `Eq`, `Hash`, and printing as the original JSON
     text. `Json.Number(Number)` is a single variant.
+12. **Question 12: `Secret[T]` is removed from the design for now.** It is
+    too early; it is parked with typed derivation in
+    [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+    Sections of this document that mention `Secret[T]` or `Redact` are not
+    part of the current design.
 
 ## Questions For The Owner
 
