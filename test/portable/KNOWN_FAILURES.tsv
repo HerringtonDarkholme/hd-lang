@@ -7,7 +7,6 @@ typing/invalid/signed-exponent.hd	MVP accepts a signed i32 exponent	L2
 typing/invalid/inferred-mutable-upgrade.hd	wrong code: MVP reports generic-type-mismatch instead of mutable-upgrade	L6
 runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is between list[User] and mut list[mut User] (type-mismatch)	L7
 runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
-typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait-cycle on every cycle member (lines 4 and 7)	L9
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
 typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch	F-205

@@ -1,4 +1,4 @@
-import type { HirData } from "../hir.ts";
+import type { HirData, HirTrait } from "../hir.ts";
 import { nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import { resolveGenericType, typeName } from "./shared.ts";
@@ -538,24 +538,32 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
 }
 
 function diagnoseSupertraitCycles(context: ProgramCheckContext): void {
-  const traitsByIndex = new Map(
-    [...context.traitTypes.values()].map((trait) => [trait.index, trait]),
-  );
-  const reaches = (current: number, target: number, seen: Set<number>): boolean => {
+  // Each cycle is reported once, on its member that appears first. A trait is
+  // that member when it reaches itself through traits declared after it.
+  const order = new Map<number, number>();
+  const traitsByIndex = new Map<number, HirTrait>();
+  context.program.traits.forEach((declaration, position) => {
+    const trait = context.traitTypes.get(declaration.name);
+    if (!trait) return;
+    order.set(trait.index, position);
+    traitsByIndex.set(trait.index, trait);
+  });
+  const reaches = (current: number, target: number, floor: number, seen: Set<number>): boolean => {
     if (current === target) return true;
-    if (seen.has(current)) return false;
+    if ((order.get(current) ?? -1) <= floor || seen.has(current)) return false;
     seen.add(current);
     return (
       traitsByIndex
         .get(current)
-        ?.supertraits.some((supertrait) => reaches(supertrait.traitIndex, target, seen)) ?? false
+        ?.supertraits.some((supertrait) => reaches(supertrait.traitIndex, target, floor, seen)) ??
+      false
     );
   };
-  for (const declaration of context.program.traits) {
+  context.program.traits.forEach((declaration, position) => {
     const trait = context.traitTypes.get(declaration.name);
     if (
       trait?.supertraits.some((supertrait) =>
-        reaches(supertrait.traitIndex, trait.index, new Set([trait.index])),
+        reaches(supertrait.traitIndex, trait.index, position, new Set()),
       )
     )
       context.diagnostics.push({
@@ -563,5 +571,5 @@ function diagnoseSupertraitCycles(context: ProgramCheckContext): void {
         message: `trait '${trait.name}' participates in a supertrait cycle`,
         span: declaration.span,
       });
-  }
+  });
 }

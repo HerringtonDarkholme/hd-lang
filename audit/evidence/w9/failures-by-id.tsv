@@ -27,6 +27,5 @@ F-706	1	A backslash before a quote in a raw string is a lexer error
 G2	1	Reference-bounded method generics are allowed in dynamic traits
 L6	1	Inferred mutable upgrade reports mutable-upgrade
 L8	1	Fieldless data values are canonical under `is`
-L9	1	supertrait-cycle is reported once per cycle
 F-708	1	A bang call inside a println argument drops all console output of main!
 F-709	1	A $.with block containing a bang call drops all console output of main!

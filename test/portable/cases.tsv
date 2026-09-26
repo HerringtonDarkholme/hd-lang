@@ -673,3 +673,4 @@ runtime/valid/private-function-inferred-row.hd	runtime
 runtime/valid/private-main-is-ordinary-function.hd	runtime
 runtime/valid/no-entry-point-no-tests.hd	runtime
 typing/invalid/tuple-element-assignment.hd	type
+typing/invalid/indirect-supertrait-cycle.hd	type
