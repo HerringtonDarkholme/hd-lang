@@ -181,6 +181,16 @@ read it, so prefer explicit, checkable rules and locality.
   `value.downcast[T]()` is a compiler-provided method available only on
   `Inspectable` values and on parameters bounded by `Inspectable`.
 
+- **TQ-23, not yet applied (settles Complete Runtime Shape Coverage).**
+  `TypeShape` gains `Mut(inner)`, `Trait(decl, args)`, `Any`,
+  `Suspend(result)`, and `Newtype(decl, base)`.
+- **TQ-24, not yet applied.** A data or enum type holding a NonEscapable
+  field must itself be declared NonEscapable (checked); a generic type is
+  NonEscapable exactly when a type argument is.
+- **TQ-25, not yet applied.** Generic parameters accept NonEscapable
+  arguments only when they opt in.
+- **TQ-26, not yet applied.** Functions may not return NonEscapable values.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
