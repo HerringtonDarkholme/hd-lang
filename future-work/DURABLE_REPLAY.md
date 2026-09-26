@@ -21,6 +21,24 @@ it cannot be a pure library.
 Hosts already see every external input, so the chosen line is Golem's. hd adds
 compiler metadata that a pure Wasm host cannot recover.
 
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Option B.** Durable replay is a runtime feature with a small
+   specification and compiler contract; storage, runners, retry, and
+   workflow APIs are library work.
+2. **Question 1: host boundary only.** Calls are intercepted where they cross
+   into the host. Providers written in hd re-execute on replay.
+3. **Recording is opt-in.** A run records nothing unless the host or command
+   line asks for it; a REPL session or an ordinary `hd run` records no
+   history. The recording level is chosen per run, not in source: none
+   (default), provider calls only, or everything. Question 2 still decides
+   what each level records.
+4. **Question 5: pin plus continue-as-new.** A run stays on the artifact it
+   started with; a library `continue_as_new` hands state to a new run. No
+   patch markers.
+
 ## Problem
 
 The accepted model re-executes a suspending entry point from the start and
