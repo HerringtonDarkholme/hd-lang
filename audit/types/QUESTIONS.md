@@ -216,6 +216,18 @@ read it, so prefer explicit, checkable rules and locality.
   be a separate object held exclusively by the outer value; it need not be
   laid out inline.
 
+- **Value embedding readings (VE-A to VE-F), decided.** (A) Copying a
+  readonly part whose type has `mut` fields at any embedded depth makes the
+  outer value readonly; using it as `mut` is `mutable-upgrade`. A `mut`
+  source, or a part type with no mutable edges, allows a `mut` result;
+  readonly spreads follow the same rule. (B) Assigning an embedded field on a
+  `mut` container copies like construction, under (A). (C) `:=` gives a
+  readonly view of a part; a `mut` alias needs an explicit `mut` binding.
+  (D) A part is copied when its field expression is evaluated, before later
+  field expressions run. (E) An embedded field is an invariant position for
+  variance. (F) Only construction, copy-update, and assignment copy parts;
+  reading, pattern destructuring, and passing the outer value never copy.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
