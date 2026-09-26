@@ -139,6 +139,18 @@ read it, so prefer explicit, checkable rules and locality.
 - **Mutable provider install syntax confirmed.** `$.with(mut Clock=clock)`,
   `$.use(mut Clock)`, `$ mut Clock` (applied in chapter 11).
 
+- **TQ-9, not yet applied.** `Type::f` checks inherent, then implemented
+  available traits; `T::f` under a bound goes through the bound's
+  dictionary; `Trait::f()` with an undetermined `Self` is rejected. `T::f()`
+  is allowed under a bound, never through a runtime type object (answers the
+  runtime type identity question on static calls).
+- **TQ-10: dynamic safety stays literal.** A dynamically safe trait may not
+  have methods with row parameters, `reified` parameters, packs, or
+  suspension; only `Reference`-bounded method generics are allowed (G2).
+- **TQ-11, not yet applied.** Newtypes may carry `@derive(...)`; the derived
+  implementations use the base type's behavior.
+- **TQ-12: any mix of derived and hand-written law partners stays allowed.**
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?

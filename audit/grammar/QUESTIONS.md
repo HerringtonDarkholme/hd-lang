@@ -73,8 +73,10 @@ questions were decided separately (K1 to K3).
   starts neither `$name` nor `${` stays an error.
 - **Q16: `type` and `data` stay reserved** (the backtick escape from Q6
   covers names like `type`).
-- **Q17, not yet applied.** `reified`, `super`, and `as` become contextual
-  words; `use` stays reserved. The reserved set shrinks by three.
+- **Q17, not yet applied.** `reified`, `super`, `as`, and `use` become
+  contextual words (`use` starts a use declaration only when followed by a
+  use root; `$.use(` stays its dedicated form). The reserved set shrinks by
+  four.
 
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
