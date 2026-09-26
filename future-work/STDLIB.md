@@ -1181,6 +1181,28 @@ Decided 2026-09-26:
    A provider is installed with `$.with(mut Clock=clock)`, requested in rows
    as `$ mut Clock`, and retrieved with `$.use(mut Clock)`.
 
+2. **Question 2: I/O suspends; clock, random, and environment reads do not.**
+   Filesystem and network reads are `!` calls; `clock.now()`,
+   `rng.next_u64()`, and `env.get()` are plain calls. Replay records every
+   host call at the boundary either way.
+3. **Question 3: `FsRead` and `FsWrite`** (and `Console` / `ConsoleInput`).
+4. **Question 4: deterministic providers live next to their trait**
+   (`std.time.ManualClock`); `std.testing.hermetic()` bundles them.
+5. **Question 5: a library `std.bytes.Bytes`**, readonly and compact,
+   convertible to and from `list[u8]`.
+6. **Question 6: one error enum per domain** (`FsError`, `HttpError`).
+7. **Question 7: the prelude does not grow**; `Error`, `Duration`, `Set` are
+   imported.
+8. **Question 8: more methods on built-in types live in the standard library
+   as inherent methods,** not in the normative table and not in extension
+   traits. `std` owns the built-in types, so it may declare inherent impls
+   for them, and those methods are available without a `use`.
+9. **Question 9: `decimal` only** beyond the primitives; `BigInt` is a
+   package.
+10. **Question 10: virtual time auto-advances now** (`sleep!` on a manual
+    clock returns at once); idle-driven timers come later with a driver
+    hook.
+
 ## Questions For The Owner
 
 ### 1. How does a deterministic provider change its own state?
