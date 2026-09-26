@@ -8,7 +8,7 @@ evidence folder for each section is linked in place.
 **Since the audit:** the conformance work fixed every test-integrity,
 fixture-format, and reference-parser finding, and the owner's decisions are
 in the specification. This report now keeps only what is still open. The
-current compiler status is 590 of 762 conformance cases passing; each of the
+current compiler status is 620 of 767 conformance cases passing; each of the
 172 failures is listed in `test/portable/KNOWN_FAILURES.tsv` with a finding or
 decision ID, and [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv)
 groups them. Decision IDs are in [`README.md`](README.md).
@@ -37,7 +37,10 @@ The failures cluster where the suite's authors chose not to look:
     fails Wasm validation;
 - common operations that do not work: every `f64` `<`, `<=`, `>`, `>=`
   crashes code generation, and primitives do not satisfy `PartialEq`,
-  `PartialOrd`, or `Display` bounds;
+  `PartialOrd`, or `Display` bounds.
+
+All of these have since been fixed in the prototype (F-351, F-603, F-304,
+F-160, F-500).
 
 **Architecture:** sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
@@ -194,7 +197,7 @@ fixpoint, because named functions declare rows. That language rule helps
 incremental compilation.
 
 **Scaling hazards:** the module-initialization check is exponential in call
-depth (8.6 s at depth 22, F-602). Nested unannotated closures double check
+depth (8.6 s at depth 22, F-602, since fixed: 1 ms). Nested unannotated closures double check
 time per level (F-604).
 
 **HIR verdict:** the design makes sense for a single-file MVP. Before
@@ -214,42 +217,33 @@ canonical ID, and the other IDs are listed. The 89 findings still open are in
 
 | Rank | ID                    | Severity | Finding                                                                                     |
 | ---- | --------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| 1    | F-351 (F-251)         | major    | a plain closure mutates a captured `mut` value; accepted and executed. `mutable-capture-requires-mut-fn` is never produced. Reproduced. |
-| 2    | F-603                 | major    | module-initialization check misses bounded and dynamic trait dispatch; the program reads a zero global. Reproduced (prints `5`). |
-| 2a   | F-304                 | major    | `Ok`/`Err` payload types are unchecked: `Ok("text")` for `Result[i32, string]` passes `check`, then fails Wasm validation. Reproduced. |
-| 2b   | F-305, F-307 (F-559)  | major    | type-checked programs that cannot run: `_ := f()?` on `Result[void, E]` emits unparseable WAT; a `main` returning `Result[void, E]` has no runnable export |
-| 3    | F-160                 | major    | any `f64` `<`, `<=`, `>`, `>=` crashes code generation (missing `)` in a WAT template). Reproduced. One worker rated it blocker; it is a one-line fix, but no fixture covered it. |
-| 4    | F-500 (F-350)         | major    | primitives do not satisfy `PartialEq`, `PartialOrd`, or `Display` bounds. Reproduced.      |
-| 5    | F-201                 | major    | the compiler accepts undeclared requirement keys, in 29 fixtures                            |
-| 6    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
-| 7    | F-252                 | major    | the parser rejects core forms the reference parser accepts: single-line `if`/`else`, `use self.`/`super.`, unnamed payloads |
-| 8    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
-| 9    | F-261 (F-353)         | major    | `is` rejects operands with `mut` access                                                    |
-| 10   | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in replay                                 |
-| 11   | F-401                 | minor    | replay accepts a changed executed non-suspending function and prints a different result     |
+| 1    | F-201                 | major    | the compiler accepts undeclared requirement keys, in 29 fixtures                            |
+| 2    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
+| 3    | F-252                 | major    | the parser rejects core forms the reference parser accepts: single-line `if`/`else`, `use self.`/`super.`, unnamed payloads |
+| 4    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
+| 5    | F-261 (F-353)         | major    | `is` rejects operands with `mut` access                                                    |
+| 6    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in replay                                 |
+| 7    | F-401                 | minor    | replay accepts a changed executed non-suspending function and prints a different result     |
 
 ### Unimplemented features and codes
 
 | Rank | ID    | Severity | Finding                                                                                      |
 | ---- | ----- | -------- | -------------------------------------------------------------------------------------------- |
-| 12   | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
-| 13   | F-205 | major    | the compiler emits 48 codes the spec does not define                                         |
-| 14   | F-155 | minor    | runtime panics carry no source location                                                      |
+| 8    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
+| 9    | F-205 | major    | the compiler emits 48 codes the spec does not define                                         |
+| 10   | F-155 | minor    | runtime panics carry no source location                                                      |
 
 ### Performance and architecture
 
 | Rank | ID    | Severity | Finding                                                                        |
 | ---- | ----- | -------- | ------------------------------------------------------------------------------ |
-| 15   | F-602 | major    | the module-initialization check is exponential in call depth                   |
-| 16   | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
-| 17   | F-501 | major    | maps have no hashing                                                           |
-| 18   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
-| 19   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
+| 11   | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
+| 12   | F-501 | major    | maps have no hashing                                                           |
+| 13   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
+| 14   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
 
 Cross-worker duplicates:
 
-- F-351 = F-251;
-- F-500 = F-350;
 - F-353 = F-261;
 - F-611 = F-264;
 - F-162 = F-265;
@@ -280,12 +274,7 @@ four fuzzers, plus 1,000 cross-implementation cases:
   class, so the common failure classes are exhausted.
 - 58.5% of `check` rejections carry one of 48 codes missing from the spec
   inventory (F-205).
-- Implementation bugs:
-  - F-304: `Ok`/`Err` payload types are unchecked;
-  - F-305: `_ := f()?` on `Result[void, E]` emits unparseable WAT;
-  - F-307: a `main` returning `Result[void, E]` passes `check` but cannot
-    run;
-  - F-308, F-310, F-311, F-316: smaller front-end bugs.
+- Implementation bugs still open: F-308, F-310, F-311, F-316 (front end).
 - The grammar itself derives same-line-suite forms that layout cannot
   produce (F-314).
 - Minimized findings are portable `.hd` fixtures in
