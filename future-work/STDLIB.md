@@ -1202,6 +1202,16 @@ Decided 2026-09-26:
 10. **Question 10: virtual time auto-advances now** (`sleep!` on a manual
     clock returns at once); idle-driven timers come later with a driver
     hook.
+11. **Question 11: structured scopes only.** `scope!` with `start` and
+    `join!`; no task outlives its scope; an error or cancellation cancels the
+    siblings.
+13. **Question 13: ship untyped `std.json.Json` now, with a unified
+    `Number`** modeled on `serde_json::Number`: a private representation
+    (unsigned integer, signed integer, or finite float); constructors from
+    every integer type and `Number::from_f64(x) -> Number?` rejecting NaN and
+    infinity; accessors `is_i64`, `is_u64`, `is_f64`, `as_i64() -> i64?`,
+    `as_u64()`, `as_f64()`; `Eq`, `Hash`, and printing as the original JSON
+    text. `Json.Number(Number)` is a single variant.
 
 ## Questions For The Owner
 
