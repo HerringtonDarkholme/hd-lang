@@ -47,6 +47,8 @@ import {
   traitSuspensionResultName,
   type HirSuspendDrive,
   type LinearSuspensionSite,
+  dataSingletons,
+  methodBoundParameters,
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
@@ -1261,9 +1263,7 @@ export function emitWat(program: HirProgram): string {
           `(param anyref)`,
           `(param anyref)`,
           ...method.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
-          ...(method.genericBounds ?? []).map(
-            (bound) => `(param (ref null $trait${bound.traitIndex}))`,
-          ),
+          ...methodBoundParameters(method),
           ...method.requirements.map(
             (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
           ),
@@ -1385,16 +1385,8 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .join(
       "\n",
     )}\n    (type $hd.runtime (struct\n      (field $status (mut i32))\n      (field $scratch (mut (ref null $hd.bytes)))))\n  )\n`;
-  // A fieldless data value is canonical for its type (05-expressions.md), like
-  // a payload-free enum variant.
-  const dataSingletons = program.data
-    .filter((declaration) => declaration.fields.length === 0)
-    .map(
-      (declaration) =>
-        `  (global $d${declaration.index}c (ref $d${declaration.index}) (struct.new $d${declaration.index}))`,
-    );
   const enumSingletons = [
-    ...dataSingletons,
+    ...dataSingletons(program),
     ...program.enums.flatMap((declaration) =>
       declaration.variants
         .filter((variant) => declaration.sharedFields.length === 0 && variant.fields.length === 0)

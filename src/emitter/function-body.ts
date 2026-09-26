@@ -41,6 +41,7 @@ import {
   traitSuspensionWrapperResultAdapterName,
   traitTypeBase,
   type LinearSuspensionSite,
+  methodBoundParameters,
 } from "./shared.ts";
 import { IteratorEmitter } from "./iterator.ts";
 
@@ -1205,15 +1206,10 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
           const parameters = method.parameters.map(
             (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
           );
-          const methodBounds = (method.genericBounds ?? []).map(
-            (bound, index) => `(param $b${index} (ref null $trait${bound.traitIndex}))`,
+          const methodBounds = methodBoundParameters(method, "b");
+          const providers = method.requirements.map(
+            (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
           );
-          const providers = [
-            ...methodBounds,
-            ...method.requirements.map(
-              (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
-            ),
-          ];
           const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
           const dictionary = `(ref.cast (ref $trait${trait.index}) (local.get $dictionary))`;
           const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds ${dictionary}))`;
@@ -1250,12 +1246,12 @@ export abstract class FunctionBodyEmitter extends IteratorEmitter {
               ? this.boxWatValue(call, substituteTypeParameters(method.result, traitSubstitutions))
               : call;
             return [
-              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...providers].join(" ")}${result}\n  ${body}\n)`,
+              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  ${body}\n)`,
             ];
           }
           const wrapper = traitSuspensionName(trait.index, method.index);
           const frame = `$s${mapping.functionIndex}`;
-          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
+          const constructor = `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")} (result (ref null ${wrapper}))\n  (struct.new ${wrapper}\n    (call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})\n    (ref.func $tspolladapt${implementation.index}_${method.index})\n    (ref.func $tscanceladapt${implementation.index}_${method.index})\n    (ref.func $tsresultadapt${implementation.index}_${method.index}))\n)`;
           const poll = `(func $tspolladapt${implementation.index}_${method.index} (type $tspollsig${trait.index}_${method.index}) (param $inner anyref) (result i32)\n  (call $poll${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
           const cancel = `(func $tscanceladapt${implementation.index}_${method.index} (type $tscancelsig${trait.index}_${method.index}) (param $inner anyref)\n  (call $cancel${mapping.functionIndex} (ref.cast (ref null ${frame}) (local.get $inner)))\n)`;
           const resultBody =

@@ -1,4 +1,12 @@
-import type { HirExpression, HirFunction, HirStatement, HirTrait, ValueType } from "../hir.ts";
+import type {
+  HirExpression,
+  HirFunction,
+  HirProgram,
+  HirStatement,
+  HirTrait,
+  HirTraitMethod,
+  ValueType,
+} from "../hir.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 
 export const indent = (text: string, spaces = 2): string => {
@@ -138,3 +146,16 @@ export const traitTypeBase = (type: ValueType): string => {
   const key = readonlyType(type).slice("trait:".length);
   return nominalGenericParts(key)?.name ?? key;
 };
+
+/** Dictionary parameters for a trait method's method-level bounds, named `$<prefix><n>`. */
+export const methodBoundParameters = (method: HirTraitMethod, prefix?: string): string[] =>
+  (method.genericBounds ?? []).map(
+    (bound, index) =>
+      `(param ${prefix ? `$${prefix}${index} ` : ""}(ref null $trait${bound.traitIndex}))`,
+  );
+
+/** One canonical instance per fieldless data type (05-expressions.md). */
+export const dataSingletons = (program: HirProgram): string[] =>
+  program.data
+    .filter((declaration) => declaration.fields.length === 0)
+    .map(({ index }) => `  (global $d${index}c (ref $d${index}) (struct.new $d${index}))`);
