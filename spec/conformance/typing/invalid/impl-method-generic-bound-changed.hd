@@ -1,0 +1,15 @@
+# test: an impl method's generic bound must name the same trait as the trait method's
+
+trait Show:
+    fn show(self) -> string
+
+trait Tag:
+    fn tag(self) -> string
+
+trait Describe:
+    fn describe[T < Show](self, value: T) -> string
+
+data Describer: pass
+
+impl Describe for Describer:
+    fn describe[T < Tag](self, value: T) -> string: value.tag()  # diagnostic: trait-method-signature

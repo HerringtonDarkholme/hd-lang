@@ -1,0 +1,4 @@
+# test: a lone reified in generic parameters is the modifier without a parameter name
+
+fn named[reified](value: i32) -> i32:  # diagnostic: syntax-error
+    value

@@ -400,6 +400,11 @@ uses `trait_type` or `type`, so a binding there is a `syntax-error`. Binding
 semantics are specified in
 [Associated Type Bindings](09-traits.md#associated-type-bindings).
 
+An unbackticked `reified` at the start of a `generic_parameter` is always the
+modifier, never the parameter name, so `[reified]` is a `syntax-error`; write
+`` [`reified`] `` for a parameter named reified
+([Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words)).
+
 Variance markers are valid on generic type declarations, not function generic
 parameters. `reified` and type packs are valid on function, method, variant, and
 generic-implementation parameters, not generic type declarations.

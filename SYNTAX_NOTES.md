@@ -348,7 +348,7 @@ impl Display for User:
 
 Generic bounds such as `T < Display` use static dispatch. Trait value types such as `value: Display` use Go-style dynamic dispatch: the runtime value carries concrete data plus a method table. There is no `dyn` marker.
 
-`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically:
+`Any` is the built-in universal empty trait, analogous to Go's `any`. Every value type, optionals included, satisfies it automatically:
 
 ```text
 fn preserve[T < Any](value: T) -> T:
@@ -358,7 +358,7 @@ fn keep_erased(value: Any) -> Any:
     value
 ```
 
-`Any` is non-null. `.None` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T < Any` is a generic constraint that preserves the concrete type.
+A bare `.None` needs an expected optional type, so `let value: Any = .None` is invalid while `let value: Any? = .None` is valid. An optional value is an ordinary enum value: `T?` erases to `Any`, and `is` compares optionals like other enum values. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T < Any` is a generic constraint that preserves the concrete type.
 
 Nullability is explicit. `T` and `T?` are different types, and `T?` is sugar for the prelude enum `Option[T]` with variants `Some(value)` and `None`. A plain `T` implicitly constructs `.Some(value)` where `T?` is expected, one layer only. The absent value is `.None` or `Option.None`; there is no `nil`. In a pattern, `.Some(value)` matches only the present case and binds `value: T`, while `.None` matches absence.
 

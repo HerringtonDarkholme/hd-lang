@@ -1,0 +1,9 @@
+# test: an impl method declares exactly as many generic parameters as the trait method
+
+trait Identity:
+    fn select[T](self, value: T) -> T
+
+data Picker: pass
+
+impl Identity for Picker:
+    fn select[T, U](self, value: T) -> T: value  # diagnostic: trait-method-signature

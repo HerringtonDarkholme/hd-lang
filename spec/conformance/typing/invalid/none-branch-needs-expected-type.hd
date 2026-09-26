@@ -1,0 +1,4 @@
+# test: a .None branch beside an i32 branch needs an expected type like any contextual variant
+
+fn pick(flag: bool) -> void:
+    value := if flag: 1 else: .None  # diagnostic: missing-contextual-enum-type

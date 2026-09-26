@@ -74,7 +74,7 @@ table describes the failure:
 | `unterminated-string` | A string or character literal reaches the end of its line or file without closing. |
 | `unclosed-delimiter` | An opening `(`, `[`, or `{` has no matching close. |
 | `unmatched-delimiter` | A closing `)`, `]`, or `}` has no matching open, or closes a different kind. |
-| `unexpected-indentation` | A line is indented where layout does not open a suite. |
+| `unexpected-indentation` | A line is indented where layout does not open a suite, or the first body line of a nested suite inside brackets is not deeper than its header's line and the logical line containing the header. |
 | `invalid-dedent` | A dedent returns to a column that no enclosing suite uses. |
 | `unknown-name` | A value name resolves to no binding in scope. |
 | `unknown-type` | A type name resolves to no type in scope. |
@@ -432,3 +432,36 @@ existing source. Each entry names the decision that made the change.
   an embedded field is `embedded-copy-required`, so a same-line suite could
   not store into an embedded field at all; that source, previously a
   `syntax-error`, is now accepted.
+- Option follow-up A2: `.None` no longer gets a least-common-type special
+  case. `[1, .None]` or `if c: 1 else: .None` without an expected type,
+  previously typed `list[i32?]` or `i32?`, is now
+  `missing-contextual-enum-type`, like any contextual variant; an expected
+  type such as `list[i32?]` supplies the type.
+- Option follow-up A3: optionals follow the ordinary enum rules. An optional
+  value now erases to `Any`, which was previously a type error that required
+  `Any?`. `is` now accepts optionals,
+  previously `identity-requires-references`: `.None` is canonical, and each
+  `.Some(value)` construction, including an implicit wrap, has its own
+  identity. Optionals now implement `Reference`, and the implementation
+  model lists them with the reference values, so a present value is a tagged
+  record rather than its bare payload.
+- Grammar follow-up B7: a nested suite body inside brackets that is not
+  deeper than its header's line and the logical line containing the header,
+  previously `syntax-error`, is now `unexpected-indentation`.
+- Grammar follow-up B8: an unbackticked `reified` at the start of a generic
+  parameter is always the modifier. `[reified]`, which previously declared a
+  parameter named `reified`, is now a `syntax-error`; write `` [`reified`] ``.
+- Prototype-fix follow-up C1: the codes for malformed operators and literals
+  are pinned. `&`, `|`, or `^` on a non-integer and arithmetic on a
+  non-numeric type are `type-mismatch`; a misplaced separator in a numeric
+  literal, including after an exponent marker or sign as in `1e_5`, is
+  `invalid-token`; `0b1z` and a bare `0x` are `syntax-error`.
+- Prototype-fix follow-up C2: `2 ** -1` is stated to be a compile-time
+  `type-mismatch`, because the negated literal is a signed exponent. The
+  chapter previously called `2 ** -3` valid.
+- Prototype-fix follow-up C3: an implementation method's generic parameters
+  must match the trait method's by position, with the same markers and the
+  same bounds in the same order; names may differ. The chapter previously
+  did not say whether bounds were part of the exact signature; a method that
+  adds, drops, reorders, or changes a bound is now `trait-method-signature`,
+  reported at the implementation method.

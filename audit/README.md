@@ -74,6 +74,17 @@ bang calls), GQ13 (list suffix spreads, lowered to a comprehension), GQ15
 implemented. GQ3 compares a nested body with the statement's first line even
 when its header sits on a body line of an outer nested suite, and GQ12 still
 accepts the former `value.method[T]!(...)` spelling of a method bang call.
+The grammar follow-ups B7 (`unexpected-indentation` for a nested body that
+is not deep enough) and B8 (a lone `reified` is a `syntax-error`) are
+implemented in both parsers, and B9 added six passing fixtures to the
+portable selection. The Option follow-ups A2 (no least-common-type case for
+`.None`, which the prototype never had) and A3 are implemented: `is` accepts
+optionals, treating every `.None` as one identity, and optionals satisfy
+`Reference`; erasing an optional to `Any` is tagged F-255 because the
+prototype has no `Any`. The prototype-fix follow-ups C1 to C3 are
+implemented: the lexer reports `0b1z` as `syntax-error`, and an impl
+method's generic parameters are compared with the trait method's by
+position, bounds included.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |

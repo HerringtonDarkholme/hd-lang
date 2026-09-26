@@ -161,9 +161,9 @@ host API: each call must be covered by a `Console` requirement row or a
 lexical provider scope.
 
 `Reference` is a sealed marker trait implemented by data values, stored enum
-values, lists, maps, dynamic trait values, `Any`, closures, suspensions, and
+values (optionals included), lists, maps, dynamic trait values, `Any`, closures, suspensions, and
 runtime handles that have identity, and payload-free enum values with canonical
-variant identity. It is not implemented by primitives, tuples, or optionals.
+variant identity. It is not implemented by primitives or tuples.
 User code cannot implement it.
 
 The following built-in methods are normative. Lengths and scalar positions use

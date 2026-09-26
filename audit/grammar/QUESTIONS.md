@@ -103,11 +103,15 @@ type `list[U]`. Q15: `$` before any other reserved word stays a
   preferred. (B3, B4) Accepted as applied: list spreads take `list[U]` only;
   the Q9 ban covers every same-line suite. (B5) Inside brackets a line
   starting with `!(` never continues the previous element. (B6) Single-name
-  binding chains stay. (B7, not yet applied) A nested body not deeper than
-  its containing line is `unexpected-indentation`. (B8, not yet applied) A
+  binding chains stay. (B7, applied) A nested body not deeper than
+  its containing line is `unexpected-indentation`. (B8, applied) A
   lone `reified` in generic parameters is an error; a parameter named
-  reified is written with backticks. (B9, not yet applied) The six passing
-  audit fixtures join the portable selection.
+  reified is written with backticks. (B9, applied) The six passing
+  audit fixtures join the portable selection. Readings: B7 covers every
+  failure of the nested-suite rule in 01, whether the body fails the header
+  line or the containing logical line; B8 is a `syntax-error`, covers
+  `[reified]`, `[T, reified < Show]`, and `[reified...]`, and
+  `` [reified `reified`] `` stays valid.
 
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 

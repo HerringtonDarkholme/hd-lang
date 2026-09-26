@@ -188,6 +188,16 @@ implementation or a trait default fills a trait method; an inherent method of
 the target and a method promoted from an embedded field never do. The
 implementation may override a default with the exact instantiated signature. A mismatched method is a
 `trait-method-signature` error.
+
+The exact signature includes the method-level generic parameters. An
+implementation method declares as many generic parameters as the trait
+method, and they correspond by position; names may differ. Each parameter
+keeps the trait method's `reified` and pack markers and the same bounds: the
+same traits, with `mut` and the same instantiated arguments and associated
+type bindings, written in the same order. An implementation method therefore
+cannot add, drop, reorder, weaken, or strengthen a bound. Any mismatch is a
+`trait-method-signature` error reported at the implementation method.
+
 Additional methods do not become part of that trait implementation; place them
 in an inherent `impl` instead.
 
@@ -548,12 +558,13 @@ Dynamic trait-value type tests and downcasts are not supported.
 
 ## `Any`
 
-`Any` is the universal empty trait. Every non-optional value type implements it
-automatically. As a value type, `Any` erases the concrete type and exposes no
+`Any` is the universal empty trait. Every value type, including an optional
+type, implements it automatically. As a value type, `Any` erases the concrete type and exposes no
 type-specific methods.
 
-`Any` excludes optional values; `Any?` permits absence through ordinary
-optional typing.
+An optional value erases to `Any` like any other enum value. A bare `.None`
+still needs an expected optional type, so `let value: Any = .None` is a
+`missing-contextual-enum-type` error while `let value: Any? = .None` is valid.
 `mut Any` preserves mutable access to an erased composite value.
 
 ## Embedding And Trait Satisfaction

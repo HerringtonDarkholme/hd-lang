@@ -15,6 +15,7 @@ import {
   functionParts,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
   substituteTypeParameters,
   suspensionParts,
   traitSuspensionParts,
@@ -162,6 +163,30 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       this.emitControlExpression(expression);
     if (emitted !== undefined) return emitted;
     throw new Error(`unsupported expression '${expression.kind}'`);
+  }
+
+  /**
+   * `is` on optionals (04 Optional Types): `.None` is payload-free, so every
+   * `.None` has one canonical identity even though the prototype allocates
+   * each one; a `.Some` has the identity of its own construction.
+   */
+  private emitOptionalIdentity(
+    expression: Extract<HirExpression, { kind: "binary" }>,
+    left: string,
+    right: string,
+  ): string {
+    const first = this.allocateTemporary(expression.left.type);
+    const second = this.allocateTemporary(expression.right.type);
+    const tag = (local: string): string =>
+      `(struct.get $hd.variant $hd.variant-tag (ref.as_non_null (local.get ${local})))`;
+    return [
+      `(block (result i32)`,
+      `  (local.set ${first} ${left})`,
+      `  (local.set ${second} ${right})`,
+      `  (if (result i32) (ref.eq (local.get ${first}) (local.get ${second}))`,
+      `    (then (i32.const 1))`,
+      `    (else (i32.and (i32.eqz ${tag(first)}) (i32.eqz ${tag(second)})))))`,
+    ].join("\n");
   }
 
   private emitValueExpression(expression: HirExpression): string | undefined {
@@ -370,6 +395,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             const trait = this.traitsByName.get(traitTypeBase(expression.left.type))!;
             return `(ref.eq (ref.cast (ref null eq) (struct.get $trait${trait.index} $trait${trait.index}value ${left})) (ref.cast (ref null eq) (struct.get $trait${trait.index} $trait${trait.index}value ${right})))`;
           }
+          if (optionalInner(expression.left.type.replaceAll("mut:", "")) !== undefined)
+            return this.emitOptionalIdentity(expression, left, right);
           return `(ref.eq (ref.cast (ref null eq) ${left}) (ref.cast (ref null eq) ${right}))`;
         }
         if (expression.operator === "**") {

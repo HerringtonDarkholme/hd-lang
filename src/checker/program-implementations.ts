@@ -1,5 +1,13 @@
 import type { Diagnostic } from "../diagnostics.ts";
-import type { Expression, FunctionDecl, ImplDecl, MethodDecl, Parameter, TypeRef } from "../ast.ts";
+import type {
+  Expression,
+  FunctionDecl,
+  GenericBound,
+  ImplDecl,
+  MethodDecl,
+  Parameter,
+  TypeRef,
+} from "../ast.ts";
 import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
 import {
@@ -470,10 +478,6 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     }
     const methods: ImplementationMethodPreparation[] = [];
     for (const required of trait.methods) {
-      const requiredParameters = required.parameters.map((parameter) =>
-        substituteGenericType(parameter, memberSubstitutions),
-      );
-      const requiredResult = substituteGenericType(required.result, memberSubstitutions);
       const suppliedMethod = supplied.get(required.name);
       const defaultMethod = program.traits[trait.index]?.methods[required.index];
       // E5: only a written method or a trait default fills a trait method; a
@@ -492,6 +496,26 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           ...implementation.genericParameters,
           ...method.genericParameters,
         ]);
+        // 09 Implementation Declarations: method-level generic parameters
+        // correspond by position, so the trait's names are replaced by the
+        // implementation's before parameter, result, and bound comparison.
+        const renaming = new Map(memberSubstitutions);
+        required.genericParameters.forEach((name, index) => {
+          const renamed = method.genericParameters[index];
+          if (renamed !== undefined) renaming.set(name, `generic:${renamed}`);
+        });
+        const traitGenerics = new Set([...trait.genericParameters, ...required.genericParameters]);
+        const requiredBounds = defaultMethod?.genericBounds ?? [];
+        const boundsMatch = required.genericParameters.every((name, index) => {
+          const renamed = method.genericParameters[index];
+          if (renamed === undefined) return false;
+          const expected = methodBoundKeys(requiredBounds, name, traitGenerics, renaming);
+          const actual = methodBoundKeys(method.genericBounds, renamed, methodGenerics, new Map());
+          return (
+            expected.length === actual.length &&
+            expected.every((key, position) => key === actual[position])
+          );
+        });
         const parameterTypes = method.parameters.map((parameter) => {
           if (parameter.name === "self") {
             return parameter.type.name === "mut:Self" ? mutableType(targetType) : targetType;
@@ -512,20 +536,22 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           ...(required.associated
             ? []
             : [required.receiverMutable ? mutableType(targetType) : targetType]),
-          ...requiredParameters.map((parameter) =>
-            parameter === "generic:Self" ? targetType : parameter,
-          ),
+          ...required.parameters
+            .map((parameter) => substituteGenericType(parameter, renaming))
+            .map((parameter) => (parameter === "generic:Self" ? targetType : parameter)),
         ];
+        const renamedResult = substituteGenericType(required.result, renaming);
         const result =
           typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, methodGenerics) ??
           "void";
         if (
           (method.parameters[0]?.name !== "self") !== required.associated ||
           method.genericParameters.length !== required.genericParameters.length ||
+          !boundsMatch ||
           parameterTypes.length !== expectedParameters.length ||
           parameterTypes.some((parameter, index) => parameter !== expectedParameters[index]) ||
           (method.parameters.at(-1)?.variadic === true) !== required.variadic ||
-          result !== (requiredResult === "generic:Self" ? targetType : requiredResult) ||
+          result !== (renamedResult === "generic:Self" ? targetType : renamedResult) ||
           method.suspending !== required.suspending ||
           !sameRequirements(method.requirements, required.requirements)
         ) {
@@ -564,6 +590,39 @@ export function prepareImplementations(context: ProgramCheckContext): void {
   }
   validateSupertraitImplementations(context);
   validateDelegations(delegations, context);
+}
+
+/**
+ * The bounds written for one method-level generic parameter, as comparable
+ * keys in written order: each bound trait with its resolved arguments (and
+ * `mut`), then each associated type binding. `substitutions` instantiates the
+ * trait's parameters and renames its method parameters to the
+ * implementation's.
+ */
+function methodBoundKeys(
+  bounds: readonly GenericBound[],
+  parameter: string,
+  generics: ReadonlySet<string>,
+  substitutions: ReadonlyMap<string, ValueType>,
+): string[] {
+  const resolve = (type: string): string =>
+    substituteGenericType(resolveGenericType(type, generics), substitutions);
+  const traitKey = (written: string): string => {
+    const inner = mutableInner(written);
+    const application = nominalGenericParts(inner ?? written);
+    const key = application
+      ? nominalGenericType(application.name, application.arguments.map(resolve))
+      : (inner ?? written);
+    return inner === undefined ? key : `mut ${key}`;
+  };
+  return bounds
+    .filter((bound) => bound.parameter === parameter)
+    .flatMap((bound) => [
+      ...bound.traits.map(traitKey),
+      ...(bound.bindings ?? []).map(
+        (binding) => `${traitKey(binding.trait)}::${binding.name}=${resolve(binding.type.name)}`,
+      ),
+    ]);
 }
 
 interface Delegation {

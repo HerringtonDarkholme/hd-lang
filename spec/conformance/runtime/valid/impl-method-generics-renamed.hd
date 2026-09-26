@@ -1,0 +1,27 @@
+# test: an impl method may rename method-level generic parameters that keep their order and bounds
+# expect: test
+
+use std.testing.assert_equal
+
+trait Show:
+    fn show(self) -> string
+
+trait Tag:
+    fn tag(self) -> string
+
+trait Describe:
+    fn describe[T < Show, U](self, first: T, second: U) -> string
+
+data Word:
+    text: string
+
+impl Show for Word:
+    fn show(self) -> string: self.text
+
+data Describer: pass
+
+impl Describe for Describer:
+    fn describe[A < Show, B](self, first: A, second: B) -> string: first.show()
+
+test "renamed parameters correspond by position":
+    assert_equal(Describer {}.describe(Word { text: "hi" }, 3), "hi", reason="renamed generic method")
