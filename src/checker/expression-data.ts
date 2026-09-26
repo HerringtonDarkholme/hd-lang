@@ -5,6 +5,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
   readonlyType,
   tupleParts,
 } from "../types.ts";
@@ -234,6 +235,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
   ): HirExpression | undefined {
     switch (expression.kind) {
       case "member": {
+        if (expression.receiver.kind === "name" && this.namesOptionEnum(expression.receiver.name))
+          return this.checkOptionVariant(
+            expression.name,
+            undefined,
+            expected,
+            expression.span,
+            true,
+          );
         if (expression.receiver.kind === "name") {
           const enumType = this.enumTypes.get(expression.receiver.name);
           if (enumType) {
@@ -337,6 +346,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         );
       }
       case "contextual-variant": {
+        if (expected && optionalInner(expected) !== undefined)
+          return this.checkOptionVariant(
+            expression.name,
+            undefined,
+            expected,
+            expression.span,
+            false,
+          );
         const nominal = expected ? nominalGenericParts(expected) : undefined;
         const declaration = expected && this.enumTypes.get(nominal?.name ?? expected);
         if (!declaration) {

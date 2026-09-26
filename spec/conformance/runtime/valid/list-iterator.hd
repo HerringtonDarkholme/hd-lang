@@ -5,10 +5,10 @@ test "list iterator yields values and remains exhausted":
     let iterator: mut Iterator[i32] = values.iter()
     let first: i32? = 20
     let second: i32? = 22
-    let exhausted: i32? = nil
+    let exhausted: i32? = .None
     assert(iterator.next() == first, reason="the first call yields the first value")
     assert(iterator.next() == second, reason="the second call yields the second value")
-    assert(iterator.next() == exhausted, reason="an exhausted iterator returns nil")
+    assert(iterator.next() == exhausted, reason="an exhausted iterator returns .None")
     assert(iterator.next() == exhausted, reason="an exhausted iterator remains exhausted")
 
 test "element replacement preserves an iterator and changes a later yield":

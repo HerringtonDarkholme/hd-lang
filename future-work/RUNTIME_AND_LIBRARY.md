@@ -358,7 +358,7 @@ responsibility. The accepted scope-exit syntax still permits this conceptual
 failure:
 
 ```text
-let global_file: File? = nil
+let global_file: File? = .None
 
 fn publish_file!() -> void:
     file := File::open("data.txt")

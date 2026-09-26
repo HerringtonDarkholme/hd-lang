@@ -144,7 +144,6 @@ const terminalPools: Readonly<Record<string, readonly string[]>> = {
     "self_value",
   ],
   integer_literal: ["0", "1", "2", "42", "2147483647", "2147483648", "1_000"],
-  nil_literal: ["nil"],
   raw_string_literal: ['r"raw\\n"'],
   string_expression: ['"text"', '""', '"a $x b"', '"${1 + 2}"', 'r"raw"', '"\\u{1F600}"'],
   string_literal: ['"text"', '""', '"a $x b"'],

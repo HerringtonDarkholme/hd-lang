@@ -507,7 +507,7 @@ let cache: WeakRef[Report] = WeakRef::empty()   # hypothetical type
 
 fn report!() -> Report $ Net:
     match cache.get():              # under (c) this read must be recorded
-        nil => fetch_report!()
+        .None => fetch_report!()
         r => r
 ```
 

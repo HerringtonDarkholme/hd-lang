@@ -6,6 +6,6 @@ test "equal present optionals pass assert_equal":
     assert_equal(left, right, reason="present payloads are equal")
 
 test "absent optionals pass assert_equal":
-    let left: string? = nil
-    let right: string? = nil
-    assert_equal(left, right, reason="nil equals nil")
+    let left: string? = .None
+    let right: string? = .None
+    assert_equal(left, right, reason=".None equals .None")

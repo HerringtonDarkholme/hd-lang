@@ -265,13 +265,17 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const finiteCoverage = Boolean(
       context.declaration || context.optional !== undefined || context.result || context.boolean,
     );
-    if (!context.catchAll && (!finiteCoverage || context.covered.size !== requiredCases)) {
+    const coveredCases =
+      context.optional !== undefined
+        ? [0, 1].filter((tag) => context.covered.has(tag)).length
+        : context.covered.size;
+    if (!context.catchAll && (!finiteCoverage || coveredCases !== requiredCases)) {
       const missing = context.declaration
         ? context.declaration.variants
             .filter((variant) => !context.covered.has(variant.tag))
             .map((variant) => variant.name)
         : context.optional !== undefined
-          ? [!context.covered.has(0) && "nil", !context.covered.has(1) && "present"].filter(Boolean)
+          ? [!context.covered.has(0) && ".None", !context.covered.has(1) && ".Some"].filter(Boolean)
           : context.result
             ? [!context.covered.has(0) && "Ok", !context.covered.has(1) && "Err"].filter(Boolean)
             : context.boolean
@@ -301,6 +305,96 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       type: context.resultType ?? "void",
       span: expression.span,
     };
+  }
+
+  /** Checks a `.Some(pattern)`, `.None`, or `Option.`-qualified arm on an optional subject. */
+  private checkOptionalArm(
+    pattern: Extract<MatchSourceArm["pattern"], { kind: "variant" }>,
+    context: MatchContext,
+    guarded: boolean,
+    bindings: MatchBinding[],
+    tests: MatchTest[],
+  ): number {
+    const optional = context.optional!;
+    if (pattern.variantName !== "Some" && pattern.variantName !== "None")
+      this.fail(
+        "unknown-variant",
+        `enum 'Option' has no variant '${pattern.variantName}'`,
+        pattern.span,
+      );
+    const payloadPatterns =
+      pattern.payloadPatterns ??
+      pattern.bindings.map((name) =>
+        name
+          ? { kind: "binding" as const, name, span: pattern.span }
+          : { kind: "wildcard" as const, span: pattern.span },
+      );
+    const some = pattern.variantName === "Some";
+    if (payloadPatterns.length !== (some ? 1 : 0))
+      this.fail(
+        "pattern-arity",
+        `variant '${pattern.variantName}' expects ${some ? 1 : 0} payload patterns`,
+        pattern.span,
+      );
+    const fieldName = pattern.bindingNames?.[0];
+    if (some && fieldName !== undefined && fieldName !== "value")
+      this.fail(
+        "unknown-data-field",
+        `variant 'Some' has no payload field '${fieldName}'`,
+        pattern.span,
+      );
+    const tag = some ? 1 : 0;
+    if (context.covered.has(tag))
+      this.fail(
+        "unreachable-match-arm",
+        `variant '${pattern.variantName}' is already covered`,
+        pattern.span,
+      );
+    let payloadRefutable = false;
+    if (some) {
+      const payloadPattern = payloadPatterns[0]!;
+      if (payloadPattern.kind === "binding") {
+        bindings.push({
+          local: this.addPatternLocal(payloadPattern.name, optional, payloadPattern.span),
+          fieldIndex: 0,
+          type: optional,
+        });
+      } else if (payloadPattern.kind !== "wildcard") {
+        payloadRefutable = !this.checkNestedPattern(
+          payloadPattern,
+          optional,
+          [
+            {
+              kind: "erased-variant",
+              typeIndex: -1,
+              fieldIndex: 0,
+              valueType: optional,
+            },
+          ],
+          bindings,
+          tests,
+        );
+        // `.Some(.None)` plus `.Some(.Some(_))` covers the present case of
+        // a nested optional; deeper payload coverage is not tracked.
+        const nested = payloadPattern.kind === "variant" ? payloadPattern : undefined;
+        const inner = nested ? (nested.payloadPatterns ?? [])[0] : undefined;
+        if (
+          !guarded &&
+          nested &&
+          optionalInner(optional) !== undefined &&
+          (nested.variantName === "None" ||
+            inner === undefined ||
+            inner.kind === "binding" ||
+            inner.kind === "wildcard")
+        ) {
+          context.covered.add(`some:${nested.variantName}`);
+          if (context.covered.has("some:None") && context.covered.has("some:Some"))
+            context.covered.add(1);
+        }
+      }
+    }
+    if (!guarded && !payloadRefutable) context.covered.add(tag);
+    return tag;
   }
 
   private checkMatchArm(arm: MatchSourceArm, context: MatchContext): void {
@@ -452,25 +546,12 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           );
         });
         if (!guarded && !payloadRefutable) context.covered.add(tag);
-      } else if (context.optional !== undefined && arm.pattern.kind === "nil") {
-        tag = 0;
-        if (context.covered.has(tag))
-          this.fail("unreachable-match-arm", "nil is already covered", arm.pattern.span);
-        if (!guarded) context.covered.add(tag);
-      } else if (context.optional !== undefined && arm.pattern.kind === "optional-present") {
-        tag = 1;
-        if (context.covered.has(tag))
-          this.fail(
-            "unreachable-match-arm",
-            "the present optional case is already covered",
-            arm.pattern.span,
-          );
-        if (!guarded) context.covered.add(tag);
-        bindings.push({
-          local: this.addPatternLocal(arm.pattern.name, context.optional, arm.pattern.span),
-          fieldIndex: 0,
-          type: context.optional,
-        });
+      } else if (
+        context.optional !== undefined &&
+        arm.pattern.kind === "variant" &&
+        (arm.pattern.enumName === undefined || arm.pattern.enumName === "Option")
+      ) {
+        tag = this.checkOptionalArm(arm.pattern, context, guarded, bindings, tests);
       } else if (context.result && arm.pattern.kind === "result-variant") {
         const ok = arm.pattern.variantName === "Ok";
         tag = ok ? 0 : 1;
@@ -529,6 +610,13 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         if (!guarded && !payloadRefutable) context.covered.add(tag);
       } else if (arm.pattern.kind === "wildcard" || arm.pattern.kind === "binding") {
         const bindingName = arm.pattern.kind === "binding" ? arm.pattern.name : undefined;
+        if (context.optional !== undefined && (bindingName === "Some" || bindingName === "None")) {
+          this.fail(
+            "bare-variant-pattern",
+            `bare variant '${bindingName}' must be written as '.${bindingName}' or 'Option.${bindingName}'`,
+            arm.pattern.span,
+          );
+        }
         if (
           context.declaration &&
           bindingName !== undefined &&
@@ -548,10 +636,15 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             type: context.subject.type,
           });
         }
-      } else if (arm.pattern.kind === "optional-present") {
+      } else if (
+        arm.pattern.kind === "variant" &&
+        arm.pattern.enumName === undefined &&
+        !context.declaration &&
+        !context.result
+      ) {
         this.fail(
-          "optional-pattern-requires-optional",
-          `the present pattern requires an optional subject, found '${context.subject.type}'`,
+          "missing-contextual-enum-type",
+          `variant pattern '.${arm.pattern.variantName}' requires an enum subject, found '${context.subject.type}'`,
           arm.pattern.span,
         );
       } else {

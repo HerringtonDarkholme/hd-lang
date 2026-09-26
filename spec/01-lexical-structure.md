@@ -241,7 +241,7 @@ intervenes. Members include data fields, embedded fields, enum variants and
 payload fields, trait and implementation methods, and function parameters.
 The lexer removes `##` and one following space when present, then joins lines
 with `\n`. The resulting string is exposed as the target shape's `doc` field;
-without an attached documentation comment, `doc` is `nil`. A trailing `##`
+without an attached documentation comment, `doc` is `.None`. A trailing `##`
 comment after source code is ordinary commentary and does not attach. An
 otherwise unattached documentation-comment line is a
 `doc-comment-without-target` lexical error.
@@ -328,8 +328,8 @@ The grammar uses these reserved words:
 Self      annotate  break     continue  data      defer
 else      enum      false     fn        for       if
 impl      in        is        let       match     mut
-nil       pass      pub       return    self      trait
-true      type      while
+pass      pub       return    self      trait     true
+type      while
 ```
 
 The following contextual words have special meaning only in fixed positions:
@@ -360,13 +360,14 @@ still applies.
 
 ## Literals
 
-### Boolean And Nil Literals
+### Boolean Literals
 
-`true` and `false` are boolean literals. `nil` is the empty optional literal.
+`true` and `false` are boolean literals. There is no literal for an absent
+optional; `nil` is an ordinary identifier, and absence is written with the
+enum variant `.None` ([Optional Types](04-type-system.md#optional-types)).
 
 ```ebnf
 boolean_literal = "true" | "false" ;
-nil_literal     = "nil" ;
 ```
 
 ### Integer Literals
@@ -569,7 +570,6 @@ token = identifier
       ;
 
 literal_token = boolean_literal
-        | nil_literal
         | float_literal
         | integer_literal
         | string_literal

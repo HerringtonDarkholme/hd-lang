@@ -10,8 +10,8 @@ fn through_generic() -> i32:
     boxed := pass_through(minimum)
     let maybe: i32? = boxed
     match maybe:
-        value? => pass_through(value)
-        nil => 0
+        .Some(value) => pass_through(value)
+        .None => 0
 
 test "i32 minimum survives a generic and an optional":
     assert_equal(through_generic(), -2147483648, reason="minimum survives a generic round trip and an optional unwrap")

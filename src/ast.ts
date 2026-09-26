@@ -172,8 +172,6 @@ export type Pattern =
   | { readonly kind: "float"; readonly value: number; readonly span: SourceSpan }
   | { readonly kind: "string"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
-  | { readonly kind: "nil"; readonly span: SourceSpan }
-  | { readonly kind: "optional-present"; readonly name: string; readonly span: SourceSpan }
   | { readonly kind: "binding"; readonly name: string; readonly span: SourceSpan }
   | {
       readonly kind: "data";
@@ -327,7 +325,6 @@ export type Expression =
     }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "boolean"; readonly value: boolean; readonly span: SourceSpan }
-  | { readonly kind: "nil"; readonly span: SourceSpan }
   | {
       readonly kind: "binding-expression";
       readonly bindings: readonly BindingName[];

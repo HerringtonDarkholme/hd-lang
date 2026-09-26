@@ -19,7 +19,6 @@ const reserved = new Set([
   "let",
   "match",
   "mut",
-  "nil",
   "pass",
   "pub",
   "return",
@@ -408,7 +407,6 @@ function endsOperand(previous: GrammarToken | undefined): boolean {
     "string_literal",
     "char_literal",
     "boolean_literal",
-    "nil_literal",
   ];
   return (
     operandKinds.some((kind) => previous.kinds.has(kind)) ||
@@ -454,7 +452,6 @@ const loopExpressionFollows = new Set([
 
 function wordKinds(word: string, source: string, end: number): ReadonlySet<string> {
   if (word === "true" || word === "false") return new Set([word, "boolean_literal"]);
-  if (word === "nil") return new Set([word, "nil_literal"]);
   if (reserved.has(word)) return new Set([word]);
   // `pack.map(` and `pack.map_list(` always form the pack operation, even when
   // a local named `pack` is in scope.

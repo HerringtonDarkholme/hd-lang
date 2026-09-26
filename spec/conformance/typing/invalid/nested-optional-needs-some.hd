@@ -1,0 +1,3 @@
+# test: the implicit wrap adds one layer only; a plain T is not a T??
+
+let nested: i32?? = 1  # diagnostic: type-mismatch

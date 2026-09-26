@@ -30,7 +30,7 @@ const COLORS: Readonly<Record<TokenClass, string>> = {
 };
 const RESET = "\u001b[0m";
 
-const LITERAL_WORDS = new Set(["true", "false", "nil", "self", "Self"]);
+const LITERAL_WORDS = new Set(["true", "false", "self", "Self"]);
 const PRIMITIVE_TYPES = new Set([
   "i8",
   "i16",

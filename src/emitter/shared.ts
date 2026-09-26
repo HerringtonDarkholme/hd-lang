@@ -17,6 +17,17 @@ export const indent = (text: string, spaces = 2): string => {
     .join("\n");
 };
 
+/**
+ * Match-test conjunction that evaluates `right` only when `left` holds: a later
+ * test may read an erased payload that exists only when earlier tags matched.
+ */
+export const andThen = (left: string, right: string): string =>
+  `(if (result i32) ${left} (then ${right}) (else (i32.const 0)))`;
+/** A match test's tag read; `-1` marks the erased optional/`Result` carrier. */
+export const matchTestTag = (enumIndex: number, value: string): string =>
+  enumIndex === -1
+    ? `(struct.get $hd.variant $hd.variant-tag ${value})`
+    : `(struct.get $e${enumIndex} $e${enumIndex}tag ${value})`;
 export const exportName = (name: string): string => JSON.stringify(name);
 export const functionName = (index: number): string => `$f${index}`;
 export const localName = (index: number): string => `$l${index}`;

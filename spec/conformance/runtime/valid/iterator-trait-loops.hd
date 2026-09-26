@@ -9,7 +9,7 @@ data Counter:
 impl Iterator[i32] for Counter:
     fn next(mut self) -> i32?:
         if self.current >= self.end:
-            return nil
+            return .None
         value := self.current
         self.current = self.current + 1
         value

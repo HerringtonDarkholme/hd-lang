@@ -26,7 +26,7 @@ fn rename(user: mut User, name: string) -> void:
 
 fn first[T](items: list[T]) -> T?:
     if items.len() == 0:
-        nil
+        .None
     else:
         items[0]
 

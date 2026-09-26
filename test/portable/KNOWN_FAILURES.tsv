@@ -35,7 +35,7 @@ typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 in
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
 typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
-typing/invalid/nil-to-any.hd	MVP reports unknown-type at line 2 instead of nil-to-nonoptional: unknown or unsupported type 'Any'	F-255
+typing/invalid/none-to-any.hd	MVP reports unknown-type at line 1 instead of missing-contextual-enum-type: unknown or unsupported type 'Any'	F-255
 typing/invalid/local-impl-nonlocal-pair.hd	MVP reports expected-expression at line 9 instead of local-impl-nonlocal-pair: expected an expression, found 'impl'	F-254
 typing/invalid/variance-position.hd	MVP reports expected-token at line 2 instead of invalid-variance: expected a generic data parameter	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
@@ -123,3 +123,5 @@ typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at li
 parse/invalid/annotate-list-literal-facet.hd	parse reports expected-expression at line 9 instead of syntax-error: the prototype has no annotate declarations	GQ11
 parse/valid/annotate-generic-parameters-before-facet.hd	parse fails: expected-expression at line 10: the prototype has no annotate declarations	GQ11
 parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 9: the prototype has no annotate declarations	GQ14
+runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type i64 (sized numeric types unimplemented); the TQ-4 literal-default preference is implemented but needs a second integer or float type to exercise	F-253
+typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type i64 and u8 (sized numeric types unimplemented) instead of ambiguous-method	F-253

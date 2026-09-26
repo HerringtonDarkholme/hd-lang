@@ -401,7 +401,7 @@ a reachable ambiguity (GR-06, fixed).
 ### Net effect
 
 After K1 to K3 the set had 31 words. Q17 removed `reified`, `super`, `as`,
-and `use`; Q16 kept `type` and `data`. The set now has 27 words.
+and `use`, and Q16 kept `type` and `data`.
 
 ### Grammar facts for prefix `!` (K3)
 

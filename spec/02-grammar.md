@@ -696,7 +696,6 @@ grouped_binding_expression = "(", identifier, ",", identifier,
                              binding_expression, ")" ;
 
 literal = boolean_literal
-        | nil_literal
         | float_literal
         | integer_literal
         | char_literal
@@ -787,6 +786,10 @@ place ([List And Map Expressions](05-expressions.md#list-and-map-expressions)).
 Spreads follow one rule: a prefix `...` copies named members, in copy-update
 and provider-context entries, and a suffix `...` expands positional elements,
 in arguments, list elements, tuple elements, and pack expansions.
+A `::` member reference must be called: `Type::name` without an argument
+clause is not an expression. It is reserved for method values, and an
+implementation reports it as `deferred-method-value`
+([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
 
 ### Calls And Arguments
 
@@ -926,7 +929,6 @@ rules, not separate grammar productions.
 ```ebnf
 pattern = "_"
         | literal_pattern
-        | optional_pattern
         | binding_pattern_atom
         | variant_pattern
         | data_pattern
@@ -934,14 +936,12 @@ pattern = "_"
         ;
 
 literal_pattern = boolean_literal
-                | nil_literal
                 | [ "-" ], ( integer_literal | float_literal )
                 | string_literal
                 | char_literal
                 ;
 
 binding_pattern_atom = identifier ;
-optional_pattern = binding_pattern_atom, "?" ;
 
 variant_pattern = qualified_variant_name, [ pattern_argument_clause ]
                 | ".", identifier, [ pattern_argument_clause ]

@@ -3,7 +3,7 @@ fn first_large(values: list[i32]) -> i32?:
         if value > 100:
             break value
     else:
-        nil
+        .None
 
 fn label(score: i32) -> string:
     if score >= 90:
@@ -20,4 +20,4 @@ fn first_prefix(names: list[string], prefix: string) -> string?:
             break names[index]
         index = index + 1
     else:
-        nil
+        .None

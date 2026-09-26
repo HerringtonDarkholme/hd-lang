@@ -59,7 +59,7 @@ Without a unique expected enum type, `.Variant` is a type error.
 
 ### Literals
 
-Boolean, integer, floating-point, string, character, and `nil` literals are
+Boolean, integer, floating-point, string, and character literals are
 defined lexically in [Lexical Structure](01-lexical-structure.md) and typed in
 [Type System](04-type-system.md).
 
@@ -199,11 +199,15 @@ method call: member lookup selects a method, which is called with `value` as
 its receiver. A method call never reads a field. A function stored in a field
 is called by parenthesizing the field read, as in `(handler.callback)(event)`;
 `handler.callback(event)` looks for a method named `callback` and is an
-`unknown-method` error when there is none. Field and method lookup, including
-promoted members, are defined in
-[Member Resolution](03-names-and-scopes.md#member-resolution). Whether a
-bare `value.method` can form a bound function value is deferred; explicit
-closures can adapt method calls where a function value is needed.
+`unknown-method` error when there is none; when a field named `callback`
+exists, the message should suggest `(handler.callback)(event)`. Field and
+method lookup, including promoted members, are defined in
+[Member Resolution](03-names-and-scopes.md#member-resolution). A method is
+not a value: `value.method` without an argument clause is a field read.
+Method values are deferred, and their future spellings `Type::name` and
+`value::name` are reserved and diagnosed
+([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
+Explicit closures can adapt method calls where a function value is needed.
 
 Member access through a readonly data root weakens a direct `mut U` field to
 `U`, but does not weaken a generic field's substituted type. Other member
@@ -221,7 +225,7 @@ panic. Reading a list element yields its declared generic type `T`, including
 `items[index] = value` still requires a mutable list root and an in-range index.
 
 For `map[K, V]`, the index must have type `K`. Reading `entries[key]` returns
-`V?`: `nil` means no equal key exists. The generic `V` is preserved through a
+`V?`: `.None` means no equal key exists. The generic `V` is preserved through a
 readonly map, including `mut U` when `V = mut U`; unwrapping the optional
 returns `V`. Assigning
 `entries[key] = value` requires `mut map[K, V]` and inserts or replaces the
@@ -275,8 +279,8 @@ arguments are evaluated left to right before the child begins execution.
 
 Postfix `?` handles either an optional or a `Result` value:
 
-- for `T?`, a present value produces `T`; `nil` immediately returns `nil` from
-  the nearest function;
+- for `T?`, `.Some(value)` produces `value` as `T`; `.None` immediately
+  returns `.None` from the nearest function;
 - for `Result[T, E]`, `Ok(value)` produces the declared `T`, including a
   mutable type argument; `Err(error)` immediately returns a compatible `Err`
   from the nearest function.
@@ -383,7 +387,7 @@ Function and closure values do not implement `PartialEq`; applying `==` or
 `<`, `<=`, `>`, and `>=` use `PartialOrd.partial_cmp`. The standard library
 implements it for compatible numeric values, characters by Unicode scalar
 value, strings lexicographically by scalar value, tuples and lists
-lexicographically, and optionals with `nil` before every present value.
+lexicographically, and optionals with `.None` before every present value.
 Composite ordering is available when the corresponding elements implement the
 comparison trait, and it stops at the first unequal or unordered element.
 Users can implement comparison traits for their own types. `Ord` is the total-order refinement; floating-point
@@ -407,8 +411,8 @@ have the same identity, and constructing one allocates nothing. An enum
 variant that carries shared constructor data stores that data, so each
 construction has its own allocation identity even when the variant has no
 payload of its own. Tuples have no identity and using `is`
-with a tuple is rejected even if it contains references. Primitive values,
-`nil`, and optional values likewise cannot be compared with `is`. Both operands
+with a tuple is rejected even if it contains references. Primitive values and
+optional values, including `.None`, likewise cannot be compared with `is`. Both operands
 must otherwise have compatible composite reference types: after removing
 `mut` at every level, the two types are equal, or one is a trait value or
 `Any` type that the other converts to. Permissions never affect identity, so

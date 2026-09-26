@@ -96,7 +96,7 @@ trait Iterator[T]:
 ```
 
 An ordinary iterable creates an independent mutable iterator on every `iter()`
-call. The iterator stores traversal progress and `next` returns `nil` after
+call. The iterator stores traversal progress and `next` returns `.None` after
 exhaustion.
 
 `for` accepts a value of either protocol. When the iterable expression's type
@@ -162,7 +162,7 @@ found := for value in values:
     if value > 100:
         break value
 else:
-    nil
+    .None
 ```
 
 - `break value` terminates the loop and supplies its value.
@@ -197,16 +197,16 @@ type when the match value is used. Without an expected type, that type is the
 
 A match must be exhaustive. Coverage is checked as follows:
 
-- a nominal enum requires every inhabitable variant, accounting for payload
-  constraints, or a catch-all pattern;
+- a nominal enum, including `Option[T]` (written `T?`), requires every
+  inhabitable variant, accounting for payload constraints, or a catch-all
+  pattern;
 - `bool` is covered by both `true` and `false`, or by a catch-all pattern;
 - a tuple pattern covers the tuple values covered recursively by its element
   patterns;
 - a data pattern covers its nominal data type when every listed field pattern
   is irrefutable, while unlisted fields are unconstrained; and
-- an optional is covered by `nil` plus an unguarded present-value pattern,
-  or by a catch-all; integer, floating-point, `char`, `string`, and other value
-  spaces require an irrefutable catch-all after any literal cases.
+- integer, floating-point, `char`, `string`, and other value spaces require an
+  irrefutable catch-all after any literal cases.
 
 A guarded arm contributes no coverage to exhaustiveness, even when its pattern
 would be irrefutable without the guard. A later unguarded arm must cover its
@@ -219,14 +219,16 @@ unguarded arm is unreachable.
 If a bare identifier resolves to a variant of the subject enum, it is a
 `bare-variant-pattern` error rather than a new catch-all binding; write
 `.Variant` or a qualified variant name.
-For a subject of type `T?`, `value?` matches only the present case and binds
-`value` as `T`; `nil` matches only absence. The suffix `?` in a pattern does
-not propagate or unwrap an expression. It may also appear in a nested pattern
-whose expected type is optional. A bare `value` still binds the entire `T?`,
-including `nil`. Matching `T??` with `value?` removes only the outer optional
-layer, so `value` has type `T?`.
-Using a present-value pattern where the expected subject or nested payload type
-is not optional is an `optional-pattern-requires-optional` error.
+An optional is matched like any other enum. For a subject of type `T?`,
+`.Some(value)` matches only the present case and binds `value` as `T`, and
+`.None` matches only absence; `Option.Some(value)` and `Option.None` are the
+qualified forms. A bare `value` binds the entire `T?`, and a bare `None` is a
+`bare-variant-pattern` error. Matching `T??` with `.Some(value)` removes only
+the outer layer, so `value` has type `T?`; `.Some(.Some(value))` reaches the
+inner value. There is no optional-specific pattern: `value?` is not a pattern.
+A `.Variant` pattern whose expected subject or nested payload type is not an
+enum is a `missing-contextual-enum-type` error; for example, `.Some(value)`
+against an `i32` subject.
 An unguarded irrefutable catch-all must be the final arm because every later
 arm would be unreachable. Duplicate unguarded literals, duplicate fully
 covered variants, arms after an unguarded catch-all, and other statically

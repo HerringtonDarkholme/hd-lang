@@ -431,7 +431,7 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
   if (type === "char") return ["\"'$value'\""];
   if (type.endsWith("?")) {
     const inner = nameFor(type.slice(0, -1));
-    return ["match value:", `    present? => ${inner}(present)`, '    nil => "nil"'];
+    return ["match value:", `    .Some(present) => ${inner}(present)`, '    .None => ".None"'];
   }
   const generic = splitGeneric(type);
   if (generic?.name === "list" && generic.arguments.length === 1) {

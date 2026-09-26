@@ -77,8 +77,10 @@ test("REPL values render structurally with their types", async () => {
     const outcome = await session.evaluate(input);
     assert.deepEqual([outcome.value, outcome.type, outcome.errors], [value, type, []], input);
   }
-  await session.evaluate("let maybe: i32? = nil");
-  assert.equal((await session.evaluate("maybe")).value, "nil");
+  await session.evaluate("let maybe: i32? = .None");
+  assert.equal((await session.evaluate("maybe")).value, ".None");
+  await session.evaluate("let present: Option[i32] = .Some(3)");
+  assert.equal((await session.evaluate("present")).value, "3");
 });
 
 test("REPL rejects invalid inputs without changing the session", async () => {
@@ -138,7 +140,8 @@ test("syntax coloring classifies hd tokens and keeps the text", () => {
   assert.equal(kinds.get("1"), "number");
   assert.equal(kinds.get("# note"), "comment");
   assert.equal(kinds.get("nil"), undefined);
-  assert.equal(classify("x := nil").find(({ text }) => text === "nil")?.kind, "literal");
+  // `nil` is no longer a literal word; absence is the variant `.None`.
+  assert.notEqual(classify("x := nil").find(({ text }) => text === "nil")?.kind, "literal");
   // Partial input colors to the end of the line instead of failing.
   assert.equal(
     classify('"open ${a')

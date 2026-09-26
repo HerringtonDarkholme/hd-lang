@@ -71,7 +71,6 @@ export const KEYWORDS = new Set([
   "let",
   "match",
   "mut",
-  "nil",
   "pass",
   "pub",
   "return",

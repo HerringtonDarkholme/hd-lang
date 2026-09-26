@@ -1,0 +1,32 @@
+# test: when instantiations fit only through a numeric literal, the literal's default type wins
+use std.testing.assert_equal
+
+trait Combine[T]:
+    fn combine(self, other: T) -> string
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> string:
+        "i32"
+
+impl Combine[i64] for Money:
+    fn combine(self, other: i64) -> string:
+        "i64"
+
+impl Combine[f32] for Money:
+    fn combine(self, other: f32) -> string:
+        "f32"
+
+impl Combine[f64] for Money:
+    fn combine(self, other: f64) -> string:
+        "f64"
+
+test "integer literals prefer i32 and float literals prefer f64":
+    price := Money { cents: 10 }
+    let wide: i64 = 5
+    assert_equal(price.combine(5), "i32", reason="an integer literal defaults to i32")
+    assert_equal(price.combine(-5), "i32", reason="a negated integer literal defaults to i32")
+    assert_equal(price.combine(2.5), "f64", reason="a float literal defaults to f64")
+    assert_equal(price.combine(wide), "i64", reason="a typed argument still selects exactly")

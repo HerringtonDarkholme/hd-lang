@@ -22,8 +22,8 @@ test "negative zero equals zero but keeps its sign":
     assert(1.0 / kept < 0.0, reason="division observes the sign bit")
     let maybe: f64? = negative
     match maybe:
-        value? => assert_equal("${1.0 / value}", "-inf", reason="optional payload keeps the sign")
-        nil => panic("optional lost its payload")
+        .Some(value) => assert_equal("${1.0 / value}", "-inf", reason="optional payload keeps the sign")
+        .None => panic("optional lost its payload")
 
 test "infinities survive erasure":
     positive := 1.0 / 0.0
@@ -36,5 +36,5 @@ test "infinities survive erasure":
     assert(values[0] > values[1], reason="list elements keep their values")
     lookup := {"high": positive}
     match lookup["high"]:
-        value? => assert(value == positive, reason="map values keep inf")
-        nil => panic("map lost its value")
+        .Some(value) => assert(value == positive, reason="map values keep inf")
+        .None => panic("map lost its value")

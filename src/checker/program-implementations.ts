@@ -398,6 +398,16 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       });
       continue;
     }
+    // 09 Implementation Targets: a trait value type is never a target.
+    const targetBase = nominalGenericParts(implementation.targetName)?.name;
+    if (traitTypes.has(targetBase ?? implementation.targetName)) {
+      diagnostics.push({
+        code: "trait-value-impl-target",
+        message: `implementation target '${implementation.targetName}' is a trait value type; implement the trait for concrete types instead`,
+        span: implementation.span,
+      });
+      continue;
+    }
     const specialization = specializeTrait(implementation, trait, context);
     if (!specialization) continue;
     const traitArguments = specialization.arguments;

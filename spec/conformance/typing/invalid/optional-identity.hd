@@ -7,5 +7,5 @@ fn optional_identity(left: User?, right: User?) -> bool:
 
 fn unwrapped_identity(left: User?, right: User) -> bool:
     match left:
-        value? => value is right
-        nil => false
+        .Some(value) => value is right
+        .None => false

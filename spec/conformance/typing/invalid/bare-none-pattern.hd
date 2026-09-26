@@ -1,0 +1,6 @@
+# test: a bare None pattern names a variant of Option and must be written .None
+
+fn value_or_zero(value: i32?) -> i32:
+    match value:
+        .Some(number) => number
+        None => 0  # diagnostic: bare-variant-pattern

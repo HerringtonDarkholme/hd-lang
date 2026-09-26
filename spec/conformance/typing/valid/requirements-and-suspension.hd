@@ -24,7 +24,7 @@ data ConsoleLogger: pass
 
 impl Database for MockDatabase:
     fn get_user!(self, id: string) -> Result[User?, DbError]:
-        Ok(nil)
+        Ok(.None)
 
 impl Logger for ConsoleLogger:
     fn write(self, message: string) -> void: pass

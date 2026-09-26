@@ -5,10 +5,10 @@ test "map iterator yields entries in insertion order":
     let iterator: mut Iterator[(string, i32)] = values.iter()
     let first: (string, i32)? = ("first", 1)
     let second: (string, i32)? = ("second", 2)
-    let exhausted: (string, i32)? = nil
+    let exhausted: (string, i32)? = .None
     assert(iterator.next() == first, reason="the first entry preserves insertion order")
     assert(iterator.next() == second, reason="the second entry preserves insertion order")
-    assert(iterator.next() == exhausted, reason="the exhausted map iterator returns nil")
+    assert(iterator.next() == exhausted, reason="the exhausted map iterator returns .None")
 
 test "map value replacement preserves an iterator and changes a later yield":
     let values: mut map[string, i32] = {"first": 1, "second": 2}
