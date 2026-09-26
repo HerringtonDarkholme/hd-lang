@@ -189,6 +189,12 @@ read it, so prefer explicit, checkable rules and locality.
   reopens the topic: declared-and-checked propagation (TQ-24), opt-in
   generic parameters (TQ-25), no NonEscapable returns (TQ-26).
 
+- **TQ-30, not yet applied.** `Store[User]` and `Store[mut User]` are
+  distinct trait instantiations; only the outer `mut` of a target is banned.
+- **TY-13, not yet applied.** A trait's default method body sees only the
+  trait's members and its supertraits' members; `Self`'s fields are not
+  accessible there.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
