@@ -228,6 +228,16 @@ read it, so prefer explicit, checkable rules and locality.
   variance. (F) Only construction, copy-update, and assignment copy parts;
   reading, pattern destructuring, and passing the outer value never copy.
 
+- **Explicit copy syntax for embedded parts (VE-S), decided.** Every copy
+  into an embedded part is written with `...`: construction
+  `Post { user: a, Timestamps: ...ts }`, and assignment
+  `p.Timestamps ...= ts` (a new compound-assignment token). The plain forms
+  `Timestamps: ts` and `p.Timestamps = ts` are errors that suggest the `...`
+  form. `...` is required even for a fresh literal
+  (`Timestamps: ...Timestamps { created_at: 1 }`). Copy-update keeps its
+  existing `Post { ...p, title: x }` form. A prefix `...` therefore always
+  means "copy named members".
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
