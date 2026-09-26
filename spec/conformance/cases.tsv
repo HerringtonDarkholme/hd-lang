@@ -872,7 +872,7 @@ parse/invalid/colon-generic-bound.hd	parse	reject:syntax-error	02-grammar.md#gen
 parse/invalid/colon-supertrait.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
 runtime/valid/qualified-calls-beside-promoted-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/trait-method-beside-promoted-method.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
-typing/invalid/trait-method-beside-blocking-embedded-type.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
+typing/valid/own-trait-method-beside-part-trait.hd	type	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/outer-field-beside-embedded-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/invisible-outer-method-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/unavailable-trait-method-invisible.hd	runtime	accept	03-names-and-scopes.md#member-resolution
@@ -880,9 +880,9 @@ typing/invalid/unavailable-trait-method-not-found.hd	type	reject:unknown-method	
 typing/invalid/available-trait-method-beside-promoted.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
 runtime/valid/available-trait-method-across-packages.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/depth-two-promotion.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/same-depth-promotion-clash.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/same-depth-promotion-conflict.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
 runtime/valid/shorter-promotion-path-wins.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/embedded-trait-method-not-promoted.hd	type	reject:embedded-trait-method-not-promoted	09-traits.md#embedding-and-trait-satisfaction
+typing/invalid/part-trait-method-not-promoted.hd	type	reject:unknown-method	09-traits.md#embedding-and-trait-satisfaction
 typing/invalid/bodyless-impl-via-promotion.hd	type	reject:missing-trait-method	09-traits.md#embedding-and-trait-satisfaction
 typing/invalid/promoted-mut-self-method.hd	type	reject:mutable-receiver-required	03-names-and-scopes.md#member-resolution
 runtime/valid/function-typed-field-call.hd	runtime	accept	05-expressions.md#member-access
@@ -901,8 +901,8 @@ runtime/valid/field-and-trait-method-share-name.hd	runtime	accept	03-names-and-s
 typing/invalid/function-typed-field-method-call.hd	type	reject:unknown-method	05-expressions.md#member-access
 typing/invalid/embedded-field-not-called.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
 runtime/valid/invisible-outer-field-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/embedded-trait-method-stops-search.hd	type	reject:embedded-trait-method-not-promoted	03-names-and-scopes.md#member-resolution
-typing/invalid/embedded-trait-method-beside-inherent.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/valid/part-trait-method-ignored-by-lookup.hd	type	accept	03-names-and-scopes.md#member-resolution
+typing/valid/part-trait-method-beside-promoted-inherent.hd	type	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/embedded-trait-method-via-part.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/promoted-method-no-override.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/generic-trait-instantiation-by-argument.hd	runtime	accept	09-traits.md#method-resolution
@@ -984,3 +984,10 @@ typing/invalid/embedded-assignment-copy-required.hd	type	reject:embedded-copy-re
 typing/invalid/copy-into-ordinary-field.hd	type	reject:copy-into-ordinary-field	08-data-and-enums.md#data-embedding
 typing/invalid/copy-assignment-ordinary-field.hd	type	reject:copy-into-ordinary-field	08-data-and-enums.md#data-embedding
 parse/valid/embedded-copy-syntax.hd	parse	accept	02-grammar.md#primary-expressions
+typing/invalid/promoted-field-conflict-at-declaration.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/promoted-method-conflict-at-declaration.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/diamond-same-depth-conflict.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/valid/diamond-different-depths.hd	type	accept	03-names-and-scopes.md#member-resolution
+runtime/valid/diamond-shallower-copy-wins.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+typing/valid/own-member-hides-promoted-conflict.hd	type	accept	03-names-and-scopes.md#member-resolution
+typing/invalid/public-view-promoted-conflict.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution

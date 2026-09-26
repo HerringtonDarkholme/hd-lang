@@ -28,6 +28,17 @@ type MemberSelection =
   | { readonly kind: "trait" }
   | { readonly kind: "none" };
 
+/** A part reached through embedded fields, at its depth (spec 03 Member Resolution). */
+interface EmbeddedPart {
+  readonly depth: number;
+  readonly declaration: HirData;
+  readonly type: ValueType;
+  readonly substitutions: ReadonlyMap<string, ValueType>;
+  readonly steps: readonly MemberStep[];
+}
+
+type PromotedSelection = Extract<MemberSelection, { readonly kind: "field" | "inherent" }>;
+
 const MAX_EMBEDDING_DEPTH = 64;
 
 /**
@@ -137,20 +148,16 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   /**
    * Spec 03 Member Resolution. `x.name` uses field lookup and `x.name(args)`
-   * uses method lookup; the two namespaces never interact (M2). Field lookup
-   * checks the receiver's own fields first, method lookup its own inherent
-   * methods; embedded fields are then searched breadth first. Embedded types
-   * offer fields to field lookup and inherent methods to method lookup. Their
-   * trait methods are never selected, but an embedded type that has `name`
-   * only through an available trait blocks the search at its depth (TQ-31
-   * revised). The receiver's available trait methods are candidates beside
-   * the embedded search: a trait candidate beside a promoted method or a
-   * blocking type is `ambiguous-method` (Rust-style trait lookup). An
-   * unavailable trait is invisible. Members that are not visible are skipped
-   * (P2). An
-   * invisible member of an embedded type is ignored entirely; only an
-   * invisible own member of the receiver's type is reported, and only when
-   * nothing visible matches.
+   * uses method lookup; the two namespaces never interact (M2). Own fields and
+   * inherent methods are at depth 0 and each part's fields and inherent
+   * methods at its depth; the shallowest member with a name hides deeper ones.
+   * Two members at the smallest depth are rejected at the data declaration
+   * (`program-embedding.ts`), so lookup meets at most one. Parts' trait
+   * methods are ignored. The receiver's available trait methods are
+   * candidates beside the promoted method: both at once are `ambiguous-method`
+   * (Rust-style trait lookup, TQ-36). An unavailable trait is invisible.
+   * Members that are not visible are skipped (P2); only an invisible own
+   * member of the receiver's type is reported, and only when nothing matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -158,6 +165,40 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   protected selectMethod(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, true);
+  }
+
+  /** The parts of `declaration` in order of depth, each with its embedded-field path. */
+  private *embeddedParts(
+    declaration: HirData,
+    substitutions: ReadonlyMap<string, ValueType>,
+  ): Generator<EmbeddedPart> {
+    let frontier: EmbeddedPart[] = [
+      { depth: 0, declaration, type: declaration.name, substitutions, steps: [] },
+    ];
+    for (let depth = 1; depth <= MAX_EMBEDDING_DEPTH && frontier.length > 0; depth += 1) {
+      const next: EmbeddedPart[] = [];
+      for (const node of frontier) {
+        for (const embedded of node.declaration.fields) {
+          if (!embedded.embedded) continue;
+          const type = readonlyType(substituteGenericType(embedded.type, node.substitutions));
+          const partDeclaration = this.dataTypes.get(nominalGenericParts(type)?.name ?? type);
+          if (!partDeclaration) continue;
+          const part: EmbeddedPart = {
+            depth,
+            declaration: partDeclaration,
+            type,
+            substitutions: this.dataSubstitutions(partDeclaration, type),
+            steps: [
+              ...node.steps,
+              { declaration: node.declaration, field: embedded, substitutions: node.substitutions },
+            ],
+          };
+          yield part;
+          next.push(part);
+        }
+      }
+      frontier = next;
+    }
   }
 
   private selectMember(
@@ -190,100 +231,26 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
       if (field) ownInvisible = true;
     }
-    if (!declaration) return traitCandidate ? { kind: "trait" } : { kind: "none" };
-    let frontier: {
-      declaration: HirData;
-      substitutions: ReadonlyMap<string, ValueType>;
-      steps: readonly MemberStep[];
-    }[] = [{ declaration, substitutions, steps: [] }];
-    for (let depth = 1; depth <= MAX_EMBEDDING_DEPTH && frontier.length > 0; depth += 1) {
-      const next: typeof frontier = [];
-      const matches: MemberSelection[] = [];
-      // Embedded types at this depth that have `name` only through a trait.
-      const blockers: { readonly steps: readonly MemberStep[]; readonly trait: string }[] = [];
-      for (const node of frontier) {
-        for (const embedded of node.declaration.fields) {
-          if (!embedded.embedded) continue;
-          const embeddedType = readonlyType(
-            substituteGenericType(embedded.type, node.substitutions),
-          );
-          const embeddedNominal = nominalGenericParts(embeddedType);
-          const embeddedDeclaration = this.dataTypes.get(embeddedNominal?.name ?? embeddedType);
-          if (!embeddedDeclaration) continue;
-          const steps = [
-            ...node.steps,
-            { declaration: node.declaration, field: embedded, substitutions: node.substitutions },
-          ];
-          const embeddedSubstitutions = this.dataSubstitutions(embeddedDeclaration, embeddedType);
-          if (method) {
-            const promotedMethod = this.findInherentMethod(embeddedType, name);
-            // An invisible inherent method of an embedded type is ignored entirely.
-            if (promotedMethod && this.memberVisible(promotedMethod))
-              matches.push({ kind: "inherent", steps, method: promotedMethod });
-            else {
-              const trait = this.traitWithMember(embeddedType, name);
-              if (trait) blockers.push({ steps, trait });
-            }
-          } else {
-            const promotedField = embeddedDeclaration.fields.find(
-              (candidate) => candidate.name === name,
-            );
-            // An invisible field of an embedded type is ignored entirely.
-            if (promotedField && this.memberVisible(promotedField))
-              matches.push({
-                kind: "field",
-                steps,
-                final: {
-                  declaration: embeddedDeclaration,
-                  field: promotedField,
-                  substitutions: embeddedSubstitutions,
-                },
-              });
-          }
-          next.push({
-            declaration: embeddedDeclaration,
-            substitutions: embeddedSubstitutions,
-            steps,
-          });
-        }
-      }
-      if (traitCandidate && (matches.length > 0 || blockers.length > 0)) {
-        const first = matches[0]?.kind === "inherent" ? matches[0] : blockers[0]!;
-        const path = first.steps.map((step) => step.field.name).join(".");
-        const other =
-          matches.length > 0
-            ? `a method promoted from the embedded field '${path}'`
-            : `a ${blockers[0]!.trait} method of the embedded field '${path}'`;
-        this.fail(
-          "ambiguous-method",
-          `'${name}' is a ${traitCandidate} method of this type and also ${other}; call it as ${traitCandidate}::${name}(x, ...) or x.${path}.${name}(...)`,
-          span,
-        );
-      }
-      if (matches.length > 1)
-        this.fail(
-          "ambiguous-promoted-member",
-          `'${name}' is promoted by ${matches.length} embedded paths at depth ${depth}; qualify it through an embedded field`,
-          span,
-        );
-      if (matches.length === 1 && blockers.length > 0)
-        this.fail(
-          "ambiguous-promoted-member",
-          `'${name}' is an inherent method of one embedded type and a ${blockers[0]!.trait} method of another at depth ${depth}; qualify it through an embedded field`,
-          span,
-        );
-      if (matches.length === 1) return matches[0]!;
-      if (blockers.length > 0) {
-        const { steps, trait } = blockers[0]!;
-        const path = steps.map((step) => step.field.name).join(".");
-        this.fail(
-          "embedded-trait-method-not-promoted",
-          `'${name}' is a ${trait} method of the embedded field '${path}', and trait methods are not promoted; call it as 'x.${path}.${name}(...)'`,
-          span,
-        );
-      }
-      frontier = next;
+    const promoted = declaration
+      ? this.promotedMember(declaration, substitutions, name, method)
+      : [];
+    if (promoted.length > 1)
+      // Unreachable after the declaration check; kept so lookup never guesses.
+      this.fail(
+        "ambiguous-promoted-member",
+        `'${name}' is promoted by ${promoted.length} embedded paths at one depth; qualify it through an embedded field`,
+        span,
+      );
+    const selected = promoted[0];
+    if (selected && traitCandidate) {
+      const path = selected.steps.map((step) => step.field.name).join(".");
+      this.fail(
+        "ambiguous-method",
+        `'${name}' is a ${traitCandidate} method of this type and also a method promoted from the embedded field '${path}'; call it as ${traitCandidate}::${name}(x, ...) or x.${path}.${name}(...)`,
+        span,
+      );
     }
+    if (selected) return selected;
     if (traitCandidate) return { kind: "trait" };
     if (ownInvisible)
       this.fail(
@@ -292,6 +259,55 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         span,
       );
     return { kind: "none" };
+  }
+
+  /** The visible promoted members named `name` at the smallest depth that has one. */
+  private promotedMember(
+    declaration: HirData,
+    substitutions: ReadonlyMap<string, ValueType>,
+    name: string,
+    method: boolean,
+  ): PromotedSelection[] {
+    const matches: PromotedSelection[] = [];
+    let matchDepth: number | undefined;
+    for (const part of this.embeddedParts(declaration, substitutions)) {
+      if (matchDepth !== undefined && part.depth > matchDepth) break;
+      if (method) {
+        const promotedMethod = this.findInherentMethod(part.type, name);
+        // An invisible inherent method of an embedded type is ignored entirely.
+        if (promotedMethod && this.memberVisible(promotedMethod))
+          matches.push({ kind: "inherent", steps: part.steps, method: promotedMethod });
+      } else {
+        const promotedField = part.declaration.fields.find((candidate) => candidate.name === name);
+        // An invisible field of an embedded type is ignored entirely.
+        if (promotedField && this.memberVisible(promotedField))
+          matches.push({
+            kind: "field",
+            steps: part.steps,
+            final: {
+              declaration: part.declaration,
+              field: promotedField,
+              substitutions: part.substitutions,
+            },
+          });
+      }
+      if (matches.length > 0) matchDepth = part.depth;
+    }
+    return matches;
+  }
+
+  /**
+   * The embedded-field path of the shallowest part whose type has a trait
+   * method `name`, for the `x.Part.name(args)` hint of `unknown-method`.
+   */
+  protected embeddedTraitMethodPath(receiverType: ValueType, name: string): string | undefined {
+    const type = readonlyType(receiverType);
+    const declaration = this.dataTypes.get(nominalGenericParts(type)?.name ?? type);
+    if (!declaration) return undefined;
+    for (const part of this.embeddedParts(declaration, this.dataSubstitutions(declaration, type)))
+      if (this.traitWithMember(part.type, name))
+        return part.steps.map((step) => step.field.name).join(".");
+    return undefined;
   }
 
   /** Whether field lookup would find `name`, for the `(x.name)(args)` hint. */

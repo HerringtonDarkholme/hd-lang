@@ -1,0 +1,11 @@
+# test: two embedded types with a field of one name conflict at the outer declaration, whether or not the field is used
+data CreatedBySystem:
+    id: string
+
+data CreatedByUser:
+    id: string
+
+data AuditRecord:
+    CreatedBySystem
+    CreatedByUser  # diagnostic: ambiguous-promoted-member
+    note: string

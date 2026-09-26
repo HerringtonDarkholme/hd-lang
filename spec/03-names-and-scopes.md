@@ -367,137 +367,148 @@ the rest of the specification refers to it.
 - `x.name(args)` uses method lookup only. It never selects a field. A
   function stored in a field is called as `(x.name)(args)`.
 
-A field or inherent method is **visible** from the calling module when it is
-declared in that module or marked `pub`
+A field or inherent method is **visible** from a module when it is declared
+in that module or marked `pub`
 ([Data Declarations](08-data-and-enums.md#data-declarations),
 [Inherent Implementations](09-traits.md#inherent-implementations)). A trait
 method is **available** when its trait is available to dot-call lookup there
-([Method Resolution](09-traits.md#method-resolution)). Both lookups search
-embedded fields the same way. An embedded field of `S` is at depth 1, an
-embedded field of that field's type is at depth 2, and so on. Embedded fields
-are always public
+([Method Resolution](09-traits.md#method-resolution)). Embedded fields are
+always public
 ([Data Declarations](08-data-and-enums.md#data-declarations)), so the path
 to a promoted member never affects its visibility: only the member's own
 visibility matters.
 
-Lookup **skips** a field or inherent method that is not visible, as if it
-were absent, and keeps searching. It never stops at an invisible member. An
-invisible member of an embedded type is ignored entirely: it neither matches
-nor leads to an error. Only an invisible own member of `S` is ever reported,
-and only when nothing visible is found. Inside the defining module every
-member is visible, so a private own member hides a promoted one there; in
-another module, the same use reaches the visible promoted member. Adding a
-private member therefore never changes or breaks a use in another module.
-This is privacy-aware lookup as in Rust, and matches Go, where another
-package's unexported names never match.
+**Depths and promoted members.** A **part** of `S` is a value reached from
+`S` through one or more embedded fields. Its **depth** is the number of
+embedded fields on its path: an embedded field of `S` holds a part at depth
+1, an embedded field of that part's type holds a part at depth 2, and so on.
+The own fields and inherent methods of `S` are at depth 0. Each field and
+inherent method of a part's type is a **promoted member** of `S` at the
+part's depth, reached through the part's path. Trait methods of a part's type
+are never promoted members, and they have no effect on lookup through `S`.
 
-**Field lookup** proceeds as follows:
+For a use in a module `M`, the members of `S` that **take part** are:
 
-1. **Own fields.** If `S` declares a visible field named `name`, that field
-   is selected and embedded fields are not searched. An own field that is not
-   visible is skipped.
-2. **Embedded fields.** Otherwise lookup searches the data types reachable
-   through embedded fields, breadth first. At each depth, a **match** is a
-   visible field named `name` of an embedded type at that depth. The first
-   depth with a match decides the lookup, so a shorter path always wins over
-   a longer one. Two or more matches at that depth, including one field
-   reached through two different paths, are an `ambiguous-promoted-member`
-   error.
-3. **No visible field.** If neither step selects a field, the use is a
-   `private-member` error when `S` itself declares a field named `name` that
-   is not visible, and an `unknown-data-field` error otherwise. An invisible
-   field of an embedded type never leads to `private-member`.
+- the own fields and inherent methods of `S` that are visible from `M`;
+- the promoted members that are marked `pub`, and, when `M` is the module
+  declaring `S`, also the promoted members declared in `M`.
 
-**Method lookup** proceeds as follows:
+A member that does not take part is treated as absent. A type therefore has
+at most two **views**: the one from the module declaring it, and, for a
+public type, the one from every other module. Inside the declaring module,
+every own member takes part, so a private own member hides a promoted one;
+in another module, the same use reaches the public promoted member. A
+private member of a part's type takes part only in the module that declares
+both it and `S`. Adding a private member therefore never changes or breaks a
+use in another module. This is privacy-aware lookup as in Rust, and matches
+Go, where another package's unexported names never match.
+
+In each namespace, a member that takes part **hides** every member with the
+same name at a greater depth. Each type therefore decides its own names: an
+own member of `S` hides the promoted ones, and an own member of a part's type
+hides the members promoted into that part. A **conflict** is two or more
+members with one name at the smallest depth where that name takes part,
+including one member reached through two different paths.
+
+**Conflicts are declaration errors.** A conflict in either view of `S` is an
+`ambiguous-promoted-member` error at the data declaration of `S`, never at a
+use, so lookup never meets one. It is reported on the later of the two
+embedded fields of `S` through which the conflicting members are reached.
+When both are reached through the same embedded field `E`, it is reported at
+`S` only when it is not also a conflict of `E`'s type, which reports it
+itself. The message names both paths, as in `Record.LeftBox.Left.id` and
+`Record.RightBox.Right.id`. Fields and methods conflict only within their own
+namespace. A data type reached through several paths needs no further rule:
+its members reached at different depths resolve to the shallower copy, and
+at the same depth they conflict, starting with its embedded field name. A
+package that adds a member to a type used as a part can therefore break the
+declarations of types that embed it, in their own packages, but never a use.
+
+Note: an implementation may compute, for each view of each data type, one
+table of resolved members: its own members at depth 0 and its direct parts'
+resolved members one level deeper, where the shallower member replaces the
+deeper one. The rules above define only the result.
+
+**Field lookup** of `x.name` from a module `M` proceeds as follows:
+
+1. **Selection.** Among the fields of `S` that take part, the field named
+   `name` at the smallest depth is selected. There is at most one, because
+   a conflict is a declaration error.
+2. **Not found.** If no field named `name` takes part, the use is a
+   `private-member` error when `S` itself declares a field named `name`,
+   which is then not visible from `M`, and an `unknown-data-field` error
+   otherwise. A promoted field that does not take part never leads to
+   `private-member`.
+
+**Method lookup** of `x.name(args)` from a module `M` proceeds as follows:
 
 1. **Own inherent method.** If `S` has a visible inherent method named
-   `name`, it is selected; it wins over every trait method, and embedded
-   fields are not searched. Selection is by name alone, whatever the
-   method's arity or parameter types: a visible inherent method with the
-   wrong signature is still selected, and the call is then checked against
-   it. An inherent method that is not visible is skipped.
-2. **Trait candidates.** Otherwise the **trait candidates** are the trait
-   methods of `S` named `name` whose trait is available at the call,
-   wherever their implementations are declared. A trait method whose trait
-   is not available is not a candidate and has no effect on the lookup.
-3. **Embedded fields.** Lookup then searches the data types reachable
-   through embedded fields, breadth first. At each depth, a **match** is a
-   visible inherent method named `name` of an embedded type at that depth.
-   Fields are never matches, and neither are trait methods: a trait method
-   is selected only on the receiver's own type `S`, never through an
-   embedded field. An embedded type **blocks** `name` when it has a trait
-   method named `name` whose trait is available at the call and no visible
-   inherent method named `name`. The first depth with a match or a blocking
-   type is the **deciding depth**, so a shorter path always wins over a
-   longer one; deeper types are not considered.
-4. **Selection.** The trait candidates and the deciding depth together
-   decide the call:
-   - With no trait candidate, exactly one match and no blocking type at the
-     deciding depth selects the match. Two or more matches, including one
-     method reached through two different paths, are an
-     `ambiguous-promoted-member` error, and so is one match beside a
-     blocking type. Blocking types and no match are an
-     `embedded-trait-method-not-promoted` error. Its message names the trait
-     and suggests the explicit path, as in `x.E1.name(args)`, where lookup
-     starts at the embedded type and finds the trait method.
-   - With trait candidates and no deciding depth, exactly one trait
-     candidate is selected, and methods of two or more traits are an
-     `ambiguous-method` error. When the candidates come from several
-     instantiations of one generic trait, the call chooses among them as in
-     [Method Resolution](09-traits.md#method-resolution). A single trait
-     candidate with the wrong signature is still selected, and the call is
-     then checked against it.
-   - With trait candidates and a deciding depth, the call is an
-     `ambiguous-method` error, whatever the signatures. Its message names the
-     trait method and the promoted method or blocking type, and suggests the
-     trait-qualified form `Trait::name(x, ...)` or the explicit path
-     `x.E1.name(args)`. A trait method of `S` never silently wins over a
-     promoted member, and a promoted member never silently wins over a trait
-     method.
-5. **No method.** If nothing is selected or reported, the use is a
-   `private-member` error when `S` itself has an inherent method named
-   `name` that is not visible, and an `unknown-method` error otherwise. An
-   invisible inherent method of an embedded type never leads to
-   `private-member`. When `S` has a trait method named `name` whose trait is
-   not available at the call, the message should name the trait and suggest
-   a use declaration for it. When the receiver has a field named `name`, the
-   message should suggest `(x.name)(args)`.
+   `name`, it is selected; it wins over every trait method. Selection is by
+   name alone, whatever the method's arity or parameter types: a visible
+   inherent method with the wrong signature is still selected, and the call
+   is then checked against it. An inherent method that is not visible is
+   skipped.
+2. **Candidates.** Otherwise the candidates are:
+   - the **promoted candidate**: among the promoted inherent methods that
+     take part, the one named `name` at the smallest depth, if any;
+   - the **trait candidates**: the trait methods of `S` named `name` whose
+     trait is available at the call, wherever their implementations are
+     declared. A trait method whose trait is not available is not a
+     candidate and has no effect on the lookup.
+
+   Exactly one candidate is selected; a single candidate with the wrong
+   signature is still selected, and the call is then checked against it.
+   When the only candidates come from several instantiations of one generic
+   trait, the call chooses among them as in
+   [Method Resolution](09-traits.md#method-resolution). A promoted candidate
+   beside a trait candidate, or trait candidates of two or more traits, are
+   an `ambiguous-method` error, whatever the signatures; its message suggests
+   the trait-qualified form `Trait::name(x, ...)` or the explicit path
+   `x.E1...Ek.name(args)`. A trait method of `S` never silently wins over a
+   promoted method, and a promoted method never silently wins over a trait
+   method.
+3. **Not found.** With no candidate, the use is a `private-member` error
+   when `S` itself has an inherent method named `name`, which is then not
+   visible from `M`, and an `unknown-method` error otherwise. A promoted
+   method that does not take part never leads to `private-member`. The
+   message should suggest a use declaration when `S` has a trait method named
+   `name` whose trait is not available at the call; the explicit path
+   `x.E1...Ek.name(args)` when a part's type has a trait method named `name`;
+   and `(x.name)(args)` when the receiver has a field named `name`.
 
 For example, if `Page` embeds `Label`, `Label` implements `Display` and
 embeds `Base`, and `Base` has an inherent `to_string`, then
-`page.to_string()` stops at depth 1, where `Label` blocks `to_string`, and is
-an `embedded-trait-method-not-promoted` error; it never reaches `Base`'s
-`to_string` at depth 2. `page.Label.to_string()` calls `Label`'s `Display`
-method, and `page.Label.Base.to_string()` calls `Base`'s. If `Page` also
-implemented `Display`, the call would be an `ambiguous-method` error, since
-`Page`'s trait method is a candidate beside the blocking `Label`;
-`Display::to_string(page)` selects it. A name that an embedded type has
-through an available trait therefore never silently resolves to a method
-deeper in the tree or on the receiver.
+`page.to_string()` calls `Base`'s `to_string`, the promoted candidate at
+depth 2: `Label`'s `Display` method is not promoted and does not hide it.
+`page.Label.to_string()` calls `Label`'s `Display` method, where lookup
+starts at `Label` and finds it as a trait method of the receiver. If `Page`
+also implemented `Display`, `page.to_string()` would be an `ambiguous-method`
+error, and `Page`'s method is called as `Display::to_string(page)`. Without
+`Base`, `page.to_string()` is an `unknown-method` error whose message should
+suggest `page.Label.to_string()`.
 
-A field selected in step 2 of field lookup, or a match selected in step 4 of
-method lookup, is a **promoted member**. `x.name` then means the explicit path `x.E1.E2...Ek.name` through the
-embedded fields `E1` to `Ek`, with the same type, permission, and evaluation.
-Each embedded step follows its container's access
-([Mutable Paths](04-type-system.md#mutable-paths)), so a promoted member has
-the access the receiver grants. Through a `mut S` receiver, a promoted field
-may be assigned and a promoted `mut self` method may be called. Through a
-readonly `S`, a promoted field is readonly, and a promoted `mut self` method
-is found and then rejected with `mutable-receiver-required`; lookup never
-skips it to try another member. Explicit qualification through an embedded
-field, as in `x.E1.name`, starts a new lookup at `E1`'s type and resolves
-every promotion ambiguity. `Trait::name(x, ...)` selects a trait method
-without member lookup.
+When the selected member is promoted, `x.name` means the explicit path
+`x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`, with the same
+type, permission, and evaluation. Each embedded step follows its container's
+access ([Mutable Paths](04-type-system.md#mutable-paths)), so a promoted
+member has the access the receiver grants. Through a `mut S` receiver, a
+promoted field may be assigned and a promoted `mut self` method may be
+called. Through a readonly `S`, a promoted field is readonly, and a promoted
+`mut self` method is selected and then rejected with
+`mutable-receiver-required`; lookup never skips it to try another member.
+Explicit qualification through an embedded field, as in `x.E1.name`, starts
+a new lookup with `E1`'s type as the receiver's type. `Trait::name(x, ...)`
+selects a trait method without member lookup.
 
-One consequence is intended. Shortest path wins even across packages, so
-when an embedded type in a dependency gains a visible member at a shallower
-depth, a use may silently select it; Rust accepts the same kind of switch
-when a trait import changes which `Deref` step answers a method call. Trait
-methods never switch a call silently: a trait implementation added in any
-package, or a use declaration added to the calling module, makes a trait
-method a candidate or an embedded type a blocking type only where its trait
-is available, and a call that already selected a method then becomes an
-error rather than selecting another method.
+One consequence is intended. The shallower member wins even across
+packages, so when a part's type in a dependency gains a public member at a
+shallower depth than the one a use selects, the use may silently select the
+new member; Rust accepts the same kind of switch when a trait import changes
+which `Deref` step answers a method call. No other change outside the
+package that owns `S` switches a use silently: a new conflict is an error at
+the declaration of `S`, and a new trait implementation, use declaration, or
+promoted method adds a candidate, which can make a call ambiguous but never
+selects a different method in its place.
 
 There is no overriding. A promoted method runs as the embedded type's own
 method, with the embedded value as its receiver. Inside that method, `self`

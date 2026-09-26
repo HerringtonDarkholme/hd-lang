@@ -730,7 +730,9 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Field lookup checks the outer type's fields first, and method lookup its inherent methods; embedded fields are searched otherwise, at any depth, shortest path first. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its fields and inherent methods, never its trait methods; a method name an embedded type has through an in-scope trait stops the search with an error that suggests calling through the embedded field, as in `page.Label.to_string()`. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual. A private member of an embedded type is ignored entirely, and `private-member` is reported only for a private member of the outer type itself when nothing visible matches. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
+Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Embedding promotes the fields and inherent methods of every embedded part, at any depth, and for each name the shallowest member wins: the outer type's own members come first, and each embedded type decides its own names before its members are promoted further. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its fields and inherent methods, never its trait methods, which are called through the embedded field, as in `page.Label.to_string()`. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual. A private member of an embedded type is ignored entirely, and `private-member` is reported only for a private member of the outer type itself when nothing visible matches.
+
+If two embedded data types promote the same name at the same depth, the outer declaration is rejected, even before anything uses the name. The same holds for one type embedded twice at the same depth, whose embedded field name itself clashes. An own member of that name hides both, and each part stays reachable through its embedded field:
 
 ```text
 data CreatedBySystem:
@@ -741,19 +743,15 @@ data CreatedByUser:
 
 data AuditRecord:
     CreatedBySystem
+    CreatedByUser                # invalid: both promote `id` at depth 1
+
+data AuditEntry:
+    CreatedBySystem
     CreatedByUser
+    id: string                   # ok: the own field hides both
 
-record := AuditRecord {
-    CreatedBySystem: ...CreatedBySystem {
-        id: "system"
-    },
-    CreatedByUser: ...CreatedByUser {
-        id: "user_123"
-    }
-}
-
-record.id                    # invalid: ambiguous promoted field
-record.CreatedByUser.id      # ok
+entry.id                         # the own field
+entry.CreatedByUser.id           # the part's field
 ```
 
 ## Enums

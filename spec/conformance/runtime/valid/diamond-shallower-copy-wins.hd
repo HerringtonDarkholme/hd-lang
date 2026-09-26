@@ -1,0 +1,22 @@
+# test: with one type embedded at depths 1 and 2, promoted members reach the depth-1 copy
+use std.testing.assert_equal
+
+data Base:
+    id: string
+
+impl Base:
+    fn label(self) -> string:
+        "base " + self.id
+
+data Middle:
+    Base
+
+data Outer:
+    Base
+    Middle
+
+test "the shallower copy wins":
+    outer := Outer { Base: ...Base { id: "near" }, Middle: ...Middle { Base: ...Base { id: "far" } } }
+    assert_equal(outer.id, "near", reason="depth-1 field")
+    assert_equal(outer.label(), "base near", reason="depth-1 method")
+    assert_equal(outer.Middle.id, "far", reason="the deeper copy through its path")

@@ -1,0 +1,18 @@
+# test: two embedded types with an inherent method of one name conflict at the outer declaration
+data Logger:
+    name: string
+
+impl Logger:
+    fn describe(self) -> string:
+        self.name
+
+data Metrics:
+    count: i32
+
+impl Metrics:
+    fn describe(self) -> string:
+        "metrics"
+
+data Service:
+    Logger
+    Metrics  # diagnostic: ambiguous-promoted-member

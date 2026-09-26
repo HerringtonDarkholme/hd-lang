@@ -820,11 +820,16 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       }
       return callCandidate(fitting[0]!.candidate);
     }
+    const traitPath = this.embeddedTraitMethodPath(receiver.type, expression.callee.name);
     this.fail(
       "unknown-method",
       `type '${receiver.type}' has no supported method '${expression.callee.name}'${
         this.hasFieldNamed(receiver.type, expression.callee.name)
           ? `; to call the function stored in the field, write (value.${expression.callee.name})(...)`
+          : ""
+      }${
+        traitPath
+          ? `; trait methods of embedded types are not promoted, so call it as value.${traitPath}.${expression.callee.name}(...)`
           : ""
       }`,
       expression.callee.span,

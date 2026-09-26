@@ -1,0 +1,26 @@
+# test: an own member hides same-depth promoted members of its name, so they do not conflict
+data CreatedBySystem:
+    id: string
+
+impl CreatedBySystem:
+    fn describe(self) -> string:
+        "system"
+
+data CreatedByUser:
+    id: string
+
+impl CreatedByUser:
+    fn describe(self) -> string:
+        "user"
+
+data AuditEntry:
+    CreatedBySystem
+    CreatedByUser
+    id: string
+
+impl AuditEntry:
+    fn describe(self) -> string:
+        "entry"
+
+fn valid(entry: AuditEntry) -> string:
+    entry.id + entry.describe() + entry.CreatedByUser.id

@@ -383,8 +383,7 @@ method, so no other package can change which method such a call reaches.
 When more than one available trait that the receiver implements supplies a
 method with that name, and no inherent method of that name is usable, the call
 is an `ambiguous-method` error. So is a call where an available trait method
-of the receiver's type meets a promoted method, or an embedded type that has
-the name through an available trait
+of the receiver's type meets a promoted method of the same name
 ([Member Resolution](03-names-and-scopes.md#member-resolution)): neither
 silently wins over the other. This holds whether each method is
 written in its implementation or comes from a default. The compiler does not
@@ -571,15 +570,20 @@ as in `fn reset(mut self) -> void: self.Base.reset()`, because `self.Base` has
 ([Data Embedding](08-data-and-enums.md#data-embedding)). A bodyless
 implementation of a trait with a required method is therefore a
 `missing-trait-method` error even when an embedded type has a matching method.
+Where the trait is available, a dot call with the forwarded name meets both
+the implementation's method and the promoted method, and is
+`ambiguous-method`; the forwarding implementation is called as
+`Trait::method(x)`, as in `Describe::describe(service)`, and the embedded
+type's method through its path, as in `service.Logger.describe()`.
 
 An embedded type's trait methods are not promoted either
 ([Member Resolution](03-names-and-scopes.md#member-resolution)). If
 `Label` implements `Display` and `Page` embeds `Label`, `page.to_string()`
-never calls `Label`'s implementation. Unless `Page` has an inherent
-`to_string`, it is an `embedded-trait-method-not-promoted` error suggesting
-`page.Label.to_string()`, or an `ambiguous-method` error when `Page` also has
-an available trait method named `to_string`, and lookup does not continue to
-types that `Label` embeds. `Page` satisfies no `Display` bound unless `Page` itself implements
+never calls `Label`'s implementation, and `Label`'s method does not hide a
+`to_string` promoted from a type that `Label` embeds. When `Page` has no
+`to_string` of its own, no promoted one, and no available trait method with
+that name, the call is an `unknown-method` error whose message should suggest
+`page.Label.to_string()`. `Page` satisfies no `Display` bound unless `Page` itself implements
 `Display`.
 
 Embedding is composition, not subtype inheritance. An outer data type is not

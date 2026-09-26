@@ -1,0 +1,13 @@
+# test: one type embedded through two paths at the same depth conflicts at the outer declaration, starting with its embedded field name
+data Base:
+    id: string
+
+data Left:
+    Base
+
+data Right:
+    Base
+
+data Both:
+    Left
+    Right  # diagnostic: ambiguous-promoted-member

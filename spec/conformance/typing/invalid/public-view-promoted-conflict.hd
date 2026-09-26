@@ -1,0 +1,11 @@
+# test: a private own field hides promoted fields only inside its module, so a public type is rejected when they conflict in the view from other modules
+pub data Left:
+    pub id: string
+
+pub data Right:
+    pub id: string
+
+pub data Record:
+    id: string
+    Left
+    Right  # diagnostic: ambiguous-promoted-member

@@ -1,6 +1,7 @@
 import type { Program } from "../ast.ts";
 import type { CheckResult } from "./context.ts";
 import { createProgramDeclarations } from "./program-declarations.ts";
+import { checkEmbeddedMemberConflicts } from "./program-embedding.ts";
 import { prepareImplementations } from "./program-implementations.ts";
 import { lowerCheckedProgram } from "./program-lower.ts";
 import { createProgramSignatures } from "./program-signatures.ts";
@@ -41,6 +42,7 @@ export function check(program: Program, options: CheckOptions = {}): CheckResult
   defineProgramTraits(context);
   validateHostCapabilities(context);
   prepareImplementations(context);
+  checkEmbeddedMemberConflicts(context);
   const declarations = createProgramDeclarations(context);
   if (!declarations) return { diagnostics: context.diagnostics };
   const signatures = createProgramSignatures(context, declarations);

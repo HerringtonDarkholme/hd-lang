@@ -1,4 +1,4 @@
-# test: an available trait method of the outer type beside an embedded type that has the name through an available trait is ambiguous
+# test: the outer type's trait method is selected; an embedded type implementing the same trait is ignored
 trait Describe:
     fn describe(self) -> string
 
@@ -16,5 +16,5 @@ impl Describe for Page:
     fn describe(self) -> string:
         "page"
 
-fn invalid(page: Page) -> string:
-    page.describe()  # diagnostic: ambiguous-method
+fn valid(page: Page) -> string:
+    page.describe()

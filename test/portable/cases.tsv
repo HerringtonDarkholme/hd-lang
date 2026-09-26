@@ -739,12 +739,12 @@ parse/invalid/old-or-operator.hd	parse
 parse/invalid/old-not-operator.hd	parse
 parse/invalid/associated-binding-outside-bound.hd	parse
 parse/invalid/old-where-clause.hd	parse
-typing/invalid/same-depth-promotion-clash.hd	type
-typing/invalid/embedded-trait-method-not-promoted.hd	type
-typing/invalid/embedded-trait-method-stops-search.hd	type
-typing/invalid/embedded-trait-method-beside-inherent.hd	type
+typing/invalid/same-depth-promotion-conflict.hd	type
+typing/invalid/part-trait-method-not-promoted.hd	type
+typing/valid/part-trait-method-ignored-by-lookup.hd	type
+typing/valid/part-trait-method-beside-promoted-inherent.hd	type
 typing/invalid/trait-method-beside-promoted-method.hd	type
-typing/invalid/trait-method-beside-blocking-embedded-type.hd	type
+typing/valid/own-trait-method-beside-part-trait.hd	type
 typing/invalid/bodyless-impl-via-promotion.hd	type
 typing/invalid/promoted-mut-self-method.hd	type
 runtime/valid/field-read-beside-trait-method.hd	runtime
@@ -810,3 +810,8 @@ typing/invalid/embedded-part-readonly-alias.hd	type
 parse/invalid/pub-embedded-field.hd	parse
 typing/invalid/private-type-embedded-in-public-data.hd	type
 typing/valid/private-data-embeds-private-type.hd	type
+typing/invalid/promoted-field-conflict-at-declaration.hd	type
+typing/invalid/promoted-method-conflict-at-declaration.hd	type
+typing/invalid/diamond-same-depth-conflict.hd	type
+typing/valid/diamond-different-depths.hd	type
+typing/valid/own-member-hides-promoted-conflict.hd	type

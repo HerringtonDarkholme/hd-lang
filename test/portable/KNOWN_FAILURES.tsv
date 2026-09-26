@@ -162,3 +162,5 @@ typing/invalid/embedded-assignment-copy-required.hd	check accepts: the prototype
 typing/invalid/copy-into-ordinary-field.hd	check reports expected-expression at line 9: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/invalid/copy-assignment-ordinary-field.hd	check reports syntax-error at line 9: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 parse/valid/embedded-copy-syntax.hd	parse reports expected-expression at line 11: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+runtime/valid/diamond-shallower-copy-wins.hd	check reports expected-expression at line 19: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+typing/invalid/public-view-promoted-conflict.hd	check reports syntax-error at line 3: the prototype parser does not accept `pub` on a named field, and the prototype checks conflicts only in the declaring module's view	EMB-S

@@ -308,17 +308,11 @@ read it, so prefer explicit, checkable rules and locality.
   the members package and fixtures, and the prototype (`member-lookup.ts`;
   every trait is available in its single module, KNOWN_FAILURES tag EMB-S).
   `trait-not-in-scope` is removed; it supersedes E2's un-imported-trait stop
-  rule (kept in P2) and P4. Breadth-first search, shortest path, and
-  same-depth ambiguity stay until Cut 2 is settled. **Cut 2 is on hold**: the
-  owner is revising it (the flat "every part at any depth" table is being
-  replaced by a compositional one). Readings applied with the trait part:
-  the embedded search keeps running beside trait candidates, and a trait
-  candidate beside a match or blocking type at the deciding depth is
-  `ambiguous-method`; an embedded type blocks only through an available
-  trait and only without a visible inherent method of the name (as in TQ-31
-  revised); a promoted method is selected over an unavailable trait method.
-  See TQ-36. Cut 1 (parts as references) was declined; value copies stay.
-  (Cut 2) Embedding flattens: the promoted fields are the visible fields of
+  rule (kept in P2) and P4. The flat Cut 2 below was withdrawn in favor of
+  "Cut 2 final shape", and the blocking rule was withdrawn by "Parts' trait
+  methods are ignored entirely"; both are applied. Cut 1 (parts as
+  references) was declined; value copies stay. (Cut 2, withdrawn) Embedding
+  flattens: the promoted fields are the visible fields of
   every embedded part at any depth, and the promoted methods are their
   visible inherent methods. Promoted field names must be unique among
   themselves and must not clash with the outer type's own fields; promoted
@@ -338,7 +332,19 @@ read it, so prefer explicit, checkable rules and locality.
   invisible; the not-found message suggests the import. Supersedes E2's
   un-imported-trait stop rule and the P3/P4 consequences.
 
-- **Cut 2 final shape (depth semantics), not yet applied.** Replaces the flat
+- **Cut 2 final shape (depth semantics), applied** to 03 Member Resolution
+  (depths, views, conflicts, field and method lookup), 05 Member Access, 08
+  Data Embedding, the tour, MEMBER_LOOKUP.md, the fixtures, and the prototype
+  (`program-embedding.ts` checks the declaring module's view; the view from
+  other modules is KNOWN_FAILURES tag EMB-S). The conflict reuses
+  `ambiguous-promoted-member`, now reported at the data declaration on the
+  later of the two embedded fields involved; use-site same-depth ambiguity is
+  gone. Readings: visibility keeps P2 and the private-embedded-member rule
+  by giving a type two views, its declaring module's and, for a public type,
+  every other module's (own `pub` members and `pub` promoted members only),
+  and both are checked at the declaration; a conflict reached through one
+  embedded field `E` is reported at `E`'s type, not again at the outer type;
+  a declaration that already repeats a field name is not checked. Replaces the flat
   Cut 2. Each type's promoted members are its direct parts' resolved members
   one level deeper: a type's own fields and inherent methods are at depth 0,
   and for each name the shallower member replaces the deeper one, so every
@@ -349,11 +355,15 @@ read it, so prefer explicit, checkable rules and locality.
   conflict. Per-type resolved tables are an implementation technique, not
   specification text; the spec states only the semantics. The shallower-wins
   switch when a dependency gains a shallower member stays accepted (P3).
-- **Parts' trait methods are ignored entirely.** An embedded type's trait
+- **Parts' trait methods are ignored entirely, applied** to 03, 05, 08, 09,
+  the tour, MEMBER_LOOKUP.md, the fixtures, and the prototype;
+  `embedded-trait-method-not-promoted` is removed, and the `unknown-method`
+  message suggests the explicit path `x.Part.m()`. An embedded type's trait
   methods neither promote nor block; supersedes the TQ-31 stop rule, so in
   the Label/Base example `page.to_string()` reaches `Base.to_string` when no
   other candidate exists.
-- **TQ-36: ambiguous stays.** The receiver's own in-scope trait method and a
+- **TQ-36: ambiguous stays, applied** (09 Embedding And Trait Satisfaction
+  and the tour state the `Trait::m(x)` call). The receiver's own in-scope trait method and a
   promoted inherent method with the same name make the call
   `ambiguous-method`; a forwarding impl is called as `Trait::m(x)`.
 
@@ -622,11 +632,13 @@ matches), so depth 2 finds `Base.to_string`. Yet `label.to_string()` reaches
 Label's `Display` method. The applied text follows the literal reading.
 Options: (A) keep; (B) a trait method of an embedded type blocks the search
 through that path.
-**Resolved: A**, then **revised to B** (see Owner Decisions): an embedded
-type that has the name only through a trait stops the search at its depth
-with `embedded-trait-method-not-promoted`, suggesting `page.Label.to_string()`;
-see `typing/invalid/embedded-trait-method-stops-search.hd` and
-`runtime/valid/embedded-trait-method-via-part.hd`.
+**Resolved: A**, then **revised to B** (see Owner Decisions), then
+**superseded**: parts' trait methods are ignored entirely, so
+`page.to_string()` reaches `Base.to_string`; see
+`typing/valid/part-trait-method-ignored-by-lookup.hd` and
+`runtime/valid/embedded-trait-method-via-part.hd`. (Under B, an embedded
+type that had the name only through a trait stopped the search with
+`embedded-trait-method-not-promoted`.)
 
 ## TQ-32: Bare field read beside a trait method of the same name
     impl Named for User:
@@ -680,6 +692,9 @@ and `typing/invalid/trait-method-beside-promoted-method.hd`). Options: (A)
 keep, never a silent choice; (B) the outer type's trait candidate wins over
 blocking parts, and blocking parts matter only when there is no trait
 candidate; (C) (B), and also over a promoted method of the same name.
+**Resolved:** parts' trait methods are ignored entirely, so the first case is
+no longer ambiguous (`Page`'s method is selected); a promoted inherent method
+beside the receiver's trait method stays `ambiguous-method` (A).
 
 ## Questions From The Option Change (held until embedding is settled)
 

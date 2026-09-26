@@ -1,4 +1,4 @@
-# test: an inherent method beside an embedded type that has the name only through a trait, at the same depth, is ambiguous
+# test: an embedded type's trait method is ignored beside another embedded type's inherent method, which is promoted
 trait Describe:
     fn describe(self) -> string
 
@@ -20,5 +20,5 @@ data Page:
     Label
     Badge
 
-fn invalid(page: Page) -> string:
-    page.describe()  # diagnostic: ambiguous-promoted-member
+fn valid(page: Page) -> string:
+    page.describe()

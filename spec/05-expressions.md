@@ -214,7 +214,10 @@ exists, the message should suggest `(handler.callback)(event)`. A method
 call never finds a method of a trait that is not available at the call, even
 when the receiver's type implements it; when such a method is the only one
 with the name, the `unknown-method` message should suggest a use declaration
-for its trait. Field and method lookup, including promoted members, are
+for its trait. A trait method of an embedded type is never found through the
+outer value; it is called through the embedded field, as in
+`page.Label.to_string()`. Field and method lookup, including promoted
+members and the declaration-time `ambiguous-promoted-member` check, are
 defined in
 [Member Resolution](03-names-and-scopes.md#member-resolution). A method is
 not a value: `value.method` without an argument clause is a field read.

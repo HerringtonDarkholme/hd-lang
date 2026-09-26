@@ -1,4 +1,4 @@
-# test: an embedded type's trait method is called through its embedded field, where it is an own method
+# test: an embedded type's trait method is called through its embedded field; through the outer value it is ignored
 use std.testing.assert_equal
 
 data Base:
@@ -23,3 +23,4 @@ test "the embedded field path reaches the trait method and the deeper inherent m
     assert_equal(page.Label.to_string(), "label", reason="Label's own Display method")
     assert_equal(page.Label.Base.to_string(), "base home", reason="Base's inherent method")
     assert_equal(page.name, "home", reason="fields are still promoted")
+    assert_equal(page.to_string(), "base home", reason="Label's trait method is ignored, so Base's method is promoted")

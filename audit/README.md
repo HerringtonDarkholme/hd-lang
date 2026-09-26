@@ -27,15 +27,15 @@ G2, G3, L6, L7, L8, L9 are implemented; L2's remaining case
 (`unsigned-exponent.hd`) waits on sized numeric types and is tagged F-253.
 TQ-3 (inherent before trait methods), TQ-5 (`mutable-impl-target`), and TQ-6
 (supertrait member names) are implemented, as are the TQ-1 target and overlap
-checks and the TQ-2 ownership check. E1, E3, E4, and E5 are implemented:
-own members before promoted ones, breadth-first promotion with
-`ambiguous-promoted-member`, no promotion of trait methods, no promoted
-methods filling implementations. The revised TQ-31 is implemented: a method
-name an embedded type has only through a trait stops the search with
-`embedded-trait-method-not-promoted`, or `ambiguous-promoted-member` beside
-an inherent method at the same depth. Rust-style trait lookup is
-implemented: only available trait methods are candidates, and a trait
-candidate beside a promoted method or a blocking embedded type is
+checks and the TQ-2 ownership check. E1, E4, and E5 are implemented: own
+members before promoted ones, no promotion of trait methods, no promoted
+methods filling implementations. Cut 2's depth semantics are implemented:
+the shallowest member wins, and `program-embedding.ts` reports two members
+with one name at the smallest depth as `ambiguous-promoted-member` at the
+data declaration. Parts' trait methods are ignored, and `unknown-method`
+suggests the explicit path. Rust-style trait lookup is implemented: only
+available trait methods are candidates, and a trait candidate beside a
+promoted method is
 `ambiguous-method`. Embedded fields are always public:
 the prototype parser rejects `pub` on an embedded field, and a public data
 type embedding a private one is `private-type-leak`. Context spreads are suffix spreads
@@ -77,7 +77,7 @@ accepts the former `value.method[T]!(...)` spelling of a method bang call.
 | TQ-1 | An impl target starts with a type constructor; overlap is decided by trait, unifying trait arguments, and target constructor; `for` accepts `Iterable[T]` or `Iterator[T]` directly. The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail. |
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check is implemented, but its fixtures need `Iterable` or package roles (`--package-role`, `--dependency`), which the prototype lacks. |
 | TQ-29 | A type implementing both `Iterable[T]` and `Iterator[T]` is iterated through `Iterable`. The prototype has no `Iterable` trait. |
-| EMB-S | Embedding simplification, Rust-style trait lookup part: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` implements the pooling (a trait candidate beside a promoted method or a blocking embedded type is `ambiguous-method`), but the prototype compiles one module without trait imports, so every trait is available, and the fixtures need package roles (`--package-role`, `--dependency`), which the prototype lacks. |
+| EMB-S | Embedding simplification. Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. Cut 2: a public type is also checked for conflicts in the view from other modules, where only `pub` members take part. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype compiles one module without trait imports or `pub` fields, so every trait is available and only the declaring module's view is checked, and the fixtures need package roles (`--package-role`, `--dependency`) or `pub` fields, which the prototype lacks. |
 | P2 | Member lookup skips fields and inherent methods not visible from the calling module; an invisible member of an embedded type is ignored entirely, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype compiles one module, so every member is visible, and the fixtures need package roles. |
 | VE | Value embedding: filling an embedded field (literal `Label: ...value`, copy-update, store `place ...= value`; plain forms are `embedded-copy-required`) stores a copy, shallow for ordinary fields and recursive for embedded parts; access through an embedded field follows its container, so a promoted `mut self` method works on a `mut` receiver; reading a part out aliases it; a readonly copy of a part whose type has direct `mut U` fields is readonly; a part is copied at its field position; an embedded field is invariant for variance. The prototype implements none of it, by the owner's request to settle the design first: embedded fields are still readonly edges and parts are shared. |
 | R-MUT | A provider installed with `$.with(mut K=value)` may be retrieved as `$.use(mut K)`, and rows carry `mut K`; retrieving or requiring `mut K` where only readonly access is installed is `mutable-upgrade`, and host providers are readonly. The prototype parser rejects a `mut` requirement key. |
