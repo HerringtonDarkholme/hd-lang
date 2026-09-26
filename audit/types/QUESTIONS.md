@@ -73,6 +73,17 @@ read it, so prefer explicit, checkable rules and locality.
   collections, `Option` (now an enum), and tuples (arity-indexed
   constructors); function types are never impl targets.
 
+- **No overriding and data patterns with `:`, not yet applied.** A promoted
+  method runs as the embedded type's method (inside `Base`, `self.m()` is
+  `Base.m`); state it. Data patterns use `:` like data literals
+  (`Point { x: 0, y }`, `Point { x: px }`); labels in `Type { }` use `:`,
+  labels in `( )` use `=` (grammar Q5).
+- **Bound methods stay deferred.** Revisit later.
+- **Member namespace reopened.** The owner prefers separate field and method
+  namespaces, so a trait renaming a method cannot collide with a field in a
+  user package. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md) for the comparison
+  and the proposed rule.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
