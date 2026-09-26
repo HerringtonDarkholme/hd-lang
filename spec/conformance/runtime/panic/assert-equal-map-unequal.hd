@@ -1,0 +1,4 @@
+use std.testing.assert_equal
+
+test "maps differing in one value fail assert_equal":
+    assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 3}, reason="deliberately unequal value")  # panic: assertion-failed

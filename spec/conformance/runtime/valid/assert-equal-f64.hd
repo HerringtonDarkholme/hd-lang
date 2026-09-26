@@ -1,0 +1,9 @@
+use std.testing.assert_equal
+
+test "equal f64 literals pass assert_equal":
+    assert_equal(1.5, 1.5, reason="identical literals are equal")
+
+test "equal computed f64 values pass assert_equal":
+    let expected: f64 = 0.75
+    assert_equal(0.5 + 0.25, expected, reason="exactly representable sum")
+    assert_equal(3.0 * 2.0, 6.0, reason="exactly representable product")

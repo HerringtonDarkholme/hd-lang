@@ -1,0 +1,6 @@
+use std.testing.assert_equal
+
+test "a present optional and nil fail assert_equal":
+    let present: i32? = 42
+    let absent: i32? = nil
+    assert_equal(present, absent, reason="deliberately unequal tags")  # panic: assertion-failed

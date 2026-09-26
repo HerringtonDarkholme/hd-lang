@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+test "equal Ok results pass assert_equal":
+    let left: Result[i32, string] = Ok(42)
+    let right: Result[i32, string] = Ok(42)
+    assert_equal(left, right, reason="Ok payloads are equal")
+
+test "equal Err results pass assert_equal":
+    let left: Result[i32, string] = Err("failed")
+    let right: Result[i32, string] = Err("failed")
+    assert_equal(left, right, reason="Err payloads are equal")

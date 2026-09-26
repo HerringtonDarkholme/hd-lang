@@ -1,0 +1,8 @@
+use std.testing.assert_equal
+
+test "equal tuples pass assert_equal":
+    assert_equal((1, "one"), (1, "one"), reason="equal elements in each position")
+    assert_equal((true, 'x', 2), (true, 'x', 1 + 1), reason="three-element tuples compare every element")
+
+test "equal nested tuples pass assert_equal":
+    assert_equal(((1, 2), "pair"), ((1, 2), "pair"), reason="nested tuples compare recursively")

@@ -1,3 +1,5 @@
 path	reason	finding
 typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
+runtime/valid/assert-equal-generic-primitive.hd	check fails: i32 and string do not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
+runtime/panic/assert-equal-generic-primitive-unequal.hd	check fails: i32 does not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500

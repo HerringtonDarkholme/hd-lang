@@ -1,0 +1,19 @@
+use std.testing.assert_equal
+
+data User:
+    id: string
+    display_name: string
+
+impl PartialEq for User:
+    fn eq(self, other: Self) -> bool:
+        self.id == other.id
+
+test "values equal under an explicit PartialEq pass assert_equal":
+    ada := User { id: "ada", display_name: "Ada" }
+    same_ada := User { id: "ada", display_name: "Ada" }
+    assert_equal(ada, same_ada, reason="equal ids and names")
+
+test "assert_equal uses the explicit PartialEq, not field-by-field comparison":
+    ada := User { id: "ada", display_name: "Ada" }
+    renamed := User { id: "ada", display_name: "Countess" }
+    assert_equal(ada, renamed, reason="the implementation compares only ids")

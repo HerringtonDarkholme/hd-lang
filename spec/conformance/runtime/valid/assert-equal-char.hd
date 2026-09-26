@@ -1,0 +1,7 @@
+use std.testing.assert_equal
+
+test "equal char values pass assert_equal":
+    assert_equal('a', 'a', reason="identical ASCII characters are equal")
+    assert_equal('é', 'é', reason="identical non-ASCII characters are equal")
+    let expected: char = 'z'
+    assert_equal('z', expected, reason="a bound character equals its literal")

@@ -1,0 +1,15 @@
+use std.testing.assert_equal
+
+data Point:
+    x: i32
+    y: i32
+
+impl PartialEq for Point:
+    fn eq(self, other: Self) -> bool:
+        self.x == other.x and self.y == other.y
+
+fn expect_same[T: PartialEq](actual: T, expected: T) -> void:
+    assert_equal(actual, expected, reason="the bound supplies PartialEq")
+
+test "a generic PartialEq value instantiated with a nominal type passes":
+    expect_same(Point { x: 1, y: 2 }, Point { x: 1, y: 2 })

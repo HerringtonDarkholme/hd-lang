@@ -1,0 +1,13 @@
+use std.testing.assert_equal
+
+test "equal lists pass assert_equal":
+    assert_equal([1, 2, 3], [1, 2, 3], reason="equal elements in order")
+    assert_equal(["a", "b"], ["a", "b"], reason="string elements compare")
+
+test "equal empty lists pass assert_equal":
+    let left: list[i32] = []
+    let right: list[i32] = []
+    assert_equal(left, right, reason="empty lists are equal")
+
+test "equal nested lists pass assert_equal":
+    assert_equal([[1], [2, 3]], [[1], [2, 3]], reason="nested lists compare recursively")

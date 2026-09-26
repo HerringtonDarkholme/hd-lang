@@ -1,0 +1,9 @@
+use std.testing.assert_equal
+
+test "equal string values pass assert_equal":
+    assert_equal("ada", "ada", reason="identical literals are equal")
+    assert_equal("", "", reason="empty strings are equal")
+
+test "equal strings from different sources pass assert_equal":
+    assert_equal("  ada  ".trim(), "ada", reason="trimmed text equals the literal")
+    assert_equal("ADA".lower(), "ada", reason="lowered text equals the literal")

@@ -1,0 +1,12 @@
+use std.testing.assert_equal
+
+test "equal i32 literals pass assert_equal":
+    assert_equal(42, 42, reason="identical literals are equal")
+
+test "equal computed i32 values pass assert_equal":
+    let expected: i32 = 7
+    assert_equal(3 + 4, expected, reason="the sum equals the expected value")
+
+test "negative and zero i32 values pass assert_equal":
+    assert_equal(0 - 5, -5, reason="subtraction and negation agree")
+    assert_equal(0, -0, reason="integer zero has one value")

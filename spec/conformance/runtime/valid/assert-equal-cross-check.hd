@@ -1,0 +1,71 @@
+use std.testing.{assert, assert_equal}
+
+enum Shape:
+    Circle(radius: i32)
+    Square(side: i32)
+
+fn circle_radius(value: Shape) -> i32?:
+    match value:
+        .Circle(radius) => radius
+        .Square(_) => nil
+
+fn square_side(value: Shape) -> i32?:
+    match value:
+        .Circle(_) => nil
+        .Square(side) => side
+
+impl PartialEq for Shape:
+    fn eq(self, other: Self) -> bool:
+        circle_radius(self) == circle_radius(other) and square_side(self) == square_side(other)
+
+fn is_circle(value: Shape) -> bool:
+    match value:
+        .Circle(_) => true
+        .Square(_) => false
+
+fn is_ok(result: Result[i32, string]) -> bool:
+    match result:
+        Ok(_) => true
+        Err(_) => false
+
+fn is_present(value: i32?) -> bool:
+    match value:
+        nil => false
+        _ => true
+
+test "list equality agrees with length and element checks":
+    left := [1, 2, 3]
+    right := [1, 2, 3]
+    assert(left.len() == 3, reason="the list has three elements")
+    assert(right.len() == left.len(), reason="the lengths agree")
+    assert_equal(left, right, reason="assert_equal agrees with the plain checks")
+
+test "list inequality agrees with differing lengths":
+    shorter := [1, 2]
+    longer := [1, 2, 3]
+    assert(shorter.len() != longer.len(), reason="the lengths differ")
+    assert(shorter != longer, reason="lists of different lengths are unequal")
+
+test "map and string equality agree with length checks":
+    entries := {"ada": 1, "grace": 2}
+    assert(entries.len() == 2, reason="the map has two entries")
+    assert_equal(entries.len(), 2, reason="assert_equal agrees on the length")
+    assert("ada".len() == 3, reason="the string has three scalars")
+    assert_equal("ada".len(), 3, reason="assert_equal agrees on the length")
+
+test "variant matches agree with assert_equal":
+    circle := Shape.Circle(radius=2)
+    assert(is_circle(circle), reason="the value matches the Circle variant")
+    assert_equal(circle, Shape.Circle(radius=2), reason="assert_equal agrees with the match")
+    assert(not is_circle(Shape.Square(side=2)), reason="a Square does not match Circle")
+    assert(circle != Shape.Square(side=2), reason="different variants are unequal")
+
+test "optional and Result tags agree with assert_equal":
+    let present: i32? = 5
+    let ok: Result[i32, string] = Ok(5)
+    assert(is_present(present), reason="the optional is present")
+    assert(is_ok(ok), reason="the result is Ok")
+    let expected_present: i32? = 5
+    let expected_ok: Result[i32, string] = Ok(5)
+    assert_equal(present, expected_present, reason="assert_equal agrees with the tag match")
+    assert_equal(ok, expected_ok, reason="assert_equal agrees with the tag match")

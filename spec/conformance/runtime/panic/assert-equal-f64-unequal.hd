@@ -1,0 +1,4 @@
+use std.testing.assert_equal
+
+test "unequal f64 values fail assert_equal":
+    assert_equal(0.5 + 0.25, 0.5, reason="deliberately unequal floats")  # panic: assertion-failed

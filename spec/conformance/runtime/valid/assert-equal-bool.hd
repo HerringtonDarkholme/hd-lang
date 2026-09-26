@@ -1,0 +1,7 @@
+use std.testing.assert_equal
+
+test "equal bool values pass assert_equal":
+    assert_equal(true, true, reason="true equals true")
+    assert_equal(false, false, reason="false equals false")
+    assert_equal(1 == 1, true, reason="a true comparison equals true")
+    assert_equal(not true, false, reason="negated true equals false")

@@ -1,0 +1,6 @@
+use std.testing.assert_equal
+
+test "Ok and Err with the same payload shape fail assert_equal":
+    let ok: Result[string, string] = Ok("same")
+    let error: Result[string, string] = Err("same")
+    assert_equal(ok, error, reason="deliberately unequal tags")  # panic: assertion-failed

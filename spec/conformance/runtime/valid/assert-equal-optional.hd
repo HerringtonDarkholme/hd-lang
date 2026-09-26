@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+test "equal present optionals pass assert_equal":
+    let left: i32? = 42
+    let right: i32? = 42
+    assert_equal(left, right, reason="present payloads are equal")
+
+test "absent optionals pass assert_equal":
+    let left: string? = nil
+    let right: string? = nil
+    assert_equal(left, right, reason="nil equals nil")
