@@ -230,8 +230,12 @@ every top-level binding in the transitive read set of each referenced function
 or closure is already initialized. References passed as values and functions
 reached by trait dispatch, interpolation, iteration, or another implicit call
 are included. A trait method call through a generic bound or a dynamic trait
-value reaches every implementation of that method in the module. This definite-initialization check covers the whole module
-value-flow and call graph.
+value reaches every implementation of that method in the module. This
+definite-initialization check covers the whole module value-flow and call
+graph. The check is local to one module. Note: an
+implementation can compute it from a per-function summary of the top-level
+bindings each function reads, combined bottom-up over the module's call graph;
+it never needs another module's function bodies.
 
 After dependency initialization, a script executes its top-level statements as
 that module's initialization. An executable package then invokes `main` after
@@ -239,8 +243,9 @@ its entry module has initialized. Test runners initialize the test module and
 the modules it uses before invoking discovered test blocks; test block bodies
 are not part of module initialization.
 
-Top-level code in a non-entry module must be pure initialization. It may not
-use `$.use`, enter a provider scope, or make a bang call. A script module may
+Top-level code in a non-entry module must be requirement-free
+initialization. It may not use `$.use`, enter a provider scope, make a bang
+call, or call a callable whose requirement row is not empty. A script module may
 use requirements and suspension only through an inferred entry requirement row,
 which the compiler reports alongside `main!` rows for host configuration. A
 script's top level is not itself a suspension driver; bang calls must occur in
@@ -304,14 +309,28 @@ declaration's identity.
 
 A package must not access another package except through declarations reachable
 from that package's public module surface. Implementations may compile packages
-separately. A package interface must contain exported declaration identities
-and complete signatures; visibility; generic kinds, variance, bounds, and
-reification; requirement rows; associated types; callable purity summaries;
-every ordinary, local, and annotation implementation head needed for
-coherence; and the bodies of generic, pack, and reified code needed for
-downstream specialization. Coherence is checked at link time over the complete
-set of resolved interface files, so linking may reject a graph even when each
-package compiled independently.
+separately.
+
+Every public declaration is fully annotated: its complete signature, including
+parameter and result types, requirement rows, suspension, generic parameters
+with their bounds, variance, and reification, and the types of public fields
+and enum data, is written in source. Nothing in a public signature is
+inferred from a function body. Top-level bindings cannot be public.
+
+A package interface must contain exported declaration identities and complete
+signatures; visibility; generic kinds, variance, bounds, and reification;
+requirement rows; associated types; every ordinary, local, and annotation
+implementation head needed for coherence; and the bodies of pack and reified
+code, which downstream compilation specializes. An interface may also carry
+ordinary generic bodies to enable inlining, but downstream compilation must
+not require them: an implementation compiles each ordinary generic function
+in its defining package, and a downstream use supplies only its dictionaries.
+A package interface is therefore determined by the package's declarations and
+does not depend on any other function body. A downstream package can be
+compiled as soon as the interfaces of its dependencies are known, without
+waiting for their function bodies to be checked or compiled. Coherence is
+checked at link time over the complete set of resolved interface files, so
+linking may reject a graph even when each package compiled independently.
 
 ## Executable Entry Point
 

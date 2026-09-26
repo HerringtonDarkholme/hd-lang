@@ -1,0 +1,10 @@
+# test: a shared enum constructor default must not call a function with a requirement row
+
+trait Clock:
+    fn now(self) -> i32
+
+fn current_time() -> i32 $ Clock:
+    $.use(Clock).now()
+
+enum Status(time: i32 = current_time()):  # diagnostic: requirement-in-default
+    Unknown -> Status()

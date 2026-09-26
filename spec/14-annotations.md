@@ -266,8 +266,8 @@ expression. If `tool(strict=true)` has static type `Tool`, then
 and occupies the same `(Tool, Target)` coherence slot as `@Tool`. The expression
 is evaluated once during annotation initialization, and that exact value is
 used as `self` for every mapping and `build` call for the target. It must obey
-the same pure, deterministic, non-suspending, dependency-free restrictions as
-other annotation initialization expressions.
+the same requirement-free restriction as other annotation initialization
+expressions.
 
 An `@value` line immediately before a named or embedded data field or an enum
 variant attaches member metadata. For a field `name: string`, `@max_len(80)`
@@ -645,11 +645,13 @@ first `annotation(...)` or `annotation_ref(...)` request for a concrete
 `(facet, target)` key. One thread-free registry per program instance
 materializes each key at most once. This restricted annotation-initialization
 phase is not unrestricted compiler evaluation. Builders and metadata must be
-pure, deterministic, non-suspending, and dependency-free: no provider access,
-bang calls, IO, clock, randomness, network, database, top-level binding reads,
-top-level `let` reassignment, or escaping mutation. A call through a function
-value or dynamic trait method is rejected here because function types do not
-carry purity; a named callable requires an available verified purity summary.
+requirement-free, as defined for defaults in
+[Functions](07-functions.md#default-values): no provider access and no
+suspension, checked from the signatures of the callables they use. IO, clocks,
+randomness, networks, and databases are reachable only through providers, so
+they are excluded by that rule. A builder may read or write other state; it
+runs once per key, at the first request, and observes state as of that
+moment.
 A panic is an ordinary panic reported at the first
 request site; it does not occur merely because the annotated declaration is
 loaded.

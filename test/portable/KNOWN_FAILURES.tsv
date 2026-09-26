@@ -3,8 +3,6 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/assert-equal-generic-primitive.hd	check fails: i32 and string do not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
 runtime/panic/assert-equal-generic-primitive-unequal.hd	check fails: i32 does not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
-typing/invalid/impure-data-default.hd	compiler still emits the retired code; the spec now uses impure-default (SPEC_DECISIONS L10)	L10
-typing/invalid/impure-shared-enum-default.hd	compiler still emits the retired code; the spec now uses impure-default (SPEC_DECISIONS L10)	L10
 runtime/valid/reference-bounded-dynamic-method.hd	check fails: MVP rejects Reference-bounded method generics in dynamic traits (trait-not-dynamically-safe at lines 27 and 30)	G2
 typing/invalid/tuple-element-assignment.hd	wrong code: MVP reports readonly-root instead of invalid-assignment-target	G3
 typing/invalid/init-read-through-generic-bound.hd	MVP accepts: initialization check does not follow trait dispatch through a generic bound	L1
@@ -16,7 +14,6 @@ runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is betwee
 runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
 typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait-cycle on every cycle member (lines 4 and 7)	L9
 typing/invalid/parameter-default-later-parameter.hd	wrong code: MVP reports impure-parameter-default instead of binding-not-yet-visible	L10
-typing/invalid/impure-parameter-default.hd	wrong code: MVP reports impure-parameter-default instead of impure-default	L10
 typing/invalid/float-literal-map-key.hd	MVP reports unsupported-map-key instead of invalid-map-key	F-205
 typing/invalid/heterogeneous-map-values.hd	MVP reports type-mismatch instead of no-common-type for a map literal without a least common value type	F-205
 typing/invalid/generic-data-field-type-mismatch.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
@@ -24,8 +21,6 @@ typing/invalid/generic-inference-conflict.hd	MVP reports generic-type-mismatch i
 typing/invalid/provider-spread-of-non-context.hd	MVP reports context-spread-type instead of type-mismatch	F-205
 typing/invalid/row-inference-conflict.hd	MVP reports generic-type-mismatch instead of type-mismatch (D7)	F-205
 typing/invalid/signed-integer-exponent.hd	MVP accepts a signed integer exponent; L2 makes it type-mismatch	F-153
-typing/invalid/suspending-parameter-default.hd	MVP reports impure-parameter-default instead of impure-default (L10)	F-205
-typing/invalid/suspending-data-field-default.hd	MVP reports impure-data-default instead of impure-default (L10)	F-205
 parse/invalid/mut-non-self-parameter.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
 parse/invalid/dedent-to-unused-column.hd	MVP reports inconsistent-dedent instead of invalid-dedent	F-205
 parse/invalid/double-numeric-separator.hd	MVP reports invalid-integer-literal instead of invalid-token	F-205
@@ -33,3 +28,12 @@ parse/invalid/binary-literal-bad-digit.hd	MVP reports invalid-integer-literal in
 parse/invalid/stray-dollar-in-string.hd	MVP reports invalid-string-interpolation instead of syntax-error (S3)	F-205
 parse/invalid/vararg-with-default.hd	MVP reports vararg-default instead of syntax-error	F-205
 parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position instead of syntax-error	F-205
+typing/valid/data-default-calls-function-value.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/valid/shared-enum-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/valid/parameter-default-writes-state.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/invalid/suspending-parameter-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/invalid/suspending-data-field-default.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/invalid/parameter-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/invalid/data-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/invalid/enum-default-requires-provider.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1
+typing/valid/default-calls-requirement-free-trait-method.hd	compiler enforces the retired purity rule; defaults are now requirement-free (SPEC_DECISIONS R1)	R1

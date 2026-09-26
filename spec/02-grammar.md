@@ -207,7 +207,8 @@ parameter clause, each decorator may occupy its own prefix line; delimiter
 line breaks do not terminate the parameter. A vararg parameter ends in
 `...`; it must be the final positional parameter. This includes a value-pack
 parameter, whose nonfinal use is a `nonfinal-positional-value-pack` error.
-Default-argument ordering and purity are semantic constraints defined in
+Default-argument ordering and the requirement-free rule are semantic
+constraints defined in
 [Functions](07-functions.md).
 
 ### Data Types
@@ -234,7 +235,7 @@ invalid. A named field may instead declare a mutable type, as in
 include `mut`. It may
 instantiate a generic data type. The type's final name, without its type
 arguments, is the embedded field name; duplicate embedded names are rejected.
-Data-field default expressions have the purity constraint specified in
+Data-field default expressions have the requirement-free constraint specified in
 [Data Types and Enums](08-data-and-enums.md#data-declarations).
 
 ### Enums
@@ -261,7 +262,7 @@ The optional variant result initializes constructor data shared by every
 variant, as in `NotFound -> StatusCode(404)`, and may refine the enclosing enum
 type as specified by the GADT rules.
 Only shared enum constructor parameters may declare defaults. Their ordering
-and purity constraints follow function-parameter defaults.
+and requirement-free constraints follow function-parameter defaults.
 
 ### Traits And Implementations
 

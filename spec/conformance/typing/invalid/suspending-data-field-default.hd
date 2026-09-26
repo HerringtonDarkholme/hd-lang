@@ -2,4 +2,4 @@
 
 fn wait!() -> i32: 1
 data Bad:
-    value: i32 = wait!()  # diagnostic: impure-default
+    value: i32 = wait!()  # diagnostic: suspension-forbidden-context

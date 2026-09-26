@@ -712,8 +712,10 @@ The reference strategy uses five shapes:
 | `f64` | `f64` |
 | reference | every other type, including strings, tuples, optionals, data, enums, collections, closures, and trait values |
 
-A generic function is compiled once per shape its instantiations use. All
-reference-shaped instantiations share one body. Scalar-shaped instantiations
+A generic function is compiled in its defining package once for each shape,
+at most five bodies, so a downstream package needs only its signature (see
+[Name Resolution Across Packages](10-modules.md#name-resolution-across-packages)).
+All reference-shaped instantiations share one body. Scalar-shaped instantiations
 get a specialized body, so a generic function over `list[i32]` reads and
 writes unboxed `i32` elements. Trait bounds are passed as dictionaries of the
 selected operations; associated types are represented through those

@@ -27,7 +27,7 @@ whose type grants mutable access through that reference; `mut friend: User`
 is invalid. The same rule applies to embedded fields: `Base` embeds `Base`,
 but `mut Base` is invalid. Embedded fields cannot declare a mutable edge.
 An ordinary named field may have a default expression. It must be assignable to
-the declared field type and obey the same compile-time purity rule as a
+the declared field type and obey the same requirement-free rule as a
 function-parameter default in [Functions](07-functions.md#default-values). A
 default is evaluated separately for each
 construction, not when the data type is declared. It sees the declaration's
@@ -239,7 +239,7 @@ after `->`. The constructor call follows ordinary positional/named argument
 ordering and must initialize each shared parameter without a default. A shared
 parameter may declare a default expression. After the first defaulted
 parameter, every following shared parameter must also have a default, as with
-function parameters. The default must satisfy the same purity rule as a
+function parameters. The default must satisfy the same requirement-free rule as a
 function-parameter or data-field default and is evaluated for each construction
 when omitted. Explicit argument expressions are evaluated first, then omitted
 defaults in parameter declaration order. A default may refer to earlier named

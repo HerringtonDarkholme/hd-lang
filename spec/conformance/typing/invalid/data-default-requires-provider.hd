@@ -1,0 +1,7 @@
+# test: a data-field default must not use a provider
+
+trait Clock:
+    fn now(self) -> i32
+
+data Event:
+    time: i32 = $.use(Clock).now()  # diagnostic: requirement-in-default

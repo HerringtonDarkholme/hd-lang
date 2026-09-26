@@ -103,25 +103,20 @@ Defaults are evaluated for each call, in parameter declaration order, after
 all explicit argument expressions have been evaluated. A default may refer to
 earlier parameters but not later parameters.
 
-A default expression must be pure: it must not mutate a parameter or capture,
-reassign a top-level `let`, call a `mut fn` value, pass non-fresh mutable access
-to any call, require an injected provider, call `std.task.block_on`, or suspend. It may evaluate ordinary
-expressions and call other pure functions. The compiler verifies this
-transitively from available function bodies and exported purity summaries. A
-call through a function value or dynamic trait method is rejected in a
-purity-checked context because function types do not carry purity; named
-callables with verified summaries remain usable. Purity here restricts
-observable writes, provider access, and suspension; it does not claim
-referential transparency. An impure default, in a parameter, data field, or
-shared enum constructor parameter, is an `impure-default` error. A default
-that names a later parameter is a `binding-not-yet-visible` error.
+A default expression must be **requirement-free**: it must not use a
+provider and must not suspend. Concretely, it must not contain `$.use`, a
+provider scope, or a bang call, and every function, method, closure, or
+function value it calls must have an empty requirement row. Both properties
+are part of every callable's type, so the check reads only signatures, never
+function bodies, and it applies equally to named functions, function values,
+and dynamic trait methods. A default may otherwise evaluate any expression,
+including calls that mutate state; because defaults run after all explicit
+arguments, in parameter declaration order, such effects are ordered.
 
-Purity permits allocation and mutation of newly created local values when those
-values and mutable aliases do not escape the default expression. This is local
-construction, not an externally observable write. A separately compiled
-package exports a compiler-generated purity summary for every callable; the
-importing compiler verifies and consumes that summary as part of the package's
-typed interface. A package cannot self-assert an unchecked purity summary.
+A default that uses a provider, in a parameter, data field, or shared enum
+constructor parameter, is a `requirement-in-default` error. A default that
+suspends is a `suspension-forbidden-context` error. A default that names a
+later parameter is a `binding-not-yet-visible` error.
 
 ### Varargs
 
@@ -417,5 +412,4 @@ requirements with the ordinary `$` clause.
 
 hd-lang has no general recursive local binding facility, partial generic
 argument lists, shorthand-argument closures, or non-local
-returns from closures. The binary encoding of exported purity summaries is a
-compiler ABI detail, but their checked semantics are defined above.
+returns from closures.

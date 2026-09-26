@@ -1,0 +1,10 @@
+# test: a parameter default must not call a function with a requirement row
+
+trait Clock:
+    fn now(self) -> i32
+
+fn current_time() -> i32 $ Clock:
+    $.use(Clock).now()
+
+fn stamp(time: i32 = current_time()) -> i32 $ Clock:  # diagnostic: requirement-in-default
+    time

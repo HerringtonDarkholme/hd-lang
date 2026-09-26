@@ -4,5 +4,5 @@ fn next() -> i32:
     sequence = sequence + 1
     sequence
 
-fn tick(value: i32 = next()) -> i32:  # diagnostic: impure-default
-    value
+enum Status(code: i32 = next()):
+    Unknown -> Status()

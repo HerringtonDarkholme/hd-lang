@@ -63,7 +63,7 @@ typing/invalid/implicit-data-ordering.hd	type	reject:missing-partial-ord	09-trai
 typing/valid/control-flow.hd	type	accept	06-control-flow.md
 typing/valid/enums.hd	type	accept	08-data-and-enums.md#matching-enums
 typing/valid/shared-enum-defaults.hd	type	accept	08-data-and-enums.md#shared-enum-constructor-data
-typing/invalid/impure-shared-enum-default.hd	type	reject:impure-default	08-data-and-enums.md#shared-enum-constructor-data
+typing/valid/shared-enum-default-writes-state.hd	type	accept	08-data-and-enums.md#shared-enum-constructor-data
 typing/invalid/shared-enum-default-order.hd	type	reject:enum-default-order	08-data-and-enums.md#shared-enum-constructor-data
 typing/valid/match-guards.hd	type	accept	06-control-flow.md#match-expressions
 typing/valid/data-patterns.hd	type	accept	06-control-flow.md#match-expressions
@@ -101,7 +101,7 @@ typing/invalid/readonly-generic-field-init.hd	type	reject:mutable-upgrade	04-typ
 typing/invalid/readonly-spread-mutable-field.hd	type	reject:mutable-upgrade	05-expressions.md#data-expressions
 typing/invalid/copy-update-readonly-child.hd	type	reject:readonly-edge	04-type-system.md#mutable-paths
 typing/valid/data-field-defaults.hd	type	accept	08-data-and-enums.md#data-declarations
-typing/invalid/impure-data-default.hd	type	reject:impure-default	08-data-and-enums.md#data-declarations
+typing/valid/data-default-calls-function-value.hd	type	accept	08-data-and-enums.md#data-declarations
 typing/invalid/missing-required-data-field.hd	type	reject:missing-required-field	08-data-and-enums.md#construction-and-access
 typing/valid/trait-features.hd	type	accept	09-traits.md
 typing/valid/traits.hd	type	accept	09-traits.md
@@ -344,7 +344,7 @@ runtime/valid/fieldless-data-canonical.hd	runtime	accept	08-data-and-enums.md#da
 typing/invalid/indirect-supertrait-cycle.hd	type	reject:supertrait-cycle	09-traits.md#trait-declarations
 typing/valid/supertrait-chain.hd	type	accept	09-traits.md#trait-declarations
 typing/invalid/parameter-default-later-parameter.hd	type	reject:binding-not-yet-visible	07-functions.md#default-values
-typing/invalid/impure-parameter-default.hd	type	reject:impure-default	07-functions.md#default-values
+typing/valid/parameter-default-writes-state.hd	type	accept	07-functions.md#default-values
 runtime/valid/parameter-default-earlier-parameter.hd	runtime	accept	07-functions.md#default-values
 typing/invalid/nonfinal-vararg-declaration.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
 typing/invalid/nonfinal-vararg-function-type.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
@@ -440,7 +440,7 @@ typing/invalid/list-function-to-vararg-function-type.hd	type	reject:type-mismatc
 runtime/valid/vararg-function-values.hd	runtime	accept	07-functions.md#varargs
 runtime/valid/parameter-defaults-after-explicit-arguments.hd	runtime	accept	07-functions.md#default-values
 typing/invalid/parameter-default-type-mismatch.hd	type	reject:type-mismatch	07-functions.md#default-values
-typing/invalid/suspending-parameter-default.hd	type	reject:impure-default	07-functions.md#default-values
+typing/invalid/suspending-parameter-default.hd	type	reject:suspension-forbidden-context	07-functions.md#default-values
 runtime/valid/varargs-in-trait-and-suspending-methods.hd	runtime	accept	07-functions.md#varargs
 runtime/valid/named-arguments-reordered.hd	runtime	accept	07-functions.md#positional-and-named-arguments
 runtime/valid/named-arguments-source-evaluation-order.hd	runtime	accept	07-functions.md#positional-and-named-arguments
@@ -473,7 +473,7 @@ typing/invalid/readonly-map-remove.hd	type	reject:mutable-receiver-required	04-t
 runtime/valid/map-grow-and-remove.hd	runtime	accept	04-type-system.md#composite-values-and-access-permission
 runtime/valid/data-field-evaluation-order.hd	runtime	accept	08-data-and-enums.md#data-declarations
 runtime/valid/data-field-defaults.hd	runtime	accept	08-data-and-enums.md#data-declarations
-typing/invalid/suspending-data-field-default.hd	type	reject:impure-default	08-data-and-enums.md#data-declarations
+typing/invalid/suspending-data-field-default.hd	type	reject:suspension-forbidden-context	08-data-and-enums.md#data-declarations
 typing/valid/generic-optional-field-default.hd	type	accept	08-data-and-enums.md#data-declarations
 typing/invalid/data-field-default-type-mismatch.hd	type	reject:type-mismatch	08-data-and-enums.md#data-declarations
 runtime/valid/copy-update-evaluation-order.hd	runtime	accept	08-data-and-enums.md#data-declarations
@@ -633,3 +633,7 @@ typing/invalid/suspension-constructor-to-bang-function.hd	type	reject:type-misma
 runtime/valid/suspending-generic-method.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
 runtime/valid/suspending-blanket-impls.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
 runtime/valid/named-local-suspending-function.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
+typing/invalid/parameter-default-requires-provider.hd	type	reject:requirement-in-default	07-functions.md#default-values
+typing/invalid/data-default-requires-provider.hd	type	reject:requirement-in-default	08-data-and-enums.md#data-declarations
+typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	08-data-and-enums.md#shared-enum-constructor-data
+typing/valid/default-calls-requirement-free-trait-method.hd	type	accept	07-functions.md#default-values

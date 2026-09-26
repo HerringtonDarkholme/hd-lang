@@ -43,3 +43,19 @@ stay in `future-work/OPEN_ISSUES.md`.
 | S1 | Defaults may read reassignable top-level bindings: chapter 07 forbids only reassignment. F-101 is a compiler bug. | Remove the question from `OPEN_ISSUES.md`. |
 | S2 | A panicked instance must be discarded by the host (chapter 06 already says so). | Remove the question from `OPEN_ISSUES.md`. |
 | S3 | A stray `$` is a `syntax-error` (applied in W4). | Remove the question from `OPEN_ISSUES.md`. |
+
+# Specification Decisions, Round 2
+
+**Status:** decided by the owner on 2026-09-25, in a discussion of whether
+the language suits incremental and parallel compilation.
+
+| #  | Decision | Spec change |
+| -- | -------- | ----------- |
+| I1 | Rule of thumb: a public item must be fully annotated. Nothing in a public signature is inferred from a body. Top-level bindings cannot be public (already true in the chapter 02 grammar). | Chapter 10, name resolution across packages. |
+| I2 | Ordinary generic bodies are optional in a package interface; each ordinary generic function is compiled in its defining package, once per shape. Pack and reified bodies are carried as source. | Chapters 10 and 04. |
+| I3 | A package interface is determined by its declarations alone, so a dependent compiles as soon as its dependencies' interfaces are known. | Chapter 10. |
+| I4 | The module-initialization check stays module-local, with a non-normative note on computing it from per-function read summaries. | Chapter 10. |
+| R1 | "Purity" is replaced by **requirement-free**: no provider use and no suspension, checked from callee signatures only. Defaults may mutate state and may call function values and dynamic trait methods with empty rows. Purity summaries leave package interfaces. | Chapters 02, 07, 08, 10. |
+| R2 | Annotation builders and metadata are requirement-free too; they run once per key at the first request and observe state as of that moment. | Chapter 14. |
+| R3 | A default that uses a provider is `requirement-in-default`, replacing `impure-default`; a suspending default is the existing `suspension-forbidden-context`. | `spec/README.md`, fixtures. |
+| R4 | Non-entry module initialization is requirement-free initialization (renamed; same rule, plus no calls with non-empty rows). | Chapter 10. |
