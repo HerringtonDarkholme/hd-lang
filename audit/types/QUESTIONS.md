@@ -209,14 +209,9 @@ read it, so prefer explicit, checkable rules and locality.
   Resolution, 04 Mutable Paths and Bindings And Fresh Values, 05 Data
   Expressions and Member Access, 08 Data Embedding, 09 Embedding And Trait
   Satisfaction); the prototype does not implement it yet (KNOWN_FAILURES tag
-  VE). Replaces OE2 and OE3, keeps OE1 and OE4.** Readings added when
-  applying: a copy of a readonly value whose type has direct `mut U` fields at
-  any embedded depth is readonly, so it cannot fill a `mut` result
-  (`mutable-upgrade`); a store into an embedded field copies too; copies are
-  taken when the field expression is evaluated, before later fields run
-  (spread parts when the spread is evaluated); `:=` still binds a readonly
-  view, so the `mut` alias of VE4 needs `let`; an embedded field is an
-  invariant position for variance (readings VE-A to VE-F). (VE1) Construction copies: `Post { Timestamps: ts }`
+  VE). Replaces OE2 and OE3, keeps OE1 and OE4.** The readings VE-A to VE-F
+  below are applied with it; under (D), parts supplied by a spread are
+  copied when the spread is evaluated. (VE1) Construction copies: `Post { Timestamps: ts }`
   stores a copy of `ts`; the part's ordinary fields are copied shallowly
   (they still reference the same objects), and nested embedded parts are
   copied recursively. `ts` may be readonly. (VE2) Access through an embedded
@@ -227,7 +222,8 @@ read it, so prefer explicit, checkable rules and locality.
   be a separate object held exclusively by the outer value; it need not be
   laid out inline.
 
-- **Value embedding readings (VE-A to VE-F), decided.** (A) Copying a
+- **Value embedding readings (VE-A to VE-F), decided and applied to the
+  specification with VE1 to VE4.** (A) Copying a
   readonly part whose type has `mut` fields at any embedded depth makes the
   outer value readonly; using it as `mut` is `mutable-upgrade`. A `mut`
   source, or a part type with no mutable edges, allows a `mut` result;
