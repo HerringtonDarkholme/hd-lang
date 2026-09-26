@@ -6,6 +6,14 @@ the MVP, and `run-portable.ts` executes those cases only through the public
 `hd parse`, `hd check`, and `hd test` commands. The same fixtures can therefore
 be used by another compiler without importing TypeScript modules.
 
+The conformance fixture format and the command contract are defined in
+[`../spec/conformance/README.md`](../spec/conformance/README.md); that file is
+authoritative. The `test/fixtures` directives described below
+(`# expect-result:`, `# expect:` without a manifest row, and the
+`runtime-error` panic wildcard) belong only to this implementation's own
+fixtures. They are being retired as those fixtures move into
+`spec/conformance/` (see `audit/proposals/CONFORMANCE_PLAN.md`, W6).
+
 The TypeScript tests cover implementation details that are intentionally not
 part of the language contract: AST and HIR shape, emitted WAT, Wasm host calls,
 trace and replay plumbing, and the packaged CLI adapter. When a TypeScript test

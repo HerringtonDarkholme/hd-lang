@@ -77,6 +77,16 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
     fail "legacy file-level fixture expectations found"
 fi
 
+if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role): '; then
+    fail "fixture uses a header directive not defined in conformance/README.md"
+fi
+
+if grep -R -n -E '^# expect: ' "$spec_dir/conformance" --include='*.hd' |
+    grep -v -E ':# expect: (parse|accept|test)[[:space:]]*$'; then
+    fail "fixture uses an undefined # expect: value"
+fi
+
 find "$spec_dir/conformance" -type f -name '*.hd' | sort | while IFS= read -r file; do
     relative=${file#"$spec_dir/conformance/"}
     count=$(awk -F "$tab" -v path="$relative" 'NR > 1 && $1 == path { count += 1 } END { print count + 0 }' "$manifest")
