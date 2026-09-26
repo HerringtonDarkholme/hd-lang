@@ -18,7 +18,7 @@ fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
 
 ```ebnf
 generic_parameter = [ "reified" ], identifier, [ "..." ],
-                    [ ":", trait_bounds ] ;
+                    [ "<", trait_bounds ] ;
 ```
 
 A pack has a compile-time length and ordered elements. It is not a type whose
