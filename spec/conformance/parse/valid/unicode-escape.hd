@@ -1,0 +1,4 @@
+# test: unicode escapes of one to six hex digits are valid in strings and chars
+face := "\u{1F600}"
+letter := '\u{41}'
+last := "\u{10FFFF}"

@@ -1,0 +1,7 @@
+# test: a context spread may follow an explicit binding in $.with
+trait Tag:
+    fn name(self) -> string
+
+fn run(x: Tag, ctx: $.Context[Tag]) -> void:
+    $.with(Tag=x, ...ctx):
+        pass

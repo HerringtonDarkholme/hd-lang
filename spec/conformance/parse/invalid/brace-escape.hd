@@ -1,0 +1,2 @@
+# test: a backslash before a brace is not an escape sequence
+value := "a\{b"  # diagnostic: invalid-escape

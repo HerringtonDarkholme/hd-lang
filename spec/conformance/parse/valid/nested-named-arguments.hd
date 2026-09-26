@@ -1,0 +1,9 @@
+# test: named arguments of an inner call do not affect the outer argument order
+fn f(a: i32, b: i32) -> i32:
+    a + b
+
+fn g(x: i32, y: i32) -> i32:
+    x + y
+
+fn h() -> i32:
+    g(f(a=1, b=2), 3)

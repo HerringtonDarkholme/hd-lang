@@ -188,6 +188,26 @@ function chapterGrammar(): Grammar {
 
 const grammar = chapterGrammar();
 
+function nullableSymbols(rules: Grammar): ReadonlySet<string> {
+  const nullable = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [name, alternatives] of rules) {
+      if (nullable.has(name)) continue;
+      if (alternatives.some((rhs) => rhs.every((symbol) => nullable.has(symbol)))) {
+        nullable.add(name);
+        changed = true;
+      }
+    }
+  }
+  return nullable;
+}
+
+// Aycock-Horspool: predicting a nullable symbol also advances past it, so an
+// item is not stranded when the empty completion was already recorded here.
+const nullable = nullableSymbols(grammar);
+
 function itemKey(item: ChartItem): string {
   return `${item.lhs}\u0001${item.rhs.join("\u0002")}\u0001${item.dot}\u0001${item.origin}`;
 }
@@ -214,6 +234,10 @@ export function earleyAccepts(tokens: readonly GrammarToken[]): ParseResult {
           for (const rhs of alternatives) {
             const predicted = { dot: 0, lhs: symbol, origin: position, rhs };
             if (addItem(chart[position]!, predicted)) agenda.push(predicted);
+          }
+          if (nullable.has(symbol)) {
+            const skipped = { ...item, dot: item.dot + 1 };
+            if (addItem(chart[position]!, skipped)) agenda.push(skipped);
           }
         }
       } else {

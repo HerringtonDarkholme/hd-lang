@@ -1,4 +1,4 @@
-import { closeToOpen, openToClose } from "./lexer.ts";
+import { closeToOpen, maskLiterals, openToClose } from "./lexer.ts";
 import type { Diagnostic } from "./types.ts";
 
 const reserved = new Set(
@@ -28,15 +28,12 @@ function diagnostic(code: string, line: number): Diagnostic {
   return { code, line };
 }
 
-function maskStringLiterals(source: string): string {
-  return source.replaceAll(/"(?:\\.|[^"\\])*"/g, '""').replaceAll(/'(?:\\.|[^'\\])*'/g, "''");
-}
-
 function lineRecords(source: string): LineRecord[] {
   const lines = source.split(/\r?\n/);
+  const masked = maskLiterals(source).split(/\r?\n/);
   if (lines.at(-1) === "") lines.pop();
   return lines.map((original, index) => ({
-    clean: maskStringLiterals(original).replace(/#.*$/, "").trim(),
+    clean: (masked[index] ?? "").trim(),
     indent: /^ */.exec(original)![0].length,
     line: index + 1,
     original,
@@ -62,7 +59,7 @@ function splitTopLevel(text: string): string[] {
 
 export function argumentOrderDiagnostics(source: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  const masked = maskStringLiterals(source);
+  const masked = maskLiterals(source);
   const lines = masked.split(/\r?\n/);
   const stack: ParenthesisEntry[] = [];
   let line = 1;
@@ -73,10 +70,16 @@ export function argumentOrderDiagnostics(source: string): Diagnostic[] {
     else if (character === ")" && stack.length > 0) {
       const start = stack.pop()!;
       const content = masked.slice(start.index + 1, index);
+      if (
+        /\$\s*\.\s*(?:with|context)\s*$/u.test(
+          masked.slice(Math.max(0, start.index - 64), start.index),
+        )
+      )
+        continue;
       let namedSeen = false;
       for (const part of splitTopLevel(content)) {
         if (!part) continue;
-        const named = /^[^=,:]+=(?!=)/.test(part);
+        const named = /^[\p{L}_][\p{L}\p{N}_]*\s*=(?!=)/u.test(part);
         if (named) namedSeen = true;
         else if (namedSeen && !part.startsWith("fn ") && !part.startsWith("mut fn ")) {
           const code = lines[start.line - 1]?.includes("=>") ? "pattern-order" : "argument-order";

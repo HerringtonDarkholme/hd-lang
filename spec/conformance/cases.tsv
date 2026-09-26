@@ -285,3 +285,10 @@ typing/invalid/defer-block-on.hd	type	reject:suspension-forbidden-context	06-con
 runtime/valid/defer-order.hd	runtime	accept	06-control-flow.md#deferred-cleanup
 runtime/valid/cancellation-runs-defer.hd	runtime	accept	11-requirements-and-suspension.md#cancellation
 runtime/valid/generic-data-embedding.hd	runtime	accept	08-data-and-enums.md#data-embedding
+parse/valid/unicode-escape.hd	parse	accept	01-lexical-structure.md#string-and-character-literals
+parse/invalid/brace-escape.hd	parse	reject:invalid-escape	01-lexical-structure.md#string-and-character-literals
+parse/valid/curried-function-type.hd	parse	accept	02-grammar.md#types
+parse/valid/string-in-interpolation.hd	parse	accept	01-lexical-structure.md#string-and-character-literals
+parse/valid/nested-named-arguments.hd	parse	accept	02-grammar.md#calls-and-arguments
+parse/valid/context-spread-after-binding.hd	parse	accept	11-requirements-and-suspension.md#provider-scopes
+parse/invalid/stray-dollar.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals

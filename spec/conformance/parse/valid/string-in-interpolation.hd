@@ -1,0 +1,6 @@
+# test: a string literal may appear inside a ${...} interpolation
+fn f(value: string) -> string:
+    value
+
+fn g() -> string:
+    "x${f("y")}z"

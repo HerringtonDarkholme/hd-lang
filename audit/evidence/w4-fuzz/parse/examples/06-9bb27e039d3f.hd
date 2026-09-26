@@ -1,0 +1,8 @@
+use std.testing.assert_equal
+
+data Error:
+    message: string
+
+test -2147483648 :
+    let actual: Result[i32, Error] = Ok(1)
+    assert_equal ( actual , Ok ( 1 ) , reason = "values match" )

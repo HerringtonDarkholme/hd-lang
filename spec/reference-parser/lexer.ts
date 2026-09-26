@@ -45,7 +45,7 @@ export const openToClose = new Map([
 ]);
 export const closeToOpen = new Map([...openToClose].map(([open, close]) => [close, open]));
 const multiOperators = ["...", ":=", "->", "=>", "::", "==", "!=", "<=", ">=", "<<", ">>", "**"];
-const validEscapes = new Set(`0nrt\\"'$ {}`);
+const simpleEscapes = new Set(`\\"'nrt0$`);
 
 interface StringScan {
   readonly diagnostics: readonly Diagnostic[];
@@ -84,6 +84,76 @@ function isDigit(character: string): boolean {
   return /^[0-9]$/.test(character);
 }
 
+function startsInterpolatedName(source: string, index: number): boolean {
+  const first = source[index] ?? "";
+  if (isLetter(first)) return true;
+  const second = source[index + 1] ?? "";
+  return first === "_" && (second === "_" || isLetterOrNumber(second));
+}
+
+function escapeEnd(source: string, index: number): number | undefined {
+  const next = source[index + 1] ?? "";
+  if (simpleEscapes.has(next)) return index + 2;
+  if (next !== "u") return undefined;
+  const unicode = /^u\{([0-9A-Fa-f]{1,6})\}/.exec(source.slice(index + 1, index + 11));
+  if (!unicode) return undefined;
+  const value = Number.parseInt(unicode[1]!, 16);
+  if (value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) return undefined;
+  return index + 1 + unicode[0].length;
+}
+
+function startsString(source: string, index: number): boolean {
+  const character = source[index]!;
+  if (character === '"' || character === "'") return true;
+  if (character !== "r" || (source[index + 1] !== '"' && source[index + 1] !== "'")) return false;
+  const previous = source[index - 1] ?? "";
+  return previous !== "_" && !isLetterOrNumber(previous);
+}
+
+interface InterpolationScan {
+  readonly diagnostics: readonly Diagnostic[];
+  readonly end: number;
+  readonly line: number;
+  readonly terminated: boolean;
+}
+
+function scanInterpolation(
+  source: string,
+  start: number,
+  initialLine: number,
+  triple: boolean,
+): InterpolationScan {
+  const diagnostics: Diagnostic[] = [];
+  const stack: string[] = [];
+  let index = start;
+  let line = initialLine;
+  while (index < source.length) {
+    const character = source[index]!;
+    if (character === "\n") {
+      if (!triple) return { diagnostics, end: index, line, terminated: false };
+      line += 1;
+      index += 1;
+      continue;
+    }
+    if (startsString(source, index)) {
+      const nested = scanString(source, index, line);
+      diagnostics.push(...nested.diagnostics);
+      index = nested.end;
+      line = nested.line;
+      continue;
+    }
+    if (openToClose.has(character)) stack.push(character);
+    else if (closeToOpen.has(character)) {
+      if (stack.length === 0 && character === "}")
+        return { diagnostics, end: index + 1, line, terminated: true };
+      if (stack.at(-1) === closeToOpen.get(character)) stack.pop();
+      else diagnostics.push(diagnostic("unmatched-delimiter", line));
+    }
+    index += 1;
+  }
+  return { diagnostics, end: index, line, terminated: false };
+}
+
 function scanString(source: string, start: number, initialLine: number): StringScan {
   const diagnostics: Diagnostic[] = [];
   const raw = source[start] === "r";
@@ -91,6 +161,7 @@ function scanString(source: string, start: number, initialLine: number): StringS
   const quote = source[quoteAt]!;
   const triple = source.startsWith(quote.repeat(3), quoteAt);
   const terminator = quote.repeat(triple ? 3 : 1);
+  const interpolates = !raw && quote === '"';
   let index = quoteAt + terminator.length;
   let line = initialLine;
   while (index < source.length) {
@@ -112,15 +183,57 @@ function scanString(source: string, start: number, initialLine: number): StringS
         index += 1;
         continue;
       }
-      if (!validEscapes.has(source[index + 1]!))
+      const end = escapeEnd(source, index);
+      if (end === undefined) {
         diagnostics.push(diagnostic("invalid-escape", line));
-      index += 2;
+        index += 2;
+      } else index = end;
+      continue;
+    }
+    if (character === "$" && interpolates) {
+      if (source[index + 1] === "{") {
+        const found = scanInterpolation(source, index + 2, line, triple);
+        diagnostics.push(...found.diagnostics);
+        line = found.line;
+        index = found.end;
+        if (!found.terminated) {
+          diagnostics.push(diagnostic("unterminated-string", initialLine));
+          return { diagnostics, end: index, line, quote };
+        }
+        continue;
+      }
+      if (!startsInterpolatedName(source, index + 1))
+        diagnostics.push(diagnostic("syntax-error", line));
+      index += 1;
       continue;
     }
     index += 1;
   }
   diagnostics.push(diagnostic("unterminated-string", initialLine));
   return { diagnostics, end: index, line, quote };
+}
+
+/** Replace each string or character literal with empty quotes and drop comments, keeping line breaks. */
+export function maskLiterals(source: string): string {
+  let result = "";
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index]!;
+    if (character === "#") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+      continue;
+    }
+    if (startsString(source, index)) {
+      const found = scanString(source, index, 1);
+      const quote = found.quote;
+      result += quote + quote + "\n".repeat(found.line - 1);
+      index = Math.max(found.end, index + 1);
+      continue;
+    }
+    result += character;
+    index += 1;
+  }
+  return result;
 }
 
 function numberEnd(source: string, start: number, afterDot: boolean): NumberScan {
