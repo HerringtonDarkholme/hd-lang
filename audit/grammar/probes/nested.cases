@@ -32,7 +32,7 @@ fn main() -> void:
 #### N07 let over several names with a type
 fn main() -> void:
     let a, b: (i32, i32) = pair
-#### N08 leading-dot method chain on continuation lines
+#### N08 leading-dot method chain on continuation lines (Q7: valid)
 fn main() -> void:
     r := items
         .map(f)
@@ -43,7 +43,7 @@ fn main() -> void:
 #### N10 contextual variant expression as a statement
 fn main() -> void:
     .Red
-#### N11 closing delimiter on the last body line (spec: allowed)
+#### N11 closing delimiter on the last closure body line (Q2: syntax error)
 fn main() -> void:
     x := f(fn(a):
         g(a))

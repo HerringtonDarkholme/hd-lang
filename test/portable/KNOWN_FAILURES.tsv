@@ -13,6 +13,7 @@ runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and ke
 runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	F-704
 runtime/valid/propagation-in-closure-targets-closure.hd	test crashes: optional ? inside a closure emits WAT that Binaryen cannot parse	F-700
 runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a parenthesized multiline closure argument	F-252
+parse/valid/closure-body-ends-at-comma-line.hd	parse fails: syntax-error at line 26: a closure body nested in brackets may hold only one statement, so the multi-statement body fails; one-statement bodies ending at a comma line parse	GQ2
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with expected-token instead of reporting duplicate-binding	F-252

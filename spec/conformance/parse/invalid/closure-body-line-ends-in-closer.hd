@@ -1,0 +1,7 @@
+# test: a closing delimiter on the last body line of a closure nested in brackets does not end the closure
+
+fn apply(f: fn(i32) -> i32) -> i32: f(1)
+
+fn run() -> i32:
+    apply(fn(a: i32) -> i32:
+        a + 1)  # diagnostic: syntax-error

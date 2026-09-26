@@ -36,6 +36,10 @@ field and method lookups, same-named fields and methods, and
 instantiations of one generic trait by argument and expected types), TQ-28
 (overlap by unifying full heads), and TQ-27's tuple targets and
 `function-impl-target` are implemented.
+The grammar decisions GQ1 (a trailing
+requirement clause belongs to the declaration), GQ5 (data patterns label
+fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2
+is implemented only for closure bodies of one statement.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |
@@ -46,3 +50,4 @@ instantiations of one generic trait by argument and expected types), TQ-28
 | TQ-29 | A type implementing both `Iterable[T]` and `Iterator[T]` is iterated through `Iterable`. The prototype has no `Iterable` trait. |
 | E2 | An own member blocks promotion whatever its kind or visibility; an invisible one is `private-member`, and a name present only through an unavailable trait is `trait-not-in-scope`. The prototype tracks neither member visibility across modules nor trait availability, and its fixtures need package roles (`--package-role`, `--dependency`), which the prototype lacks. |
 | R-MUT | A provider installed with `$.with(mut K=value)` may be retrieved as `$.use(mut K)`, and rows carry `mut K`; retrieving or requiring `mut K` where only readonly access is installed is `mutable-upgrade`, and host providers are readonly. The prototype parser rejects a `mut` requirement key. |
+| GQ2 | After an indented closure body inside brackets, the next line must start with `,` or a closing delimiter. The prototype rejects a closing delimiter on a body line, but it parses a closure body nested in brackets as a single statement, so multi-statement bodies fail, and it does not check how far the following line is indented. |

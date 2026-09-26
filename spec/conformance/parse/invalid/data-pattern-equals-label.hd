@@ -1,0 +1,10 @@
+# test: a data pattern labels a field with ':', not '='
+
+data Point:
+    x: i32
+    y: i32
+
+fn first(p: Point) -> i32:
+    match p:
+        Point { x = 0, y } => y  # diagnostic: syntax-error
+        Point { x, y: _ } => x

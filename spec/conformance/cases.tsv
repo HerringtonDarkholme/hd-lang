@@ -380,6 +380,9 @@ typing/invalid/nonfinal-vararg-declaration.hd	type	reject:nonfinal-vararg	07-fun
 typing/invalid/nonfinal-vararg-function-type.hd	type	reject:nonfinal-vararg	07-functions.md#varargs
 runtime/valid/final-vararg.hd	runtime	accept	07-functions.md#varargs
 typing/invalid/method-without-requirement-clause.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
+typing/valid/declaration-owns-requirement-clause.hd	type	accept	02-grammar.md#types
+typing/invalid/declaration-requirement-not-on-result.hd	type	reject:missing-requirement	02-grammar.md#types
+parse/invalid/unparenthesized-result-row.hd	parse	reject:syntax-error	02-grammar.md#types
 typing/valid/local-fn-in-provider-scope.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
 runtime/valid/function-value-argument.hd	runtime	accept	07-functions.md#function-types-and-values
 runtime/valid/function-field-returns-mutable-data.hd	runtime	accept	07-functions.md#function-types-and-values
@@ -517,6 +520,8 @@ typing/invalid/data-pattern-repeated-field.hd	type	reject:duplicate-data-pattern
 typing/invalid/data-pattern-nonexhaustive.hd	type	reject:nonexhaustive-match	06-control-flow.md#match-expressions
 typing/invalid/data-pattern-unknown-field.hd	type	reject:unknown-data-field	06-control-flow.md#match-expressions
 runtime/valid/data-patterns.hd	runtime	accept	06-control-flow.md#match-expressions
+typing/valid/data-pattern-colon-labels.hd	type	accept	06-control-flow.md#match-expressions
+parse/invalid/data-pattern-equals-label.hd	parse	reject:syntax-error	02-grammar.md#patterns
 runtime/valid/string-length-counts-scalars.hd	runtime	accept	04-type-system.md#strings
 runtime/valid/string-interpolation-built-ins.hd	runtime	accept	01-lexical-structure.md#string-and-character-literals
 runtime/valid/string-ordering.hd	runtime	accept	04-type-system.md#strings
@@ -842,6 +847,14 @@ runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	09-trai
 runtime/valid/println-suspending-call-argument.hd	runtime	accept	05-expressions.md#literals
 runtime/valid/println-around-suspending-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
 parse/valid/closing-delimiter-ends-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/closure-body-ends-at-comma-line.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/closure-body-absorbs-next-argument.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/closure-body-followed-by-argument-line.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/closure-body-line-ends-in-closer.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/leading-dot-continuation.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+runtime/valid/leading-dot-chain.hd	runtime	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/leading-operator-does-not-continue.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
+parse/invalid/leading-tuple-index-does-not-continue.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
 parse/valid/bracketed-suite-header-line.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/valid/literal-field-comparison-value.hd	parse	accept	02-grammar.md#primary-expressions
 parse/valid/same-line-loop-else.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines

@@ -224,6 +224,12 @@ loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
     db.load_user!(id)
 ```
 
+The clause directly before a header's `:` always belongs to the function or
+closure being declared, even when its result is a function type. A returned
+function type with its own row is parenthesized, as in
+`fn make() -> (fn() -> i32 $ Log) $ Console:`
+([Types](02-grammar.md#types)).
+
 When an expected function type is available, an inline closure may omit
 parameter and result annotations:
 
@@ -301,7 +307,13 @@ choice(
 ```
 
 Newlines do not replace commas in argument lists. Parentheses make each
-multiline closure's boundary explicit.
+multiline closure's boundary explicit. Without them, the line after an
+indented closure body must start with `,` or a closing delimiter and be
+indented no farther than the line holding the closure header
+([Lexical Structure](01-lexical-structure.md#physical-and-logical-lines)).
+The next closure may start on that line, as in `, fn(b):`. A later argument
+written at body indentation, or a closing delimiter at the end of a body
+line, is a `syntax-error`.
 
 ## Trailing Callback Blocks
 

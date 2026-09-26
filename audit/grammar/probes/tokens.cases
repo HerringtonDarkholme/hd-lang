@@ -84,7 +84,7 @@ fn main() -> void:
 #### T27 data pattern uses = while data literal uses :
 fn main() -> void:
     match p:
-        Point { x = 0, y } => pass
+        Point { x: 0, y } => pass
         _ => pass
 #### T28 named argument uses =
 fn main() -> void:

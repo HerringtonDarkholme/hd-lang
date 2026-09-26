@@ -5,12 +5,12 @@ data User:
 
 fn label(user: User) -> string:
     match user:
-        User { name, active=true } => name
-        User { name=alias } => alias
+        User { name, active: true } => name
+        User { name: alias } => alias
 
 data Envelope:
     user: User
 
 fn nested(envelope: Envelope) -> string:
     match envelope:
-        Envelope { user=User { name } } => name
+        Envelope { user: User { name } } => name

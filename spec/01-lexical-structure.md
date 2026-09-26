@@ -13,8 +13,9 @@ An implementation processes a source file in this order:
 1. Decode source bytes as UTF-8 and remove one optional initial byte-order mark.
 2. Divide source text into physical lines.
 3. Recognize comments, whitespace, literals, identifiers, and operators.
-4. Join physical lines that continue inside `()`, `[]`, or `{}` into logical
-   lines, except for an indentation suite nested in that continuation.
+4. Join physical lines that continue inside `()`, `[]`, or `{}`, and
+   leading-dot continuation lines, into logical lines, except for an
+   indentation suite nested in that continuation.
 5. Emit `NEWLINE`, `INDENT`, `DEDENT`, and same-line `SUITE_END` layout tokens
    from logical lines and nested suites.
 6. Parse the resulting token stream.
@@ -50,6 +51,34 @@ result := choice(
 )
 ```
 
+A physical line also continues the previous logical line when all of these
+hold:
+
+1. its first token is `.` immediately followed by an identifier, a member
+   suffix;
+2. it is indented farther than the first physical line of the logical line it
+   continues; and
+3. that logical line does not end in `:` or `=>`, the tokens that open an
+   indented suite or match-arm body on the next line.
+
+Such a leading-dot line emits no `NEWLINE`, `INDENT`, or `DEDENT`; blank lines
+and comment-only lines before it do not matter. The joined text is read as if
+it were written on one physical line, so a same-line suite still open at the
+end of the previous line extends over the leading-dot line.
+
+```text
+names := users
+    .filter(fn(user): user.active)
+    .map(fn(user): user.name)
+```
+
+A line starting with `.Variant` at the same indentation as the previous line,
+such as a match arm or an expression statement, starts a new logical line, as
+does the first line of an indented suite, whose header ends in `:`. The rule
+applies at delimiter depth zero and on the body lines of a suite nested inside
+delimiters; elsewhere inside delimiters every line already continues. A line
+starting with a binary operator never continues the previous line.
+
 Comments and line endings inside an implicit continuation normally do not emit
 `NEWLINE`, `INDENT`, or `DEDENT`. The exception is a suite introduced by a
 grammar position that expects `:` followed by `suite_body`. When that suite
@@ -59,9 +88,10 @@ still open. After the suite closes, implicit continuation resumes.
 
 The indentation reference for such a nested suite is the indentation of the
 physical line containing its suite header. Its first body line must be indented
-farther than that reference. A closing delimiter at the nested suite's
-delimiter depth ends the last body line: layout processing emits `NEWLINE` and
-all pending `DEDENT` tokens before emitting the closing delimiter.
+farther than that reference. Except after a closure body, a closing
+delimiter at the nested suite's delimiter depth ends the last body line:
+layout processing emits `NEWLINE` and all pending `DEDENT` tokens before
+emitting the closing delimiter.
 
 This exception permits explicit multiline closures in calls:
 
@@ -75,11 +105,35 @@ choice(
 )
 ```
 
-Inside brackets, a header may resume after such a suite: in
-`(if fn(): ...` the closure's indented body may be followed by a line that
-begins with the `if` header's `:`. Outside brackets, and in the statements of
-a nested suite, a header cannot end in an indented suite; the line after that
-suite cannot continue it ([Grammar](02-grammar.md#statements)).
+A closure whose indented body is nested directly inside delimiters has a
+stricter end. Its body ends only at a line indented no farther than the line
+holding the closure header, and that line must start with `,` or a closing
+delimiter at the closure's delimiter depth. Any other token starting that
+line, a line indented between the header and the body, and a closing
+delimiter on a body line are each a `syntax-error`. A line at body
+indentation belongs to the body, so a later argument written on it is caught
+rather than silently becoming the closure's result:
+
+```text
+choice(fn(a):
+    println(a)
+, fn(b):
+    println(b)
+)
+
+choice(fn(a):
+    println(a)
+    fallback)       # syntax-error: `)` ends a closure body line
+```
+
+A closure written as a statement in a nested suite's body ends like any other
+statement. Inside brackets, a header may resume on the line after a nested
+suite that is not a closure body, such as an `if` expression. After a closure
+body it resumes only past the closing delimiter, as in `(if check(fn(x): ...`
+followed by a line that starts with `):`. Outside brackets, and in the
+statements of a nested suite, a header cannot end in an indented suite; the
+line after that suite cannot continue it
+([Grammar](02-grammar.md#statements)).
 
 Layout recognition and parsing therefore cooperate at a suite-introducing
 colon; a lexer may implement this with parser feedback or with equivalent

@@ -158,7 +158,11 @@ directly inside brackets, a comprehension clause, a map key, a spread before
 `...`, and a parameter decorator. It cannot end in a same-line suite, because
 layout would extend that suite over the following token; layout ends a
 same-line suite only at a line boundary outside brackets, at a comma or closing
-delimiter at its depth, or before `else`. It may end in an indented suite.
+delimiter at its depth, or before `else`. It may end in an indented suite,
+except a closure body: after an indented closure body inside brackets, the
+next line must start with `,` or a closing delimiter
+([Lexical Structure](01-lexical-structure.md#physical-and-logical-lines)), so
+`indented_suite_expression` has no closure alternative.
 
 Outside brackets, an expression followed by another token cannot end in any
 suite. A control-flow header in a statement, a match guard, and an annotation
@@ -195,7 +199,8 @@ not independently named module members.
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                [ "->", type ], [ requirement_clause ], ":", suite_body ;
+                [ "->", result_type ], [ requirement_clause ], ":",
+                suite_body ;
 
 callable_name = identifier, [ "!" ] ;
 
@@ -297,7 +302,7 @@ supertrait_bounds = trait_type, { "+", trait_type } ;
 
 trait_member = associated_type_decl
              | "fn", callable_name, [ generic_params ], parameter_clause,
-               "->", type, [ requirement_clause ],
+               "->", result_type, [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -310,8 +315,8 @@ impl_decl = "impl", [ generic_params ], type, [ "for", type ],
 impl_member = associated_type_decl | method_decl ;
 
 method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
-              parameter_clause, [ "->", type ], [ requirement_clause ],
-              ":", suite_body ;
+              parameter_clause, [ "->", result_type ],
+              [ requirement_clause ], ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 ```
@@ -419,6 +424,12 @@ function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
 type_list = type_element, { ",", type_element }, [ "," ] ;
 
+result_type = reference_access_type, { "?" }
+            | result_function_type
+            ;
+result_function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+                       "->", result_type ;
+
 associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 
 qualified_name = identifier, { ".", identifier } ;
@@ -447,9 +458,32 @@ including direct `mut mut T`. Optionality applies to the complete reference
 access type and may be nested. In `fn() -> T?`, `?` belongs to the innermost
 result type; an optional function type must be grouped, as in `(fn() -> T)?`.
 Parentheses group types; unlike a one-element tuple type, grouping has no
-trailing comma. A requirement clause following nested function types likewise
+trailing comma. Inside a type, such as a parameter type, a field type, or a
+type argument, a requirement clause following nested function types likewise
 belongs to the innermost ungrouped function type; parentheses select an outer
 owner.
+
+A declaration or closure header owns the requirement clause directly before
+its `:`, and a bodyless trait method owns the clause directly before its line
+end. Its result is a `result_type`, whose function types, however nested,
+carry no requirement clause, so the clause cannot attach to the result. A
+function-typed result with its own row is parenthesized:
+
+```text
+fn make() -> fn() -> i32 $ Console:          # make requires Console
+    _ := $.use(Console)
+    fn() -> i32: 1
+
+fn wrap() -> (fn() -> i32 $ Log) $ Console:  # the result requires Log
+    _ := $.use(Console)
+    fn() -> i32 $ Log:
+        _ := $.use(Log)
+        2
+```
+
+The rule applies to named functions, methods, trait methods, and closures:
+in `fn() -> fn() -> i32 $ Console:`, the closure requires `Console`. Writing
+`fn() -> i32 $ Log $ Console` as a declaration result is a `syntax-error`.
 Requirement rows on function types are specified in
 [Requirements and Suspension](11-requirements-and-suspension.md).
 
@@ -528,7 +562,6 @@ indented_suite_expression = indented_if_expression
                           | indented_for_expression
                           | indented_while_expression
                           | match_expression
-                          | closure_header, indented_suite_body
                           | "$", ".", "with", "(", context_entries, ")",
                             ":", indented_suite_body
                           ;
@@ -768,7 +801,7 @@ an `if`, `while`, `for`, or `match` header or inside brackets.
 closure_expression = closure_header, suite_body ;
 inline_closure_expression = closure_header, inline_suite_body ;
 closure_header = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
-                 [ "->", type ], [ requirement_clause ], ":" ;
+                 [ "->", result_type ], [ requirement_clause ], ":" ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,
@@ -905,7 +938,7 @@ named_pattern = identifier, "=", pattern ;
 data_pattern = qualified_name, "{", [ data_pattern_fields ], "}" ;
 data_pattern_fields = data_pattern_field,
                       { ",", data_pattern_field }, [ "," ] ;
-data_pattern_field = identifier, [ "=", pattern ] ;
+data_pattern_field = identifier, [ ":", pattern ] ;
 
 tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
@@ -913,11 +946,17 @@ tuple_pattern = "(", pattern, ",",
 
 Variant patterns may use a qualified enum variant name or `.Variant` when the
 matched value's type supplies one enum. Positional binding names need not match
-payload field names. Only `field=pattern` is a named pattern, and no positional
-pattern may follow a named pattern.
-In a data pattern, bare `field` binds that field's value to a new name;
-`field=pattern` matches it against a nested pattern. Unlisted fields are
-ignored.
+payload field names. In a payload list, only `field=pattern` is a named
+pattern, and no positional pattern may follow a named pattern.
+In a data pattern, bare `field` binds that field's value to a new name of the
+same spelling; `field: pattern` matches it against a nested pattern, and
+`field: name` binds it to `name`. Unlisted fields are ignored.
+
+Labels follow their brackets. Inside `Type { ... }`, in data expressions and
+data patterns alike, a field label is followed by `:`. Inside parentheses,
+in named arguments, variant payloads, and payload patterns, a label is
+followed by `=`. A data pattern written with `field = pattern` is a
+`syntax-error`.
 
 ## Comprehensions
 

@@ -1,0 +1,27 @@
+# test: an indented closure body inside brackets ends at a line that starts with ',' or a closing delimiter
+# expect: parse
+
+fn choice(first: fn(i32) -> void, second: fn(i32) -> void) -> void:
+    first(1)
+    second(2)
+
+fn apply(f: fn() -> i32) -> i32: f()
+
+fn run() -> i32:
+    choice(fn(a):
+        println(a)
+    , fn(b):
+        println(b)
+    )
+    choice(
+        (
+            fn(a):
+                println(a)
+        ),
+        fn(b): println(b),
+    )
+    apply(fn() -> i32:
+        twice := fn(x: i32) -> i32:
+            x * 2
+        twice(21)
+    )

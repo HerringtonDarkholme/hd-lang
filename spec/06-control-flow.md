@@ -264,11 +264,22 @@ arm must cover the remaining `Scale` values unless a later catch-all does.
 
 Nested variant and tuple patterns are permitted by the grammar. Data
 destructuring patterns are also permitted. `User { name }` binds the `name`
-field; `User { name=alias }` binds it as `alias`; `User { age=18 }` matches
-only values with that field value. Unlisted fields are ignored. Listed fields
-must be distinct and exist on the named data type. A cross-module pattern may
-name only public fields. An empty data pattern is irrefutable for that
-data type. A named data pattern must match the subject's nominal type;
+field; `User { name: alias }` binds it as `alias`; `User { age: 18 }` matches
+only values with that field value. Unlisted fields are ignored. As in a data
+expression, a field label inside the braces is followed by `:`; the `=` label
+belongs to payload patterns in parentheses:
+
+```text
+match value:
+    Shape.Dot(Point { x: 0, y }) => y
+    Shape.Dot(Point { x: px, y: _ }) => px
+    Shape.Line(start=Point { x: 0 }, end=_) => 0
+    Shape.Line(start=_, end=_) => 1
+```
+
+Listed fields must be distinct and exist on the named data type. A
+cross-module pattern may name only public fields. An empty data pattern is
+irrefutable for that data type. A named data pattern must match the subject's nominal type;
 it does not structurally match a different data type with the same fields.
 Primitive fields bind by value; composite fields bind reference access under
 the data subject's effective field types. A direct `mut U` field in a readonly

@@ -84,7 +84,7 @@ Fix applied: literals compile to quoted terminals and productions never scan
 
 ### GR-02: A requirement clause after a function-typed result has two owners
 
-Severity: High. Question: Q1.
+Severity: High. Question: Q1. Status: fixed (option A; spec Revision Note GQ1).
 
 ```text
 fn make() -> fn() -> i32 $ Console:
@@ -122,7 +122,7 @@ Fixture: `parse/valid/closing-delimiter-ends-nested-suite.hd`.
 
 ### GR-04: A multiline closure argument absorbs lines that look like later arguments
 
-Severity: Medium. Question: Q2.
+Severity: Medium. Question: Q2. Status: fixed (option A; spec Revision Note GQ2).
 
 ```text
 choice(fn(a):
@@ -220,7 +220,7 @@ standard-library agent).
 
 ### GR-11: Data literals use `:` where every other labelled form uses `=`
 
-Severity: Medium. Question: Q5.
+Severity: Medium. Question: Q5. Status: fixed (option B, patterns use `:`; spec Revision Note GQ5).
 
 ```text
 p := Point { x: 1, y: 2 }            # data literal: colon
@@ -246,7 +246,7 @@ named-argument label, and in field and parameter declarations.
 
 ### GR-13: Leading-dot chains and trailing operators cannot continue a line
 
-Severity: Medium. Question: Q7.
+Severity: Medium. Question: Q7. Status: fixed for leading `.` (option B; spec Revision Note GQ7).
 
 Only brackets continue a logical line, so a chain written with leading `.`
 lines is a syntax error. Fix (recommended): a line that starts with `.`

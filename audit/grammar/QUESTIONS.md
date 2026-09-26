@@ -2,7 +2,8 @@
 
 ## Owner Decisions
 
-Decided 2026-09-26; not yet applied to the specification.
+Decided 2026-09-26 and applied to the specification, the reference parser,
+and the prototype (see `spec/README.md`, Revision Notes GQ1, GQ2, GQ5, GQ7).
 
 - **Q1: the declaration owns a trailing requirement clause.** A clause
   directly before a declaration's or closure's `:` (or a bodyless trait
@@ -11,15 +12,30 @@ Decided 2026-09-26; not yet applied to the specification.
   Inside types, the row still attaches to the innermost function type.
 - **Q2: after an indented closure body inside brackets, the next line must
   start with `,` or a closing delimiter** at the header's indentation.
+- **Q5: data patterns use `:` (option B).** `Point { x: 0, y }` matches `x`
+  against `0` and binds `y`; `Point { x: px }` binds `x` to `px`. Labels in
+  `Type { ... }` use `:`; labels in `( ... )` (named arguments, variant
+  payloads, and their patterns) keep `=`.
 - **Q7: leading-dot continuation.** A line that starts with `.` followed by an
   identifier, indented deeper than the previous line, continues it when the
   previous line does not open a suite.
+
+Applied as follows. Q1: declaration and closure results are a
+`result_type`, whose function types carry no row. Q2: the line after the
+closure body must also be indented no farther than the header line, a
+closing delimiter on a body line is a `syntax-error`, and a closure written
+as a statement in a nested suite ends like any statement. Q7: "the previous
+line" is the first physical line of the logical line being continued, so
+every line of a chain may share one indentation, and a line ending in `=>`
+counts as opening a suite.
 
 Each question stands alone. Findings with the evidence are in
 [FINDINGS.md](FINDINGS.md). The `shape`, `and`/`or`/`not`, and `where`
 questions were decided separately (K1 to K3).
 
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
+
+Decided: option A. Applied.
 
 ```text
 fn make() -> fn() -> i32 $ Console:
@@ -40,6 +56,8 @@ prose picks the returned type, so `make` itself requires nothing.
 (GR-02)
 
 ## Q2. How are multiline closures passed as arguments that are not last?
+
+Decided: option A. Applied.
 
 ```text
 choice(fn(a):
@@ -96,6 +114,8 @@ y := pack.map(items, size)
 
 ## Q5. Should data literals label fields with `=` instead of `:`?
 
+Decided: option B. Applied.
+
 ```text
 p := Point { x: 1, y: 2 }       # today
 match p:
@@ -126,6 +146,8 @@ f(match = true)         # syntax error today
 (GR-12)
 
 ## Q7. Should a line starting with `.` continue the previous line?
+
+Decided: option B. Applied.
 
 ```text
 names := users

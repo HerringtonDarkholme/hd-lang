@@ -1,0 +1,6 @@
+# test: only a line starting with '.name' continues the previous line; a leading operator does not
+
+fn total(a: i32, b: i32) -> i32:
+    sum := a
+        + b  # diagnostic: syntax-error
+    sum

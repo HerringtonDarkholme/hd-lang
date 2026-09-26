@@ -79,6 +79,8 @@ interface DepthEntry {
 interface NestedLevel {
   readonly delimiters: number;
   readonly indent: number;
+  // Set on a closure body: the indentation of the line holding its header.
+  readonly closureReference?: number;
   saved?: DepthEntry[];
 }
 
@@ -294,6 +296,56 @@ function numberEnd(source: string, start: number, afterDot: boolean): NumberScan
   return { end, floating };
 }
 
+// Chapter 01 leading-dot continuation: unless the line ends in `:` or `=>`,
+// which open an indented block, when the next non-blank, non-comment line
+// starts with `.` and an identifier and is indented farther than
+// `lineIndent`, returns the index of that `.` and the lines skipped.
+function leadingDotContinuation(
+  source: string,
+  newline: number,
+  lineIndent: number,
+  previousText: string,
+): { readonly index: number; readonly lines: number } | undefined {
+  if (previousText === ":" || previousText === "=>") return undefined;
+  let index = newline + 1;
+  let lines = 1;
+  while (index < source.length) {
+    let indent = 0;
+    while (source[index] === " ") {
+      indent += 1;
+      index += 1;
+    }
+    if (source[index] === "\r") index += 1;
+    if (source[index] === "\n" || source[index] === "#") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+      index += 1;
+      lines += 1;
+      continue;
+    }
+    const next = source[index + 1] ?? "";
+    const identifierStart =
+      isLetter(next) || (next === "_" && startsInterpolatedName(source, index + 1));
+    return source[index] === "." && identifierStart && indent > lineIndent
+      ? { index, lines }
+      : undefined;
+  }
+  return undefined;
+}
+
+// A nested suite level. Only a closure written directly inside the brackets
+// records its header line; a closure statement in a nested suite body ends
+// like any statement.
+function nestedLevel(delimiters: number, indent: number, closure: boolean): NestedLevel {
+  return closure ? { closureReference: indent, delimiters, indent } : { delimiters, indent };
+}
+
+// A closure body nested in brackets ends only at a line no deeper than its
+// header line that starts with `,` or a closing delimiter.
+function badClosureEnd(level: NestedLevel, indent: number, next: string | undefined): boolean {
+  const reference = level.closureReference;
+  return reference !== undefined && (indent > reference || !",)]}".includes(next ?? ""));
+}
+
 // True when the token before the just-pushed `fn` is `->` (or `->` then `mut`).
 function typeResultStart(tokens: readonly GrammarToken[]): boolean {
   const previous = tokens.at(-2)?.text;
@@ -314,6 +366,8 @@ export function lexSource(source: string): LexResult {
   const inlineSuites: number[] = [];
   let pendingForcedSuite: NestedLevel | undefined;
   const forcedIndents: NestedLevel[] = [];
+  // Indentation of the first physical line of the current logical line.
+  let lineIndent = 0;
 
   while (index < source.length) {
     if (atLineStart) {
@@ -348,6 +402,8 @@ export function lexSource(source: string): LexResult {
             const closed = forcedIndents.pop()!;
             tokens.push(token("DEDENT", line, "<dedent>"));
             if (closed.saved) pendingHeaders.push(...closed.saved);
+            if (badClosureEnd(closed, indent, source[index]))
+              diagnostics.push(diagnostic("syntax-error", line));
           }
           // A deeper line inside a nested suite body opens an ordinary nested block.
           const top = forcedIndents.at(-1);
@@ -367,6 +423,7 @@ export function lexSource(source: string): LexResult {
         if (indent !== indents.at(-1)) diagnostics.push(diagnostic("invalid-dedent", line));
       }
       atLineStart = false;
+      lineIndent = indent;
       if (index === start && source[index] === "\ufeff" && index === 0) {
         index += 1;
         continue;
@@ -396,6 +453,15 @@ export function lexSource(source: string): LexResult {
         line += 1;
         index += 1;
         atLineStart = false;
+        continue;
+      }
+      const continuation =
+        lineHasToken && !pendingForcedSuite
+          ? leadingDotContinuation(source, index, lineIndent, previousText)
+          : undefined;
+      if (continuation) {
+        line += continuation.lines;
+        index = continuation.index;
         continue;
       }
       // Same-line suites and headers opened at a shallower delimiter depth end
@@ -498,7 +564,9 @@ export function lexSource(source: string): LexResult {
           "in",
           "match",
         ]).has(previousText);
-      if (suiteWord) pendingHeaders.push({ depth, text: word });
+      // A closure `fn` is followed by `(` or `!`; a declaration `fn` by a name.
+      const closure = word === "fn" && /^[ \t]*[(!]/.test(source.slice(end, end + 40));
+      if (suiteWord) pendingHeaders.push({ depth, text: closure ? "closure" : word });
       if (word === "in") {
         const header = pendingHeaders.findLastIndex(
           (entry) => entry.depth === depth && entry.text === "for",
@@ -545,6 +613,10 @@ export function lexSource(source: string): LexResult {
           const closed = forcedIndents.pop()!;
           tokens.push(token("DEDENT", line, "<dedent>"));
           if (closed.saved) pendingHeaders.push(...closed.saved);
+          // A closure body ends at a line starting with `,` or a closing
+          // delimiter, never at a closing delimiter on a body line.
+          if (closed.closureReference !== undefined)
+            diagnostics.push(diagnostic("syntax-error", line));
         }
       }
       // A comma between the names of a `for` binding keeps the headers open.
@@ -578,7 +650,9 @@ export function lexSource(source: string): LexResult {
         else if (delimiters.length > 0) {
           const lineStart = source.lastIndexOf("\n", index - 1) + 1;
           const headerIndent = /^ */.exec(source.slice(lineStart))![0].length;
-          pendingForcedSuite = { delimiters: depth, indent: headerIndent };
+          const closure = pendingHeaders[match]!.text === "closure";
+          const direct = depth > (forcedIndents.at(-1)?.delimiters ?? 0);
+          pendingForcedSuite = nestedLevel(depth, headerIndent, closure && direct);
         }
         pendingHeaders.splice(match);
       }

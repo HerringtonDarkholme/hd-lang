@@ -24,3 +24,4 @@ F-702	1	`pub` on a path-only `use` is accepted
 F-703	1	`pub` on a top-level binding is accepted
 F-705	1	Declared variance is deferred, so covariant data cannot be written
 F-706	1	A backslash before a quote in a raw string is a lexer error
+GQ2	1	A closure body nested in brackets may hold only one statement, so an indented multi-statement body ending at a comma line fails to parse
