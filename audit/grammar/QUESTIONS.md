@@ -41,6 +41,18 @@ questions were decided separately (K1 to K3).
   with one open (for example `f := fn(x): x` then a deeper `.len()`), the
   continuation line is a syntax error.
 
+- **Q3, not yet applied.** A nested suite's body must be indented deeper than
+  the logical line that contains its header, not only the physical header
+  line.
+- **Q4, not yet applied.** `pack.map(` and `pack.map_list(` always form the
+  pack operation, even when a local is named `pack`.
+- **Q6, not yet applied.** Reserved words stay unusable as plain identifiers;
+  a raw-identifier escape with backticks (`` `type` ``) makes any reserved
+  word usable as a member name, label, field, parameter, or binding.
+- **Q8, not yet applied.** Inside brackets, a `(`, `[`, or `{` suffix must
+  start on the same physical line as the end of its operand; otherwise the
+  line starts a new element (a missing comma is an error).
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
