@@ -166,6 +166,21 @@ read it, so prefer explicit, checkable rules and locality.
 - **TQ-16, not yet applied.** Trait parameters are invariant; variance
   markers on trait parameters are rejected.
 
+- **TQ-17, not yet applied.** An inherent impl sits in the target type's
+  module; a trait impl sits in the module declaring the trait, the target,
+  or the owned trait argument.
+- **TQ-18, not yet applied (settles Annotation Locality).** A foreign-target
+  annotation may appear in the facet's defining module without a marker, and
+  in the root application package under the existing exception with an
+  explicit marker; an explicit `impl Annotate[F] for X` obeys the same rule.
+- **TQ-19, not yet applied.** Inherent impls of one type constructor may
+  repeat a member name when their targets cannot unify (`impl Box[i32]` and
+  `impl Box[string]`); `impl[T] Box[T]` and `impl Box[i32]` with the same
+  name are `duplicate-inherent-member`.
+- **TQ-22, not yet applied (settles runtime identity question 1).**
+  `value.downcast[T]()` is a compiler-provided method available only on
+  `Inspectable` values and on parameters bounded by `Inspectable`.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
