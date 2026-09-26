@@ -5,7 +5,7 @@
 Decided 2026-09-26.
 
 Applied to the specification on 2026-09-26 (see the spec README revision
-notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6):
+notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6, E1 to E5, and M1):
 
 - **TQ-1** (applied): impl targets start with a type constructor
   (`bare-parameter-impl-target`); overlap is decided by trait, unifying trait
@@ -13,25 +13,28 @@ notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6):
   accepts `Iterable[T]` or `Iterator[T]`.
 - **TQ-2** (applied): the owner of a trait argument's outer constructor may
   write the impl; this covers facet packages annotating primitives.
-- **TQ-3** (partly applied): inherent methods win over trait methods, several
+- **TQ-3** (applied): inherent methods win over trait methods, several
   trait candidates are `ambiguous-method`, and `Trait::m(x)` selects one. The
-  pooling of promoted and trait candidates is withdrawn pending the embedding
-  redesign.
+  pooling of promoted and trait candidates is withdrawn; E1 replaces it.
 - **TQ-5** (applied): an outer `mut` on an impl target is
   `mutable-impl-target`.
 - **TQ-6** (applied): a child trait may not declare a supertrait member name
   (`duplicate-trait-member`).
 
-TQ-7 and TQ-8 are on hold for the embedding redesign.
+TQ-7 and TQ-8 are superseded by E1 to E5.
 
-Questions raised while applying these decisions are TQ-27 to TQ-30 at the end
-of this file.
+Questions raised while applying these decisions are TQ-27 to TQ-30, and TQ-31
+to TQ-35 for E1 to E5 and M1, at the end of this file.
 
 
 Each question stands alone. Guiding preference: agents write the code and humans
 read it, so prefer explicit, checkable rules and locality.
 
-- **Embedding (E1 to E5), not yet applied.** For `x.name` on nominal type
+- **Embedding (E1 to E5), applied** to 03 Member Resolution (the one lookup
+  algorithm), 08 Data Embedding, 09 Method Resolution and Embedding And Trait
+  Satisfaction, and 02 (bodyless implementations). New codes
+  `ambiguous-promoted-member`, `private-member`, `trait-not-in-scope`;
+  `promoted-mutable-requirement` removed. For `x.name` on nominal type
   `S`: (E1) resolve against `S`'s own members first (fields, inherent
   methods, trait methods of `S`); look into embedded fields only when `S`
   has no member with that name. (E2) Only "no member named `name`"
@@ -44,7 +47,9 @@ read it, so prefer explicit, checkable rules and locality.
   methods only; an embedded type's trait methods never promote. (E5) A
   promoted method never fills a required trait method; the impl writes the
   body. Replaces TQ-7 and TQ-8.
-- **Member namespace (M1), not yet applied.** Fields and methods share one
+- **Member namespace (M1), applied** to 03 Member Resolution, 05 Member
+  Access, and 09 Inherent Implementations; a field and an inherent method
+  reuse `duplicate-inherent-member`. Fields and methods share one
   member namespace per type. A field and an inherent method with the same
   name are an error at the declaration; `x.callback()` calls a
   function-typed field; a field and a trait method with the same name are an
@@ -107,6 +112,7 @@ at uses.
 **Recommend A.** The error is local and early.
 
 ## TQ-7: May a promoted method replace a trait default?
+Superseded by E5: a promoted method never fills a trait method.
     trait Named:
         fn label(self) -> string: "default"
     impl Base:
@@ -119,6 +125,7 @@ Options: (A) no, promotion fills only methods without a default; (B) yes.
 body shows every override.
 
 ## TQ-8: Do an embedded type's trait methods promote?
+Superseded by E4: they never promote.
     impl Display for Label
     data Page:
         Label
@@ -298,3 +305,47 @@ error at the loop; (C) forbid the pair.
     impl Store[User] for Shelf
     impl Store[mut User] for Shelf       # distinct instantiations?
 TQ-5 settled only the outer `mut` of targets.
+
+## TQ-31: Does an embedded type's trait method stop the search below it?
+    impl Base:
+        fn to_string(self) -> string: "base"
+    data Label:
+        Base
+    impl Display for Label: ...
+    data Page:
+        Label
+    page.to_string()                     # Base's method at depth 2, or error?
+E3 and E4 read literally: depth 1 has no match (trait methods are not
+matches), so depth 2 finds `Base.to_string`. Yet `label.to_string()` reaches
+Label's `Display` method. The applied text follows the literal reading.
+Options: (A) keep; (B) a trait method of an embedded type blocks the search
+through that path.
+
+## TQ-32: Bare field read beside a trait method of the same name
+    impl Named for User:
+        fn name(self) -> string: self.name   # field read
+M1 makes a field and a trait method with one name ambiguous "at the use".
+The applied text makes only the call `x.name(args)` ambiguous; a bare
+`x.name` reads the field, because bare method values are deferred. Under the
+other reading, nothing could read the field except a pattern. Confirm.
+
+## TQ-33: Field and inherent associated function with one name
+    data User:
+        guest: bool
+    impl User:
+        fn guest() -> User: ...
+M1 names inherent methods only. Associated functions are reached through
+`User::guest()`, never with a dot. Options: (A) allowed; (B)
+`duplicate-inherent-member`.
+
+## TQ-34: Visibility of promoted members at depth
+E2 makes an own member present regardless of visibility. The applied text
+extends this to embedded levels: a match counts whatever its visibility, and
+an invisible selected member, or an invisible embedded field on its path, is
+`private-member`. The alternative skips invisible matches and keeps
+searching. Confirm.
+
+## TQ-35: Which diagnostic wins when an own member is both invisible and unavailable?
+    # S has a private field `tag` and implements an unimported trait with `tag`
+The applied text reports `private-member` when a field or inherent method is
+present but not visible, and `trait-not-in-scope` otherwise. Confirm.

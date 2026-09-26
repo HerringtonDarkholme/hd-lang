@@ -149,17 +149,16 @@ post := Post {
 }
 ```
 
-Embedding promotes fields and methods for convenient access but does not make
-the outer data type a subtype of the embedded type. Promotion follows Go-style
-shortest-path resolution. A direct member hides promoted members. Multiple
-equally short promoted members are ambiguous and require qualification through
-the embedded field.
-Cross-module access through an embedded field requires that field and the
-promoted member to be public.
+Embedding promotes the embedded type's fields and inherent methods for
+convenient access, but does not make the outer data type a subtype of the
+embedded type. An embedded type's trait methods are not promoted. Which member
+`x.name` selects, including when an outer member hides a promoted one and when
+two promoted members are ambiguous, is defined once in
+[Member Resolution](03-names-and-scopes.md#member-resolution).
 
-Embedding never grants trait conformance. Inside an explicit trait `impl`, an
-unambiguous promoted method may supply a required method. Ambiguous promoted
-methods require an explicit method body and a qualified embedded-field call.
+Embedding never grants trait conformance, and a promoted method never fills a
+method of a trait implementation; the implementation writes the method, as in
+[Embedding And Trait Satisfaction](09-traits.md#embedding-and-trait-satisfaction).
 
 Embedded shorthand accepts a named data type, including one with generic
 arguments. For `Box[T]`, the embedded field's name and construction key are

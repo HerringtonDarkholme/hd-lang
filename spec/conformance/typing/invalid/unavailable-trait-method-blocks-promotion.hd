@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: a name present only through a trait that is not available does not fall through to an embedded method
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> string:
+    outer.tag()  # diagnostic: trait-not-in-scope

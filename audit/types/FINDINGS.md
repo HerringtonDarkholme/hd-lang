@@ -13,7 +13,7 @@ anchor, or statement is missing.
 | --- | --- | --- | --- | --- | --- |
 | TY-01 | High | Overlap | Resolved (TQ-1): bounds both do and do not count when proving impls disjoint | R3.2 | TQ-1 |
 | TY-02 | High | Orphan | Resolved (TQ-2): `annotate Facet for string` is legal; its lowered impl is an orphan | R2.1 | TQ-2 |
-| TY-03 | High | Method resolution | Partly resolved (TQ-3, inherent over trait): numbered tiers contradict the "remaining candidates" sentence; promoted-versus-trait order waits on the embedding redesign | R9.3 | TQ-3 |
+| TY-03 | High | Method resolution | Resolved (TQ-3, E1): numbered tiers contradicted the "remaining candidates" sentence; own members now precede promoted ones | R9.3 | TQ-3, E1 |
 | TY-04 | High | Impl selection | "Constrained by a reachable bound" lets one impl apply twice to one pair | R1.4 | - |
 | TY-05 | High | GADTs | Existential bounds need stored dictionaries; representation rule omits them | R4.9 | - |
 | TY-06 | Med | Impl heads | Resolved for targets (TQ-5): `mut` in impl heads and trait arguments undefined; trait arguments still open | R1.3, R4.4 | TQ-5 |
@@ -21,9 +21,9 @@ anchor, or statement is missing.
 | TY-08 | Med | Supertraits | Implied supertrait bounds used but never stated | R5.3 | - |
 | TY-09 | Med | Method resolution | Dot call with two instantiations of one generic trait | R9.5 | TQ-4 |
 | TY-10 | Med | Assoc. functions | `Type::f`, `Trait::f()`, `T::f()` have no lookup rule | R9.8 | TQ-9 |
-| TY-11 | Med | Embedding | Which trait slots a promoted method fills | R7.2 | TQ-7 |
-| TY-12 | Med | Embedding | Whether embedded trait methods promote | R7.4 | TQ-8 |
-| TY-13 | Med | Defaults | Name reuse resolved (TQ-6): default-body dispatch, supertrait defaults, name reuse | R6.1-R6.5 | TQ-6 |
+| TY-11 | Med | Embedding | Resolved (E5): which trait slots a promoted method fills | R7.2 | E5 |
+| TY-12 | Med | Embedding | Resolved (E4): whether embedded trait methods promote | R7.4 | E4 |
+| TY-13 | Med | Defaults | Partly resolved (TQ-6, E5): default-body dispatch, supertrait defaults, name reuse | R6.1-R6.5 | TQ-6, E5 |
 | TY-14 | Med | Dynamic safety | Row, pack, reified, suspending method params uncovered | R8.1 | TQ-10 |
 | TY-15 | Med | Dynamic safety | Requirement keys must be dynamically safe; rule missing | R8.5 | - |
 | TY-16 | Med | Derivation | Ch. 04 says newtypes can derive; grammar forbids | R10.1 | TQ-11 |
@@ -86,9 +86,11 @@ same gap blocks `impl Add[Money] for i32` in Money's package.
 Fix: TQ-2 (R2.1).
 
 ## TY-03: Method Resolution Order Contradicts Itself
-Status: partly resolved by TQ-3 (inherent methods win; several trait
-candidates are `ambiguous-method`). The promoted-versus-trait order waits on
-the embedding redesign.
+Status: resolved by TQ-3 (inherent methods win; several trait candidates are
+`ambiguous-method`) and E1 (own members, trait methods included, precede
+promoted members), applied to 03 Member Resolution and 09 Method Resolution
+(2026-09-26). In the example, `page.to_string()` selects Page's `Display`
+method.
 High. Anchor: 09 Method Resolution.
 
     data Base:
@@ -212,6 +214,9 @@ function; no rule states order, scope, `Self` for `Trait::f()`, or `T::f()`.
 Fix: TQ-9 (R9.8).
 
 ## TY-11: Which Slots A Promoted Method Fills
+Status: resolved by E5, applied to 09 Embedding And Trait Satisfaction
+(2026-09-26): a promoted method fills no slot, required or defaulted; the
+implementation writes the method.
 Medium. Anchor: 09 Embedding And Trait Satisfaction.
 
     trait Named:
@@ -228,6 +233,8 @@ Unstated: replacing defaults, filling in partial-body impls, signature match.
 Fix: TQ-7 (R7.2).
 
 ## TY-12: Do An Embedded Type's Trait Methods Promote?
+Status: resolved by E4, applied to 03 Member Resolution and 08 Data Embedding
+(2026-09-26): they never promote, so `page.to_string()` is `unknown-method`.
 Medium. Anchor: 03 Member Resolution; 08 Data Embedding.
 
     impl Display for Label:
@@ -241,7 +248,11 @@ Fix: TQ-8; recommended only fields and inherent methods promote (R7.4).
 
 ## TY-13: Default Method Bodies
 Status: name reuse resolved by TQ-6 (`duplicate-trait-member` at the child
-trait). The other parts are still open.
+trait). E5 settles that an inherent or promoted method never replaces a
+default in an implementation. Whether a default body sees `Self`'s inherent
+methods and fields (`greet` calling `self.name()` above), and the other parts,
+are still open; under M1 this also decides whether `self.name()` in a default
+is ambiguous when `Self` has a field `name`.
 Medium. Anchor: 09 Default-Method Conflicts.
 
     trait Greeter:

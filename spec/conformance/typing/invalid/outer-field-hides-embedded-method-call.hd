@@ -1,0 +1,14 @@
+# test: an outer field hides an embedded method, so calling the name calls the field
+data Base:
+    note: string
+
+impl Base:
+    fn label(self) -> string:
+        self.note
+
+data Page:
+    Base
+    label: string
+
+fn invalid(page: Page) -> string:
+    page.label()  # diagnostic: not-callable

@@ -1,0 +1,23 @@
+pub trait Tagged:
+    fn tag(self) -> string
+
+pub data Inner:
+    pub note: string
+
+impl Inner:
+    pub fn tag(self) -> string:
+        "inner"
+
+    pub fn code(self) -> string:
+        "inner code"
+
+pub data Outer:
+    pub Inner
+    code: string
+
+impl Tagged for Outer:
+    fn tag(self) -> string:
+        "outer"
+
+pub fn make_outer() -> Outer:
+    Outer { Inner: Inner { note: "note" }, code: "private" }

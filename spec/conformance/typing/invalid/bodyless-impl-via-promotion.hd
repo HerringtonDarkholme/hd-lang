@@ -1,3 +1,4 @@
+# test: a promoted method never fills a required trait method
 trait Describe:
     fn describe(self) -> string
 
@@ -10,7 +11,4 @@ impl Label:
 data Page:
     Label
 
-impl Describe for Page
-
-fn show(page: Page) -> string:
-    page.describe()
+impl Describe for Page  # diagnostic: missing-trait-method

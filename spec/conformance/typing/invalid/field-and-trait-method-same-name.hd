@@ -1,0 +1,13 @@
+# test: a call whose name is both a field and a trait method of the type is ambiguous
+trait Named:
+    fn name(self) -> string
+
+data User:
+    name: fn() -> string
+
+impl Named for User:
+    fn name(self) -> string:
+        "trait"
+
+fn invalid(user: User) -> string:
+    user.name()  # diagnostic: ambiguous-method

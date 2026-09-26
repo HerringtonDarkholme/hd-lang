@@ -1,0 +1,16 @@
+# test: an embedded type's trait methods are not promoted
+trait Describe:
+    fn describe(self) -> string
+
+data Label:
+    text: string
+
+impl Describe for Label:
+    fn describe(self) -> string:
+        self.text
+
+data Page:
+    Label
+
+fn invalid(page: Page) -> string:
+    page.describe()  # diagnostic: unknown-method

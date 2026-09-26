@@ -46,8 +46,10 @@ trait Serializable
 impl Serializable for User
 ```
 
-A bodyless implementation is also permitted when every required method is
-filled by an unambiguous promoted `self` method of an embedded field.
+A bodyless implementation is also permitted when every method of the trait
+has a default. A method promoted from an embedded field never fills a trait
+method, so it never makes a body optional; see
+[Embedding And Trait Satisfaction](#embedding-and-trait-satisfaction).
 
 A trait may require another trait using a supertrait bound:
 
@@ -180,9 +182,11 @@ impl Display for User:
         self.email
 ```
 
-The implementation must provide every required method not supplied by a
-default or it is a `missing-trait-method` error. It may override a default with
-the exact instantiated signature. A mismatched method is a
+The implementation must write every required method not supplied by a
+default or it is a `missing-trait-method` error. Only a method written in the
+implementation or a trait default fills a trait method; an inherent method of
+the target and a method promoted from an embedded field never do. The
+implementation may override a default with the exact instantiated signature. A mismatched method is a
 `trait-method-signature` error.
 Additional methods do not become part of that trait implementation; place them
 in an inherent `impl` instead.
@@ -311,8 +315,11 @@ implementation. A trait has one visibility level for all its methods; it
 cannot mix public and private methods.
 
 An inherent member name must not duplicate another inherent member on the same
-type; a duplicate is a `duplicate-inherent-member` error. hd-lang has no method
-or associated-function overloading.
+type; a duplicate is a `duplicate-inherent-member` error. An inherent method
+must not share its name with a field of the type, named or embedded, which is
+also a `duplicate-inherent-member` error
+([Member Resolution](03-names-and-scopes.md#member-resolution)). hd-lang has no
+method or associated-function overloading.
 
 Inherent associated functions are called through the nominal type:
 
@@ -326,13 +333,12 @@ guest := User::guest()
 
 ## Method Resolution
 
-For `value.method(args)`, the compiler considers:
-
-1. an inherent method on the receiver's nominal type;
-2. an unambiguous method promoted from an embedded field;
-3. methods from explicitly implemented traits available to type checking.
-
-Only members visible from the calling module participate in method lookup.
+For a receiver of nominal type `S` or `mut S`, `value.method(args)` selects a
+member with the algorithm in
+[Member Resolution](03-names-and-scopes.md#member-resolution), which covers
+fields, inherent methods, trait methods, and promoted members together. This
+section defines which trait methods are usable at a use and how trait
+candidates are reported.
 
 For a concrete receiver, a trait is available to dot-call lookup when its name
 is declared in or introduced by a use declaration in the current module,
@@ -340,26 +346,22 @@ visible in the current lexical scope, or supplied by the prelude.
 For a generic receiver, its declared bounds are also available. A dynamic trait
 value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module
-that can name the target type.
+that can name the target type. It does make the name present on the target, so
+lookup does not fall through to embedded fields: when a name exists on `S` only
+through traits that are not available, the call is a `trait-not-in-scope`
+error.
 
-A visible inherent method of the receiver's nominal type is always selected.
-It takes precedence over every promoted method and every trait method,
-including a method of a trait that the same type implements. Only the package
-that owns the type can declare an inherent method, so no other package can
-change which method such a call reaches.
+A visible inherent method of the receiver's nominal type is always selected
+over trait methods, including a method of a trait that the same type
+implements. Only the package that owns the type can declare an inherent
+method, so no other package can change which method such a call reaches.
 
-When lookup reaches trait methods and more than one available trait that the
-receiver implements supplies a method with that name, the call is an
-`ambiguous-method` error. This holds whether each method is written in its
-implementation or comes from a default. The compiler does not select by
-conversion ranking or declaration order. An inherent method or a
-trait-qualified call resolves the ambiguity.
-
-Explicit qualification through an embedded field resolves promotion conflicts:
-
-```text
-record.CreatedByUser.to_string()
-```
+When more than one available trait that the receiver implements supplies a
+method with that name, and no inherent method of that name is usable, the call
+is an `ambiguous-method` error. This holds whether each method is
+written in its implementation or comes from a default. The compiler does not
+select by conversion ranking or declaration order. A trait-qualified call
+resolves the ambiguity.
 
 Select one trait explicitly with `Trait::method(receiver, arguments...)`:
 
@@ -370,8 +372,8 @@ sum := Add[Money]::add(left, right)
 
 The receiver is the first ordinary argument and must implement the named trait
 instantiation. Remaining arguments follow normal positional/named ordering.
-This form bypasses inherent-method and promoted-method lookup and selects
-exactly the named trait method. A generic trait method takes its explicit type arguments
+This form bypasses member lookup and selects exactly the named trait
+method. A generic trait method takes its explicit type arguments
 after the method name, as in `Identity::select[i32](picker, 42)`; the trait's
 own type arguments stay before `::`. The list follows the rules of
 [Generic Functions](07-functions.md#generic-functions).
@@ -510,17 +512,17 @@ type-specific methods.
 ## Embedding And Trait Satisfaction
 
 Embedding never grants trait conformance. The outer type must declare an
-explicit `impl`. Within that implementation, an unambiguous promoted method
-may fill a required method only when its receiver is `self`, not `mut self`.
-A `mut self` requirement needs an explicit method body because an embedded
-field is a readonly edge and cannot be mutated through promotion.
+explicit `impl`, and that implementation must write every required method that
+has no default. A method promoted from an embedded field never fills a trait
+method, whether required or defaulted, and whatever its receiver. An
+implementation that reuses an embedded type's behavior forwards to it
+explicitly, for example `fn label(self) -> string: self.Base.label()`. A
+bodyless implementation of a trait with a required method is therefore a
+`missing-trait-method` error even when an embedded type has a matching method.
 
-If multiple embedded data types promote conflicting methods, a bodyless
-explicit implementation cannot select between them.
-
-Diagnostics for this failure should identify the required signature, list the
-ambiguous promoted methods, and suggest an explicit method body with a
-qualified embedded-field call.
+An embedded type's trait methods are not promoted either: if `Label`
+implements `Display` and `Page` embeds `Label`, `page.to_string()` finds no
+`to_string` member unless `Page` itself implements `Display`.
 
 Embedding is still composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.

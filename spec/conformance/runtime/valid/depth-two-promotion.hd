@@ -1,0 +1,20 @@
+# test: promotion reaches fields and inherent methods two embedding levels down
+use std.testing.assert_equal
+
+data Core:
+    value: i32
+
+impl Core:
+    fn doubled(self) -> i32:
+        self.value * 2
+
+data Middle:
+    Core
+
+data Outer:
+    Middle
+
+test "depth-two field and method":
+    outer := Outer { Middle: Middle { Core: Core { value: 21 } } }
+    assert_equal(outer.value, 21, reason="depth-two field")
+    assert_equal(outer.doubled(), 42, reason="depth-two method")

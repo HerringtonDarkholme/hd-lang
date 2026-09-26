@@ -300,6 +300,11 @@ of a package in the named role. That package depends on every package under
   implementations, and annotates `string`.
 - [`dep.models`](packages/models/mod.hd) declares `data User` with one
   public `name: string` field.
+- [`dep.members`](packages/members/mod.hd) declares the public trait
+  `Tagged`, the public data types `Inner` and `Outer`, and the public function
+  `make_outer`. `Outer` embeds `Inner` through a public embedded field, has
+  a private field `code`, and implements `Tagged`; `Inner` has public
+  inherent methods `tag` and `code`.
 - Neither package annotates `User`, so no library in the graph owns the pair
   `(Validation, User)`.
 
