@@ -275,12 +275,14 @@ function type, but it never silently makes a closure suspending.
 suspension_call_suffix = "!", argument_clause ;
 ```
 
-This suffix is part of `postfix_suffix` at ordinary call precedence. A bang call
-is valid only in a **driver context**, which is exactly one of: a suspending
-function or closure body, a `test` block, or the host executor driving
-`main!`. Module top level is not a driver context. A driver is **active** while
-its executor is evaluating or polling that driver context on the current
-program-instance call stack. A pending invocation retained by the host between
+This suffix is part of `postfix_suffix` at ordinary call precedence. It follows
+a completed operand, so it never collides with prefix logical `!` at the start
+of an operand: `!fetch!(id)` is a legal negation of a bang call's `bool`
+result. A bang call is valid only in a **driver context**, which is exactly
+one of: a suspending function or closure body, a `test` block, or the host
+executor driving `main!`. Module top level is not a driver context. A driver
+is **active** while its executor is evaluating or polling that driver
+context on the current program-instance call stack. A pending invocation retained by the host between
 polls is unfinished but not active. A test block counts as active throughout
 its execution, including calls through non-suspending helpers. Merely using requirements
 does not make a function suspending; a non-suspending function may have a `$`

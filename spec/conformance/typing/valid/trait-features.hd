@@ -69,7 +69,7 @@ trait Source:
 data Box[T]:
     value: T
 
-impl[T] Source for Box[T] where T < Any:
+impl[T < Any] Source for Box[T]:
     type Item = T
 
     fn get(self) -> T: self.value

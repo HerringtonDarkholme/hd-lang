@@ -23,5 +23,10 @@ removed from this folder. What remains:
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 
-None. G2, G3, L6, L7, L8, L9 are implemented; L2's remaining case
+G2, G3, L6, L7, L8, L9 are implemented; L2's remaining case
 (`unsigned-exponent.hd`) waits on sized numeric types and is tagged F-253.
+`test/portable/KNOWN_FAILURES.tsv` tags the rest:
+
+| #  | Decision |
+| -- | -------- |
+| K1 | `shape` is no longer a keyword: `shape[T]()` and `shape_of(f)` are prelude intrinsics, with typed `fields`/`variants` members on specialized shapes. The prototype has no shape intrinsics. |

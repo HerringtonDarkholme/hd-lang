@@ -49,4 +49,4 @@ annotate User:
 annotate Validation for User: pass
 
 validator := Validation::annotation(User)
-user_shape := shape(User)
+user_shape := shape[User]()

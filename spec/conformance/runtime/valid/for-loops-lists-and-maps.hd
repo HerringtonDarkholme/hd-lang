@@ -28,7 +28,7 @@ fn main!() -> i32:
         if value == 1:
             continue
         break
-    if total + first_or([]) == 42 and cleanup == 20:
+    if total + first_or([]) == 42 && cleanup == 20:
         42
     else:
         0

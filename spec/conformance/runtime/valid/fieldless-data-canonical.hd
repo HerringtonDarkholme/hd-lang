@@ -17,4 +17,4 @@ test "fieldless data values are canonical":
 test "data values with fields have allocation identity":
     first := Box { value: 1 }
     second := Box { value: 1 }
-    assert(not (first is second), reason="each construction with a field allocates")
+    assert(!(first is second), reason="each construction with a field allocates")

@@ -4,14 +4,14 @@ use std.testing.assert_equal
 
 fn separated() -> i32:
     pieces := ",a,,β,".split(",")
-    if pieces.len() == 5 and pieces[0] == "" and pieces[1] == "a" and pieces[2] == "" and pieces[3] == "β" and pieces[4] == "":
+    if pieces.len() == 5 && pieces[0] == "" && pieces[1] == "a" && pieces[2] == "" && pieces[3] == "β" && pieces[4] == "":
         1
     else:
         0
 
 fn scalars() -> i32:
     pieces := "Aβ🙂".split("")
-    if pieces.len() == 3 and pieces[0] == "A" and pieces[1] == "β" and pieces[2] == "🙂":
+    if pieces.len() == 3 && pieces[0] == "A" && pieces[1] == "β" && pieces[2] == "🙂":
         1
     else:
         0

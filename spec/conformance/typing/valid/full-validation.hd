@@ -97,7 +97,7 @@ fn validation_field(
         name: field.name,
         target: type_metadata,
         rules: FieldRules {
-            required: not field.field_type.is_optional(),
+            required: !field.field_type.is_optional(),
             min_len: field.metadata[MinLen]().map(
                 fn(annotation: MinLen) -> i32: annotation.value
             ),

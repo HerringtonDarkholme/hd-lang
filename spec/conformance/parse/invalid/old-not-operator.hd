@@ -1,0 +1,1 @@
+fn negate(ready: bool) -> bool: not ready  # diagnostic: syntax-error

@@ -10,4 +10,4 @@ test "is compares a readonly view and a mutable alias by identity":
     let users: mut list[mut User] = [User { name: "Ada" }]
     let others: mut list[mut User] = [User { name: "Ada" }]
     assert(same(users, users), reason="permissions do not affect identity")
-    assert(not same(others, users), reason="distinct lists stay distinct")
+    assert(!same(others, users), reason="distinct lists stay distinct")

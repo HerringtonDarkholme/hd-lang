@@ -1,0 +1,3 @@
+fn either(and: bool, or: bool) -> bool: and || or
+
+fn negate(not: bool) -> bool: !not

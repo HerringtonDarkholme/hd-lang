@@ -17,18 +17,18 @@ test "aliases of one converted primitive share identity":
 test "repeated conversions of equal primitives are distinct":
     let first: Display = 5
     let second: Display = 5
-    assert(not (first is second), reason="each conversion allocates a box")
-    assert(not (to_display(1) is to_display(1)), reason="conversion through a return is fresh too")
+    assert(!(first is second), reason="each conversion allocates a box")
+    assert(!(to_display(1) is to_display(1)), reason="conversion through a return is fresh too")
     let left: Any = 1
     let right: Any = 1
-    assert(not (left is right), reason="Any boxes are fresh")
+    assert(!(left is right), reason="Any boxes are fresh")
 
 test "tuples and strings box freshly":
     let pair: Any = (1, 2)
     let same_pair: Any = (1, 2)
     alias := pair
     assert(pair is alias, reason="alias shares the tuple box")
-    assert(not (pair is same_pair), reason="equal tuples box separately")
+    assert(!(pair is same_pair), reason="equal tuples box separately")
     let text: Display = "hd"
     let same_text: Display = "hd"
-    assert(not (text is same_text), reason="equal strings box separately")
+    assert(!(text is same_text), reason="equal strings box separately")

@@ -26,7 +26,7 @@ test "the spread supplies defaulted fields instead of re-evaluating defaults":
 test "each ordinary construction evaluates the default afresh":
     first := Parent { child: Child { name: "a" }, label: "1" }
     second := Parent { child: Child { name: "a" }, label: "2" }
-    assert(not (first.tags is second.tags), reason="one default list per construction")
+    assert(!(first.tags is second.tags), reason="one default list per construction")
 
 test "a readonly source with an explicit mut replacement":
     let original: mut Parent = Parent { child: Child { name: "a" }, label: "x" }

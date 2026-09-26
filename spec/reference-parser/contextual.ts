@@ -2,7 +2,7 @@ import { closeToOpen, maskLiterals, openToClose } from "./lexer.ts";
 import type { Diagnostic } from "./types.ts";
 
 const reserved = new Set(
-  "Self and annotate as break continue data defer else enum false fn for if impl in is let match mut nil not or pass pub reified return self shape super trait true type use where while".split(
+  "Self annotate as break continue data defer else enum false fn for if impl in is let match mut nil pass pub reified return self super trait true type use while".split(
     " ",
   ),
 );
@@ -111,8 +111,6 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (/^export\b/.test(clean)) diagnostics.push(diagnostic("old-export-declaration", line));
   if (/^use\b.*\{[^}]*\.[A-Za-z_]/.test(clean))
     diagnostics.push(diagnostic("direct-variant-use", line));
-  if (/\bfn\s+\w+[^\n]*\([^)]*\bshape\s*:/u.test(clean))
-    diagnostics.push(diagnostic("reserved-name", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
   if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))

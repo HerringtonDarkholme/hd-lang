@@ -1,0 +1,9 @@
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant:
+    value: string
+
+impl Supplier[Item = string] for Constant:  # diagnostic: syntax-error
+    fn get(self) -> string: self.value

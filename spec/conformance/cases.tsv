@@ -4,6 +4,7 @@ parse/valid/nested-layout.hd	parse	accept	01-lexical-structure.md#physical-and-l
 parse/valid/declarations.hd	parse	accept	02-grammar.md#declarations
 parse/valid/reserved-receiver-names.hd	parse	accept	02-grammar.md#primary-expressions
 parse/valid/expressions.hd	parse	accept	02-grammar.md#expressions
+parse/valid/logical-operator-words-are-identifiers.hd	parse	accept	01-lexical-structure.md#keywords-and-reserved-words
 parse/valid/grammar-disambiguation.hd	parse	accept	02-grammar.md#expressions
 parse/valid/functions-and-closures.hd	parse	accept	07-functions.md
 parse/valid/uses.hd	parse	accept	10-modules.md#use-forms
@@ -34,12 +35,15 @@ parse/invalid/old-struct-declaration.hd	parse	reject:old-struct-declaration	08-d
 parse/valid/test-block.hd	parse	accept	02-grammar.md#test-blocks
 parse/invalid/declaration-without-let.hd	parse	reject:missing-let	02-grammar.md#statements
 parse/invalid/trailing-block-in-brackets.hd	parse	reject:trailing-block-position	02-grammar.md#calls-and-arguments
-parse/invalid/reserved-name-collision.hd	parse	reject:reserved-name	01-lexical-structure.md#keywords-and-reserved-words
+parse/valid/shape-intrinsic-calls.hd	parse	accept	14-annotations.md#shape-intrinsics
 parse/invalid/direct-variant-use.hd	parse	reject:direct-variant-use	10-modules.md#use-forms
 parse/invalid/old-import-declaration.hd	parse	reject:old-import-declaration	02-grammar.md#use-declarations
 parse/invalid/old-export-declaration.hd	parse	reject:old-export-declaration	02-grammar.md#use-declarations
 parse/invalid/pub-trait-method.hd	parse	reject:trait-method-visibility	02-grammar.md#traits-and-implementations
 parse/invalid/chained-comparison.hd	parse	reject:comparison-chaining	02-grammar.md#expressions
+parse/invalid/old-and-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
+parse/invalid/old-or-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
+parse/invalid/old-not-operator.hd	parse	reject:syntax-error	05-expressions.md#unary-and-binary-operators
 parse/invalid/invalid-escape.hd	parse	reject:invalid-escape	01-lexical-structure.md#string-and-character-literals
 parse/invalid/named-pattern-before-positional.hd	parse	reject:pattern-order	02-grammar.md#patterns
 typing/invalid/bare-variant-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
@@ -104,6 +108,12 @@ typing/valid/data-field-defaults.hd	type	accept	08-data-and-enums.md#data-declar
 typing/valid/data-default-calls-function-value.hd	type	accept	08-data-and-enums.md#data-declarations
 typing/invalid/missing-required-data-field.hd	type	reject:missing-required-field	08-data-and-enums.md#construction-and-access
 typing/valid/trait-features.hd	type	accept	09-traits.md
+typing/valid/associated-type-bindings.hd	type	accept	09-traits.md#associated-type-bindings
+typing/invalid/associated-binding-mismatch.hd	type	reject:unsatisfied-trait-bound	09-traits.md#associated-type-bindings
+typing/invalid/unknown-associated-type.hd	type	reject:unknown-associated-type	09-traits.md#associated-type-bindings
+typing/invalid/supertrait-associated-binding.hd	type	reject:unknown-associated-type	09-traits.md#associated-type-bindings
+typing/invalid/duplicate-associated-binding.hd	type	reject:duplicate-associated-binding	09-traits.md#associated-type-bindings
+runtime/valid/associated-type-bindings.hd	runtime	accept	09-traits.md#associated-type-bindings
 typing/valid/traits.hd	type	accept	09-traits.md
 typing/invalid/break-value-without-else.hd	type	reject:break-value-context	06-control-flow.md#break-continue-and-loop-else
 typing/invalid/top-level-return.hd	type	reject:return-outside-function	06-control-flow.md#return
@@ -265,6 +275,10 @@ typing/invalid/variant-result-owner.hd	type	reject:variant-result-owner	13-gadts
 typing/invalid/duplicate-trait-member.hd	type	reject:duplicate-trait-member	09-traits.md#trait-declarations
 typing/valid/resource-disposed-result.hd	type	accept	10-modules.md#wasm-boundary
 typing/invalid/unrepresentable-type-shape.hd	type	reject:unrepresentable-type-shape	14-annotations.md#common-shape-representation
+typing/invalid/prelude-shadow-shape-parameter.hd	type	reject:prelude-name-shadow	14-annotations.md#shape-intrinsics
+typing/invalid/shape-of-local-binding.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
+typing/invalid/shape-of-closure.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
+typing/invalid/unknown-shape-variant.hd	type	reject:unknown-shape-target	14-annotations.md#shape-intrinsics
 typing/invalid/suspension-forbidden-context.hd	type	reject:suspension-forbidden-context	11-requirements-and-suspension.md#suspending-functions
 typing/invalid/reimport-prelude-name.hd	type	reject:prelude-name-shadow	10-modules.md#prelude
 parse/invalid/multi-binding-needs-parentheses.hd	parse	reject:multi-binding-needs-parentheses	02-grammar.md#expressions
@@ -555,6 +569,8 @@ parse/valid/mutable-parameter-field-assignment.hd	parse	accept	02-grammar.md#typ
 parse/invalid/mut-non-self-parameter.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
 parse/valid/mut-self-receiver.hd	parse	accept	02-grammar.md#traits-and-implementations
 parse/valid/inherent-and-trait-impls.hd	parse	accept	02-grammar.md#traits-and-implementations
+parse/invalid/associated-binding-outside-bound.hd	parse	reject:syntax-error	02-grammar.md#generic-parameters-and-bounds
+parse/invalid/old-where-clause.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
 parse/valid/embedded-data-member.hd	parse	accept	02-grammar.md#data-types
 parse/valid/trailing-callback-statement.hd	parse	accept	02-grammar.md#declarations
 parse/valid/explicit-generic-arguments-with-placeholder.hd	parse	accept	02-grammar.md#declarations
@@ -660,6 +676,7 @@ runtime/valid/cancellation-skips-unreached-defer.hd	runtime	accept	06-control-fl
 runtime/valid/generic-partial-eq-bound-primitives.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime	accept	05-expressions.md#calls
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime	accept	05-expressions.md#evaluation-order
+runtime/valid/logical-operators.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/bang-call-arguments-before-body.hd	runtime	accept	11-requirements-and-suspension.md#suspending-functions
 runtime/valid/operands-across-suspension-order.hd	runtime	accept	05-expressions.md#evaluation-order
 runtime/valid/assignment-place-before-value.hd	runtime	accept	05-expressions.md#expression-categories

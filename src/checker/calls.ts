@@ -1,6 +1,12 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import type { HirExpression, HirLocal, HirProviderContextEntry, ValueType } from "../hir.ts";
+import type {
+  HirExpression,
+  HirGenericBound,
+  HirLocal,
+  HirProviderContextEntry,
+  ValueType,
+} from "../hir.ts";
 import {
   contextKeys,
   mutableInner,
@@ -23,6 +29,7 @@ import {
   inferGenericType,
   instantiateRowRequirement,
   matchTraitImplementation,
+  normalizeBoundProjections,
   requirementExclusions,
   requirementKeysMayCollide,
   resolveGenericType,
@@ -398,7 +405,12 @@ export abstract class CallChecker extends StatementChecker {
       expected,
       `method '${method.name}'`,
     );
-    const { substitutions, rowSubstitutions } = checkedArguments;
+    const { rowSubstitutions } = checkedArguments;
+    const substitutions = this.resolveAssociatedTypeSubstitutions(
+      signature,
+      checkedArguments.substitutions,
+      expression.span,
+    );
     const unresolved = signature.genericParameters.filter(
       (parameter) => !substitutions.has(parameter),
     );
@@ -881,6 +893,7 @@ export abstract class CallChecker extends StatementChecker {
   protected resolveAssociatedTypeSubstitutions(
     signature: Signature,
     sourceSubstitutions: ReadonlyMap<string, ValueType>,
+    span: SourceSpan = signature.span,
   ): Map<string, ValueType> {
     const substitutions = new Map(sourceSubstitutions);
     for (const bound of signature.genericBounds) {
@@ -892,12 +905,21 @@ export abstract class CallChecker extends StatementChecker {
       if (!actual) continue;
       const forwarded = genericTypeName(actual);
       if (forwarded) {
-        trait.associatedTypes.forEach((associated) =>
-          substitutions.set(
-            `${bound.parameter}::${associated.name}`,
+        trait.associatedTypes.forEach((associated) => {
+          const projection = normalizeBoundProjections(
             `generic:${forwarded}::${associated.name}`,
-          ),
-        );
+            this.signature.genericBounds,
+          );
+          substitutions.set(`${bound.parameter}::${associated.name}`, projection);
+          this.bindAssociatedType(
+            signature,
+            bound,
+            associated.name,
+            projection,
+            substitutions,
+            span,
+          );
+        });
         continue;
       }
       const traitArguments = bound.traitArguments.map((argument) =>
@@ -927,8 +949,34 @@ export abstract class CallChecker extends StatementChecker {
             signature.span,
           );
         substitutions.set(key, resolved);
+        this.bindAssociatedType(signature, bound, associated.name, resolved, substitutions, span);
       });
     }
     return substitutions;
+  }
+
+  /** Applies a `Name = type` binding: infers a free parameter or checks equality. */
+  private bindAssociatedType(
+    signature: Signature,
+    bound: HirGenericBound,
+    name: string,
+    resolved: ValueType,
+    substitutions: Map<string, ValueType>,
+    span: SourceSpan,
+  ): void {
+    const binding = bound.associatedBindings?.find((candidate) => candidate.name === name);
+    if (!binding) return;
+    const expected = substituteGenericType(binding.type, substitutions);
+    const free = genericTypeName(expected);
+    if (free && signature.genericParameters.includes(free) && !substitutions.has(free)) {
+      substitutions.set(free, resolved);
+      return;
+    }
+    if (expected !== resolved)
+      this.fail(
+        "unsatisfied-trait-bound",
+        `'${bound.parameter}::${name}' is '${resolved}', but the bound on '${bound.parameter}' of '${signature.name}' requires '${expected}'`,
+        span,
+      );
   }
 }

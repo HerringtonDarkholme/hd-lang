@@ -1,6 +1,7 @@
 path	phase
 parse/valid/functions-and-closures.hd	parse
 parse/valid/expressions.hd	parse
+parse/valid/logical-operator-words-are-identifiers.hd	parse
 parse/valid/layout.hd	parse
 parse/valid/unicode-identifiers.hd	parse
 parse/valid/doc-comments.hd	parse
@@ -9,7 +10,7 @@ parse/invalid/mutable-field-modifier.hd	parse
 parse/invalid/mutable-embedded-field.hd	parse
 parse/invalid/old-struct-declaration.hd	parse
 parse/invalid/declaration-without-let.hd	parse
-parse/invalid/reserved-name-collision.hd	parse
+parse/valid/shape-intrinsic-calls.hd	parse
 parse/invalid/old-import-declaration.hd	parse
 parse/invalid/old-export-declaration.hd	parse
 parse/invalid/pub-trait-method.hd	parse
@@ -102,6 +103,7 @@ typing/invalid/nonexhaustive-bool-match.hd	type
 typing/invalid/overload.hd	type
 typing/invalid/redeclare-core-type.hd	type
 typing/invalid/prelude-shadow.hd	type
+typing/invalid/prelude-shadow-shape-parameter.hd	type
 typing/invalid/function-equality.hd	type
 typing/invalid/unsaturated-enum-constructor.hd	type
 typing/invalid/contextual-variant-without-type.hd	type
@@ -202,6 +204,12 @@ typing/valid/blanket-impl-and-associated-function.hd	type
 typing/invalid/permission-target-overlap.hd	type
 typing/invalid/orphan-impl.hd	type
 typing/valid/trait-features.hd	type
+typing/valid/associated-type-bindings.hd	type
+typing/invalid/associated-binding-mismatch.hd	type
+typing/invalid/unknown-associated-type.hd	type
+typing/invalid/supertrait-associated-binding.hd	type
+typing/invalid/duplicate-associated-binding.hd	type
+runtime/valid/associated-type-bindings.hd	runtime
 typing/invalid/supertrait-cycle.hd	type
 typing/invalid/unsafe-dynamic-trait.hd	type
 runtime/panic/assert-equal-bool-unequal.hd	runtime
@@ -522,6 +530,7 @@ runtime/panic/for-iterator-invalidated-via-helper.hd	runtime
 runtime/valid/cancellation-skips-unreached-defer.hd	runtime
 runtime/valid/named-arguments-evaluate-in-source-order.hd	runtime
 runtime/valid/short-circuit-and-conditional-evaluation.hd	runtime
+runtime/valid/logical-operators.hd	runtime
 runtime/valid/bang-call-arguments-before-body.hd	runtime
 runtime/valid/operands-across-suspension-order.hd	runtime
 runtime/valid/assignment-place-before-value.hd	runtime
@@ -707,3 +716,8 @@ typing/invalid/float-remainder.hd	type
 typing/invalid/bool-ordering.hd	type
 parse/invalid/header-after-indented-suite.hd	parse
 typing/valid/duplicate-trait-bound.hd	type
+parse/invalid/old-and-operator.hd	parse
+parse/invalid/old-or-operator.hd	parse
+parse/invalid/old-not-operator.hd	parse
+parse/invalid/associated-binding-outside-bound.hd	parse
+parse/invalid/old-where-clause.hd	parse

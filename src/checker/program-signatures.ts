@@ -1,10 +1,11 @@
 import type { FunctionDecl } from "../ast.ts";
-import type { ValueType } from "../hir.ts";
+import type { HirAssociatedBinding } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType, resultParts } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
+  normalizeBoundProjections,
   resolveGenericRequirement,
   resolveGenericType,
   rowParameterName,
@@ -73,6 +74,7 @@ export function createProgramSignatures(
       (parameter) => !rowParameterSet.has(parameter),
     );
     const referenceParameters = new Set<string>();
+    const boundProjections = new Set<string>();
     const genericBounds = declaration.genericBounds.flatMap((bound) => {
       if (rowParameterSet.has(bound.parameter)) {
         diagnostics.push({
@@ -123,6 +125,36 @@ export function createProgramSignatures(
           });
           return [];
         }
+        const associatedBindings: HirAssociatedBinding[] = [];
+        for (const binding of bound.bindings ?? []) {
+          if (binding.trait !== traitKey) continue;
+          if (!trait.associatedTypes.some((associated) => associated.name === binding.name)) {
+            diagnostics.push({
+              code: "unknown-associated-type",
+              message: `trait '${trait.name}' declares no associated type '${binding.name}'`,
+              span: binding.span,
+            });
+            continue;
+          }
+          const projection = `${bound.parameter}::${binding.name}`;
+          if (boundProjections.has(projection)) {
+            diagnostics.push({
+              code: "duplicate-associated-binding",
+              message: `projection '${projection}' is bound more than once`,
+              span: binding.span,
+            });
+            continue;
+          }
+          boundProjections.add(projection);
+          associatedBindings.push({
+            name: binding.name,
+            type: resolveGenericType(
+              binding.type.name,
+              new Set(typeParameters),
+              new Set(rowParameters),
+            ),
+          });
+        }
         return [
           {
             parameter: bound.parameter,
@@ -130,6 +162,7 @@ export function createProgramSignatures(
             traitIndex: trait.index,
             traitArguments,
             mutable,
+            ...(associatedBindings.length > 0 ? { associatedBindings } : {}),
           },
         ];
       });
@@ -178,6 +211,10 @@ export function createProgramSignatures(
       new Set(rowParameters),
     );
     if (parameters.some((type) => type === undefined) || !result) return;
+    const normalizedParameters = parameters.map((type) =>
+      normalizeBoundProjections(type!, genericBounds),
+    );
+    const normalizedResult = normalizeBoundProjections(result, genericBounds);
     const requirements = declaration.requirements
       .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameterSet))
       .map((requirement) =>
@@ -263,13 +300,13 @@ export function createProgramSignatures(
       genericBounds,
       referenceParameters: [...referenceParameters],
       rowParameters,
-      parameters: parameters as ValueType[],
+      parameters: normalizedParameters,
       parameterNames: declaration.parameters.map((parameter) => parameter.name),
       defaultFunctionNames: declaration.parameters.map((parameter) =>
         parameter.default ? `$parameter-default.${declaration.name}.${parameter.name}` : undefined,
       ),
       variadic: declaration.parameters.at(-1)?.variadic === true,
-      result,
+      result: normalizedResult,
       requirements,
       span: declaration.span,
     });

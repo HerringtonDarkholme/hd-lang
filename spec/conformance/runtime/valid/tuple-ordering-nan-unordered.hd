@@ -3,10 +3,10 @@ use std.testing.assert
 
 test "NaN inside a tuple is unordered":
     let nan: f64 = 0.0 / 0.0
-    assert(not ((nan, 1) < (1.0, 2)), reason="unordered head: < is false")
-    assert(not ((nan, 1) <= (1.0, 2)), reason="unordered head: <= is false")
-    assert(not ((nan, 1) > (1.0, 2)), reason="unordered head: > is false")
-    assert(not ((nan, 1) >= (1.0, 2)), reason="unordered head: >= is false")
+    assert(!((nan, 1) < (1.0, 2)), reason="unordered head: < is false")
+    assert(!((nan, 1) <= (1.0, 2)), reason="unordered head: <= is false")
+    assert(!((nan, 1) > (1.0, 2)), reason="unordered head: > is false")
+    assert(!((nan, 1) >= (1.0, 2)), reason="unordered head: >= is false")
 
 test "an ordered head decides before a later NaN":
     let nan: f64 = 0.0 / 0.0

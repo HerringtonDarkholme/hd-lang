@@ -1,0 +1,55 @@
+# test: an associated type binding fixes a projection and drives inference
+use std.testing.assert_equal
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant:
+    value: string
+
+impl Supplier for Constant:
+    type Item = string
+
+    fn get(self) -> string: self.value
+
+data Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+
+    fn get(self) -> i32: self.start
+
+fn describe[T < Display, I < Supplier[Item = T]](source: I) -> string:
+    source.get().to_string()
+
+fn first[T, I < Supplier[Item = T]](source: I) -> T:
+    source.get()
+
+fn projected[T, I < Supplier[Item = T]](source: I, fallback: T) -> I::Item:
+    fallback
+
+data Feed[I]:
+    source: I
+
+impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
+    fn to_string(self) -> string:
+        "feed of " + describe(self.source)
+
+fn show[X < Display](value: X) -> string:
+    value.to_string()
+
+test "the bound type is inferred from the implementation":
+    assert_equal(describe(Constant { value: "Ada" }), "Ada", reason="T is string")
+    assert_equal(describe(Counter { start: 7 }), "7", reason="T is i32")
+
+test "the bound type and the projection are one type":
+    let name: string = first(Constant { value: "Grace" })
+    assert_equal(name, "Grace", reason="first returns T")
+    assert_equal(projected(Counter { start: 3 }, 3), 3, reason="I::Item is T")
+
+test "an implementation parameter is constrained through a binding":
+    feed := Feed[Counter] { source: Counter { start: 5 } }
+    assert_equal(feed.to_string(), "feed of 5", reason="direct method call")
+    assert_equal(show(feed), "feed of 5", reason="through a Display bound")

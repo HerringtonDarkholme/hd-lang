@@ -1,0 +1,1 @@
+closure_shape := shape_of(fn(id: string) -> string: id)  # diagnostic: unknown-shape-target

@@ -18,7 +18,7 @@ fn main() -> i32:
     let parent: mut Parent = Parent { child: child, snapshot: Child { name: "old" } }
     readonly := parent
     rename(parent)
-    if readonly.child.name == "Grace" and readonly.snapshot.name == "updated":
+    if readonly.child.name == "Grace" && readonly.snapshot.name == "updated":
         42
     else:
         0

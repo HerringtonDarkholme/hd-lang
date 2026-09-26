@@ -83,7 +83,9 @@ impl Supplier for NameSupplier:
 
 `Self::Item` projects from the current implementation. `T::Item` projects from
 a generic type whose bounds select exactly one associated type declaration.
-Ambiguous projections are compile-time errors.
+Ambiguous projections are compile-time errors. A bound may also fix a
+projection to a type; see
+[Associated Type Bindings](#associated-type-bindings).
 
 ## Trait Implementations
 
@@ -207,8 +209,8 @@ The annotation chapter defines one explicit coherence exception for a root
 application's `annotate Facet for ForeignTarget` block when no authoritative
 library annotation exists. That exception does not apply to ordinary `impl`.
 
-Implementations may be generic and may state additional bounds inline or in a
-`where` clause:
+Implementations may be generic and state their bounds inline in the generic
+parameter list:
 
 ```text
 impl[T < Display] Printable for Box[T]:
@@ -222,8 +224,8 @@ impl[T, I < mut Iterator[T]] Iterable[T] for I:
 All generic implementation parameters must be constrained by the implemented
 trait, target type, or a bound reachable from them. Two implementations overlap
 when their trait and target heads can unify under any satisfying substitutions;
-potential overlap is rejected. `where` predicates are not used to claim that
-otherwise unifying implementations are disjoint.
+potential overlap is rejected. Bounds, including associated type bindings, are
+not used to claim that otherwise unifying implementations are disjoint.
 
 For coherence, `X` and `mut X` denote the same target. Permission markers do
 not create distinct implementation slots, and lookup through either access
@@ -338,6 +340,61 @@ instantiations, or use another representation, as long as the choice preserves
 the observable semantics, including reflection behavior for reified
 parameters. See the non-normative
 [Implementation Model](04-type-system.md#implementation-model-non-normative).
+
+### Associated Type Bindings
+
+A trait in a generic parameter bound may bind associated types after its
+positional type arguments:
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn describe[T < Display, I < Supplier[Item = T]](source: I) -> string:
+    source.get().to_string()
+
+data Feed[I]:
+    source: I
+
+impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
+    fn to_string(self) -> string:
+        describe(self.source)
+```
+
+`I < Supplier[Item = T]` means that `I` implements `Supplier` and that its
+associated type `Item` equals `T`. The binding is an equality constraint on
+the projection `I::Item`, not a new type:
+
+- Inside the declaration, `I::Item` remains a valid projection and denotes the
+  same type as `T`. The two spellings are interchangeable in parameter, result,
+  and body types.
+- At a use site, after substitution, the argument's implementation of the
+  trait must bind the associated type to the bound type. The constraint takes
+  part in generic argument inference, so `T` above is inferred from the
+  `Supplier` implementation of the argument passed for `I`. An argument whose
+  implementation binds a different type is an `unsatisfied-trait-bound` error.
+- A binding counts as a bound reachable from its parameter. In the
+  implementation above, `T` is therefore constrained through `I`, and the
+  implementation satisfies the rule that every generic implementation
+  parameter be constrained.
+
+The bound type may name any parameter of the same generic parameter list. A
+binding name must be an associated type declared by the named trait itself;
+naming anything else, including an associated type that only a supertrait
+declares, is an `unknown-associated-type` error. Bind a supertrait's
+associated type with a separate bound on that supertrait. Each projection may
+be bound at most once in one generic parameter list: a second binding of the
+same parameter's associated type, in the same bound or another bound, is a
+`duplicate-associated-binding` error even when both bindings name the same
+type.
+
+Bindings appear only in generic parameter bounds. A supertrait list, the
+trait of an `impl` header, a trait-qualified call, a type argument, and a
+dynamic trait value type do not accept them; the grammar reports a
+`syntax-error` there. A binding does not make an ambiguous projection
+unambiguous: when two bounds on `I` both declare `Item`, `I::Item` is still
+ambiguous even if one of them binds it.
 
 ## Dynamic Trait Values
 

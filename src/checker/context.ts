@@ -23,6 +23,7 @@ import type {
 import {
   genericTypeName,
   matchTraitImplementation,
+  normalizeBoundProjections,
   resolveGenericType,
   resolveTraitType,
   substituteGenericType,
@@ -189,6 +190,8 @@ export const PRELUDE_NAMES = new Set([
   "VariantShape",
   "FnShape",
   "ParamShape",
+  "shape",
+  "shape_of",
 ]);
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
@@ -789,6 +792,7 @@ export abstract class CheckerContext {
     );
     if (!substitutions)
       throw new Error(`implementation ${implementation.index} does not match ${targetType}`);
+    this.inferBoundAssociatedTypes(implementation, substitutions);
     const next = new Set([...seen, key]);
     const bounds = implementation.genericBounds.map((bound) =>
       this.boundDictionaryExpression(bound, substitutions, span, next),
@@ -810,6 +814,42 @@ export abstract class CheckerContext {
       return this.traitDictionaryPlan(parent, targetType, parentArguments, span, next);
     });
     return { bounds, implementationIndex: implementation.index, supertraits };
+  }
+
+  /** Infers implementation parameters fixed only by `Name = type` bindings on concrete bounds. */
+  private inferBoundAssociatedTypes(
+    implementation: HirTraitImplementation,
+    substitutions: Map<string, ValueType>,
+  ): void {
+    for (const bound of implementation.genericBounds) {
+      const actual = substitutions.get(bound.parameter);
+      if (!actual || genericTypeName(actual) || !bound.associatedBindings) continue;
+      const traitArguments = bound.traitArguments.map((argument) =>
+        substituteGenericType(argument, substitutions),
+      );
+      const provider = this.implementations.find((candidate) =>
+        Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
+      );
+      const trait = this.traitTypes.get(bound.traitName);
+      if (!provider || !trait) continue;
+      const providerSubstitutions = matchTraitImplementation(
+        provider,
+        bound.traitIndex,
+        actual,
+        traitArguments,
+      )!;
+      for (const binding of bound.associatedBindings) {
+        const index = trait.associatedTypes.findIndex(
+          (associated) => associated.name === binding.name,
+        );
+        const free = genericTypeName(binding.type);
+        if (index < 0 || !free || substitutions.has(free)) continue;
+        substitutions.set(
+          free,
+          substituteGenericType(provider.associatedTypes[index]!, providerSubstitutions),
+        );
+      }
+    }
   }
 
   private boundDictionaryExpression(
@@ -1195,7 +1235,10 @@ export abstract class CheckerContext {
       new Set(this.signature.genericParameters),
       new Set(this.signature.rowParameters),
     );
-    const declared = resolveTraitType(resolved, this.traitTypes);
+    const declared = normalizeBoundProjections(
+      resolveTraitType(resolved, this.traitTypes),
+      this.signature.genericBounds,
+    );
     const nominal = nominalGenericParts(declared);
     if (
       nominal?.name === "map" &&

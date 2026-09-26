@@ -270,9 +270,9 @@ Use `reified` when a function needs the concrete runtime type:
 
 ```text
 fn runtime_shape[reified T]() -> TypeShape:
-    shape(T)
+    shape[T]()
 
-shape := runtime_shape[User]()
+user_shape := runtime_shape[User]()
 ```
 
 The compiler implements a reified parameter by passing hidden runtime type metadata. The hidden descriptor is not part of the source-level argument list:
@@ -280,7 +280,7 @@ The compiler implements a reified parameter by passing hidden runtime type metad
 ```text
 # Conceptual lowering only; this is not source syntax.
 fn runtime_shape[T](hidden type: Type[T]) -> TypeShape:
-    shape(type)
+    shape_from_descriptor(type)
 ```
 
 Erased parameters cannot be used by runtime type operations or passed to reified parameters:
@@ -298,7 +298,7 @@ fn invalid_resolved[T]() -> T $ TypeProvider:
 
 The initial runtime-type operations requiring reification include:
 
-1. `shape(T)` when `T` is a generic parameter.
+1. `shape[T]()` when `T` is a generic parameter.
 2. Runtime annotation lookup for `T`.
 3. Type-directed dependency injection such as `resolve[T]()`.
 4. Runtime serialization or deserialization selected from `T`.
@@ -620,7 +620,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `x.y`, `x[i]`, `x(args)`, `x!(args)` | field access, indexing, ordinary calls, suspension calls |
 | postfix `?` | optional or error propagation |
 | `**` | exponentiation, right-associative |
-| `-x`, `~x`, `not x` | unary operators |
+| `-x`, `~x`, `!x` | unary operators; `!` is logical not |
 | `*`, `/`, `%` | multiplicative |
 | `+`, `-` | additive |
 | `<<`, `>>` | shifts |
@@ -640,8 +640,8 @@ declaration order, then shared data and payload fields. No field is implicitly
 excluded. `is` checks composite reference identity
 without calling comparison methods. It cannot compare primitives, `nil`, or
 optional values.
-| `and` | logical and |
-| `or` | logical or |
+| `&&` | logical and |
+| `\|\|` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
@@ -1964,7 +1964,7 @@ annotation case; there is no separate `brand` declaration:
 type Email(string)
 
 annotate Validation for Email:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
             min_len: 3,
             max_len: 320,
@@ -2003,9 +2003,9 @@ The common representation should cover at least:
 Shape vocabulary:
 
 ```text
-shape(User)       # DataShape
-shape(JobStatus)  # EnumShape
-shape(get_user)   # FnShape
+shape[User]()       # DataShape
+shape[JobStatus]()  # EnumShape
+shape_of(get_user)  # FnShape
 ```
 
 This representation is the foundation for AI tooling: the compiler and tools can inspect source-level intent without falling back to string parsing or ad hoc reflection.
@@ -2017,10 +2017,10 @@ The common path should be structural derivation from a shape. A facet such as JS
 Conceptually:
 
 ```text
-Json.derive(shape(User))
-UI.derive(shape(User))
-Tool.derive(shape(get_user))
-Retention.derive(shape(Post))
+Json.derive(shape[User]())
+UI.derive(shape[User]())
+Tool.derive(shape_of(get_user))
+Retention.derive(shape[Post]())
 ```
 
 The exact user-facing spelling is still open. Candidate directions include `derive Facet for Target`, facet-led blocks, or another syntax that keeps the derived facet and target obvious.
@@ -2068,10 +2068,10 @@ A promising direction is to model annotations as uniformly typed derivation prot
 Shape values should be usable as runtime values:
 
 ```text
-shape(User)        # DataShape
-shape(User.id)     # FieldShape
-shape(JobStatus)   # EnumShape
-shape(get_user)    # FnShape
+shape[User]()             # DataShape
+shape[User]().fields.id   # FieldShape
+shape[JobStatus]()        # EnumShape
+shape_of(get_user)        # FnShape
 ```
 
 Every annotation kind first implements the common annotation protocol. The protocol associates it with one uniform information type. Targets expose availability through an ordinary generic trait:
@@ -2115,7 +2115,7 @@ trait DataAnnotator < Annotation:
 
     fn build(
         self,
-        shape: DataShape,
+        target: DataShape,
         fields: Dict[string, Self::FieldTarget],
     ) -> Self::Info
 ```
@@ -2126,11 +2126,11 @@ The supported type set is open because new exact cases can be added without chan
 
 ```text
 annotate Validation for i32:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.I32
 
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         ...
 ```
 
@@ -2138,7 +2138,7 @@ Generic annotation families use ordinary generic binders and bounds:
 
 ```text
 annotate[T < Annotate[Validation]] Validation for list[T]:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
 
@@ -2270,8 +2270,8 @@ impl DataAnnotator for UI:
         else:
             DefaultInput(field.name)
 
-    fn build(self, shape: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
-        [for field in shape.fields => fields[field.name]]
+    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+        [for field in target.field_list => fields[field.name]]
 ```
 
 `annotate` is the chosen special syntax for customizing a facet for a target:
@@ -2280,7 +2280,7 @@ impl DataAnnotator for UI:
 annotate UI for User:
     userId = ReactUserId
 
-    fn build(self, shape: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
         [
             fields["userId"],
             fields["displayName"],
@@ -2357,10 +2357,10 @@ impl DataAnnotator for DatabaseSchema:
         else:
             DatabaseColumn.JsonColumn(field.name)
 
-    fn build(self, shape: DataShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
+    fn build(self, target: DataShape, fields: Dict[string, DatabaseColumn]) -> TableSchema:
         TableSchema {
-            name: shape.name,
-            columns: [for field in shape.fields => fields[field.name]],
+            name: target.name,
+            columns: [for field in target.field_list => fields[field.name]],
         }
 ```
 
@@ -2408,7 +2408,7 @@ trait EnumAnnotator < Annotation:
 
     fn build(
         self,
-        shape: EnumShape,
+        target: EnumShape,
         variants: Dict[string, Self::VariantTarget],
     ) -> Self::Info
 ```
@@ -2427,7 +2427,7 @@ trait FuncAnnotator < Annotation:
 
     fn build(
         self,
-        shape: FnShape,
+        target: FnShape,
         params: Dict[string, Self::ParamTarget],
     ) -> Self::Info
 ```
@@ -2462,13 +2462,13 @@ impl FuncAnnotator for Tool:
             ),
         }
 
-    fn build(self, shape: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
+    fn build(self, target: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
         ToolSpec {
-            name: shape.name,
-            description: shape.doc,
+            name: target.name,
+            description: target.doc,
             params: params,
-            result: JsonSchema::from_type(shape.return_type),
-            requirements: shape.requirements.names(),
+            result: JsonSchema::from_type(target.return_type),
+            requirements: target.requirements.names(),
         }
 ```
 
@@ -2476,8 +2476,8 @@ Function annotation overrides can replace the whole build:
 
 ```text
 annotate Tool for get_user:
-    fn build(self, shape: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
-        spec := Tool::build(shape, params)
+    fn build(self, target: FnShape, params: Dict[string, ToolParam]) -> ToolSpec:
+        spec := Tool::build(target, params)
         ToolSpec {
             ...spec,
             name: "get_user",
@@ -2511,9 +2511,9 @@ ErrorSchema := ErrorDoc::annotation(ToolError)    # ErrorSchema
 The spelling `Facet::annotation(Target)` is the language syntax. Semantically, it means:
 
 ```text
-shape_value := shape(Target)
+shape_value := shape[Target]()
 fields := Dict.from_entries(
-    [for field in shape_value.fields => (
+    [for field in shape_value.field_list => (
         field.name,
         Facet.map_field(field, Facet::annotation_ref(field.type)),
     )]
@@ -2524,15 +2524,15 @@ result := Facet.build(shape_value, fields)
 For functions and enums, the same pattern applies with parameters or variants:
 
 ```text
-fn_shape := shape(get_user)
+fn_shape := shape_of(get_user)
 param_map := Dict.from_entries(
     [for param in fn_shape.params => (param.name, Tool.map_param(param))]
 )
 tool_spec := Tool.build(fn_shape, param_map)
 
-enum_shape := shape(ToolError)
+enum_shape := shape[ToolError]()
 variant_map := Dict.from_entries(
-    [for variant in enum_shape.variants => (
+    [for variant in enum_shape.variant_list => (
         variant.name,
         ErrorDoc.map_variant(
             variant,
@@ -2549,9 +2549,9 @@ error_schema := ErrorDoc.build(enum_shape, variant_map)
 If a package-local annotation block exists, the compiler/runtime applies its field overrides between generic mapping and whole-generation construction:
 
 ```text
-user_shape := shape(User)
+user_shape := shape[User]()
 default_fields := Dict.from_entries(
-    [for field in user_shape.fields => (
+    [for field in user_shape.field_list => (
         field.name,
         DatabaseSchema.map_field(
             field,
@@ -2647,15 +2647,15 @@ impl Annotation for Validation:
     type Info = Validator
 
 annotate Validation for bool:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.Bool
 
 annotate Validation for i32:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.I32
 
 annotate Validation for string:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
             min_len: nil,
             max_len: nil,
@@ -2663,7 +2663,7 @@ annotate Validation for string:
         })
 
 annotate Validation for string?:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.Optional(Validation::annotation_ref(string))
 
 fn validation_field(
@@ -2675,7 +2675,7 @@ fn validation_field(
         name: field.name,
         target: type_metadata,
         rules: FieldRules {
-            required: not field.type.is_optional(),
+            required: !field.type.is_optional(),
             min_len: field.metadata(MinLen).map(
                 fn(annotation: MinLen) -> i32: annotation.value
             ),
@@ -2700,10 +2700,10 @@ impl DataAnnotator for Validation:
 
     fn build(
         self,
-        shape: DataShape,
+        target: DataShape,
         fields: Dict[string, FieldValidator],
     ) -> Validator:
-        Validator.Data(name=shape.name, fields=fields)
+        Validator.Data(name=target.name, fields=fields)
 
 impl EnumAnnotator for Validation:
     type FieldTarget = FieldValidator
@@ -2731,10 +2731,10 @@ impl EnumAnnotator for Validation:
 
     fn build(
         self,
-        shape: EnumShape,
+        target: EnumShape,
         variants: Dict[string, VariantValidator],
     ) -> Validator:
-        Validator.Enum(name=shape.name, variants=variants)
+        Validator.Enum(name=target.name, variants=variants)
 ```
 
 The Validation facet is open because exact and generic-family annotations use ordinary implementation coherence. `Validation::annotation_ref(type)` enters the same cycle-aware resolver and returns an `AnnotationRef[Validator]`. Conceptually, resolution dispatches as follows:
@@ -2744,7 +2744,7 @@ resolve(Validation, target):
     if has_concrete_annotation(Validation, target):
         return build_concrete_annotation(Validation, target)
 
-    target_shape := shape(target)
+    target_shape := shape_from_descriptor(target)
     match target_shape:
         DataShape if target_shape.has_annotation(Validation) =>
             derive_data(Validation, target_shape)
@@ -2769,7 +2769,7 @@ A nominal type can provide a reusable explicit default without placing annotatio
 type Email(string)
 
 annotate Validation for Email:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.String(StringRules {
             min_len: 3,
             max_len: 320,
@@ -2804,7 +2804,7 @@ annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
 annotate Validation for list[Entry]:
-    fn build(self, shape: TypeShape) -> Validator:
+    fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(Entry))
 ```
 
@@ -3027,10 +3027,10 @@ Illustrative lowering for facet materialization:
 
 ```text
 fn __annotation_DatabaseSchema_User() -> Result[TableSchema, AnnotationError]:
-    shape := __meta_User()?
+    user_shape := __meta_User()?
 
     let fields: mut Dict[string, DatabaseColumn] = Dict[string, DatabaseColumn].empty()
-    for field in shape.fields:
+    for field in user_shape.field_list:
         type_metadata := DatabaseSchema::annotation_ref(field.type)
         fields[field.name] = DatabaseSchema.map_field(field, type_metadata)
 
@@ -3039,7 +3039,7 @@ fn __annotation_DatabaseSchema_User() -> Result[TableSchema, AnnotationError]:
     # and that the right-hand side is a `DatabaseColumn`.
     fields["email"] = DatabaseColumn.Text(name="email", max_len=320)
 
-    Ok(DatabaseSchema.build(shape, fields))
+    Ok(DatabaseSchema.build(user_shape, fields))
 
 # A source request such as `DatabaseSchema::annotation(User)` uses this generated path.
 fn __materialize_User_table() -> Result[TableSchema, AnnotationError]:
@@ -3115,7 +3115,7 @@ fn map_field(
 Runtime/tooling can also inspect the attached values directly:
 
 ```text
-field := shape(User.email)
+field := shape[User]().fields.email
 metadata := field.metadata
 ```
 
@@ -3136,7 +3136,7 @@ annotate Employee:
 Conceptual external validation override, not final syntax:
 
 ```text
-Validation.derive(shape(Employee), overrides={
+Validation.derive(shape[Employee](), overrides={
     email: string.email().max_len(320).refine(company_email),
     age: i32.range(18..150),
 })
@@ -3145,13 +3145,13 @@ Validation.derive(shape(Employee), overrides={
 The same mechanism should work for other tooling facets:
 
 ```text
-DatabaseSchema.derive(shape(User), overrides={
+DatabaseSchema.derive(shape[User](), overrides={
     userId: varchar(36).primary_key(),
     email: varchar(320).unique(),
     createdAt: timestamp(),
 })
 
-UI.derive(shape(User), overrides={
+UI.derive(shape[User](), overrides={
     userId: text,
     avatar: ProfileImage.rounded(size=40),
     email: link.mailto(),
@@ -3163,7 +3163,7 @@ Reusable validation pieces can be ordinary values/functions, not new type-level 
 ```text
 CompanyEmail := string.email().max_len(320).refine(company_email)
 
-Validation.derive(shape(Employee), overrides={
+Validation.derive(shape[Employee](), overrides={
     email: CompanyEmail,
 })
 ```
@@ -3231,7 +3231,7 @@ data Post:
     id: PostId
     userId: UserId
 
-Retention.derive(shape(Post), overrides={
+Retention.derive(shape[Post](), overrides={
     userId: ownerId,
     policy: deleteWhen(User.deleted),
 })
@@ -3240,11 +3240,11 @@ Retention.derive(shape(Post), overrides={
 Here, `ownerId` and `deleteWhen` are not new language keywords. They are annotation terms provided by the `Retention` facet, similar to how validation might provide `email`, `max_len`, or `range`.
 
 ```text
-Validation.derive(shape(User), overrides={
+Validation.derive(shape[User](), overrides={
     email: email.max_len(320),
 })
 
-Retention.derive(shape(Post), overrides={
+Retention.derive(shape[Post](), overrides={
     userId: ownerId,
     policy: deleteWhen(User.deleted),
 })

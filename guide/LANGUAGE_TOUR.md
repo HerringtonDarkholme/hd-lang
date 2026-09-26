@@ -239,7 +239,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `(expr)`, literals, list/map/data displays | atoms |
 | `x.y`, `x[i]`, `x(args)`, `x!(args)`, `x?` | postfix operations, left to right |
 | `**` | exponentiation, right-associative |
-| `+x`, `-x`, `~x`, `not x` | unary operators |
+| `+x`, `-x`, `~x`, `!x` | unary operators; `!` is logical not |
 | `*`, `/`, `%` | multiplicative |
 | `+`, `-` | additive |
 | `<<`, `>>` | shifts |
@@ -247,8 +247,8 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `^` | bitwise xor |
 | `|` | bitwise or |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
-| `and` | logical and |
-| `or` | logical or |
+| `&&` | logical and |
+| `\|\|` | logical or |
 | `if`, `match`, `for ... else`, `while ... else` | value-producing control flow |
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
@@ -257,7 +257,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 the stronger total-equality and total-order contracts. Data and enums do not
 gain equality automatically: implement the trait or request explicit
 derivation. `is` checks whether two composite references point to the same
-object, independently of their values. `not (a is b)` checks distinct identity.
+object, independently of their values. `!(a is b)` checks distinct identity.
 
 ```text
 @derive(PartialEq, Eq, PartialOrd, Ord, Hash)
@@ -1254,7 +1254,7 @@ Function generic parameters are erased at runtime by default. Mark a parameter `
 
 ```text
 fn runtime_shape[reified T]() -> TypeShape:
-    shape(T)
+    shape[T]()
 ```
 
 `reified` is written on the generic parameter, not on the function. The compiler passes a hidden runtime type descriptor at each call:
@@ -1267,7 +1267,7 @@ An erased generic parameter cannot be used where runtime type information is req
 
 ```text
 fn invalid_shape[T]() -> TypeShape:
-    shape(T)  # compile error: T is erased
+    shape[T]()  # compile error: T is erased
 ```
 
 Reification propagates through generic calls. A function passing its own type parameter to a reified parameter must also declare that parameter as reified:
@@ -1578,7 +1578,7 @@ items := resolve[list[i32]]()
 ```
 
 At the language level, a reified call behaves as if it passes a hidden runtime
-type descriptor, observable only as `shape(T): TypeShape`. This descriptor is
+type descriptor, observable only as `shape[T]()`, a `TypeShape`. This descriptor is
 not an ordinary source-level argument and cannot be supplied with a named
 argument. Reification is part of a function's public type and ABI.
 
@@ -2234,11 +2234,19 @@ form for the corresponding `annotate` blocks.
 Annotators are ordinary types that transform declaration shapes into typed metadata. The compiler exposes shapes for the declarations an annotator can inspect:
 
 ```text
-shape(User)          # DataShape
-shape(User.email)    # FieldShape
-shape(JobStatus)     # EnumShape
-shape(get_user)      # FnShape
+shape[User]()                        # DataShape
+shape[User]().fields.email           # FieldShape
+shape[JobStatus]()                   # EnumShape
+shape[JobStatus]().variants.Active   # VariantShape
+shape_of(get_user)                   # FnShape
 ```
+
+`shape` and `shape_of` are compiler intrinsics in the prelude, not keywords.
+`shape[T]()` takes the reflected type as a type argument; for a data type or
+enum its result has typed `fields` or `variants` members, so a misspelled field
+name is a compile-time error. Iterate the ordered members with `field_list` or
+`variant_list`. `shape_of` accepts only the name of a module-level function,
+not a closure or other function value.
 
 The current `TypeShape` surface cannot represent mutable access, dynamic trait
 values, `Any`, or `Suspend[T]`. Materializing a shape that would require one of

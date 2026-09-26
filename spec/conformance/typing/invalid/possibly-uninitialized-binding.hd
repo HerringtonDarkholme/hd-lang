@@ -1,5 +1,5 @@
 
 fn invalid(flag: bool) -> string:
-    if flag and (name := "Ada") != "":
+    if flag && (name := "Ada") != "":
         pass
     name  # diagnostic: possibly-uninitialized-binding

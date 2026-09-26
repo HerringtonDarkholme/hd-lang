@@ -1,0 +1,1 @@
+fn either(a: bool, b: bool) -> bool: a or b  # diagnostic: syntax-error

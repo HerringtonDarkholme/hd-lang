@@ -1,8 +1,9 @@
 id	count	title
-F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-253	11	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
+F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
-F-252	7	The parser rejects core grammar forms
+F-252	6	The parser rejects core grammar forms
+K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 F-257	3	`mut fn` closure literals do not parse
 F-150	2	Two entry-point reject cases also report `private-type-leak`

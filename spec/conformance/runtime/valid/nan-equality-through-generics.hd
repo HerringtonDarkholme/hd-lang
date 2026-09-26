@@ -11,9 +11,9 @@ fn pass_through[T](value: T) -> T:
 test "NaN is unequal to itself directly and through a bound":
     nan := 0.0 / 0.0
     assert(nan != nan, reason="IEEE equality")
-    assert(not (nan == nan), reason="== is false")
-    assert(not same(nan, nan), reason="boxed generic equality must not compare bits or identity")
-    assert(not same(pass_through(nan), pass_through(nan)), reason="erased round trip keeps IEEE equality")
+    assert(!(nan == nan), reason="== is false")
+    assert(!same(nan, nan), reason="boxed generic equality must not compare bits or identity")
+    assert(!same(pass_through(nan), pass_through(nan)), reason="erased round trip keeps IEEE equality")
 
 test "NaN inside composites is unequal":
     nan := 0.0 / 0.0
@@ -26,4 +26,4 @@ test "NaN inside composites is unequal":
     assert({"k": nan} != {"k": nan}, reason="map values compare with IEEE equality")
     let ok: Result[f64, string] = Ok(nan)
     assert(ok != ok, reason="Result payload compares with IEEE equality")
-    assert(not same(values, values), reason="generic list equality keeps IEEE element equality")
+    assert(!same(values, values), reason="generic list equality keeps IEEE element equality")

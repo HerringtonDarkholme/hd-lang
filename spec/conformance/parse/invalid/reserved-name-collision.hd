@@ -1,1 +1,0 @@
-fn bad(shape: i32) -> i32: shape  # diagnostic: reserved-name

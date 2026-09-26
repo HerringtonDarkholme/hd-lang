@@ -12,7 +12,7 @@ test "each construction of a shared-data variant has its own identity":
     first := Status.Ok
     second := Status.Ok
     alias := first
-    assert(not (first is second), reason="two constructions of a shared-data variant are distinct")
+    assert(!(first is second), reason="two constructions of a shared-data variant are distinct")
     assert(first is alias, reason="an alias shares the construction's identity")
 
 test "a variant that stores no data is canonical":

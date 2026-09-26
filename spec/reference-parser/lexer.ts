@@ -2,7 +2,6 @@ import type { Diagnostic, GrammarToken, LexResult } from "./types.ts";
 
 const reserved = new Set([
   "Self",
-  "and",
   "annotate",
   "as",
   "break",
@@ -22,20 +21,16 @@ const reserved = new Set([
   "match",
   "mut",
   "nil",
-  "not",
-  "or",
   "pass",
   "pub",
   "reified",
   "return",
   "self",
-  "shape",
   "super",
   "trait",
   "true",
   "type",
   "use",
-  "where",
   "while",
 ]);
 export const openToClose = new Map([
@@ -44,7 +39,22 @@ export const openToClose = new Map([
   ["{", "}"],
 ]);
 export const closeToOpen = new Map([...openToClose].map(([open, close]) => [close, open]));
-const multiOperators = ["...", ":=", "->", "=>", "::", "==", "!=", "<=", ">=", "<<", ">>", "**"];
+const multiOperators = [
+  "...",
+  ":=",
+  "->",
+  "=>",
+  "::",
+  "==",
+  "!=",
+  "<=",
+  ">=",
+  "<<",
+  ">>",
+  "**",
+  "&&",
+  "||",
+];
 const simpleEscapes = new Set(`\\"'nrt0$`);
 
 interface StringScan {
