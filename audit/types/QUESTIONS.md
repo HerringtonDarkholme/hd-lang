@@ -15,8 +15,10 @@ Decided 2026-09-26; not yet applied to the specification.
 - **TQ-2: orphan rule.** `impl Trait[Args] for Type` may appear only in the
   package that owns the trait, the target type constructor, or a type
   argument of the trait (when the target is not a bare parameter).
-- **TQ-3 (partial): more than one promoted or trait candidate is an error.**
-  Still open: an inherent method versus a trait method of the same name.
+- **TQ-3: method resolution.** For `x.m()`, inherent methods of `x`'s type
+  win (Rust's rule); `Trait::m(x)` reaches a trait method. Otherwise promoted
+  and trait candidates are pooled regardless of embedding depth, and more
+  than one is `ambiguous-method`.
 
 
 Each question stands alone. Guiding preference: agents write the code and humans
