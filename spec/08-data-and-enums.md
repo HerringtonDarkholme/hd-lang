@@ -141,11 +141,12 @@ data Post:
 ```
 
 The embedded field's name is the embedded type name. Construction uses that
-name as its key:
+name as its key, followed by `...`, because the field receives a copy of the
+value (see below):
 
 ```text
 post := Post {
-    Timestamps: Timestamps {
+    Timestamps: ...Timestamps {
         created_at: 1700000000,
         updated_at: 1700000000,
     },
@@ -165,19 +166,25 @@ An embedded field holds a **part** of the outer value: a value of the embedded
 type that the outer value receives as its own copy.
 
 - **Construction copies.** Filling an embedded field stores a copy of the
-  supplied value, never the value itself. The copy of a value `e` of type `E`
+  supplied value, never the value itself. The copy is written: the field
+  label is followed by `...`, as in `Post { Timestamps: ...ts, id: "p" }`.
+  The `...` applies to the whole field expression and is required even for
+  a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1,
+  updated_at: 1 }`. The copy of a value `e` of type `E`
   is a new `E` whose ordinary fields hold the values of `e`'s fields,
   copied shallowly as copy-update copies them, and whose embedded fields hold
-  copies of `e`'s parts, made by the same rule. `Post { Timestamps: ts }`
+  copies of `e`'s parts, made by the same rule. `Post { Timestamps: ...ts }`
   therefore never shares a part with `ts`: a later change to `post`'s part
   is not seen through `ts`, and a change through `ts` is not seen in
   `post`. Composite values that the part's ordinary fields reference are
   still shared. The supplied value may be readonly.
-- **Copy-update copies.** A copy-update literal copies each embedded part of
-  its spread source that it does not replace, by the same rule, so a copy
-  never shares a part with its original.
-- **Stores copy.** Assigning an embedded field of a `mut` value, as in
-  `post.Timestamps = stamps`, stores a copy of `stamps` by the same rule.
+- **Copy-update copies.** A copy-update literal, written as before with a
+  leading spread, as in `Post { ...post, title: "t" }`, copies each embedded
+  part of its spread source that it does not replace, by the same rule, so a
+  copy never shares a part with its original.
+- **Stores copy.** An embedded field of a `mut` value is assigned with the
+  copy assignment `...=`, as in `post.Timestamps ...= stamps`, which stores a
+  copy of `stamps` by the same rule.
 - **Access follows the container.** Reading an embedded field through a
   `mut` outer value yields `mut` access to the part, and reading it through a
   readonly outer value yields readonly access. If `post` has type
@@ -192,6 +199,16 @@ type that the outer value receives as its own copy.
   binds a `mut Timestamps` alias, and a mutation through either name is
   observed through the other; on a readonly `Post` the alias is readonly. A
   `:=` binding exposes a readonly view, as it does for every composite value.
+
+The copy marker is required exactly where a copy is made. An embedded field
+initialized without it, as in `Post { Timestamps: ts }`, or assigned with
+plain `=`, as in `post.Timestamps = ts`, is an `embedded-copy-required`
+error, whose message suggests the `...` form. A `...` after the label of any
+other field, or `...=` on any other place, is a `copy-into-ordinary-field`
+error. A prefix `...` in a data expression therefore always means "copy the
+named members of this value": a leading spread copies the source's fields
+into the new value, and `Label: ...value` copies `value`'s fields into the
+part.
 
 Copies are made only by construction, copy-update, and stores into an
 embedded field. Passing, returning, binding, or matching the outer value, or
@@ -235,8 +252,9 @@ fn edit(post: mut Post, stamps: Timestamps) -> void:
     post.updated_at = 1700000200      # promoted field through a mut root
     let alias = post.Timestamps       # mut Timestamps, the same part
     alias.created_at = 1700000000     # observed as post.created_at
-    let copy: mut Post = Post { Timestamps: stamps, id: "p", title: "t" }
+    let copy: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
     copy.touch(1700000300)            # changes copy's part, never stamps
+    post.Timestamps ...= stamps       # copy assignment
 ```
 
 For [Variance](04-type-system.md#variance), an embedded field is an invariant

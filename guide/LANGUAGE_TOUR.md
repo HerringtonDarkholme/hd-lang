@@ -666,11 +666,11 @@ data Post:
     author_id: string
 ```
 
-Embedded data types are initialized with the embedded type name as the field key. Their fields are still promoted for ordinary access:
+Embedded data types are initialized with the embedded type name as the field key, followed by `...`, which copies the value into the part (see below). Their fields are still promoted for ordinary access:
 
 ```text
 post := Post {
-    Timestamps: Timestamps {
+    Timestamps: ...Timestamps {
         created_at: 1700000000,
         updated_at: 1700000000
     },
@@ -686,7 +686,10 @@ An embedded field holds the outer value's own copy of the part. Construction
 copies the supplied value: its ordinary fields are copied shallowly and its
 embedded parts recursively, so the outer value never shares a part with the
 value it was built from. Copy-update and assignment to an embedded field copy
-the same way. Access to the part follows the container: through a `mut` outer
+the same way; the assignment is written `post.Timestamps ...= stamps`, and
+plain `Timestamps: stamps` or `post.Timestamps = stamps` is an error that
+suggests the `...` form. A prefix `...` always means "copy the named members
+of this value". Access to the part follows the container: through a `mut` outer
 value the part, its promoted fields, and its promoted `mut self` methods are
 mutable; through a readonly one they are readonly. Reading the part out does
 not copy it:
@@ -696,7 +699,7 @@ impl Timestamps:
     fn touch(mut self, at: i64) -> void:
         self.updated_at = at
 
-let draft: mut Post = Post { Timestamps: post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
+let draft: mut Post = Post { Timestamps: ...post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
 draft.touch(1700000100)          # changes draft's own copy, never post
 let stamps = draft.Timestamps    # mut Timestamps: the same part as draft's
 ```
@@ -717,7 +720,7 @@ data Shipment[T]:
     id: string
 
 shipment := Shipment[i32] {
-    Box: Box[i32] { value: 5 },
+    Box: ...Box[i32] { value: 5 },
     id: "shipment_1",
 }
 shipment.value
@@ -740,10 +743,10 @@ data AuditRecord:
     CreatedByUser
 
 record := AuditRecord {
-    CreatedBySystem: CreatedBySystem {
+    CreatedBySystem: ...CreatedBySystem {
         id: "system"
     },
-    CreatedByUser: CreatedByUser {
+    CreatedByUser: ...CreatedByUser {
         id: "user_123"
     }
 }
@@ -1702,7 +1705,7 @@ fn show(value: Describe) -> void $ Console:
     println(value.describe())
 
 service := Service {
-    Logger: Logger { name: "api" }
+    Logger: ...Logger { name: "api" }
 }
 
 show(service)       # ok: the impl forwards to Logger

@@ -9,7 +9,7 @@ data Shipment[T]:
 
 test "explicit generic construction promotes embedded fields":
     shipment := Shipment[i32] {
-        Box: Box[i32] { value: 40 },
+        Box: ...Box[i32] { value: 40 },
         id: "hd",
     }
     assert_equal(

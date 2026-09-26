@@ -17,6 +17,6 @@ impl Outer:
         "outer"
 
 test "private own members win in their module":
-    outer := Outer { Inner: Inner { code: "inner" }, code: "outer" }
+    outer := Outer { Inner: ...Inner { code: "inner" }, code: "outer" }
     assert_equal(outer.code, "outer", reason="private own field wins")
     assert_equal(outer.secret(), "outer", reason="private own method wins")

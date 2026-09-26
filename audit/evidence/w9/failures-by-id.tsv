@@ -1,7 +1,7 @@
 id	count	title
 F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+VE	31	Value embedding is not implemented: the parser rejects the copy marker `...` and `...=`, embedded fields are still readonly edges, parts are shared instead of copied, and embedded fields are not invariant for variance
 F-253	12	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
-VE	10	Value embedding is not implemented: embedded fields are still readonly edges, construction, copy-update, and stores share the part instead of copying it, and embedded fields are not invariant for variance
 F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	8	`$.use(mut K)` and other `mut` requirement keys are not implemented
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented

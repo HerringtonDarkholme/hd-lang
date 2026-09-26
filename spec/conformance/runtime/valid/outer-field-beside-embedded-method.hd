@@ -13,6 +13,6 @@ data Page:
     label: string
 
 test "the outer field is read and the call reaches the promoted method":
-    page := Page { Base: Base { note: "x" }, label: "outer" }
+    page := Page { Base: ...Base { note: "x" }, label: "outer" }
     assert_equal(page.label, "outer", reason="own field")
     assert_equal(page.label(), "base x", reason="promoted method")

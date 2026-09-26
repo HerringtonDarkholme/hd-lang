@@ -19,6 +19,6 @@ impl Describe for Page:
         "page " + self.Base.name
 
 test "the outer trait method wins over the embedded inherent method":
-    page := Page { Base: Base { name: "home" } }
+    page := Page { Base: ...Base { name: "home" } }
     assert_equal(page.describe(), "page home", reason="own trait method")
     assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")

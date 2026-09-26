@@ -1,0 +1,10 @@
+# test: the copy marker is required even for a fresh literal
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+data Post:
+    Timestamps
+    id: string
+
+post := Post { Timestamps: Timestamps { created_at: 1, updated_at: 1 }, id: "p" }  # diagnostic: embedded-copy-required

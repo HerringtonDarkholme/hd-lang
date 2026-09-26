@@ -18,12 +18,12 @@ data Holder:
 
 test "copy happens at the field position":
     let stamp: mut Stamp = Stamp { at: 1 }
-    post := Post { Stamp: stamp, label: bump(stamp) }
+    post := Post { Stamp: ...stamp, label: bump(stamp) }
     assert_equal(post.at, 1, reason="the copy was taken before the later field ran")
     assert_equal(stamp.at, 2, reason="the side effect reached the source")
 
 test "spread parts are copied when the spread is evaluated":
-    let source: mut Holder = Holder { Stamp: Stamp { at: 1 }, note: "n" }
+    let source: mut Holder = Holder { Stamp: ...Stamp { at: 1 }, note: "n" }
     copy := Holder { ...source, note: bump(source.Stamp) }
     assert_equal(copy.at, 1, reason="the spread's part was copied before the explicit field ran")
     assert_equal(source.at, 2, reason="the side effect reached the source part")

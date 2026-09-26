@@ -105,7 +105,7 @@ short_binding_statement = identifier, ",", identifier,
 
 discard_statement = "_", ":=", closed_expression ;
 
-assignment_statement = postfix_expression, "=", closed_expression ;
+assignment_statement = postfix_expression, ( "=" | "...=" ), closed_expression ;
 
 return_statement = "return", [ closed_expression ] ;
 break_statement = "break", [ closed_expression ] ;
@@ -188,7 +188,10 @@ semantic rule. In particular, `break` is valid only inside a loop, and `break`
 with a value is valid only in a loop with an `else` suite.
 The left side of an assignment must resolve to a reassignable local, mutable
 field, or mutable indexed place; calls and other non-place postfix expressions
-are rejected semantically.
+are rejected semantically. The copy assignment `place ...= value` is valid
+only when the place is an embedded field, and an embedded field is assigned
+only with `...=`
+([Data Embedding](08-data-and-enums.md#data-embedding)).
 
 ## Declarations
 
@@ -753,8 +756,14 @@ data_items = [ "...", expression, "," ],
              data_field_item, { ",", data_field_item }, [ "," ]
              | "...", expression, [ "," ]
              ;
-data_field_item = identifier, ":", expression ;
+data_field_item = identifier, ":", [ "..." ], expression ;
 ```
+
+A `...` after a field label copies the value into an embedded field; it is
+required for an embedded field and invalid for any other field, which the
+checker diagnoses ([Data Embedding](08-data-and-enums.md#data-embedding)). A
+prefix `...` in a data expression, whether it begins a copy-update spread or
+follows a field label, always means "copy the named members of this value".
 
 Declaration reflection has no dedicated syntax. `shape[User]()` and
 `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in

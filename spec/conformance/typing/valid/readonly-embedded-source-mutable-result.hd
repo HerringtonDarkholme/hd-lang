@@ -13,8 +13,8 @@ data Post:
     title: string
 
 fn stamped(stamps: Timestamps) -> mut Post:
-    Post { Timestamps: stamps, id: "p", title: "t" }
+    Post { Timestamps: ...stamps, id: "p", title: "t" }
 
 fn edit(stamps: Timestamps) -> void:
-    let post: mut Post = Post { Timestamps: stamps, id: "p", title: "t" }
+    let post: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
     post.touch(9)

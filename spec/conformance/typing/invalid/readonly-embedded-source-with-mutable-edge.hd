@@ -11,4 +11,4 @@ data Post:
     id: string
 
 fn invalid(stamp: Stamp) -> void:
-    let post: mut Post = Post { Stamp: stamp, id: "p" }  # diagnostic: mutable-upgrade
+    let post: mut Post = Post { Stamp: ...stamp, id: "p" }  # diagnostic: mutable-upgrade

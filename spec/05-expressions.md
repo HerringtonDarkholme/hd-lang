@@ -41,7 +41,9 @@ Assignment evaluates the place before the right-hand side, then performs one
 store. A local place requires no subexpression evaluation; a field assignment
 evaluates its receiver, then the right-hand expression; an indexed assignment
 evaluates the receiver, the index, and the right-hand expression in that order.
-If any step completes abruptly, no store occurs.
+If any step completes abruptly, no store occurs. An embedded field is assigned
+with the copy assignment `place ...= value`, which stores a copy of the value
+([Data Embedding](08-data-and-enums.md#data-embedding)).
 
 ## Primary Expressions
 
@@ -190,9 +192,9 @@ result does not upgrade copied child references. A data expression permits at
 most one data spread, and it
 must precede every explicit field.
 
-Embedded fields are initialized with their embedded type name as the field key,
-and each receives a copy of its value
-([Data Embedding](08-data-and-enums.md#data-embedding)).
+Embedded fields are initialized with their embedded type name as the field key
+and a copy marker, as in `Timestamps: ...stamps`: each receives a copy of its
+value ([Data Embedding](08-data-and-enums.md#data-embedding)).
 
 ## Postfix Expressions
 

@@ -965,3 +965,9 @@ runtime/valid/embedded-part-mut-alias.hd	runtime	accept	08-data-and-enums.md#dat
 typing/invalid/embedded-part-readonly-alias.hd	type	reject:mutable-upgrade	08-data-and-enums.md#data-embedding
 runtime/valid/embedded-copy-at-field-position.hd	runtime	accept	08-data-and-enums.md#data-embedding
 typing/invalid/covariant-embedded-field.hd	type	reject:invalid-variance	04-type-system.md#variance
+typing/invalid/embedded-copy-required.hd	type	reject:embedded-copy-required	08-data-and-enums.md#data-embedding
+typing/invalid/embedded-copy-required-fresh-literal.hd	type	reject:embedded-copy-required	08-data-and-enums.md#data-embedding
+typing/invalid/embedded-assignment-copy-required.hd	type	reject:embedded-copy-required	08-data-and-enums.md#data-embedding
+typing/invalid/copy-into-ordinary-field.hd	type	reject:copy-into-ordinary-field	08-data-and-enums.md#data-embedding
+typing/invalid/copy-assignment-ordinary-field.hd	type	reject:copy-into-ordinary-field	08-data-and-enums.md#data-embedding
+parse/valid/embedded-copy-syntax.hd	parse	accept	02-grammar.md#primary-expressions

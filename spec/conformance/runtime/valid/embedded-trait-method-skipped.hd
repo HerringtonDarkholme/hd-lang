@@ -19,6 +19,6 @@ data Page:
     Label
 
 test "depth-two inherent method is selected past a depth-one trait method":
-    page := Page { Label: Label { Base: Base { name: "home" } } }
+    page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
     assert_equal(page.to_string(), "base home", reason="Label's Display method is skipped")
     assert_equal(page.Label.to_string(), "label", reason="Label's own trait method")

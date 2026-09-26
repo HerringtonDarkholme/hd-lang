@@ -1,0 +1,13 @@
+# test: a copy marker after a field label and the copy assignment token parse
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+data Post:
+    Timestamps
+    id: string
+
+fn build(stamps: Timestamps) -> mut Post:
+    let post: mut Post = Post { Timestamps: ...stamps, id: "p" }
+    post.Timestamps ...= Timestamps { created_at: 2, updated_at: 2 }
+    post

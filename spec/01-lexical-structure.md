@@ -541,12 +541,13 @@ The lexer recognizes these operators and compound punctuation tokens:
 +  -  *  /  %  **
 &  |  ^  ~  <<  >>  &&  ||
 =  ==  !=  <  <=  >  >=
-:=  ->  =>  ?  !  $  @  ...  ::
+:=  ->  =>  ?  !  $  @  ...  ...=  ::
 ```
 
 When two tokens share a prefix, the lexer uses the longest valid token. For
 example, `**` is one token rather than two `*` tokens, `...` is one token
-rather than three `.` tokens, and `&&` and `||` are single tokens. The
+rather than three `.` tokens, `...=` is one token rather than `...` and `=`,
+and `&&` and `||` are single tokens. The
 sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`,
 `g`; a suspension call needs `!` immediately followed by `(`.
 
@@ -584,7 +585,7 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "&" | "|" | "^" | "~" | "<<" | ">>" | "&&" | "||"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
-         | "..." | "::"
+         | "..." | "...=" | "::"
          ;
 ```
 

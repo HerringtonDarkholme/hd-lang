@@ -1,0 +1,11 @@
+# test: filling an embedded field without the copy marker is rejected
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+data Post:
+    Timestamps
+    id: string
+
+fn invalid(stamps: Timestamps) -> Post:
+    Post { Timestamps: stamps, id: "p" }  # diagnostic: embedded-copy-required

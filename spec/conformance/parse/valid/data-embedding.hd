@@ -12,7 +12,7 @@ data Owner:
     Timestamps
 
 post := Post {
-    Timestamps: Timestamps {
+    Timestamps: ...Timestamps {
         created_at: 1,
         updated_at: 1,
     },

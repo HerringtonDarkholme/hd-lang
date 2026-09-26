@@ -20,11 +20,11 @@ impl Wrapper:
         "wrapper"
 
 test "direct field hides promoted field":
-    wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
+    wrapper := Wrapper { Base: ...Base { label: "inner" }, label: "outer" }
     assert_equal(wrapper.label, "outer", reason="direct field wins")
     assert_equal(wrapper.Base.label, "inner", reason="qualified access reaches the embedded field")
 
 test "direct method hides promoted method":
-    wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
+    wrapper := Wrapper { Base: ...Base { label: "inner" }, label: "outer" }
     assert_equal(wrapper.describe(), "wrapper", reason="direct method wins")
     assert_equal(wrapper.Base.describe(), "base", reason="qualified call reaches the embedded method")

@@ -1,0 +1,9 @@
+# test: a copy marker after an ordinary field label is rejected
+data User:
+    name: string
+
+data Account:
+    owner: User
+
+fn invalid(user: User) -> Account:
+    Account { owner: ...user }  # diagnostic: copy-into-ordinary-field
