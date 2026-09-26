@@ -517,3 +517,19 @@ present but not visible, and `trait-not-in-scope` otherwise. Confirm.
 **Moot under M2:** the field and the trait method are in different
 namespaces, so `x.tag` reports `private-member` and `x.tag()` reports
 `trait-not-in-scope`.
+
+## Questions From The Option Change (held until embedding is settled)
+
+1. Should a value-to-non-optional mismatch have a dedicated code
+   (`none-to-nonoptional`), or keep `missing-contextual-enum-type`?
+2. Keep least-common-type inference giving `T?` for `.None` next to `T`
+   values without an expected type, although ordinary contextual variants get
+   no such inference?
+3. Keep the special rules that optionals do not convert to `Any` and that `is`
+   rejects optionals, now that `Option` is an enum?
+4. Should a bare `None` or `Some` pattern be `bare-variant-pattern` although
+   neither is a prelude name?
+5. P6: uncalled `Type::name` is rejected by the parser, a called `x::name(...)`
+   by the checker. Move both to the checker with a grammar production?
+6. TQ-4: should nested literals (such as `[1, 2]` against `list[i32]` versus
+   `list[i64]`) also get the literal-default preference?
