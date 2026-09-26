@@ -663,6 +663,29 @@ Output rules:
 11. `std` is the toolchain's. `[package] hd` states the minimum toolchain.
 12. No command prompts. Every command accepts `--format json`.
 
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Question 1: one version per compatibility line.** Two majors of one
+   package may coexist (`json = "acme/json@2.1.0"`,
+   `json_old = "acme/json@1.9.0"`), as distinct packages.
+2. **Question 2: version ranges with a solver** (Cargo and uv style caret
+   ranges, PubGrub-style resolution), not minimal version selection.
+3. **Question 3: registry names are `owner/name`.**
+4. **Question 4: Cargo style.** One package may have a library root and
+   executables. The root-application orphan exception must be restated for
+   this shape (which targets count as the root application).
+5. **Question 5: `use` inside `test` blocks.** A `test` block may contain
+   `use` declarations scoped to that block, and only those may name
+   test-only dependencies; test builds include test dependencies, and the
+   separate `tests/` root may use them anywhere.
+6. **Question 6: adding an implementation or annotation for a foreign trait
+   or facet is a minor change;** `hd update` reports a resulting coherence
+   conflict before writing.
+7. **Question 7: adding an enum variant is breaking,** for now.
+8. **Question 8: each `0.MINOR` is its own compatibility line.**
+
 ## 10. Questions For The Owner
 
 1. **Can two majors of one package coexist in a graph?**
