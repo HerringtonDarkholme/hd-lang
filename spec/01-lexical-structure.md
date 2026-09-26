@@ -227,7 +227,7 @@ data      defer     else      enum      false     fn        for
 if        impl      in        is        let       match
 mut       nil       pass      pub
 reified   return    self      shape     super     trait
-true      type      use       where     while
+true      type      use       while
 ```
 
 `pkg`, `std`, and `dep` have special meaning only in a use root position.

@@ -518,7 +518,9 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
         selectedMethod.trait.associatedTypes.forEach((associated) =>
           traitSubstitutions.set(
             `Self::${associated.name}`,
-            `generic:${receiverGeneric}::${associated.name}`,
+            receiverBound.bound.associatedBindings?.find(
+              (binding) => binding.name === associated.name,
+            )?.type ?? `generic:${receiverGeneric}::${associated.name}`,
           ),
         );
       }
@@ -704,7 +706,12 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
         `method '${candidate.method.name}'`,
         targetSubstitutions,
       );
-      const { substitutions, rowSubstitutions } = checkedArguments;
+      const { rowSubstitutions } = checkedArguments;
+      const substitutions = this.resolveAssociatedTypeSubstitutions(
+        signature,
+        checkedArguments.substitutions,
+        expression.span,
+      );
       const unresolved = signature.genericParameters.filter(
         (parameter) => !substitutions.has(parameter),
       );
@@ -1109,6 +1116,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
     const substitutions = this.resolveAssociatedTypeSubstitutions(
       signature,
       checkedArguments.substitutions,
+      expression.span,
     );
     const unresolved = signature.genericParameters.filter(
       (parameter) => !substitutions.has(parameter),

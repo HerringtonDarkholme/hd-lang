@@ -293,6 +293,26 @@ future work rather than implicit extensions.
 
 **Unblocks.** Implementer certainty today and a checklist for future proposals.
 
+### Associated Type Bindings Beyond Direct Bounds
+
+**Problem.** An associated type binding such as `I < Supplier[Item = T]`
+names only an associated type the bound trait itself declares, and it is
+accepted only in generic parameter bounds. Binding a supertrait's associated
+type through a subtrait (`I < NamedSupplier[Item = T]`) is rejected, and
+supertrait lists, dynamic trait value types, and `impl` headers take no
+bindings.
+
+**Options.** (1) Keep the current rule; users add a separate bound on the
+supertrait. (2) Let a binding name any associated type reachable through the
+supertrait graph, rejecting ambiguous names. (3) Also accept bindings in
+supertrait lists, so `trait Names < Supplier[Item = string]` fixes the item
+type for every implementation.
+
+**Recommendation.** Option 1 until a library needs option 2; option 3 needs
+its own coherence review.
+
+**Unblocks.** Shorter bounds for trait hierarchies with associated types.
+
 ### Resource Non-Escape And Cleanup Policy
 
 **Problem.** Block-scoped `defer` provides deterministic synchronous cleanup on

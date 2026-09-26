@@ -1,0 +1,11 @@
+trait Source:
+    type Item
+    fn get(self) -> Self::Item
+
+data Box[T]:
+    value: T
+
+impl[T] Source for Box[T] where T < Any:  # diagnostic: syntax-error
+    type Item = T
+
+    fn get(self) -> T: self.value

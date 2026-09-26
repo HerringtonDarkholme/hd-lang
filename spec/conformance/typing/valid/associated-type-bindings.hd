@@ -1,0 +1,35 @@
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn describe[T < Display, I < Supplier[Item = T]](source: I) -> string:
+    source.get().to_string()
+
+data Feed[I]:
+    source: I
+
+impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
+    fn to_string(self) -> string:
+        describe(self.source)
+
+data Constant:
+    value: string
+
+impl Supplier for Constant:
+    type Item = string
+
+    fn get(self) -> string: self.value
+
+fn feed_text() -> string:
+    Feed[Constant] { source: Constant { value: "Ada" } }.to_string()
+
+fn same_type[T, I < Supplier[Item = T]](source: I) -> I::Item:
+    let item: T = source.get()
+    item
+
+fn annotated[T < Display, I < Supplier[Item = T]](source: I) -> string:
+    let item: I::Item = source.get()
+    item.to_string()
+
+fn forward[U < Display, J < Supplier[Item = U]](source: J) -> string:
+    annotated(source)

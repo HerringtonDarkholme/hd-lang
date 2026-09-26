@@ -108,6 +108,12 @@ typing/valid/data-field-defaults.hd	type	accept	08-data-and-enums.md#data-declar
 typing/valid/data-default-calls-function-value.hd	type	accept	08-data-and-enums.md#data-declarations
 typing/invalid/missing-required-data-field.hd	type	reject:missing-required-field	08-data-and-enums.md#construction-and-access
 typing/valid/trait-features.hd	type	accept	09-traits.md
+typing/valid/associated-type-bindings.hd	type	accept	09-traits.md#associated-type-bindings
+typing/invalid/associated-binding-mismatch.hd	type	reject:unsatisfied-trait-bound	09-traits.md#associated-type-bindings
+typing/invalid/unknown-associated-type.hd	type	reject:unknown-associated-type	09-traits.md#associated-type-bindings
+typing/invalid/supertrait-associated-binding.hd	type	reject:unknown-associated-type	09-traits.md#associated-type-bindings
+typing/invalid/duplicate-associated-binding.hd	type	reject:duplicate-associated-binding	09-traits.md#associated-type-bindings
+runtime/valid/associated-type-bindings.hd	runtime	accept	09-traits.md#associated-type-bindings
 typing/valid/traits.hd	type	accept	09-traits.md
 typing/invalid/break-value-without-else.hd	type	reject:break-value-context	06-control-flow.md#break-continue-and-loop-else
 typing/invalid/top-level-return.hd	type	reject:return-outside-function	06-control-flow.md#return
@@ -559,6 +565,8 @@ parse/valid/mutable-parameter-field-assignment.hd	parse	accept	02-grammar.md#typ
 parse/invalid/mut-non-self-parameter.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
 parse/valid/mut-self-receiver.hd	parse	accept	02-grammar.md#traits-and-implementations
 parse/valid/inherent-and-trait-impls.hd	parse	accept	02-grammar.md#traits-and-implementations
+parse/invalid/associated-binding-outside-bound.hd	parse	reject:syntax-error	02-grammar.md#generic-parameters-and-bounds
+parse/invalid/old-where-clause.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
 parse/valid/embedded-data-member.hd	parse	accept	02-grammar.md#data-types
 parse/valid/trailing-callback-statement.hd	parse	accept	02-grammar.md#declarations
 parse/valid/explicit-generic-arguments-with-placeholder.hd	parse	accept	02-grammar.md#declarations

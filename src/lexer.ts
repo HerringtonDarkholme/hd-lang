@@ -79,7 +79,6 @@ export const KEYWORDS = new Set([
   "true",
   "type",
   "use",
-  "where",
   "while",
 ]);
 

@@ -203,6 +203,12 @@ typing/valid/blanket-impl-and-associated-function.hd	type
 typing/invalid/permission-target-overlap.hd	type
 typing/invalid/orphan-impl.hd	type
 typing/valid/trait-features.hd	type
+typing/valid/associated-type-bindings.hd	type
+typing/invalid/associated-binding-mismatch.hd	type
+typing/invalid/unknown-associated-type.hd	type
+typing/invalid/supertrait-associated-binding.hd	type
+typing/invalid/duplicate-associated-binding.hd	type
+runtime/valid/associated-type-bindings.hd	runtime
 typing/invalid/supertrait-cycle.hd	type
 typing/invalid/unsafe-dynamic-trait.hd	type
 runtime/panic/assert-equal-bool-unequal.hd	runtime

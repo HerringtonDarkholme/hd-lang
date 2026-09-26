@@ -302,7 +302,6 @@ trait_member = associated_type_decl
              ;
 
 impl_decl = "impl", [ generic_params ], type, [ "for", type ],
-            [ where_clause ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
               impl_member, { impl_member }, DEDENT )
@@ -315,10 +314,6 @@ method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
               ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
-
-where_clause = "where", where_predicate,
-               { ",", where_predicate }, [ "," ] ;
-where_predicate = type, "<", trait_bounds ;
 ```
 
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
@@ -330,13 +325,14 @@ embedded field. A
 visibility follows the trait. A
 bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a
 suite. `trait Child < Parent:` declares `Parent` as a supertrait and opens the
-body with `:`. In declarations, `<` introduces a bound (a supertrait, a
-generic parameter bound, or a `where` predicate), while `:` means "has type"
+body with `:`. In declarations, `<` introduces a bound (a supertrait or a
+generic parameter bound), while `:` means "has type"
 or opens a suite. A function member whose first parameter is `self` or
 `mut self` is a method; a receiverless member is an associated function.
 Associated type declarations omit `=` in a
 trait requirement and provide `= type` in an implementation. Generic
-implementations may put bounds inline or in a `where` clause.
+implementations state every bound inline in their generic parameter list; the
+language has no separate bound clause.
 
 ### Type Declarations
 
@@ -360,9 +356,26 @@ generic_parameter = [ "reified" ], identifier, [ "..." ],
                     [ "<", trait_bounds ] ;
 variance = "+" | "-" ;
 
-trait_bounds = [ "mut" ], trait_type, { "+", trait_type } ;
+trait_bounds = [ "mut" ], bound_trait_type, { "+", bound_trait_type } ;
+bound_trait_type = qualified_name, [ bound_type_arguments ] ;
+bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
+bound_type_argument_list = type_argument, { ",", type_argument },
+                           { ",", associated_type_binding }
+                         | associated_type_binding,
+                           { ",", associated_type_binding }
+                         ;
+associated_type_binding = identifier, "=", type ;
 trait_type = qualified_name, [ type_arguments ] ;
 ```
+
+A trait in a generic parameter bound may end its bracketed arguments with
+associated type bindings: `I < Supplier[Item = T]` requires `I` to implement
+`Supplier` with `I::Item` equal to `T`. Bindings follow every positional type
+argument. They are valid only in `trait_bounds`; a supertrait, an implemented
+trait, a trait-qualified call, a type argument, or a dynamic trait value type
+uses `trait_type` or `type`, so a binding there is a `syntax-error`. Binding
+semantics are specified in
+[Associated Type Bindings](09-traits.md#associated-type-bindings).
 
 Variance markers are valid on generic type declarations, not function generic
 parameters. `reified` and type packs are valid on function, method, variant, and
@@ -964,7 +977,7 @@ member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
 facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
-                        "for", annotation_target, [ where_clause ], ":",
+                        "for", annotation_target, ":",
                         facet_annotation_suite ;
 
 annotation_facet = type | closed_expression ;
@@ -995,8 +1008,8 @@ value; its static type is the facet type used for coherence and
 `Annotate[Facet]` generation. The syntactic overlap between a named type and a
 name expression is resolved by ordinary name and type resolution.
 
-Generic parameters and an optional `where` clause follow the same rules as a
-generic `impl`. A generic annotation target denotes a family of concrete
+Generic parameters and their bounds follow the same rules as a generic
+`impl`. A generic annotation target denotes a family of concrete
 targets; coherence and overlap are checked as if it were the lowered generic
 `impl Annotate[Facet] for Target`.
 

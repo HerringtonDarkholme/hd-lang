@@ -26,6 +26,8 @@ parse/invalid/copy-update-spread-not-first.hd	MVP reports data-spread-position i
 parse/invalid/old-and-operator.hd	MVP reports expected-token instead of syntax-error	F-205
 parse/invalid/old-or-operator.hd	MVP reports expected-newline instead of syntax-error	F-205
 parse/invalid/old-not-operator.hd	MVP reports expected-newline instead of syntax-error	F-205
+parse/invalid/associated-binding-outside-bound.hd	MVP reports expected-token instead of syntax-error	F-205
+parse/invalid/old-where-clause.hd	MVP reports expected-token instead of syntax-error	F-205
 parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253

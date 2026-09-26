@@ -1,0 +1,6 @@
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+fn first[T, I < Supplier[Element = T]](source: I) -> T:  # diagnostic: unknown-associated-type
+    source.get()

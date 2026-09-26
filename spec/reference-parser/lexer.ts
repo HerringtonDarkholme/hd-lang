@@ -32,7 +32,6 @@ const reserved = new Set([
   "true",
   "type",
   "use",
-  "where",
   "while",
 ]);
 export const openToClose = new Map([

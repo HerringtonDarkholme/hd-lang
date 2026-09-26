@@ -4,6 +4,7 @@ import type {
   HirData,
   HirEnum,
   HirExpression,
+  HirGenericBound,
   HirTrait,
   HirTraitImplementation,
   ValueType,
@@ -993,4 +994,16 @@ export function resolveTraitType(
       callable.suspending,
     );
   return type;
+}
+
+/** Rewrites each projection fixed by an associated type binding to its bound type. */
+export function normalizeBoundProjections(
+  type: ValueType,
+  bounds: readonly HirGenericBound[],
+): ValueType {
+  const substitutions = new Map<string, ValueType>();
+  for (const bound of bounds)
+    for (const binding of bound.associatedBindings ?? [])
+      substitutions.set(`${bound.parameter}::${binding.name}`, binding.type);
+  return substitutions.size === 0 ? type : substituteGenericType(type, substitutions);
 }

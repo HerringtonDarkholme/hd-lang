@@ -199,6 +199,13 @@ export interface HirGenericBound {
   readonly traitIndex: number;
   readonly traitArguments: readonly ValueType[];
   readonly mutable: boolean;
+  /** `Name = type` bindings: `parameter::Name` equals `type`. */
+  readonly associatedBindings?: readonly HirAssociatedBinding[];
+}
+
+export interface HirAssociatedBinding {
+  readonly name: string;
+  readonly type: ValueType;
 }
 
 export interface HirFunction {

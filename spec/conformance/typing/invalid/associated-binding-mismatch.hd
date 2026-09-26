@@ -1,0 +1,16 @@
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+
+    fn get(self) -> i32: self.start
+
+fn names[I < Supplier[Item = string]](source: I) -> string:
+    source.get()
+
+text := names(Counter { start: 1 })  # diagnostic: unsatisfied-trait-bound

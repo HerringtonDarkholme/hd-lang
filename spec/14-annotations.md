@@ -422,7 +422,7 @@ member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
 
 facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
-                        "for", annotation_target, [ where_clause ], ":",
+                        "for", annotation_target, ":",
                         facet_annotation_suite ;
 
 annotation_facet = type | closed_expression ;
@@ -463,8 +463,8 @@ assignments apply to data fields, enum variants, or module-level function
 parameters. Function annotators read the resulting parameter shapes and may
 replace the complete `build`.
 
-Generic parameters and `where` predicates have the same meaning as on an
-ordinary generic implementation. For example,
+Generic parameters and their bounds have the same meaning as on an ordinary
+generic implementation. For example,
 `annotate[T] Validation for list[T]` occupies the same coherence slot as
 `impl[T] Annotate[Validation] for list[T]`; an overlapping exact annotation is
 rejected under the normal implementation-overlap rules.

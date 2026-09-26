@@ -8,6 +8,16 @@ export interface TypeRef {
 export interface GenericBound {
   readonly parameter: string;
   readonly traits: readonly string[];
+  /** Associated type bindings such as `Item = T` in `I < Supplier[Item = T]`. */
+  readonly bindings?: readonly AssociatedTypeBinding[];
+  readonly span: SourceSpan;
+}
+
+export interface AssociatedTypeBinding {
+  /** The bound trait as written in `traits`, without `mut:`. */
+  readonly trait: string;
+  readonly name: string;
+  readonly type: TypeRef;
   readonly span: SourceSpan;
 }
 
