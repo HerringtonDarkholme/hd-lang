@@ -402,6 +402,18 @@ read it, so prefer explicit, checkable rules and locality.
   `too-many-embedded-fields` on the fourth embedded field. A data type may declare at most three embedded fields; a fourth
   is an error at the declaration.
 
+- **Single view of a type's members, not yet applied.** Replaces the
+  two-view reading. Only `pub` fields and inherent methods of embedded parts
+  are promoted, even when the part is declared in the same module (reach
+  private members through an explicit path). Own `pub` members shadow
+  promoted members. An own private member that shares a name with a promoted
+  member is a conflict at the declaration; private members never shadow.
+  Every name then resolves the same way for every caller, and one
+  declaration check suffices. Also confirmed: a conflict inside one part is
+  reported only at that part's type; delegation calls the part's trait
+  implementation, and an associated function with a trait default keeps the
+  default; a type embedding a too-deep type is itself too deep.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
