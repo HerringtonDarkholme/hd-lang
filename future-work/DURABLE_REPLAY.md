@@ -38,6 +38,12 @@ Decided 2026-09-26:
 4. **Question 5: pin plus continue-as-new.** A run stays on the artifact it
    started with; a library `continue_as_new` hands state to a new run. No
    patch markers.
+5. **Question 8: reaching the end of the log is not an exit.** Resuming
+   (switching to live execution) is the default; `defer` runs only on a real
+   exit or a real cancellation. A host that wants to abort instead cancels
+   the resumed instance, which runs cleanup live. Still open: what happens to
+   a host call that was in flight when the original run stopped (started,
+   no result recorded), since not every call can be retried blindly.
 
 ## Problem
 
