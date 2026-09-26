@@ -286,6 +286,9 @@ read it, so prefer explicit, checkable rules and locality.
   type is `private-type-leak`. Member lookup then checks only each member's
   own visibility, not the embedded fields on its path.
 
+- **No diamond check.** A type may be reachable through several embedding
+  paths (each path holds its own copy); the language does not diagnose it.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
