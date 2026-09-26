@@ -39,7 +39,10 @@ instantiations of one generic trait by argument and expected types), TQ-28
 over the existing erased optional carrier: `Option[T]` is `T?`, `.None`,
 `.Some(value)`, and their `Option.`-qualified forms construct and match
 optionals, the implicit wrap adds one layer only, and `Option[T]` targets
-behave like `T?` targets.
+behave like `T?` targets. P6 is implemented: `Type::name` and `x::name`
+without a call are rejected while parsing, a called `x::name(...)` while
+checking, both as `deferred-method-value`, and `x.callback(args)` with only a
+function-typed field reports `unknown-method` suggesting `(x.callback)(...)`.
 The grammar decisions GQ1 (a trailing
 requirement clause belongs to the declaration), GQ5 (data patterns label
 fields with `:`), and GQ7 (leading-dot continuation) are implemented; GQ2

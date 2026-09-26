@@ -190,11 +190,15 @@ method call: member lookup selects a method, which is called with `value` as
 its receiver. A method call never reads a field. A function stored in a field
 is called by parenthesizing the field read, as in `(handler.callback)(event)`;
 `handler.callback(event)` looks for a method named `callback` and is an
-`unknown-method` error when there is none. Field and method lookup, including
-promoted members, are defined in
-[Member Resolution](03-names-and-scopes.md#member-resolution). Whether a
-bare `value.method` can form a bound function value is deferred; explicit
-closures can adapt method calls where a function value is needed.
+`unknown-method` error when there is none; when a field named `callback`
+exists, the message should suggest `(handler.callback)(event)`. Field and
+method lookup, including promoted members, are defined in
+[Member Resolution](03-names-and-scopes.md#member-resolution). A method is
+not a value: `value.method` without an argument clause is a field read.
+Method values are deferred, and their future spellings `Type::name` and
+`value::name` are reserved and diagnosed
+([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
+Explicit closures can adapt method calls where a function value is needed.
 
 Member access through a readonly data root weakens a direct `mut U` field to
 `U`, but does not weaken a generic field's substituted type. Other member

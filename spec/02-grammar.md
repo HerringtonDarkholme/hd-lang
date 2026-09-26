@@ -757,6 +757,10 @@ the selected member is generic, and it follows the explicit-list rules of
 [Generic Functions](07-functions.md#generic-functions).
 After `::`, the contextual words `annotation` and `annotation_ref` always
 select `annotation_runtime_access`, not an ordinary trait-qualified call.
+A `::` member reference must be called: `Type::name` without an argument
+clause is not an expression. It is reserved for method values, and an
+implementation reports it as `deferred-method-value`
+([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
 
 ### Calls And Arguments
 

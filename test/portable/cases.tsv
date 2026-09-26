@@ -776,3 +776,6 @@ typing/invalid/bare-none-pattern.hd	type
 runtime/valid/option-impl-target.hd	runtime
 typing/invalid/overlapping-option-impl.hd	type
 parse/invalid/optional-question-pattern.hd	parse
+parse/invalid/unbound-method-value.hd	parse
+parse/invalid/bound-method-value.hd	parse
+typing/invalid/bound-method-value-call.hd	type

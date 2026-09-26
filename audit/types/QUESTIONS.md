@@ -120,7 +120,8 @@ read it, so prefer explicit, checkable rules and locality.
   trait imports changing `Deref` resolution. (P4) Accepted: a trait impl for
   `S` added in a third package gives `S` a depth-0 method that blocks an
   embedded member. (P5) TQ-31 stays: trait methods of embedded types are
-  never searched. (P6, not yet applied) `Type::name` and `x::name` are
+  never searched. (P6, applied to 02, 05 Member Access, and 07 Unsupported
+  Function Extensions with the code `deferred-method-value`) `Type::name` and `x::name` are
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
   Pending: embedding as an owned part (access follows the container,

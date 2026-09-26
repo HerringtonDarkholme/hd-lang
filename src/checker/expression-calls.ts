@@ -1217,6 +1217,15 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     expected?: ValueType,
   ): HirExpression {
     const owner = expression.callee.owner;
+    if (
+      !this.traitTypes.has(owner) &&
+      (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))
+    )
+      this.fail(
+        "deferred-method-value",
+        `'${owner}::${expression.callee.name}' is a bound method value, which is deferred; call '${owner}.${expression.callee.name}(...)'`,
+        expression.callee.span,
+      );
     const trait = this.traitTypes.get(owner);
     if (trait) {
       const sourceArguments = expression.callee.ownerTypeArguments ?? [];

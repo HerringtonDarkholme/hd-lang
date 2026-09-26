@@ -113,6 +113,11 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))
     diagnostics.push(diagnostic("comparison-chaining", line));
+  // `Type::name` or `x::name` without a call is reserved for method values.
+  // Associated type projections such as `I::Item` are capitalized by
+  // convention, so only a lowercase member is checked.
+  if (/::[a-z_][\p{L}\p{N}_]*(?:\[[^\]]*\])?(?![\p{L}\p{N}_[(!])/u.test(clean))
+    diagnostics.push(diagnostic("deferred-method-value", line));
   if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
   // A bracketed control-flow expression or closure may end its header line

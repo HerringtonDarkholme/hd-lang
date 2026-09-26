@@ -11,6 +11,7 @@ import type {
   Statement,
   TypeRef,
 } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type { InterpolatedStringValue, Token } from "../lexer.ts";
 import { ParserBase } from "./base.ts";
 
@@ -89,6 +90,7 @@ export abstract class ExpressionParser extends ParserBase {
         }
         const close = this.expectText("]");
         left = { ...left, typeArguments, span: { start, end: close.span.end } };
+        if (left.kind === "qualified-name") this.rejectMethodValue(left.span);
         continue;
       }
       if (this.atText("::") && left.kind === "name") {
@@ -102,6 +104,7 @@ export abstract class ExpressionParser extends ParserBase {
           name: member.text,
           span: { start: left.span.start, end: member.span.end },
         };
+        if (!this.atText("[")) this.rejectMethodValue(left.span);
         continue;
       }
       if (this.atText("{") && left.kind === "name") {
@@ -844,6 +847,19 @@ export abstract class ExpressionParser extends ParserBase {
       "unsupported-context-operation",
       `provider-context operation '$.${operation.text}' is not implemented yet`,
       operation.span,
+    );
+  }
+
+  /**
+   * `Type::name` and `x::name` without a call are reserved for future method
+   * values (the unbound method function and the bound method value).
+   */
+  private rejectMethodValue(span: SourceSpan): void {
+    if (this.atText("(") || (this.atText("!") && this.peek(1).text === "(")) return;
+    this.fail(
+      "deferred-method-value",
+      "method values are deferred: 'Type::name' and 'x::name' must be called",
+      span,
     );
   }
 

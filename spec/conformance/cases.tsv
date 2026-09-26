@@ -911,3 +911,6 @@ typing/invalid/bare-none-pattern.hd	type	reject:bare-variant-pattern	06-control-
 runtime/valid/option-impl-target.hd	runtime	accept	09-traits.md#implementation-targets
 typing/invalid/overlapping-option-impl.hd	type	reject:overlapping-impl	09-traits.md#overlap
 parse/invalid/optional-question-pattern.hd	parse	reject:syntax-error	02-grammar.md#patterns
+parse/invalid/unbound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
+parse/invalid/bound-method-value.hd	parse	reject:deferred-method-value	07-functions.md#unsupported-function-extensions
+typing/invalid/bound-method-value-call.hd	type	reject:deferred-method-value	07-functions.md#unsupported-function-extensions

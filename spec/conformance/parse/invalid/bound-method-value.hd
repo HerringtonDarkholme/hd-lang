@@ -1,0 +1,10 @@
+# test: x::name without a call is reserved for the deferred bound method value
+data User:
+    email: string
+
+impl User:
+    fn domain(self) -> string:
+        self.email
+
+fn pick(user: User) -> fn() -> string:
+    user::domain  # diagnostic: deferred-method-value
