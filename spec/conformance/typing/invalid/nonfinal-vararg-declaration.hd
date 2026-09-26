@@ -1,0 +1,2 @@
+fn scaled(values: i32..., factor: i32) -> i32:  # diagnostic: nonfinal-vararg
+    factor

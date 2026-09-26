@@ -1,0 +1,17 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn log(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+fn report() -> void:
+    $.with(Logger=SilentLogger {}):
+        fn announce() -> void:
+            log("inside the provider scope")
+        announce()

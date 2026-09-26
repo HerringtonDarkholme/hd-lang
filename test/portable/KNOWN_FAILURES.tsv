@@ -5,3 +5,15 @@ runtime/valid/assert-equal-generic-primitive.hd	check fails: i32 and string do n
 runtime/panic/assert-equal-generic-primitive-unequal.hd	check fails: i32 does not satisfy the T: PartialEq bound (missing-trait-implementation)	F-500
 typing/invalid/impure-data-default.hd	compiler still emits the retired code; the spec now uses impure-default (SPEC_DECISIONS L10)	L10
 typing/invalid/impure-shared-enum-default.hd	compiler still emits the retired code; the spec now uses impure-default (SPEC_DECISIONS L10)	L10
+runtime/valid/reference-bounded-dynamic-method.hd	check fails: MVP rejects Reference-bounded method generics in dynamic traits (trait-not-dynamically-safe at lines 27 and 30)	G2
+typing/invalid/tuple-element-assignment.hd	wrong code: MVP reports readonly-root instead of invalid-assignment-target	G3
+typing/invalid/init-read-through-generic-bound.hd	MVP accepts: initialization check does not follow trait dispatch through a generic bound	L1
+typing/invalid/init-read-through-trait-value.hd	MVP accepts: initialization check does not follow trait dispatch through a trait value	L1
+runtime/valid/unsigned-exponent.hd	check fails: MVP has no u32 type (unknown-type)	L2
+typing/invalid/signed-exponent.hd	MVP accepts a signed i32 exponent	L2
+typing/invalid/inferred-mutable-upgrade.hd	wrong code: MVP reports generic-type-mismatch instead of mutable-upgrade	L6
+runtime/valid/identity-ignores-permissions.hd	check fails: MVP rejects is between list[User] and mut list[mut User] (type-mismatch)	L7
+runtime/valid/fieldless-data-canonical.hd	test fails: MVP allocates each fieldless data value, so Unit {} is Unit {} is false	L8
+typing/invalid/indirect-supertrait-cycle.hd	extra errors: MVP reports supertrait-cycle on every cycle member (lines 4 and 7)	L9
+typing/invalid/parameter-default-later-parameter.hd	wrong code: MVP reports impure-parameter-default instead of binding-not-yet-visible	L10
+typing/invalid/impure-parameter-default.hd	wrong code: MVP reports impure-parameter-default instead of impure-default	L10

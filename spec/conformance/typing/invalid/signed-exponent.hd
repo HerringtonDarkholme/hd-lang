@@ -1,0 +1,2 @@
+fn invalid(base: i32, exponent: i32) -> i32:
+    base ** exponent  # diagnostic: type-mismatch

@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+fn with_first(pair: (i32, i32), first: i32) -> (i32, i32):
+    (first, pair.1)
+
+test "a changed tuple is built as a new tuple value":
+    let pair: (i32, i32) = (0, 2)
+    original := pair
+    pair = with_first(pair, 1)
+    assert_equal(pair, (1, 2), reason="the reassigned local holds the new tuple")
+    assert_equal(original, (0, 2), reason="the earlier tuple value is unchanged")

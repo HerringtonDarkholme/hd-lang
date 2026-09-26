@@ -1,0 +1,23 @@
+use std.testing.assert_equal
+
+data Box:
+    value: i32
+
+trait Reader:
+    fn read(self) -> i32
+
+fn via_bound[T: Reader](value: T) -> i32:
+    value.read()
+
+later := 5
+bounded := via_bound(Box { value: 2 })
+let reader: Reader = Box { value: 3 }
+dynamic := reader.read()
+
+impl Reader for Box:
+    fn read(self) -> i32:
+        later + self.value
+
+test "trait dispatch during module initialization reads initialized bindings":
+    assert_equal(bounded, 7, reason="the bounded generic call read later after it was initialized")
+    assert_equal(dynamic, 8, reason="the trait value call read later after it was initialized")

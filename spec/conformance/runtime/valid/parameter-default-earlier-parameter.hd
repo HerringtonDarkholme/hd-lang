@@ -1,0 +1,11 @@
+use std.testing.assert_equal
+
+fn seven() -> i32: 7
+
+fn span(finish: i32 = seven(), start: i32 = finish - 2) -> i32:
+    finish - start
+
+test "a parameter default may call a pure function and read an earlier parameter":
+    assert_equal(span(), 2, reason="both defaults apply")
+    assert_equal(span(10), 2, reason="the second default reads the explicit first argument")
+    assert_equal(span(10, 4), 6, reason="explicit arguments replace both defaults")

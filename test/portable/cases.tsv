@@ -230,3 +230,16 @@ runtime/valid/assert-equal-optional.hd	runtime
 runtime/valid/assert-equal-result.hd	runtime
 runtime/valid/assert-equal-string.hd	runtime
 runtime/valid/assert-equal-tuple.hd	runtime
+typing/invalid/non-reference-bound-dynamic-method.hd	type
+runtime/valid/tuple-rebuild.hd	runtime
+runtime/valid/init-read-through-trait-dispatch.hd	runtime
+typing/valid/nonpublic-main-ordinary.hd	type
+runtime/valid/shared-data-variant-identity.hd	runtime
+typing/valid/inferred-mutable-from-mutable.hd	type
+typing/valid/supertrait-chain.hd	type
+runtime/valid/parameter-default-earlier-parameter.hd	runtime
+typing/invalid/nonfinal-vararg-declaration.hd	type
+typing/invalid/nonfinal-vararg-function-type.hd	type
+runtime/valid/final-vararg.hd	runtime
+typing/invalid/method-without-requirement-clause.hd	type
+typing/valid/local-fn-in-provider-scope.hd	type

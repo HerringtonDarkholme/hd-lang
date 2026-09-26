@@ -1,0 +1,15 @@
+data Box:
+    value: i32
+
+trait Reader:
+    fn read(self) -> i32
+
+fn via_bound[T: Reader](value: T) -> i32:
+    value.read()
+
+bounded := via_bound(Box { value: 2 })  # diagnostic: top-level-read-before-initialization
+later := 5
+
+impl Reader for Box:
+    fn read(self) -> i32:
+        later

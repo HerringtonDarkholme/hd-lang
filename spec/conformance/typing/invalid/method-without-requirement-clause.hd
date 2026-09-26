@@ -1,0 +1,15 @@
+trait Logger:
+    fn write(self, message: string) -> void
+
+fn log(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+trait Job:
+    fn run(self) -> void
+
+data Nightly: pass
+
+impl Job for Nightly:
+    fn run(self) -> void:
+        log("nightly")  # diagnostic: missing-requirement

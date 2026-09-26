@@ -1,0 +1,2 @@
+fn apply(callback: fn(i32..., string) -> i32) -> i32:  # diagnostic: nonfinal-vararg
+    0

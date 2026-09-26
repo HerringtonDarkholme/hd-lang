@@ -1,0 +1,17 @@
+use std.testing.assert_equal
+
+fn scaled(factor: i32, values: i32...) -> i32:
+    let total: i32 = 0
+    for value in values:
+        total = total + value * factor
+    total
+
+fn apply(callback: fn(i32, i32...) -> i32) -> i32:
+    callback(2, 1, 2, 3)
+
+test "a final vararg collects the remaining positional arguments":
+    assert_equal(scaled(3), 0, reason="an empty vararg is an empty list")
+    assert_equal(scaled(2, 1, 2), 6, reason="each element is scaled")
+
+test "a function type may end in a vararg":
+    assert_equal(apply(scaled), 12, reason="the function value keeps the vararg convention")

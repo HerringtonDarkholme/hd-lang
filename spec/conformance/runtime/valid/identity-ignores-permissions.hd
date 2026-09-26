@@ -1,0 +1,13 @@
+use std.testing.assert
+
+data User:
+    name: string
+
+fn same(view: list[User], owner: mut list[mut User]) -> bool:
+    view is owner
+
+test "is compares a readonly view and a mutable alias by identity":
+    let users: mut list[mut User] = [User { name: "Ada" }]
+    let others: mut list[mut User] = [User { name: "Ada" }]
+    assert(same(users, users), reason="permissions do not affect identity")
+    assert(not same(others, users), reason="distinct lists stay distinct")

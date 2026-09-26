@@ -1,0 +1,41 @@
+FAIL  runtime/valid/reference-bounded-dynamic-method.hd: check: runtime case did not type-check
+      | /Users/hd/code/test/hd-lang/spec/conformance/runtime/valid/reference-bounded-dynamic-method.hd:27:29: trait-not-dynamically-safe: trait 'Visitor' cannot be used as a dynamic value
+      | /Users/hd/code/test/hd-lang/spec/conformance/runtime/valid/reference-bounded-dynamic-method.hd:30:29: trait-not-dynamically-safe: trait 'Labeler' cannot be used as a dynamic value
+pass  typing/invalid/non-reference-bound-dynamic-method.hd
+FAIL  typing/invalid/tuple-element-assignment.hd: check: no located error invalid-assignment-target on line 3
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/tuple-element-assignment.hd:3:5: readonly-root: field '0' cannot be assigned through readonly type '(i32,i32)'
+pass  runtime/valid/tuple-rebuild.hd
+FAIL  typing/invalid/init-read-through-generic-bound.hd: check: expected rejection top-level-read-before-initialization, got exit 0
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/init-read-through-generic-bound.hd: ok
+FAIL  typing/invalid/init-read-through-trait-value.hd: check: expected rejection top-level-read-before-initialization, got exit 0
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/init-read-through-trait-value.hd: ok
+pass  runtime/valid/init-read-through-trait-dispatch.hd
+FAIL  runtime/valid/unsigned-exponent.hd: check: runtime case did not type-check
+      | /Users/hd/code/test/hd-lang/spec/conformance/runtime/valid/unsigned-exponent.hd:3:31: unknown-type: unknown or unsupported type 'u32'
+FAIL  typing/invalid/signed-exponent.hd: check: expected rejection type-mismatch, got exit 0
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/signed-exponent.hd: ok
+pass  typing/valid/nonpublic-main-ordinary.hd
+pass  runtime/valid/shared-data-variant-identity.hd
+FAIL  typing/invalid/inferred-mutable-upgrade.hd: check: no located error mutable-upgrade on line 8
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/inferred-mutable-upgrade.hd:8:31: generic-type-mismatch: generic parameter 'T' was inferred as both mut:User and User
+pass  typing/valid/inferred-mutable-from-mutable.hd
+FAIL  runtime/valid/identity-ignores-permissions.hd: check: runtime case did not type-check
+      | /Users/hd/code/test/hd-lang/spec/conformance/runtime/valid/identity-ignores-permissions.hd:7:5: type-mismatch: identity operands have types list[User] and mut:list[mut:User]
+FAIL  runtime/valid/fieldless-data-canonical.hd: test: expected exit 0, got exit 1
+      | assertion-failed: runtime panic
+FAIL  typing/invalid/indirect-supertrait-cycle.hd: check: other located errors reported: supertrait-cycle at line 4, supertrait-cycle at line 7
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/indirect-supertrait-cycle.hd:1:1: supertrait-cycle: trait 'First' participates in a supertrait cycle
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/indirect-supertrait-cycle.hd:4:1: supertrait-cycle: trait 'Second' participates in a supertrait cycle
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/indirect-supertrait-cycle.hd:7:1: supertrait-cycle: trait 'Third' participates in a supertrait cycle
+pass  typing/valid/supertrait-chain.hd
+FAIL  typing/invalid/parameter-default-later-parameter.hd: check: no located error binding-not-yet-visible on line 1
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/parameter-default-later-parameter.hd:1:22: impure-parameter-default: default for 'span.start' is not compile-time pure
+FAIL  typing/invalid/impure-parameter-default.hd: check: no located error impure-default on line 7
+      | /Users/hd/code/test/hd-lang/spec/conformance/typing/invalid/impure-parameter-default.hd:7:22: impure-parameter-default: default for 'tick.value' is not compile-time pure
+pass  runtime/valid/parameter-default-earlier-parameter.hd
+pass  typing/invalid/nonfinal-vararg-declaration.hd
+pass  typing/invalid/nonfinal-vararg-function-type.hd
+pass  runtime/valid/final-vararg.hd
+pass  typing/invalid/method-without-requirement-clause.hd
+pass  typing/valid/local-fn-in-provider-scope.hd
+conformance: 13 passed, 12 failed, 25 selected

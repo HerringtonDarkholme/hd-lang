@@ -1,0 +1,9 @@
+data User:
+    name: string
+
+fn keep[T](value: T) -> T:
+    value
+
+fn invalid(user: User) -> void:
+    let kept: mut User = keep(user)  # diagnostic: mutable-upgrade
+    kept.name = "Grace"

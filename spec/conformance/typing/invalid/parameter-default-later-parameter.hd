@@ -1,0 +1,2 @@
+fn span(start: i32 = finish, finish: i32 = 10) -> i32:  # diagnostic: binding-not-yet-visible
+    finish - start

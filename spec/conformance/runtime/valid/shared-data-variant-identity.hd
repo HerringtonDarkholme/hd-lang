@@ -1,0 +1,21 @@
+use std.testing.assert
+
+enum Status(code: i32):
+    Ok -> Status(200)
+    Missing -> Status(404)
+
+enum Color:
+    Red
+    Green
+
+test "each construction of a shared-data variant has its own identity":
+    first := Status.Ok
+    second := Status.Ok
+    alias := first
+    assert(not (first is second), reason="two constructions of a shared-data variant are distinct")
+    assert(first is alias, reason="an alias shares the construction's identity")
+
+test "a variant that stores no data is canonical":
+    first := Color.Red
+    second := Color.Red
+    assert(first is second, reason="a payload-free variant without shared data has one identity")

@@ -1,0 +1,5 @@
+trait Labeler:
+    fn label[T: Display](self, value: T) -> string
+
+fn invalid(labeler: Labeler) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

@@ -1,0 +1,20 @@
+use std.testing.assert
+
+data Unit: pass
+
+data Box:
+    value: i32
+
+fn make() -> Unit:
+    Unit {}
+
+test "fieldless data values are canonical":
+    first := Unit {}
+    second := Unit {}
+    assert(first is second, reason="two fieldless constructions share one identity")
+    assert(make() is first, reason="a construction in another function is the same value")
+
+test "data values with fields have allocation identity":
+    first := Box { value: 1 }
+    second := Box { value: 1 }
+    assert(not (first is second), reason="each construction with a field allocates")

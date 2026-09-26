@@ -1,0 +1,8 @@
+trait First:
+    fn first(self) -> void
+
+trait Second: First:
+    fn second(self) -> void
+
+trait Third: Second:
+    fn third(self) -> void

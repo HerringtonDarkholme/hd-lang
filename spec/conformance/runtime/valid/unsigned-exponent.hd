@@ -1,0 +1,15 @@
+use std.testing.assert_equal
+
+fn power(base: i32, exponent: u32) -> i32:
+    base ** exponent
+
+test "an unsuffixed literal exponent is typed u32":
+    assert_equal(2 ** 3, 8, reason="an integer base accepts a literal exponent")
+    let base: i64 = 10
+    let expected: i64 = 100
+    assert_equal(base ** 2, expected, reason="the result has the base's type")
+
+test "an unsigned variable exponent is accepted":
+    let exponent: u32 = 4
+    assert_equal(power(3, exponent), 81, reason="a u32 exponent computes the power")
+    assert_equal(power(5, 0), 1, reason="a zero exponent yields one")
