@@ -58,8 +58,15 @@ read it, so prefer explicit, checkable rules and locality.
   do. Bounds stay ignored.
 - **TQ-29, not yet applied.** When a type implements both `Iterable[T]` and
   `Iterator[T]`, `for` uses `Iterable`.
-- **TQ-27, reopened.** The owner is considering making `T?` sugar for an
-  ordinary `Option[T]` enum and removing `nil`; see the optional questions.
+- **Optionals (O1 to O3) and TQ-27, not yet applied.** (O1) `T?` is exact
+  sugar for a prelude `enum Option[T]: Some(value: T); None`; `T??` is
+  `Option[Option[T]]`; `nil` is removed as keyword and literal; the
+  representation stays an implementation detail. (O2) The absent value is
+  written `.None` or `Option.None`; no new prelude names. (O3) The implicit
+  wrap stays: a `T` is accepted where `T?` is expected, one layer only.
+  (TQ-27) Impl targets may be nominal types, built-in primitives and
+  collections, `Option` (now an enum), and tuples (arity-indexed
+  constructors); function types are never impl targets.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
