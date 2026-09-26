@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { conformance, fixture } from "./fixture.ts";
+import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
   const source = conformance("runtime/valid/function-value-argument");
@@ -339,7 +339,7 @@ test("concrete requirement rows normalize union and subtraction as sets", () => 
   assert.deepEqual(grouped.diagnostics, []);
   assert.deepEqual(grouped.hir?.functions[0]?.requirements, ["Clock"]);
 
-  const empty = analyze(fixture("compiler-types/requirements/normalization/explicit-empty-row"));
+  const empty = analyze(conformance("typing/valid/explicit-empty-row"));
   assert.deepEqual(empty.diagnostics, []);
 });
 

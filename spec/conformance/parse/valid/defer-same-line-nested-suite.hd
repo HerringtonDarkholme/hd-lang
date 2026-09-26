@@ -1,0 +1,6 @@
+# test: a same-line defer suite may hold a same-line if suite
+# expect: parse
+
+fn release(flag: bool) -> void:
+    defer: if flag: pass
+    pass

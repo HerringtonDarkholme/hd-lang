@@ -596,3 +596,7 @@ runtime/valid/discard-propagated-void-result.hd	runtime
 runtime/valid/result-entry-point-ok.hd	runtime
 typing/invalid/plain-closure-mutable-capture.hd	type
 typing/invalid/plain-closure-assigns-captured-let.hd	type
+typing/valid/explicit-empty-row.hd	type
+parse/valid/defer-same-line-nested-suite.hd	parse
+parse/valid/header-resumes-after-nested-suite.hd	parse
+parse/valid/bracketed-for-multi-name-binding.hd	parse

@@ -1,0 +1,9 @@
+# test: inside brackets, a header resumes after an indented closure in its condition
+# expect: parse
+
+fn check(predicate: fn(i32) -> bool) -> bool: predicate(1)
+
+fn run() -> void:
+    (if check(fn(x: i32) -> bool:
+        x > 0
+    ): pass)

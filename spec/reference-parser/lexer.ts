@@ -64,6 +64,14 @@ interface DepthEntry {
   readonly text: string;
 }
 
+// An indentation level of a suite nested inside delimiters. `saved` holds the
+// headers still waiting for their `:` after the suite that this level opened.
+interface NestedLevel {
+  readonly delimiters: number;
+  readonly indent: number;
+  saved?: DepthEntry[];
+}
+
 function diagnostic(code: string, line: number): Diagnostic {
   return { code, line };
 }
@@ -275,6 +283,12 @@ function numberEnd(source: string, start: number, afterDot: boolean): NumberScan
   return { end, floating };
 }
 
+// True when the token before the just-pushed `fn` is `->` (or `->` then `mut`).
+function typeResultStart(tokens: readonly GrammarToken[]): boolean {
+  const previous = tokens.at(-2)?.text;
+  return previous === "->" || (previous === "mut" && tokens.at(-3)?.text === "->");
+}
+
 export function lexSource(source: string): LexResult {
   const tokens: GrammarToken[] = [];
   const diagnostics: Diagnostic[] = [];
@@ -287,8 +301,8 @@ export function lexSource(source: string): LexResult {
   let previousText = "";
   let pendingHeaders: DepthEntry[] = [];
   const inlineSuites: number[] = [];
-  let pendingForcedSuite: DepthEntry | undefined;
-  const forcedIndents: DepthEntry[] = [];
+  let pendingForcedSuite: NestedLevel | undefined;
+  const forcedIndents: NestedLevel[] = [];
 
   while (index < source.length) {
     if (atLineStart) {
@@ -313,15 +327,22 @@ export function lexSource(source: string): LexResult {
       }
       if (delimiters.length > 0) {
         if (pendingForcedSuite) {
-          if (indent <= pendingForcedSuite.depth)
+          if (indent <= pendingForcedSuite.indent)
             diagnostics.push(diagnostic("unexpected-indentation", line));
-          forcedIndents.push({ depth: indent, text: String(delimiters.length) });
+          forcedIndents.push({ ...pendingForcedSuite, indent });
           tokens.push(token("INDENT", line, "<indent>"));
           pendingForcedSuite = undefined;
         } else {
-          while (forcedIndents.length > 0 && indent < forcedIndents.at(-1)!.depth) {
-            forcedIndents.pop();
+          while (forcedIndents.length > 0 && indent < forcedIndents.at(-1)!.indent) {
+            const closed = forcedIndents.pop()!;
             tokens.push(token("DEDENT", line, "<dedent>"));
+            if (closed.saved) pendingHeaders.push(...closed.saved);
+          }
+          // A deeper line inside a nested suite body opens an ordinary nested block.
+          const top = forcedIndents.at(-1);
+          if (top && top.delimiters === delimiters.length && indent > top.indent) {
+            forcedIndents.push({ delimiters: top.delimiters, indent });
+            tokens.push(token("INDENT", line, "<indent>"));
           }
         }
       } else if (indent > indents.at(-1)!) {
@@ -357,18 +378,23 @@ export function lexSource(source: string): LexResult {
       continue;
     }
     if (character === "\n") {
-      if (delimiters.length > 0 && !pendingForcedSuite && forcedIndents.length === 0) {
+      // Layout is active at delimiter depth zero and at the depth of the
+      // innermost nested suite; deeper line breaks are implicit continuation.
+      const layoutDepth = forcedIndents.at(-1)?.delimiters ?? 0;
+      if (delimiters.length > layoutDepth && !pendingForcedSuite) {
         line += 1;
         index += 1;
         atLineStart = false;
         continue;
       }
-      if (inlineSuites.length > 0) {
-        for (const unused of inlineSuites) {
-          void unused;
+      // Same-line suites and headers opened at a shallower delimiter depth end
+      // at their own comma or closing delimiter, not at this line break.
+      const depth = delimiters.length;
+      const closing = inlineSuites.filter((entry) => entry >= depth).length;
+      if (closing > 0) {
+        for (let count = 0; count < closing; count += 1)
           tokens.push(token("SUITE_END", line, "<suite-end>"));
-        }
-        inlineSuites.length = 0;
+        inlineSuites.length -= closing;
       } else if (lineHasToken)
         tokens.push(token(new Set(["NEWLINE", "SUITE_END"]), line, "<newline>"));
       line += 1;
@@ -376,7 +402,10 @@ export function lexSource(source: string): LexResult {
       atLineStart = true;
       lineHasToken = false;
       previousText = "";
-      pendingHeaders = [];
+      // Headers at this depth that enclose a nested suite resume after it.
+      if (pendingForcedSuite)
+        pendingForcedSuite.saved = pendingHeaders.filter((entry) => entry.depth === depth);
+      pendingHeaders = pendingHeaders.filter((entry) => entry.depth < depth);
       continue;
     }
 
@@ -422,6 +451,7 @@ export function lexSource(source: string): LexResult {
       else kinds = new Set([word, "identifier"]);
       tokens.push(token(kinds, line, word));
       let suiteWord = new Set([
+        "defer",
         "fn",
         "if",
         "while",
@@ -432,11 +462,38 @@ export function lexSource(source: string): LexResult {
         "annotate",
         "with",
       ]).has(word);
+      // A function type in a closure's result position never takes a `:`.
+      if (word === "fn" && typeResultStart(tokens)) suiteWord = false;
+      // A `for` loop expression follows an operator, an opening delimiter, or
+      // a header word. A comprehension clause `for` follows a complete
+      // expression; a leading one after `[` or `{` loses its header at `=>`.
       if (word === "for")
-        suiteWord = new Set(["", ":=", "=", "return", "break", ":", "=>", "(", ","]).has(
-          previousText,
-        );
+        suiteWord = new Set([
+          "",
+          ":=",
+          "=",
+          "return",
+          "break",
+          ":",
+          "=>",
+          "(",
+          "[",
+          "{",
+          ",",
+          "...",
+          "@",
+          "if",
+          "while",
+          "in",
+          "match",
+        ]).has(previousText);
       if (suiteWord) pendingHeaders.push({ depth, text: word });
+      if (word === "in") {
+        const header = pendingHeaders.findLastIndex(
+          (entry) => entry.depth === depth && entry.text === "for",
+        );
+        if (header >= 0) pendingHeaders[header] = { depth, text: "for-in" };
+      }
       index = end;
       lineHasToken = true;
       previousText = word;
@@ -462,11 +519,16 @@ export function lexSource(source: string): LexResult {
     }
     const depth = delimiters.length;
     if (new Set([",", ")", "]", "}"]).has(text)) {
+      let closedSuite = false;
       while (inlineSuites.length > 0 && inlineSuites.at(-1)! >= depth) {
         inlineSuites.pop();
         tokens.push(token("SUITE_END", line, "<suite-end>"));
+        closedSuite = true;
       }
-      pendingHeaders = pendingHeaders.filter((entry) => entry.depth < depth);
+      // A comma between the names of a `for` binding keeps the headers open.
+      const innermost = pendingHeaders.findLast((entry) => entry.depth === depth);
+      const inForBinding = text === "," && !closedSuite && innermost?.text === "for";
+      if (!inForBinding) pendingHeaders = pendingHeaders.filter((entry) => entry.depth < depth);
     }
     tokens.push(token(text, line, text));
     index += text.length;
@@ -494,7 +556,7 @@ export function lexSource(source: string): LexResult {
         else if (delimiters.length > 0) {
           const lineStart = source.lastIndexOf("\n", index - 1) + 1;
           const headerIndent = /^ */.exec(source.slice(lineStart))![0].length;
-          pendingForcedSuite = { depth: headerIndent, text: String(depth) };
+          pendingForcedSuite = { delimiters: depth, indent: headerIndent };
         }
         pendingHeaders.splice(match);
       }

@@ -73,7 +73,6 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `compiler-types/collections/maps/empty-needs-context.hd`: marks empty-map-needs-context, which spec/README.md does not inventory (F-205).
 - `compiler-types/enums/generic/unsaturated-type.hd`: marks unknown-type for a generic enum used without arguments; the name resolves, and no inventoried code fits.
 - `compiler-types/identity/references/missing-implementation.hd`: marks missing-trait-implementation (unsatisfied bound), which spec/README.md does not inventory (F-205).
-- `compiler-types/requirements/normalization/explicit-empty-row.hd`: uses `$()`, which chapter 02 prose defines but its EBNF (and the reference parser) does not derive.
 - `compiler-types/traits/generic-bounds/missing-implementation.hd`: marks missing-trait-implementation (unsatisfied bound), which spec/README.md does not inventory (F-205).
 - `compiler-types/traits/multiple-bounds/duplicate-bound.hd`: marks duplicate-trait-bound, which spec/README.md does not inventory (F-205); second duplicate bound removed so the case reports one error.
 - `compiler/07-checker-rejects-name-mutability-and-type-errors-positional-spread-needs-vararg.hd`: marks positional-spread-needs-vararg, which spec/README.md does not inventory (F-205).
@@ -91,10 +90,10 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-3.hd`: marks invalid-result-propagation, which spec/README.md does not inventory (F-205).
 - `compiler/61-expected-function-types-infer-inline-closure-parameters-and-results-diagnostic.hd`: marks closure-parameter-needs-annotation, which spec/README.md does not inventory (F-205).
 - `compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns-closure-result-type.hd`: marks closure-result-type, which spec/README.md does not inventory (F-205).
-- `compiler/66-associated-functions-use-qualified-static-calls.hd`: uses `Type::name[T](...)`, which the chapter-02 EBNF does not derive.
+- `compiler/66-associated-functions-use-qualified-static-calls.hd`: uses `Type::name[T](...)`; no chapter defines explicit type arguments in a qualified call, so the EBNF does not derive it.
 - `compiler/73-supertraits-reject-missing-parent-implementations.hd`: marks missing-supertrait-implementation, which spec/README.md does not inventory (F-205).
 - `compiler/74-mutable-trait-bounds-reject-readonly-roots.hd`: marks mutable-bound-required, which spec/README.md does not inventory (F-205).
-- `compiler/75-generic-trait-methods-use-static-erased-dispatch.hd`: uses `Trait::name[T](...)`, which the chapter-02 EBNF does not derive.
+- `compiler/75-generic-trait-methods-use-static-erased-dispatch.hd`: uses `Trait::name[T](...)`; no chapter defines explicit type arguments in a qualified call, so the EBNF does not derive it.
 - `compiler/display-requires-implementation.hd`: marks missing-display, which spec/README.md does not inventory (F-205).
 - `frontend/00-core-program.hd`: implementation detail: lexer and AST snapshot input.
 - `requirements/closure-provider.hd`: implementation detail: explain-requirements output.
@@ -116,4 +115,4 @@ TypeScript tests read promoted fixtures from `spec/conformance/` through
 - `suspension/33-host-provider-scalar-arguments-and-results.hd`: implementation-only profile ready-counter (N2); check moved into `main!`.
 - `suspension/35-host-provider-f64-values-use-durable-bit-encoding.hd`: implementation-only profile ready-float (N2); sign-sensitive check moved into `main!`.
 - `suspension/36-host-provider-strings-use-utf8-boundary.hd`: implementation-only profile ready-text (N2); check moved into `main!`.
-- `suspension/42-suspending-associated-functions-preserve-generic-results.hd`: uses `Type::name[T]!(...)`, which the chapter-02 EBNF does not derive.
+- `suspension/42-suspending-associated-functions-preserve-generic-results.hd`: uses `Type::name[T]!(...)`; no chapter defines explicit type arguments in a qualified call, so the EBNF does not derive it.

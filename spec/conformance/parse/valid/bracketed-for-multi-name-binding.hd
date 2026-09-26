@@ -1,0 +1,5 @@
+# test: inside brackets, the commas of a for binding do not end its header
+# expect: parse
+
+fn visit(entries: map[string, i32]) -> void:
+    (for key, value in entries: pass)

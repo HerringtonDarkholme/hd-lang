@@ -762,3 +762,7 @@ typing/invalid/nil-without-expected-type.hd	type	reject:nil-to-nonoptional	04-ty
 typing/invalid/float-remainder.hd	type	reject:type-mismatch	05-expressions.md#unary-and-binary-operators
 typing/invalid/bool-ordering.hd	type	reject:missing-partial-ord	05-expressions.md#unary-and-binary-operators
 typing/invalid/tuple-index-out-of-range.hd	type	reject:unknown-method	05-expressions.md#member-access
+typing/valid/explicit-empty-row.hd	type	accept	02-grammar.md#types
+parse/valid/defer-same-line-nested-suite.hd	parse	accept	02-grammar.md#statements
+parse/valid/header-resumes-after-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
+parse/valid/bracketed-for-multi-name-binding.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines

@@ -18,17 +18,15 @@ removed from this folder. What remains:
 
 ## Specification Follow-Ups
 
-- The chapter 02 EBNF does not derive the empty row `$()` in a requirement
-  clause, or explicit type arguments in a qualified call
-  (`Type::name[T](...)`, `Trait::name[T](...)`). Four held-back fixtures in
-  `test/fixtures` wait on this.
+- No chapter defines explicit type arguments in a qualified call
+  (`Type::name[T](...)`, `Trait::name[T](...)`), so the chapter 02 EBNF does
+  not derive them. Three held-back fixtures in `test/fixtures` wait on this.
 - 24 held-back fixtures in `test/fixtures` mark checker rejections that
   have no code in `spec/README.md` (F-205).
 - No code covers `is` between incompatible composite types (L7).
-- The reference lexer does not treat `defer` as a suite keyword
-  (`spec/reference-parser/lexer.ts`).
-- About 68 EBNF derivations of same-line suites inside brackets still disagree
-  with layout (F-314).
+- The EBNF derives a header that continues on the line after an indented
+  suite at delimiter depth zero, such as `if fn():` + body + `: x else: y`.
+  The reference lexer does not carry the header across that suite (F-314).
 
 ## Readings to Confirm
 
