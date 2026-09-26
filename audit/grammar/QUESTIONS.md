@@ -96,6 +96,19 @@ call. Q13: a list may hold any number of spreads in any position, each of
 type `list[U]`. Q15: `$` before any other reserved word stays a
 `syntax-error`.
 
+- **Grammar follow-ups B1 to B9.** (B1) A backticked word is always a plain
+  identifier, equal to the unbackticked name, never a keyword or contextual
+  word. (B2) `x.m[e]!(a)` is always field index then suspending call;
+  `all[i32]!(a)` stays valid as instantiation then call, with `all![i32](a)`
+  preferred. (B3, B4) Accepted as applied: list spreads take `list[U]` only;
+  the Q9 ban covers every same-line suite. (B5) Inside brackets a line
+  starting with `!(` never continues the previous element. (B6) Single-name
+  binding chains stay. (B7, not yet applied) A nested body not deeper than
+  its containing line is `unexpected-indentation`. (B8, not yet applied) A
+  lone `reified` in generic parameters is an error; a parameter named
+  reified is written with backticks. (B9, not yet applied) The six passing
+  audit fixtures join the portable selection.
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
@@ -422,7 +435,7 @@ Options:
 
 (Keyword Set)
 
-## Questions From Applying The Grammar Decisions (held until embedding is settled)
+## Questions From Applying The Grammar Decisions (answered; see Owner Decisions)
 
 1. Q6: a raw identifier for a non-reserved word (`` `name` ``) is the same
    identifier as `name`, and a raw identifier is never a keyword or
