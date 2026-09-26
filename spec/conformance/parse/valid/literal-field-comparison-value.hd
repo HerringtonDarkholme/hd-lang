@@ -1,0 +1,14 @@
+# test: map and data literal items whose values are comparisons are not bindings
+# expect: parse
+
+data Flags:
+    on: bool
+
+fn run(a: i32, b: i32) -> void:
+    m := {
+        "same": a == b,
+        "different": a != b,
+    }
+    f := Flags {
+        on: a <= b,
+    }

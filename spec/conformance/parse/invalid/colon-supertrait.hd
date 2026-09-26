@@ -1,0 +1,6 @@
+# test: supertraits follow <; a colon after the trait name opens its body
+
+trait Named:
+    fn name(self) -> string
+
+trait Greeter: Named  # diagnostic: syntax-error

@@ -1,0 +1,11 @@
+#### A01 keyword type used as a parameter type (spec: syntax error)
+fn f(x: type) -> void:
+    pass
+#### A02 a type in place of the keyword type (spec: syntax error)
+i32 Id = i32
+#### A03 a type in place of keyword type, newtype form (spec: syntax error)
+list[i32] Id(i32)
+#### A04 associated type declaration with a type in place of the keyword
+trait Iter:
+    Self Item
+    fn next(mut self) -> i32

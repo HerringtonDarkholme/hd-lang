@@ -58,7 +58,7 @@ type_argument = type, [ "..." ]
               ;
 type_element = type, [ "..." ] ;
 value_parameter = identifier, ":", type, [ "=", expression ]
-                | identifier, ":", type, [ "=", continued_expression ], "..."
+                | identifier, ":", type, "..."
                 ;
 positional_argument = expression
                     | continued_expression, "..."

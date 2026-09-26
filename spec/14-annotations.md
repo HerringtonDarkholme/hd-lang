@@ -435,7 +435,7 @@ annotation_member_suite = "pass", SUITE_END
                           { metadata_assignment }, DEDENT
                         ;
 
-metadata_assignment = identifier, "=", expression, NEWLINE ;
+metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
 
 facet_annotation_suite = "pass", SUITE_END
                        | NEWLINE, INDENT,

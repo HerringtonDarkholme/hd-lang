@@ -117,7 +117,13 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     diagnostics.push(diagnostic("comparison-chaining", line));
   if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));
-  if (clean === ":" || /\[[^\]]*\w+\s*:\s*$/u.test(clean))
+  // A bracketed control-flow expression or closure may end its header line
+  // in `:`; only a call colon inside brackets is a misplaced trailing block.
+  const bracketTail = /\[([^\]]*\w+)\s*:\s*$/u.exec(clean)?.[1];
+  if (
+    clean === ":" ||
+    (bracketTail !== undefined && !/\b(?:for|if|else|while|match|fn|with)\b/u.test(bracketTail))
+  )
     diagnostics.push(diagnostic("trailing-block-position", line));
   if (clean.startsWith("@") && !new Set(["module", "data", "enum"]).has(parent))
     diagnostics.push(diagnostic("decorator-not-top-level", line));
@@ -131,7 +137,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (
     !new Set(["data", "enum", "trait", "impl"]).has(parent) &&
     !reserved.has(firstWord) &&
-    /^[\p{L}_][\p{L}\p{N}_]*\s*:\s*[^=]+\s*=/u.test(clean)
+    /^[\p{L}_][\p{L}\p{N}_]*\s*:\s*[^=]+(?<![!<>])=(?!=)/u.test(clean)
   )
     diagnostics.push(diagnostic("missing-let", line));
   return diagnostics;

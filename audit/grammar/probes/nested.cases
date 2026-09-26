@@ -1,0 +1,110 @@
+#### N01 nested suite body to the left of the enclosing statement
+fn main() -> void:
+    if ready:
+        x := run(
+    fn(v):
+        v
+)
+        go()
+#### N02 nested closure inside nested closure
+fn main() -> void:
+    f(fn(a):
+        g(fn(b):
+            b
+        )
+    )
+#### N03 comma at end of an indented closure body line
+fn main() -> void:
+    choice(fn(a):
+        println(a),
+        fallback)
+#### N04 same shape with a binding in the body line
+fn main() -> void:
+    choice(fn(a):
+        x, y := pair
+        fallback)
+#### N05 chained multi-name binding with suite rhs (grammar allows)
+fn main() -> void:
+    a, b := c, d := fn() -> i32: 1
+#### N06 chained multi-name binding with closed rhs (grammar rejects)
+fn main() -> void:
+    a, b := c, d := pair
+#### N07 let over several names with a type
+fn main() -> void:
+    let a, b: (i32, i32) = pair
+#### N08 leading-dot method chain on continuation lines
+fn main() -> void:
+    r := items
+        .map(f)
+#### N09 trailing binary operator does not continue
+fn main() -> void:
+    total := a +
+        b
+#### N10 contextual variant expression as a statement
+fn main() -> void:
+    .Red
+#### N11 closing delimiter on the last body line (spec: allowed)
+fn main() -> void:
+    x := f(fn(a):
+        g(a))
+#### N12 else on the line after a closure body inside brackets
+fn main() -> void:
+    x := (if c: fn():
+        go()
+    else: other)
+#### N13 statement header ends in an indented closure suite then colon on next line inside a nested suite
+fn main() -> void:
+    x := f(fn():
+        if fn() -> bool:
+            true
+        : go()
+    )
+#### N14 two statements on one line via same-line suite then else
+fn main() -> void:
+    for x in xs: go(x) else: done()
+#### N15 else after indented for inside brackets
+fn main() -> void:
+    v := [for x in xs:
+        x
+    else:
+        0]
+#### N16 same-line while with comma body inside call
+fn main() -> void:
+    f(while c: step(), 2)
+#### N17 match inside call argument
+fn main() -> void:
+    f(match v:
+        1 => a
+        _ => b
+    , 2)
+#### N18 dedent to a column between header and body inside brackets
+fn main() -> void:
+    f(fn(a):
+            one()
+          two()
+    )
+#### N19 context scope indented inside call
+fn main() -> void:
+    f($.with(Clock = c):
+        run()
+    )
+#### N20 trailing block with a same-line if in call args
+fn main() -> void:
+    when(if c: 1 else: 2):
+        go()
+#### N21 trailing block call as let rhs
+fn main() -> void:
+    let r: i32 = compute(1):
+        2
+#### N22 trailing block rhs of assignment (grammar: not allowed)
+fn main() -> void:
+    r = compute(1):
+        2
+#### N23 trailing block after return (grammar: not allowed)
+fn f() -> i32:
+    return compute(1):
+        2
+#### N24 discard of trailing block call (grammar: not allowed)
+fn main() -> void:
+    _ := compute(1):
+        2

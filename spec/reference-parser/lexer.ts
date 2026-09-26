@@ -113,7 +113,8 @@ function escapeEnd(source: string, index: number): number | undefined {
 function startsString(source: string, index: number): boolean {
   const character = source[index]!;
   if (character === '"' || character === "'") return true;
-  if (character !== "r" || (source[index + 1] !== '"' && source[index + 1] !== "'")) return false;
+  // Raw literals are `r"..."` and `r"""..."""` only; there is no raw character literal.
+  if (character !== "r" || source[index + 1] !== '"') return false;
   const previous = source[index - 1] ?? "";
   return previous !== "_" && !isLetterOrNumber(previous);
 }
@@ -409,7 +410,7 @@ export function lexSource(source: string): LexResult {
       continue;
     }
 
-    const rawString = character === "r" && (source[index + 1] === '"' || source[index + 1] === "'");
+    const rawString = character === "r" && source[index + 1] === '"';
     if (character === '"' || character === "'" || rawString) {
       const found = scanString(source, index, line);
       diagnostics.push(...found.diagnostics);
@@ -524,6 +525,17 @@ export function lexSource(source: string): LexResult {
         inlineSuites.pop();
         tokens.push(token("SUITE_END", line, "<suite-end>"));
         closedSuite = true;
+      }
+      // A closing delimiter at a nested suite's delimiter depth ends that
+      // suite's last body line: NEWLINE, then every pending DEDENT.
+      if (text !== "," && forcedIndents.at(-1)?.delimiters === depth) {
+        if (!closedSuite && lineHasToken)
+          tokens.push(token(new Set(["NEWLINE", "SUITE_END"]), line, "<newline>"));
+        while (forcedIndents.at(-1)?.delimiters === depth) {
+          const closed = forcedIndents.pop()!;
+          tokens.push(token("DEDENT", line, "<dedent>"));
+          if (closed.saved) pendingHeaders.push(...closed.saved);
+        }
       }
       // A comma between the names of a `for` binding keeps the headers open.
       const innermost = pendingHeaders.findLast((entry) => entry.depth === depth);

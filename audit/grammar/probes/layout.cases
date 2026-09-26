@@ -1,0 +1,206 @@
+#### L01 multi-closure without parens, leading comma
+fn main() -> void:
+    choice(
+        fn(a):
+            println(a)
+        , fallback)
+#### L02 multi-closure without parens, comma line then second closure
+fn main() -> void:
+    choice(
+        fn(a):
+            println(a)
+        ,
+        fn(b):
+            println(b)
+    )
+#### L03 closure body under call line, comma resumes
+fn main() -> void:
+    choice(fn(a):
+        println(a)
+    , fallback)
+#### L04 closure in list, closing bracket on own line
+fn main() -> void:
+    x := [fn(a):
+        println(a)
+    ]
+#### L05 same-line closure ends at comma
+fn main() -> void:
+    x := f(fn(a): g(a), 2)
+#### L06 same-line closure with if-else then comma
+fn main() -> void:
+    x := f(fn(a): if a: 1 else: 2, 3)
+#### L07 closure followed by juxtaposed name after dedent
+fn main() -> void:
+    choice(
+        fn(a):
+            println(a)
+        fallback,
+    )
+#### L08 statement if header ending in closure body, resumed colon (spec: error)
+fn main() -> void:
+    if fn() -> bool:
+        true
+    : 1
+#### L09 bracketed if header resumes after closure body (spec: ok)
+fn main() -> void:
+    x := (if check(fn(v):
+        v
+    ): 1 else: 2)
+#### L10 trailing block call at statement level
+fn main() -> void:
+    transaction:
+        save()
+#### L11 trailing block call with args, as binding rhs
+fn main() -> void:
+    r := when(a, b):
+        compute()
+#### L12 trailing block in if header (spec: not recognized)
+fn main() -> void:
+    if ready:
+        go()
+#### L13 same-line trailing block (spec: body must be on next line)
+fn main() -> void:
+    transaction: save()
+#### L14 let with type then same-line suite rhs
+fn main() -> void:
+    let f: fn() -> i32 = fn() -> i32: 1
+#### L15 else on next line after same-line if statement
+fn main() -> void:
+    if a: x = 1
+    else: x = 2
+#### L16 dangling else, nested same-line ifs
+fn main() -> void:
+    v := if a: if b: 1 else: 2 else: 3
+#### L17 nested same-line if without inner else
+fn main() -> void:
+    if a: if b: go()
+    else: stop()
+#### L18 map with closure value same-line
+fn main() -> void:
+    m := {"a": fn(x: i32) -> i32: x, "b": g}
+#### L19 map key needing colon after if-expression key
+fn main() -> void:
+    m := {if c: 1 else: 2: "v"}
+#### L20 data literal field with same-line closure value
+fn main() -> void:
+    h := Handler { run: fn() -> void: pass, name: "n" }
+#### L21 for expression inside brackets, multi-name
+fn main() -> void:
+    xs := [for k, v in m: k]
+#### L22 comprehension vs for-expression
+fn main() -> void:
+    xs := [for k in m => k]
+    ys := [for k in m: k]
+#### L23 comprehension guard with same-line if in result
+fn main() -> void:
+    xs := [for k in m if k > 1 => if k > 2: 1 else: 0]
+#### L24 line continuation: list literal after name on next line becomes index
+fn main() -> void:
+    xs := [
+        first
+        [1]
+    ]
+#### L25 line continuation: unary minus after name on next line becomes subtraction
+fn main() -> void:
+    xs := [
+        a
+        -b
+    ]
+#### L26 line continuation: parenthesis after name on next line becomes a call
+fn main() -> void:
+    xs := [
+        a
+        (b)
+    ]
+#### L27 statement-level expression on continuation-free new line
+fn main() -> void:
+    a
+    (b)
+#### L28 return with same-line if (spec: return suite_expression)
+fn f(c: bool) -> i32:
+    return if c: 1 else: 2
+#### L29 break with value from loop else
+fn main() -> void:
+    x := while true:
+        break 1
+    else:
+        0
+#### L30 assignment rhs same-line if
+fn main() -> void:
+    x = if c: 1 else: 2
+#### L31 match expression as binding rhs
+fn main() -> void:
+    x := match v:
+        1 => "one"
+        _ => "other"
+#### L32 match arm body same-line if
+fn main() -> void:
+    match v:
+        1 => if c: a() else: b()
+        _ => pass
+#### L33 match arm guard with same-line if (spec: guard is closed)
+fn main() -> void:
+    match v:
+        x if (if c: true else: false) => pass
+        _ => pass
+#### L34 defer same line
+fn main() -> void:
+    defer: cleanup()
+    work()
+#### L35 context scope same-line
+fn main() -> void:
+    $.with(Clock = clock): run()
+#### L36 closure returning closure, same line
+fn main() -> void:
+    f := fn() -> fn() -> i32: fn() -> i32: 1
+#### L37 comma in same-line suite at depth zero
+fn main() -> void:
+    if c: a, b := pair
+#### L38 lambda in call with named arg after
+fn main() -> void:
+    run(fn(): go(), retries = 3)
+#### L39 closure body line starting with a binary operator
+fn main() -> void:
+    x := f(fn(a):
+        a
+        + 1
+    )
+#### L40 if-expression value spanning lines inside parens
+fn main() -> void:
+    x := (if c:
+        1
+    else:
+        2)
+#### L41 if-expression value spanning lines at statement level
+fn main() -> void:
+    x := if c:
+        1
+    else:
+        2
+#### L42 two trailing-block-shaped lines
+fn main() -> void:
+    a:
+        one()
+    b:
+        two()
+#### L43 test block
+test "adds":
+    assert(true)
+#### L44 test block, same-line body
+test "adds": assert(true)
+#### L45 test call with string arg and trailing block
+fn main() -> void:
+    test("adds"):
+        go()
+#### L46 match inside parentheses
+fn main() -> void:
+    x := (match v:
+        1 => "one"
+        _ => "other"
+    )
+#### L47 while header with same-line closure in call inside brackets
+fn main() -> void:
+    while check(fn(v): v): step()
+#### L48 inline for with multiple names (spec: needs indented body)
+fn main() -> void:
+    x := [for a, b in pairs: a]
