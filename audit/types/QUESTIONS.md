@@ -388,6 +388,14 @@ read it, so prefer explicit, checkable rules and locality.
   confirmed); `c.m()` on a delegated trait method has a single candidate
   unless the part also has an inherent `m`.
 
+- **Embedding depth is at most 3 (normative), not yet applied.** A data
+  type's embedding chains may be at most three levels deep: `C` embeds `P1`,
+  `P1` embeds `P2`, `P2` embeds `P3` is allowed; a fourth level is an error at
+  the declaration of the outermost type that exceeds the limit.
+- **At most three embedded fields per data type (normative), not yet
+  applied.** A data type may declare at most three embedded fields; a fourth
+  is an error at the declaration.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
