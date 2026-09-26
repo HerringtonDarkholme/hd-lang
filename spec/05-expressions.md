@@ -169,13 +169,21 @@ source reads a direct `mut U` field as `U`: that value can fill the same field
 in a readonly result, but not in a `mut` result without an explicit `mut U`
 replacement. Generic fields retain their substituted type, even when it is
 `mut U`. A mutable source retains direct fields' declared permissions.
+Each embedded part that is not replaced is copied, as construction copies
+it, and the copy of a part read through a readonly source has mutable access
+only when the part's type has no mutable edges
+([Data Embedding](08-data-and-enums.md#data-embedding)).
 Copy-update is shallow: primitive fields are
 copied by value, while composite field references continue to refer to the
-same underlying objects. A fresh mutable outer result does not upgrade copied
-child references. A data expression permits at most one data spread, and it
+same underlying objects. Embedded parts are the exception: the copy receives
+copies of them and never shares a part with its source. A fresh mutable outer
+result does not upgrade copied child references. A data expression permits at
+most one data spread, and it
 must precede every explicit field.
 
-Embedded fields are initialized with their embedded type name as the field key.
+Embedded fields are initialized with their embedded type name as the field key,
+and each receives a copy of its value
+([Data Embedding](08-data-and-enums.md#data-embedding)).
 
 ## Postfix Expressions
 
@@ -201,7 +209,8 @@ Method values are deferred, and their future spellings `Type::name` and
 Explicit closures can adapt method calls where a function value is needed.
 
 Member access through a readonly data root weakens a direct `mut U` field to
-`U`, but does not weaken a generic field's substituted type. Other member
+`U` and an embedded field to readonly access, but does not weaken a generic
+field's substituted type. Other member
 forms follow their own access rules in [Type System](04-type-system.md).
 
 ### Indexing

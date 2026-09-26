@@ -126,3 +126,13 @@ runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknow
 typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type i64 and u8 (sized numeric types unimplemented) instead of ambiguous-method	F-253
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
+runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64, and the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+runtime/valid/embedded-construction-copies.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+typing/valid/readonly-embedded-source-mutable-result.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+typing/invalid/readonly-embedded-source-with-mutable-edge.hd	check accepts: the prototype does not make a readonly copy of a part with a mutable edge (VE not implemented)	VE
+runtime/valid/copy-update-copies-embedded-part.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+typing/invalid/copy-update-readonly-embedded-mutable-edge.hd	check accepts: the prototype does not make a readonly copy of a part with a mutable edge (VE not implemented)	VE
+runtime/valid/embedded-store-copies.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented); the prototype shares the part instead of copying it (VE not implemented)	VE
+runtime/valid/embedded-part-mut-alias.hd	check reports mutable-receiver-required: the prototype still treats an embedded field as a readonly edge (VE not implemented)	VE
+runtime/valid/embedded-copy-at-field-position.hd	check reports readonly-argument-to-mutable-parameter: the prototype still treats an embedded field as a readonly edge, and it shares the part instead of copying it (VE not implemented)	VE
+typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse, and embedded fields are not invariant positions (VE not implemented)	VE

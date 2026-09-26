@@ -125,7 +125,8 @@ read it, so prefer explicit, checkable rules and locality.
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
 
-- **Owned embedding (OE1 to OE4), not yet applied.** (OE1) Access through an
+- **Owned embedding (OE1 to OE4), superseded by VE1 to VE4** (OE1 and OE4
+  survive as VE2 and VE4). (OE1) Access through an
   embedded field follows the container: a `mut` outer value gives `mut`
   access to the embedded part, a readonly one gives readonly; this replaces
   "embedded fields are readonly edges", so promoted `mut self` methods work
@@ -204,8 +205,18 @@ read it, so prefer explicit, checkable rules and locality.
   trait's members and its supertraits' members; `Self`'s fields are not
   accessible there.
 
-- **Value embedding (VE1 to VE4), not yet applied; replaces OE2 and OE3,
-  keeps OE1 and OE4.** (VE1) Construction copies: `Post { Timestamps: ts }`
+- **Value embedding (VE1 to VE4), applied to the specification (03 Member
+  Resolution, 04 Mutable Paths and Bindings And Fresh Values, 05 Data
+  Expressions and Member Access, 08 Data Embedding, 09 Embedding And Trait
+  Satisfaction); the prototype does not implement it yet (KNOWN_FAILURES tag
+  VE). Replaces OE2 and OE3, keeps OE1 and OE4.** Readings added when
+  applying: a copy of a readonly value whose type has direct `mut U` fields at
+  any embedded depth is readonly, so it cannot fill a `mut` result
+  (`mutable-upgrade`); a store into an embedded field copies too; copies are
+  taken when the field expression is evaluated, before later fields run
+  (spread parts when the spread is evaluated); `:=` still binds a readonly
+  view, so the `mut` alias of VE4 needs `let`; an embedded field is an
+  invariant position for variance (readings VE-A to VE-F). (VE1) Construction copies: `Post { Timestamps: ts }`
   stores a copy of `ts`; the part's ordinary fields are copied shallowly
   (they still reference the same objects), and nested embedded parts are
   copied recursively. `ts` may be readonly. (VE2) Access through an embedded

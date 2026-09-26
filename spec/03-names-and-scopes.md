@@ -443,10 +443,13 @@ embeds `Base`, and `Base` has an inherent `to_string`, then
 A member selected in step 2 of either lookup is a **promoted member**.
 `x.name` then means the explicit path `x.E1.E2...Ek.name` through the
 embedded fields `E1` to `Ek`, with the same type, permission, and evaluation.
-An embedded field is a readonly edge
-([Mutable Paths](04-type-system.md#mutable-paths)), so a promoted field is
-readonly, and a promoted `mut self` method is found and then rejected with
-`mutable-receiver-required`; lookup never skips it to try another member. Explicit qualification through an embedded
+Each embedded step follows its container's access
+([Mutable Paths](04-type-system.md#mutable-paths)), so a promoted member has
+the access the receiver grants. Through a `mut S` receiver, a promoted field
+may be assigned and a promoted `mut self` method may be called. Through a
+readonly `S`, a promoted field is readonly, and a promoted `mut self` method
+is found and then rejected with `mutable-receiver-required`; lookup never
+skips it to try another member. Explicit qualification through an embedded
 field, as in `x.E1.name`, starts a new lookup at `E1`'s type and resolves
 every promotion ambiguity. `Trait::name(x, ...)` selects a trait method
 without member lookup.

@@ -1,4 +1,4 @@
-# test: a promoted mut self method is found and rejected, never skipped for a deeper readonly method
+# test: on a readonly receiver a promoted mut self method is found and rejected, never skipped for a deeper readonly method
 data Resetter:
     count: i32
 
@@ -20,9 +20,5 @@ data Page:
     Counter
     Wrapper
 
-fn invalid() -> void:
-    let page: mut Page = Page {
-        Counter: Counter { value: 1 },
-        Wrapper: Wrapper { Resetter: Resetter { count: 0 } },
-    }
+fn invalid(page: Page) -> void:
     page.reset()  # diagnostic: mutable-receiver-required

@@ -561,7 +561,11 @@ has no default. A method promoted from an embedded field never fills a trait
 method, whether required or defaulted, and whatever its receiver. An
 implementation that reuses an embedded type's behavior forwards to it
 explicitly, for example `fn label(self) -> string: self.Base.label()`. A
-bodyless implementation of a trait with a required method is therefore a
+forwarding `mut self` method may call a `mut self` method of the embedded part,
+as in `fn reset(mut self) -> void: self.Base.reset()`, because `self.Base` has
+`mut` access through `mut self`
+([Data Embedding](08-data-and-enums.md#data-embedding)). A bodyless
+implementation of a trait with a required method is therefore a
 `missing-trait-method` error even when an embedded type has a matching method.
 
 An embedded type's trait methods are not promoted either; member lookup skips

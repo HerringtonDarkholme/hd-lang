@@ -921,3 +921,17 @@ typing/valid/trait-value-as-target-argument.hd	type	accept	09-traits.md#implemen
 typing/invalid/private-field-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
 typing/invalid/private-promoted-method-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
 runtime/valid/private-own-member-wins-in-module.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+runtime/valid/embedded-part-follows-container.hd	runtime	accept	08-data-and-enums.md#data-embedding
+typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type	reject:mutable-receiver-required	08-data-and-enums.md#data-embedding
+typing/invalid/promoted-field-assignment-readonly.hd	type	reject:readonly-root	04-type-system.md#mutable-paths
+runtime/valid/embedded-construction-copies.hd	runtime	accept	08-data-and-enums.md#data-embedding
+typing/valid/readonly-embedded-source-mutable-result.hd	type	accept	08-data-and-enums.md#data-embedding
+typing/invalid/readonly-embedded-source-with-mutable-edge.hd	type	reject:mutable-upgrade	08-data-and-enums.md#data-embedding
+typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	type	accept	08-data-and-enums.md#data-embedding
+runtime/valid/copy-update-copies-embedded-part.hd	runtime	accept	08-data-and-enums.md#data-embedding
+typing/invalid/copy-update-readonly-embedded-mutable-edge.hd	type	reject:mutable-upgrade	08-data-and-enums.md#data-embedding
+runtime/valid/embedded-store-copies.hd	runtime	accept	08-data-and-enums.md#data-embedding
+runtime/valid/embedded-part-mut-alias.hd	runtime	accept	08-data-and-enums.md#data-embedding
+typing/invalid/embedded-part-readonly-alias.hd	type	reject:mutable-upgrade	08-data-and-enums.md#data-embedding
+runtime/valid/embedded-copy-at-field-position.hd	runtime	accept	08-data-and-enums.md#data-embedding
+typing/invalid/covariant-embedded-field.hd	type	reject:invalid-variance	04-type-system.md#variance

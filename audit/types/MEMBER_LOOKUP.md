@@ -70,6 +70,10 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Embedding never grants trait conformance, and promoted methods never fill
   trait methods (E5).
 - No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
+- Embedding is value embedding (VE1 to VE4): filling an embedded field
+  copies the value, and access through an embedded field follows its
+  container, so a promoted `mut self` method works on a `mut` receiver.
+  Rule 7 below (readonly edge) no longer holds.
 
 ## Comparison
 

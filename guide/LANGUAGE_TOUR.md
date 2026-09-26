@@ -571,8 +571,8 @@ A generic field `value: T` instead retains its substituted type, including
 `mut Child` when `T = mut Child`. Other mutable aliases may still change the
 underlying object.
 `mut` belongs in a named field's type (`friend: mut User`), never before its
-name (`mut friend: User`). Embedded members also cannot carry `mut`: use
-`Base`, not `mut Base`; use a named field if a mutable edge is needed.
+name (`mut friend: User`). Embedded members never carry `mut`: write `Base`,
+not `mut Base`, because access to an embedded part follows its container.
 
 Mutable parameter permission is written in the type position:
 
@@ -681,6 +681,29 @@ post := Post {
 
 println(post.created_at)
 ```
+
+An embedded field holds the outer value's own copy of the part. Construction
+copies the supplied value: its ordinary fields are copied shallowly and its
+embedded parts recursively, so the outer value never shares a part with the
+value it was built from. Copy-update and assignment to an embedded field copy
+the same way. Access to the part follows the container: through a `mut` outer
+value the part, its promoted fields, and its promoted `mut self` methods are
+mutable; through a readonly one they are readonly. Reading the part out does
+not copy it:
+
+```text
+impl Timestamps:
+    fn touch(mut self, at: i64) -> void:
+        self.updated_at = at
+
+let draft: mut Post = Post { Timestamps: post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
+draft.touch(1700000100)          # changes draft's own copy, never post
+let stamps = draft.Timestamps    # mut Timestamps: the same part as draft's
+```
+
+A readonly value may fill an embedded field. Its copy is mutable unless the
+part's type has a direct `mut` field somewhere in it; then the copy, and the
+value built from it, is readonly.
 
 Generic data types can be embedded with type arguments. The construction key
 is the type's final name, without arguments:

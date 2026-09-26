@@ -1,0 +1,20 @@
+# test: a readonly value may fill an embedded field; its copy is mutable when the part type has no mutable edges
+data Timestamps:
+    created_at: i32
+    updated_at: i32
+
+impl Timestamps:
+    fn touch(mut self, at: i32) -> void:
+        self.updated_at = at
+
+data Post:
+    Timestamps
+    id: string
+    title: string
+
+fn stamped(stamps: Timestamps) -> mut Post:
+    Post { Timestamps: stamps, id: "p", title: "t" }
+
+fn edit(stamps: Timestamps) -> void:
+    let post: mut Post = Post { Timestamps: stamps, id: "p", title: "t" }
+    post.touch(9)
