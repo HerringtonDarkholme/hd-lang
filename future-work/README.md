@@ -8,6 +8,9 @@ language specification:
   agent tooling areas.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
+- [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package managers
+  and drafts the `hd.toml` schema, versioning, resolution, and lockfile for
+  roadmap area 5.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
