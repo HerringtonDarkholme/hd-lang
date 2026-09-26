@@ -6,7 +6,7 @@ data Label:
 impl Display for Label:
     fn to_string(self) -> string: self.value
 
-fn render_generic[T: Display](value: T) -> string:
+fn render_generic[T < Display](value: T) -> string:
     "generic=$value"
 
 fn render_dynamic(value: Display) -> string:

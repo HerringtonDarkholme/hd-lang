@@ -478,12 +478,12 @@ write `mut T`, because substitution with `T = mut User` would create the
 meaningless form `mut mut User`. Mutable generic requirements use a bound:
 
 ```text
-fn clear_value[T: mut Clear](value: T) -> void:
+fn clear_value[T < mut Clear](value: T) -> void:
     value.clear()
 ```
 
-`T: mut Any` accepts any mutable-root type. `T: mut Trait` additionally
-requires the underlying type to implement `Trait`. A plain `T: Trait` requires
+`T < mut Any` accepts any mutable-root type. `T < mut Trait` additionally
+requires the underlying type to implement `Trait`. A plain `T < Trait` requires
 trait conformance without mutable-root authority.
 
 Generic arguments are inferred at call sites when unambiguous. Callers may
@@ -496,7 +496,7 @@ The runtime representation of generic code is not observable. A program
 cannot distinguish an implementation that shares one body among
 instantiations from one that specializes each instantiation, except through
 the rules this chapter states: an erased generic parameter has no runtime
-type identity, `is` on a type parameter requires `T: Reference`, and variance
+type identity, `is` on a type parameter requires `T < Reference`, and variance
 conversions must be representation-preserving. Pack functions and calls with
 `reified` parameters are specialized. Package interfaces therefore carry the
 bodies of generic and pack functions needed by downstream compilation. The
@@ -508,7 +508,7 @@ such as `shape(T)` or passed to another reified operation. An erased parameter
 must not be used where runtime type identity is required.
 
 Identity comparison `is` on a type parameter is permitted only with the sealed
-`T: Reference` bound. An unconstrained type parameter may be primitive after
+`T < Reference` bound. An unconstrained type parameter may be primitive after
 substitution and therefore cannot be used with `is`.
 
 Reification is part of the function's public type and ABI, but its descriptor
@@ -592,7 +592,7 @@ conversions.
 ## Trait Values And `Any`
 
 Trait conformance is explicit. Matching method shape alone does not make a type
-implement a trait. A generic bound such as `T: Display` uses static dispatch and
+implement a trait. A generic bound such as `T < Display` uses static dispatch and
 preserves the concrete type.
 
 Using a trait name as a value type creates a Go-style dynamic trait value. It
@@ -603,7 +603,7 @@ Only a dynamically safe trait may be used as a value type. A dynamically safe
 trait and every supertrait must have no associated types or associated
 functions, and `Self` may appear only as the receiver type. A method-level
 generic parameter is permitted only when it is bounded by `Reference`; further
-bounds such as `T: Reference + Display` are allowed. Every argument for such a
+bounds such as `T < Reference + Display` are allowed. Every argument for such a
 parameter is a reference, so one method body serves every instantiation, and
 the further bounds are supplied with each call. A caller converts a primitive,
 tuple, or optional value explicitly before passing it. Trait declaration
@@ -626,7 +626,7 @@ satisfies it automatically. As a value type, `Any` erases the concrete type.
 
 ## Map Key Types
 
-`map[K, V]` requires `K: Eq + Hash` and rejects a `mut T` key type.
+`map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
 `Hash` is a standard-library trait in `std.hash`; user-defined data and enum
 types can become keys by explicitly implementing or deriving both traits. Standard-library
 implementations cover eligible built-in scalar types and their supported

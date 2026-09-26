@@ -218,7 +218,7 @@ class Parser extends ExpressionParser {
             parameter.span,
           );
         parameters.push(parameter.text);
-        if (this.matchText(":")) {
+        if (this.matchText("<") || this.matchText(":")) {
           const traits = this.parseTraitBoundNames();
           bounds.push({
             parameter: parameter.text,
@@ -335,9 +335,13 @@ class Parser extends ExpressionParser {
       }
       this.expectText("]");
     }
+    const supertraits: TypeRef[] = [];
+    if (this.matchText("<")) {
+      do supertraits.push(this.parseType());
+      while (this.matchText("+"));
+    }
     if (this.matchText(":")) {
-      const supertraits: TypeRef[] = [];
-      if (!this.atKind("newline")) {
+      if (supertraits.length === 0 && !this.atKind("newline")) {
         do supertraits.push(this.parseType());
         while (this.matchText("+"));
         this.expectText(":");
@@ -393,7 +397,7 @@ class Parser extends ExpressionParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
-      supertraits: [],
+      supertraits,
       associatedTypes: [],
       methods: [],
       doc,
@@ -414,7 +418,7 @@ class Parser extends ExpressionParser {
     if (this.matchText("where")) {
       do {
         const parameter = this.parseType();
-        this.expectText(":");
+        if (!this.matchText("<")) this.expectText(":");
         const traits = this.parseTraitBoundNames();
         genericBounds.push({
           parameter: parameter.name,

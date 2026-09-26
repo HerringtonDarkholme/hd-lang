@@ -12,7 +12,7 @@ annotate Validation for i32:
     fn build(self, target: TypeShape) -> Validator:
         Validator {}
 
-annotate[reified T: Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for list[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator {}
 

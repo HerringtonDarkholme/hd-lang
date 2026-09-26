@@ -325,7 +325,7 @@ fn first[T](items: list[T]) -> T?:
 Trait bounds use `+` composition:
 
 ```text
-fn audit[T: Display + Named](value: T) -> string:
+fn audit[T < Display + Named](value: T) -> string:
     ...
 ```
 

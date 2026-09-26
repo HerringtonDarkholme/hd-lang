@@ -11,7 +11,7 @@ data Counter:
 impl Read for Counter:
     fn read!(self, delta: i32) -> i32: self.value + delta
 
-fn bounded![T: Read](value: T) -> i32:
+fn bounded![T < Read](value: T) -> i32:
     value.read!(1)
 
 fn main!() -> i32:

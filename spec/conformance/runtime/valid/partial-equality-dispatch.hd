@@ -7,10 +7,10 @@ impl PartialEq for User:
     fn eq(self, other: Self) -> bool:
         self.id == other.id
 
-fn same[T: PartialEq](left: T, right: T) -> bool:
+fn same[T < PartialEq](left: T, right: T) -> bool:
     left == right
 
-fn same_list[T: PartialEq](left: list[T], right: list[T]) -> bool:
+fn same_list[T < PartialEq](left: list[T], right: list[T]) -> bool:
     left == right
 
 test "PartialEq dispatches for concrete and bounded values":

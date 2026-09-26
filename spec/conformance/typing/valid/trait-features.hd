@@ -10,7 +10,7 @@ trait Named:
     fn label(self) -> string:
         "name: " + self.name()
 
-trait Formattable: Describe:
+trait Formattable < Describe:
     fn format(self) -> string
 
 trait Serializable
@@ -32,10 +32,10 @@ impl Formattable for User:
 
 impl Serializable for User
 
-fn audit[T: Describe + Named](value: T) -> string:
+fn audit[T < Describe + Named](value: T) -> string:
     value.describe() + value.name()
 
-fn clear_value[T: mut Clear](value: T) -> void:
+fn clear_value[T < mut Clear](value: T) -> void:
     value.clear()
 
 fn explicit_display(user: User) -> string:
@@ -69,7 +69,7 @@ trait Source:
 data Box[T]:
     value: T
 
-impl[T] Source for Box[T] where T: Any:
+impl[T] Source for Box[T] where T < Any:
     type Item = T
 
     fn get(self) -> T: self.value

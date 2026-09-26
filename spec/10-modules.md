@@ -143,7 +143,7 @@ prelude: prelude names are used directly and are not re-imported.
 | `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape` |
 
 The prelude functions have these signatures: `panic(message: string) ->
-never` and `println[T: Display](value: T) -> void $ Console`. The standard
+never` and `println[T < Display](value: T) -> void $ Console`. The standard
 console surface includes:
 
 ```text
@@ -194,7 +194,7 @@ scalar sequences exactly and performs no normalization or case folding.
 
 ```text
 fn assert(condition: bool, reason: string) -> void
-fn assert_equal[T: PartialEq](actual: T, expected: T, reason: string) -> void
+fn assert_equal[T < PartialEq](actual: T, expected: T, reason: string) -> void
 ```
 
 `reason` is required and must explain the checked condition. A failed assertion
@@ -336,7 +336,7 @@ linking may reject a graph even when each package compiled independently.
 
 An executable entry point is a public top-level function named `main` or
 `main!` with no parameters. It returns `void` or `Result[void, E]` with
-`E: Display`, and it may declare a requirement row. Every key in that row must
+`E < Display`, and it may declare a requirement row. Every key in that row must
 be a host capability trait of the selected runtime profile; any other key is a
 `nonhost-entry-requirement` error. A top-level `main` that is not public is an
 ordinary function and is not an entry point.
@@ -349,7 +349,7 @@ pub fn main() -> void:
 ```
 
 It may instead return `Result[void, E]`, in which case `Err` reports invocation
-failure through the runtime adapter and requires `E: Display`; an error type
+failure through the runtime adapter and requires `E < Display`; an error type
 without that implementation is an `entry-error-not-display` error. The host
 renders the error with `Display.to_string` and exits with status 1. A panic exits with a
 distinct nonzero status selected by the runtime profile and poisons the program

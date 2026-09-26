@@ -92,7 +92,7 @@ Every mutable iterator has a compiler-provided `Iterable[T]` conformance whose
 prelude provides the generic implementation below:
 
 ```text
-impl[T, I: mut Iterator[T]] Iterable[T] for I:
+impl[T, I < mut Iterator[T]] Iterable[T] for I:
     fn iter(self) -> mut Iterator[T]: self
 ```
 

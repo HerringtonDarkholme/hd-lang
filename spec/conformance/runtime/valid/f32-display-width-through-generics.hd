@@ -5,7 +5,7 @@ use std.testing.assert_equal
 fn pass_through[T](value: T) -> T:
     value
 
-fn render[T: Display](value: T) -> string:
+fn render[T < Display](value: T) -> string:
     "$value"
 
 test "f32 shortest round-trip text survives erasure":

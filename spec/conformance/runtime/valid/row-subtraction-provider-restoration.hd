@@ -26,7 +26,7 @@ impl Clock for FixedClock
 
 trait Logger
 
-trait Backup: Logger:
+trait Backup < Logger:
     fn label(self) -> i32
 
 data FixedBackup: pass

@@ -3,7 +3,7 @@
 trait Source[Output]:
     fn source(self) -> Output
 
-trait Wrapped[Item]: Source[list[Item]]:
+trait Wrapped[Item] < Source[list[Item]]:
     fn marker(self) -> i32
 
 fn wrong_parent(value: Wrapped[i32]) -> Source[list[string]]:

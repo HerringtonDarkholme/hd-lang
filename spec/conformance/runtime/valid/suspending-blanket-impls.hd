@@ -11,7 +11,7 @@ data Box[T]:
 impl[T] Read[T] for Box[T]:
     fn read!(self) -> T: self.value
 
-fn read_bound![T: Read[i32]](value: T) -> i32:
+fn read_bound![T < Read[i32]](value: T) -> i32:
     value.read!()
 
 trait Score:
@@ -26,10 +26,10 @@ data Point:
 impl Score for Point:
     fn score(self) -> i32: self.value
 
-impl[Item: Score] AsyncScore for list[Item]:
+impl[Item < Score] AsyncScore for list[Item]:
     fn score!(self) -> i32: self[0].score()
 
-fn score_bound![T: AsyncScore](value: T) -> i32:
+fn score_bound![T < AsyncScore](value: T) -> i32:
     value.score!()
 
 test "blanket dictionaries retain their erased suspending ABI":

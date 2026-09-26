@@ -15,7 +15,7 @@ enum Status:
     Ready
     Code(value: i32)
 
-fn same[T: Reference](left: T, right: T) -> bool: left is right
+fn same[T < Reference](left: T, right: T) -> bool: left is right
 fn as_value(value: Value) -> Value: value
 fn pending!() -> i32: 1
 

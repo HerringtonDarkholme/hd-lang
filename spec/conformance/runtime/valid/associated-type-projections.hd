@@ -27,7 +27,7 @@ impl Source for FixedSource:
 fn concrete_projected_value() -> i32:
     FixedSource {}.get()
 
-fn read_source[S: Source](source: S) -> S::Item:
+fn read_source[S < Source](source: S) -> S::Item:
     source.get()
 
 fn bounded_projected_value() -> i32:

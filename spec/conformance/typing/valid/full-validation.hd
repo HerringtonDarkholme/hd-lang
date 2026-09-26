@@ -189,7 +189,7 @@ annotate Entry:
 annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
-annotate[reified T: Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for list[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 

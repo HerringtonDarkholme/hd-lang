@@ -13,7 +13,7 @@ impl Score for Value:
 
 fn pause!() -> void: pass
 
-fn read![T: Score](value: T) -> i32:
+fn read![T < Score](value: T) -> i32:
     pause!()
     value.score()
 

@@ -209,7 +209,7 @@ An annotation facet chooses one uniform output type:
 trait Annotation:
     type Info
 
-trait Annotate[A: Annotation]:
+trait Annotate[A < Annotation]:
     fn info() -> A::Info
 ```
 
@@ -400,7 +400,7 @@ annotate Validation for Email:
     fn build(self, target: TypeShape) -> Validator:
         Validator.Email
 
-annotate[reified T: Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for list[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
@@ -475,7 +475,7 @@ Exact primitive, newtype, and collection-family facet derivation uses the
 type-level annotator protocol:
 
 ```text
-trait TypeAnnotator: Annotation:
+trait TypeAnnotator < Annotation:
     fn build(self, target: TypeShape) -> Self::Info
 ```
 
@@ -486,7 +486,7 @@ A facet for data types maps each field to one uniform `FieldTarget`, then builds
 facet's `Info`:
 
 ```text
-trait DataAnnotator: Annotation:
+trait DataAnnotator < Annotation:
     type FieldTarget
 
     fn map_field(
@@ -510,7 +510,7 @@ An enum first maps every payload field, then maps each variant, then builds the
 enum result:
 
 ```text
-trait EnumAnnotator: Annotation:
+trait EnumAnnotator < Annotation:
     type FieldTarget
     type VariantTarget
 
@@ -536,7 +536,7 @@ trait EnumAnnotator: Annotation:
 A function maps parameters and builds a function result:
 
 ```text
-trait FuncAnnotator: Annotation:
+trait FuncAnnotator < Annotation:
     type ParamTarget
 
     fn map_param(

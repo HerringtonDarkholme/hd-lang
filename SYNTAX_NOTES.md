@@ -346,19 +346,19 @@ impl Display for User:
         self.email
 ```
 
-Generic bounds such as `T: Display` use static dispatch. Trait value types such as `value: Display` use Go-style dynamic dispatch: the runtime value carries concrete data plus a method table. There is no `dyn` marker.
+Generic bounds such as `T < Display` use static dispatch. Trait value types such as `value: Display` use Go-style dynamic dispatch: the runtime value carries concrete data plus a method table. There is no `dyn` marker.
 
 `Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically:
 
 ```text
-fn preserve[T: Any](value: T) -> T:
+fn preserve[T < Any](value: T) -> T:
     value
 
 fn keep_erased(value: Any) -> Any:
     value
 ```
 
-`Any` is non-null. `nil` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T: Any` is a generic constraint that preserves the concrete type.
+`Any` is non-null. `nil` can only be stored in `Any?`, following the ordinary optional-type rule. An optional `T?` cannot erase to `Any`, but can erase to `Any?`. As with other traits, plain `Any` can be used as an erased dynamic trait value, while `T < Any` is a generic constraint that preserves the concrete type.
 
 Nullability is explicit. `T` and `T?` are different types, and `nil` only belongs to optional values. A plain `T` implicitly constructs a present `T?` where that type is expected; no `Some(T)` wrapper is needed or built in. In a pattern, `value?` matches only the present case and binds `value: T`, while `nil` matches absence.
 
@@ -841,13 +841,13 @@ data InvalidBox[T]:
     value: mut T  # invalid: T may already be `mut U`
 ```
 
-Mutable generic constraints qualify a trait bound. `T: mut Any` accepts any mutable root type; `T: mut Trait` accepts a mutable root whose underlying type implements `Trait`:
+Mutable generic constraints qualify a trait bound. `T < mut Any` accepts any mutable root type; `T < mut Trait` accepts a mutable root whose underlying type implements `Trait`:
 
 ```text
 trait Reset:
     fn reset(mut self) -> void
 
-fn reset_value[T: mut Reset](value: T) -> void:
+fn reset_value[T < mut Reset](value: T) -> void:
     value.reset()
 ```
 
@@ -1462,7 +1462,7 @@ impl User:
     fn tagged[T](self, value: T) -> T:
         value
 
-fn show[T: Display](value: T) -> string:
+fn show[T < Display](value: T) -> string:
     value.display()
 ```
 
@@ -1492,7 +1492,7 @@ trait Repository[T]:
 Trait bounds compose like Rust:
 
 ```text
-fn audit_label[T: Display + Named](value: T) -> string:
+fn audit_label[T < Display + Named](value: T) -> string:
     value.display() + " / " + value.name()
 ```
 
@@ -1529,7 +1529,7 @@ fn print_display(value: Display) -> void:
 This is different from generic static dispatch, where the compiler specializes the function for a concrete type:
 
 ```text
-fn show_static[T: Display](value: T) -> string:
+fn show_static[T < Display](value: T) -> string:
     value.display()
 ```
 
@@ -2080,7 +2080,7 @@ Every annotation kind first implements the common annotation protocol. The proto
 trait Annotation:
     type Info
 
-trait Annotate[A: Annotation]:
+trait Annotate[A < Annotation]:
     fn info() -> A::Info
 ```
 
@@ -2104,7 +2104,7 @@ trait FieldMetadata[T]
 trait VariantMetadata
 trait ParamMetadata[T]
 
-trait DataAnnotator: Annotation:
+trait DataAnnotator < Annotation:
     type FieldTarget
 
     fn map_field(
@@ -2137,7 +2137,7 @@ annotate Validation for string:
 Generic annotation families use ordinary generic binders and bounds:
 
 ```text
-annotate[T: Annotate[Validation]] Validation for list[T]:
+annotate[T < Annotate[Validation]] Validation for list[T]:
     fn build(self, shape: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
@@ -2196,7 +2196,7 @@ Generic code can use normal trait bounds to require annotation availability:
 
 ```text
 # Generic constraints use ordinary generic impl and where-clause syntax.
-fn validate[T: Annotate[Validation]](value: T) -> Result[T, ValidationError]:
+fn validate[T < Annotate[Validation]](value: T) -> Result[T, ValidationError]:
     validator := Validation::annotation(T)
     validator.validate(value)
 ```
@@ -2247,7 +2247,7 @@ annotate DataDec for A: pass
 annotate EnumDec for Enum: pass
 ```
 
-The compiler requires `DataDec: DataAnnotator`, each field value to implement `FieldMetadata[T]` for that field's declared type, `EnumDec: EnumAnnotator`, and each variant value to implement `VariantMetadata`.
+The compiler requires `DataDec < DataAnnotator`, each field value to implement `FieldMetadata[T]` for that field's declared type, `EnumDec < EnumAnnotator`, and each variant value to implement `VariantMetadata`.
 
 For UI, every field maps to a `ReactComponent`:
 
@@ -2390,7 +2390,7 @@ This is an intentional simplification. TypeScript mapped types can model shape-p
 Enums need the same idea for variants:
 
 ```text
-trait EnumAnnotator: Annotation:
+trait EnumAnnotator < Annotation:
     type FieldTarget
     type VariantTarget
 
@@ -2420,7 +2420,7 @@ still cannot replace a mapped `ParamTarget` directly; use metadata, parameter
 docs, or a whole-function `build` override.
 
 ```text
-trait FuncAnnotator: Annotation:
+trait FuncAnnotator < Annotation:
     type ParamTarget
 
     fn map_param(self, param: ParamShape) -> Self::ParamTarget
@@ -2810,11 +2810,11 @@ annotate Validation for list[Entry]:
 
 This follows the same target-specific annotation model throughout:
 
-1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation: DataAnnotator`.
+1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation < DataAnnotator`.
 2. `Folder.name` expects `list[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
-3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation: EnumAnnotator`.
+3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation < EnumAnnotator`.
 4. `Entry.File` expects `list[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
-5. `annotate[T: Annotate[Validation]] Validation for list[T]` supplies reusable collection validation and resolves the concrete `Entry` validator for `Folder.entries`.
+5. `annotate[T < Annotate[Validation]] Validation for list[T]` supplies reusable collection validation and resolves the concrete `Entry` validator for `Folder.entries`.
 
 No `Validation` metadata is placed directly on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. Putting `Validation` into a field metadata list is rejected because it does not implement `FieldMetadata[string]`:
 
@@ -2889,7 +2889,7 @@ annotate Document:
 Open concerns:
 
 1. The exact aggregate method names are not settled: `map_field`, `map_variant`, `map_param`, and `build` still need naming review.
-2. Generic target families use `annotate[T: Bound] Facet for Family[T]` and
+2. Generic target families use `annotate[T < Bound] Facet for Family[T]` and
    ordinary generic-implementation coherence; unconstrained wildcard targets
    are not supported.
 3. Field and variant result types are uniform in the current model. This gives up static proof of field-type-specific override correctness in exchange for a much simpler type system.

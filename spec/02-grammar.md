@@ -268,10 +268,9 @@ and requirement-free constraints follow function-parameter defaults.
 
 ```ebnf
 trait_decl = "trait", identifier, [ type_params ],
+             [ "<", supertrait_bounds ],
              ( NEWLINE
              | ":", NEWLINE, INDENT,
-               trait_member, { trait_member }, DEDENT
-             | ":", supertrait_bounds, ":", NEWLINE, INDENT,
                trait_member, { trait_member }, DEDENT )
              ;
 
@@ -300,7 +299,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 
 where_clause = "where", where_predicate,
                { ",", where_predicate }, [ "," ] ;
-where_predicate = type, ":", trait_bounds ;
+where_predicate = type, "<", trait_bounds ;
 ```
 
 `impl T:` is an inherent implementation. `impl Trait for T:` is a trait
@@ -311,8 +310,10 @@ embedded field. A
 `pub` method is permitted only in an inherent implementation; trait method
 visibility follows the trait. A
 bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a
-suite. `trait Child: Parent:` declares `Parent` as a supertrait and opens the
-body with the second `:`. A function member whose first parameter is `self` or
+suite. `trait Child < Parent:` declares `Parent` as a supertrait and opens the
+body with `:`. In declarations, `<` introduces a bound (a supertrait, a
+generic parameter bound, or a `where` predicate), while `:` means "has type"
+or opens a suite. A function member whose first parameter is `self` or
 `mut self` is a method; a receiverless member is an associated function.
 Associated type declarations omit `=` in a
 trait requirement and provide `= type` in an implementation. Generic
@@ -335,9 +336,9 @@ type_params = "[", type_parameter, { ",", type_parameter }, [ "," ], "]" ;
 generic_params = "[", generic_parameter,
                  { ",", generic_parameter }, [ "," ], "]" ;
 
-type_parameter = [ variance ], identifier, [ ":", trait_bounds ] ;
+type_parameter = [ variance ], identifier, [ "<", trait_bounds ] ;
 generic_parameter = [ "reified" ], identifier, [ "..." ],
-                    [ ":", trait_bounds ] ;
+                    [ "<", trait_bounds ] ;
 variance = "+" | "-" ;
 
 trait_bounds = [ "mut" ], trait_type, { "+", trait_type } ;

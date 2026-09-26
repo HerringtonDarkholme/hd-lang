@@ -15,7 +15,7 @@ impl Add for Counter:
     fn add(mut self, value: i32) -> void:
         self.value = self.value + value
 
-fn bounded[T: Add](value: mut T, amount: i32) -> void:
+fn bounded[T < Add](value: mut T, amount: i32) -> void:
     value.add(amount)
 
 fn main() -> i32:

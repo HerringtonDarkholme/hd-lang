@@ -6,5 +6,5 @@ fn make() -> $.Context[Clock + Backup] $ Clock + Backup:
 
 trait Clock
 
-trait Backup: Clock:
+trait Backup < Clock:
     fn label(self) -> i32

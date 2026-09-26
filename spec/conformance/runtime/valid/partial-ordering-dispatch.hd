@@ -16,10 +16,10 @@ impl PartialOrd for Score:
         else:
             Ordering.Equal
 
-fn lower[T: PartialOrd](left: T, right: T) -> bool:
+fn lower[T < PartialOrd](left: T, right: T) -> bool:
     left < right
 
-fn lower_list[T: PartialOrd](left: list[T], right: list[T]) -> bool:
+fn lower_list[T < PartialOrd](left: list[T], right: list[T]) -> bool:
     left < right
 
 test "PartialOrd dispatches for concrete and bounded values":

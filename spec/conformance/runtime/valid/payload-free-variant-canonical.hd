@@ -10,7 +10,7 @@ enum Shape:
     Dot
     Circle(radius: i32)
 
-fn same_ref[T: Reference](left: T, right: T) -> bool:
+fn same_ref[T < Reference](left: T, right: T) -> bool:
     left is right
 
 fn red() -> Color:

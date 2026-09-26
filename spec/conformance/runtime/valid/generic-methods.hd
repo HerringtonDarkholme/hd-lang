@@ -15,7 +15,7 @@ impl Identity:
     fn pair[Left, Right](self, left: Left, right: Right) -> (Left, Right):
         (left, right)
 
-    fn render[Value: Display](self, value: Value) -> string:
+    fn render[Value < Display](self, value: Value) -> string:
         value.to_string()
 
 fn explicit_right() -> i32:

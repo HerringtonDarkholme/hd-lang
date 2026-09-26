@@ -6,7 +6,7 @@ data Box:
 trait Reader:
     fn read(self) -> i32
 
-fn via_bound[T: Reader](value: T) -> i32:
+fn via_bound[T < Reader](value: T) -> i32:
     value.read()
 
 later := 5

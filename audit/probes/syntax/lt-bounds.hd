@@ -1,0 +1,30 @@
+use std.testing.{assert_equal}
+trait Named:
+    fn name(self) -> string
+
+trait Greeter < Named:
+    fn greet(self) -> string
+
+trait Tagged < Named
+
+data User:
+    n: string
+
+impl Named for User:
+    fn name(self) -> string: self.n
+
+impl Greeter for User:
+    fn greet(self) -> string: "hi " + self.name()
+
+fn show[T < Greeter](value: T) -> string: value.greet()
+
+data Box[T]:
+    item: T
+
+impl[T] Named for Box[T] where T < Named:
+    fn name(self) -> string: self.item.name()
+
+test "bounds":
+    assert_equal(show(User { n: "a" }), "hi a", reason="bound")
+    let boxed: Box[User] = Box { item: User { n: "b" } }
+    assert_equal(boxed.name(), "b", reason="where")

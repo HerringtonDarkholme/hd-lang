@@ -18,7 +18,7 @@ fn reset() -> void:
 fn seen() -> string:
     order
 
-fn render[T: Display](value: T) -> string:
+fn render[T < Display](value: T) -> string:
     "$value"
 
 test "segments render in order and call Display once each":

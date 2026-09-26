@@ -1,6 +1,6 @@
 use std.testing.assert_equal
 
-fn expect_same[T: PartialEq](actual: T, expected: T) -> void:
+fn expect_same[T < PartialEq](actual: T, expected: T) -> void:
     assert_equal(actual, expected, reason="the bound supplies PartialEq")  # panic: assertion-failed
 
 test "a generic PartialEq value instantiated with i32 fails when unequal":

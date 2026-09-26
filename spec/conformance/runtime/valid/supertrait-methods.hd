@@ -5,7 +5,7 @@ use std.testing.assert_equal
 trait Describe:
     fn describe(self) -> string
 
-trait Formattable: Describe:
+trait Formattable < Describe:
     fn format(self) -> string
 
 data User:
@@ -20,7 +20,7 @@ impl Formattable for User:
 fn formatted_length() -> i32:
     User { name: "Alice" }.format().len()
 
-fn parent_length[T: Formattable](value: T) -> i32:
+fn parent_length[T < Formattable](value: T) -> i32:
     value.describe().len()
 
 fn bounded_parent_length() -> i32:

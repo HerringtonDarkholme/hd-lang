@@ -5,7 +5,7 @@ use std.testing.assert
 fn to_display(value: i32) -> Display:
     value
 
-fn same_ref[T: Reference](left: T, right: T) -> bool:
+fn same_ref[T < Reference](left: T, right: T) -> bool:
     left is right
 
 test "aliases of one converted primitive share identity":

@@ -18,7 +18,7 @@ test "run returns 42 with its providers":
 
 trait Clock
 
-trait Backup: Clock:
+trait Backup < Clock:
     fn label(self) -> i32
 
 data FixedBackup: pass

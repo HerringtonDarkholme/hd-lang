@@ -4,5 +4,5 @@ fn main() -> $.Context[Clock] $ Clock + Backup: $.context(Backup=$.use(Backup)) 
 
 trait Clock
 
-trait Backup: Clock:
+trait Backup < Clock:
     fn label(self) -> i32

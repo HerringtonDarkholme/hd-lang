@@ -22,7 +22,7 @@ data FixedClock: pass
 
 impl Clock for FixedClock
 
-trait Backup: Clock:
+trait Backup < Clock:
     fn label(self) -> i32
 
 data FixedBackup: pass

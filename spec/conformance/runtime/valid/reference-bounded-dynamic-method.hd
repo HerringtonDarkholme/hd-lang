@@ -8,20 +8,20 @@ impl Display for User:
         self.name
 
 trait Visitor:
-    fn visit[T: Reference](self, value: T) -> string
+    fn visit[T < Reference](self, value: T) -> string
 
 trait Labeler:
-    fn label[T: Reference + Display](self, value: T) -> string
+    fn label[T < Reference + Display](self, value: T) -> string
 
 data Tagger:
     tag: string
 
 impl Visitor for Tagger:
-    fn visit[T: Reference](self, value: T) -> string:
+    fn visit[T < Reference](self, value: T) -> string:
         self.tag
 
 impl Labeler for Tagger:
-    fn label[T: Reference + Display](self, value: T) -> string:
+    fn label[T < Reference + Display](self, value: T) -> string:
         self.tag + value.to_string()
 
 fn through_visitor(visitor: Visitor, user: User) -> string:

@@ -9,10 +9,10 @@ data Number:
 impl Describe for Number:
     fn describe(self) -> i32: self.value
 
-fn show[T: Describe](value: T) -> i32:
+fn show[T < Describe](value: T) -> i32:
     value.describe()
 
-fn identity[T: Describe](value: T) -> T:
+fn identity[T < Describe](value: T) -> T:
     value
 
 fn main() -> i32:

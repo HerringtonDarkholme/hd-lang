@@ -1,7 +1,7 @@
 # test: primitives satisfy a user-declared PartialEq bound; == dispatches to their standard implementations
 use std.testing.assert
 
-fn same[T: PartialEq](left: T, right: T) -> bool:
+fn same[T < PartialEq](left: T, right: T) -> bool:
     left == right
 
 test "primitive equality through a generic bound":

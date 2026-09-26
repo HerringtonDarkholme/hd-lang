@@ -15,7 +15,7 @@ fn blanket_dynamic() -> i32:
     let dynamic: Value[i32] = Box[i32] { item: 42 }
     dynamic.value()
 
-fn read_value[T: Value[i32]](value: T) -> i32:
+fn read_value[T < Value[i32]](value: T) -> i32:
     value.value()
 
 fn blanket_bound() -> i32:

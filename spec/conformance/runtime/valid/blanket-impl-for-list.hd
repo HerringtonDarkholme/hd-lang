@@ -12,7 +12,7 @@ impl Score for Point:
     fn score(self) -> i32:
         self.value
 
-impl[Item: Score] Score for list[Item]:
+impl[Item < Score] Score for list[Item]:
     fn score(self) -> i32:
         let total: i32 = 0
         for item in self:

@@ -16,7 +16,7 @@ impl User:
     fn domain(self) -> string:
         self.name.split("@")[1]
 
-fn show[T: Describe](value: T) -> string:
+fn show[T < Describe](value: T) -> string:
     value.describe()
 
 fn dynamic_show(value: Describe) -> string:

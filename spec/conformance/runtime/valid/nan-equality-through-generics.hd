@@ -2,7 +2,7 @@
 # expect: test
 use std.testing.assert
 
-fn same[T: PartialEq](left: T, right: T) -> bool:
+fn same[T < PartialEq](left: T, right: T) -> bool:
     left == right
 
 fn pass_through[T](value: T) -> T:

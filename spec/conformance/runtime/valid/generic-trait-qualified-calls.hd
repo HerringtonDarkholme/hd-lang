@@ -24,7 +24,7 @@ fn add_dynamic() -> i32:
     let left: Add[Number] = Number { value: 20 }
     apply_add(left, Number { value: 22 }).value
 
-fn bounded_add[T: Add[Number]](value: T, other: Number) -> Number:
+fn bounded_add[T < Add[Number]](value: T, other: Number) -> Number:
     value.add(other)
 
 fn add_bounded() -> i32:

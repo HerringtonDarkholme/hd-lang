@@ -2,13 +2,13 @@
 # expect: test
 use std.testing.{assert, assert_equal}
 
-fn same[T: PartialEq](left: T, right: T) -> bool:
+fn same[T < PartialEq](left: T, right: T) -> bool:
     left == right
 
 fn pass_through[T](value: T) -> T:
     value
 
-fn render[T: Display](value: T) -> string:
+fn render[T < Display](value: T) -> string:
     "$value"
 
 test "negative zero equals zero but keeps its sign":

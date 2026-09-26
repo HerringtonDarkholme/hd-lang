@@ -1,8 +1,8 @@
 trait First:
     fn first(self) -> void
 
-trait Second: First:
+trait Second < First:
     fn second(self) -> void
 
-trait Third: Second:
+trait Third < Second:
     fn third(self) -> void

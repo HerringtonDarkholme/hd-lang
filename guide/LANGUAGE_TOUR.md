@@ -1356,14 +1356,14 @@ trait Repository[T]:
 Functions can use trait constraints on generic parameters:
 
 ```text
-fn show[T: Describe](value: T) -> string:
+fn show[T < Describe](value: T) -> string:
     value.describe()
 ```
 
 Trait bounds compose like Rust:
 
 ```text
-fn audit_label[T: Describe + Named](value: T) -> string:
+fn audit_label[T < Describe + Named](value: T) -> string:
     value.describe() + " / " + value.name()
 ```
 
@@ -1422,7 +1422,7 @@ print_display(user)
 This is different from generic static dispatch, where the compiler specializes the function for a concrete type:
 
 ```text
-fn show_static[T: Describe](value: T) -> string:
+fn show_static[T < Describe](value: T) -> string:
     value.describe()
 ```
 
@@ -1619,7 +1619,7 @@ impl Describe for User:
 Generic trait bounds use static dispatch:
 
 ```text
-fn label[T: Describe](value: T) -> string:
+fn label[T < Describe](value: T) -> string:
     value.describe()
 ```
 
@@ -1630,13 +1630,13 @@ fn print_display(value: Describe) -> void $ Console:
     println(value.describe())
 ```
 
-`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically. Use `Any` for an erased dynamic value and `T: Any` when generic code must preserve the concrete type:
+`Any` is the built-in universal empty trait, analogous to Go's `any`. Every non-optional value type satisfies it automatically. Use `Any` for an erased dynamic value and `T < Any` when generic code must preserve the concrete type:
 
 ```text
 fn keep_erased(value: Any) -> Any:
     value
 
-fn preserve[T: Any](value: T) -> T:
+fn preserve[T < Any](value: T) -> T:
     value
 ```
 
@@ -1646,10 +1646,10 @@ Mutable bounds combine access permission with trait conformance:
 trait Clear:
     fn clear(mut self) -> void
 
-fn clear_value[T: mut Clear](value: T) -> void:
+fn clear_value[T < mut Clear](value: T) -> void:
     value.clear()
 
-fn accept_mutable[T: mut Any](value: T) -> void:
+fn accept_mutable[T < mut Any](value: T) -> void:
     keep_erased(value)
     pass
 ```
@@ -1711,7 +1711,7 @@ forms shown here:
 trait Notifier:
     fn notify(self, message: string) -> void
 
-impl[N: Notifier] Notifier for list[N]:
+impl[N < Notifier] Notifier for list[N]:
     fn notify(self, message: string) -> void:
         for notifier in self:
             notifier.notify(message)
@@ -2255,7 +2255,7 @@ Every annotation value implements `Annotation` and chooses one uniform informati
 trait Annotation:
     type Info
 
-trait Annotate[A: Annotation]:
+trait Annotate[A < Annotation]:
     fn info() -> A::Info
 ```
 
@@ -2336,7 +2336,7 @@ Generic target families use the same binders and bounds as generic
 implementations:
 
 ```text
-annotate[reified T: Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for list[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
@@ -2368,7 +2368,7 @@ the same facet and target.
 An annotator for a data type maps each field and then builds one result for the complete type:
 
 ```text
-trait DataAnnotator: Annotation:
+trait DataAnnotator < Annotation:
     type FieldTarget
 
     fn map_field(
@@ -2422,7 +2422,7 @@ type metadata -> field metadata -> data metadata
 Enums and functions follow the same mapping-then-building pattern:
 
 ```text
-trait EnumAnnotator: Annotation:
+trait EnumAnnotator < Annotation:
     type FieldTarget
     type VariantTarget
 
@@ -2444,7 +2444,7 @@ trait EnumAnnotator: Annotation:
         variants: list[(string, Self::VariantTarget)],
     ) -> Self::Info
 
-trait FuncAnnotator: Annotation:
+trait FuncAnnotator < Annotation:
     type ParamTarget
 
     fn map_param(self, param: ParamShape) -> Self::ParamTarget

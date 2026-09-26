@@ -1,2 +1,2 @@
-trait Loop: Loop:  # diagnostic: supertrait-cycle
+trait Loop < Loop:  # diagnostic: supertrait-cycle
     fn step(self) -> void

@@ -52,7 +52,7 @@ filled by an unambiguous promoted `self` method of an embedded field.
 A trait may require another trait using a supertrait bound:
 
 ```text
-trait Formattable: Display:
+trait Formattable < Display:
     fn format(self) -> string
 ```
 
@@ -89,10 +89,10 @@ Ambiguous projections are compile-time errors.
 
 The standard library defines `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and
 `Ordering` in `std.cmp`. `PartialEq` requires
-`fn eq(self, other: Self) -> bool`; `Eq: PartialEq` is a marker asserting
-reflexive equality. `PartialOrd: PartialEq` requires
+`fn eq(self, other: Self) -> bool`; `Eq < PartialEq` is a marker asserting
+reflexive equality. `PartialOrd < PartialEq` requires
 `fn partial_cmp(self, other: Self) -> Ordering?`, where `nil` means unordered.
-`Ord: Eq + PartialOrd` requires
+`Ord < Eq + PartialOrd` requires
 `fn cmp(self, other: Self) -> Ordering`. `Ordering` has `Less`, `Equal`, and
 `Greater` cases. `Eq` and `Ord` implementations must agree with their partial
 counterparts. These semantic laws are obligations of the implementer; ordinary
@@ -123,9 +123,9 @@ generates ordinary implementations of the named traits from the declaration's
 shape, checks trait requirements and coherence, and rejects traits for which it
 has no derivation rule. It does not generate `Annotate[A]` conformance or run a
 `DataAnnotator`. For each derived trait, the generated implementation adds a
-`T: Trait` bound for every declaration type parameter `T` that occurs in a
+`T < Trait` bound for every declaration type parameter `T` that occurs in a
 field compared, ordered, or hashed by that derivation. Thus
-`@derive(PartialEq) data Box[T]` produces conformance only when `T: PartialEq`.
+`@derive(PartialEq) data Box[T]` produces conformance only when `T < PartialEq`.
 Derived `PartialEq` compares every declared data field,
 including embedded fields, by its `PartialEq` implementation. No field is
 implicitly excluded. Derived enum equality first compares the variant, then
@@ -209,11 +209,11 @@ Implementations may be generic and may state additional bounds inline or in a
 `where` clause:
 
 ```text
-impl[T: Display] Printable for Box[T]:
+impl[T < Display] Printable for Box[T]:
     fn print(self) -> string:
         self.value.to_string()
 
-impl[T, I: mut Iterator[T]] Iterable[T] for I:
+impl[T, I < mut Iterator[T]] Iterable[T] for I:
     fn iter(self) -> mut Iterator[T]: self
 ```
 
@@ -306,18 +306,18 @@ named trait method.
 A generic bound requires explicit conformance and uses static dispatch:
 
 ```text
-fn show[T: Display](value: T) -> string:
+fn show[T < Display](value: T) -> string:
     value.to_string()
 ```
 
 Bounds compose with `+`:
 
 ```text
-fn audit[T: Display + Named](value: T) -> string:
+fn audit[T < Display + Named](value: T) -> string:
     value.to_string() + " / " + value.name()
 ```
 
-`T: mut Trait` additionally requires `T` to be a mutable-root type. `T: mut Any`
+`T < mut Trait` additionally requires `T` to be a mutable-root type. `T < mut Any`
 requires mutable-root access without a type-specific behavior requirement.
 
 The compiler may monomorphize static calls, share one body among

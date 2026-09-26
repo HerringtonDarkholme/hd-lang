@@ -5,10 +5,10 @@ use std.testing.assert_equal
 trait Source[Output]:
     fn source(self) -> Output
 
-trait Wrapped[Item]: Source[list[Item]]:
+trait Wrapped[Item] < Source[list[Item]]:
     fn marker(self) -> i32
 
-trait Specialized[Item]: Source[list[Item]]:
+trait Specialized[Item] < Source[list[Item]]:
     fn specialized(self) -> i32
 
 data Box[T]:
@@ -26,7 +26,7 @@ impl Specialized[i32] for Box[i32]:
 fn generic_supertrait_direct() -> i32:
     Box[i32] { item: 42 }.source()[0]
 
-fn read_wrapped[T: Wrapped[i32]](value: T) -> i32:
+fn read_wrapped[T < Wrapped[i32]](value: T) -> i32:
     value.source()[0]
 
 fn generic_supertrait_bound() -> i32:
