@@ -95,7 +95,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             : undefined;
         if (expression.elements.length === 0 && !contextualElement) {
           this.fail(
-            "empty-list-needs-context",
+            "unresolved-generic-placeholder",
             "an empty list requires an expected list type",
             expression.span,
           );
@@ -157,7 +157,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             : undefined;
         if (expression.entries.length === 0 && (!contextualKey || !contextualValue)) {
           this.fail(
-            "empty-map-needs-context",
+            "unresolved-generic-placeholder",
             "an empty map requires an expected map type",
             expression.span,
           );

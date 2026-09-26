@@ -1,8 +1,0 @@
-# test: nonrecursive closures infer result types from fallthrough and returns
-
-fn main() -> i32:
-    bad := fn(value: i32):
-        if value > 0:
-            return 1
-        return true  # diagnostic: closure-result-type
-    0

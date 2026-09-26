@@ -314,14 +314,14 @@ export abstract class StatementChecker extends CheckerContext {
     const elements = tupleParts(value.type);
     if (elements === undefined) {
       this.fail(
-        "tuple-binding-requires-tuple",
+        "type-mismatch",
         `tuple binding requires a tuple value, found '${value.type}'`,
         statement.value.span,
       );
     }
     if (elements.length !== statement.bindings.length) {
       this.fail(
-        "tuple-binding-arity",
+        "type-mismatch",
         `tuple binding has ${statement.bindings.length} names for ${elements.length} elements`,
         statement.span,
       );

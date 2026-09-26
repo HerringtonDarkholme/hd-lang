@@ -1,0 +1,5 @@
+# test: a tuple binding needs a tuple of the same arity
+
+fn run() -> i32:
+    first, second := (1, 2, 3)  # diagnostic: type-mismatch
+    first

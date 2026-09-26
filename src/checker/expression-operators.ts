@@ -58,7 +58,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             this.fail(
-              "generic-function-value-needs-arguments",
+              "unresolved-generic-placeholder",
               `generic function '${signature.name}' needs inferred or explicit type arguments before it can be used as a value`,
               expression.span,
             );
@@ -121,7 +121,9 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         if (expression.operator === "is") {
           if (left.type !== right.type) {
             this.fail(
-              "type-mismatch",
+              this.isIdentityType(left.type) && this.isIdentityType(right.type)
+                ? "incompatible-identity-operands"
+                : "type-mismatch",
               `identity operands have types ${left.type} and ${right.type}`,
               expression.span,
             );
@@ -304,7 +306,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const elementTypes = expression.bindings.length === 1 ? undefined : tupleParts(value.type);
     if (expression.bindings.length > 1 && elementTypes?.length !== expression.bindings.length)
       this.fail(
-        "tuple-binding-arity",
+        "type-mismatch",
         `binding has ${expression.bindings.length} names but '${value.type}' has ${elementTypes?.length ?? 1} element${elementTypes?.length === 1 ? "" : "s"}`,
         expression.span,
       );

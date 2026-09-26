@@ -53,7 +53,9 @@ conditions and unselected suites are not evaluated.
 
 When an `if` is used where a value is required, it must have an `else`, every
 reachable branch must produce a value, and those values must have one
-compatible result type. In statement position, `else` may be omitted and the
+compatible result type. Without an expected type, that type is the
+[least common type](04-type-system.md#least-common-type) of the branch values.
+In statement position, `else` may be omitted and the
 conditional then has type `void`.
 
 `else if` is one conditional-chain form. It is not parsed as an `else` suite
@@ -71,7 +73,10 @@ for value in values:
 
 The iterable expression is evaluated exactly once. A new iterator is obtained
 for each execution of the loop. The binding pattern receives each yielded
-value before the body executes.
+value before the body executes. A binding list of several names, such as
+`for key, value in entries`, destructures each yielded value as a tuple; when
+the yielded type is not a tuple of that arity, the loop is a `type-mismatch`
+error.
 
 The prelude protocols distinguish `Iterable[T]` from `Iterator[T]`:
 
@@ -98,7 +103,9 @@ impl[T, I < mut Iterator[T]] Iterable[T] for I:
 
 A readonly iterator view cannot advance and therefore does not gain this adapter.
 `for` accepts an ordinary `Iterable[T]` or a mutable iterator through the
-adapter and repeatedly calls `next` on the resulting cursor.
+adapter and repeatedly calls `next` on the resulting cursor. An iterable
+expression whose type implements neither `Iterable[T]` nor `Iterator[T]` is an
+`unsatisfied-trait-bound` error.
 
 The built-in `list[T]` iterable yields each element as `T`, including `mut U`
 when `T = mut U`, even through a readonly list. The built-in `map[K, V]`
@@ -176,7 +183,8 @@ the guard is evaluated using that arm's pattern bindings. If the guard is
 false, matching continues with the next arm; if it is true, that arm is
 selected. A guard is not evaluated when its pattern fails, and only the
 selected arm's body is evaluated. All arm results must have one compatible
-type when the match value is used.
+type when the match value is used. Without an expected type, that type is the
+[least common type](04-type-system.md#least-common-type) of the arm results.
 
 A match must be exhaustive. Coverage is checked as follows:
 
@@ -213,7 +221,8 @@ is not optional is an `optional-pattern-requires-optional` error.
 An unguarded irrefutable catch-all must be the final arm because every later
 arm would be unreachable. Duplicate unguarded literals, duplicate fully
 covered variants, arms after an unguarded catch-all, and other statically
-provable unreachable arms are compile-time errors.
+provable unreachable arms are `unreachable-match-arm` errors, reported on the
+unreachable arm.
 
 Enum payload patterns use call-style parentheses. Positional patterns come
 first, and `field=pattern` names a payload field:
@@ -224,6 +233,12 @@ match expr:
     Expr.Sub(left=l, right=r) => l - r
     Expr.Scale(left, factor=2) => left * 2
 ```
+
+A pattern for a variant that carries a payload must list that payload, with
+one pattern per payload field. A bare variant pattern for such a variant, or a
+payload list of a different length, is a `pattern-arity` error. A named
+pattern that names no payload field of the variant is an `unknown-data-field`
+error.
 
 A bare identifier in payload position binds a new arm-local name; it does not
 need to match the payload field's declaration name. The compiler emits
@@ -310,7 +325,9 @@ captured lexical storage at cleanup time.
 A `defer` suite must produce `void`. It cannot bang-call, otherwise suspend,
 propagate with `?`, or transfer control with `return`, `break`, or `continue`.
 A bang call or other suspending operation in the suite is a
-`suspending-defer` error. Direct or transitive use of `std.task.block_on` is a
+`suspending-defer` error. Propagation with `?`, or a `return`, `break`, or
+`continue` that would leave the suite, is a `defer-control-flow` error.
+Direct or transitive use of `std.task.block_on` is a
 `suspension-forbidden-context` error, as specified in
 [Requirements and Suspension](11-requirements-and-suspension.md#suspending-functions).
 

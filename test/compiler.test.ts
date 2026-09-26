@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { conformance, fixture } from "./fixture.ts";
+import { conformance } from "./fixture.ts";
 
 const PROGRAM = conformance("runtime/valid/conditional-call-program");
 
@@ -87,11 +87,7 @@ test("checker rejects name, mutability, and type errors", () => {
     "nonfinal-vararg",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/07-checker-rejects-name-mutability-and-type-errors-positional-spread-needs-vararg",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/positional-spread-without-vararg")).diagnostics[0]?.code,
     "positional-spread-needs-vararg",
   );
 });
@@ -136,10 +132,8 @@ test("function parameter defaults evaluate after explicit arguments", async () =
 
 test("function parameter defaults enforce order, type, and requirement-freedom", () => {
   assert.equal(
-    analyze(
-      fixture("compiler/11-function-parameter-defaults-enforce-order-type-and-purity-diagnostic"),
-    ).diagnostics[0]?.code,
-    "parameter-default-order",
+    analyze(conformance("typing/invalid/parameter-default-order")).diagnostics[0]?.code,
+    "default-order",
   );
   assert.equal(
     analyze(conformance("typing/invalid/parameter-default-type-mismatch")).diagnostics[0]?.code,
@@ -186,19 +180,11 @@ test("named enum payloads preserve source evaluation order", async () => {
   assert.deepEqual(polls, [0, 1]);
 
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/14-named-enum-payloads-preserve-source-evaluation-order-unknown-named-argument",
-      ),
-    ).diagnostics[0]?.code,
-    "unknown-named-argument",
+    analyze(conformance("typing/invalid/variant-unknown-payload-field")).diagnostics[0]?.code,
+    "unknown-data-field",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/14-named-enum-payloads-preserve-source-evaluation-order-duplicate-argument",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/variant-duplicate-argument")).diagnostics[0]?.code,
     "duplicate-argument",
   );
 });
@@ -209,12 +195,8 @@ test("named enum payload patterns resolve bindings by field name", async () => {
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/15-named-enum-payload-patterns-resolve-bindings-by-field-name-unknown-variant-pattern-field",
-      ),
-    ).diagnostics[0]?.code,
-    "unknown-variant-pattern-field",
+    analyze(conformance("typing/invalid/variant-pattern-unknown-field")).diagnostics[0]?.code,
+    "unknown-data-field",
   );
 });
 
@@ -316,20 +298,12 @@ test("for loops iterate lists and maps with continue, destructuring, and else va
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
-    "not-iterable",
+    analyze(conformance("typing/invalid/for-over-non-iterable")).diagnostics[0]?.code,
+    "unsatisfied-trait-bound",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/24-for-loops-iterate-lists-and-maps-with-continue-destructuring-and-else-va-diagnostic-2",
-      ),
-    ).diagnostics[0]?.code,
-    "for-binding-arity",
+    analyze(conformance("typing/invalid/for-binding-arity")).diagnostics[0]?.code,
+    "type-mismatch",
   );
 });
 
@@ -539,7 +513,7 @@ test("defer runs after a return value is evaluated", async () => {
 });
 
 test("defer rejects escaping control flow", () => {
-  const source = fixture("compiler/44-defer-rejects-escaping-control-flow");
+  const source = conformance("typing/invalid/defer-return");
   assert.equal(analyze(source).diagnostics[0]?.code, "defer-control-flow");
 });
 
@@ -571,11 +545,11 @@ test("match checking enforces coverage, payload arity, and arm reachability", ()
     "nonexhaustive-match",
   );
   assert.equal(
-    analyze(fixture("compiler/48-match-pattern-arity")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/variant-pattern-missing-payload")).diagnostics[0]?.code,
     "pattern-arity",
   );
   assert.equal(
-    analyze(fixture("compiler/48-match-unreachable-arm")).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/match-arm-after-catch-all")).diagnostics[0]?.code,
     "unreachable-match-arm",
   );
   assert.equal(
@@ -620,11 +594,7 @@ test("boolean matches are exhaustive and lower to scalar tests", async () => {
     "nonexhaustive-match",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/51-boolean-matches-are-exhaustive-and-lower-to-scalar-tests-unreachable-match-arm",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/duplicate-bool-match-arm")).diagnostics[0]?.code,
     "unreachable-match-arm",
   );
 });
@@ -641,11 +611,7 @@ test("numeric, character, and string literal patterns require a catch-all", asyn
     "nonexhaustive-match",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/52-numeric-character-and-string-literal-patterns-require-a-catch-all-unreachable-match-arm",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/duplicate-literal-match-arm")).diagnostics[0]?.code,
     "unreachable-match-arm",
   );
 });
@@ -703,14 +669,10 @@ test("optional and Result context errors have stable diagnostics", () => {
   );
   assert.equal(
     analyze(conformance("typing/invalid/result-constructor-without-context")).diagnostics[0]?.code,
-    "result-constructor-needs-context",
+    "unresolved-generic-placeholder",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/58-optional-and-result-context-errors-have-stable-diagnostics-diagnostic-3",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/propagation-operand-not-optional")).diagnostics[0]?.code,
     "invalid-result-propagation",
   );
   const nested = analyze(conformance("typing/warnings/unused-nested-optional-binding"));
@@ -746,11 +708,7 @@ test("expected function types infer inline closure parameters and results", asyn
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/61-expected-function-types-infer-inline-closure-parameters-and-results-diagnostic",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/closure-parameter-without-type")).diagnostics[0]?.code,
     "closure-parameter-needs-annotation",
   );
 });
@@ -763,12 +721,8 @@ test("nonrecursive closures infer result types from fallthrough and returns", as
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
   assert.equal(
-    analyze(
-      fixture(
-        "compiler/62-nonrecursive-closures-infer-result-types-from-fallthrough-and-returns-closure-result-type",
-      ),
-    ).diagnostics[0]?.code,
-    "closure-result-type",
+    analyze(conformance("typing/invalid/closure-returns-without-common-type")).diagnostics[0]?.code,
+    "no-common-type",
   );
 });
 

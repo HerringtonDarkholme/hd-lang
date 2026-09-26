@@ -1,0 +1,4 @@
+# test: a bang call needs a suspending callee
+
+fn plain() -> i32: 42
+fn run!() -> i32: plain!()  # diagnostic: not-suspending

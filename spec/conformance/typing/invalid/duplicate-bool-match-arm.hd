@@ -1,4 +1,4 @@
-# test: boolean matches are exhaustive and lower to scalar tests
+# test: a repeated unguarded bool arm is unreachable
 
 fn choose(flag: bool) -> i32:
     match flag:

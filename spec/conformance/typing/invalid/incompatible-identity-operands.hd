@@ -1,0 +1,10 @@
+# test: is rejects composite operands of unrelated types
+
+data User:
+    name: string
+
+data Order:
+    total: i32
+
+fn same(user: User, order: Order) -> bool:
+    user is order  # diagnostic: incompatible-identity-operands

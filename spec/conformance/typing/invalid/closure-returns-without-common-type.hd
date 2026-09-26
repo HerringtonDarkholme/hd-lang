@@ -1,0 +1,8 @@
+# test: closure return values need a least common type
+
+fn run() -> i32:
+    bad := fn(value: i32):
+        if value > 0:
+            return 1
+        return true  # diagnostic: no-common-type
+    0

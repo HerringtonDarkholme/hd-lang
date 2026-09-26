@@ -21,9 +21,10 @@ removed from this folder. What remains:
 - No chapter defines explicit type arguments in a qualified call
   (`Type::name[T](...)`, `Trait::name[T](...)`), so the chapter 02 EBNF does
   not derive them. Three held-back fixtures in `test/fixtures` wait on this.
-- 24 held-back fixtures in `test/fixtures` mark checker rejections that
-  have no code in `spec/README.md` (F-205).
-- No code covers `is` between incompatible composite types (L7).
+- F-205: every held-back fixture with a decided code is now in
+  `spec/conformance`. The prototype still emits its own code for 22
+  conformance cases (tagged F-205 in `test/portable/KNOWN_FAILURES.tsv`),
+  mostly parser codes and `generic-type-mismatch`.
 - The EBNF derives a header that continues on the line after an indented
   suite at delimiter depth zero, such as `if fn():` + body + `: x else: y`.
   The reference lexer does not carry the header across that suite (F-314).

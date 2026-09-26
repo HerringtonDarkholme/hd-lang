@@ -1,0 +1,5 @@
+# test: a variant construction cannot supply one payload field twice
+
+enum Pair:
+    Value(first: i32, second: i32)
+fn make() -> Pair: Pair.Value(1, first=2)  # diagnostic: duplicate-argument

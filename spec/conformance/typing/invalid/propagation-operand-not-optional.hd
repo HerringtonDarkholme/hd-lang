@@ -1,0 +1,5 @@
+# test: the operand of ? must be optional or a Result
+
+fn first() -> i32?:
+    value := 1
+    value?  # diagnostic: invalid-result-propagation

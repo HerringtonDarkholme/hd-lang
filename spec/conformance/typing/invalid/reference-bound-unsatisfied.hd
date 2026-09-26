@@ -1,0 +1,5 @@
+# test: a primitive argument does not satisfy a Reference bound
+
+fn same[T < Reference](left: T, right: T) -> bool: left is right
+
+fn check() -> bool: same(1, 1)  # diagnostic: unsatisfied-trait-bound

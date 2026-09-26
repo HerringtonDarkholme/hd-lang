@@ -1,0 +1,5 @@
+# test: a for loop needs an iterable value
+
+fn bad() -> void:
+    for value in 1:  # diagnostic: unsatisfied-trait-bound
+        pass

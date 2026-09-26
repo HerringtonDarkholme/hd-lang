@@ -1,4 +1,5 @@
-# test: traits / multiple bounds / duplicate bound
+# test: a bound may list the same trait twice
+# expect: accept
 
 trait Describe:
     fn describe(self) -> i32
@@ -19,15 +20,12 @@ impl Named for Number:
 fn describe_one[T < Describe](value: T) -> i32:
     value.describe()
 
-fn inspect[T < Describe + Describe](value: T) -> i32:  # diagnostic: duplicate-trait-bound
-    describe_one(value) + value.name()
-
-fn inspect_first[T < Describe](values: list[T]) -> i32:
-    values[0].describe()
+fn inspect[T < Describe + Describe](value: T) -> i32:
+    describe_one(value) + value.describe()
 
 fn identity[T < Describe + Named](value: T) -> T:
     value
 
-fn main() -> i32:
+fn check() -> i32:
     number := identity(Number { value: 20, extra: 2 })
-    inspect(number) + inspect_first([Number { value: 20, extra: 0 }])
+    inspect(number) + number.name()

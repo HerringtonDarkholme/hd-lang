@@ -1,0 +1,4 @@
+# test: ? needs an enclosing function that returns an optional
+
+fn first(value: i32?) -> i32:
+    value?  # diagnostic: invalid-result-propagation

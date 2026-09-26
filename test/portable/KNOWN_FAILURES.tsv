@@ -32,7 +32,6 @@ runtime/valid/composite-identity-and-views.hd	check fails: is rejects mut T oper
 runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
 runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-352
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	F-705
-typing/invalid/default-later-parameter-earlier-twin.hd	reports impure-parameter-default instead of binding-not-yet-visible	F-356
 runtime/valid/copy-update-shallow.hd	check fails: is rejects mut Child operands (identity-requires-references)	F-353
 runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	F-704
 runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and keeps U+0085 (assertion-failed)	F-355
@@ -139,10 +138,8 @@ typing/valid/mutual-recursion-one-annotated.hd	check fails: expected-token at li
 typing/valid/inferred-row-through-private-callers.hd	check fails: missing-requirement at line 6: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
 runtime/valid/private-function-inferred-result.hd	check fails: expected-token at line 5: expected '->', found ':'; result-type inference (I5) is not implemented	I5
 runtime/valid/private-function-inferred-row.hd	check fails: missing-requirement at line 12: provider 'Clock' is not available in the current context; requirement-row inference (I6) is not implemented	I6
-typing/invalid/generic-enum-variant-without-context.hd	MVP reports generic-enum-needs-context instead of unresolved-generic-placeholder	F-205
-typing/invalid/generic-function-value-without-arguments.hd	MVP reports generic-function-value-needs-arguments instead of unresolved-generic-placeholder	F-205
-typing/invalid/result-constructor-without-context.hd	MVP reports result-constructor-needs-context instead of unresolved-generic-placeholder	F-205
 typing/invalid/nil-without-expected-type.hd	MVP reports nil-needs-optional-type instead of nil-to-nonoptional	F-205
 typing/invalid/float-remainder.hd	MVP reports invalid-binary-operands instead of type-mismatch	F-205
 typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of missing-partial-ord	F-205
-typing/invalid/tuple-index-out-of-range.hd	MVP reports tuple-index-range instead of unknown-method	F-205
+typing/valid/duplicate-trait-bound.hd	check fails: MVP reports duplicate-trait-bound for a trait listed twice in one bound, which the spec allows	F-205
+typing/valid/identity-trait-value-operand.hd	check fails: MVP rejects is between User and a Named trait value (type-mismatch)	L7

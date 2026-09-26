@@ -1,6 +1,6 @@
 id	count	title
 F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-205	25	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
+F-205	22	Half of test/fixtures reject markers use diagnostic codes that spec/README.md does not define
 F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-252	6	The parser rejects core chapter-02 forms that the reference parser accepts
 F-255	6	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
@@ -21,7 +21,6 @@ F-309	1	hd rejects same-line `if c: a else: b`, a form chapter 01 uses as an exa
 F-350	1	Primitives do not satisfy `T: Display` and cannot become `Display` trait values
 F-352	1	`mut fn` closure literals do not parse
 F-355	1	`string.trim()` removes U+FEFF and keeps U+0085
-F-356	1	A default that names a later parameter reports a code outside the spec inventory
 F-700	1	Optional `?` inside a closure emits WAT that Binaryen cannot parse
 F-701	1	A generic function cannot be used as a value, even when its type arguments are known
 F-702	1	`pub` on a path-only `use` is accepted
@@ -32,6 +31,6 @@ G2	1	Reference-bounded method generics are allowed in dynamic traits
 G3	1	Assigning a tuple element is invalid-assignment-target
 L4	1	Only a pub main is an entry point
 L6	1	Inferred mutable upgrade reports mutable-upgrade
-L7	1	`is` ignores permissions on its operands
+L7	2	`is` ignores permissions on its operands
 L8	1	Fieldless data values are canonical under `is`
 L9	1	supertrait-cycle is reported once per cycle

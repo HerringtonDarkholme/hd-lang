@@ -1,0 +1,11 @@
+# test: a variant pattern lists one pattern per payload field
+# expect: accept
+
+enum Flag:
+    On(value: i32)
+    Off
+
+fn choose(flag: Flag) -> i32:
+    match flag:
+        Flag.On(_) => 1
+        Flag.Off => 0

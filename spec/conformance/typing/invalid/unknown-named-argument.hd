@@ -1,0 +1,4 @@
+# test: a named argument must name a parameter
+
+fn resize(width: i32, height: i32) -> i32: width * height
+fn area() -> i32: resize(640, depth=480)  # diagnostic: unknown-named-argument

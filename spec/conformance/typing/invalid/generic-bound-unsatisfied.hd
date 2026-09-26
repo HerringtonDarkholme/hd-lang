@@ -1,4 +1,4 @@
-# test: traits / generic bounds / missing implementation
+# test: an argument type without the bound's implementation is rejected
 
 trait Describe:
     fn describe(self) -> i32
@@ -15,6 +15,6 @@ fn show[T < Describe](value: T) -> i32:
 fn identity[T < Describe](value: T) -> T:
     value
 
-fn main() -> i32:
+fn check() -> i32:
     returned := identity(Number { value: 22 })
-    show(42) + returned.value  # diagnostic: missing-trait-implementation
+    show(42) + returned.value  # diagnostic: unsatisfied-trait-bound

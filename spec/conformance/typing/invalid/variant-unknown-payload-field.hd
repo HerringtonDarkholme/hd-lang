@@ -1,0 +1,5 @@
+# test: a variant construction cannot name a missing payload field
+
+enum Pair:
+    Value(first: i32, second: i32)
+fn make() -> Pair: Pair.Value(missing=1, first=2)  # diagnostic: unknown-data-field

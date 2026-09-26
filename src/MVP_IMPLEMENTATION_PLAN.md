@@ -81,7 +81,7 @@ checked for transitive reads through referenced functions and closures before
 the corresponding global has been initialized. A dedicated Wasm start function
 runs the module body exactly once before a script entry or a separately
 declared `main`.
-Unsupported interpolated values receive `missing-display` unless their type
+Unsupported interpolated values receive `unsatisfied-trait-bound` unless their type
 implements the canonical trait.
 S2 has concrete-row normalization, hidden
 provider threading, lookup, lexical overrides, reusable GC-backed contexts,

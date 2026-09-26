@@ -664,6 +664,41 @@ automatically reindex it. The entry can remain visible during iteration yet
 be unreachable by lookup or removal with the mutated key: a ghost entry.
 Such mutation does not trigger a compile-time error or an automatic repair.
 
+## Least Common Type
+
+Several constructs infer one type from several values when no expected type is
+available:
+
+- the elements of a list literal, and the keys and the values of a map literal
+  ([Expressions](05-expressions.md#list-and-map-expressions));
+- the branches of a value-producing `if`
+  ([Control Flow](06-control-flow.md#conditional-expressions));
+- the arm results of a value-producing `match`
+  ([Control Flow](06-control-flow.md#match-expressions));
+- the final value and `return` operands of a closure whose result type is
+  inferred ([Functions](07-functions.md#closures)), and of a non-public
+  function whose result type is omitted
+  ([Functions](07-functions.md#declarations)).
+
+Each of these uses the least common type defined here. The compiler computes a
+unique least common type of the values' types using only the implicit
+conversions in [Assignability And Coercion](#assignability-and-coercion).
+Numeric widening, permission weakening, and declared readonly variance may
+contribute, but least-common-type inference never combines permission
+weakening with a variance step for the same candidate conversion.
+
+The compiler never falls back to `Any` merely to make heterogeneous values
+type-check. Unconstrained inference also does not introduce a dynamic
+trait-value conversion, because a concrete type may satisfy multiple unrelated
+traits; an expected type such as `list[Display]` or `map[K, Display]` may
+request that conversion explicitly. When `nil` occurs with non-`nil` values
+having one unique least type `T`, the least common type is `T?`.
+
+If no unique least type exists, inference fails and the user must add an
+expected type. When the values have no common type, the failure is a
+`no-common-type` error. When they have common types but these rules admit no
+unique least one, the failure is a `no-least-common-type` error.
+
 ## Type Inference Boundaries
 
 The compiler infers local binding types, closure parameter or result types when

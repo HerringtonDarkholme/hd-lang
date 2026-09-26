@@ -47,11 +47,7 @@ test("ordinary suspending calls are cold values and bang calls need a driver", (
     "bang-call-outside-suspension",
   );
   assert.equal(
-    analyze(
-      fixture(
-        "suspension/04-ordinary-suspending-calls-are-cold-values-and-bang-calls-need-a-driver-diagnostic-3",
-      ),
-    ).diagnostics[0]?.code,
+    analyze(conformance("typing/invalid/bang-call-non-suspending")).diagnostics[0]?.code,
     "not-suspending",
   );
   assert.equal(

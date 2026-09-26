@@ -38,8 +38,8 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (optional !== undefined) {
           if (optionalInner(this.signature.result) === undefined) {
             this.fail(
-              "invalid-optional-propagation",
-              `function '${this.signature.name}' must return an optional type`,
+              "invalid-result-propagation",
+              `optional propagation requires '${this.signature.name}' to return an optional type`,
               expression.span,
             );
           }
@@ -55,7 +55,13 @@ export class FunctionChecker extends ExpressionControlChecker {
         }
         const parts = resultParts(operand.type);
         const target = resultParts(this.signature.result);
-        if (!parts || !target || parts.error !== target.error) {
+        if (!parts)
+          this.fail(
+            "invalid-result-propagation",
+            `? requires an optional or Result operand, found '${operand.type}'`,
+            expression.span,
+          );
+        if (!target || parts.error !== target.error) {
           this.fail(
             "invalid-result-propagation",
             "Result propagation requires a function with a compatible Result error type",

@@ -62,7 +62,7 @@ export function validateProgram(context: ProgramCheckContext): void {
         }
       } else if (sawDefault && !parameter.variadic) {
         diagnostics.push({
-          code: "parameter-default-order",
+          code: "default-order",
           message: `parameter '${parameter.name}' follows a parameter with a default`,
           span: parameter.span,
         });
@@ -97,7 +97,7 @@ export function validateProgram(context: ProgramCheckContext): void {
         }
       } else if (sawDefault) {
         diagnostics.push({
-          code: "enum-default-order",
+          code: "default-order",
           message: `shared enum field '${field.name}' follows a field with a default`,
           span: field.span,
         });

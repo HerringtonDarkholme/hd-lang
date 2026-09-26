@@ -1,0 +1,5 @@
+# test: a tuple binding needs a tuple value
+
+fn run() -> i32:
+    first, second := 1  # diagnostic: type-mismatch
+    first

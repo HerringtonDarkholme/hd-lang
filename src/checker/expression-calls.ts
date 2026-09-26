@@ -1015,7 +1015,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
       const parts = expected && resultParts(expected);
       if (!parts)
         this.fail(
-          "result-constructor-needs-context",
+          "unresolved-generic-placeholder",
           `${expression.callee.name} requires an expected Result type`,
           expression.span,
         );
@@ -1078,7 +1078,7 @@ export abstract class ExpressionCallChecker extends ExpressionOperatorChecker {
         this.fail("argument-count", "println expects one value argument", expression.span);
       this.resolveArgumentMapping(expression, ["value"], "println");
       const operand = this.checkExpression(expression.arguments[0]!);
-      const value = this.displayValue(operand, operand.span);
+      const value = this.displayValue(operand, operand.span, "println");
       const provider = this.resolveProvider("Console", expression.span);
       if (!provider) this.fail("missing-requirement", "println requires Console", expression.span);
       return { kind: "console-print", provider, value, type: "void", span: expression.span };

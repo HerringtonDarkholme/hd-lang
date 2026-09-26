@@ -129,7 +129,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
       clause.bindings.length === 1 ? [info.yieldType] : tupleParts(info.yieldType);
     if (!bindingTypes || bindingTypes.length !== clause.bindings.length)
       this.fail(
-        "for-binding-arity",
+        "type-mismatch",
         `comprehension binding has ${clause.bindings.length} names but '${info.yieldType}' yields ${bindingTypes?.length ?? 1} value${bindingTypes?.length === 1 ? "" : "s"}`,
         clause.span,
       );
@@ -150,8 +150,8 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
       );
     if (info) return { iterable, ...info };
     this.fail(
-      "not-iterable",
-      `type '${iterable.type}' does not implement the MVP iteration protocol`,
+      "unsatisfied-trait-bound",
+      `type '${iterable.type}' does not implement Iterable, required by the comprehension's for clause`,
       expression.span,
     );
   }

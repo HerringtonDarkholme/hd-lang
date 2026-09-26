@@ -257,6 +257,7 @@ export abstract class CallChecker extends StatementChecker {
     variadic: boolean,
     callable: string,
     defaultParameterIndices: ReadonlySet<number> = new Set(),
+    unknownNameCode = "unknown-named-argument",
   ): readonly PlannedArgument[] {
     const fixedCount = variadic ? parameterNames.length - 1 : parameterNames.length;
     const names = expression.argumentNames ?? expression.arguments.map(() => undefined);
@@ -288,11 +289,7 @@ export abstract class CallChecker extends StatementChecker {
         flushVarargElements();
         const parameterIndex = parameterNames.indexOf(name);
         if (parameterIndex < 0) {
-          this.fail(
-            "unknown-named-argument",
-            `${callable} has no parameter named '${name}'`,
-            argument.span,
-          );
+          this.fail(unknownNameCode, `${callable} has no parameter named '${name}'`, argument.span);
         }
         if (assigned.has(parameterIndex)) {
           this.fail(
@@ -574,8 +571,8 @@ export abstract class CallChecker extends StatementChecker {
           mutableInner(checked.type) === undefined
         )
           this.fail(
-            "mutable-bound-required",
-            `generic parameter '${formalGeneric}' requires mutable-root access`,
+            "unsatisfied-trait-bound",
+            `readonly type '${checked.type}' does not satisfy the mut bound on '${formalGeneric}' of '${signature.name}'`,
             source.span,
           );
         const boundedParameters = new Set(signature.genericBounds.map((bound) => bound.parameter));
@@ -776,15 +773,15 @@ export abstract class CallChecker extends StatementChecker {
       if (forwarded) {
         if (!(this.signature.referenceParameters ?? []).includes(forwarded)) {
           this.fail(
-            "missing-trait-implementation",
-            `generic parameter '${forwarded}' does not satisfy Reference`,
+            "unsatisfied-trait-bound",
+            `generic parameter '${forwarded}' does not implement Reference, required by the bound on '${parameter}' of '${signature.name}'`,
             span,
           );
         }
       } else if (!this.isIdentityType(actual)) {
         this.fail(
-          "missing-trait-implementation",
-          `type '${actual}' does not implement Reference`,
+          "unsatisfied-trait-bound",
+          `type '${actual}' does not implement Reference, required by the bound on '${parameter}' of '${signature.name}'`,
           span,
         );
       }
@@ -815,8 +812,8 @@ export abstract class CallChecker extends StatementChecker {
         );
         if (boundIndex < 0) {
           this.fail(
-            "missing-trait-implementation",
-            `generic parameter '${forwarded}' does not satisfy ${bound.traitName}`,
+            "unsatisfied-trait-bound",
+            `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
             span,
           );
         }
@@ -847,8 +844,8 @@ export abstract class CallChecker extends StatementChecker {
             span,
           };
         this.fail(
-          "missing-trait-implementation",
-          `type '${actual}' does not implement ${bound.traitName}`,
+          "unsatisfied-trait-bound",
+          `type '${actual}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
           span,
         );
       }

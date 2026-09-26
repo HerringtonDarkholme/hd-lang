@@ -1,4 +1,4 @@
-# test: numeric, character, and string literal patterns require a catch-all
+# test: a repeated unguarded literal arm is unreachable
 
 fn classify(value: char) -> i32:
     match value:

@@ -1,0 +1,5 @@
+# test: several loop names need tuple elements of that arity
+
+fn bad(values: list[i32]) -> void:
+    for left, right in values:  # diagnostic: type-mismatch
+        pass
