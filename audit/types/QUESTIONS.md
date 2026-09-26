@@ -83,8 +83,14 @@ read it, so prefer explicit, checkable rules and locality.
   M1).** `x.name` looks up fields only; `x.name(args)` looks up methods only;
   a field and a method may share a name; a function-typed field is called as
   `(x.callback)(args)`. A trait adding or renaming a method can never collide
-  with a user's field. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md). Trait-method
-  promotion (E4 versus Rust-style) is still under discussion.
+  with a user's field. See [MEMBER_LOOKUP.md](MEMBER_LOOKUP.md). 
+- **E4 confirmed and TQ-31 settled.** hd picks Go's side of the one-versus-many
+  split: many embedded fields, and embedding carries only members that are
+  unique per type (fields and inherent methods). Trait methods are counted
+  only on the receiver's own type (inherent beats trait; two traits are
+  ambiguous). Trait methods of embedded types are never promoted and never
+  searched: in TQ-31, `page.to_string()` skips `Label`'s `Display` and may
+  reach an inherent `Base.to_string` deeper down.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
