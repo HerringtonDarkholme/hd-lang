@@ -327,7 +327,7 @@ class SuspensionPlanBuilder {
           return this.lowerExpression(
             statement.expression,
             (value) =>
-              this.block(value && value.type !== "void" ? [{ kind: "evaluate", value }] : [], {
+              this.block(value ? [{ kind: "evaluate", value }] : [], {
                 kind: "jump",
                 target: next(),
               }),

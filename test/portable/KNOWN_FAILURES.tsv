@@ -124,5 +124,3 @@ typing/invalid/bool-ordering.hd	MVP reports invalid-binary-operands instead of m
 parse/invalid/header-after-indented-suite.hd	MVP reports expected-newline at line 6 instead of syntax-error at line 4	F-205
 typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
 typing/valid/duplicate-trait-bound.hd	check fails: MVP reports duplicate-trait-bound for a trait listed twice in one bound, which the spec allows	F-205
-runtime/valid/println-suspending-call-argument.hd	run: stdout is empty; a bang call in a println argument drops the output of main!	F-708
-runtime/valid/println-around-suspending-provider-scope.hd	run: stdout is empty; a $.with block with a bang call drops the output of main!	F-709

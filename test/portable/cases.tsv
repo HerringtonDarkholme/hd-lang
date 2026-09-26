@@ -682,3 +682,5 @@ typing/valid/identity-trait-value-operand.hd	type
 runtime/valid/copy-update-shallow.hd	runtime
 runtime/valid/reference-bounded-dynamic-method.hd	runtime
 runtime/valid/fieldless-data-canonical.hd	runtime
+runtime/valid/println-suspending-call-argument.hd	runtime
+runtime/valid/println-around-suspending-provider-scope.hd	runtime
