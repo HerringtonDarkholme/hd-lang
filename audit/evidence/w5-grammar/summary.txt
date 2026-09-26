@@ -1,0 +1,18 @@
+# W5 evidence summary | date 2026-09-25 | base 6697cc2 + W5 working tree
+grammar-check --seed g1 --cases 4000 (same reference parser, old vs new EBNF):
+  old EBNF: 565 syntax-error    new EBNF: 127 syntax-error
+  (audit/evidence/03-fuzz/grammar-check.txt, older parser: 768)
+Remaining 127 by heuristic class (none is F-314 (a) or (b)):
+   68 same-line suite followed inside delimiters by `...`, `:`, `=>`, or a clause
+   27 multi-name `for` inside delimiters (reference lexer drops the header)
+   13 function type followed by `:` in `where`/`annotate` (reference lexer opens a suite)
+   10 other (`for` after `...` or `[` not seen as a header)
+    7 `defer:` (reference lexer does not treat `defer` as a suite header)
+    2 `match` inside delimiters inside a same-line suite
+Acceptance differential (reference parser, old vs new EBNF): 55,873 sources
+  (every tracked .hd file, 16,000 derivations, 30,000 seed mutants, probes).
+  Tracked .hd files: 1 difference (a fuzz example under audit/evidence/03-fuzz).
+  Total: 558 newly rejected. Each has a continuation line starting with `:`
+  after a line whose same-line suites closed, a similar continuation, or
+  `defer: <comma>`. The reference lexer does not open a suite at those colons
+  (or at `defer:`), so it emits an ambiguous NEWLINE/SUITE_END token.

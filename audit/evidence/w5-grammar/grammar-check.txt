@@ -1,0 +1,163 @@
+# command: node --experimental-strip-types audit/fuzz/grammar-check.ts --seed g1 --cases 4000 --show 40 | date 2026-09-25 | base 6697cc2 + W5 working tree
+seed=g1 derivations=4000 syntax-error=127
+    127  syntax-error
+    100  trailing-block-position
+      5  multi-binding-needs-parentheses
+      4  missing-let
+----
+defer : self = if value := false : return
+----
+impl Self ? where mut fn ( ) -> None : Ok
+----
+impl Self where mut fn ( ) -> Self ? : y . Ok . y
+----
+defer : mut fn ! ( ) : return
+return
+return
+return
+----
+defer : return fn ( ) : break
+return
+return
+return
+----
+impl mut Self ? where fn ( ) -> f64 : x
+return
+return
+----
+impl ( mut Self ? , ) ? ? ? where mut fn ! ( ) -> Point : i32
+----
+use super
+defer : _ := map := for Item in true : return
+return
+----
+test "a $x b" : [ for Clock in fn ( ) : return
+=> false ]
+return
+----
+test "" :
+    defer : _ := for Clock in true : return
+return
+return
+----
+_ := ( i64 := mut fn ( ) -> len : return
+... )
+return
+return
+return
+----
+_ := . Display ** [ for Item , value , i32 , list in false : return ]
+----
+impl mut string ? where fn ( ) -> mut Self : mut None [ Ok . len . i64 ]
+----
+impl Self ? where mut fn ( ) -> ( ( $ . Context [ value ] ) ) : Eq
+return
+----
+impl Self where mut fn ( fn ( mut fn ( ) -> self_value ) -> x ) -> T : i64
+----
+pack . map ( for Point , Eq in true : return , value ) = true
+return
+return
+----
+test "" : _ := [ for f in $ . with ( ... false ) : return
+=> false ]
+return
+----
+$ . with ( ... for print in Point := false : return ) : return
+return
+return
+----
+$ . with ( ... while Display := for Item in true : return
+: return ) : return
+----
+( T := list := Item := while Point := false : return
+... )
+return
+return
+return
+----
+let Some = print := ( y , i64 , y , Clock := while if false : return
+: return )
+----
+annotate string := not ( for Ok in fn ( ) : return
+: return , ) for bool : pass
+----
+{ } ( print = if $ . with ( ... true ) : return
+: return ) ? :
+    return
+return
+----
+test "a $x b" : pass [ while $ . with ( ... true ) : return
+: return ] ? ? = false
+----
+impl ( ) where mut fn ! ( ) -> mut fn ( ) -> mut fn ( ) -> self_value : i32
+return
+----
+. bool [ mut fn ( ) :
+    trait y :
+        type Ok
+] ? :
+    return
+return
+return
+----
+"a $x b" ** { } ** { map := for i64 in true : return
+: true }
+return
+return
+return
+----
+@ Clock := + + { len := string := y := mut fn ( ) : return
+: false }
+data Ok : pass
+----
+$ . with ( f = - { if i64 := len := true : return
+: false } ) : return
+return
+return
+----
+test "a $x b" : _ := Some := $ . with ( ... for Some , y in true : return ) : return
+----
+impl mut Self :: Some ? ? ? where fn ( fn ( ) -> f ) -> string : string
+return
+return
+----
+annotate fn ! ( ) -> print :: Clock for Self where Self ? ? : Eq : pass
+return
+return
+----
+use self . Ok
+{ main := T := while main := main := T := true : return
+: true } = true
+----
+@ y := { fn ( f64 ) -> fn ! ( ) -> fn ( ) -> Some : return
+: false }
+data bool : pass
+----
+None := list := not - - { $ . with ( ... true ) : return
+: true }
+return
+return
+return
+----
+( $ . with ( Ok . string = match false :
+    _ => return
+) : return , ) = false
+return
+----
+test "a $x b" : "a $x b" = ( Display := len := string := for x in false : return
+... )
+----
+@ ~ ~ - not [ for main , f in if if false : return
+: return
+=> false ]
+data main : pass
+----
+impl [ reified f ... ] Self where fn ! ( ) -> $ . Context [ Display ] : T
+return
+return
+----
+test "text" :
+    fn i32 ( @ fn ! ( ) : return
+    Point : Clock ) -> x : return
+return

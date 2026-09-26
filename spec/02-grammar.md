@@ -96,21 +96,31 @@ simple_statement = let_statement
                  | expression_statement
                  ;
 
-let_statement = "let", binding_pattern, [ ":", type ], "=", expression ;
+let_statement = "let", binding_pattern, [ ":", type ], "=",
+                closed_expression ;
 
 short_binding_statement = identifier, ",", identifier,
-                          { ",", identifier }, ":=", expression ;
+                          { ",", identifier }, ":=", closed_expression ;
 
-discard_statement = "_", ":=", expression ;
+discard_statement = "_", ":=", closed_expression ;
 
-assignment_statement = postfix_expression, "=", expression ;
+assignment_statement = postfix_expression, "=", closed_expression ;
 
-return_statement = "return", [ expression ] ;
-break_statement = "break", [ expression ] ;
+return_statement = "return", [ closed_expression ] ;
+break_statement = "break", [ closed_expression ] ;
 continue_statement = "continue" ;
-expression_statement = expression ;
+expression_statement = closed_expression ;
 
 binding_pattern = identifier, { ",", identifier } ;
+
+inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
+                 | "_", ":=", inline_expression
+                 | postfix_expression, "=", inline_expression
+                 | "return", [ inline_expression ]
+                 | "break", [ inline_expression ]
+                 | continue_statement
+                 | inline_expression
+                 ;
 ```
 
 The dedicated discard forms make `_ := expression` a statement without making
@@ -127,6 +137,20 @@ what permits `value := if ...`, `let callback = fn ...`, and similar direct
 right-hand-side forms. A suite expression nested inside delimiters remains part
 of its enclosing expression, and the enclosing statement ends normally after
 the closing delimiter.
+
+A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot
+end in a suite, because layout emits no `NEWLINE` after a suite's `SUITE_END`
+or `DEDENT`. Only the `suite_statement` alternatives may end in a suite. Thus
+`y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and
+`return y := if c: 1 else: 2` are syntax errors; parenthesizing the inner
+binding makes them valid.
+
+A same-line suite body is an `inline_statement`. Layout closes a same-line
+suite at the end of its logical line and at any comma at the suite's own
+delimiter depth. The body therefore contains no comma at that depth and no
+indented suite. A multi-name binding such as `a, b := pair` needs an
+indented body or parentheses, as in `(a, b := pair)`. A `let` or `for` over
+several names needs an indented body.
 
 Whether a statement may appear in a particular value-producing block is a
 semantic rule. In particular, `break` is valid only inside a loop, and `break`
@@ -158,9 +182,11 @@ function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
 
 callable_name = identifier, [ "!" ] ;
 
-suite_body = simple_statement, SUITE_END
+suite_body = inline_suite_body
            | NEWLINE, INDENT, statement, { statement }, DEDENT
            ;
+
+inline_suite_body = inline_statement, SUITE_END ;
 
 parameter_clause = "(", [ parameter_list ], ")" ;
 parameter_list = parameter, { ",", parameter }, [ "," ] ;
@@ -198,7 +224,7 @@ data_suite = "pass", SUITE_END
 data_member = { decorator_line }, ( data_field | embedded_field ), NEWLINE
               ;
 
-data_field = [ "pub" ], identifier, ":", type, [ "=", expression ] ;
+data_field = [ "pub" ], identifier, ":", type, [ "=", closed_expression ] ;
 embedded_field = [ "pub" ], named_type ;
 ```
 
@@ -444,6 +470,22 @@ suite_expression = if_expression
                  | context_scope
                  ;
 
+closed_expression = identifier, ":=", closed_expression
+                  | logical_or_expression
+                  ;
+
+inline_expression = identifier, ":=", inline_expression
+                  | inline_suite_expression
+                  | logical_or_expression
+                  ;
+
+inline_suite_expression = inline_if_expression
+                        | inline_for_expression
+                        | inline_while_expression
+                        | inline_closure_expression
+                        | inline_context_scope
+                        ;
+
 logical_or_expression = logical_and_expression,
                         { "or", logical_and_expression } ;
 logical_and_expression = comparison_expression,
@@ -653,9 +695,10 @@ an `if`, `while`, `for`, or `match` header or inside brackets.
 ### Closures
 
 ```ebnf
-closure_expression = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
-                     [ "->", type ], [ requirement_clause ],
-                     ":", suite_body ;
+closure_expression = closure_header, suite_body ;
+inline_closure_expression = closure_header, inline_suite_body ;
+closure_header = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
+                 [ "->", type ], [ requirement_clause ], ":" ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,
@@ -683,6 +726,20 @@ for_expression = "for", binding_pattern, "in", expression, ":", suite_body,
 while_expression = "while", expression, ":", suite_body,
                    [ "else", ":", suite_body ]
                    ;
+
+inline_if_expression = "if", closed_expression, ":", inline_suite_body,
+                       { "else", "if", closed_expression, ":",
+                         inline_suite_body },
+                       [ "else", ":", inline_suite_body ]
+                       ;
+
+inline_for_expression = "for", identifier, "in", closed_expression, ":",
+                        inline_suite_body, [ "else", ":", inline_suite_body ]
+                        ;
+
+inline_while_expression = "while", closed_expression, ":", inline_suite_body,
+                          [ "else", ":", inline_suite_body ]
+                          ;
 
 match_expression = "match", expression, ":", NEWLINE, INDENT,
                    match_arm, { match_arm }, DEDENT
@@ -781,6 +838,8 @@ context_create = "$", ".", "context", "(", context_entries, ")" ;
 context_type = "$", ".", "Context", "[", requirement_expression, "]" ;
 context_scope = "$", ".", "with", "(", context_entries, ")",
                 ":", suite_body ;
+inline_context_scope = "$", ".", "with", "(", context_entries, ")",
+                       ":", inline_suite_body ;
 
 context_entries = context_entry, { ",", context_entry }, [ "," ] ;
 context_entry = requirement_key, "=", expression
@@ -798,7 +857,7 @@ subtraction removes one concrete key from such a row.
 decorated_decl = decorator_line, { decorator_line },
                  [ "pub" ], ( data_decl | enum_decl | function_decl ) ;
 
-decorator_line = "@", ( derive_decorator | expression ), NEWLINE ;
+decorator_line = "@", ( derive_decorator | closed_expression ), NEWLINE ;
 
 derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
@@ -822,7 +881,7 @@ annotation_member_suite = "pass", SUITE_END
                           { metadata_assignment }, DEDENT
                         ;
 
-metadata_assignment = identifier, "=", expression, NEWLINE ;
+metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
 
 facet_annotation_suite = "pass", SUITE_END
                        | NEWLINE, INDENT,

@@ -90,6 +90,9 @@ depth zero the outermost `SUITE_END` replaces that line's `NEWLINE`; it does
 not precede a second terminator. In an implicit continuation, the equivalent
 boundary is a comma or closing delimiter that returns control to the enclosing
 expression, and the same innermost-first sequence is emitted before that token.
+A comma at the delimiter depth where a same-line suite opened always closes
+that suite, including at depth zero, so the suite body cannot contain such a
+comma.
 For example, the body of `fn(name): name.lower()` ends immediately before that
 closure's closing `)`.
 

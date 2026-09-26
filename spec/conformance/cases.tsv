@@ -292,6 +292,10 @@ parse/valid/string-in-interpolation.hd	parse	accept	01-lexical-structure.md#stri
 parse/valid/nested-named-arguments.hd	parse	accept	02-grammar.md#calls-and-arguments
 parse/valid/context-spread-after-binding.hd	parse	accept	11-requirements-and-suspension.md#provider-scopes
 parse/invalid/stray-dollar.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals
+parse/invalid/same-line-suite-comma.hd	parse	reject:syntax-error	02-grammar.md#statements
+parse/invalid/same-line-let-comma.hd	parse	reject:syntax-error	02-grammar.md#statements
+parse/invalid/discard-binding-ends-in-suite.hd	parse	reject:syntax-error	02-grammar.md#statements
+parse/invalid/return-binding-ends-in-suite.hd	parse	reject:syntax-error	02-grammar.md#statements
 parse/valid/raw-string-escaped-quote.hd	parse	accept	01-lexical-structure.md#string-and-character-literals
 parse/invalid/repeated-numeric-separator.hd	parse	reject:invalid-token	01-lexical-structure.md#integer-literals
 runtime/panic/assert-equal-bool-unequal.hd	runtime	panic:assertion-failed	10-modules.md#standard-testing

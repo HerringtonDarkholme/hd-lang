@@ -1,0 +1,6 @@
+# test: a comma at depth zero ends a same-line suite, so a multi-name binding needs an indented body
+fn pair() -> (i32, i32): (1, 2)
+
+fn main() -> void:
+    flag := true
+    if flag: a, b := pair()  # diagnostic: syntax-error
