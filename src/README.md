@@ -30,8 +30,18 @@ npm run hd -- run examples/core.hd
 npm run hd -- trace examples/suspension.hd
 npm run hd -- record examples/suspension.hd
 npm run hd -- replay examples/suspension.hd
+npm run hd -- repl
 npm run check
 ```
+
+`hd repl` starts an interactive session. Each input is a declaration, a
+statement, or an expression; expressions print their value and type. A line
+ending in `:` starts a block, which an empty line ends. The session is kept as
+one program (`:source` shows it): declarations at the top level and statements
+in a synthesized `pub fn main() -> void $ Console`. Every input recompiles and
+reruns that program, skipping console output already shown, so declarations
+cannot see REPL bindings and suspending calls are not available. `:type EXPR`,
+`:reset`, `:help`, and `:quit` are the commands.
 
 The package also exposes `bin/hd.js` as the `hd` executable when installed or
 linked through npm.

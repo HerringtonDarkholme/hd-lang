@@ -15,6 +15,7 @@ import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
+import { runRepl } from "./repl.ts";
 import { resultParts } from "./types.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
@@ -115,12 +116,16 @@ function runRuntimeScenario(
 
 function usage(): never {
   console.error(
-    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE",
+    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE\n       hd repl",
   );
   process.exit(2);
 }
 
 export async function main(args = process.argv.slice(2)): Promise<number> {
+  if (args[0] === "repl") {
+    if (args.length > 1) usage();
+    return runRepl();
+  }
   const command = args.shift();
   let wat = false;
   let entryName = "main";
