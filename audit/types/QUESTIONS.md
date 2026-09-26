@@ -116,8 +116,19 @@ read it, so prefer explicit, checkable rules and locality.
   never searched. (P6, not yet applied) `Type::name` and `x::name` are
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
-  Pending: embedding as an owned part (access follows the container,
-  construction needs mut or fresh values, copy-update copies embedded parts).
+
+- **Owned embedding (OE1 to OE4), not yet applied.** (OE1) Access through an
+  embedded field follows the container: a `mut` outer value gives `mut`
+  access to the embedded part, a readonly one gives readonly; this replaces
+  "embedded fields are readonly edges", so promoted `mut self` methods work
+  on a `mut` receiver. (OE2) Construction: a readonly value may fill an
+  embedded field, but then the constructed value is readonly; a value used
+  as `mut` requires every embedded part to be fresh or `mut` (otherwise
+  `mutable-upgrade`). (OE3) Copy-update stays shallow: the copy shares
+  embedded parts with the original, and the OE2 rule applies to the copy
+  (sharing a part of a readonly original makes the copy readonly). (OE4)
+  Aliasing out is allowed: `ts := post.Timestamps` on a `mut post` yields a
+  `mut` alias; owned means access follows the container, not exclusivity.
 
 - **TQ-4 follow-ups, not yet applied.** When several instantiations fit only
   because of an unsuffixed literal, prefer the literal's default type (`i32`,
