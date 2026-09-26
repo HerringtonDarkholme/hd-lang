@@ -151,6 +151,20 @@ test("syntax coloring classifies hd tokens and keeps the text", () => {
   assert.equal(stripColor(colored), line);
 });
 
+test("syntax coloring treats raw identifiers and contextual words by position", () => {
+  const kind = (line: string, text: string) =>
+    classify(line).find((span) => span.text.includes(text))?.kind;
+  assert.equal(kind("x := token.`type`", "`type`"), "plain");
+  assert.equal(kind("use std.io as io", "use"), "keyword");
+  assert.equal(kind("use std.io as io", "as"), "keyword");
+  assert.equal(kind("use super.shared.{Email}", "super"), "keyword");
+  assert.equal(kind("x := resource.use(f)", "use"), "function");
+  assert.equal(kind("fn pick[reified T]() -> T: T()", "reified"), "keyword");
+  assert.equal(kind("reified := 1", "reified"), "plain");
+  assert.equal(classifyInput("use(1)"), "expression");
+  assert.equal(classifyInput("use std.io"), "declaration");
+});
+
 test("colored REPL output highlights values and errors", async () => {
   const input = new PassThrough();
   const output = new PassThrough();

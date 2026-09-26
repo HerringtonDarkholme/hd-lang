@@ -334,7 +334,13 @@ export type Expression =
       readonly value: Expression;
       readonly span: SourceSpan;
     }
-  | { readonly kind: "list"; readonly elements: readonly Expression[]; readonly span: SourceSpan }
+  | {
+      readonly kind: "list";
+      readonly elements: readonly Expression[];
+      // Per element: true for a suffix spread `xs...`.
+      readonly spreads?: readonly boolean[];
+      readonly span: SourceSpan;
+    }
   | {
       readonly kind: "list-comprehension";
       readonly clauses: readonly ComprehensionClause[];

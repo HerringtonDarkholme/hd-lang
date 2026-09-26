@@ -289,6 +289,9 @@ export function classifyInput(text: string): InputKind {
   const word = /^[A-Za-z_][A-Za-z0-9_]*/.exec(first)?.[0] ?? "";
   if (first.startsWith("@")) return "declaration";
   if (word === "fn") return /^fn!?\s*\(/.test(first) ? "expression" : "declaration";
+  // `use` is contextual: it begins a declaration only before a use root.
+  if (word === "use" && !/^use\s+(?:pkg|std|dep|self|super)\b/.test(first))
+    return hasTopLevelBinding(first.split("\n")[0]!) ? "statement" : "expression";
   if (DECLARATION_WORDS.has(word)) return "declaration";
   if (STATEMENT_WORDS.has(word)) return "statement";
   return hasTopLevelBinding(first.split("\n")[0]!) ? "statement" : "expression";

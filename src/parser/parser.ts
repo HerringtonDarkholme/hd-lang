@@ -70,7 +70,7 @@ class Parser extends ExpressionParser {
             "'export' was replaced by 'pub use'",
             this.current().span,
           );
-        if (this.atText("use") || (this.atText("pub") && this.peek(1).text === "use")) {
+        if (this.atUseDeclaration()) {
           if (doc)
             this.fail(
               "doc-comment-without-target",
@@ -118,6 +118,20 @@ class Parser extends ExpressionParser {
     };
   }
 
+  // `use` begins a use declaration only before a use root
+  // (01-lexical-structure.md#keywords-and-reserved-words).
+  private atUseDeclaration(): boolean {
+    const offset = this.atText("pub") ? 1 : 0;
+    const word = this.peek(offset);
+    const root = this.peek(offset + 1);
+    return (
+      word.text === "use" &&
+      !word.raw &&
+      !root.raw &&
+      ["pkg", "std", "dep", "self", "super"].includes(root.text)
+    );
+  }
+
   parseExpressionFragment(): ExpressionParseResult {
     try {
       const expression = this.parseExpression();
@@ -155,7 +169,7 @@ class Parser extends ExpressionParser {
     if (!this.atText(")")) {
       do {
         const parameterDoc = this.parseDocComments();
-        if (["self", "Self", "super"].includes(this.current().text)) {
+        if (["self", "Self"].includes(this.current().text) && !this.current().raw) {
           this.fail(
             "reserved-name",
             `'${this.current().text}' is reserved and cannot name a parameter`,
@@ -224,6 +238,9 @@ class Parser extends ExpressionParser {
     if (!this.matchText("[")) return { parameters, bounds };
     if (!this.atText("]")) {
       do {
+        // `reified` modifies a parameter only directly before its name; the
+        // prototype erases every generic parameter.
+        if (this.atText("reified") && this.peek(1).kind === "identifier") this.advance();
         const parameter = this.expectKind("identifier", "expected a generic parameter name");
         if (parameters.includes(parameter.text))
           this.fail(
@@ -337,7 +354,12 @@ class Parser extends ExpressionParser {
   protected parseUse(): UseDecl {
     const public_ = this.matchText("pub");
     const start = this.expectText("use").span.start;
-    const parts = [this.expectKind("identifier", "expected a module path after use").text];
+    // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`.
+    const parts = [
+      this.atText("self")
+        ? this.advance().text
+        : this.expectKind("identifier", "expected a module path after use").text,
+    ];
     let grouped = false;
     while (this.matchText(".")) {
       if (this.matchText("{")) {
@@ -1065,20 +1087,33 @@ class Parser extends ExpressionParser {
   }
 
   protected parseSuite(): readonly Statement[] {
-    this.expectText(":");
-    if (this.matchKind("newline")) {
-      this.expectKind("indent", "expected an indented suite");
-      const statements: Statement[] = [];
-      while (!this.atKind("dedent") && !this.atKind("eof")) {
-        if (this.matchKind("newline")) continue;
-        statements.push(this.parseStatement(false));
-      }
-      this.expectKind("dedent", "expected the end of the indented suite");
-      if (statements.length === 0)
-        this.fail("empty-suite", "an indented suite must contain a statement", this.current().span);
-      return statements;
+    const colonIndex = this.index;
+    const colon = this.expectText(":");
+    const first = this.current();
+    if (first.kind !== "newline" && first.span.start.line > colon.span.end.line) {
+      // An indented body nested inside brackets: the lexer emits no layout.
+      this.checkNestedSuiteIndent(colonIndex, first);
+      return [this.parseStatement(true)];
     }
-    return [this.parseStatement(true)];
+    if (!this.atKind("newline")) {
+      this.inlineSuiteDepths.push(this.delimiterDepth(colonIndex));
+      try {
+        return [this.parseStatement(true)];
+      } finally {
+        this.inlineSuiteDepths.pop();
+      }
+    }
+    this.expectKind("newline", "expected a line ending after ':'");
+    this.expectKind("indent", "expected an indented suite");
+    const statements: Statement[] = [];
+    while (!this.atKind("dedent") && !this.atKind("eof")) {
+      if (this.matchKind("newline")) continue;
+      statements.push(this.parseStatement(false));
+    }
+    this.expectKind("dedent", "expected the end of the indented suite");
+    if (statements.length === 0)
+      this.fail("empty-suite", "an indented suite must contain a statement", this.current().span);
+    return statements;
   }
 
   protected parseStatement(topOrInline: boolean): Statement {
@@ -1107,7 +1142,7 @@ class Parser extends ExpressionParser {
         names.push(this.expectKind("identifier", "expected a binding name after ','"));
       const annotation = this.matchText(":") ? this.parseType() : undefined;
       this.expectText("=");
-      const value = this.parseTrailingBlockCall(this.parseExpression());
+      const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
       return names.length === 1
         ? {
@@ -1127,9 +1162,11 @@ class Parser extends ExpressionParser {
             span: { start, end },
           };
     }
+    // A trailing block may complete each right-hand side that accepts a suite
+    // expression (02-grammar.md#statements).
     if (this.matchText("return")) {
       const value =
-        this.atKind("newline") || this.atKind("dedent") ? undefined : this.parseExpression();
+        this.atKind("newline") || this.atKind("dedent") ? undefined : this.parseRightSide();
       const end = value
         ? this.finishExpressionStatement(value, topOrInline)
         : this.finishSimpleStatement(topOrInline);
@@ -1139,7 +1176,7 @@ class Parser extends ExpressionParser {
       const value =
         this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")
           ? undefined
-          : this.parseExpression();
+          : this.parseRightSide();
       const end = value
         ? this.finishExpressionStatement(value, topOrInline)
         : this.finishSimpleStatement(topOrInline);
@@ -1155,7 +1192,7 @@ class Parser extends ExpressionParser {
     }
     if (this.matchText("_")) {
       this.expectText(":=");
-      const value = this.parseExpression();
+      const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
       return { kind: "discard", value, span: { start, end } };
     }
@@ -1192,13 +1229,13 @@ class Parser extends ExpressionParser {
     if (this.atKind("identifier") && this.peek(1).text === "=") {
       const name = this.advance();
       this.advance();
-      const value = this.parseExpression();
+      const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
       return { kind: "assignment", name: name.text, value, span: { start, end } };
     }
     const expression = this.parseTrailingBlockCall(this.parseExpression());
     if (this.matchText("=")) {
-      const value = this.parseExpression();
+      const value = this.parseRightSide();
       const end = this.finishExpressionStatement(value, topOrInline);
       if (expression.kind === "member")
         return { kind: "field-assignment", target: expression, value, span: { start, end } };
@@ -1212,6 +1249,26 @@ class Parser extends ExpressionParser {
     }
     const end = this.finishExpressionStatement(expression, topOrInline);
     return { kind: "expression", expression, span: { start, end } };
+  }
+
+  // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an
+  // expression or trailing block call. A nested binding there cannot end in a
+  // suite unless parenthesized (02-grammar.md#statements).
+  private parseRightSide(): Expression {
+    const value = this.parseTrailingBlockCall(this.parseExpression());
+    if (value.kind !== "binding-expression") return value;
+    let inner: Expression = value;
+    while (inner.kind === "binding-expression") inner = inner.value;
+    const last = this.peek(-1);
+    const parenthesized = last.text === ")" && last.span.end.offset > value.span.end.offset;
+    const suiteKinds = ["if", "for", "while", "match", "closure", "provider-with"];
+    if (!parenthesized && suiteKinds.includes(inner.kind))
+      this.fail(
+        "syntax-error",
+        "a nested binding that ends in a suite must be parenthesized",
+        value.span,
+      );
+    return value;
   }
 
   protected parseTrailingBlockCall(callee: Expression): Expression {
@@ -1259,7 +1316,11 @@ class Parser extends ExpressionParser {
     const previous = this.peek(-1);
     if (this.matchKind("newline")) return previous.span.end;
     if (this.atKind("dedent") || this.atKind("eof")) return previous.span.end;
-    if (_topOrInline && (this.atText(")") || this.atText(",") || this.atText("]")))
+    // A same-line suite also ends before the `else` of its conditional or loop.
+    if (
+      _topOrInline &&
+      (this.atText(")") || this.atText(",") || this.atText("]") || this.atText("else"))
+    )
       return previous.span.end;
     this.fail(
       "syntax-error",

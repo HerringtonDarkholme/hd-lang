@@ -52,6 +52,8 @@ const PRIMITIVE_TYPES = new Set([
 ]);
 // Contextual words that are keywords only in declaration or statement heads.
 const CONTEXTUAL_KEYWORDS = new Set(["test", "with"]);
+// A use declaration: `use` or `pub use` followed by a use root.
+const USE_DECLARATION = /^\s*(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b/;
 
 export interface Span {
   readonly text: string;
@@ -96,6 +98,14 @@ export function classify(line: string): Span[] {
       index += match[0].length;
       continue;
     }
+    if (character === "`") {
+      // A raw identifier is always a plain name, whatever word it encloses.
+      const raw = /^`[\p{ID_Continue}_]+`/u.exec(line.slice(index));
+      const end = raw ? index + raw[0].length : index + 1;
+      push(line.slice(index, end), raw ? "plain" : "operator");
+      index = end;
+      continue;
+    }
     if (isIdentifierStart(character)) {
       let end = index + 1;
       while (
@@ -105,7 +115,7 @@ export function classify(line: string): Span[] {
       )
         end += 1;
       const word = line.slice(index, end);
-      push(word, wordClass(word, line, end));
+      push(word, wordClass(word, line, index, end));
       index = end;
       continue;
     }
@@ -122,13 +132,25 @@ export function classify(line: string): Span[] {
   return spans;
 }
 
-function wordClass(word: string, line: string, end: number): TokenClass {
+function wordClass(word: string, line: string, start: number, end: number): TokenClass {
   if (LITERAL_WORDS.has(word)) return "literal";
   if (KEYWORDS.has(word)) return "keyword";
   if (CONTEXTUAL_KEYWORDS.has(word) && /^\s*(?:"|:)/.test(line.slice(end))) return "keyword";
+  if (contextualKeyword(word, line, start, end)) return "keyword";
   if (PRIMITIVE_TYPES.has(word) || /^\p{Lu}/u.test(word)) return "type";
   if (/^\s*(?:\(|\[[^\]]*\]\s*\()/.test(line.slice(end))) return "function";
   return "plain";
+}
+
+// `use`, `super`, and `as` in a use declaration, and `reified` before a
+// generic parameter name, are keywords (01-lexical-structure.md#keywords-and-reserved-words).
+function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
+  if (word === "use")
+    return USE_DECLARATION.test(line) && /^\s*(?:pub\s+)?$/.test(line.slice(0, start));
+  if (word === "super" || word === "as") return USE_DECLARATION.test(line);
+  if (word === "reified")
+    return /[[,]\s*$/.test(line.slice(0, start)) && /^\s+[\p{ID_Start}_]/u.test(line.slice(end));
+  return false;
 }
 
 function scanChar(line: string, start: number): number {
