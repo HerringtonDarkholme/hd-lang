@@ -1,0 +1,11 @@
+runtime/valid/propagation-in-closure-targets-closure.hd	test crashes: optional ? inside a closure emits WAT that Binaryen cannot parse	W7-new
+runtime/valid/private-main-is-ordinary-function.hd	test runs a non-pub main as an entry point (assertion-failed); only pub main is an entry point	L4
+runtime/valid/multiple-inline-closures.hd	parse error expected-newline inside a parenthesized multiline closure argument	F-252
+runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (generic-function-value-needs-arguments)	W7-new
+typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
+typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with expected-token instead of reporting duplicate-binding	F-252
+parse/invalid/wildcard-use.hd	MVP reports expected-token instead of syntax-error (D7)	F-205
+parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	W7-new
+parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	W7-new
+typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
+runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type list[Any])	F-255

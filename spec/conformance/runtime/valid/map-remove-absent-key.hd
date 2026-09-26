@@ -1,0 +1,12 @@
+# test: removing an absent key returns nil and leaves the map's entries unchanged
+# expect: test
+use std.testing.assert_equal
+
+test "absent removal yields nil":
+    let values: mut map[string, i32] = {"a": 1, "b": 2}
+    let absent: i32? = nil
+    assert_equal(values.remove("missing"), absent, reason="absent key yields nil")
+    assert_equal(values, {"a": 1, "b": 2}, reason="no entry was removed")
+    let one: i32? = 1
+    assert_equal(values.remove("a"), one, reason="a present key yields its value")
+    assert_equal(values.len(), 1, reason="the present key was removed")

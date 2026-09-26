@@ -1,0 +1,14 @@
+# test: a bang call in a defer suite is rejected; constructing a cold suspension is not
+fn ready!() -> i32:
+    1
+
+fn bang_cleanup!() -> i32:
+    defer:
+        _ := ready!()  # diagnostic: suspending-defer
+    2
+
+fn cold_cleanup!() -> i32:
+    defer:
+        let pending: mut Suspend[i32] = ready()
+        pending.cancel()
+    2

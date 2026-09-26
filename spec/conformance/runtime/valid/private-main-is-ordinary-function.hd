@@ -1,0 +1,14 @@
+# test: a top-level main that is not pub is an ordinary function and is not run as an entry point
+# Spec 10 Executable Entry Point: "A top-level `main` that is not public is an ordinary function and is
+# not an entry point." Spec conformance README, Runtime Execution: only entry points and test blocks
+# execute, so the failing assertion in this main never runs.
+use std.testing.{assert, assert_equal}
+
+fn main() -> void:
+    assert(false, reason="a non-pub main must not run as an entry point")
+
+fn answer() -> i32:
+    42
+
+test "the module's test block runs":
+    assert_equal(answer(), 42, reason="ordinary function call")

@@ -1,0 +1,7 @@
+# test: iterating readonly list[mut User] yields mut User, so element fields may be assigned
+data User:
+    name: string
+
+fn rename_all(users: list[mut User]) -> void:
+    for user in users:
+        user.name = "Grace"

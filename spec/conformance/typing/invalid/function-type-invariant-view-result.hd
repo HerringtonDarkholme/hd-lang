@@ -1,0 +1,12 @@
+# test: function types are invariant; a mut result is not weakened to a readonly result for a function value
+# Spec 07 Function Types And Values: "Function types are invariant in parameter and result types. ...
+# ordinary numeric or reference-view coercions do not create a different function value type."
+data User:
+    name: string
+
+fn fresh() -> mut User:
+    User { name: "Ada" }
+
+fn readonly_maker() -> string:
+    let f: fn() -> User = fresh  # diagnostic: type-mismatch
+    f().name

@@ -1,0 +1,8 @@
+# test: changing list shape through an alias in a helper invalidates the running for-loop iterator
+fn grow(values: mut list[i32]) -> void:
+    values.append(0)
+
+test "helper growth invalidates the loop iterator":
+    let values: mut list[i32] = [1, 2]
+    for value in values:  # panic: iterator-invalidated
+        grow(values)

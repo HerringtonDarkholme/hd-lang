@@ -1,0 +1,29 @@
+# test: Any conversion keeps the identity of a canonical variant and of a shared-data construction
+# expect: test
+use std.testing.assert
+
+enum Color:
+    Red
+    Green
+
+enum StatusCode(i32):
+    Ok -> StatusCode(200)
+    NotFound -> StatusCode(404)
+
+test "Any conversion of a canonical variant keeps its identity":
+    let first: Any = Color.Red
+    let second: Any = Color.Red
+    let other: Any = Color.Green
+    assert(first is second, reason="a payload-free variant is canonical and is not boxed per conversion")
+    assert(not (first is other), reason="different variants differ")
+
+test "a shared-data variant has allocation identity per construction":
+    first := StatusCode.NotFound
+    second := StatusCode.NotFound
+    assert(not (first is second), reason="a variant that stores shared constructor data is allocated per construction")
+    assert(first.0 == 404, reason="shared data readable")
+    let erased: Any = first
+    let erased_again: Any = first
+    let erased_other: Any = second
+    assert(erased is erased_again, reason="Any conversion of a composite preserves its identity")
+    assert(not (erased is erased_other), reason="distinct constructions stay distinct after erasure")

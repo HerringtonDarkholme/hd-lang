@@ -1,0 +1,8 @@
+# test: growth through a mutable alias invalidates an iterator obtained from a readonly view
+test "growth through another alias invalidates the iterator":
+    let values: mut list[i32] = [1, 2]
+    let view: list[i32] = values
+    let iterator: mut Iterator[i32] = view.iter()
+    _ := iterator.next()
+    values.append(3)
+    _ := iterator.next()  # panic: iterator-invalidated

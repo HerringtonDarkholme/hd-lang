@@ -1,0 +1,11 @@
+# test: an i32 read back from an erased position still overflows at i32 width
+fn pass_through[T](value: T) -> T:
+    value
+
+fn bump() -> i32:
+    values := [2147483647]
+    boxed := pass_through(values[0])
+    boxed + 1  # panic: integer-overflow
+
+pub fn main() -> void:
+    _ := bump()

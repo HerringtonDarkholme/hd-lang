@@ -1,0 +1,8 @@
+# test: an exhausted list iterator still panics on next after the list grows
+test "a shape change invalidates an exhausted iterator":
+    let values: mut list[i32] = [1]
+    let iterator: mut Iterator[i32] = values.iter()
+    _ := iterator.next()
+    _ := iterator.next()
+    values.append(3)
+    _ := iterator.next()  # panic: iterator-invalidated

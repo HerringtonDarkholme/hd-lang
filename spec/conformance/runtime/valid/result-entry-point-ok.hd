@@ -1,0 +1,3 @@
+# test: a public main returning Result[void, E] with E: Display is a runnable entry point
+pub fn main() -> Result[void, ConsoleError]:
+    Ok()

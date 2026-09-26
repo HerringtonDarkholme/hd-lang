@@ -1,0 +1,18 @@
+# test: primitives satisfy a user-declared PartialEq bound; == dispatches to their standard implementations
+use std.testing.assert
+
+fn same[T: PartialEq](left: T, right: T) -> bool:
+    left == right
+
+test "primitive equality through a generic bound":
+    assert(same(1, 1), reason="equal i32")
+    assert(not same(1, 2), reason="unequal i32")
+    assert(same("ada", "ada"), reason="equal string")
+    assert(not same("ada", "grace"), reason="unequal string")
+    assert(same(true, true), reason="equal bool")
+    assert(same('x', 'x'), reason="equal char")
+    assert(same(2.5, 2.5), reason="equal f64")
+
+test "NaN stays unequal through a generic bound":
+    let nan: f64 = 0.0 / 0.0
+    assert(not same(nan, nan), reason="IEEE 754 equality survives generic dispatch")

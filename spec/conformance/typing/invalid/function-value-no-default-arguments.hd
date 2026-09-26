@@ -1,0 +1,10 @@
+# test: calling through a function value does not inherit the declaration's defaults
+# Spec 07 Function Types And Values: "Parameter names and default values are not part of a function
+# value type. Calling through a function value therefore uses positional arguments only and does not
+# inherit declaration defaults."
+fn greet(name: string, punctuation: string = "!") -> string:
+    name + punctuation
+
+fn call() -> string:
+    let f: fn(string, string) -> string = greet
+    f("Ada")  # diagnostic: argument-count

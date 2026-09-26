@@ -1,0 +1,3 @@
+# test: a module with no entry point and no test blocks executes nothing and succeeds
+fn helper() -> i32:
+    return 1

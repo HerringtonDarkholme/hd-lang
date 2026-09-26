@@ -1,0 +1,8 @@
+# test: replace substitutes non-overlapping matches from left to right
+# expect: test
+use std.testing.assert_equal
+
+test "non-overlapping left-to-right replacement":
+    assert_equal("aaa".replace("aa", "b"), "ba", reason="first match wins, no overlap")
+    assert_equal("abab".replace("ab", ""), "", reason="deletion")
+    assert_equal("abc".replace("x", "y"), "abc", reason="no match leaves the string unchanged")

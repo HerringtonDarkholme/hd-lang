@@ -1,0 +1,9 @@
+typing/invalid/result-ok-payload-type-mismatch.hd	check accepts an Ok payload that does not match the Result success type	F-304
+runtime/valid/discard-propagated-void-result.hd	test crashes: Binaryen cannot parse the WAT for `_ := f()?` on Result[void, E]	F-305
+runtime/valid/no-entry-point-no-tests.hd	test exits 1 without a located report: "program has no main function or test blocks"	F-306
+runtime/valid/result-entry-point-ok.hd	test exits 1 without a located report: "main has no runnable export"	F-307
+parse/valid/binding-same-line-if-else.hd	parse rejects `y := if c: 1 else: 2` with expected-newline	F-309
+runtime/valid/f64-nan-ordering.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
+runtime/valid/f64-ordering-operators.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
+runtime/valid/tuple-ordering-nan-unordered.hd	test crashes: f64 relational operators produce WAT Binaryen cannot parse	F-160
+runtime/valid/generic-partial-eq-bound-primitives.hd	check fails: i32 and f64 do not satisfy a user-declared T: PartialEq bound (missing-trait-implementation)	F-500

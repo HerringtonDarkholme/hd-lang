@@ -1,0 +1,3 @@
+# test: top-level bindings cannot be public
+# Spec 10 Name Resolution Across Packages: "Top-level bindings cannot be public."
+pub answer := 42  # diagnostic: syntax-error

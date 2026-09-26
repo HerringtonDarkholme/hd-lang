@@ -1,0 +1,3 @@
+# test: an Ok payload must be assignable to the expected Result success type
+fn parse() -> Result[i32, string]:
+    Ok("text")  # diagnostic: type-mismatch

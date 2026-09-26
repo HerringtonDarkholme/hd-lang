@@ -1,0 +1,20 @@
+# test: a generic function referred to as a value is instantiated from the expected function type or explicit arguments
+# Spec 07 Function Types And Values: "Referring to one as a value must instantiate every generic
+# parameter, either from an expected monomorphic function type or with a complete explicit
+# type-argument list. ... The resulting value has an ordinary monomorphic function type."
+use std.testing.assert_equal
+
+fn identity[T](value: T) -> T:
+    value
+
+fn apply(f: fn(i32) -> i32, value: i32) -> i32:
+    f(value)
+
+test "instantiated from the expected type":
+    let f: fn(string) -> string = identity
+    assert_equal(f("hi"), "hi", reason="T solved as string")
+    assert_equal(apply(identity, 42), 42, reason="T solved as i32 from the parameter type")
+
+test "instantiated with explicit arguments":
+    g := identity[i32]
+    assert_equal(g(7), 7, reason="explicit instantiation")

@@ -1,0 +1,15 @@
+runtime/valid/nan-equality-through-generics.hd	check fails: f64 and list[f64] do not satisfy T: PartialEq (missing-trait-implementation)	F-500
+runtime/valid/signed-zero-and-infinity-through-generics.hd	check fails: f64 does not satisfy T: PartialEq or T: Display (missing-trait-implementation)	F-500
+runtime/valid/nan-ordering-composites.hd	check fails: f64 and list[f64] do not satisfy T: PartialOrd; direct f64 ordering also crashes codegen	F-500
+runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
+runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
+runtime/valid/boxed-primitive-identity.hd	check fails: i32 cannot become a Display trait value; unknown-type Any	F-350
+runtime/valid/composite-identity-and-views.hd	check fails: is rejects mut T operands; unknown-type Any	F-353
+runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
+runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-352
+runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (expected-token)	MVP-scope
+typing/invalid/default-later-parameter-earlier-twin.hd	reports impure-parameter-default instead of binding-not-yet-visible	F-356
+runtime/valid/copy-update-shallow.hd	check fails: is rejects mut Child operands (identity-requires-references)	F-353
+runtime/valid/multibyte-scalar-strings.hd	check fails: string.replace is unsupported (unknown-method)	MVP-scope
+runtime/valid/trim-unicode-white-space.hd	test fails: trim removes U+FEFF and keeps U+0085 (assertion-failed)	F-355
+runtime/valid/replace-non-overlapping.hd	check fails: string.replace is unsupported (unknown-method)	MVP-scope

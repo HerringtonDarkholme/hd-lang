@@ -1,0 +1,51 @@
+# test: operands and elements straddling bang calls evaluate left to right
+# expect: test
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn note(log: mut Log, tag: string, value: i32) -> i32:
+    log.text = log.text + tag
+    value
+
+fn child!(log: mut Log, tag: string, value: i32) -> i32:
+    log.text = log.text + tag
+    value
+
+fn outer!(log: mut Log) -> i32:
+    log.text = log.text + "<"
+    first := child!(log, "a", 1)
+    log.text = log.text + "|"
+    second := child!(log, "b", 2)
+    log.text = log.text + ">"
+    first + second
+
+test "binary operands around a bang call":
+    let log: mut Log = Log { text: "" }
+    result := note(log, "L", 1) + child!(log, "C", 20) * note(log, "R", 3)
+    assert_equal(log.text, "LCR", reason="left operand, child, right operand")
+    assert_equal(result, 61, reason="multiplication binds tighter")
+
+test "list and tuple elements around bang calls":
+    let log: mut Log = Log { text: "" }
+    values := [child!(log, "1", 1), note(log, "2", 2), child!(log, "3", 3)]
+    pair := (note(log, "4", 4), child!(log, "5", 5))
+    assert_equal(log.text, "12345", reason="elements evaluate in order")
+    assert_equal(values, [1, 2, 3], reason="element values preserved")
+    assert_equal(pair.1, 5, reason="tuple element preserved")
+
+test "statements around child calls keep source order":
+    let log: mut Log = Log { text: "" }
+    result := outer!(log)
+    assert_equal(log.text, "<a|b>", reason="each child completes before the next statement")
+    assert_equal(result, 3, reason="locals survive suspension points")
+
+test "interpolation segments around a bang call":
+    let log: mut Log = Log { text: "" }
+    x := "x"
+    y := "y"
+    z := "z"
+    text := "${note(log, x, 1)}-${child!(log, y, 2)}-${note(log, z, 3)}"
+    assert_equal(text, "1-2-3", reason="segments render in order")
+    assert_equal(log.text, "xyz", reason="segments evaluate in order")

@@ -1,0 +1,8 @@
+# test: a closure body cannot reassign a field through a captured readonly root
+data User:
+    name: string
+
+fn rename(user: User) -> void:
+    change := fn() -> void:
+        user.name = "Grace"  # diagnostic: readonly-root
+    change()

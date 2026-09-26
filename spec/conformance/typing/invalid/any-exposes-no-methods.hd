@@ -1,0 +1,14 @@
+# test: a value of type Any exposes no type-specific methods
+# Spec 09 Any: "As a value type, `Any` erases the concrete type and exposes no type-specific methods."
+trait Named:
+    fn name(self) -> string
+
+data User:
+    label: string
+
+impl Named for User:
+    fn name(self) -> string:
+        self.label
+
+fn erased_name(value: Any) -> string:
+    value.name()  # diagnostic: unknown-method

@@ -1,0 +1,15 @@
+# test: a direct mut field read through a readonly root cannot fill a mut parameter; the mutable twin accepts
+data Child:
+    name: string
+
+data Parent:
+    child: mut Child
+
+fn rename(child: mut Child) -> void:
+    child.name = "renamed"
+
+fn readonly_parent_weakens_field(parent: Parent) -> void:
+    rename(parent.child)  # diagnostic: readonly-argument-to-mutable-parameter
+
+fn mutable_parent_keeps_field(parent: mut Parent) -> void:
+    rename(parent.child)

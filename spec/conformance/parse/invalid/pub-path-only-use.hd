@@ -1,0 +1,4 @@
+# test: only the grouped use form accepts a pub prefix
+# Spec 10 Use Forms: "Only the grouped form accepts a `pub` prefix. Public facades expose selected
+# declarations rather than module namespace aliases."
+pub use std.testing.assert_equal  # diagnostic: syntax-error

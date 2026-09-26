@@ -1,0 +1,20 @@
+# test: (r - Logger) removes only Logger; the remaining Clock key still reaches the caller (a public function without a clause has the empty row)
+trait Logger:
+    fn write(self, message: string) -> void
+
+trait Clock
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn quiet[r](callback: fn() -> void $ r) -> void $ (r - Logger):
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn both() -> void $ Logger + Clock:
+    $.use(Logger).write("hi")
+
+pub fn caller() -> void:
+    quiet(both)  # diagnostic: missing-requirement

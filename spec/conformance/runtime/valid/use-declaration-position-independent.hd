@@ -1,0 +1,11 @@
+# test: a use declaration is visible to the whole module regardless of its textual position
+# Spec 03 Use Declarations: "Use declarations are resolved before declarations are type checked. Their
+# textual position does not limit their visibility".
+fn check_answer() -> void:
+    assert_equal(40 + 2, 42, reason="assert_equal is used before its use declaration")
+
+test "a later use declaration is visible earlier":
+    check_answer()
+    assert(true, reason="grouped names are visible too")
+
+use std.testing.{assert, assert_equal}

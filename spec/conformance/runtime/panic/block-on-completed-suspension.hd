@@ -1,0 +1,12 @@
+# test: driving a completed suspension again through a helper reports suspension-invalid-state
+use std.task.block_on
+
+fn ready!() -> i32: 42
+
+fn drive(pending: mut Suspend[i32]) -> i32:
+    block_on(pending)  # panic: suspension-invalid-state
+
+pub fn main() -> void:
+    let pending: mut Suspend[i32] = ready()
+    _ := drive(pending)
+    _ := drive(pending)

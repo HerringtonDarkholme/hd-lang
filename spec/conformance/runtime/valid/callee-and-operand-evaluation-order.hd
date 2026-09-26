@@ -1,0 +1,34 @@
+# test: a call evaluates the callable first, then arguments left to right; binary operands evaluate left to right
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn note(log: mut Log, label: string, value: i32) -> i32:
+    log.text = log.text + label
+    value
+
+fn combine(first: i32, second: i32, third: i32) -> i32:
+    first * 100 + second * 10 + third
+
+fn pick(log: mut Log) -> fn(i32) -> i32:
+    log.text = log.text + "f"
+    fn(value: i32) -> i32: value
+
+test "positional arguments evaluate left to right":
+    let log: mut Log = Log { text: "" }
+    total := combine(note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
+    assert_equal(log.text, "abc", reason="positional order")
+    assert_equal(total, 123, reason="positional binding")
+
+test "callee evaluates before arguments":
+    let log: mut Log = Log { text: "" }
+    value := pick(log)(note(log, "x", 7))
+    assert_equal(log.text, "fx", reason="callee first")
+    assert_equal(value, 7, reason="call result")
+
+test "binary operands evaluate left to right":
+    let log: mut Log = Log { text: "" }
+    value := note(log, "l", 40) - note(log, "r", 2)
+    assert_equal(log.text, "lr", reason="operand order")
+    assert_equal(value, 38, reason="operand result")

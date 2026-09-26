@@ -1,0 +1,25 @@
+# test: constructing a cold suspension needs its requirements; a lexical provider twin accepts
+trait Tag:
+    fn name(self) -> string
+
+data FixedTag:
+    value: string
+
+impl Tag for FixedTag:
+    fn name(self) -> string:
+        self.value
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn tagged!() -> string $ Tag:
+    current()
+
+pub fn rejected_construction() -> void:
+    let pending: mut Suspend[string] = tagged()  # diagnostic: missing-requirement
+    pending.cancel()
+
+pub fn lexical_construction() -> void:
+    let pending: mut Suspend[string] = $.with(Tag=FixedTag { value: "x" }):
+        tagged()
+    pending.cancel()

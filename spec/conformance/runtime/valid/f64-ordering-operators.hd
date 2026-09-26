@@ -1,0 +1,34 @@
+# test: the four relational operators order f64 values numerically
+use std.testing.assert
+
+fn less(left: f64, right: f64) -> bool: left < right
+fn less_equal(left: f64, right: f64) -> bool: left <= right
+fn greater(left: f64, right: f64) -> bool: left > right
+fn greater_equal(left: f64, right: f64) -> bool: left >= right
+
+test "less than":
+    assert(less(1.0, 2.0), reason="1.0 < 2.0")
+    assert(not less(2.0, 1.0), reason="not 2.0 < 1.0")
+    assert(not less(2.0, 2.0), reason="not 2.0 < 2.0")
+    assert(less(-1.5, 0.25), reason="negative before positive")
+
+test "less than or equal":
+    assert(less_equal(1.0, 2.0), reason="1.0 <= 2.0")
+    assert(less_equal(2.0, 2.0), reason="2.0 <= 2.0")
+    assert(not less_equal(3.0, 2.0), reason="not 3.0 <= 2.0")
+
+test "greater than":
+    assert(greater(2.0, 1.0), reason="2.0 > 1.0")
+    assert(not greater(1.0, 2.0), reason="not 1.0 > 2.0")
+    assert(not greater(2.0, 2.0), reason="not 2.0 > 2.0")
+
+test "greater than or equal":
+    assert(greater_equal(2.0, 1.0), reason="2.0 >= 1.0")
+    assert(greater_equal(2.0, 2.0), reason="2.0 >= 2.0")
+    assert(not greater_equal(1.0, 2.0), reason="not 1.0 >= 2.0")
+
+test "literal operands":
+    assert(1.0 < 2.0, reason="1.0 < 2.0")
+    assert(2.0 > 1.0, reason="2.0 > 1.0")
+    assert(1.0 <= 1.0, reason="1.0 <= 1.0")
+    assert(1.0 >= 1.0, reason="1.0 >= 1.0")

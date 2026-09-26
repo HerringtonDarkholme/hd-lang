@@ -1,0 +1,18 @@
+# test: return inside a trailing block returns from the generated callback, not the enclosing function
+# Spec 07 Trailing Callback Blocks: "`return` inside the block returns from the generated callback, not
+# from the enclosing function."
+use std.testing.assert_equal
+
+fn twice(callback: fn() -> i32) -> i32:
+    callback() + callback()
+
+fn compute(flag: bool) -> i32:
+    total := twice:
+        if flag:
+            return 20
+        1
+    total + 2
+
+test "return leaves only the callback":
+    assert_equal(compute(true), 42, reason="each callback call returns 20; the enclosing function continues")
+    assert_equal(compute(false), 4, reason="fallthrough value")

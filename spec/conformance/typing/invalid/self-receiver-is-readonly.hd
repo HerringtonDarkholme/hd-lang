@@ -1,0 +1,12 @@
+# test: a self receiver is readonly access, so a self method cannot reassign the receiver's fields
+# Spec 07 Methods And Receivers: "`self` is readonly access to the receiver. `mut self` is shorthand for
+# `self: mut Self`." Spec 04 Mutable Paths: "A readonly `T` reference cannot reassign its fields."
+data Counter:
+    value: i32
+
+impl Counter:
+    fn bump(mut self) -> void:
+        self.value = self.value + 1
+
+    fn reset(self) -> void:
+        self.value = 0  # diagnostic: readonly-root

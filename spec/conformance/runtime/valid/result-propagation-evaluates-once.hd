@@ -1,0 +1,31 @@
+# test: postfix ? on a Result evaluates its operand once; Err returns early, Ok yields the payload
+# Spec 05 Propagation: "for `Result[T, E]`, `Ok(value)` produces the declared `T` ...; `Err(error)`
+# immediately returns a compatible `Err` from the nearest function." and "The operand is evaluated once."
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn check(log: mut Log, value: i32) -> Result[i32, string]:
+    log.text = log.text + "c"
+    if value < 0:
+        Err("negative")
+    else:
+        Ok(value)
+
+fn doubled(log: mut Log, value: i32) -> Result[i32, string]:
+    checked := check(log, value)?
+    log.text = log.text + "d"
+    Ok(checked * 2)
+
+test "Ok continues with the payload":
+    let log: mut Log = Log { text: "" }
+    let expected: Result[i32, string] = Ok(42)
+    assert_equal(doubled(log, 21), expected, reason="payload continues")
+    assert_equal(log.text, "cd", reason="operand evaluated once, then the continuation")
+
+test "Err returns early":
+    let log: mut Log = Log { text: "" }
+    let expected: Result[i32, string] = Err("negative")
+    assert_equal(doubled(log, -1), expected, reason="the error is returned")
+    assert_equal(log.text, "c", reason="operand evaluated once, continuation skipped")

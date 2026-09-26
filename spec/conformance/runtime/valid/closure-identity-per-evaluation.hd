@@ -1,0 +1,13 @@
+# test: each evaluation of a closure expression creates one identity
+# expect: test
+use std.testing.{assert, assert_equal}
+
+test "closures from separate loop iterations are distinct":
+    let makers: mut list[fn() -> i32] = []
+    for index in [1, 2]:
+        makers.append(fn() -> i32: index)
+    first := makers[0]
+    second := makers[1]
+    assert(not (first is second), reason="one identity per evaluation")
+    assert(first is makers[0], reason="aliases share identity")
+    assert_equal(first() + second(), 3, reason="each iteration captured its own binding")

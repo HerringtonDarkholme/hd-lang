@@ -1,0 +1,29 @@
+# test: method-call syntax evaluates the receiver before the ordinary arguments
+# Spec 07 Methods And Receivers: "Method-call syntax evaluates the receiver first and then ordinary
+# arguments. It is semantically equivalent to selecting the resolved method and supplying the receiver
+# as its first argument".
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+data Counter:
+    base: i32
+
+impl Counter:
+    fn plus(self, first: i32, second: i32) -> i32:
+        self.base + first + second
+
+fn counter(log: mut Log) -> Counter:
+    log.text = log.text + "r"
+    Counter { base: 100 }
+
+fn note(log: mut Log, label: string, value: i32) -> i32:
+    log.text = log.text + label
+    value
+
+test "receiver, then arguments left to right":
+    let log: mut Log = Log { text: "" }
+    total := counter(log).plus(note(log, "a", 10), note(log, "b", 1))
+    assert_equal(log.text, "rab", reason="receiver first, then arguments")
+    assert_equal(total, 111, reason="receiver supplied as the first argument")

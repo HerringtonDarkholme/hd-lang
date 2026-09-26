@@ -1,0 +1,15 @@
+# test: every non-optional value type converts to Any
+# Spec 09 Any: "`Any` is the universal empty trait. Every non-optional value type implements it
+# automatically."
+use std.testing.assert_equal
+
+data User:
+    name: string
+
+enum Status:
+    Active
+    Blocked
+
+test "primitive, string, data, enum, tuple, and list values convert to Any":
+    let values: list[Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
+    assert_equal(values.len(), 6, reason="six erased values")

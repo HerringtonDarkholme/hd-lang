@@ -1,0 +1,30 @@
+# test: a directly declared member hides a promoted member of the same name
+# Spec 03 Member Resolution: "Member access first considers members declared directly by the receiver
+# type, then members promoted from embedded data types. A directly declared member hides promoted
+# members of the same name." and "The same promotion rule applies to fields and methods."
+use std.testing.assert_equal
+
+data Base:
+    label: string
+
+impl Base:
+    fn describe(self) -> string:
+        "base"
+
+data Wrapper:
+    Base
+    label: string
+
+impl Wrapper:
+    fn describe(self) -> string:
+        "wrapper"
+
+test "direct field hides promoted field":
+    wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
+    assert_equal(wrapper.label, "outer", reason="direct field wins")
+    assert_equal(wrapper.Base.label, "inner", reason="qualified access reaches the embedded field")
+
+test "direct method hides promoted method":
+    wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
+    assert_equal(wrapper.describe(), "wrapper", reason="direct method wins")
+    assert_equal(wrapper.Base.describe(), "base", reason="qualified call reaches the embedded method")

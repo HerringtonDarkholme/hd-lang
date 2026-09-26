@@ -1,0 +1,20 @@
+# test: pattern bindings in different match arms may reuse the same spelling
+# Spec 03 Matches: "Every match arm has an independent child scope. Names bound by an arm's pattern are
+# visible in that arm's optional guard and body only" and "Pattern bindings in different arms may reuse
+# the same spelling."
+use std.testing.assert_equal
+
+enum Shape:
+    Circle(radius: i32)
+    Square(side: i32)
+
+fn size(figure: Shape) -> i32:
+    match figure:
+        Shape.Circle(n) if n > 10 => n * 3
+        Shape.Circle(n) => n * 2
+        Shape.Square(n) => n * 4
+
+test "each arm binds its own n":
+    assert_equal(size(Shape.Circle(20)), 60, reason="guarded arm sees its binding")
+    assert_equal(size(Shape.Circle(5)), 10, reason="second arm rebinds n")
+    assert_equal(size(Shape.Square(3)), 12, reason="third arm rebinds n")

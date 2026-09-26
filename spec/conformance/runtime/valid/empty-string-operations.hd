@@ -1,0 +1,24 @@
+# test: empty-string operations follow the prelude string contract
+# expect: test
+use std.testing.{assert, assert_equal}
+
+test "empty string basics":
+    empty := ""
+    assert_equal(empty.len(), 0, reason="no scalars")
+    assert_equal(empty.trim(), "", reason="trim of empty")
+    assert_equal(empty.lower(), "", reason="lower of empty")
+    assert(empty.starts_with(""), reason="empty prefix of empty")
+    assert("abc".starts_with(empty), reason="empty prefix of anything")
+    assert(not empty.starts_with("a"), reason="nonempty prefix of empty")
+    assert_equal(empty + empty, "", reason="concatenation")
+    assert(empty < "a", reason="empty sorts first")
+    assert_equal("[$empty]", "[]", reason="interpolating empty")
+
+test "empty separator and empty input":
+    let no_pieces: list[string] = []
+    assert_equal("".split(""), no_pieces, reason="empty input with empty separator is an empty list")
+
+test "split keeps empty pieces between and around separators":
+    assert_equal(",a,,b,".split(","), ["", "a", "", "b", ""], reason="leading, inner, trailing empties")
+    assert_equal("abc".split(","), ["abc"], reason="no separator present")
+    assert_equal(",".split(","), ["", ""], reason="separator only")

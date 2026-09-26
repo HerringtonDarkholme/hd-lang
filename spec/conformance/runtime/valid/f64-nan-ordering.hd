@@ -1,0 +1,18 @@
+# test: an unordered comparison makes all four relational operators false
+use std.testing.assert
+
+test "NaN is unordered against a number":
+    let nan: f64 = 0.0 / 0.0
+    assert(not (nan < 1.0), reason="NaN < 1.0 is false")
+    assert(not (nan <= 1.0), reason="NaN <= 1.0 is false")
+    assert(not (nan > 1.0), reason="NaN > 1.0 is false")
+    assert(not (nan >= 1.0), reason="NaN >= 1.0 is false")
+    assert(not (1.0 < nan), reason="1.0 < NaN is false")
+    assert(not (1.0 >= nan), reason="1.0 >= NaN is false")
+
+test "NaN is unordered against itself":
+    let nan: f64 = 0.0 / 0.0
+    assert(not (nan < nan), reason="NaN < NaN is false")
+    assert(not (nan <= nan), reason="NaN <= NaN is false")
+    assert(not (nan > nan), reason="NaN > NaN is false")
+    assert(not (nan >= nan), reason="NaN >= NaN is false")

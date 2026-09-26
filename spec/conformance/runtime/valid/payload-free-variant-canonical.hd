@@ -1,0 +1,37 @@
+# test: payload-free enum values are canonical; payload values have allocation identity
+# expect: test
+use std.testing.assert
+
+enum Color:
+    Red
+    Green
+
+enum Shape:
+    Dot
+    Circle(radius: i32)
+
+fn same_ref[T: Reference](left: T, right: T) -> bool:
+    left is right
+
+fn red() -> Color:
+    .Red
+
+test "two occurrences of one payload-free variant are identical":
+    first := Color.Red
+    second := Color.Red
+    assert(first is second, reason="canonical variant identity")
+    assert(not (Color.Red is Color.Green), reason="different variants differ")
+    assert(same_ref(first, red()), reason="through a return and a generic")
+    let shorthand: Color = .Red
+    assert(shorthand is first, reason="contextual shorthand yields the same value")
+    values := [Color.Red]
+    assert(values[0] is second, reason="through a list element")
+    let dot: Shape = Shape.Dot
+    assert(dot is Shape.Dot, reason="payload-free variant of a payload enum")
+
+test "payload variants are allocated per construction":
+    first := Shape.Circle(1)
+    second := Shape.Circle(1)
+    alias := first
+    assert(not (first is second), reason="stored payloads have allocation identity")
+    assert(first is alias, reason="alias shares identity")

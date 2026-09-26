@@ -1,0 +1,13 @@
+# test: composite ordering stops at the first unordered element, so a NaN head makes the tuples unordered
+use std.testing.assert
+
+test "NaN inside a tuple is unordered":
+    let nan: f64 = 0.0 / 0.0
+    assert(not ((nan, 1) < (1.0, 2)), reason="unordered head: < is false")
+    assert(not ((nan, 1) <= (1.0, 2)), reason="unordered head: <= is false")
+    assert(not ((nan, 1) > (1.0, 2)), reason="unordered head: > is false")
+    assert(not ((nan, 1) >= (1.0, 2)), reason="unordered head: >= is false")
+
+test "an ordered head decides before a later NaN":
+    let nan: f64 = 0.0 / 0.0
+    assert((1.0, nan) < (2.0, 0.0), reason="the first unequal element decides")

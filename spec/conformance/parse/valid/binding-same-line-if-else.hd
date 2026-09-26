@@ -1,0 +1,4 @@
+# test: `y := if c: 1 else: 2` is a statement (chapter 02, statements)
+fn pick(c: bool) -> i32:
+    y := if c: 1 else: 2
+    return y

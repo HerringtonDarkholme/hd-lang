@@ -1,0 +1,9 @@
+# test: is rejects string operands, because string is a primitive type
+data User:
+    name: string
+
+fn string_identity(left: string, right: string) -> bool:
+    left is right  # diagnostic: identity-requires-references
+
+fn composite_identity(left: User, right: User) -> bool:
+    left is right

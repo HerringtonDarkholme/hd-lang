@@ -1,0 +1,13 @@
+# test: a tuple binding expression evaluates to the original tuple value
+# Spec 05 Binding Expressions: "For tuple binding, the right side must have the same arity. The value of
+# the whole binding expression is the original tuple value."
+use std.testing.assert_equal
+
+fn pair() -> (i32, string):
+    (42, "answer")
+
+test "the binding expression yields the tuple":
+    whole := (number, word := pair())
+    assert_equal(number, 42, reason="first element bound")
+    assert_equal(word, "answer", reason="second element bound")
+    assert_equal(whole, (42, "answer"), reason="whole expression is the original tuple")

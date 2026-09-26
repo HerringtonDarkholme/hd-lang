@@ -1,0 +1,9 @@
+# test: function types are invariant; numeric widening does not convert a function value's result type
+# Spec 07 Function Types And Values: "Function types are invariant in parameter and result types. ...
+# ordinary numeric or reference-view coercions do not create a different function value type."
+fn narrow(value: i32) -> i32:
+    value
+
+fn widened() -> i64:
+    let f: fn(i32) -> i64 = narrow  # diagnostic: type-mismatch
+    f(1)

@@ -1,0 +1,44 @@
+# test: readonly collections and covariant data weaken mut U to U without copying
+# expect: test
+use std.testing.{assert, assert_equal}
+
+data User:
+    name: string
+
+data Producer[+T]:
+    produce: fn() -> T
+
+fn total_length(users: list[User]) -> i32:
+    let total: i32 = 0
+    for user in users:
+        total = total + user.name.len()
+    total
+
+fn value_length(users: map[string, User]) -> i32:
+    let total: i32 = 0
+    for key, user in users:
+        total = total + key.len() + user.name.len()
+    total
+
+fn as_readonly(users: list[User]) -> list[User]:
+    users
+
+test "readonly list[mut User] weakens to list[User] and aliases the same list":
+    let users: mut list[mut User] = [User { name: "ab" }]
+    let view: list[mut User] = users
+    assert_equal(total_length(view), 2, reason="weakened view reads elements")
+    let first: mut User = users[0]
+    first.name = "abcd"
+    assert_equal(total_length(view), 4, reason="the view observes later mutation")
+    assert(as_readonly(view) is users, reason="weakening preserves identity")
+
+test "readonly map[string, mut User] weakens to map[string, User]":
+    let users: mut map[string, mut User] = {"k": User { name: "abc" }}
+    let view: map[string, mut User] = users
+    assert_equal(value_length(view), 4, reason="covariant value weakening")
+
+test "Producer[mut User] weakens to Producer[User]":
+    let producer: Producer[mut User] = Producer[mut User] { produce: fn() -> mut User: User { name: "p" } }
+    let readonly: Producer[User] = producer
+    make := readonly.produce
+    assert_equal(make().name, "p", reason="field read through the converted view")

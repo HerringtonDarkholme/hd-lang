@@ -1,0 +1,36 @@
+# test: an assignment whose right-hand side completes abruptly performs no store
+# Spec 05 Expression Categories: "Assignment evaluates the place before the right-hand side, then
+# performs one store. ... If any step completes abruptly, no store occurs."
+use std.testing.assert_equal
+
+data Box:
+    value: i32
+
+fn lookup(value: i32?) -> i32?:
+    value
+
+fn set_field(target: mut Box, value: i32?) -> i32?:
+    target.value = lookup(value)?
+    target.value
+
+fn set_element(target: mut list[i32], value: i32?) -> i32?:
+    target[0] = lookup(value)?
+    target[0]
+
+test "field assignment with a propagating right side stores nothing":
+    let target: mut Box = Box { value: 7 }
+    let absent: i32? = nil
+    assert_equal(set_field(target, nil), absent, reason="nil propagates")
+    assert_equal(target.value, 7, reason="no store occurred")
+
+test "indexed assignment with a propagating right side stores nothing":
+    let target: mut list[i32] = [7, 8]
+    let absent: i32? = nil
+    assert_equal(set_element(target, nil), absent, reason="nil propagates")
+    assert_equal(target, [7, 8], reason="no store occurred")
+
+test "a completed right side stores once":
+    let target: mut Box = Box { value: 7 }
+    let stored: i32? = 9
+    assert_equal(set_field(target, 9), stored, reason="value stored")
+    assert_equal(target.value, 9, reason="store occurred")

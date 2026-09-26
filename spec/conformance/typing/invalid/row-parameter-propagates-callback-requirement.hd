@@ -1,0 +1,18 @@
+# test: a row parameter carries the callback's requirement to the caller, whose empty row lacks it (a public function without a clause has the empty row)
+trait Logger:
+    fn write(self, message: string) -> void
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn quiet[r](callback: fn() -> void $ r) -> void $ r:
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn log_something() -> void $ Logger:
+    $.use(Logger).write("hi")
+
+pub fn caller() -> void:
+    quiet(log_something)  # diagnostic: missing-requirement

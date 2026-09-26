@@ -1,0 +1,2 @@
+# test: a top-level let initializer must be assignable to its annotated type
+let value: i32 = "text"  # diagnostic: type-mismatch

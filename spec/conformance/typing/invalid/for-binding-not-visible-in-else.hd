@@ -1,0 +1,9 @@
+# test: a for binding is not visible in the loop's else suite
+# Spec 03 Loops: "A `for` binding is local to the loop body ... It is not visible in the loop's `else`
+# suite or after the loop."
+fn last(values: list[i32]) -> i32:
+    for value in values:
+        if value > 10:
+            break value
+    else:
+        value  # diagnostic: unknown-name

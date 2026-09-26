@@ -1,0 +1,21 @@
+# test: a readonly spread cannot supply a direct mut field to a mut result; generic fields can
+data Child:
+    name: string
+
+data Direct:
+    child: mut Child
+
+data Box[T]:
+    value: T
+
+fn direct_copy(source: Direct) -> mut Direct:
+    Direct { ...source }  # diagnostic: mutable-upgrade
+
+fn direct_readonly_copy(source: Direct) -> Direct:
+    Direct { ...source }
+
+fn direct_replaced_copy(source: Direct) -> mut Direct:
+    Direct { ...source, child: Child { name: "new" } }
+
+fn generic_copy(source: Box[mut Child]) -> mut Box[mut Child]:
+    Box[mut Child] { ...source }

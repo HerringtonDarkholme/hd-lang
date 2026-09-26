@@ -1,0 +1,34 @@
+# test: each primitive, tuple, or optional conversion to a trait value or Any is a fresh box
+# expect: test
+use std.testing.assert
+
+fn to_display(value: i32) -> Display:
+    value
+
+fn same_ref[T: Reference](left: T, right: T) -> bool:
+    left is right
+
+test "aliases of one converted primitive share identity":
+    let first: Display = 5
+    alias := first
+    assert(first is alias, reason="an alias shares the box")
+    assert(same_ref(first, alias), reason="Reference-bounded generic agrees")
+
+test "repeated conversions of equal primitives are distinct":
+    let first: Display = 5
+    let second: Display = 5
+    assert(not (first is second), reason="each conversion allocates a box")
+    assert(not (to_display(1) is to_display(1)), reason="conversion through a return is fresh too")
+    let left: Any = 1
+    let right: Any = 1
+    assert(not (left is right), reason="Any boxes are fresh")
+
+test "tuples and strings box freshly":
+    let pair: Any = (1, 2)
+    let same_pair: Any = (1, 2)
+    alias := pair
+    assert(pair is alias, reason="alias shares the tuple box")
+    assert(not (pair is same_pair), reason="equal tuples box separately")
+    let text: Display = "hd"
+    let same_text: Display = "hd"
+    assert(not (text is same_text), reason="equal strings box separately")

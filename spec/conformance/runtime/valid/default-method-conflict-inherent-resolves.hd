@@ -1,0 +1,32 @@
+# test: an inherent method resolves a default-method conflict for dot calls, and Trait::method selects one implementation
+# Spec 09 Default-Method Conflicts: "The type may define an inherent method to provide its ordinary
+# dot-call behavior, or the caller may use `Trait::method(value, ...)` to select one implementation."
+use std.testing.assert_equal
+
+trait Loud:
+    fn describe(self) -> string:
+        "loud"
+
+trait Quiet:
+    fn describe(self) -> string:
+        "quiet"
+
+data Speaker:
+    name: string
+
+impl Loud for Speaker
+
+impl Quiet for Speaker
+
+impl Speaker:
+    fn describe(self) -> string:
+        "inherent"
+
+test "dot call uses the inherent method":
+    speaker := Speaker { name: "Ada" }
+    assert_equal(speaker.describe(), "inherent", reason="inherent method provides dot-call behavior")
+
+test "qualified calls select each trait default":
+    speaker := Speaker { name: "Ada" }
+    assert_equal(Loud::describe(speaker), "loud", reason="Loud default")
+    assert_equal(Quiet::describe(speaker), "quiet", reason="Quiet default")

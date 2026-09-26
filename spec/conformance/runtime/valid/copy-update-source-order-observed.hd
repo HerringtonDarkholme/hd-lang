@@ -1,0 +1,33 @@
+# test: the spread evaluates first, then explicit fields in source order
+# expect: test
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+data Record:
+    first: i32
+    second: i32
+    third: i32
+
+fn note(log: mut Log, tag: string, value: i32) -> i32:
+    log.text = log.text + tag
+    value
+
+fn source(log: mut Log, value: Record) -> Record:
+    log.text = log.text + "s"
+    value
+
+test "copy-update order":
+    let log: mut Log = Log { text: "" }
+    original := Record { first: 1, second: 2, third: 3 }
+    copy := Record { ...source(log, original), third: note(log, "t", 30), first: note(log, "f", 10) }
+    assert_equal(log.text, "stf", reason="spread, then explicit fields in source order")
+    assert_equal(copy.first + copy.second + copy.third, 42, reason="10 + 2 + 30")
+    assert_equal(original.first, 1, reason="the source is not mutated")
+
+test "data literal fields evaluate in source order":
+    let log: mut Log = Log { text: "" }
+    record := Record { third: note(log, "3", 3), first: note(log, "1", 1), second: note(log, "2", 2) }
+    assert_equal(log.text, "312", reason="source order, not declaration order")
+    assert_equal(record.second, 2, reason="fields bind by name")

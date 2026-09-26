@@ -1,0 +1,34 @@
+# test: tuple and list elements, and an index receiver before its index, evaluate left to right exactly once
+# Spec 05 Evaluation Order: "subexpressions are evaluated from left to right and exactly once. This rule
+# applies to tuple and collection elements, data fields, call arguments, operands, and indexing expressions."
+# Spec 05 Indexing: "`receiver[index]` evaluates the receiver, then the index".
+use std.testing.assert_equal
+
+data Log:
+    text: string
+
+fn note(log: mut Log, label: string, value: i32) -> i32:
+    log.text = log.text + label
+    value
+
+fn items(log: mut Log) -> list[i32]:
+    log.text = log.text + "r"
+    [10, 20, 30]
+
+test "tuple elements evaluate left to right":
+    let log: mut Log = Log { text: "" }
+    triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
+    assert_equal(log.text, "abc", reason="tuple element order")
+    assert_equal(triple.2, 3, reason="tuple element value")
+
+test "list elements evaluate left to right":
+    let log: mut Log = Log { text: "" }
+    values := [note(log, "x", 1), note(log, "y", 2), note(log, "z", 3)]
+    assert_equal(log.text, "xyz", reason="list element order")
+    assert_equal(values, [1, 2, 3], reason="list element values")
+
+test "an index receiver evaluates before its index":
+    let log: mut Log = Log { text: "" }
+    value := items(log)[note(log, "i", 1)]
+    assert_equal(log.text, "ri", reason="receiver, then index, each once")
+    assert_equal(value, 20, reason="indexed value")

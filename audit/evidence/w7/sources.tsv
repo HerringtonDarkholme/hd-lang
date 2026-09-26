@@ -1,0 +1,141 @@
+source	result	detail
+audit/evidence/03-fuzz/findings/F-300-ref-nested-function-type.hd	skipped	reference-parser finding; covered by W4 fixtures in spec/conformance/parse/
+audit/evidence/03-fuzz/findings/F-301-ref-unicode-escape.hd	skipped	reference-parser finding; covered by W4 fixtures in spec/conformance/parse/
+audit/evidence/03-fuzz/findings/F-302-ref-context-entry-order.hd	skipped	reference-parser finding; covered by W4 fixtures in spec/conformance/parse/
+audit/evidence/03-fuzz/findings/F-303-ref-lone-dollar.hd	skipped	reference-parser finding; covered by W4 (parse/invalid/stray-dollar.hd)
+audit/evidence/03-fuzz/findings/F-304-impl-result-payload-unchecked.hd	added	typing/invalid/result-ok-payload-type-mismatch.hd (type-mismatch is now a general inventoried code; the unused non-pub main was dropped)
+audit/evidence/03-fuzz/findings/F-305-impl-discard-void-try-wat.hd	added	runtime/valid/discard-propagated-void-result.hd (converted to a runtime case: a test block checks the Ok(1) result)
+audit/evidence/03-fuzz/findings/F-306-impl-run-without-main.hd	added	runtime/valid/no-entry-point-no-tests.hd (the `run` action is not in the command contract; under README Runtime Execution, `test` of a module with no entry point and no tests succeeds)
+audit/evidence/03-fuzz/findings/F-307-impl-result-main.hd	added	runtime/valid/result-entry-point-ok.hd
+audit/evidence/03-fuzz/findings/F-308-impl-private-main-requirement.hd	skipped	duplicate: identical source already indexed as typing/valid/nonpublic-main-ordinary.hd (L4: a non-pub main is an ordinary function)
+audit/evidence/03-fuzz/findings/F-309-impl-same-line-else.hd	added	parse/valid/binding-same-line-if-else.hd (02-grammar statements: `y := if c: 1 else: 2` is a statement; the statement-position form is already in parse/valid/nested-layout.hd)
+audit/evidence/03-fuzz/findings/F-310-impl-colon-line.hd	skipped	code not settled: no postfix expression precedes the `:`, and there is no trailing block, so neither trailing-block-position (07: only one trailing block) nor syntax-error is named by the spec for this line; the reference parser reports syntax-error
+audit/evidence/03-fuzz/findings/F-311-impl-continuation-suite-indent.hd	skipped	code not settled: 01 requires the first body line to be indented past the header, but names no code; unexpected-indentation means "indented where layout does not open a suite", which does not describe an under-indented body
+audit/evidence/03-fuzz/findings/F-312-impl-decorator-misreported.hd	skipped	duplicate: parse/valid/decorators.hd covers a top-level @derive
+audit/evidence/03-fuzz/findings/F-313-spec-uninventoried-code.hd	added	typing/invalid/top-level-let-annotation-type-mismatch.hd (the spec gap is closed by D7; no existing fixture covered a top-level annotated let)
+audit/evidence/03-fuzz/findings/F-314-spec-inline-suite-comma.hd	skipped	duplicate: D11 decided layout wins; parse/invalid/same-line-suite-comma.hd is the same case
+audit/evidence/03-fuzz/findings/F-315-impl-local-data.hd	skipped	duplicate: typing/valid/local-types.hd declares local data, enum, trait, and type inside a function
+audit/evidence/03-fuzz/findings/F-316-impl-pub-inherent-method.hd	skipped	duplicate: parse/valid/declarations.hd uses pub fn in an inherent impl
+audit/probes/gaps/g01a-readonly-closure-capture.hd	added	typing/invalid/readonly-closure-capture-mutation.hd
+audit/probes/gaps/g01b-readonly-loop-element.hd	added	typing/invalid/readonly-loop-element-mutation.hd (06 for-loops: iteration does not grant mutable element access because the root is mutable)
+audit/probes/gaps/g01c-control-mut-loop-element.hd	added	typing/valid/mutable-loop-element-mutation.hd
+audit/probes/gaps/g02-argument-evaluation-order.hd	added	runtime/valid/callee-and-operand-evaluation-order.hd (named-argument test dropped: blind a1-named-arguments-source-order covers it; receiver-before-index is covered by evaluation-order-elements-and-indexing.hd)
+audit/probes/gaps/g03a-defer-on-cancellation.hd	skipped	duplicate: runtime/valid/cancellation-lifo-across-three-frames.hd (from blind a2-cancel-nested-frames-order) checks LIFO within a frame and innermost-frame-first
+audit/probes/gaps/g03b-control-no-defer.hd	skipped	negative control designed to fail; the fixture format has no expected-failure outcome
+audit/probes/gaps/g04a-second-drive-via-helper.hd	added	runtime/panic/block-on-completed-suspension.hd
+audit/probes/gaps/g04b-drive-after-cancel.hd	added	runtime/panic/block-on-cancelled-suspension.hd (existing drive-cancelled-suspension.hd covers the bang-call driver; this covers block_on)
+audit/probes/gaps/g04c-control-cancel-after-complete.hd	skipped	duplicate: runtime/valid/cancel-cold-and-completed-suspension.hd (from blind a2-cancel-cold-and-completed) cancels a completed suspension twice. The probe as written was also wrong under ch11: it called block_on in a test block, which is an active driver, so block_on panics with suspension-nested-driver
+audit/probes/gaps/g05a-row-subtraction.hd	skipped	duplicate: runtime/valid/row-subtraction-provider-restoration.hd
+audit/probes/gaps/g05b-control-no-subtraction.hd	added	typing/invalid/row-parameter-propagates-callback-requirement.hd (adapted for round-2 I6: caller made pub so an omitted clause still means the empty row)
+audit/probes/gaps/g05c-subtraction-keeps-other-keys.hd	added	typing/invalid/row-subtraction-keeps-other-keys.hd (adapted for I6: caller made pub)
+audit/probes/gaps/g06a-nan-ordering.hd	added	runtime/valid/f64-nan-ordering.hd (extended: NaN on either side and against itself; partly overlaps blind nan-ordering-composites.hd, kept because it uses no generic bound, so it isolates F-160 from F-500)
+audit/probes/gaps/g06b-control-float-ordering.hd	added	runtime/valid/f64-ordering-operators.hd (extended to all four operators, true and false cases; merged with coordinator/f64-lt.hd)
+audit/probes/gaps/g06c-nan-tuple-ordering.hd	added	runtime/valid/tuple-ordering-nan-unordered.hd (all four operators; plus an ordered head deciding before a later NaN)
+audit/probes/gaps/g06d-control-float-equality.hd	skipped	duplicate: runtime/valid/assert-equal-float-edge-values.hd asserts NaN != NaN and not (NaN == NaN)
+audit/probes/gaps/g07a-iterator-invalidated-via-helper.hd	added	runtime/panic/for-iterator-invalidated-via-helper.hd (moved from module top level into a test block)
+audit/probes/gaps/g07b-control-replacement-keeps-iterator.hd	skipped	duplicate: blind a7-shape-versus-value-changes (list replacement during for is observed)
+audit/probes/gaps/g07c-map-insert-during-for.hd	skipped	duplicate: blind a7-for-map-insert-panics
+audit/probes/gates/s3-cancel-order-3-frames.hd	skipped	duplicate: runtime/valid/cancellation-cleanup-order.hd checks innermost-first order across three frames with defers
+audit/probes/gates/s3-cancel-lifo-within-frame.hd	skipped	duplicate: runtime/valid/cancellation-lifo-across-three-frames.hd (from blind a2-cancel-nested-frames-order) has two defers in the innermost frame and three frames
+audit/probes/gates/s3-cancel-unreached-defer.hd	added	runtime/valid/cancellation-skips-unreached-defer.hd (06: reaching the statement registers the suite; only registered suites run)
+audit/probes/gates/s3-cancel-order-negative-control.hd	skipped	negative control designed to fail
+audit/probes/gates/s3-nested-provider-capture.hd	skipped	not in the W7 source list
+audit/probes/coordinator/f64-lt.hd	added	merged into runtime/valid/f64-ordering-operators.hd (a returned bool main is not observable; checked in test blocks)
+audit/probes/coordinator/prim-partialeq.hd	added	runtime/valid/generic-partial-eq-bound-primitives.hd (i32, string, bool, char, f64, and NaN through a user-declared T: PartialEq bound)
+audit/probes/compiler/init-dispatch-miss.hd	skipped	duplicate: L1 fixtures typing/invalid/init-read-through-generic-bound.hd, typing/invalid/init-read-through-trait-value.hd, and runtime/valid/init-read-through-trait-dispatch.hd split this probe one error per fixture
+audit/blind/fixtures/a1-named-arguments-source-order.hd	added	runtime/valid/named-arguments-evaluate-in-source-order.hd
+audit/blind/fixtures/a1-short-circuit-and-conditional.hd	added	runtime/valid/short-circuit-and-conditional-evaluation.hd
+audit/blind/fixtures/a1-bang-call-arguments-before-body.hd	added	runtime/valid/bang-call-arguments-before-body.hd
+audit/blind/fixtures/a1-operands-across-suspension.hd	added	runtime/valid/operands-across-suspension-order.hd
+audit/blind/fixtures/a1-assignment-evaluation-order.hd	added	runtime/valid/assignment-place-before-value.hd (AMB-18 read as settled: ch05 place rules take the receiver as any mutable composite expression, and "a field assignment evaluates its receiver")
+audit/blind/fixtures/a1-map-literal-and-comprehension-order.hd	added	runtime/valid/map-literal-and-comprehension-order.hd
+audit/blind/fixtures/a1-propagation-before-cleanup.hd	added	runtime/valid/propagation-before-cleanup.hd
+audit/blind/fixtures/a2-cancel-nested-frames-order.hd	added	runtime/valid/cancellation-lifo-across-three-frames.hd (AMB-06 settled: README holds the pending function at every poll; may overlap the gates probes s3-cancel-order-3-frames and s3-cancel-lifo-within-frame)
+audit/blind/fixtures/a2-cancel-loop-and-branch-scopes.hd	added	runtime/valid/cancellation-loop-and-branch-scopes.hd
+audit/blind/fixtures/a2-cancel-provider-scope-cleanup.hd	added	runtime/valid/cancellation-provider-scope-cleanup.hd
+audit/blind/fixtures/a2-cancel-cold-and-completed.hd	added	runtime/valid/cancel-cold-and-completed-suspension.hd
+audit/blind/fixtures/a2-drive-cancelled-suspension-panics.hd	skipped	duplicate of existing runtime/panic/drive-cancelled-suspension.hd (same program shape and panic)
+audit/blind/fixtures/a2-defer-cancels-active-ancestor.hd	added	runtime/panic/defer-cancels-active-ancestor.hd (differs from reentrant-cancel.hd: the cancel runs from a defer suite; AMB-05 moot, panic line not judged)
+audit/blind/fixtures/a2-defer-transitive-block-on.hd	added	typing/invalid/defer-transitive-block-on-plain-twin.hd (near defer-block-on.hd; kept for the plain-helper twin, which must not be diagnosed)
+audit/blind/fixtures/a2-defer-suspending-vs-cold.hd	added	typing/invalid/defer-bang-call-cold-twin.hd (kept for the cold-construction twin, which must not be diagnosed)
+audit/blind/fixtures/a3-nested-provider-restoration.hd	added	runtime/valid/nested-provider-restoration.hd
+audit/blind/fixtures/a3-subtraction-restores-provider.hd	added	runtime/valid/row-subtraction-restores-provider.hd
+audit/blind/fixtures/a3-row-union-and-order.hd	added	runtime/valid/requirement-row-union-and-order.hd
+audit/blind/fixtures/a3-missing-requirement-sites.hd	added	typing/invalid/missing-requirement-cold-construction.hd (split: only the construction-site marker kept; the callback-site marker duplicates row-inference-unavailable-provider.hd. Offending function made pub so its empty row is written: under round-2 I6 a non-pub fn without a clause infers its row and would not be rejected)
+audit/blind/fixtures/a3-provider-capture-timing.hd	added	runtime/valid/provider-capture-timing.hd
+audit/blind/fixtures/a3-generic-key-collision.hd	added	typing/invalid/declared-generic-key-lexical-collision.hd (declared Repo[T] vs lexical Repo[User], the ch11 example; existing fixtures cover only lexical-lexical)
+audit/blind/fixtures/a3-subtract-absent-two-keys.hd	skipped	duplicate of typing/warnings/requirement-subtract-absent.hd; its extra present-key twin cannot be judged because warnings never fail a case
+audit/blind/fixtures/a4-nan-equality-through-erasure.hd	added	runtime/valid/nan-equality-through-generics.hd
+audit/blind/fixtures/a4-signed-zero-and-infinity.hd	added	runtime/valid/signed-zero-and-infinity-through-generics.hd
+audit/blind/fixtures/a4-nan-ordering.hd	added	runtime/valid/nan-ordering-composites.hd (may overlap gaps probe g06a/g06c)
+audit/blind/fixtures/a4-i32-extremes-through-erasure.hd	added	runtime/valid/i32-extremes-through-generics.hd
+audit/blind/fixtures/a4-erased-i32-overflow-panics.hd	added	runtime/panic/generic-i32-overflow.hd
+audit/blind/fixtures/a4-i64-u64-precision-through-erasure.hd	added	runtime/valid/i64-u64-precision-through-generics.hd
+audit/blind/fixtures/a4-f32-width-through-erasure.hd	added	runtime/valid/f32-display-width-through-generics.hd (AMB-09 read as settled: ch04 "shortest round-trip decimal digits" round-trips to the value's own width)
+audit/blind/fixtures/a4-expect-result-min-through-optional.hd	added	runtime/valid/i32-minimum-through-generic-optional.hd (converted: expect-result replaced by assert_equal in a test block; function no longer pub)
+audit/blind/fixtures/a5-boxed-primitive-identity.hd	added	runtime/valid/boxed-primitive-identity.hd
+audit/blind/fixtures/a5-composite-identity-and-views.hd	added	runtime/valid/composite-identity-and-views.hd (mut/readonly and map vs mut map operands compatible per L7)
+audit/blind/fixtures/a5-fieldless-variant-canonical.hd	added	runtime/valid/payload-free-variant-canonical.hd
+audit/blind/fixtures/a5-fieldless-variant-erased-identity.hd	added	runtime/valid/variant-identity-through-any.hd (updated to L5: shared-data variant StatusCode.NotFound now asserts distinct identity per construction; AMB-07 settled by ch05, only primitive/tuple/optional conversions box; added Any-identity checks for the shared-data construction)
+audit/blind/fixtures/a5-identity-rejections.hd	added	typing/invalid/optional-identity.hd, typing/invalid/string-identity.hd (split one marker per fixture, each with an accepting twin; the f64 marker dropped as a duplicate of primitive-identity.hd)
+audit/blind/fixtures/a5-closure-identity-per-evaluation.hd	added	runtime/valid/closure-identity-per-evaluation.hd
+audit/blind/fixtures/a6-generic-permission-preserved.hd	added	runtime/valid/generic-mut-argument-preserved.hd
+audit/blind/fixtures/a6-readonly-root-generic-path.hd	skipped	depends on AMB-14 (direct mutation path users[0].name = x through a readonly root with a mut generic argument): ch04 Mutable Paths requires "a mutable root expression" while its table allows list[mut User] element mutation; not settled
+audit/blind/fixtures/a6-readonly-rejections.hd	added	typing/invalid/short-binding-readonly-root.hd, typing/invalid/readonly-parent-mut-field-argument.hd (split one marker per fixture with twins; the mutable-upgrade marker duplicates inferred-mutable-upgrade.hd (L6) and the mutable-receiver-required marker duplicates readonly-map-remove.hd, so both dropped)
+audit/blind/fixtures/a6-closure-capture-permission.hd	skipped	depends on AMB-16 (plain closure passing a captured mut T to a mut T parameter: mutable-capture-requires-mut-fn or readonly-argument-to-mutable-parameter); ch07 does not settle the code; the mut self case is already covered by plain-closure-mutable-capture.hd
+audit/blind/fixtures/a6-closure-capture-runtime.hd	added	runtime/valid/mut-closure-capture-runtime.hd
+audit/blind/fixtures/a6-covariant-weakening-runtime.hd	added	runtime/valid/covariant-readonly-weakening.hd (adapted: the source converted mut list[mut User] to list[User] in one step, combining permission weakening with variance, which OPEN_ISSUES lists as confirmed deferred; now weakens to a readonly list[mut User] / map[string, mut User] view first, then applies variance only; is between list[User] and mut list[mut User] per L7)
+audit/blind/fixtures/a7-for-map-remove-panics.hd	added	runtime/panic/for-map-remove-invalidates.hd (top-level script moved into a test block)
+audit/blind/fixtures/a7-for-map-insert-panics.hd	added	runtime/panic/for-map-insert-invalidates.hd (top-level script moved into a test block)
+audit/blind/fixtures/a7-exhausted-iterator-then-growth.hd	added	runtime/panic/exhausted-iterator-invalidated-by-growth.hd (AMB-13 read as settled: ch06 "invalidates existing iterators; their next next call causes a checked runtime panic"; moved into a test block)
+audit/blind/fixtures/a7-alias-growth-invalidates.hd	added	runtime/panic/alias-growth-invalidates-readonly-iterator.hd (moved into a test block)
+audit/blind/fixtures/a7-shape-versus-value-changes.hd	added	runtime/valid/iterator-shape-versus-value-changes.hd
+audit/blind/fixtures/a7-remove-absent-key.hd	added	runtime/valid/map-remove-absent-key.hd (adapted: the iterator-validity assertion depends on AMB-12, whether removing an absent key is a shape change, which ch06 does not settle; kept only the settled remove -> V? results)
+audit/blind/fixtures/a8-defaults-reference-earlier-parameters.hd	added	runtime/valid/defaults-reference-earlier-parameters.hd
+audit/blind/fixtures/a8-default-later-parameter-rejected.hd	added	typing/invalid/default-later-parameter-earlier-twin.hd (AMB-15 decided by L10: binding-not-yet-visible; kept over parameter-default-later-parameter.hd for the earlier-parameter twin)
+audit/blind/fixtures/a8-copy-update-evaluation-order.hd	added	runtime/valid/copy-update-source-order-observed.hd (name differs from existing copy-update-evaluation-order.hd, which cannot observe order)
+audit/blind/fixtures/a8-copy-update-shallow.hd	added	runtime/valid/copy-update-shallow.hd
+audit/blind/fixtures/a8-copy-update-permission.hd	added	typing/invalid/readonly-spread-mut-field-twins.hd (kept over readonly-spread-mutable-field.hd for the readonly, replaced, and generic-field twins)
+audit/blind/fixtures/a9-empty-strings.hd	added	runtime/valid/empty-string-operations.hd
+audit/blind/fixtures/a9-split-empty-input-nonempty-separator.hd	added	runtime/valid/split-empty-input-nonempty-separator.hd (AMB-10 read as settled: ch10 gives the empty list only for an empty separator; a string without the separator is one piece)
+audit/blind/fixtures/a9-multibyte-scalars.hd	added	runtime/valid/multibyte-scalar-strings.hd (non-ASCII literals rewritten as \u{...} escapes, now accepted by the reference lexer)
+audit/blind/fixtures/a9-trim-white-space.hd	added	runtime/valid/trim-unicode-white-space.hd (invisible scalars rewritten as \u{...} escapes)
+audit/blind/fixtures/a9-replace-empty-old.hd	added	runtime/valid/replace-non-overlapping.hd (adapted: empty-old test dropped, it depends on AMB-11, whether the string ends are scalar boundaries; added a no-match assertion)
+audit/blind/fixtures/a9-interpolation-display.hd	added	runtime/valid/interpolation-display-order.hd (AMB-23 read as settled: nothing forbids an ordinary method from assigning a top-level let)
+audit/blind/fixtures/a9-invalid-unicode-escape.hd	added	parse/invalid/surrogate-unicode-escape.hd, parse/invalid/out-of-range-unicode-escape.hd (split one marker per fixture, each keeping the valid U+10FFFF line)
+05-expressions.md#evaluation-order	added	runtime/valid/evaluation-order-elements-and-indexing.hd: "subexpressions are evaluated from left to right and exactly once ... tuple and collection elements ... indexing expressions" (callee/operand/argument order left to g02)
+05-expressions.md#propagation	added	runtime/valid/propagation-in-closure-targets-closure.hd: "nil immediately returns nil from the nearest function"; "enclosing named function or closure"
+05-expressions.md#propagation	added	runtime/valid/result-propagation-evaluates-once.hd: "Err(error) immediately returns a compatible Err"; "The operand is evaluated once."
+05-expressions.md#expression-categories	added	runtime/valid/abrupt-assignment-stores-nothing.hd: "If any step completes abruptly, no store occurs."
+05-expressions.md#binding-expressions	added	runtime/valid/binding-expression-tuple-value.hd: "The value of the whole binding expression is the original tuple value."
+07-functions.md#methods-and-receivers	added	runtime/valid/method-receiver-before-arguments.hd: "Method-call syntax evaluates the receiver first and then ordinary arguments."
+07-functions.md#methods-and-receivers	added	runtime/valid/associated-function-qualified-call.hd: "Receiverless members are associated functions and are called with qualified Type::function(...)"
+07-functions.md#methods-and-receivers	added	typing/invalid/self-receiver-is-readonly.hd: "self is readonly access to the receiver" + 04 "A readonly T reference cannot reassign its fields."
+07-functions.md#program-entry-functions	added	runtime/valid/private-main-is-ordinary-function.hd (anchored 10#executable-entry-point): "A top-level main that is not public is an ordinary function and is not an entry point." Runtime twin of typing/valid/nonpublic-main-ordinary.hd, which only checks acceptance; this one checks that test does not run it.
+07-functions.md#multiple-inline-closures	added	runtime/valid/multiple-inline-closures.hd: "Multiple multiline closures may be passed by parenthesizing each closure expression"
+07-functions.md#function-types-and-values	added	runtime/valid/generic-function-value-instantiation.hd: "must instantiate every generic parameter, either from an expected monomorphic function type or with a complete explicit type-argument list"
+07-functions.md#function-types-and-values	added	typing/invalid/function-value-no-default-arguments.hd: "does not inherit declaration defaults"
+07-functions.md#function-types-and-values	added	typing/invalid/function-type-invariant-result.hd: "Function types are invariant ... numeric ... coercions do not create a different function value type"
+07-functions.md#function-types-and-values	added	typing/invalid/function-type-invariant-view-result.hd: same sentence, reference-view coercion (mut User result vs User)
+07-functions.md#trailing-callback-blocks	added	runtime/valid/trailing-block-return-targets-callback.hd: "return inside the block returns from the generated callback"
+03-names-and-scopes.md#loops	added	runtime/valid/loop-iteration-binding-capture.hd: "a closure that escapes an iteration captures that iteration's binding"
+03-names-and-scopes.md#loops	added	typing/invalid/for-binding-not-visible-in-else.hd: "It is not visible in the loop's else suite"
+03-names-and-scopes.md#matches	added	runtime/valid/match-arm-binding-reuse.hd: "Pattern bindings in different arms may reuse the same spelling."
+03-names-and-scopes.md#matches	added	typing/invalid/duplicate-binding-in-one-pattern.hd: "Duplicate bindings within one pattern are a compile-time error."
+03-names-and-scopes.md#comprehensions	added	typing/invalid/comprehension-binding-does-not-leak.hd: "A comprehension introduces one scope that does not leak"
+03-names-and-scopes.md#member-resolution	added	runtime/valid/direct-member-hides-promoted.hd: "A directly declared member hides promoted members of the same name."
+03-names-and-scopes.md#use-declarations	added	runtime/valid/use-declaration-position-independent.hd: "Their textual position does not limit their visibility"
+10-modules.md#use-forms	added	parse/invalid/wildcard-use.hd: "Wildcard uses are not supported."
+10-modules.md#use-forms	added	parse/invalid/pub-path-only-use.hd: "Only the grouped form accepts a pub prefix."
+10-modules.md#name-resolution-across-packages	added	parse/invalid/pub-top-level-binding.hd: "Top-level bindings cannot be public."
+09-traits.md#default-method-conflicts	added	runtime/valid/default-method-conflict-inherent-resolves.hd: "The type may define an inherent method ... or the caller may use Trait::method(value, ...)"
+09-traits.md#any	added	typing/invalid/any-exposes-no-methods.hd: "Any erases the concrete type and exposes no type-specific methods"
+09-traits.md#any	added	runtime/valid/any-accepts-non-optional-values.hd: "Every non-optional value type implements it automatically."
+03-names-and-scopes.md#conditional-suites	skipped	already covered by typing/invalid/branch-binding-does-not-leak.hd
+07-functions.md#declarations	skipped	local named functions already covered by runtime/valid/named-local-functions.hd; calling a local fn before its declaration has no code settled by the spec (unknown-name vs binding-not-yet-visible)
+03-names-and-scopes.md#use-declarations	skipped	used-name collision with a declaration: code (duplicate-binding?) and marker line (use or declaration) are not settled by the spec
+05-expressions.md#propagation	skipped	? in a test block or a non-optional function: the spec forbids it but names no code
+10-modules.md#use-roots	skipped	relative use above the package root depends on the fixture's module path, which fixtures must not depend on
+10-modules.md#path-inferred-modules	skipped	needs multiple files; single-file fixtures cannot express it
+10-modules.md#executable-entry-point	skipped	pub main returning Err: exit status is not observable through test blocks; F-308 private main with a requirement is the parent's source (typing/valid/nonpublic-main-ordinary.hd)
+09-traits.md#default-method-conflicts	skipped	ambiguity reject already covered by typing/invalid/ambiguous-method-two-traits.hd
