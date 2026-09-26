@@ -1,5 +1,20 @@
 # Grammar Questions For The Owner
 
+## Owner Decisions
+
+Decided 2026-09-26; not yet applied to the specification.
+
+- **Q1: the declaration owns a trailing requirement clause.** A clause
+  directly before a declaration's or closure's `:` (or a bodyless trait
+  method's line end) belongs to the declaration. A function-typed result with
+  its own row is parenthesized: `fn make() -> (fn() -> i32 $ Log) $ Console:`.
+  Inside types, the row still attaches to the innermost function type.
+- **Q2: after an indented closure body inside brackets, the next line must
+  start with `,` or a closing delimiter** at the header's indentation.
+- **Q7: leading-dot continuation.** A line that starts with `.` followed by an
+  identifier, indented deeper than the previous line, continues it when the
+  previous line does not open a suite.
+
 Each question stands alone. Findings with the evidence are in
 [FINDINGS.md](FINDINGS.md). The `shape`, `and`/`or`/`not`, and `where`
 questions were decided separately (K1 to K3).
