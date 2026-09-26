@@ -124,8 +124,19 @@ read it, so prefer explicit, checkable rules and locality.
   Function Extensions with the code `deferred-method-value`) `Type::name` and `x::name` are
   reserved for future method values, and `x.callback(args)` reports "did you
   mean `(x.callback)(args)`" when a function-typed field `callback` exists.
-  Pending: embedding as an owned part (access follows the container,
-  construction needs mut or fresh values, copy-update copies embedded parts).
+
+- **Owned embedding (OE1 to OE4), not yet applied.** (OE1) Access through an
+  embedded field follows the container: a `mut` outer value gives `mut`
+  access to the embedded part, a readonly one gives readonly; this replaces
+  "embedded fields are readonly edges", so promoted `mut self` methods work
+  on a `mut` receiver. (OE2) Construction: a readonly value may fill an
+  embedded field, but then the constructed value is readonly; a value used
+  as `mut` requires every embedded part to be fresh or `mut` (otherwise
+  `mutable-upgrade`). (OE3) Copy-update stays shallow: the copy shares
+  embedded parts with the original, and the OE2 rule applies to the copy
+  (sharing a part of a readonly original makes the copy readonly). (OE4)
+  Aliasing out is allowed: `ts := post.Timestamps` on a `mut post` yields a
+  `mut` alias; owned means access follows the container, not exclusivity.
 
 - **TQ-4 follow-ups, applied** to 09 Method Resolution. When several instantiations fit only
   because of an unsuffixed literal, prefer the literal's default type (`i32`,
@@ -136,6 +147,62 @@ read it, so prefer explicit, checkable rules and locality.
   half). `impl Marker for Display` is an error.
 - **Mutable provider install syntax confirmed.** `$.with(mut Clock=clock)`,
   `$.use(mut Clock)`, `$ mut Clock` (applied in chapter 11).
+
+- **TQ-9, not yet applied.** `Type::f` checks inherent, then implemented
+  available traits; `T::f` under a bound goes through the bound's
+  dictionary; `Trait::f()` with an undetermined `Self` is rejected. `T::f()`
+  is allowed under a bound, never through a runtime type object (answers the
+  runtime type identity question on static calls).
+- **TQ-10: dynamic safety stays literal.** A dynamically safe trait may not
+  have methods with row parameters, `reified` parameters, packs, or
+  suspension; only `Reference`-bounded method generics are allowed (G2).
+- **TQ-11, not yet applied.** Newtypes may carry `@derive(...)`; the derived
+  implementations use the base type's behavior.
+- **TQ-12 (revised), not yet applied.** Law partners may not mix derived and
+  hand-written implementations. Deriving `Hash`, `PartialOrd`, or `Ord`
+  requires its partners (`PartialEq`, and `PartialOrd` for `Ord`) to be
+  derived in the same list; if any partner is hand-written, all of them must
+  be hand-written.
+
+- **TQ-13.** `@derive` stays limited to the comparison and hash traits; a
+  single typed derivation protocol, shared by `std` and libraries, comes
+  later with the Typed Derivation issue. No ad-hoc additions meanwhile.
+- **TQ-14: assignability stays single-step.** `let wide: i64? = small_i8`
+  and passing a `User` to a `Display?` parameter need explicit conversions.
+- **TQ-15, not yet applied.** Least-common-type inference never constructs
+  trait values or widens to a supertrait; a mixed list needs an expected
+  type.
+- **TQ-16, not yet applied.** Trait parameters are invariant; variance
+  markers on trait parameters are rejected.
+
+- **TQ-17, not yet applied.** An inherent impl sits in the target type's
+  module; a trait impl sits in the module declaring the trait, the target,
+  or the owned trait argument.
+- **TQ-18, not yet applied (settles Annotation Locality).** A foreign-target
+  annotation may appear in the facet's defining module without a marker, and
+  in the root application package under the existing exception with an
+  explicit marker; an explicit `impl Annotate[F] for X` obeys the same rule.
+- **TQ-19, not yet applied.** Inherent impls of one type constructor may
+  repeat a member name when their targets cannot unify (`impl Box[i32]` and
+  `impl Box[string]`); `impl[T] Box[T]` and `impl Box[i32]` with the same
+  name are `duplicate-inherent-member`.
+- **TQ-22, not yet applied (settles runtime identity question 1).**
+  `value.downcast[T]()` is a compiler-provided method available only on
+  `Inspectable` values and on parameters bounded by `Inspectable`.
+
+- **TQ-23, not yet applied (settles Complete Runtime Shape Coverage).**
+  `TypeShape` gains `Mut(inner)`, `Trait(decl, args)`, `Any`,
+  `Suspend(result)`, and `Newtype(decl, base)`.
+- **TQ-24 to TQ-26: parked.** The owner does not want to discuss
+  NonEscapable now. Initial answers, not to be applied until the owner
+  reopens the topic: declared-and-checked propagation (TQ-24), opt-in
+  generic parameters (TQ-25), no NonEscapable returns (TQ-26).
+
+- **TQ-30, not yet applied.** `Store[User]` and `Store[mut User]` are
+  distinct trait instantiations; only the outer `mut` of a target is banned.
+- **TY-13, not yet applied.** A trait's default method body sees only the
+  trait's members and its supertraits' members; `Self`'s fields are not
+  accessible there.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude

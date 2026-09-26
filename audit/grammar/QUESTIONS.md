@@ -33,6 +33,51 @@ Each question stands alone. Findings with the evidence are in
 [FINDINGS.md](FINDINGS.md). The `shape`, `and`/`or`/`not`, and `where`
 questions were decided separately (K1 to K3).
 
+- **Q2 confirmed as applied.** `apply(fn(a):` then `    a + 1)` stays an
+  error: the closure body ends, then a line starting with `,` or a closing
+  delimiter no deeper than the header line.
+- **Q7 refinement, not yet applied.** A leading-dot continuation is allowed
+  only when no same-line suite is open on the logical line being continued;
+  with one open (for example `f := fn(x): x` then a deeper `.len()`), the
+  continuation line is a syntax error.
+
+- **Q3, not yet applied.** A nested suite's body must be indented deeper than
+  the logical line that contains its header, not only the physical header
+  line.
+- **Q4, not yet applied.** `pack.map(` and `pack.map_list(` always form the
+  pack operation, even when a local is named `pack`.
+- **Q6, not yet applied.** Reserved words stay unusable as plain identifiers;
+  a raw-identifier escape with backticks (`` `type` ``) makes any reserved
+  word usable as a member name, label, field, parameter, or binding.
+- **Q8, not yet applied.** Inside brackets, a `(`, `[`, or `{` suffix must
+  start on the same physical line as the end of its operand; otherwise the
+  line starts a new element (a missing comma is an error).
+
+- **Q9, not yet applied.** A same-line `if` directly inside another same-line
+  suite is forbidden (Python's rule); nest with parentheses:
+  `if a: (if b: 1 else: 2) else: 3`. No curly-brace blocks.
+- **Q10, not yet applied.** A trailing block is allowed wherever a suite
+  expression may be a right-hand side (`=`, `return`, `break`, `_ :=`, as
+  after `:=` and `let`); chained multi-name bindings (`a, b := c, d := x`) are
+  removed.
+- **Q12, not yet applied.** `!` stays on the name in both declaration and
+  call: `fn all![Ts...](...)` and `all![i32, string](a, b)`, since
+  `all[i32]` reads like indexing.
+- **Q13 and Q14, not yet applied.** List literals accept a suffix spread
+  (`[0, xs...]`); every declaration suite (data, annotate) accepts both
+  `pass` forms.
+
+- **Q11, not yet applied.** `[` directly after `annotate` always opens
+  generic parameters, as after `impl`.
+- **Q15, not yet applied.** `"$self"` interpolates `self`; a bare `$` that
+  starts neither `$name` nor `${` stays an error.
+- **Q16: `type` and `data` stay reserved** (the backtick escape from Q6
+  covers names like `type`).
+- **Q17, not yet applied.** `reified`, `super`, `as`, and `use` become
+  contextual words (`use` starts a use declaration only when followed by a
+  use root; `$.use(` stays its dedicated form). The reserved set shrinks by
+  four.
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
