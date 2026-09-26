@@ -56,6 +56,56 @@ export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void
   }
 }
 
+/** 08 Data Embedding: at most three embedded fields and at most three levels. */
+const MAX_EMBEDDED_FIELDS = 3;
+const MAX_PART_DEPTH = 3;
+
+/**
+ * 08 Data Embedding, embedding limits: a fourth embedded field is
+ * `too-many-embedded-fields`, and a part at depth 4 is `embedding-too-deep`,
+ * reported on the embedded field that begins the first such chain.
+ */
+export function checkEmbeddingLimits(context: ProgramCheckContext): void {
+  for (const declaration of context.dataTypes.values()) {
+    const embedded = declaration.fields.filter((field) => field.embedded);
+    const extra = embedded[MAX_EMBEDDED_FIELDS];
+    if (extra)
+      context.diagnostics.push({
+        code: "too-many-embedded-fields",
+        message: `data '${declaration.name}' embeds ${embedded.length} types; at most ${MAX_EMBEDDED_FIELDS} embedded fields are allowed`,
+        span: extra.span,
+      });
+    for (const field of embedded) {
+      const chain = tooDeepChain(field, [declaration.name], context);
+      if (!chain) continue;
+      context.diagnostics.push({
+        code: "embedding-too-deep",
+        message: `data '${declaration.name}' embeds ${chain.length - 1} levels deep through ${chain.join(" > ").replaceAll("generic:", "")}; at most ${MAX_PART_DEPTH} levels are allowed`,
+        span: field.span,
+      });
+      break;
+    }
+  }
+}
+
+/** The type names of a chain from `field` that reaches depth 4, if any. */
+function tooDeepChain(
+  field: HirDataField,
+  chain: readonly string[],
+  context: ProgramCheckContext,
+): readonly string[] | undefined {
+  const type = readonlyType(field.type);
+  const next = [...chain, type];
+  if (next.length > MAX_PART_DEPTH + 1) return next;
+  const declaration = context.dataTypes.get(nominalGenericParts(type)?.name ?? type);
+  for (const inner of declaration?.fields ?? []) {
+    if (!inner.embedded) continue;
+    const found = tooDeepChain(inner, next, context);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 /** The names of `declaration` with two or more members at their smallest depth. */
 function conflicts(
   declaration: HirData,

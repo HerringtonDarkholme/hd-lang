@@ -381,8 +381,9 @@ visibility matters.
 **Depths and promoted members.** A **part** of `S` is a value reached from
 `S` through one or more embedded fields. Its **depth** is the number of
 embedded fields on its path: an embedded field of `S` holds a part at depth
-1, an embedded field of that part's type holds a part at depth 2, and so on.
-The own fields and inherent methods of `S` are at depth 0. Each field and
+1, an embedded field of that part's type holds a part at depth 2, and so on,
+up to depth 3, the deepest that
+[Data Embedding](08-data-and-enums.md#data-embedding) allows. The own fields and inherent methods of `S` are at depth 0. Each field and
 inherent method of a part's type is a **promoted member** of `S` at the
 part's depth, reached through the part's path. Trait methods of a part's type
 are never promoted members, and they have no effect on lookup through `S`.

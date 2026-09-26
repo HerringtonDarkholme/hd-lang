@@ -1,0 +1,18 @@
+# test: embedding may be three levels deep, and promotion reaches the deepest part
+data Stamp:
+    at: i32
+
+data Audit:
+    Stamp
+    by: string
+
+data Record:
+    Audit
+    id: string
+
+data Page:
+    Record
+    title: string
+
+fn valid(page: Page) -> i32:
+    page.at

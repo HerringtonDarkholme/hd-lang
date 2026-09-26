@@ -388,12 +388,18 @@ read it, so prefer explicit, checkable rules and locality.
   confirmed); `c.m()` on a delegated trait method has a single candidate
   unless the part also has an inherent `m`.
 
-- **Embedding depth is at most 3 (normative), not yet applied.** A data
+- **Embedding depth is at most 3 (normative), applied** to 03 and 08 Data
+  Embedding (with the 39-part consequence and its footnote), the fixtures,
+  and the prototype (`program-embedding.ts`), with the code
+  `embedding-too-deep`, reported at every data type that reaches depth 4
+  (a type embedding a too-deep type is rejected too) and counting recursive
+  embedding as too deep. A data
   type's embedding chains may be at most three levels deep: `C` embeds `P1`,
   `P1` embeds `P2`, `P2` embeds `P3` is allowed; a fourth level is an error at
   the declaration of the outermost type that exceeds the limit.
-- **At most three embedded fields per data type (normative), not yet
-  applied.** A data type may declare at most three embedded fields; a fourth
+- **At most three embedded fields per data type (normative), applied** to
+  08 Data Embedding, the fixtures, and the prototype, with its own code
+  `too-many-embedded-fields` on the fourth embedded field. A data type may declare at most three embedded fields; a fourth
   is an error at the declaration.
 
 ## TQ-1: Do impl bounds prove two impls disjoint?

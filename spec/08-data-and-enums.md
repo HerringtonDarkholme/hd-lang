@@ -168,6 +168,21 @@ the outer data type's fields: a duplicate name that involves an embedded
 field, such as embedding both `Box[i32]` and `Box[string]`, is a
 `duplicate-embedded-field` error.
 
+Embedding is limited in width and depth. A data type may declare at most
+three embedded fields; a fourth is a `too-many-embedded-fields` error,
+reported on the fourth embedded field. Embedding chains may be at most three
+levels deep: `C` may embed `P1`, which embeds `P2`, which embeds `P3`, but a
+part at depth 4, as when `P3` embeds `P4`, is an `embedding-too-deep` error
+at the declaration of every data type that reaches it, reported on the
+embedded field that begins the first such chain, with a message that shows
+the chain, as in `C > P1 > P2 > P3 > P4`. Depth counts embedded fields of
+generic data types like any other, with their type arguments substituted, and
+a type that embeds itself, directly or through other types, always exceeds
+the limit. Together the two limits bound a data type's embedding tree to at
+most 3 + 9 + 27 = 39 parts.[^miku]
+
+[^miku]: 39 reads as "mi-ku" in Japanese (san-kyuu, 3-9), a nod to Hatsune Miku. The bound was not chosen for this reason, but it is a happy coincidence.
+
 An embedded field holds a **part** of the outer value: a value of the embedded
 type that the outer value receives as its own copy.
 

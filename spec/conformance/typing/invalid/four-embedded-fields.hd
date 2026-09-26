@@ -1,0 +1,19 @@
+# test: a fourth embedded field is an error at the declaration
+data Created:
+    created_at: i32
+
+data Updated:
+    updated_at: i32
+
+data Owned:
+    owner: string
+
+data Tagged:
+    tag: string
+
+data Post:
+    Created
+    Updated
+    Owned
+    Tagged  # diagnostic: too-many-embedded-fields
+    title: string

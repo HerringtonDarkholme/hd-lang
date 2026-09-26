@@ -32,7 +32,8 @@ members before promoted ones, no promotion of trait methods, no promoted
 methods filling implementations. Cut 2's depth semantics are implemented:
 the shallowest member wins, and `program-embedding.ts` reports two members
 with one name at the smallest depth as `ambiguous-promoted-member` at the
-data declaration. Parts' trait methods are ignored, and `unknown-method`
+data declaration; the embedding limits (`too-many-embedded-fields`,
+`embedding-too-deep`) are checked there too. Parts' trait methods are ignored, and `unknown-method`
 suggests the explicit path. Rust-style trait lookup is implemented: only
 available trait methods are candidates, and a trait candidate beside a
 promoted method is `ambiguous-method`. Trait delegation

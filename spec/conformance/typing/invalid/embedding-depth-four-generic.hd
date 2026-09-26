@@ -1,0 +1,19 @@
+# test: the depth limit counts embedding through generic data types
+data Stamp:
+    at: i32
+
+data Tag:
+    Stamp
+    label: string
+
+data Box[T]:
+    Tag
+    value: T
+
+data Shipment[T]:
+    Box[T]
+    id: string
+
+data Order:
+    note: string
+    Shipment[i32]  # diagnostic: embedding-too-deep

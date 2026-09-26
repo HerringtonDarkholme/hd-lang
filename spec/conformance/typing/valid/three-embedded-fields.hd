@@ -1,0 +1,18 @@
+# test: a data type may declare three embedded fields
+data Created:
+    created_at: i32
+
+data Updated:
+    updated_at: i32
+
+data Owned:
+    owner: string
+
+data Post:
+    Created
+    Updated
+    Owned
+    title: string
+
+fn valid(post: Post) -> string:
+    post.owner

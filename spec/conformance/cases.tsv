@@ -999,3 +999,8 @@ typing/invalid/delegation-to-ordinary-field.hd	type	reject:invalid-delegation	09
 typing/invalid/delegation-part-lacks-trait.hd	type	reject:invalid-delegation	09-traits.md#trait-delegation
 typing/invalid/delegation-associated-function-missing.hd	type	reject:missing-trait-method	09-traits.md#trait-delegation
 typing/invalid/delegation-binds-associated-type.hd	type	reject:invalid-delegation	09-traits.md#trait-delegation
+typing/valid/embedding-depth-three.hd	type	accept	08-data-and-enums.md#data-embedding
+typing/invalid/embedding-depth-four.hd	type	reject:embedding-too-deep	08-data-and-enums.md#data-embedding
+typing/invalid/embedding-depth-four-generic.hd	type	reject:embedding-too-deep	08-data-and-enums.md#data-embedding
+typing/valid/three-embedded-fields.hd	type	accept	08-data-and-enums.md#data-embedding
+typing/invalid/four-embedded-fields.hd	type	reject:too-many-embedded-fields	08-data-and-enums.md#data-embedding

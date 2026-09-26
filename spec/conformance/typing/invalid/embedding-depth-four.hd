@@ -1,0 +1,19 @@
+# test: a part at depth four is an error at the declaration of the type that reaches it
+data Stamp:
+    at: i32
+
+data Audit:
+    Stamp
+    by: string
+
+data Record:
+    Audit
+    id: string
+
+data Page:
+    Record
+    title: string
+
+data Site:
+    Page  # diagnostic: embedding-too-deep
+    host: string
