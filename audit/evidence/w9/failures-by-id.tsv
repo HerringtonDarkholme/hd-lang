@@ -3,17 +3,18 @@ F-250	48	Deferred features are rejected with generic or wrong diagnostics, not s
 F-253	10	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-255	8	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	8	`$.use(mut K)` and other `mut` requirement keys are not implemented
-F-252	6	The parser rejects core grammar forms
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 E2	4	Private own members and unavailable trait methods (`private-member`, `trait-not-in-scope`) are not tracked, and their fixtures need package roles
+F-252	3	The parser rejects core grammar forms
 F-257	3	`mut fn` closure literals do not parse
 F-150	2	Two entry-point reject cases also report `private-type-leak`
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 F-704	2	`string.replace` is not implemented
 F-707	2	A comma at depth zero does not end a same-line suite
 TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
+GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly after `annotate` fail
 TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
 F-258	1	Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
@@ -25,3 +26,5 @@ F-703	1	`pub` on a top-level binding is accepted
 F-705	1	Declared variance is deferred, so covariant data cannot be written
 F-706	1	A backslash before a quote in a raw string is a lexer error
 GQ2	1	A closure body nested in brackets may hold only one statement, so an indented multi-statement body ending at a comma line fails to parse
+GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
+GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
