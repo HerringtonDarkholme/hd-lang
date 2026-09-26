@@ -2,7 +2,7 @@
 use std.testing.assert_equal
 
 data Stamp:
-    at: i32
+    pub at: i32
 
 data Post:
     Stamp

@@ -13,7 +13,7 @@ data Badge:
     code: string
 
 impl Badge:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         self.code
 
 data Page:

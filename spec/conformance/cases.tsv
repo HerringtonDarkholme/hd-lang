@@ -874,7 +874,6 @@ runtime/valid/qualified-calls-beside-promoted-method.hd	runtime	accept	03-names-
 typing/invalid/trait-method-beside-promoted-method.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
 typing/valid/own-trait-method-beside-part-trait.hd	type	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/outer-field-beside-embedded-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-runtime/valid/invisible-outer-method-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/unavailable-trait-method-invisible.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/unavailable-trait-method-not-found.hd	type	reject:unknown-method	09-traits.md#method-resolution
 typing/invalid/available-trait-method-beside-promoted.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
@@ -900,7 +899,6 @@ runtime/valid/field-and-inherent-method-share-name.hd	runtime	accept	03-names-an
 runtime/valid/field-and-trait-method-share-name.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/function-typed-field-method-call.hd	type	reject:unknown-method	05-expressions.md#member-access
 typing/invalid/embedded-field-not-called.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
-runtime/valid/invisible-outer-field-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/valid/part-trait-method-ignored-by-lookup.hd	type	accept	03-names-and-scopes.md#member-resolution
 typing/valid/part-trait-method-beside-promoted-inherent.hd	type	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/embedded-trait-method-via-part.hd	runtime	accept	03-names-and-scopes.md#member-resolution
@@ -963,7 +961,6 @@ typing/invalid/private-field-nothing-visible.hd	type	reject:private-member	03-na
 typing/invalid/private-promoted-method-nothing-visible.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
 typing/invalid/private-own-method-nothing-visible.hd	type	reject:private-member	03-names-and-scopes.md#member-resolution
 typing/invalid/private-embedded-field-nothing-visible.hd	type	reject:unknown-data-field	03-names-and-scopes.md#member-resolution
-runtime/valid/private-own-member-wins-in-module.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/embedded-part-follows-container.hd	runtime	accept	08-data-and-enums.md#data-embedding
 typing/invalid/promoted-mut-method-on-readonly-receiver.hd	type	reject:mutable-receiver-required	08-data-and-enums.md#data-embedding
 typing/invalid/promoted-field-assignment-readonly.hd	type	reject:readonly-root	04-type-system.md#mutable-paths
@@ -990,7 +987,6 @@ typing/invalid/diamond-same-depth-conflict.hd	type	reject:ambiguous-promoted-mem
 typing/valid/diamond-different-depths.hd	type	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/diamond-shallower-copy-wins.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/valid/own-member-hides-promoted-conflict.hd	type	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/public-view-promoted-conflict.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
 typing/valid/trait-delegation.hd	type	accept	09-traits.md#trait-delegation
 runtime/valid/trait-delegation-forwards.hd	runtime	accept	09-traits.md#trait-delegation
 typing/valid/trait-delegation-mut-self.hd	type	accept	09-traits.md#trait-delegation
@@ -1004,3 +1000,12 @@ typing/invalid/embedding-depth-four.hd	type	reject:embedding-too-deep	08-data-an
 typing/invalid/embedding-depth-four-generic.hd	type	reject:embedding-too-deep	08-data-and-enums.md#data-embedding
 typing/valid/three-embedded-fields.hd	type	accept	08-data-and-enums.md#data-embedding
 typing/invalid/four-embedded-fields.hd	type	reject:too-many-embedded-fields	08-data-and-enums.md#data-embedding
+typing/invalid/private-own-field-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/private-own-field-beside-conflicting-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/private-own-method-beside-promoted.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+typing/invalid/same-module-private-field-not-promoted.hd	type	reject:unknown-data-field	03-names-and-scopes.md#member-resolution
+typing/invalid/same-module-private-method-not-promoted.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
+typing/valid/same-module-private-member-explicit-path.hd	type	accept	03-names-and-scopes.md#member-resolution
+typing/valid/pub-own-member-shadows-promoted.hd	type	accept	03-names-and-scopes.md#member-resolution
+typing/valid/private-own-member-beside-private-part-member.hd	type	accept	03-names-and-scopes.md#member-resolution
+typing/invalid/part-trait-method-beside-method-promoted-into-part.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution

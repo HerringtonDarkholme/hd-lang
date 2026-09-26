@@ -1,11 +1,11 @@
-# test: an embedded type's trait method is called through its embedded field; through the outer value it is ignored
+# test: an embedded type's trait method is reached from its part; through the outer value it is ignored
 use std.testing.assert_equal
 
 data Base:
-    name: string
+    pub name: string
 
 impl Base:
-    fn to_string(self) -> string:
+    pub fn to_string(self) -> string:
         "base " + self.name
 
 data Label:
@@ -18,9 +18,9 @@ impl Display for Label:
 data Page:
     Label
 
-test "the embedded field path reaches the trait method and the deeper inherent method":
+test "the part reaches the trait method and the deeper inherent method":
     page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
-    assert_equal(page.Label.to_string(), "label", reason="Label's own Display method")
+    assert_equal(Display::to_string(page.Label), "label", reason="Label's own Display method, trait-qualified because Base's to_string is promoted into Label")
     assert_equal(page.Label.Base.to_string(), "base home", reason="Base's inherent method")
     assert_equal(page.name, "home", reason="fields are still promoted")
     assert_equal(page.to_string(), "base home", reason="Label's trait method is ignored, so Base's method is promoted")

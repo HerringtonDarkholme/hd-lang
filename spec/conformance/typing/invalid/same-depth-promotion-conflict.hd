@@ -1,9 +1,9 @@
 # test: two promoted fields with one name at the same smallest depth conflict at the outer declaration, even two levels down
 data Left:
-    id: string
+    pub id: string
 
 data Right:
-    id: string
+    pub id: string
 
 data LeftBox:
     Left

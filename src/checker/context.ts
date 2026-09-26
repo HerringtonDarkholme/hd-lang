@@ -70,6 +70,8 @@ export interface Signature {
 export interface InherentMethod {
   readonly targetType: ValueType;
   readonly name: string;
+  /** `pub fn`: only a public inherent method of a part is promoted (spec 03). */
+  readonly public: boolean;
   readonly associated: boolean;
   readonly receiverMutable: boolean;
   readonly parameters: readonly ValueType[];

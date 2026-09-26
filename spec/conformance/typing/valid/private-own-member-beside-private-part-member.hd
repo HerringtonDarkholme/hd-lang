@@ -1,0 +1,18 @@
+# test: a private own member may share a name with a private member of a part, because the part's private member is not promoted
+data Base:
+    note: string
+
+impl Base:
+    fn summary(self) -> string:
+        self.note
+
+data Record:
+    Base
+    note: string
+
+impl Record:
+    fn summary(self) -> string:
+        "record " + self.note
+
+fn valid(record: Record) -> string:
+    record.note + record.summary() + record.Base.note + record.Base.summary()

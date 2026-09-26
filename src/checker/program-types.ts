@@ -302,6 +302,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
           span: field.span,
         });
       return {
+        ...(field.public || field.embedded ? { public: true } : {}),
         name: field.name,
         type,
         index,

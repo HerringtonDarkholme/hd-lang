@@ -238,6 +238,7 @@ function prepareInherentImplementation(
     inherentMethods.push({
       targetType: implementation.targetName,
       name: method.name,
+      public: method.public === true,
       associated,
       receiverMutable: !associated && method.parameters[0]!.type.name === "mut:Self",
       parameters,

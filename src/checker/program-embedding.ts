@@ -1,10 +1,11 @@
+import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, ValueType } from "../hir.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 
 const MAX_EMBEDDING_DEPTH = 64;
 
-/** A member of a data type's view: its name and the embedded fields reaching it. */
+/** A promoted member of a data type: its name and the embedded fields reaching it. */
 interface ReachedMember {
   readonly name: string;
   readonly path: readonly HirDataField[];
@@ -18,14 +19,16 @@ interface Part {
 }
 
 /**
- * Spec 03 Member Resolution, "Conflicts are declaration errors": in each
- * namespace, the shallowest member with a name hides deeper ones, and two
- * members with one name at the smallest depth are `ambiguous-promoted-member`
- * at the outer data declaration, on the later of the two embedded fields that
- * reach them. A conflict reached through a single embedded field is a conflict
- * of that field's type and is reported there. The prototype compiles one
- * module, so every member is visible and only the declaring module's view is
- * checked; the view from other modules of a public type is not (EMB-S).
+ * Spec 03 Member Resolution, "Conflicts are declaration errors". Only `pub`
+ * fields and inherent methods of parts are promoted, and every module sees the
+ * same members, so one check per data type suffices. In each namespace, the
+ * shallowest member with a name hides deeper ones; two promoted members with
+ * one name at the smallest depth are `ambiguous-promoted-member` on the later
+ * of the two embedded fields that reach them. A conflict reached through a
+ * single embedded field is a conflict of that field's type and is reported
+ * there. Only a `pub` own member hides promoted ones: a private own member
+ * with the name of a promoted member is `ambiguous-promoted-member` on the
+ * private member's declaration.
  */
 export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void {
   for (const declaration of context.dataTypes.values()) {
@@ -35,25 +38,39 @@ export function checkEmbeddedMemberConflicts(context: ProgramCheckContext): void
     if (new Set(names).size !== names.length) continue;
     const reported = new Set<HirDataField>();
     for (const namespace of ["field", "method"] as const) {
-      for (const [name, members] of conflicts(declaration, namespace, context)) {
+      const own = ownMembers(declaration, declaration.name, namespace, context);
+      const hiding = new Set(own.filter((member) => member.public).map((member) => member.name));
+      const promoted = promotedMembers(declaration, hiding, namespace, context);
+      for (const member of own) {
+        const shadowed = promoted.get(member.name);
+        if (member.public || !shadowed) continue;
+        promoted.delete(member.name);
+        context.diagnostics.push({
+          code: "ambiguous-promoted-member",
+          message: `private ${namespace} '${member.name}' of '${declaration.name}' has the name of the promoted ${namespace} ${memberPath(declaration, shadowed[0]!)}; a private member cannot shadow a promoted one, so mark it pub or rename it`,
+          span: member.span,
+        });
+      }
+      for (const [name, members] of promoted) {
+        if (members.length < 2) continue;
         const firstSteps = [...new Set(members.map((member) => member.path[0]!))];
         if (firstSteps.length < 2) continue;
         const later = firstSteps.reduce((left, right) => (right.index > left.index ? right : left));
         if (reported.has(later)) continue;
         reported.add(later);
-        const paths = members
-          .slice(0, 2)
-          .map((member) =>
-            [declaration.name, ...member.path.map((step) => step.name), name].join("."),
-          );
+        const paths = members.slice(0, 2).map((member) => memberPath(declaration, member));
         context.diagnostics.push({
           code: "ambiguous-promoted-member",
-          message: `${namespace} '${name}' is promoted twice at one depth, as ${paths[0]} and as ${paths[1]}; declare '${name}' on '${declaration.name}' or embed differently`,
+          message: `${namespace} '${name}' is promoted twice at one depth, as ${paths[0]} and as ${paths[1]}; declare a pub '${name}' on '${declaration.name}' or embed differently`,
           span: later.span,
         });
       }
     }
   }
+}
+
+function memberPath(declaration: HirData, member: ReachedMember): string {
+  return [declaration.name, ...member.path.map((step) => step.name), member.name].join(".");
 }
 
 /** 08 Data Embedding: at most three embedded fields and at most three levels. */
@@ -106,13 +123,17 @@ function tooDeepChain(
   return undefined;
 }
 
-/** The names of `declaration` with two or more members at their smallest depth. */
-function conflicts(
+/**
+ * The promoted members of `declaration` by name: for each name not in
+ * `hiding`, the public members of parts at the smallest depth that has one.
+ */
+function promotedMembers(
   declaration: HirData,
+  hiding: ReadonlySet<string>,
   namespace: "field" | "method",
   context: ProgramCheckContext,
 ): Map<string, ReachedMember[]> {
-  const decided = new Set(ownNames(declaration, declaration.name, namespace, context));
+  const decided = new Set(hiding);
   const result = new Map<string, ReachedMember[]>();
   let frontier: Part[] = [
     { declaration, type: declaration.name, path: [], ancestors: [declaration] },
@@ -129,11 +150,12 @@ function conflicts(
         // A recursive embedding adds no new part.
         if (node.ancestors.includes(partDeclaration)) continue;
         const path = [...node.path, field];
-        for (const name of ownNames(partDeclaration, type, namespace, context)) {
-          if (decided.has(name)) continue;
-          const members = atDepth.get(name) ?? [];
-          members.push({ name, path });
-          atDepth.set(name, members);
+        for (const member of ownMembers(partDeclaration, type, namespace, context)) {
+          // A private member of a part is never promoted, even in its own module.
+          if (!member.public || decided.has(member.name)) continue;
+          const members = atDepth.get(member.name) ?? [];
+          members.push({ name: member.name, path });
+          atDepth.set(member.name, members);
         }
         next.push({
           declaration: partDeclaration,
@@ -145,21 +167,32 @@ function conflicts(
     }
     for (const [name, members] of atDepth) {
       decided.add(name);
-      if (members.length > 1) result.set(name, members);
+      result.set(name, members);
     }
     frontier = next;
   }
   return result;
 }
 
-function ownNames(
+interface OwnMember {
+  readonly name: string;
+  readonly public: boolean;
+  readonly span: SourceSpan;
+}
+
+function ownMembers(
   declaration: HirData,
   type: ValueType,
   namespace: "field" | "method",
   context: ProgramCheckContext,
-): string[] {
-  if (namespace === "field") return declaration.fields.map((field) => field.name);
+): OwnMember[] {
+  if (namespace === "field")
+    return declaration.fields.map((field) => ({
+      name: field.name,
+      public: field.public === true,
+      span: field.span,
+    }));
   return context.inherentMethods
     .filter((method) => !method.associated && method.targetType === type)
-    .map((method) => method.name);
+    .map((method) => ({ name: method.name, public: method.public, span: method.span }));
 }

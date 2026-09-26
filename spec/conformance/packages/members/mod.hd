@@ -6,7 +6,6 @@ pub trait Stamped:
 
 pub data Inner:
     pub note: string
-    pub code: string
     serial: i32
 
 impl Inner:
@@ -15,9 +14,6 @@ impl Inner:
 
     pub fn code(self) -> string:
         "inner code"
-
-    pub fn secret(self) -> string:
-        "inner secret"
 
     fn audit(self) -> string:
         "inner audit"
@@ -28,9 +24,6 @@ pub data Outer:
     revision: i32
 
 impl Outer:
-    fn secret(self) -> string:
-        "outer secret"
-
     fn stamp(self) -> string:
         "outer stamp"
 
@@ -43,4 +36,4 @@ impl Stamped for Outer:
         "outer mark"
 
 pub fn make_outer() -> Outer:
-    Outer { Inner: ...Inner { note: "note", code: "inner field", serial: 7 }, code: "private", revision: 1 }
+    Outer { Inner: ...Inner { note: "note", serial: 7 }, code: "private", revision: 1 }

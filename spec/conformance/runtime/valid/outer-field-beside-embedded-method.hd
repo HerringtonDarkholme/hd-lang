@@ -5,7 +5,7 @@ data Base:
     note: string
 
 impl Base:
-    fn label(self) -> string:
+    pub fn label(self) -> string:
         "base " + self.note
 
 data Page:

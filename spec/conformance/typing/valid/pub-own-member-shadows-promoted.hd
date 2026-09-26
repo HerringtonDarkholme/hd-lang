@@ -1,0 +1,18 @@
+# test: a pub own field and a pub own inherent method shadow the promoted pub members of their names
+data Base:
+    pub id: i32
+
+impl Base:
+    pub fn label(self) -> string:
+        "base"
+
+data Record:
+    Base
+    pub id: string
+
+impl Record:
+    pub fn label(self) -> string:
+        "record " + self.id
+
+fn valid(record: Record) -> string:
+    record.id + record.label() + record.Base.label()

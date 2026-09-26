@@ -402,7 +402,20 @@ read it, so prefer explicit, checkable rules and locality.
   `too-many-embedded-fields` on the fourth embedded field. A data type may declare at most three embedded fields; a fourth
   is an error at the declaration.
 
-- **Single view of a type's members, not yet applied.** Replaces the
+- **Single view of a type's members, applied** to 03 Member Resolution
+  (depths, conflicts, field and method lookup, and the `Label`/`Base`
+  example, which now follows TQ-36: `page.Label.to_string()` is
+  `ambiguous-method`), 08 Data Declarations and Data Embedding, the tour,
+  MEMBER_LOOKUP.md, the members package and fixtures, and the prototype (the
+  parser reads `pub` on named fields and inherent methods;
+  `program-embedding.ts`, `member-lookup.ts`). Readings: the conflict reuses
+  `ambiguous-promoted-member` and is reported on the private own member (the
+  field in the data declaration, or the method in its inherent
+  implementation), once, even when the promoted name would itself conflict;
+  an own inherent method invisible to the caller is still skipped, so an
+  available trait method of that name can be selected outside the module
+  (no promoted method can have the name); the prototype reports `pub` on a
+  trait-implementation method as `trait-method-visibility`. Replaces the
   two-view reading. Only `pub` fields and inherent methods of embedded parts
   are promoted, even when the part is declared in the same module (reach
   private members through an explicit path). Own `pub` members shadow

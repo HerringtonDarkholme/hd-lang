@@ -6,7 +6,7 @@ data Base:
     name: string
 
 impl Base:
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         "base " + self.name
 
 data Page:

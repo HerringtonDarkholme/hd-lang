@@ -1,0 +1,20 @@
+# test: lookup that starts at a part meets the part's Display method and a to_string promoted into the part, so the call is ambiguous
+data Base:
+    pub name: string
+
+impl Base:
+    pub fn to_string(self) -> string:
+        "base " + self.name
+
+data Label:
+    Base
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        "label"
+
+data Page:
+    Label
+
+fn invalid(page: Page) -> string:
+    page.Label.to_string()  # diagnostic: ambiguous-method

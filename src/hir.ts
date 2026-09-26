@@ -3,6 +3,8 @@ import type { SourceSpan } from "./diagnostics.ts";
 export type ValueType = string;
 
 export interface HirDataField {
+  /** Marked `pub`; embedded fields are always public. */
+  readonly public?: boolean;
   readonly name: string;
   readonly type: ValueType;
   readonly index: number;

@@ -5,17 +5,17 @@ data Base:
     name: string
 
 impl Base:
-    fn kind(self) -> string:
+    pub fn kind(self) -> string:
         "base"
 
-    fn describe(self) -> string:
+    pub fn describe(self) -> string:
         self.kind() + " " + self.name
 
 data Page:
     Base
 
 impl Page:
-    fn kind(self) -> string:
+    pub fn kind(self) -> string:
         "page"
 
 test "no overriding through embedding":

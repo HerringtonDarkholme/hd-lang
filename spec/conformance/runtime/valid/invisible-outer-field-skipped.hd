@@ -1,8 +1,0 @@
-# fixture-package-role: root-application
-# test: a private own field is skipped outside its module, so the read reaches the public embedded field
-use std.testing.assert_equal
-use dep.members.{make_outer}
-
-test "private own field skipped":
-    outer := make_outer()
-    assert_equal(outer.code, "inner field", reason="Outer.code is private; Inner.code is promoted")

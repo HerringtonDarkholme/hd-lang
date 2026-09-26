@@ -411,3 +411,18 @@ existing source. Each entry names the decision that made the change.
   depth 4, previously valid, is now `embedding-too-deep` at every data type
   that reaches it, including through generic data types and recursive
   embedding.
+- Single view of a type's members: only `pub` fields and `pub` inherent
+  methods of an embedded type are promoted, even when it is declared in the
+  same module as the outer type. A use that reached a private member of a
+  part in its own module, previously valid, is now `unknown-data-field` or
+  `unknown-method`; the member is reached through the explicit path, as in
+  `x.Part.secret`. Only a `pub` own member hides promoted members: a private
+  own member with the name of a promoted member in its namespace, which
+  previously won inside its module and was skipped elsewhere, is now
+  `ambiguous-promoted-member`, reported on the private member. Every name
+  resolves to the same member for every caller, so a type is checked once,
+  and the separate check of a public type's view from other modules is
+  gone. In the `Label`/`Base` example of Member Resolution,
+  `page.Label.to_string()` is `ambiguous-method` between `Label`'s `Display`
+  method and `Base`'s promoted `to_string`, as the rules already required;
+  the example previously said it called `Label`'s `Display` method.

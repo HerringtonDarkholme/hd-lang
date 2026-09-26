@@ -137,10 +137,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   }
 
   /**
-   * Spec 03 Member Resolution: a field or inherent method is visible when it is
-   * declared in the calling module or marked `pub`. Embedded fields are always
-   * public, so the path never matters. The prototype compiles a single module,
-   * so every member is declared in the calling module.
+   * Spec 03 Member Resolution: an own field or inherent method is visible when
+   * it is declared in the calling module or marked `pub`. Promoted members are
+   * always `pub`. The prototype compiles a single module, so every own member
+   * is declared in the calling module.
    */
   private memberVisible(_member: HirDataField | InherentMethod): boolean {
     return true;
@@ -149,15 +149,16 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   /**
    * Spec 03 Member Resolution. `x.name` uses field lookup and `x.name(args)`
    * uses method lookup; the two namespaces never interact (M2). Own fields and
-   * inherent methods are at depth 0 and each part's fields and inherent
+   * inherent methods are at depth 0 and each part's `pub` fields and inherent
    * methods at its depth; the shallowest member with a name hides deeper ones.
-   * Two members at the smallest depth are rejected at the data declaration
-   * (`program-embedding.ts`), so lookup meets at most one. Parts' trait
-   * methods are ignored. The receiver's available trait methods are
-   * candidates beside the promoted method: both at once are `ambiguous-method`
-   * (Rust-style trait lookup, TQ-36). An unavailable trait is invisible.
-   * Members that are not visible are skipped (P2); only an invisible own
-   * member of the receiver's type is reported, and only when nothing matches.
+   * Every module sees the same members (single view). Two members at the
+   * smallest depth, or a private own member beside a promoted one, are
+   * rejected at the declaration (`program-embedding.ts`), so lookup meets at
+   * most one. Parts' trait methods are ignored. The receiver's available
+   * trait methods are candidates beside the promoted method: both at once are
+   * `ambiguous-method` (Rust-style trait lookup, TQ-36). An unavailable trait
+   * is invisible. An own member that is not visible is skipped and reported
+   * as `private-member` only when nothing matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -261,7 +262,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     return { kind: "none" };
   }
 
-  /** The visible promoted members named `name` at the smallest depth that has one. */
+  /** The promoted (`pub`) members named `name` at the smallest depth that has one. */
   private promotedMember(
     declaration: HirData,
     substitutions: ReadonlyMap<string, ValueType>,
@@ -274,13 +275,13 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       if (matchDepth !== undefined && part.depth > matchDepth) break;
       if (method) {
         const promotedMethod = this.findInherentMethod(part.type, name);
-        // An invisible inherent method of an embedded type is ignored entirely.
-        if (promotedMethod && this.memberVisible(promotedMethod))
+        // Only a `pub` inherent method of a part is promoted, even in its own module.
+        if (promotedMethod?.public)
           matches.push({ kind: "inherent", steps: part.steps, method: promotedMethod });
       } else {
         const promotedField = part.declaration.fields.find((candidate) => candidate.name === name);
-        // An invisible field of an embedded type is ignored entirely.
-        if (promotedField && this.memberVisible(promotedField))
+        // Only a `pub` field of a part is promoted, even in its own module.
+        if (promotedField?.public)
           matches.push({
             kind: "field",
             steps: part.steps,

@@ -826,3 +826,12 @@ typing/invalid/embedding-depth-four.hd	type
 typing/invalid/embedding-depth-four-generic.hd	type
 typing/valid/three-embedded-fields.hd	type
 typing/invalid/four-embedded-fields.hd	type
+typing/invalid/private-own-field-beside-promoted.hd	type
+typing/invalid/private-own-field-beside-conflicting-promoted.hd	type
+typing/invalid/private-own-method-beside-promoted.hd	type
+typing/invalid/same-module-private-field-not-promoted.hd	type
+typing/invalid/same-module-private-method-not-promoted.hd	type
+typing/valid/same-module-private-member-explicit-path.hd	type
+typing/valid/pub-own-member-shadows-promoted.hd	type
+typing/valid/private-own-member-beside-private-part-member.hd	type
+typing/invalid/part-trait-method-beside-method-promoted-into-part.hd	type

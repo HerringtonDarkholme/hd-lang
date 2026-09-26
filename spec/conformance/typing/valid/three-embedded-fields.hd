@@ -6,7 +6,7 @@ data Updated:
     updated_at: i32
 
 data Owned:
-    owner: string
+    pub owner: string
 
 data Post:
     Created

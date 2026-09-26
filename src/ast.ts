@@ -56,6 +56,8 @@ export interface FunctionDecl {
 }
 
 export interface MethodDecl {
+  /** `pub fn` in an inherent implementation. */
+  readonly public?: boolean;
   readonly name: string;
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
@@ -104,6 +106,8 @@ export interface ImplDecl {
 }
 
 export interface DataField {
+  /** `pub name: T`; an embedded field takes no marker and is always public. */
+  readonly public?: boolean;
   readonly name: string;
   readonly type: TypeRef;
   readonly embedded?: boolean;
