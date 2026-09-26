@@ -270,7 +270,9 @@ defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
 the receiver's own members come first, members not visible from the calling
 module are skipped, embedded fields are searched breadth first with the
 shortest path winning, and an embedded type's trait methods are never
-promoted.
+promoted: a method name that an embedded type has only through a trait stops
+the search with `embedded-trait-method-not-promoted`, and the call is written
+through the embedded field, as in `x.Label.to_string()`.
 
 Embedding is composition, not subtyping. The outer data type is not
 assignable to the embedded type. Embedding has no overriding: a promoted

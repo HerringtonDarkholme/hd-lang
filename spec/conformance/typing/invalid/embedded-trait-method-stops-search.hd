@@ -1,0 +1,20 @@
+# test: a method name an embedded type has only through a trait stops lookup at its depth; a deeper inherent method is not reached
+data Base:
+    name: string
+
+impl Base:
+    fn to_string(self) -> string:
+        "base " + self.name
+
+data Label:
+    Base
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        "label"
+
+data Page:
+    Label
+
+fn invalid(page: Page) -> string:
+    page.to_string()  # diagnostic: embedded-trait-method-not-promoted

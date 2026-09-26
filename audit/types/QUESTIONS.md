@@ -108,7 +108,8 @@ read it, so prefer explicit, checkable rules and locality.
 - **Trait-method promotion, decided and applied (E4 kept; resolves TQ-31).**
   Embedding carries only fields and inherent methods. Trait methods count
   only on the receiver's own type; method lookup skips an embedded type's
-  trait methods and keeps searching below it.
+  trait methods and keeps searching below it. (The "keeps searching" part is
+  superseded by "TQ-31 revised" below.)
 - **Embedding critique review (2026-09-26).** (P2, applied to 03
   Member Resolution, 08, 09, and the members fixtures; revises E2) Members not visible from the calling module are skipped, as in
   Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
@@ -265,8 +266,11 @@ read it, so prefer explicit, checkable rules and locality.
   conformance. (8) Mandatory `...`, construction keys, and invariance are
   not issues.
 
-- **TQ-31 revised: trait-method names stop the embedded search, not yet
-  applied.** Trait methods are still never found through embedding, but a
+- **TQ-31 revised: trait-method names stop the embedded search, applied** to
+  03 Member Resolution, 08, 09, the tour, and MEMBER_LOOKUP.md, with the code
+  `embedded-trait-method-not-promoted`; implemented in the prototype
+  (`member-lookup.ts`). An inherent method of another embedded type at the
+  same depth is `ambiguous-promoted-member`. Trait methods are still never found through embedding, but a
   method name that an embedded type has only through a trait stops the
   search at that depth with an error suggesting `x.Part.m()` (for example
   `page.to_string()` when `Label` implements `Display` and embeds `Base`).
@@ -543,8 +547,11 @@ matches), so depth 2 finds `Base.to_string`. Yet `label.to_string()` reaches
 Label's `Display` method. The applied text follows the literal reading.
 Options: (A) keep; (B) a trait method of an embedded type blocks the search
 through that path.
-**Resolved: A.** The search skips embedded trait methods; see
-`runtime/valid/embedded-trait-method-skipped.hd`.
+**Resolved: A**, then **revised to B** (see Owner Decisions): an embedded
+type that has the name only through a trait stops the search at its depth
+with `embedded-trait-method-not-promoted`, suggesting `page.Label.to_string()`;
+see `typing/invalid/embedded-trait-method-stops-search.hd` and
+`runtime/valid/embedded-trait-method-via-part.hd`.
 
 ## TQ-32: Bare field read beside a trait method of the same name
     impl Named for User:

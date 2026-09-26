@@ -94,15 +94,22 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     );
   }
 
-  /** Whether a known implementation for `type` supplies a trait method `name`. */
-  private traitMemberPresent(type: ValueType, name: string): boolean {
-    return this.implementations.some((implementation) => {
-      if (!matchGenericTypePattern(implementation.targetType, type, new Map())) return false;
+  /** The trait of a known implementation for `type` that supplies a method `name`. */
+  private traitWithMember(type: ValueType, name: string): string | undefined {
+    for (const implementation of this.implementations) {
+      if (!matchGenericTypePattern(implementation.targetType, type, new Map())) continue;
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );
-      return trait?.methods.some((method) => !method.associated && method.name === name) ?? false;
-    });
+      if (trait?.methods.some((method) => !method.associated && method.name === name))
+        return trait.name;
+    }
+    return undefined;
+  }
+
+  /** Whether a known implementation for `type` supplies a trait method `name`. */
+  private traitMemberPresent(type: ValueType, name: string): boolean {
+    return this.traitWithMember(type, name) !== undefined;
   }
 
   /**
@@ -119,8 +126,10 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
    * uses method lookup; the two namespaces never interact (M2). Each lookup
    * checks the receiver's own members first, then embedded fields breadth
    * first. Embedded types offer fields to field lookup and inherent methods
-   * to method lookup; their trait methods are skipped. Members that are not
-   * visible are skipped (P2) and reported only when nothing visible matches.
+   * to method lookup. Their trait methods are never selected, but an embedded
+   * type that has `name` only through a trait blocks the search at its depth
+   * (TQ-31 revised). Members that are not visible are skipped (P2) and
+   * reported only when nothing visible matches.
    */
   protected selectField(receiverType: ValueType, name: string, span: SourceSpan): MemberSelection {
     return this.selectMember(receiverType, name, span, false);
@@ -167,6 +176,8 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     for (let depth = 1; depth <= MAX_EMBEDDING_DEPTH && frontier.length > 0; depth += 1) {
       const next: typeof frontier = [];
       const matches: MemberSelection[] = [];
+      // Embedded types at this depth that have `name` only through a trait.
+      const blockers: { readonly steps: readonly MemberStep[]; readonly trait: string }[] = [];
       for (const node of frontier) {
         for (const embedded of node.declaration.fields) {
           if (!embedded.embedded) continue;
@@ -186,7 +197,11 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
             const promotedMethod = this.findInherentMethod(embeddedType, name);
             if (promotedMethod && pathVisible && this.memberVisible(promotedMethod))
               matches.push({ kind: "inherent", steps, method: promotedMethod });
-            else if (promotedMethod) skipped = true;
+            else {
+              if (promotedMethod) skipped = true;
+              const trait = this.traitWithMember(embeddedType, name);
+              if (trait) blockers.push({ steps, trait });
+            }
           } else {
             const promotedField = embeddedDeclaration.fields.find(
               (candidate) => candidate.name === name,
@@ -217,7 +232,22 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
           `'${name}' is promoted by ${matches.length} embedded paths at depth ${depth}; qualify it through an embedded field`,
           span,
         );
+      if (matches.length === 1 && blockers.length > 0)
+        this.fail(
+          "ambiguous-promoted-member",
+          `'${name}' is an inherent method of one embedded type and a ${blockers[0]!.trait} method of another at depth ${depth}; qualify it through an embedded field`,
+          span,
+        );
       if (matches.length === 1) return matches[0]!;
+      if (blockers.length > 0) {
+        const { steps, trait } = blockers[0]!;
+        const path = steps.map((step) => step.field.name).join(".");
+        this.fail(
+          "embedded-trait-method-not-promoted",
+          `'${name}' is a ${trait} method of the embedded field '${path}', and trait methods are not promoted; call it as 'x.${path}.${name}(...)'`,
+          span,
+        );
+      }
       frontier = next;
     }
     if (skipped)

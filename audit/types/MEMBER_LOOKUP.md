@@ -49,7 +49,7 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5, M2, and P2)
+### hd today (after E1 to E5, M2, P2, and TQ-31 revised)
 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
@@ -64,9 +64,14 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   nothing visible matches. Inside the defining module the private member
   wins. An own trait method whose trait is not imported still stops the
   search with `trait-not-in-scope` (P2).
-- Embedded types offer fields and inherent methods only. Trait methods count
-  only on the receiver's own type; the search skips an embedded type's trait
-  methods and continues below it (E4, TQ-31).
+- Embedded types offer fields and inherent methods only. Trait methods are
+  selected only on the receiver's own type (E4). A method name that an
+  embedded type has only through a trait stops the search at that depth:
+  `embedded-trait-method-not-promoted`, suggesting `x.Part.m()`, or
+  `ambiguous-promoted-member` when another type at that depth has an
+  inherent method of that name (TQ-31 revised). A trait-only name never
+  silently resolves deeper; in Go the method would be promoted, and in Rust
+  an in-scope trait method at a `Deref` step answers the call there.
 - Embedding never grants trait conformance, and promoted methods never fill
   trait methods (E5).
 - No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
@@ -87,7 +92,7 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 | Lookup order within one type | one set | inherent, then in-scope traits | inherent, then traits | inherent, then traits |
 | Deeper lookup | shallowest wins | next step | shallowest wins | shallowest wins |
 | Same-depth matches | error at use | impossible (chain) | error at use | error at use |
-| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** (not adopted; E4 kept) |
+| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** (not adopted; E4 kept; a trait-only name stops the search, TQ-31 revised) |
 | Composition satisfies traits | yes | no | no | no |
 | Promoted method fills a trait method | yes (structural) | no | no | no |
 | Overriding | no | no | no | no (stated) |

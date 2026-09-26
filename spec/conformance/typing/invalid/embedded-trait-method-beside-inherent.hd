@@ -1,0 +1,24 @@
+# test: an inherent method beside an embedded type that has the name only through a trait, at the same depth, is ambiguous
+trait Describe:
+    fn describe(self) -> string
+
+data Label:
+    text: string
+
+impl Describe for Label:
+    fn describe(self) -> string:
+        self.text
+
+data Badge:
+    code: string
+
+impl Badge:
+    fn describe(self) -> string:
+        self.code
+
+data Page:
+    Label
+    Badge
+
+fn invalid(page: Page) -> string:
+    page.describe()  # diagnostic: ambiguous-promoted-member

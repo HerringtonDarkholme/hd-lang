@@ -875,7 +875,7 @@ runtime/valid/available-trait-method-across-packages.hd	runtime	accept	03-names-
 runtime/valid/depth-two-promotion.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/same-depth-promotion-clash.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
 runtime/valid/shorter-promotion-path-wins.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/embedded-trait-method-not-promoted.hd	type	reject:unknown-method	09-traits.md#embedding-and-trait-satisfaction
+typing/invalid/embedded-trait-method-not-promoted.hd	type	reject:embedded-trait-method-not-promoted	09-traits.md#embedding-and-trait-satisfaction
 typing/invalid/bodyless-impl-via-promotion.hd	type	reject:missing-trait-method	09-traits.md#embedding-and-trait-satisfaction
 typing/invalid/promoted-mut-self-method.hd	type	reject:mutable-receiver-required	03-names-and-scopes.md#member-resolution
 runtime/valid/function-typed-field-call.hd	runtime	accept	05-expressions.md#member-access
@@ -894,7 +894,9 @@ runtime/valid/field-and-trait-method-share-name.hd	runtime	accept	03-names-and-s
 typing/invalid/function-typed-field-method-call.hd	type	reject:unknown-method	05-expressions.md#member-access
 typing/invalid/embedded-field-not-called.hd	type	reject:unknown-method	03-names-and-scopes.md#member-resolution
 runtime/valid/invisible-outer-field-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-runtime/valid/embedded-trait-method-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+typing/invalid/embedded-trait-method-stops-search.hd	type	reject:embedded-trait-method-not-promoted	03-names-and-scopes.md#member-resolution
+typing/invalid/embedded-trait-method-beside-inherent.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
+runtime/valid/embedded-trait-method-via-part.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/promoted-method-no-override.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/generic-trait-instantiation-by-argument.hd	runtime	accept	09-traits.md#method-resolution
 typing/invalid/generic-trait-instantiations-ambiguous.hd	type	reject:ambiguous-method	09-traits.md#method-resolution

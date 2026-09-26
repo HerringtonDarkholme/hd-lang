@@ -148,7 +148,7 @@ runtime/valid/depth-two-promotion.hd	check reports expected-expression at line 1
 runtime/valid/shorter-promotion-path-wins.hd	check reports expected-expression at line 18: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/function-typed-field-call.hd	check reports expected-expression at line 14: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/field-and-inherent-method-share-name.hd	check reports expected-expression at line 19: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
-runtime/valid/embedded-trait-method-skipped.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+runtime/valid/embedded-trait-method-via-part.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/promoted-method-no-override.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/private-own-member-wins-in-module.hd	check reports expected-expression at line 20: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/valid/readonly-embedded-source-with-mutable-edge-readonly-result.hd	check reports expected-expression at line 14: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE

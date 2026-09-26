@@ -1,0 +1,25 @@
+# test: an embedded type's trait method is called through its embedded field, where it is an own method
+use std.testing.assert_equal
+
+data Base:
+    name: string
+
+impl Base:
+    fn to_string(self) -> string:
+        "base " + self.name
+
+data Label:
+    Base
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        "label"
+
+data Page:
+    Label
+
+test "the embedded field path reaches the trait method and the deeper inherent method":
+    page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
+    assert_equal(page.Label.to_string(), "label", reason="Label's own Display method")
+    assert_equal(page.Label.Base.to_string(), "base home", reason="Base's inherent method")
+    assert_equal(page.name, "home", reason="fields are still promoted")

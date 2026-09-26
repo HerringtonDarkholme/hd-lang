@@ -30,7 +30,12 @@ TQ-3 (inherent before trait methods), TQ-5 (`mutable-impl-target`), and TQ-6
 checks and the TQ-2 ownership check. E1, E3, E4, and E5 are implemented:
 own members before promoted ones, breadth-first promotion with
 `ambiguous-promoted-member`, no promotion of trait methods, no promoted
-methods filling implementations. M2 replaces M1 and is implemented: separate
+methods filling implementations. The revised TQ-31 is implemented: a method
+name an embedded type has only through a trait stops the search with
+`embedded-trait-method-not-promoted`, or `ambiguous-promoted-member` beside
+an inherent method at the same depth. Context spreads are suffix spreads
+(`$.with(ctx...)`) in the prototype parser, and the prefix form is a
+`syntax-error`. M2 replaces M1 and is implemented: separate
 field and method lookups, same-named fields and methods, and
 `(x.callback)(args)` for function-typed fields. TQ-4 (a dot call chooses among
 instantiations of one generic trait by argument and expected types), TQ-28

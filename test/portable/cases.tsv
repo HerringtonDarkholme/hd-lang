@@ -741,6 +741,8 @@ parse/invalid/associated-binding-outside-bound.hd	parse
 parse/invalid/old-where-clause.hd	parse
 typing/invalid/same-depth-promotion-clash.hd	type
 typing/invalid/embedded-trait-method-not-promoted.hd	type
+typing/invalid/embedded-trait-method-stops-search.hd	type
+typing/invalid/embedded-trait-method-beside-inherent.hd	type
 typing/invalid/bodyless-impl-via-promotion.hd	type
 typing/invalid/promoted-mut-self-method.hd	type
 runtime/valid/field-read-beside-trait-method.hd	runtime

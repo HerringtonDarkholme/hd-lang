@@ -1,4 +1,4 @@
-# test: an embedded type's trait methods are not promoted
+# test: an embedded type's trait method is not promoted; its name stops lookup with a hint to call page.Label.describe()
 trait Describe:
     fn describe(self) -> string
 
@@ -13,4 +13,4 @@ data Page:
     Label
 
 fn invalid(page: Page) -> string:
-    page.describe()  # diagnostic: unknown-method
+    page.describe()  # diagnostic: embedded-trait-method-not-promoted

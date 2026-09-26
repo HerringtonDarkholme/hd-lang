@@ -568,11 +568,14 @@ as in `fn reset(mut self) -> void: self.Base.reset()`, because `self.Base` has
 implementation of a trait with a required method is therefore a
 `missing-trait-method` error even when an embedded type has a matching method.
 
-An embedded type's trait methods are not promoted either; member lookup skips
-them ([Member Resolution](03-names-and-scopes.md#member-resolution)). If
+An embedded type's trait methods are not promoted either
+([Member Resolution](03-names-and-scopes.md#member-resolution)). If
 `Label` implements `Display` and `Page` embeds `Label`, `page.to_string()`
-reaches no `to_string` through `Label`'s implementation, and `Page` satisfies
-no `Display` bound, unless `Page` itself implements `Display`.
+never calls `Label`'s implementation: unless `Page` itself has a
+`to_string`, it is an `embedded-trait-method-not-promoted` error suggesting
+`page.Label.to_string()`, and lookup does not continue to types that `Label`
+embeds. `Page` satisfies no `Display` bound unless `Page` itself implements
+`Display`.
 
 Embedding is composition, not subtype inheritance. An outer data type is not
 assignable to an embedded type merely because it promotes that type's methods.

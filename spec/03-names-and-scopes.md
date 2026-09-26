@@ -423,13 +423,22 @@ package's unexported names never match.
    trait method named `name`, lookup searches the data types reachable
    through embedded fields, breadth first. At each depth, a **match** is a
    visible inherent method named `name` of an embedded type at that depth.
-   Fields are never matches. Trait methods count only on the receiver's own
-   type `S`: an embedded type's trait methods are skipped, so they are never
-   matches and never stop the search below that type, whether or not their
-   trait is available. The first depth with a match decides the lookup, so a
-   shorter path always wins over a longer one. Two or more matches at that
-   depth, including one method reached through two different paths, are an
-   `ambiguous-promoted-member` error.
+   Fields are never matches. Trait methods are selected only on the
+   receiver's own type `S`, never through an embedded field, but their names
+   still stop the search. An embedded type **blocks** `name` when it has a
+   trait method named `name` and no visible inherent method named `name`,
+   whether or not the trait is available. The first depth with a match or a
+   blocking type decides the lookup, so a shorter path always wins over a
+   longer one:
+   - Exactly one match and no blocking type selects the match.
+   - Two or more matches, including one method reached through two
+     different paths, are an `ambiguous-promoted-member` error. So is one
+     match beside a blocking type at the same depth.
+   - Blocking types and no match are an
+     `embedded-trait-method-not-promoted` error. Its message names the trait
+     and suggests the explicit path, as in `x.E1.name(args)`, where lookup
+     starts at the embedded type and finds the trait method as an own
+     method.
 3. **No visible method.** If neither step selects a method, the use is a
    `private-member` error when lookup skipped an inherent method named
    `name`, and an `unknown-method` error otherwise. When the receiver has a
@@ -437,8 +446,12 @@ package's unexported names never match.
 
 For example, if `Page` embeds `Label`, `Label` implements `Display` and
 embeds `Base`, and `Base` has an inherent `to_string`, then
-`page.to_string()` skips `Label`'s `Display` method at depth 1 and selects
-`Base`'s `to_string` at depth 2.
+`page.to_string()` stops at depth 1, where `Label` blocks `to_string`, and is
+an `embedded-trait-method-not-promoted` error; it never reaches `Base`'s
+`to_string` at depth 2. `page.Label.to_string()` calls `Label`'s `Display`
+method, and `page.Label.Base.to_string()` calls `Base`'s. A name that an
+embedded type has only through a trait therefore never silently resolves to
+a method deeper in the tree.
 
 A member selected in step 2 of either lookup is a **promoted member**.
 `x.name` then means the explicit path `x.E1.E2...Ek.name` through the
