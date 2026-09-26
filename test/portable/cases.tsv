@@ -675,3 +675,5 @@ runtime/valid/no-entry-point-no-tests.hd	runtime
 typing/invalid/tuple-element-assignment.hd	type
 typing/invalid/indirect-supertrait-cycle.hd	type
 typing/invalid/inferred-mutable-upgrade.hd	type
+typing/invalid/signed-exponent.hd	type
+typing/invalid/signed-integer-exponent.hd	type

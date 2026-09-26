@@ -170,6 +170,20 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
+        // An integer exponent must be unsigned. This prototype has no unsigned
+        // types, so only an exponent built from unsuffixed literals (typed u32
+        // in exponent position) is accepted; it is represented as i32.
+        if (
+          expression.operator === "**" &&
+          left.type === "i32" &&
+          right.type === "i32" &&
+          !isLiteralExponent(expression.right)
+        )
+          this.fail(
+            "type-mismatch",
+            `an integer exponent must have an unsigned integer type, found '${right.type}'`,
+            expression.right.span,
+          );
         if (left.type !== right.type) {
           if (expression.operator === "**")
             this.fail(
@@ -347,4 +361,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       span: expression.span,
     };
   }
+}
+
+const LITERAL_EXPONENT_OPERATORS = new Set(["+", "*", "**"]);
+
+/** True for an exponent whose leaves are integer literals, which take type u32. */
+function isLiteralExponent(expression: Expression): boolean {
+  if (expression.kind === "integer") return true;
+  return (
+    expression.kind === "binary" &&
+    LITERAL_EXPONENT_OPERATORS.has(expression.operator) &&
+    isLiteralExponent(expression.left) &&
+    isLiteralExponent(expression.right)
+  );
 }
