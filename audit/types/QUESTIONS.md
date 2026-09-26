@@ -414,6 +414,24 @@ read it, so prefer explicit, checkable rules and locality.
   implementation, and an associated function with a trait default keeps the
   default; a type embedding a too-deep type is itself too deep.
 
+- **Option follow-ups, not yet applied (A2, A3).** (A1) A `.None` where a
+  non-optional is expected stays `missing-contextual-enum-type`. (A2) No
+  least-common-type special case for `.None`: `[1, .None]` needs an expected
+  type like any contextual variant. (A3) Optionals follow ordinary enum
+  rules: they may be erased to `Any`, and `is` applies to them as to any enum
+  value. (A4 to A6) Accepted as applied: bare `None`/`Some` patterns report
+  `bare-variant-pattern`; uncalled `Type::name` is a parse error and
+  `x::name(...)` a check error; the literal-default preference covers direct
+  literal arguments only.
+
+- **Prototype-fix follow-ups C1 to C3, not yet applied.** (C1) Pin these
+  codes in the spec: `&`, `|`, `^` on non-integers and arithmetic on
+  non-numeric types are `type-mismatch`; a misplaced separator in a float
+  literal is `invalid-token`; `0b1z` and a bare `0x` are `syntax-error`.
+  (C2) `2 ** -1` is `type-mismatch` at compile time (signed exponent, L2).
+  (C3) An impl method's generic parameters and bounds must match the trait
+  method's exactly, in order; a mismatch is an error at the impl.
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
@@ -743,7 +761,7 @@ candidate; (C) (B), and also over a promoted method of the same name.
 no longer ambiguous (`Page`'s method is selected); a promoted inherent method
 beside the receiver's trait method stays `ambiguous-method` (A).
 
-## Questions From The Option Change (held until embedding is settled)
+## Questions From The Option Change (answered; see Owner Decisions)
 
 1. Should a value-to-non-optional mismatch have a dedicated code
    (`none-to-nonoptional`), or keep `missing-contextual-enum-type`?
