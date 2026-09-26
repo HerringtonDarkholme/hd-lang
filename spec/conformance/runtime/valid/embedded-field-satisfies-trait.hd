@@ -21,7 +21,7 @@ fn show(value: Describe) -> i32: value.describe()
 
 fn main() -> i32:
     page := Page { Label: ...Label { value: 21 } }
-    page.describe() + show(page)
+    Describe::describe(page) + show(page)
 
 test "main returns 42":
     assert_equal(main(), 42, reason="traits / embedded fields")

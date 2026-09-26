@@ -341,13 +341,15 @@ The names `user` and `label` are not visible after the comprehension.
 Each nominal type has two member namespaces, and the form of a use chooses
 between them. Its **fields**, including embedded fields named by their
 embedded type name, are found by field lookup. Its **methods** are found by
-method lookup. A type's **own methods** are its inherent methods and its
-trait methods, which are the methods of every trait that a known
-implementation implements for the type. A **known implementation** is any
-implementation in the program's dependency graph whose target matches the
-type, except that a local implementation counts only where its methods are
-available for lookup
+method lookup. A type's **trait methods** are the methods of every trait
+that a known implementation implements for the type. A **known
+implementation** is any implementation in the program's dependency graph
+whose target matches the type, except that a local implementation counts
+only where its methods are available for lookup
 ([Implementation Declarations](09-traits.md#implementation-declarations)).
+A trait method takes part in method lookup only where its trait is
+available, as in Rust, where a trait method is a candidate only while its
+trait is in scope.
 Associated functions are not dot-call members; they are reached through
 `Type::function` or `Trait::function`.
 
@@ -408,60 +410,73 @@ package's unexported names never match.
 
 **Method lookup** proceeds as follows:
 
-1. **Own methods.** If `S` has a visible inherent method named `name`, it is
-   selected; it wins over every trait method, and embedded fields are not
-   searched. Otherwise, if `S` has a trait method named `name`, lookup stops
-   at `S`, whether or not its trait is available:
-   - Exactly one available trait method is selected. Methods of two or more
-     available traits are an `ambiguous-method` error. When the methods come
-     from several instantiations of one generic trait, the call chooses among
-     them as in [Method Resolution](09-traits.md#method-resolution).
-   - If no trait method named `name` is available, the use is a
-     `trait-not-in-scope` error, whose message names the trait and suggests a
-     use declaration or the qualified form `Trait::name(x, ...)`.
-
-   Presence is decided by name alone, whatever the method's arity or
-   parameter types: a visible inherent method or a trait method with the
-   wrong signature still stops the search, and the call is then checked
-   against it. An inherent method that is not visible is skipped.
-2. **Embedded fields.** Only when `S` has no visible inherent method and no
-   trait method named `name`, lookup searches the data types reachable
+1. **Own inherent method.** If `S` has a visible inherent method named
+   `name`, it is selected; it wins over every trait method, and embedded
+   fields are not searched. Selection is by name alone, whatever the
+   method's arity or parameter types: a visible inherent method with the
+   wrong signature is still selected, and the call is then checked against
+   it. An inherent method that is not visible is skipped.
+2. **Trait candidates.** Otherwise the **trait candidates** are the trait
+   methods of `S` named `name` whose trait is available at the call,
+   wherever their implementations are declared. A trait method whose trait
+   is not available is not a candidate and has no effect on the lookup.
+3. **Embedded fields.** Lookup then searches the data types reachable
    through embedded fields, breadth first. At each depth, a **match** is a
    visible inherent method named `name` of an embedded type at that depth.
-   Fields are never matches. Trait methods are selected only on the
-   receiver's own type `S`, never through an embedded field, but their names
-   still stop the search. An embedded type **blocks** `name` when it has a
-   trait method named `name` and no visible inherent method named `name`,
-   whether or not the trait is available. The first depth with a match or a
-   blocking type decides the lookup, so a shorter path always wins over a
-   longer one:
-   - Exactly one match and no blocking type selects the match.
-   - Two or more matches, including one method reached through two
-     different paths, are an `ambiguous-promoted-member` error. So is one
-     match beside a blocking type at the same depth.
-   - Blocking types and no match are an
+   Fields are never matches, and neither are trait methods: a trait method
+   is selected only on the receiver's own type `S`, never through an
+   embedded field. An embedded type **blocks** `name` when it has a trait
+   method named `name` whose trait is available at the call and no visible
+   inherent method named `name`. The first depth with a match or a blocking
+   type is the **deciding depth**, so a shorter path always wins over a
+   longer one; deeper types are not considered.
+4. **Selection.** The trait candidates and the deciding depth together
+   decide the call:
+   - With no trait candidate, exactly one match and no blocking type at the
+     deciding depth selects the match. Two or more matches, including one
+     method reached through two different paths, are an
+     `ambiguous-promoted-member` error, and so is one match beside a
+     blocking type. Blocking types and no match are an
      `embedded-trait-method-not-promoted` error. Its message names the trait
      and suggests the explicit path, as in `x.E1.name(args)`, where lookup
-     starts at the embedded type and finds the trait method as an own
+     starts at the embedded type and finds the trait method.
+   - With trait candidates and no deciding depth, exactly one trait
+     candidate is selected, and methods of two or more traits are an
+     `ambiguous-method` error. When the candidates come from several
+     instantiations of one generic trait, the call chooses among them as in
+     [Method Resolution](09-traits.md#method-resolution). A single trait
+     candidate with the wrong signature is still selected, and the call is
+     then checked against it.
+   - With trait candidates and a deciding depth, the call is an
+     `ambiguous-method` error, whatever the signatures. Its message names the
+     trait method and the promoted method or blocking type, and suggests the
+     trait-qualified form `Trait::name(x, ...)` or the explicit path
+     `x.E1.name(args)`. A trait method of `S` never silently wins over a
+     promoted member, and a promoted member never silently wins over a trait
      method.
-3. **No visible method.** If neither step selects a method, the use is a
-   `private-member` error when `S` itself has an inherent method named `name`
-   that is not visible, and an `unknown-method` error otherwise. An invisible
-   inherent method of an embedded type never leads to `private-member`. When
-   the receiver has a field named `name`, the message should suggest
-   `(x.name)(args)`.
+5. **No method.** If nothing is selected or reported, the use is a
+   `private-member` error when `S` itself has an inherent method named
+   `name` that is not visible, and an `unknown-method` error otherwise. An
+   invisible inherent method of an embedded type never leads to
+   `private-member`. When `S` has a trait method named `name` whose trait is
+   not available at the call, the message should name the trait and suggest
+   a use declaration for it. When the receiver has a field named `name`, the
+   message should suggest `(x.name)(args)`.
 
 For example, if `Page` embeds `Label`, `Label` implements `Display` and
 embeds `Base`, and `Base` has an inherent `to_string`, then
 `page.to_string()` stops at depth 1, where `Label` blocks `to_string`, and is
 an `embedded-trait-method-not-promoted` error; it never reaches `Base`'s
 `to_string` at depth 2. `page.Label.to_string()` calls `Label`'s `Display`
-method, and `page.Label.Base.to_string()` calls `Base`'s. A name that an
-embedded type has only through a trait therefore never silently resolves to
-a method deeper in the tree.
+method, and `page.Label.Base.to_string()` calls `Base`'s. If `Page` also
+implemented `Display`, the call would be an `ambiguous-method` error, since
+`Page`'s trait method is a candidate beside the blocking `Label`;
+`Display::to_string(page)` selects it. A name that an embedded type has
+through an available trait therefore never silently resolves to a method
+deeper in the tree or on the receiver.
 
-A member selected in step 2 of either lookup is a **promoted member**.
-`x.name` then means the explicit path `x.E1.E2...Ek.name` through the
+A field selected in step 2 of field lookup, or a match selected in step 4 of
+method lookup, is a **promoted member**. `x.name` then means the explicit path `x.E1.E2...Ek.name` through the
 embedded fields `E1` to `Ek`, with the same type, permission, and evaluation.
 Each embedded step follows its container's access
 ([Mutable Paths](04-type-system.md#mutable-paths)), so a promoted member has
@@ -474,13 +489,15 @@ field, as in `x.E1.name`, starts a new lookup at `E1`'s type and resolves
 every promotion ambiguity. `Trait::name(x, ...)` selects a trait method
 without member lookup.
 
-Two consequences are intended. Shortest path wins even across packages, so
+One consequence is intended. Shortest path wins even across packages, so
 when an embedded type in a dependency gains a visible member at a shallower
 depth, a use may silently select it; Rust accepts the same kind of switch
-when a trait import changes which `Deref` step answers a method call. A
-trait method counts on `S` wherever its implementation is declared, so an
-implementation for `S` added in another package gives `S` a depth-0 method
-that stops the search before any embedded member.
+when a trait import changes which `Deref` step answers a method call. Trait
+methods never switch a call silently: a trait implementation added in any
+package, or a use declaration added to the calling module, makes a trait
+method a candidate or an embedded type a blocking type only where its trait
+is available, and a call that already selected a method then becomes an
+error rather than selecting another method.
 
 There is no overriding. A promoted method runs as the embedded type's own
 method, with the embedded value as its receiver. Inside that method, `self`

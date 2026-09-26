@@ -210,8 +210,12 @@ its receiver. A method call never reads a field. A function stored in a field
 is called by parenthesizing the field read, as in `(handler.callback)(event)`;
 `handler.callback(event)` looks for a method named `callback` and is an
 `unknown-method` error when there is none; when a field named `callback`
-exists, the message should suggest `(handler.callback)(event)`. Field and
-method lookup, including promoted members, are defined in
+exists, the message should suggest `(handler.callback)(event)`. A method
+call never finds a method of a trait that is not available at the call, even
+when the receiver's type implements it; when such a method is the only one
+with the name, the `unknown-method` message should suggest a use declaration
+for its trait. Field and method lookup, including promoted members, are
+defined in
 [Member Resolution](03-names-and-scopes.md#member-resolution). A method is
 not a value: `value.method` without an argument clause is a field read.
 Method values are deferred, and their future spellings `Type::name` and

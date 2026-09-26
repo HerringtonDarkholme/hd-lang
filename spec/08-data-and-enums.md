@@ -279,13 +279,15 @@ contravariant parameter used in an embedded field's type is an
 Embedding promotes the embedded type's fields and inherent methods for
 convenient access. Which field `x.name` or method `x.name(args)` selects is
 defined once in [Member Resolution](03-names-and-scopes.md#member-resolution):
-the receiver's own members come first, members not visible from the calling
-module are skipped (an invisible member of an embedded type is never
-reported), embedded fields are searched breadth first with the
-shortest path winning, and an embedded type's trait methods are never
-promoted: a method name that an embedded type has only through a trait stops
-the search with `embedded-trait-method-not-promoted`, and the call is written
-through the embedded field, as in `x.Label.to_string()`.
+the receiver's own fields and inherent methods come first, members not
+visible from the calling module are skipped (an invisible member of an
+embedded type is never reported), embedded fields are searched breadth first
+with the shortest path winning, and an embedded type's trait methods are
+never promoted: a method name that an embedded type has through an available
+trait stops the search with `embedded-trait-method-not-promoted`, and the
+call is written through the embedded field, as in `x.Label.to_string()`. A
+trait method of the receiver's type counts only where its trait is
+available, and a promoted method beside it is `ambiguous-method`.
 
 Embedding is composition, not subtyping. The outer data type is not
 assignable to the embedded type. Embedding has no overriding: a promoted

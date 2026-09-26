@@ -1,0 +1,20 @@
+# test: an available trait method of the outer type beside a promoted inherent method is ambiguous, never a silent choice
+trait Describe:
+    fn describe(self) -> string
+
+data Base:
+    name: string
+
+impl Base:
+    fn describe(self) -> string:
+        "base " + self.name
+
+data Page:
+    Base
+
+impl Describe for Page:
+    fn describe(self) -> string:
+        "page " + self.Base.name
+
+fn invalid(page: Page) -> string:
+    page.describe()  # diagnostic: ambiguous-method

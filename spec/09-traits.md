@@ -369,11 +369,11 @@ visible in the current lexical scope, or supplied by the prelude.
 For a generic receiver, its declared bounds are also available. A dynamic trait
 value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module
-that can name the target type. It does make the name present on the target, so
-lookup does not fall through to embedded fields: when `S` has no visible
-inherent method with the name and every trait method of `S` with that name
-belongs to a trait that is not available, the call is a `trait-not-in-scope`
-error.
+that can name the target type. A method of a trait that is not available is
+not a candidate at all, wherever its implementation is declared: lookup
+proceeds as if the implementation were absent, so a promoted method of the
+same name may be selected, and a call that finds no method should suggest a
+use declaration for the trait.
 
 A visible inherent method of the receiver's nominal type is always selected
 over trait methods, including a method of a trait that the same type
@@ -382,7 +382,11 @@ method, so no other package can change which method such a call reaches.
 
 When more than one available trait that the receiver implements supplies a
 method with that name, and no inherent method of that name is usable, the call
-is an `ambiguous-method` error. This holds whether each method is
+is an `ambiguous-method` error. So is a call where an available trait method
+of the receiver's type meets a promoted method, or an embedded type that has
+the name through an available trait
+([Member Resolution](03-names-and-scopes.md#member-resolution)): neither
+silently wins over the other. This holds whether each method is
 written in its implementation or comes from a default. The compiler does not
 select by conversion ranking or declaration order. A trait-qualified call
 resolves the ambiguity.
@@ -571,10 +575,11 @@ implementation of a trait with a required method is therefore a
 An embedded type's trait methods are not promoted either
 ([Member Resolution](03-names-and-scopes.md#member-resolution)). If
 `Label` implements `Display` and `Page` embeds `Label`, `page.to_string()`
-never calls `Label`'s implementation: unless `Page` itself has a
+never calls `Label`'s implementation. Unless `Page` has an inherent
 `to_string`, it is an `embedded-trait-method-not-promoted` error suggesting
-`page.Label.to_string()`, and lookup does not continue to types that `Label`
-embeds. `Page` satisfies no `Display` bound unless `Page` itself implements
+`page.Label.to_string()`, or an `ambiguous-method` error when `Page` also has
+an available trait method named `to_string`, and lookup does not continue to
+types that `Label` embeds. `Page` satisfies no `Display` bound unless `Page` itself implements
 `Display`.
 
 Embedding is composition, not subtype inheritance. An outer data type is not

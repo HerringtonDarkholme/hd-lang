@@ -1,0 +1,20 @@
+# test: an available trait method of the outer type beside an embedded type that has the name through an available trait is ambiguous
+trait Describe:
+    fn describe(self) -> string
+
+data Label:
+    text: string
+
+impl Describe for Label:
+    fn describe(self) -> string:
+        self.text
+
+data Page:
+    Label
+
+impl Describe for Page:
+    fn describe(self) -> string:
+        "page"
+
+fn invalid(page: Page) -> string:
+    page.describe()  # diagnostic: ambiguous-method

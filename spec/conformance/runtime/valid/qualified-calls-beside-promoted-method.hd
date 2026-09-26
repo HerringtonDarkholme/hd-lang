@@ -1,4 +1,4 @@
-# test: an outer trait method is an own member and hides an embedded inherent method
+# test: a trait method of the outer type and a promoted method of the same name are reached by qualified calls
 use std.testing.assert_equal
 
 trait Describe:
@@ -18,7 +18,7 @@ impl Describe for Page:
     fn describe(self) -> string:
         "page " + self.Base.name
 
-test "the outer trait method wins over the embedded inherent method":
+test "trait-qualified and path-qualified calls":
     page := Page { Base: ...Base { name: "home" } }
-    assert_equal(page.describe(), "page home", reason="own trait method")
+    assert_equal(Describe::describe(page), "page home", reason="trait-qualified call")
     assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")

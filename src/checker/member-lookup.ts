@@ -94,22 +94,35 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     );
   }
 
-  /** The trait of a known implementation for `type` that supplies a method `name`. */
+  /**
+   * The available trait of a known implementation for `type` that supplies a
+   * method `name`. A trait that is not available at the call is invisible to
+   * method lookup (spec 03 Member Resolution, Rust-style trait lookup).
+   */
   private traitWithMember(type: ValueType, name: string): string | undefined {
     for (const implementation of this.implementations) {
       if (!matchGenericTypePattern(implementation.targetType, type, new Map())) continue;
       const trait = [...this.traitTypes.values()].find(
         (candidate) => candidate.index === implementation.traitIndex,
       );
-      if (trait?.methods.some((method) => !method.associated && method.name === name))
+      if (
+        trait &&
+        this.traitAvailable(trait.name) &&
+        trait.methods.some((method) => !method.associated && method.name === name)
+      )
         return trait.name;
     }
     return undefined;
   }
 
-  /** Whether a known implementation for `type` supplies a trait method `name`. */
-  private traitMemberPresent(type: ValueType, name: string): boolean {
-    return this.traitWithMember(type, name) !== undefined;
+  /**
+   * Spec 09 Method Resolution: a trait is available when it is declared in or
+   * imported into the calling module, or supplied by the prelude. The
+   * prototype compiles a single module without trait imports, so every trait
+   * it knows is declared there or in the prelude.
+   */
+  private traitAvailable(_trait: string): boolean {
+    return true;
   }
 
   /**
@@ -124,12 +137,17 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   /**
    * Spec 03 Member Resolution. `x.name` uses field lookup and `x.name(args)`
-   * uses method lookup; the two namespaces never interact (M2). Each lookup
-   * checks the receiver's own members first, then embedded fields breadth
-   * first. Embedded types offer fields to field lookup and inherent methods
-   * to method lookup. Their trait methods are never selected, but an embedded
-   * type that has `name` only through a trait blocks the search at its depth
-   * (TQ-31 revised). Members that are not visible are skipped (P2). An
+   * uses method lookup; the two namespaces never interact (M2). Field lookup
+   * checks the receiver's own fields first, method lookup its own inherent
+   * methods; embedded fields are then searched breadth first. Embedded types
+   * offer fields to field lookup and inherent methods to method lookup. Their
+   * trait methods are never selected, but an embedded type that has `name`
+   * only through an available trait blocks the search at its depth (TQ-31
+   * revised). The receiver's available trait methods are candidates beside
+   * the embedded search: a trait candidate beside a promoted method or a
+   * blocking type is `ambiguous-method` (Rust-style trait lookup). An
+   * unavailable trait is invisible. Members that are not visible are skipped
+   * (P2). An
    * invisible member of an embedded type is ignored entirely; only an
    * invisible own member of the receiver's type is reported, and only when
    * nothing visible matches.
@@ -156,13 +174,15 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       : new Map<string, ValueType>();
     // An own member of `S` that is not visible; the only source of private-member.
     let ownInvisible = false;
+    // An available trait of `S` supplying a method `name`: the trait candidates.
+    let traitCandidate: string | undefined;
     if (method) {
       const inherent = this.findInherentMethod(type, name);
-      const trait = this.traitMemberPresent(type, name);
-      if (trait && traitDefaultDeclarations.has(this.declaration)) return { kind: "trait" };
+      traitCandidate = this.traitWithMember(type, name);
+      if (traitCandidate && traitDefaultDeclarations.has(this.declaration))
+        return { kind: "trait" };
       if (inherent && this.memberVisible(inherent))
         return { kind: "inherent", steps: [], method: inherent };
-      if (trait) return { kind: "trait" };
       if (inherent) ownInvisible = true;
     } else {
       const field = declaration?.fields.find((candidate) => candidate.name === name);
@@ -170,7 +190,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         return { kind: "field", steps: [], final: { declaration, field, substitutions } };
       if (field) ownInvisible = true;
     }
-    if (!declaration) return { kind: "none" };
+    if (!declaration) return traitCandidate ? { kind: "trait" } : { kind: "none" };
     let frontier: {
       declaration: HirData;
       substitutions: ReadonlyMap<string, ValueType>;
@@ -227,6 +247,19 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
           });
         }
       }
+      if (traitCandidate && (matches.length > 0 || blockers.length > 0)) {
+        const first = matches[0]?.kind === "inherent" ? matches[0] : blockers[0]!;
+        const path = first.steps.map((step) => step.field.name).join(".");
+        const other =
+          matches.length > 0
+            ? `a method promoted from the embedded field '${path}'`
+            : `a ${blockers[0]!.trait} method of the embedded field '${path}'`;
+        this.fail(
+          "ambiguous-method",
+          `'${name}' is a ${traitCandidate} method of this type and also ${other}; call it as ${traitCandidate}::${name}(x, ...) or x.${path}.${name}(...)`,
+          span,
+        );
+      }
       if (matches.length > 1)
         this.fail(
           "ambiguous-promoted-member",
@@ -251,6 +284,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       }
       frontier = next;
     }
+    if (traitCandidate) return { kind: "trait" };
     if (ownInvisible)
       this.fail(
         "private-member",

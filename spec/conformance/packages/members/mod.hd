@@ -1,6 +1,9 @@
 pub trait Tagged:
     fn tag(self) -> string
 
+pub trait Stamped:
+    fn mark(self) -> string
+
 pub data Inner:
     pub note: string
     pub code: string
@@ -34,6 +37,10 @@ impl Outer:
 impl Tagged for Outer:
     fn tag(self) -> string:
         "outer"
+
+impl Stamped for Outer:
+    fn mark(self) -> string:
+        "outer mark"
 
 pub fn make_outer() -> Outer:
     Outer { Inner: ...Inner { note: "note", code: "inner field", serial: 7 }, code: "private", revision: 1 }

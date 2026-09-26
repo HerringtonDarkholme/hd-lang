@@ -108,8 +108,10 @@ typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage te
 typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2
 runtime/valid/invisible-outer-method-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/invisible-outer-field-skipped.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/invalid/unavailable-trait-method-blocks-promotion.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; trait availability is not tracked, so trait-not-in-scope is not implemented	E2
-runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	E2
+runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
+typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
+typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
+runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 runtime/valid/mutable-provider-state.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
 typing/valid/mutable-provider-rows.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
 parse/valid/mutable-requirement-keys.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
@@ -144,7 +146,7 @@ typing/valid/generic-data-embedding.hd	check reports expected-expression at line
 runtime/valid/generic-data-embedding.hd	check reports expected-expression at line 12: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/embedded-field-satisfies-trait.hd	check reports expected-expression at line 23: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/direct-member-hides-promoted.hd	check reports expected-expression at line 23: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
-runtime/valid/outer-trait-method-hides-embedded-method.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
+runtime/valid/qualified-calls-beside-promoted-method.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/outer-field-beside-embedded-method.hd	check reports expected-expression at line 16: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/depth-two-promotion.hd	check reports expected-expression at line 18: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 runtime/valid/shorter-promotion-path-wins.hd	check reports expected-expression at line 18: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE

@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: a method only of a trait that is not available is not found; the message should suggest importing the trait
+use dep.members.{Outer}
+
+fn invalid(outer: Outer) -> string:
+    outer.mark()  # diagnostic: unknown-method

@@ -49,32 +49,42 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Using `Deref` for composition is considered an anti-pattern; it is meant
   for smart pointers.
 
-### hd today (after E1 to E5, M2, P2, TQ-31 revised, and private embedded members)
+### hd today (after E1 to E5, M2, P2, TQ-31 revised, private embedded members, and Rust-style trait lookup)
 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
   `(x.callback)(args)`. A field and a method may share a name.
 - Embedding is a tree, searched breadth-first; shortest path wins; a
   same-depth clash is an error (E3).
-- Each lookup checks the receiver's own members first: its fields, or its
-  inherent and trait methods (E1). A visible member, or any own trait
-  method, stops the search whatever its signature (E2).
+- Field lookup checks the receiver's own fields first (E1). Method lookup
+  selects a visible own inherent method first, whatever its signature (E1,
+  E2). Otherwise the receiver's trait methods are candidates only where
+  their trait is in scope at the call, wherever the impl is declared, as in
+  Rust. The embedded search still runs: a trait candidate beside a promoted
+  method or a blocking embedded type is `ambiguous-method`, so neither
+  silently wins (Rust-style trait lookup).
+- A trait method whose trait is not in scope is invisible: it neither stops
+  the search nor blocks, so a promoted method of that name is selected, and a
+  call that finds nothing is `unknown-method` with a message suggesting the
+  import. `trait-not-in-scope` is gone (it replaced the E2 stop rule kept in
+  P2).
 - Members not visible from the calling module are skipped, at every depth,
   as in Rust's privacy-aware lookup. An invisible member of an embedded type
   is ignored entirely; `private-member` is reported only for an invisible
   own member of the receiver's type, when nothing visible matches, and
-  otherwise the use is `unknown-data-field` or `unknown-method`. Inside the defining module the private member
-  wins. An own trait method whose trait is not imported still stops the
-  search with `trait-not-in-scope` (P2). Embedded fields are always public,
-  so only a promoted member's own visibility matters, never its path.
+  otherwise the use is `unknown-data-field` or `unknown-method`. Inside the
+  defining module the private member wins. Embedded fields are always
+  public, so only a promoted member's own visibility matters, never its
+  path.
 - Embedded types offer fields and inherent methods only. Trait methods are
   selected only on the receiver's own type (E4). A method name that an
-  embedded type has only through a trait stops the search at that depth:
-  `embedded-trait-method-not-promoted`, suggesting `x.Part.m()`, or
+  embedded type has through an in-scope trait stops the search at that
+  depth: `embedded-trait-method-not-promoted`, suggesting `x.Part.m()`, or
   `ambiguous-promoted-member` when another type at that depth has an
-  inherent method of that name (TQ-31 revised). A trait-only name never
-  silently resolves deeper; in Go the method would be promoted, and in Rust
-  an in-scope trait method at a `Deref` step answers the call there.
+  inherent method of that name (TQ-31 revised), or `ambiguous-method` beside
+  a trait candidate of the receiver. Such a name never silently resolves
+  deeper; in Go the method would be promoted, and in Rust an in-scope trait
+  method at a `Deref` step answers the call there.
 - Embedding never grants trait conformance, and promoted methods never fill
   trait methods (E5).
 - No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
@@ -85,34 +95,36 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 
 ## Comparison
 
-| Dimension | Go | Rust | hd with M1 | hd proposed |
-| --- | --- | --- | --- | --- |
-| Field and method namespaces | one | two, by syntax | one (M1) | **two, by syntax** |
-| Same-named field and method on one type | error | allowed | error | **allowed** |
-| Calling a function-typed field | `x.f()` | `(x.f)()` | `x.f()` | **`(x.f)()`** |
-| Who may add methods to a type | its package | inherent: its crate; traits: orphan rule | same as Rust | same as Rust |
-| Composition shape | tree | chain | tree | tree |
-| Lookup order within one type | one set | inherent, then in-scope traits | inherent, then traits | inherent, then traits |
-| Deeper lookup | shallowest wins | next step | shallowest wins | shallowest wins |
-| Same-depth matches | error at use | impossible (chain) | error at use | error at use |
-| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** (not adopted; E4 kept; a trait-only name stops the search, TQ-31 revised) |
-| Composition satisfies traits | yes | no | no | no |
-| Promoted method fills a trait method | yes (structural) | no | no | no |
-| Overriding | no | no | no | no (stated) |
-| Converts to the composed type | no | yes (deref coercion) | no | no |
-| Un-imported trait method | n/a | not a candidate | error, never fallthrough | error, never fallthrough |
+| Dimension | Go | Rust | hd with M1 | hd proposed | hd today |
+| --- | --- | --- | --- | --- | --- |
+| Field and method namespaces | one | two, by syntax | one (M1) | **two, by syntax** | two, by syntax |
+| Same-named field and method on one type | error | allowed | error | **allowed** | allowed |
+| Calling a function-typed field | `x.f()` | `(x.f)()` | `x.f()` | **`(x.f)()`** | `(x.f)()` |
+| Who may add methods to a type | its package | inherent: its crate; traits: orphan rule | same as Rust | same as Rust | same as Rust |
+| Composition shape | tree | chain | tree | tree | tree |
+| Lookup order within one type | one set | inherent, then in-scope traits | inherent, then traits | inherent, then traits | inherent, then in-scope traits pooled with the embedded search |
+| Deeper lookup | shallowest wins | next step | shallowest wins | shallowest wins | shallowest wins |
+| Same-depth matches | error at use | impossible (chain) | error at use | error at use | error at use |
+| Trait methods of composed types | promoted | found at their step | not promoted | **promoted** (not adopted; E4 kept) | not promoted; an in-scope trait name blocks |
+| Trait method of the type beside a promoted method | n/a | the type's step wins | trait wins | trait wins | `ambiguous-method` |
+| Composition satisfies traits | yes | no | no | no | no |
+| Promoted method fills a trait method | yes (structural) | no | no | no | no |
+| Overriding | no | no | no | no (stated) | no |
+| Converts to the composed type | no | yes (deref coercion) | no | no | no |
+| Un-imported trait method | n/a | not a candidate | error, never fallthrough | error, never fallthrough | not a candidate; the not-found message suggests the import |
 
 ## Evolution Hazards
 
 Who can break or silently change a working call, and how:
 
-| Change | Go | Rust | hd proposed |
-| --- | --- | --- | --- |
-| A trait adds or renames a method | n/a | ambiguity errors only | ambiguity errors only; never collides with a field |
-| The type's package adds a method | local | inherent silently shadows a trait method | same as Rust, local to the type's owner |
-| An embedded type adds a shallower member | silent switch | n/a | silent switch (accepted in E3, P3) |
-| A type adds a private member | none | none (privacy-aware lookup) | none (skipped, P2) |
-| A module imports a trait | n/a | can silently switch across `Deref` steps | no switch: presence counts known impls |
+| Change | Go | Rust | hd proposed | hd today |
+| --- | --- | --- | --- | --- |
+| A trait adds or renames a method | n/a | ambiguity errors only | ambiguity errors only; never collides with a field | ambiguity errors only; never collides with a field |
+| The type's package adds a method | local | inherent silently shadows a trait method | same as Rust, local to the type's owner | same as Rust, local to the type's owner |
+| An embedded type adds a shallower member | silent switch | n/a | silent switch (accepted in E3, P3) | silent switch (E3, P3) |
+| A type adds a private member | none | none (privacy-aware lookup) | none (skipped, P2) | none (skipped, P2) |
+| A module imports a trait | n/a | can silently switch across `Deref` steps | no switch: presence counts known impls | no switch: a new candidate or blocker makes the call an error |
+| A package adds a trait impl for the type or an embedded type | n/a | can silently switch across `Deref` steps | the type's impl hides embedded members (P4) | no switch: ambiguity errors only, where the trait is in scope |
 
 With one namespace, a trait author who adds or renames a method to a name
 that some implementing type uses for a field breaks that type's package,
@@ -154,7 +166,10 @@ adopted for embedded depths: they offer inherent methods only, and E4 stays.
 P2 later revised rule 4: an invisible member is skipped rather than
 reported, and only an unavailable trait still stops the search. A later
 decision ignores an invisible member of an embedded type entirely: only an
-invisible own member of `S` is reported as `private-member`.
+invisible own member of `S` is reported as `private-member`. Rust-style
+trait lookup then removed the remaining stop: a trait method is a candidate
+only where its trait is in scope, and a trait candidate beside a promoted
+method or a blocking embedded type is `ambiguous-method`.
 
 Changes from the applied rules proposed at the time: M1 becomes two namespaces (a field and a
 method may share a name; `x.callback()` becomes `(x.callback)()`); E4 is

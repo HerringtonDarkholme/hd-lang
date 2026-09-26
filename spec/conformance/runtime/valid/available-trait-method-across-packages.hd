@@ -1,11 +1,12 @@
 # fixture-package-role: root-application
-# test: with the trait available the own trait method is selected; public embedded members promote
+# test: an imported trait's method is selected wherever its impl is declared; public embedded members promote
 use std.testing.assert_equal
-use dep.members.{Tagged, make_outer}
+use dep.members.{Stamped, Tagged, make_outer}
 
-test "own trait method and promoted public members":
+test "imported trait methods and promoted public members":
     outer := make_outer()
-    assert_equal(outer.tag(), "outer", reason="own trait method wins")
+    assert_equal(outer.mark(), "outer mark", reason="imported trait method")
+    assert_equal(Tagged::tag(outer), "outer", reason="trait-qualified call")
     assert_equal(outer.Inner.tag(), "inner", reason="qualified call reaches Inner")
     assert_equal(outer.note, "note", reason="promoted public field")
     assert_equal(outer.code(), "inner code", reason="a private own field does not block a promoted method")

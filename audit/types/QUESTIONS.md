@@ -48,7 +48,8 @@ read it, so prefer explicit, checkable rules and locality.
   ambiguity error at the use. (E4) The fallback finds fields and inherent
   methods only; an embedded type's trait methods never promote. (E5) A
   promoted method never fills a required trait method; the impl writes the
-  body. Replaces TQ-7 and TQ-8.
+  body. Replaces TQ-7 and TQ-8. (E2's un-imported-trait stop is superseded
+  by Rust-style trait lookup: an unavailable trait is invisible.)
 - **Member namespace (M1), superseded by M2.** Was applied to 03 Member
   Resolution, 05 Member
   Access, and 09 Inherent Implementations; a field and an inherent method
@@ -115,12 +116,13 @@ read it, so prefer explicit, checkable rules and locality.
   Rust (rust-lang/rust PR #31938) and Go; inside the defining module the
   private member wins; if nothing visible is found, the private member is
   reported (`private-member`). Private additions never break outside
-  callers. An un-imported trait still stops the search.
+  callers. An un-imported trait still stops the search (superseded by
+  Rust-style trait lookup).
   (P3) E3 stays: shortest path wins, accepting silent switches when an
   embedded type in another package gains a shallower member, as Rust accepts
-  trait imports changing `Deref` resolution. (P4) Accepted: a trait impl for
-  `S` added in a third package gives `S` a depth-0 method that blocks an
-  embedded member. (P5) TQ-31 stays: trait methods of embedded types are
+  trait imports changing `Deref` resolution. (P4, superseded by Rust-style trait
+  lookup) Accepted: a trait impl for `S` added in a third package gives `S` a
+  depth-0 method that blocks an embedded member. (P5) TQ-31 stays: trait methods of embedded types are
   never searched. (P6, applied to 02, 05 Member Access, and 07 Unsupported
   Function Extensions with the code `deferred-method-value`) `Type::name` and `x::name` are
   reserved for future method values, and `x.callback(args)` reports "did you
@@ -299,8 +301,23 @@ read it, so prefer explicit, checkable rules and locality.
   member of the receiver's type `S` when nothing visible is found; otherwise
   the use is `unknown-data-field` or `unknown-method`.
 
-- **Embedding simplification (Cut 2 and Rust-style trait lookup), not yet
-  applied.** Cut 1 (parts as references) was declined; value copies stay.
+- **Embedding simplification (Cut 2 and Rust-style trait lookup). The
+  Rust-style trait lookup part is applied** to 03 Member Resolution (method
+  lookup steps 2 to 5), 05 Member Access, 08 Data Embedding, 09 Method
+  Resolution and Embedding And Trait Satisfaction, MEMBER_LOOKUP.md, the tour,
+  the members package and fixtures, and the prototype (`member-lookup.ts`;
+  every trait is available in its single module, KNOWN_FAILURES tag EMB-S).
+  `trait-not-in-scope` is removed; it supersedes E2's un-imported-trait stop
+  rule (kept in P2) and P4. Breadth-first search, shortest path, and
+  same-depth ambiguity stay until Cut 2 is settled. **Cut 2 is on hold**: the
+  owner is revising it (the flat "every part at any depth" table is being
+  replaced by a compositional one). Readings applied with the trait part:
+  the embedded search keeps running beside trait candidates, and a trait
+  candidate beside a match or blocking type at the deciding depth is
+  `ambiguous-method`; an embedded type blocks only through an available
+  trait and only without a visible inherent method of the name (as in TQ-31
+  revised); a promoted method is selected over an unavailable trait method.
+  See TQ-36. Cut 1 (parts as references) was declined; value copies stay.
   (Cut 2) Embedding flattens: the promoted fields are the visible fields of
   every embedded part at any depth, and the promoted methods are their
   visible inherent methods. Promoted field names must be unique among
@@ -624,7 +641,26 @@ The applied text reports `private-member` when a field or inherent method is
 present but not visible, and `trait-not-in-scope` otherwise. Confirm.
 **Moot under M2:** the field and the trait method are in different
 namespaces, so `x.tag` reports `private-member` and `x.tag()` reports
-`trait-not-in-scope`.
+`trait-not-in-scope`. (That code is gone: under Rust-style trait lookup the
+unavailable trait is invisible.)
+
+## TQ-36: A trait method of the outer type beside the same trait on a part
+    impl Display for Label: ...
+    data Page:
+        Label
+    impl Display for Page: ...
+    page.to_string()                     # Page's method, or ambiguous?
+Applied literally, `Label` blocks `to_string` through the available prelude
+trait `Display`, and a blocking part beside `Page`'s own trait candidate is
+`ambiguous-method`, so every type that implements `Display` and embeds a type
+that also implements it needs `Display::to_string(page)`. The same holds for
+the forwarding pattern: `impl Describe for Service` beside `Logger`'s
+inherent `describe` makes `service.describe()` ambiguous where `Describe` is
+in scope (see `typing/invalid/trait-method-beside-blocking-embedded-type.hd`
+and `typing/invalid/trait-method-beside-promoted-method.hd`). Options: (A)
+keep, never a silent choice; (B) the outer type's trait candidate wins over
+blocking parts, and blocking parts matter only when there is no trait
+candidate; (C) (B), and also over a promoted method of the same name.
 
 ## Questions From The Option Change (held until embedding is settled)
 

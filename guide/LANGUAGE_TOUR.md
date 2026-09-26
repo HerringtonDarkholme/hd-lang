@@ -730,7 +730,7 @@ shipment.value
 Two embedded types with the same final name are rejected, even when their
 type arguments differ.
 
-Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Each lookup checks the outer type first: its fields, or its inherent and trait methods. Embedded fields are searched only when the outer type has no field (or method) with that name, at any depth, shortest path first. An embedded type contributes its fields and inherent methods, never its trait methods; a method name an embedded type has only through a trait stops the search with an error that suggests calling through the embedded field, as in `page.Label.to_string()`. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual. A private member of an embedded type is ignored entirely, and `private-member` is reported only for a private member of the outer type itself when nothing visible matches. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
+Fields and methods are separate namespaces: `x.name` finds a field and `x.name(args)` finds a method, so a field and a method may share a name, and a function stored in a field is called as `(x.callback)(args)`. Field lookup checks the outer type's fields first, and method lookup its inherent methods; embedded fields are searched otherwise, at any depth, shortest path first. As in Rust, a trait method counts only where its trait is in scope, wherever the impl is written; a trait that is not imported is invisible, and a call that finds nothing suggests the import. A trait method of the outer type never silently wins over a promoted method, or the reverse: when both exist, the call is ambiguous and is written `Trait::method(x)` or through the embedded field. An embedded type contributes its fields and inherent methods, never its trait methods; a method name an embedded type has through an in-scope trait stops the search with an error that suggests calling through the embedded field, as in `page.Label.to_string()`. Members not visible from the calling module are skipped, so a private field or method added to a type never changes or breaks a use in another module; inside its own module a private member wins as usual. A private member of an embedded type is ignored entirely, and `private-member` is reported only for a private member of the outer type itself when nothing visible matches. If two embedded data types promote the same name at the same depth, direct access is ambiguous and the code must qualify through the embedded field:
 
 ```text
 data CreatedBySystem:
@@ -1714,7 +1714,10 @@ show(service)       # ok: the impl forwards to Logger
 
 Embedding never grants trait conformance, and a promoted method never fills a
 trait method: `impl Describe for Service` must write `describe`, even though
-`service.describe()` would reach `Logger`'s inherent method by promotion.
+`Logger` has an inherent `describe`. Where `Describe` is in scope,
+`service.describe()` is then ambiguous between `Service`'s `Describe` method
+and `Logger`'s promoted method; write `Describe::describe(service)` or
+`service.Logger.describe()`.
 
 ### Small Typed Idioms
 

@@ -1,0 +1,6 @@
+# fixture-package-role: root-application
+# test: importing the trait makes its method a candidate beside the promoted method of the same name, so the call is ambiguous
+use dep.members.{Outer, Tagged}
+
+fn invalid(outer: Outer) -> string:
+    outer.tag()  # diagnostic: ambiguous-method

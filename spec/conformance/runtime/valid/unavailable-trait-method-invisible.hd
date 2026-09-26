@@ -1,0 +1,8 @@
+# fixture-package-role: root-application
+# test: a trait method whose trait is not available is not a candidate, so the call reaches the promoted method
+use std.testing.assert_equal
+use dep.members.{make_outer}
+
+test "unavailable trait method is invisible":
+    outer := make_outer()
+    assert_equal(outer.tag(), "inner", reason="Tagged is not imported, so Inner.tag is promoted")

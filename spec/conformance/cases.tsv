@@ -870,10 +870,14 @@ parse/invalid/raw-character-literal.hd	parse	reject:syntax-error	01-lexical-stru
 parse/invalid/vararg-default-before-ellipsis.hd	parse	reject:syntax-error	02-grammar.md#functions
 parse/invalid/colon-generic-bound.hd	parse	reject:syntax-error	02-grammar.md#generic-parameters-and-bounds
 parse/invalid/colon-supertrait.hd	parse	reject:syntax-error	02-grammar.md#traits-and-implementations
-runtime/valid/outer-trait-method-hides-embedded-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+runtime/valid/qualified-calls-beside-promoted-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+typing/invalid/trait-method-beside-promoted-method.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
+typing/invalid/trait-method-beside-blocking-embedded-type.hd	type	reject:ambiguous-method	03-names-and-scopes.md#member-resolution
 runtime/valid/outer-field-beside-embedded-method.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/invisible-outer-method-skipped.hd	runtime	accept	03-names-and-scopes.md#member-resolution
-typing/invalid/unavailable-trait-method-blocks-promotion.hd	type	reject:trait-not-in-scope	03-names-and-scopes.md#member-resolution
+runtime/valid/unavailable-trait-method-invisible.hd	runtime	accept	03-names-and-scopes.md#member-resolution
+typing/invalid/unavailable-trait-method-not-found.hd	type	reject:unknown-method	09-traits.md#method-resolution
+typing/invalid/available-trait-method-beside-promoted.hd	type	reject:ambiguous-method	09-traits.md#method-resolution
 runtime/valid/available-trait-method-across-packages.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/depth-two-promotion.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/same-depth-promotion-clash.hd	type	reject:ambiguous-promoted-member	03-names-and-scopes.md#member-resolution
