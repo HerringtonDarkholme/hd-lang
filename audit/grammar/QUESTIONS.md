@@ -53,6 +53,17 @@ questions were decided separately (K1 to K3).
   start on the same physical line as the end of its operand; otherwise the
   line starts a new element (a missing comma is an error).
 
+- **Q9 (partly decided), not yet applied.** A same-line `if` directly inside
+  another same-line suite is forbidden (Python's rule). The owner floated an
+  exception using explicit curly-brace blocks; open, because `{ }` already
+  means map and data literals (see the parenthesized alternative).
+- **Q12, not yet applied.** `!` stays on the name in both declaration and
+  call: `fn all![Ts...](...)` and `all![i32, string](a, b)`, since
+  `all[i32]` reads like indexing.
+- **Q13 and Q14, not yet applied.** List literals accept a suffix spread
+  (`[0, xs...]`); every declaration suite (data, annotate) accepts both
+  `pass` forms.
+
 ## Q1. Which construct owns a requirement clause written after a function-typed result?
 
 Decided: option A. Applied.
