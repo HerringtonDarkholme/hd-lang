@@ -1,0 +1,20 @@
+# test: a child trait declares new member names and uses supertrait methods
+
+trait Greeter:
+    fn greet(self) -> string
+
+trait Loud < Greeter:
+    fn shout(self) -> string:
+        self.greet() + "!"
+
+data User:
+    name: string
+
+impl Greeter for User:
+    fn greet(self) -> string:
+        "hello " + self.name
+
+impl Loud for User
+
+fn welcome(user: User) -> string:
+    user.shout()

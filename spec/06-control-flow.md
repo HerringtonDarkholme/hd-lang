@@ -92,20 +92,19 @@ An ordinary iterable creates an independent mutable iterator on every `iter()`
 call. The iterator stores traversal progress and `next` returns `nil` after
 exhaustion.
 
-Every mutable iterator has a compiler-provided `Iterable[T]` conformance whose
-`iter` returns that same mutable cursor without cloning or resetting it. The
-prelude provides the generic implementation below:
+`for` accepts a value of either protocol. When the iterable expression's type
+implements `Iterable[T]`, the loop calls `iter` once and advances the
+resulting cursor. When it implements `Iterator[T]`, the loop advances that
+same cursor directly, without cloning or resetting it, so iteration continues
+from the cursor's current position and leaves it exhausted. An iterator must
+be accessed mutably to advance: an expression whose type implements
+`Iterator[T]` but has only readonly access is a `mutable-receiver-required`
+error. An iterable expression whose type implements neither `Iterable[T]` nor
+`Iterator[T]` is an `unsatisfied-trait-bound` error. Comprehension `for`
+clauses accept the same two protocols by the same rules.
 
-```text
-impl[T, I < mut Iterator[T]] Iterable[T] for I:
-    fn iter(self) -> mut Iterator[T]: self
-```
-
-A readonly iterator view cannot advance and therefore does not gain this adapter.
-`for` accepts an ordinary `Iterable[T]` or a mutable iterator through the
-adapter and repeatedly calls `next` on the resulting cursor. An iterable
-expression whose type implements neither `Iterable[T]` nor `Iterator[T]` is an
-`unsatisfied-trait-bound` error.
+No implementation makes every iterator an `Iterable`, so a generic parameter
+bounded by `Iterable[T]` does not accept an iterator argument.
 
 The built-in `list[T]` iterable yields each element as `T`, including `mut U`
 when `T = mut U`, even through a readonly list. The built-in `map[K, V]`

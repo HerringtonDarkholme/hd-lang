@@ -67,6 +67,16 @@ by source position within the module.
 Member names must be unique within a trait; a repeated associated type, method,
 or associated function name is a `duplicate-trait-member` error.
 
+A child trait must not declare a member whose name is also the name of a
+member of any of its transitive supertraits. The check is made at the child
+trait's declaration, whether or not any type implements it, and applies to
+associated types, methods, and associated functions alike. Such a member is a
+`duplicate-trait-member` error, reported on the child's member. For
+example, when `Greeter` declares `fn greet(self) -> string`,
+`trait Loud < Greeter` must not declare `greet`, with or without a body.
+A child trait therefore cannot provide a default body for a supertrait's
+method. A supertrait's defaults come only from the supertrait.
+
 Traits may declare associated types, and implementations bind them:
 
 ```text
@@ -160,6 +170,8 @@ an existing implementation or another derivation. Implementers remain
 responsible for consistency with any manually implemented comparison traits.
 Comparison traits are the only traits invoked by operator syntax.
 
+### Implementation Declarations
+
 An explicit implementation names the trait and target type:
 
 ```text
@@ -182,32 +194,66 @@ An `impl` inside an executable block suite is a compile-time declaration. A
 local trait implementation must involve a local trait or a local nominal target
 type visible at its declaration point. A local inherent implementation must
 target a local nominal type. Implementations for a pair of nonlocal types belong
-at module scope. Local implementations obey the same signature, orphan,
+at module scope. Local implementations obey the same target, ownership,
 overlap, and uniqueness checks as module-level implementations; lexical scope
 does not permit a second implementation for an existing pair. Local methods
 and local-trait default methods cannot capture enclosing runtime values.
 Their methods are available for lookup from the local `impl` declaration point
 through its enclosing suite and child scopes, not before or outside that scope.
 
-An ordinary trait implementation may be declared only in a package that owns
-either the trait declaration or the target nominal type's declaration. For a
-generic target, ownership is determined by its outer nominal type constructor.
-Transparent aliases do not create ownership; nominal newtypes do. The standard
-library owns primitives and built-in collection type constructors.
+### Implementation Targets
+
+The target of every implementation, trait or inherent, starts with a type
+constructor: a data, enum, or newtype declaration, or a built-in type
+constructor such as `i32`, `string`, `list`, or `map`. The constructor's
+arguments may be any types, including implementation parameters, as in
+`impl[T < Display] Printable for Box[T]`. A target that is a bare type
+parameter, as in `impl[T] Describe for T`, is a `bare-parameter-impl-target`
+error. hd-lang has no blanket implementations over every type; a later
+revision may add them as a compatible extension.
+
+A target must not be written with an outer `mut`. `impl Marker for mut Counter`
+is a `mutable-impl-target` error. Permission belongs to method receivers
+(`self` and `mut self`) and to bounds (`T < mut Trait`), not to
+implementations. One implementation for `X` serves both the readonly view `X`
+and the mutable view `mut X`: lookup through either view considers the same
+implementations, and a `mut self` method still requires mutable access at each
+call.
+
+### Implementation Ownership
+
+An `impl Trait[Args] for Target` may be declared only in a package that owns
+one of these declarations:
+
+1. the trait;
+2. the target's outer type constructor;
+3. the outer type constructor of one of the trait arguments `Args`.
+
+Any other trait implementation is an `orphan-impl` error. For example, the
+package that declares `Money` may write `impl Add[Money] for i32`, because it
+owns the trait argument `Money`. The third case never applies to a target that
+is a bare type parameter. Transparent aliases do not create ownership; nominal
+newtypes do. The standard library owns primitives and built-in collection type
+constructors.
 
 An inherent implementation may be declared only in the package that owns its
 target nominal type. It cannot target a trait value, primitive, transparent
 alias, or type owned by another package.
 
-These orphan rules prevent downstream packages from creating globally
+These ownership rules prevent downstream packages from creating globally
 surprising conformance. The compiler must also reject a resolved dependency
 graph containing duplicate exact implementations, including the possible
-conflict where the trait-owning and type-owning packages each provide the same
-pair.
+conflict where two owning packages each provide the same pair.
 
-The annotation chapter defines one explicit coherence exception for a root
-application's `annotate Facet for ForeignTarget` block when no authoritative
-library annotation exists. That exception does not apply to ordinary `impl`.
+`annotate Facet for Target` lowers to `impl Annotate[Facet] for Target` and
+follows the same rule: the package owning the facet type, which is the trait
+argument, or the target's type constructor may declare it. The annotation chapter
+defines one further exception, for a root application's orphan annotation
+when no library annotation exists; see
+[Coherence And Package Rules](14-annotations.md#coherence-and-package-rules).
+That exception does not apply to ordinary `impl`.
+
+### Overlap
 
 Implementations may be generic and state their bounds inline in the generic
 parameter list:
@@ -216,27 +262,40 @@ parameter list:
 impl[T < Display] Printable for Box[T]:
     fn print(self) -> string:
         self.value.to_string()
-
-impl[T, I < mut Iterator[T]] Iterable[T] for I:
-    fn iter(self) -> mut Iterator[T]: self
 ```
 
 All generic implementation parameters must be constrained by the implemented
-trait, target type, or a bound reachable from them. Two implementations overlap
-when their trait and target heads can unify under any satisfying substitutions;
-potential overlap is rejected. Bounds, including associated type bindings, are
-not used to claim that otherwise unifying implementations are disjoint.
+trait, target type, or a bound reachable from them.
 
-For coherence, `X` and `mut X` denote the same target. Permission markers do
-not create distinct implementation slots, and lookup through either access
-view considers the same implementations. Consequently an implementation for
-`Iterable[T]` on `X` overlaps one on `mut X`, including overlap between the
-standard `Iterator` adapter and a direct `Iterable` implementation.
+Two implementations overlap when they implement the same trait, their trait
+arguments unify, and their targets start with the same type constructor.
+Overlap is decided from the implementation heads alone. Bounds, including
+associated type bindings, are never used to claim that two implementations
+are disjoint, and neither are the constructor's arguments. Thus
+`impl[T] Marker for list[T]` overlaps `impl Marker for list[i32]`, and
+`impl Marker for Box[i32]` overlaps `impl Marker for Box[string]`, while
+`impl Add[i32] for Money` and `impl Add[Money] for Money` do not overlap.
+Overlapping implementations are an `overlapping-impl` error. Because bounds
+are ignored, an implementation added later in a dependency cannot make two
+existing implementations overlap.
 
 ## Inherent Implementations
 
-An inherent implementation attaches methods to one nominal type without a
-trait:
+An inherent implementation, written `impl T:` without a trait, declares
+members attached directly to the nominal type `T` rather than through a trait.
+Its members are the type's inherent members:
+
+- an **inherent method** has `self` or `mut self` as its first parameter and
+  is called with dot syntax, as in `user.domain()`;
+- an **inherent associated function** has no receiver and is called through
+  the type, as in `User::guest()`.
+
+Only the package that owns `T` may declare them; see
+[Implementation Ownership](#implementation-ownership). An inherent method
+differs from a trait method, which a trait declares and a trait
+implementation supplies for `T`, and from a promoted method, which belongs to
+the type of an embedded field and is reached through the outer type; see
+[Member Resolution](03-names-and-scopes.md#member-resolution).
 
 ```text
 impl User:
@@ -244,7 +303,7 @@ impl User:
         self.email.split("@")[1]
 ```
 
-Inherent methods and associated functions are module-private unless
+Inherent methods and inherent associated functions are module-private unless
 individually marked `pub`, including when their nominal type is public.
 Methods in trait declarations and trait implementations follow the trait's
 visibility; `pub` is not written on an individual trait method or its
@@ -255,7 +314,7 @@ An inherent member name must not duplicate another inherent member on the same
 type; a duplicate is a `duplicate-inherent-member` error. hd-lang has no method
 or associated-function overloading.
 
-Receiverless inherent functions are called through the nominal type:
+Inherent associated functions are called through the nominal type:
 
 ```text
 impl User:
@@ -283,9 +342,18 @@ value always exposes the methods of its own erased trait. An implementation in
 the dependency graph does not inject its trait's method names into every module
 that can name the target type.
 
-An inherent method takes precedence over a promoted method. Multiple remaining
-candidates with no unique resolution are a compile-time ambiguity; the compiler
-does not select by conversion ranking or declaration order.
+A visible inherent method of the receiver's nominal type is always selected.
+It takes precedence over every promoted method and every trait method,
+including a method of a trait that the same type implements. Only the package
+that owns the type can declare an inherent method, so no other package can
+change which method such a call reaches.
+
+When lookup reaches trait methods and more than one available trait that the
+receiver implements supplies a method with that name, the call is an
+`ambiguous-method` error. This holds whether each method is written in its
+implementation or comes from a default. The compiler does not select by
+conversion ranking or declaration order. An inherent method or a
+trait-qualified call resolves the ambiguity.
 
 Explicit qualification through an embedded field resolves promotion conflicts:
 
@@ -302,8 +370,8 @@ sum := Add[Money]::add(left, right)
 
 The receiver is the first ordinary argument and must implement the named trait
 instantiation. Remaining arguments follow normal positional/named ordering.
-This form bypasses inherent and promoted-method lookup and selects exactly the
-named trait method. A generic trait method takes its explicit type arguments
+This form bypasses inherent-method and promoted-method lookup and selects
+exactly the named trait method. A generic trait method takes its explicit type arguments
 after the method name, as in `Identity::select[i32](picker, 42)`; the trait's
 own type arguments stay before `::`. The list follows the rules of
 [Generic Functions](07-functions.md#generic-functions).

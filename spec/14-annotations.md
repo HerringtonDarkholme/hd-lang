@@ -818,11 +818,18 @@ resolved package graph. `annotate Facet for Target` and an explicit
 Configured facet expressions use their static facet type in this key, so two
 differently configured values of `Tool` cannot annotate the same target.
 
-Annotation blocks are package-global rather than lexical. If a library provides
-an annotation for its target, a downstream package cannot override it. Only
-the root application package may provide an orphan annotation for a target and
-facet it does not own, and only when no library in the resolved graph provides
-that exact pair. The root annotation occupies the one global coherence slot.
+Annotation blocks are package-global rather than lexical. An annotation, like
+its lowered `impl Annotate[Facet] for Target`, follows the ordinary
+[implementation ownership rule](09-traits.md#implementation-ownership): the
+package that declares the facet type, which is the trait argument, or the
+package that owns the target's type constructor may declare it. For example,
+a validation library that declares `Validation` may write
+`annotate Validation for string`. If a library provides an annotation for its
+target, a downstream package cannot override it. An orphan annotation is one
+whose package owns neither the facet type nor the target. Only the root
+application package may provide one, and only when no library in the resolved
+graph provides that exact pair. An orphan annotation in any other package is
+an `orphan-annotation-in-library` error. The root annotation occupies the one global coherence slot.
 If a dependency version later supplies the same pair, dependency resolution
 fails rather than silently changing which annotation is selected.
 

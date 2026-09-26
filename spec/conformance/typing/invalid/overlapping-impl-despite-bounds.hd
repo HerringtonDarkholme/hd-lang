@@ -1,0 +1,12 @@
+# test: bounds do not make overlapping implementation heads disjoint
+
+data Box[T]:
+    value: T
+
+data Plain:
+    value: i32
+
+trait Marker
+
+impl[T < Display] Marker for Box[T]
+impl Marker for Box[Plain]  # diagnostic: overlapping-impl

@@ -2,23 +2,30 @@
 
 ## Owner Decisions
 
-Decided 2026-09-26; not yet applied to the specification.
+Decided 2026-09-26.
 
-- **TQ-1: MoonBit/Swift overlap rule.** An impl target must start with a type
-  constructor (data, enum, newtype, or built-in), never a bare type
-  parameter. Two impls overlap when they have the same trait, unifiable trait
-  arguments, and the same target constructor; bounds are ignored. The prelude
-  `Iterable`-for-`Iterator` adapter is replaced by `for` accepting either
-  trait. Rust-style blanket impls may be added later (a compatible
-  extension); the standard library must settle its blanket impls before it
-  stabilizes.
-- **TQ-2: orphan rule.** `impl Trait[Args] for Type` may appear only in the
-  package that owns the trait, the target type constructor, or a type
-  argument of the trait (when the target is not a bare parameter).
-- **TQ-3: method resolution.** For `x.m()`, inherent methods of `x`'s type
-  win (Rust's rule); `Trait::m(x)` reaches a trait method. Otherwise promoted
-  and trait candidates are pooled regardless of embedding depth, and more
-  than one is `ambiguous-method`.
+Applied to the specification on 2026-09-26 (see the spec README revision
+notes TQ-1, TQ-2, TQ-3, TQ-5, TQ-6):
+
+- **TQ-1** (applied): impl targets start with a type constructor
+  (`bare-parameter-impl-target`); overlap is decided by trait, unifying trait
+  arguments, and target constructor; the prelude adapter is gone and `for`
+  accepts `Iterable[T]` or `Iterator[T]`.
+- **TQ-2** (applied): the owner of a trait argument's outer constructor may
+  write the impl; this covers facet packages annotating primitives.
+- **TQ-3** (partly applied): inherent methods win over trait methods, several
+  trait candidates are `ambiguous-method`, and `Trait::m(x)` selects one. The
+  pooling of promoted and trait candidates is withdrawn pending the embedding
+  redesign.
+- **TQ-5** (applied): an outer `mut` on an impl target is
+  `mutable-impl-target`.
+- **TQ-6** (applied): a child trait may not declare a supertrait member name
+  (`duplicate-trait-member`).
+
+TQ-7 and TQ-8 are on hold for the embedding redesign.
+
+Questions raised while applying these decisions are TQ-27 to TQ-30 at the end
+of this file.
 
 
 Each question stands alone. Guiding preference: agents write the code and humans
@@ -244,3 +251,31 @@ Options: (A) a NonEscapable result depends conservatively on all NonEscapable
 parameters, with no syntax; (B) the signature names the parameters it depends
 on; (C) no NonEscapable returns.
 **Recommend A now and B later**, when a real API needs the precision.
+
+## TQ-27: Which target forms count as a type constructor?
+    impl Display for (i32, string)
+    annotate Validation for string?      # used by full-validation.hd
+    impl Marker for fn(i32) -> i32
+TQ-1 names data, enum, newtype, and built-ins. Tuples, optionals, and function
+types are unstated. If `T?` is one constructor, `annotate Validation for
+string?` and `annotate Validation for i32?` overlap.
+
+## TQ-28: Same constructor, different arguments
+    impl Marker for Box[i32]
+    impl Marker for Box[string]          # applied text: overlapping-impl
+The applied text reads TQ-1 literally (Swift's conform-once), so exact
+instantiations of one constructor cannot both implement a trait, and
+`annotate Validation for list[string]` excludes `list[i32]`. Confirm, or
+switch to "targets unify".
+
+## TQ-29: A type that implements both `Iterable[T]` and `Iterator[T]`
+    impl Iterable[i32] for Ring
+    impl Iterator[i32] for Ring
+    for x in ring: ...                   # iter() or next()?
+Both impls are now legal. Options: (A) `Iterable` wins; (B) ambiguity
+error at the loop; (C) forbid the pair.
+
+## TQ-30: Permission inside trait arguments
+    impl Store[User] for Shelf
+    impl Store[mut User] for Shelf       # distinct instantiations?
+TQ-5 settled only the outer `mut` of targets.

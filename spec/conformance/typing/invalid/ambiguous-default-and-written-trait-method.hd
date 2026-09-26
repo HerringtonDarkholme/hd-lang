@@ -1,0 +1,20 @@
+# test: a default and a written trait method with one name are ambiguous at a dot call
+
+trait Named:
+    fn label(self) -> string:
+        "named"
+
+trait Tagged:
+    fn label(self) -> string
+
+data User:
+    name: string
+
+impl Named for User
+
+impl Tagged for User:
+    fn label(self) -> string:
+        self.name
+
+fn invalid(user: User) -> string:
+    user.label()  # diagnostic: ambiguous-method

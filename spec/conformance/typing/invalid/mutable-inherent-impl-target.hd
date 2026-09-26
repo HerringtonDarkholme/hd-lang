@@ -1,0 +1,8 @@
+# test: an inherent implementation target cannot carry an outer mut
+
+data Counter:
+    value: i32
+
+impl mut Counter:  # diagnostic: mutable-impl-target
+    fn reset(mut self) -> void:
+        self.value = 0

@@ -1,0 +1,8 @@
+# test: an implementation target cannot be a bare type parameter
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[T] Describe for T:  # diagnostic: bare-parameter-impl-target
+    fn describe(self) -> string:
+        "value"

@@ -1,0 +1,11 @@
+# test: the supertrait member-name check is transitive and covers defaults
+
+trait Greeter:
+    fn greet(self) -> string
+
+trait Polite < Greeter:
+    fn thank(self) -> string
+
+trait Loud < Polite:
+    fn greet(self) -> string:  # diagnostic: duplicate-trait-member
+        "HELLO"

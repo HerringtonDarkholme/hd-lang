@@ -1,0 +1,8 @@
+# test: an implementation target cannot carry an outer mut
+
+data Counter:
+    value: i32
+
+trait Marker
+
+impl Marker for mut Counter  # diagnostic: mutable-impl-target

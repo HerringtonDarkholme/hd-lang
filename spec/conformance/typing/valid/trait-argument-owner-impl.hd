@@ -1,0 +1,13 @@
+# test: the package owning a trait argument may implement a foreign trait for a foreign type
+
+data Word:
+    text: string
+
+impl Iterable[Word] for string:
+    fn iter(self) -> mut Iterator[Word]:
+        [for part in self.split(" ") => Word { text: part }].iter()
+
+fn first_word(text: string) -> string:
+    for word in text:
+        return word.text
+    ""

@@ -1,0 +1,7 @@
+# fixture-package-role: library
+# test: a trait argument owned by another package does not give ownership
+use dep.models.{User}
+
+impl Iterable[User] for string:  # diagnostic: orphan-impl
+    fn iter(self) -> mut Iterator[User]:
+        [User { name: self }].iter()

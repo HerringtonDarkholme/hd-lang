@@ -1,0 +1,22 @@
+# test: an inherent method wins a dot call; a trait-qualified call reaches the trait method
+
+use std.testing.assert_equal
+
+trait Named:
+    fn label(self) -> string
+
+data User:
+    name: string
+
+impl User:
+    fn label(self) -> string:
+        "inherent " + self.name
+
+impl Named for User:
+    fn label(self) -> string:
+        "trait " + self.name
+
+test "the inherent method wins and Trait::m selects the trait method":
+    user := User { name: "ada" }
+    assert_equal(user.label(), "inherent ada", reason="the inherent method wins")
+    assert_equal(Named::label(user), "trait ada", reason="Trait::m selects the trait method")

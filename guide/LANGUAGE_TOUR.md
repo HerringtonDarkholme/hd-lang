@@ -431,7 +431,7 @@ for left in values:
         println("$left, $right")
 ```
 
-The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. Every mutable `Iterator` also implements `Iterable` by returning itself from `iter()`. This does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A readonly iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
+The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. `for` also accepts a mutable `Iterator` directly. The loop does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A readonly iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
 
 Use `while` when the loop condition is not just iterating a collection:
 

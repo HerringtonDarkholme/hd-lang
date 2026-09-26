@@ -50,12 +50,11 @@ specification	block	classification	fixture
 06-control-flow.md	1	accept	typing/valid/control-flow.hd
 06-control-flow.md	2	accept	typing/valid/control-flow.hd
 06-control-flow.md	3	type-fragment	-
-06-control-flow.md	4	illustrative-pseudocode	-
-06-control-flow.md	5	accept	typing/valid/control-flow.hd
+06-control-flow.md	4	accept	typing/valid/control-flow.hd
+06-control-flow.md	5	accept	typing/valid/enums.hd
 06-control-flow.md	6	accept	typing/valid/enums.hd
 06-control-flow.md	7	accept	typing/valid/enums.hd
-06-control-flow.md	8	accept	typing/valid/enums.hd
-06-control-flow.md	9	accept	typing/valid/defer-cleanup.hd
+06-control-flow.md	8	accept	typing/valid/defer-cleanup.hd
 07-functions.md	1	accept	typing/valid/functions.hd
 07-functions.md	2	accept	parse/valid/layout.hd
 07-functions.md	3	accept	typing/valid/local-functions.hd

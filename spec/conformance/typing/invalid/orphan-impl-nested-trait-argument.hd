@@ -1,0 +1,8 @@
+# test: ownership comes from a trait argument's outer type constructor only
+
+data Word:
+    text: string
+
+impl Iterable[list[Word]] for string:  # diagnostic: orphan-impl
+    fn iter(self) -> mut Iterator[list[Word]]:
+        [[Word { text: self }]].iter()

@@ -11,19 +11,19 @@ anchor, or statement is missing.
 
 | ID | Sev | Topic | Summary | Rule | Question |
 | --- | --- | --- | --- | --- | --- |
-| TY-01 | High | Overlap | Bounds both do and do not count when proving impls disjoint | R3.2 | TQ-1 |
-| TY-02 | High | Orphan | `annotate Facet for string` is legal; its lowered impl is an orphan | R2.1 | TQ-2 |
-| TY-03 | High | Method resolution | Numbered tiers contradict the "remaining candidates" sentence | R9.3 | TQ-3 |
+| TY-01 | High | Overlap | Resolved (TQ-1): bounds both do and do not count when proving impls disjoint | R3.2 | TQ-1 |
+| TY-02 | High | Orphan | Resolved (TQ-2): `annotate Facet for string` is legal; its lowered impl is an orphan | R2.1 | TQ-2 |
+| TY-03 | High | Method resolution | Partly resolved (TQ-3, inherent over trait): numbered tiers contradict the "remaining candidates" sentence; promoted-versus-trait order waits on the embedding redesign | R9.3 | TQ-3 |
 | TY-04 | High | Impl selection | "Constrained by a reachable bound" lets one impl apply twice to one pair | R1.4 | - |
 | TY-05 | High | GADTs | Existential bounds need stored dictionaries; representation rule omits them | R4.9 | - |
-| TY-06 | Med | Impl heads | `mut` in impl heads and trait arguments undefined | R1.3, R4.4 | TQ-5 |
+| TY-06 | Med | Impl heads | Resolved for targets (TQ-5): `mut` in impl heads and trait arguments undefined; trait arguments still open | R1.3, R4.4 | TQ-5 |
 | TY-07 | Med | Supertraits | Supertrait obligations of generic impls unchecked | R5.1 | - |
 | TY-08 | Med | Supertraits | Implied supertrait bounds used but never stated | R5.3 | - |
 | TY-09 | Med | Method resolution | Dot call with two instantiations of one generic trait | R9.5 | TQ-4 |
 | TY-10 | Med | Assoc. functions | `Type::f`, `Trait::f()`, `T::f()` have no lookup rule | R9.8 | TQ-9 |
 | TY-11 | Med | Embedding | Which trait slots a promoted method fills | R7.2 | TQ-7 |
 | TY-12 | Med | Embedding | Whether embedded trait methods promote | R7.4 | TQ-8 |
-| TY-13 | Med | Defaults | Default-body dispatch, supertrait defaults, name reuse | R6.1-R6.5 | TQ-6 |
+| TY-13 | Med | Defaults | Name reuse resolved (TQ-6): default-body dispatch, supertrait defaults, name reuse | R6.1-R6.5 | TQ-6 |
 | TY-14 | Med | Dynamic safety | Row, pack, reified, suspending method params uncovered | R8.1 | TQ-10 |
 | TY-15 | Med | Dynamic safety | Requirement keys must be dynamically safe; rule missing | R8.5 | - |
 | TY-16 | Med | Derivation | Ch. 04 says newtypes can derive; grammar forbids | R10.1 | TQ-11 |
@@ -46,6 +46,8 @@ anchor, or statement is missing.
 | TY-33 | Low | Grammar | Ch. 12 wrote bounds with `:` | fixed (ce2a0d9) | - |
 
 ## TY-01: Overlap Both Uses And Ignores Bounds
+Status: resolved by TQ-1, applied to 09 Implementation Targets and Overlap,
+and 06 For Loops (2026-09-26).
 High. Anchor: 09 Trait Implementations; 06 for-loops.
 
     data Bag:
@@ -67,6 +69,8 @@ Fix: TQ-1; recommended: bounds never prove disjointness, and the adapter
 becomes a compiler-provided rule outside the impl table (R3.2, R13.5).
 
 ## TY-02: Annotation Slots Violate The Ordinary Orphan Rule
+Status: resolved by TQ-2, applied to 09 Implementation Ownership and 14
+Coherence And Package Rules (2026-09-26).
 High. Anchor: 09 Trait Implementations; 14 Derived Facet Information, Coherence.
 
     # package validation, which declares the facet
@@ -82,6 +86,9 @@ same gap blocks `impl Add[Money] for i32` in Money's package.
 Fix: TQ-2 (R2.1).
 
 ## TY-03: Method Resolution Order Contradicts Itself
+Status: partly resolved by TQ-3 (inherent methods win; several trait
+candidates are `ambiguous-method`). The promoted-versus-trait order waits on
+the embedding redesign.
 High. Anchor: 09 Method Resolution.
 
     data Base:
@@ -139,6 +146,8 @@ part of the value's representation (R4.9). Not a choice: the only way the
 existing arm rule can run.
 
 ## TY-06: `mut` In Impl Heads And Trait Arguments
+Status: outer `mut` on targets resolved by TQ-5 (`mutable-impl-target`).
+Permission inside trait arguments is still open.
 Medium. Anchor: 09 Trait Implementations; 03 `Self`.
 
     impl Marker for mut Counter              # legal alone?
@@ -231,6 +240,8 @@ Medium. Anchor: 03 Member Resolution; 08 Data Embedding.
 Fix: TQ-8; recommended only fields and inherent methods promote (R7.4).
 
 ## TY-13: Default Method Bodies
+Status: name reuse resolved by TQ-6 (`duplicate-trait-member` at the child
+trait). The other parts are still open.
 Medium. Anchor: 09 Default-Method Conflicts.
 
     trait Greeter:

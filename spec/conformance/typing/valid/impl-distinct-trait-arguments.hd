@@ -1,0 +1,18 @@
+# test: implementations with non-unifying trait arguments do not overlap
+
+trait Combine[T]:
+    fn combine(self, other: T) -> Money
+
+data Money:
+    cents: i32
+
+impl Combine[i32] for Money:
+    fn combine(self, other: i32) -> Money:
+        Money { cents: self.cents + other }
+
+impl Combine[Money] for Money:
+    fn combine(self, other: Money) -> Money:
+        Money { cents: self.cents + other.cents }
+
+fn total(price: Money, tip: Money) -> i32:
+    Combine[Money]::combine(Combine[i32]::combine(price, 5), tip).cents

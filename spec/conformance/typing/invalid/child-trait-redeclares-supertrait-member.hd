@@ -1,0 +1,7 @@
+# test: a child trait cannot declare a supertrait member name
+
+trait Greeter:
+    fn greet(self) -> string
+
+trait Loud < Greeter:
+    fn greet(self) -> string  # diagnostic: duplicate-trait-member
