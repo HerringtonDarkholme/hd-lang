@@ -92,6 +92,20 @@ read it, so prefer explicit, checkable rules and locality.
   searched: in TQ-31, `page.to_string()` skips `Label`'s `Display` and may
   reach an inherent `Base.to_string` deeper down.
 
+- **Embedding critique review (2026-09-26).** (P2) E2 stays: the defining
+  type always wins; a private member that collides with an embedded member
+  reports `private-member` to outside callers rather than being skipped.
+  (P3) E3 stays: shortest path wins, accepting silent switches when an
+  embedded type in another package gains a shallower member, as Rust accepts
+  trait imports changing `Deref` resolution. (P4) Accepted: a trait impl for
+  `S` added in a third package gives `S` a depth-0 method that blocks an
+  embedded member. (P5) TQ-31 stays: trait methods of embedded types are
+  never searched. (P6, not yet applied) `Type::name` and `x::name` are
+  reserved for future method values, and `x.callback(args)` reports "did you
+  mean `(x.callback)(args)`" when a function-typed field `callback` exists.
+  Pending: embedding as an owned part (access follows the container,
+  construction needs mut or fresh values, copy-update copies embedded parts).
+
 ## TQ-1: Do impl bounds prove two impls disjoint?
     impl[T, I < mut Iterator[T]] Iterable[T] for I   # prelude
     impl Iterable[i32] for Bag                       # overlap?
