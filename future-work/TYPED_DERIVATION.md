@@ -476,7 +476,10 @@ and a toolchain check can come later from recorded interfaces. P19:
 package interfaces carry template bodies, the walker and source bodies they
 name, and annotation-function bodies (matching the 04 decision that
 interfaces carry needed generic bodies); code size is one specialization
-per (type, walker). P13
+per (type, walker). P15: a foreign type is derived through a local mirror
+type, as with serde's `remote`: the user declares a local data type with
+the foreign type's public fields, derives on it, and converts; no orphan
+exception for `by Structure`. P13
 (tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
