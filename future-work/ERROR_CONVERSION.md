@@ -177,6 +177,36 @@ Decided 2026-09-26:
     error, and `ErrorReport { message, causes }` with
     `report_of(error: Error) -> ErrorReport` as the boundary snapshot.
     Library API (STDLIB), not specification text.
+16. **`?` in a test block accepts any `E < Display`** (2026-09-27,
+    Error Stress Test problem 11): besides errors that reach the block's
+    `Error` by decision 14, an `.Err` of any `E < Display` (for example
+    `Result[T, string]`) is wrapped in a std message error, so tests of
+    string-error helpers can use `?`. This is a test-block rule only.
+17. **`std.process.ExitStatus` chooses the exit code** (2026-09-27, problem
+    12): `trait ExitStatus: fn status(self) -> i32`. When `main` returns
+    `.Err(e)` and `E` implements `ExitStatus`, the process exits with
+    `e.status()`; otherwise it exits with 1. It controls the code only; the
+    entry point still prints the error (decision 13). A tool that must exit
+    silently prints and exits by hand.
+18. **Erased errors stay off boundaries** (2026-09-27, problem 13): no new
+    rule. A registered function's error type holds only boundary-safe
+    payloads; an error type with an erased `Error` member converts with
+    `report_of` to `ErrorReport` first. The error-handling guide shows the
+    pattern.
+19. **Generic function values infer their type arguments at the use site**
+    (2026-09-27, problem 15): a generic function or generic enum
+    constructor passed as an argument has its type arguments solved together
+    with the call's other type variables, so
+    `result.map_err(TaskError.Failed)` on `Result[T, FsError]` infers
+    `TaskError[FsError]`. A parameter left unsolved is an error. This
+    changes 07 `r[fn.type.generic.instantiate]` and 08
+    `r[data.enum.fn-value.generic]`, which demanded a complete expected
+    type. The owner's no-inference rule is about declarations: a function
+    declaration's own generic parameters and signature are written, never
+    inferred; use sites may infer.
+20. **Non-exhaustive enums: none for now** (problem 16): adding a variant is
+    a breaking change ([Packages decision 7](PACKAGES.md)); library authors
+    who need to grow a kind enum use the private-field wrapper idiom.
 
 ### Applied To The Specification
 

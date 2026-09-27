@@ -1,7 +1,8 @@
 # Error Design Stress Test (V1, V2a, V2b)
 
-Status: design review, 2026-09-27. Nothing here is accepted language
-behavior. It changes no decision, no design record, no specification text,
+Status: design review, 2026-09-27; every problem is now answered (the
+last five by [Error Conversion decisions 16-20](ERROR_CONVERSION.md#owner-decisions)).
+Nothing here is itself accepted language behavior. It changes no decision, no design record, no specification text,
 and no prototype code. Every design choice below is a question for the
 owner.
 
