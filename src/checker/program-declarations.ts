@@ -48,6 +48,19 @@ function variantResultOwner(result: Expression): string | undefined {
 type EnumDeclaration = ProgramCheckContext["program"]["enums"][number];
 
 /**
+ * A generic enum's synthesized helpers take no argument that mentions its
+ * type parameters, so calls between them pass the parameters explicitly.
+ */
+function enumTypeArguments(
+  declaration: EnumDeclaration,
+  span: TypeRef["span"],
+): TypeRef[] | undefined {
+  return declaration.genericParameters.length > 0
+    ? declaration.genericParameters.map((name) => ({ name, span }))
+    : undefined;
+}
+
+/**
  * Why a variant's explicit result cannot initialize its enum, if it cannot:
  * the result must construct the enclosing enum (13-gadts.md), a variant of
  * an enum with shared data must initialize it, and GADT refinement is outside
@@ -87,6 +100,214 @@ function variantResultProblem(
       span: result.span,
     };
   return undefined;
+}
+
+/**
+ * Each variant of an enum with shared data gets `$enum-shared`, which builds
+ * the variant's shared data once, and the `$enum-variant` factory that
+ * constructions call.
+ */
+function createEnumVariantDeclarations(
+  enums: ProgramCheckContext["program"]["enums"],
+  diagnostics: Diagnostic[],
+): FunctionDecl[] {
+  const enumVariantDeclarations: FunctionDecl[] = [];
+  for (const declaration of enums) {
+    for (const variant of declaration.variants) {
+      const problem = variantResultProblem(declaration, variant);
+      if (problem) diagnostics.push(problem);
+      if (problem || variant.result?.kind !== "call") continue;
+      const argumentNames =
+        variant.result.argumentNames ?? variant.result.arguments.map(() => undefined);
+      let nextPositional = 0;
+      const seen = new Set<number>();
+      const explicit: ExplicitEnumFieldValue[] = [];
+      let valid = true;
+      variant.result.arguments.forEach((value, argumentIndex) => {
+        const name = argumentNames[argumentIndex];
+        const fieldIndex =
+          name === undefined
+            ? nextPositional++
+            : declaration.sharedFields.findIndex((field) => field.name === name);
+        if (fieldIndex < 0 || fieldIndex >= declaration.sharedFields.length) {
+          diagnostics.push({
+            code: name === undefined ? "argument-count" : "unknown-named-argument",
+            message:
+              name === undefined
+                ? `${declaration.name} received too many positional arguments`
+                : `${declaration.name} has no shared field '${name}'`,
+            span: value.span,
+          });
+          valid = false;
+          return;
+        }
+        if (seen.has(fieldIndex)) {
+          diagnostics.push({
+            code: "duplicate-argument",
+            message: `shared field '${declaration.sharedFields[fieldIndex]!.name}' is initialized more than once`,
+            span: value.span,
+          });
+          valid = false;
+          return;
+        }
+        seen.add(fieldIndex);
+        explicit.push({ fieldIndex, value });
+      });
+      const missing = declaration.sharedFields.filter((_, fieldIndex) => !seen.has(fieldIndex));
+      const missingRequired = missing.find((field) => !field.default);
+      if (missingRequired) {
+        diagnostics.push({
+          code: "missing-required-field",
+          message: `variant '${variant.name}' does not initialize shared field '${missingRequired.name}'`,
+          span: variant.result.span,
+        });
+        valid = false;
+      }
+      if (!valid) continue;
+      const localName = (fieldIndex: number): string => `$enumShared${fieldIndex}`;
+      const body: Statement[] = explicit.map(({ fieldIndex, value }) => ({
+        kind: "binding",
+        name: localName(fieldIndex),
+        annotation: declaration.sharedFields[fieldIndex]!.type,
+        mutable: false,
+        value,
+        span: value.span,
+      }));
+      for (const field of missing) {
+        const fieldIndex = declaration.sharedFields.indexOf(field);
+        const call: Expression = {
+          kind: "call",
+          callee: {
+            kind: "name",
+            name: `$enum-default.${declaration.name}.${field.name}`,
+            span: field.span,
+          },
+          typeArguments: enumTypeArguments(declaration, field.span),
+          arguments: declaration.sharedFields.slice(0, fieldIndex).map((_, earlierIndex) => ({
+            kind: "name" as const,
+            name: localName(earlierIndex),
+            span: field.span,
+          })),
+          span: field.span,
+        };
+        body.push({
+          kind: "binding",
+          name: localName(fieldIndex),
+          annotation: field.type,
+          mutable: false,
+          value: call,
+          span: field.span,
+        });
+      }
+      const resultType: TypeRef = {
+        name:
+          declaration.genericParameters.length > 0
+            ? nominalGenericType(declaration.name, declaration.genericParameters)
+            : declaration.name,
+        span: variant.span,
+      };
+      // Shared data is a per-variant constant (08-data-and-enums.md#r-data.shared.per-variant):
+      // `$enum-shared` computes it once, without the payload in scope
+      // (r[data.shared.no-payload]), and the emitter caches its result, so a
+      // payload-free variant is canonical (05 r[expr.is.shared-data-canonical]).
+      // A payload variant copies the cached data next to its payload.
+      const sharedName = `$enum-shared.${declaration.name}.${variant.name}`;
+      body.push({
+        kind: "expression",
+        expression: {
+          kind: "call",
+          callee: {
+            kind: "name",
+            name: `$enum-template.${declaration.name}.${variant.name}`,
+            span: variant.span,
+          },
+          arguments: declaration.sharedFields.map((_, fieldIndex) => ({
+            kind: "name" as const,
+            name: localName(fieldIndex),
+            span: variant.span,
+          })),
+          span: variant.span,
+        },
+        span: variant.span,
+      });
+      enumVariantDeclarations.push({
+        kind: "function",
+        name: sharedName,
+        suspending: false,
+        genericParameters: declaration.genericParameters,
+        genericBounds: [],
+        parameters: [],
+        result: resultType,
+        requirements: [],
+        body,
+        span: variant.span,
+      });
+      const sharedCall: Expression = {
+        kind: "call",
+        callee: {
+          kind: "name",
+          name: sharedName,
+          span: variant.span,
+        },
+        typeArguments: enumTypeArguments(declaration, variant.span),
+        arguments: [],
+        span: variant.span,
+      };
+      const templateName = "$enumTemplate";
+      const literal: Expression = {
+        kind: "call",
+        callee: {
+          kind: "name",
+          name: `$enum-literal.${declaration.name}.${variant.name}`,
+          span: variant.span,
+        },
+        arguments: [
+          ...declaration.sharedFields.map((field) => ({
+            kind: "member" as const,
+            receiver: { kind: "name" as const, name: templateName, span: variant.span },
+            name: /^\d/.test(field.name) ? `_${field.name}` : field.name,
+            span: variant.span,
+          })),
+          ...variant.fields.map((field) => ({
+            kind: "name" as const,
+            name: field.name,
+            span: field.span,
+          })),
+        ],
+        span: variant.span,
+      };
+      enumVariantDeclarations.push({
+        kind: "function",
+        name: `$enum-variant.${declaration.name}.${variant.name}`,
+        suspending: false,
+        genericParameters: declaration.genericParameters,
+        genericBounds: [],
+        parameters: variant.fields.map((field) => ({
+          name: field.name,
+          type: field.type,
+          span: field.span,
+        })),
+        result: resultType,
+        requirements: [],
+        body:
+          variant.fields.length === 0
+            ? [{ kind: "expression", expression: sharedCall, span: variant.span }]
+            : [
+                {
+                  kind: "binding",
+                  name: templateName,
+                  annotation: resultType,
+                  mutable: false,
+                  value: sharedCall,
+                  span: variant.span,
+                },
+                { kind: "expression", expression: literal, span: variant.span },
+              ],
+        span: variant.span,
+      });
+    }
+  }
+  return enumVariantDeclarations;
 }
 
 export function createProgramDeclarations(
@@ -184,140 +405,7 @@ export function createProgramDeclarations(
         : [],
     ),
   );
-  const enumVariantDeclarations: FunctionDecl[] = [];
-  for (const declaration of program.enums) {
-    for (const variant of declaration.variants) {
-      const problem = variantResultProblem(declaration, variant);
-      if (problem) diagnostics.push(problem);
-      if (problem || variant.result?.kind !== "call") continue;
-      const argumentNames =
-        variant.result.argumentNames ?? variant.result.arguments.map(() => undefined);
-      let nextPositional = 0;
-      const seen = new Set<number>();
-      const explicit: ExplicitEnumFieldValue[] = [];
-      let valid = true;
-      variant.result.arguments.forEach((value, argumentIndex) => {
-        const name = argumentNames[argumentIndex];
-        const fieldIndex =
-          name === undefined
-            ? nextPositional++
-            : declaration.sharedFields.findIndex((field) => field.name === name);
-        if (fieldIndex < 0 || fieldIndex >= declaration.sharedFields.length) {
-          diagnostics.push({
-            code: name === undefined ? "argument-count" : "unknown-named-argument",
-            message:
-              name === undefined
-                ? `${declaration.name} received too many positional arguments`
-                : `${declaration.name} has no shared field '${name}'`,
-            span: value.span,
-          });
-          valid = false;
-          return;
-        }
-        if (seen.has(fieldIndex)) {
-          diagnostics.push({
-            code: "duplicate-argument",
-            message: `shared field '${declaration.sharedFields[fieldIndex]!.name}' is initialized more than once`,
-            span: value.span,
-          });
-          valid = false;
-          return;
-        }
-        seen.add(fieldIndex);
-        explicit.push({ fieldIndex, value });
-      });
-      const missing = declaration.sharedFields.filter((_, fieldIndex) => !seen.has(fieldIndex));
-      const missingRequired = missing.find((field) => !field.default);
-      if (missingRequired) {
-        diagnostics.push({
-          code: "missing-required-field",
-          message: `variant '${variant.name}' does not initialize shared field '${missingRequired.name}'`,
-          span: variant.result.span,
-        });
-        valid = false;
-      }
-      if (!valid) continue;
-      const localName = (fieldIndex: number): string => `$enumShared${fieldIndex}`;
-      const body: Statement[] = explicit.map(({ fieldIndex, value }) => ({
-        kind: "binding",
-        name: localName(fieldIndex),
-        annotation: declaration.sharedFields[fieldIndex]!.type,
-        mutable: false,
-        value,
-        span: value.span,
-      }));
-      for (const field of missing) {
-        const fieldIndex = declaration.sharedFields.indexOf(field);
-        const call: Expression = {
-          kind: "call",
-          callee: {
-            kind: "name",
-            name: `$enum-default.${declaration.name}.${field.name}`,
-            span: field.span,
-          },
-          arguments: declaration.sharedFields.slice(0, fieldIndex).map((_, earlierIndex) => ({
-            kind: "name" as const,
-            name: localName(earlierIndex),
-            span: field.span,
-          })),
-          span: field.span,
-        };
-        body.push({
-          kind: "binding",
-          name: localName(fieldIndex),
-          annotation: field.type,
-          mutable: false,
-          value: call,
-          span: field.span,
-        });
-      }
-      const resultType: TypeRef = {
-        name:
-          declaration.genericParameters.length > 0
-            ? nominalGenericType(declaration.name, declaration.genericParameters)
-            : declaration.name,
-        span: variant.span,
-      };
-      const literal: Expression = {
-        kind: "call",
-        callee: {
-          kind: "name",
-          name: `$enum-literal.${declaration.name}.${variant.name}`,
-          span: variant.span,
-        },
-        arguments: [
-          ...declaration.sharedFields.map((_, fieldIndex) => ({
-            kind: "name" as const,
-            name: localName(fieldIndex),
-            span: variant.span,
-          })),
-          ...variant.fields.map((field) => ({
-            kind: "name" as const,
-            name: field.name,
-            span: field.span,
-          })),
-        ],
-        span: variant.span,
-      };
-      body.push({ kind: "expression", expression: literal, span: variant.span });
-      enumVariantDeclarations.push({
-        kind: "function",
-        name: `$enum-variant.${declaration.name}.${variant.name}`,
-        suspending: false,
-        genericParameters: declaration.genericParameters,
-        genericBounds: [],
-        parameters: variant.fields.map((field) => ({
-          name: field.name,
-          type: field.type,
-          span: field.span,
-        })),
-        result: resultType,
-        requirements: [],
-        body,
-        span: variant.span,
-      });
-    }
-  }
+  const enumVariantDeclarations = createEnumVariantDeclarations(program.enums, diagnostics);
   const testDeclarations = createTestDeclarations(program);
   const declarations = [
     ...program.functions,

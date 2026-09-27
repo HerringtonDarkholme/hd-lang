@@ -226,6 +226,55 @@ test("shared enum data uses per-variant factories and pure ordered defaults", as
       (declaration) => declaration.name === "$enum-default.Status.doubled",
     ),
   );
+  assert.ok(
+    compilation.hir?.functions.some(
+      (declaration) =>
+        declaration.name === "$enum-shared.Status.Unknown" && declaration.parameters.length === 0,
+    ),
+  );
+});
+
+test("shared enum data is a per-variant constant computed once", async () => {
+  const source = [
+    "let calls: i32 = 0",
+    "",
+    "fn bump() -> i32:",
+    "    calls = calls + 1",
+    "    calls",
+    "",
+    "enum Box[T](count: i32, seen: i32 = bump(), items: List[i32] = [1]):",
+    "    Full(value: T) -> Box(1)",
+    "    Empty -> Box(0)",
+    "",
+    "fn main() -> i32:",
+    '    let first: Box[string] = Box.Full("a")',
+    '    let second: Box[string] = Box.Full("b")',
+    "    let empty: Box[string] = Box.Empty",
+    "    let again: Box[string] = Box.Empty",
+    "    canonical := if empty is again: 100 else: 0",
+    "    shared := if first.items is second.items: 10 else: 0",
+    "    canonical + shared + first.seen + second.seen + calls",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  // `bump` runs once per variant: Full sees 1, and Empty's run makes calls 2.
+  assert.equal((instance.exports.main as CallableFunction)(), 100 + 10 + 1 + 1 + 2);
+});
+
+test("shared enum data is read-only and cannot use the payload", () => {
+  assert.deepEqual(
+    analyze(conformance("typing/invalid/enum-shared-field-assignment")).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["invalid-assignment-target"],
+  );
+  assert.deepEqual(
+    analyze(conformance("typing/invalid/enum-shared-constructor-payload")).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["unknown-name"],
+  );
 });
 
 test("named arguments work through static and dynamic trait dispatch", async () => {

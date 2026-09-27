@@ -1044,7 +1044,10 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       if (!provider) this.fail("missing-requirement", "println requires Console", expression.span);
       return { kind: "console-print", provider, value, type: "void", span: expression.span };
     }
-    if (expression.callee.name.startsWith("$enum-literal.")) {
+    if (
+      expression.callee.name.startsWith("$enum-literal.") ||
+      expression.callee.name.startsWith("$enum-template.")
+    ) {
       return this.checkInternalEnumLiteral(expression, expression.callee.name, expected);
     }
     return undefined;

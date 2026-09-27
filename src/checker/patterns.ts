@@ -320,7 +320,11 @@ export abstract class PatternChecker extends CallChecker {
         `invalid internal enum literal '${internalName}'`,
         expression.span,
       );
-    const sourceFields = [...declaration.sharedFields, ...variant.fields];
+    // `$enum-template` builds a variant's shared data alone; its payload slots
+    // keep their default values and are never read.
+    const sourceFields = internalName.startsWith("$enum-template.")
+      ? declaration.sharedFields
+      : [...declaration.sharedFields, ...variant.fields];
     if (expression.arguments.length !== sourceFields.length) {
       this.fail(
         "internal-enum-literal",

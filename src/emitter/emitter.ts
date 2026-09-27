@@ -54,6 +54,22 @@ function suspensionIndex(declaration: HirFunction): number {
   return declaration.suspensionIndex ?? declaration.index;
 }
 
+/**
+ * The global that caches a variant's shared constructor data, computed once
+ * per variant (08-data-and-enums.md#r-data.shared.per-variant).
+ */
+function enumSharedCache(declaration: HirFunction): string | undefined {
+  return declaration.name.startsWith("$enum-shared.") && !declaration.closure
+    ? `$enumShared${declaration.index}`
+    : undefined;
+}
+
+function nullableWatType(type: string): string {
+  return type.startsWith("(ref ") && !type.startsWith("(ref null ")
+    ? `(ref null ${type.slice("(ref ".length)}`
+    : type;
+}
+
 class FunctionEmitter extends FunctionBodyEmitter {
   emit(declaration: HirFunction): string {
     this.currentRequirements = declaration.requirements;
@@ -89,7 +105,16 @@ class FunctionEmitter extends FunctionBodyEmitter {
       .map((local) => `  (local ${localName(local.index)} ${this.watType(local.type)})`);
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
-    const body = this.emitBlock(declaration.body, declaration.result);
+    const cache = enumSharedCache(declaration);
+    const body = cache
+      ? [
+          `(if (ref.is_null (global.get ${cache}))`,
+          `  (then (global.set ${cache} (block (result ${this.watType(declaration.result)})`,
+          indent(indent(this.emitBlock(declaration.body, declaration.result))),
+          `  ))))`,
+          `(ref.as_non_null (global.get ${cache}))`,
+        ].join("\n")
+      : this.emitBlock(declaration.body, declaration.result);
     const temporaries = this.temporaryTypes.map(
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
@@ -1290,6 +1315,16 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
         ),
     ),
   ].join("\n");
+  const enumSharedCaches = program.functions
+    .flatMap((declaration) => {
+      const cache = enumSharedCache(declaration);
+      return cache
+        ? [
+            `  (global ${cache} (mut ${nullableWatType(emitter.watType(declaration.result))}) (ref.null none))`,
+          ]
+        : [];
+    })
+    .join("\n");
   const globals = program.globals
     .map(
       (global) =>
@@ -1393,5 +1428,5 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }

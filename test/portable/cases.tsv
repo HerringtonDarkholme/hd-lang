@@ -962,7 +962,6 @@ runtime/valid/replace-empty-old.hd	runtime
 runtime/valid/generic-function-value-instantiation.hd	runtime
 runtime/valid/boxed-primitive-identity.hd	runtime
 runtime/valid/composite-identity-and-views.hd	runtime
-runtime/valid/variant-identity-through-any.hd	runtime
 typing/invalid/any-exposes-no-methods.hd	type
 runtime/valid/any-accepts-non-optional-values.hd	runtime
 typing/invalid/none-to-any.hd	type
@@ -1022,3 +1021,7 @@ typing/invalid/partial-eq-removed.hd	type
 typing/invalid/float-ord-bound.hd	type
 typing/invalid/partial-ord-requires-eq.hd	type
 runtime/valid/float-eq-bound.hd	runtime
+typing/invalid/enum-shared-field-assignment.hd	type
+typing/invalid/enum-shared-constructor-payload.hd	type
+typing/invalid/payload-free-enum-equality.hd	type
+runtime/valid/enum-shared-data-per-variant.hd	runtime

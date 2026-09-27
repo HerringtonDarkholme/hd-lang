@@ -425,6 +425,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         statement.target.span,
       );
     const rootReadonly = readonlyType(root.type);
+    // Enum values never change once built, so a shared field is not a place,
+    // even through a mutable enum root (05-expressions.md#r-expr.place.enum-shared-field).
+    if (this.enumTypes.has(nominalGenericParts(rootReadonly)?.name ?? rootReadonly))
+      this.fail(
+        "invalid-assignment-target",
+        `enum field '${statement.target.name}' is not assignable; enum values never change once built`,
+        statement.target.span,
+      );
     const selection = this.dataTypes.has(nominalGenericParts(rootReadonly)?.name ?? rootReadonly)
       ? this.selectField(root.type, statement.target.name, statement.target.span)
       : undefined;
