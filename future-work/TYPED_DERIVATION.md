@@ -555,7 +555,8 @@ pub data Bad:
 pub data Twice:
     x: i64
 impl json.Json for Twice by Structure
-# error: Twice already derives json.Json through @json
+# error: overlapping-impl: json.Json for Twice is already implemented by @json
+#   (ordinary 09 Overlap; tier 1 is sugar for this impl, as in Rust's E0119)
 
 fn dump[X < Structure](x: X)
 # error: Structure may bound only a `by Structure` template
@@ -588,8 +589,8 @@ fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
    whose template lives in `V`'s package and that declares a parameterless
    associated function returning `V`, with that function overridden to
    return the annotation's value. (Proposed with M10; not yet confirmed.)
-6. A tier-1 annotation and a tier-2 block for the same trait and type is an
-   error.
+6. There is no separate duplicate rule: tier 1 is sugar for the tier-2 impl,
+   so both on one type is an ordinary `overlapping-impl` (09 Overlap).
 7. Visitors and sources: an impl of the sealed `Visitor` or `Source` may
    strengthen `member[F]`'s bound; only generated `visit`/`build` may call
    `member` through a generic visitor or source; templates pass a concrete
