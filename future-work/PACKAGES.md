@@ -259,8 +259,9 @@ builds include the test dependencies.
 
 A package must have a library, at least one executable, or both. Only a
 package with a library can be a dependency; a dependent sees its library and
-never builds its executables. Which targets count as the root application
-for the orphan annotation exception is open (decision 4).
+never builds its executables. For the orphan annotation exception, only
+modules that the library root does not reach count as the root application
+(decision 4).
 
 `[[executable]]`, zero or more:
 
@@ -452,8 +453,8 @@ So the failure appears on the `hd add` or `hd update` that selected the new
 version, and names both annotations; `hd update` reports it before writing
 (decision 6). It never appears on a later unrelated build.
 
-Which targets of a package with both a library and executables count as the
-root application is open (decision 4). Whatever the answer, a package used
+In a package with both a library and executables, only modules that the
+library root does not reach count as the root application (decision 4). A package used
 as a dependency is never the root, so its library cannot contain an orphan
 annotation.
 
@@ -676,8 +677,9 @@ Output rules:
    a library, executables, or both. Unknown manifest keys are errors.
 2. A dependency key is the `NAME` of `dep.NAME`. A key cannot be `std`, `pkg`,
    or `dep`.
-3. Only a package with a library can be a dependency. Which targets may
-   hold an orphan annotation is open (decision 4).
+3. Only a package with a library can be a dependency. Only modules that
+   the library root does not reach may hold an orphan annotation
+   (decision 4).
 4. An executable selects an entry module. The entry point is that module's
    public `main` or `main!`; without one, the module must be a script.
 5. Test-root modules may use test dependencies anywhere. In the source
@@ -702,8 +704,8 @@ Output rules:
 ## Owner Decisions
 
 Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
-Decision 4's restatement of the root-application orphan exception is still
-open. Decision 5 is language syntax: `use` is top-level only today
+Decision 4's restatement of the root-application orphan exception is
+decided but not yet in the specification. Decision 5 is language syntax: `use` is top-level only today
 ([Suites](../spec/02-grammar.md#r-grammar.suite.top-level-only),
 [Use Forms](../spec/10-modules.md#r-module.use.whole-module)), and the
 specification does not have it yet.
@@ -716,7 +718,11 @@ specification does not have it yet.
 3. **Question 3: registry names are `owner/name`.**
 4. **Question 4: Cargo style.** One package may have a library root and
    executables. The root-application orphan exception must be restated for
-   this shape (which targets count as the root application).
+   this shape (which targets count as the root application). Decided
+   2026-09-27: an orphan annotation may appear only in a module that the
+   library root (`root/mod.hd`) does not reach, such as an executable's
+   entry module and the modules only it uses. A module the library reaches
+   gets `orphan-annotation-in-library`.
 5. **Question 5: `use` inside `test` blocks.** A `test` block may contain
    `use` declarations scoped to that block, and only those may name
    test-only dependencies; test builds include test dependencies, and the
