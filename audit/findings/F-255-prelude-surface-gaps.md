@@ -1,11 +1,10 @@
-# F-255: Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
+# F-255: Prelude names `Eq`, `Hash`, and `Hasher` are unknown
 Severity: minor
 Area: coverage
-Evidence: the 9 cases tagged F-255 in test/portable/KNOWN_FAILURES.tsv, for example typing/valid/prelude-surface.hd (`unknown-trait 'Hash'`), typing/valid/generic-map-key.hd (`unknown-trait 'Eq'`), typing/invalid/none-to-any.hd (`unknown-type 'Any'`) (re-checked 2026-09-26)
-Effect: Programs using prelude traits named by 10-modules.md#prelude fail with generic
-`unknown-trait`/`unknown-type`. `none-to-any.hd` cannot reach its
-`missing-contextual-enum-type` check, and decision A3 (optionals may be erased
-to `Any`) cannot be exercised. Map keys bounded by `K < Eq + Hash` cannot be
-written.
-Recommendation: implementation change: add the prelude declarations, or reject them
-with a structured unsupported code.
+Evidence: the 2 cases tagged F-255 in test/portable/KNOWN_FAILURES.tsv, typing/valid/prelude-surface.hd (`unknown-trait 'Hash'`) and typing/valid/generic-map-key.hd (`unknown-trait 'Eq'`) (re-checked 2026-09-27)
+Effect: Programs using the prelude traits `Eq`, `Hash`, and `Hasher` named by
+10-modules.md#prelude fail with generic `unknown-trait`, and map keys bounded
+by `K < Eq + Hash` cannot be written. `Any` is implemented.
+Recommendation: implementation change once owner decision EQ-1 (one `Eq`
+trait, `PartialEq` dropped; audit/types/QUESTIONS.md) is applied to the
+specification, since it changes the comparison traits these cases use.

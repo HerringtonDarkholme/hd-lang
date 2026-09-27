@@ -12,9 +12,9 @@ decisions, and the repository history keeps the removed evidence.
 | Path | What it holds | Why it stays |
 | ---- | ------------- | ------------ |
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
-| [`findings/`](findings/) | one file per open finding (47), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open on 2026-09-27: the tagged cases still fail, and the others were re-run or spot-checked |
+| [`findings/`](findings/) | one file per open finding (44), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open on 2026-09-27: the tagged cases still fail, and the others were re-run or spot-checked |
 | [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `test/portable/KNOWN_FAILURES.tsv` grouped by finding or decision ID | the prototype's fix list |
-| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265, F-310, F-250, and F-254 | open findings; `spec/tools/fuzz/README.md` points here |
+| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265, F-310, and F-250 | open findings; `spec/tools/fuzz/README.md` points here |
 | [`evidence/04-runtime/`](evidence/04-runtime/) | replay, host-value, and panic result tables | back F-155, F-161, F-401, and F-404 |
 | [`evidence/05-object-model/`](evidence/05-object-model/SUMMARY.md), [`05-requirements/`](evidence/05-requirements/SUMMARY.md), [`06-compiler/`](evidence/06-compiler/SUMMARY.md) | representation, cost, and compiler-structure measurements | back the architecture review and F-501 to F-612 |
 | [`probes/`](probes/), [`scripts/`](scripts/), [`bench/`](bench/) | the inputs and scripts that reproduce those runs | needed to re-run the open findings |
@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-9 to TQ-12, TQ-15 to TQ-20, TQ-23, TQ-30, TY-13, EQ-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-27 the prototype passes 962 of the 1,086 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 124 are listed in
+On 2026-09-27 the prototype passes 983 of the 1,090 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 107 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 124 still fail.
+decision below; all 107 still fail.
 
 ## Specification Follow-Ups
 
@@ -39,13 +39,10 @@ decision below; all 124 still fail.
 ## Applied Decisions the Prototype Does Not Follow Yet
 
 Every other applied decision is implemented in the prototype; the spec's
-Revision Notes in `spec/README.md` are the record. Three implemented
-decisions keep cases in the known failures under a finding: L2's
-`unsigned-exponent.hd` and TQ-4's literal-default cases need sized numeric
-types (F-253), and A3's optional-to-`Any` case needs `Any` (F-255). Runtime type identity
-(Inspectable decisions 1 to 16) is implemented; its alias-and-newtype case
-and its local-type `impl Error` case need `type` and local declarations
-(F-254).
+Revision Notes in `spec/README.md` are the record. Two implemented
+decisions keep cases in the known failures under F-253 because they need
+sized numeric types: L2's `unsigned-exponent.hd` and TQ-4's literal-default
+cases.
 
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 

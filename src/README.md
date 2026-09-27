@@ -315,7 +315,13 @@ else`, `break`, `break value`, and `continue`;
 - named function values plus typed nested and recursive closures, expected-type
   parameter/result inference, result inference for nonrecursive closures, and
   GC environments for direct and transitive captures, including lexical
-  provider overrides that escape their `$.with` scope;
+  provider overrides that escape their `$.with` scope; a captured `let` is a
+  shared heap cell, and `mut fn` closures may assign it and keep mutable
+  captures; a generic function used as a value is instantiated from explicit
+  type arguments or the expected function type;
+- `type` aliases, expanded before checking, and newtypes lowered to one-field
+  data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
+  hoisted under a scoped name; the prelude trait `Any`;
 - concrete requirement rows with hidden `externref` provider threading and
   transitive call paths from `hd explain-requirements`;
 - normalized concrete row union/subtraction plus statically resolved `$.use`
@@ -426,7 +432,7 @@ else`, `break`, `break value`, and `continue`;
   implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
   requirement key in a function's requirement clause are rejected. Not
   covered: `Hash` for `TypeId`
-  (no `Hash` trait, F-255), `Any` as a type argument (F-255), a type
+  (no `Hash` trait, F-255), a type
   parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
   closure types and provider scopes, qualified printable names (the
   prototype has one module), and opaqueness (`TypeId { key: ... }` is

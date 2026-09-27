@@ -9,8 +9,8 @@ this report: the verdict, the scorecard, the claim ledger, the coverage and
 blind-fixture runs, and the fuzzing rounds. The repository history keeps
 them. What remains is the architecture review, which still describes the
 prototype, and the findings that are still open. On 2026-09-27 the prototype
-passes 962 of the 1,086 conformance cases; [`README.md`](README.md) says
-where the other 124 are listed.
+passes 983 of the 1,090 conformance cases; [`README.md`](README.md) says
+where the other 107 are listed.
 
 The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
@@ -135,7 +135,7 @@ multi-module or incremental work, it needs:
 
 ## 2. Open Findings
 
-The most important open findings, ranked by impact. All 47 open findings,
+The most important open findings, ranked by impact. All 44 open findings,
 with the conformance cases each one keeps failing, are in
 [`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
 by several workers are merged under one canonical ID.
@@ -169,7 +169,6 @@ Merged duplicates:
 
 - F-401 = F-611 = F-264;
 - F-265 = F-162 = F-306;
-- F-257 = F-352;
 - F-250 = F-312.
 
 ## 3. Fuzzing
@@ -177,5 +176,5 @@ Merged duplicates:
 The fuzzer is now [`spec/tools/fuzz/`](../spec/tools/fuzz/README.md). Its
 audit rounds are finished; the one implementation bug they found that is
 still open on its own is F-310. The minimized fixtures for open findings
-(F-306 in F-265, F-310, F-312 in F-250, and F-315 in F-254) are in
+(F-306 in F-265, F-310, and F-312 in F-250) are in
 [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/).
