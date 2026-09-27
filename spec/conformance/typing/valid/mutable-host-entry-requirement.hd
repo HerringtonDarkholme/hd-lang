@@ -1,0 +1,4 @@
+# test: requirements / mutable providers / entry row requires a host trait the profile marks mutable
+
+pub fn main() -> void $ mut Console:
+    println("host capability")

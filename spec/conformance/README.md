@@ -201,13 +201,17 @@ that implement them ([Wasm Boundary](../10-modules.md#wasm-boundary)). With
 `check` and `test`. The profile's traits become host capabilities that may
 appear in entry-point rows. A fixture declares every trait a profile
 implements, with the exact method signatures below, and the profile supplies
-one provider value per trait.
+one provider value per trait. Each profile below states which of its traits it
+marks mutable ([Mutable Providers](../11-requirements-and-suspension.md#mutable-providers)):
+an entry-point row may contain `mut K` only for those traits, and `mut K` for
+any other trait of the profile is `mutable-upgrade`.
 
 - `console` is the profile a fixture gets when it names no profile. The
   runner passes no `--profile` option for it. It implements the prelude
   `Console` ([Prelude](../10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
   of `text` followed by one U+000A to standard output, and returns `Ok`.
+  It marks `Console` mutable.
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
   The fixture declares exactly these three methods, where `E` is the
   fixture's own error type:
@@ -227,8 +231,11 @@ one provider value per trait.
   - The first `close` returns `Ok`.
   - After a successful close, every operation on that handle, including a
     second `close`, returns `Err(ResourceError.Disposed)` and must not trap.
+
+  The profile marks no trait mutable.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
+  It marks no trait mutable.
 
 Implementations may define more profiles for their own tests. A conformance
 fixture may name only the profiles listed here.

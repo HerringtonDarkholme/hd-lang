@@ -53,22 +53,31 @@ they stop at the end of a history instead of resuming.
 
 ### Mutable Host Providers
 
-**Problem.** [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
-lets hd code install and retrieve a provider with `mut` access, but runtime
-profiles bind host providers readonly, so an entry-point row containing
-`mut K` is rejected with `mutable-upgrade`.
+**Decided.** A runtime profile may bind a host provider with `mut` access for
+a trait it marks mutable, and an entry-point row may then contain `$ mut K`
+for that trait; a `mut K` entry for a trait the profile does not mark mutable
+stays `mutable-upgrade` ([STDLIB decision 14](STDLIB.md#owner-decisions)).
+The rules are in
+[Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
+and [Wasm Boundary](../spec/10-modules.md#wasm-boundary).
 
-**Options.** (1) Keep host providers readonly; host objects manage their own
-state behind readonly methods. (2) Let a runtime profile mark individual host
-traits as bound with `mut` access.
+**Problem.** Two questions remain:
 
-**Recommendation.** Option 1 until a host trait needs `mut self` methods.
+- which traits each toolchain profile marks mutable. The decision names
+  `Clock`, `Random`, `FsWrite`, and `Console`, but the standard capability
+  catalog is not fixed, and the conformance profiles mark only `Console`
+  ([Runtime Profiles](../spec/conformance/README.md#runtime-profiles));
+- whether the prelude `Console.write_line!` takes `mut self`. A recording
+  `BufferConsole` needs it to append, but it would put `mut Console` in the
+  row of `println` and of every caller.
 
-**Unblocks.** Host capability traits whose methods take `mut self`. The
-[standard-library draft](STDLIB.md#stateful-providers) already has them:
-`Clock.sleep!`, `Random`, and `FsWrite` take `mut self` so that their
-deterministic providers can change state, and a recording `BufferConsole`
-would need the same of `Console.write_line!`.
+**Options.** For `write_line!`: (1) keep `self`, so a recording console is
+not expressible through `Console`; (2) take `mut self`, so printing code
+requires `mut Console`.
+
+**Unblocks.** The `std.time`, `std.random`, and `std.fs` host providers once
+their profiles are named, and a recording
+[`BufferConsole`](STDLIB.md#stdconsole).
 
 ### Typed Derivation, Tool Adapters, And Secrets
 

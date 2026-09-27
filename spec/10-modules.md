@@ -357,8 +357,11 @@ An executable entry point is a public top-level function named `main` or
 `main!` with no parameters. It returns `void` or `Result[void, E]` with
 `E < Display`, and it may declare a requirement row. Every key in that row must
 be a host capability trait of the selected runtime profile; any other key is a
-`nonhost-entry-requirement` error. A top-level `main` that is not public is an
-ordinary function and is not an entry point.
+`nonhost-entry-requirement` error. A key written `mut K` also requires the
+profile to mark `K` mutable; otherwise it is a `mutable-upgrade` error
+([Mutable Providers](11-requirements-and-suspension.md#mutable-providers)).
+A top-level `main` that is not public is an ordinary function and is not an
+entry point.
 
 The conventional non-suspending entry point is:
 
@@ -381,8 +384,13 @@ A suspending entry point is spelled `main!`.
 ## Wasm Boundary
 
 A **runtime profile** is a named compile-time set of host capability traits,
-their boundary adapters, and runtime choices such as panic exit statuses. The
-compiler receives the selected profile as build configuration. The default
+their boundary adapters, and runtime choices such as panic exit statuses. For
+each trait, the profile also fixes the access with which it binds the host
+provider: readonly, or mutable when the profile marks the trait mutable. An
+entry-point row may contain `mut K` only for a trait `K` the profile marks
+mutable
+([Mutable Providers](11-requirements-and-suspension.md#mutable-providers)).
+The compiler receives the selected profile as build configuration. The default
 profile contains at least the prelude `Console` trait; another profile may add
 or omit host traits explicitly.
 
@@ -392,8 +400,9 @@ provided by its library or annotation facet.
 
 Every registered boundary function is an entry point for provider checking.
 Its registration contract selects a runtime profile and declares which
-requirement traits that profile can bind, including application traits such as
-`Database` when the adapter explicitly supports them. Every key in the
+requirement traits that profile can bind, and with which access, including
+application traits such as `Database` when the adapter explicitly supports
+them. Every key in the
 registered function's row must be in that bindable set, and the host must bind
 all of them before invocation; otherwise registration or startup fails before
 user code executes.

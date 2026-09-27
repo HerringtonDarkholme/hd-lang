@@ -894,7 +894,8 @@ typing/invalid/mutable-provider-install-readonly-value.hd	type	reject:mutable-up
 typing/invalid/mutable-provider-readonly-row.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
 typing/invalid/mutable-provider-call-from-readonly-scope.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
 typing/invalid/readonly-provider-mut-method.hd	type	reject:mutable-receiver-required	11-requirements-and-suspension.md#mutable-providers
-typing/invalid/mutable-host-entry-requirement.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
+typing/valid/mutable-host-entry-requirement.hd	type	accept	11-requirements-and-suspension.md#mutable-providers
+typing/invalid/mutable-host-entry-readonly-trait.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#mutable-providers
 runtime/valid/field-and-inherent-method-share-name.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 runtime/valid/field-and-trait-method-share-name.hd	runtime	accept	03-names-and-scopes.md#member-resolution
 typing/invalid/function-typed-field-method-call.hd	type	reject:unknown-method	05-expressions.md#member-access
