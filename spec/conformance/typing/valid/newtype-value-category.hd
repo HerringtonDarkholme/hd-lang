@@ -1,0 +1,18 @@
+# test: a newtype has its base type's value category
+
+fn by_value[T < AnyVal](value: T) -> T:
+    value
+
+fn by_reference[T < AnyRef](value: T) -> T:
+    value
+
+type Mile(i32)
+
+data User:
+    name: string
+
+type Owner(User)
+
+fn use_both() -> void:
+    _ := by_value(Mile(1))
+    _ := by_reference(Owner(User { name: "Ada" }))

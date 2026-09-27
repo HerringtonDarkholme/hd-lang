@@ -1,0 +1,9 @@
+# test: a newtype over a primitive is not AnyRef
+
+fn by_reference[T < AnyRef](value: T) -> T:
+    value
+
+type Mile(i32)
+
+fn invalid() -> void:
+    _ := by_reference(Mile(1))  # diagnostic: unsatisfied-trait-bound

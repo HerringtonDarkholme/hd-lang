@@ -642,9 +642,9 @@ types are printed as `fn get_user` in diagnostics and can be written only in
 implementation and derive heads.
 
 **Scope.** Item types exist for module-level, non-generic functions, the
-same targets `shape_of` accepts. Generic functions follow the
-[Shape Intrinsic Coverage](OPEN_ISSUES.md#shape-intrinsic-coverage)
-recommendation and would need a complete explicit instantiation.
+same targets `shape_of` accepts. Generic functions would need a complete
+explicit instantiation (the former Shape Intrinsic Coverage issue, now
+superseded by [typed derivation](TYPED_DERIVATION.md)).
 Methods stay with P6. Closures never have item types.
 
 **Ownership.** The item type belongs to the function's package, so

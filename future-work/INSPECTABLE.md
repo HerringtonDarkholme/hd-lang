@@ -109,6 +109,11 @@ Decided 2026-09-26:
     `List[mut User]` differ and an erased `List[User]` cannot be downcast to
     `List[mut User]`. Only the outer `mut` of the erased view is ignored
     (it is carried statically by `Inspectable` versus `mut Inspectable`).
+17. **`downcast_val` keeps `T < Inspectable`** (VC-3, 2026-09-27): no
+    `AnyVal` bound is added, so generic code over a type of either value
+    category has one downcast; `downcast` and `downcast_mut` stay the
+    `AnyRef` methods that keep `mut`. Applied as a note in
+    [Recovering A Concrete Type](../spec/09-traits.md#recovering-a-concrete-type).
 
 The specification pass had recorded one consequence of decision 2 as open:
 a value erased as `List[User]` downcast to `List[mut User]`. Decision 16

@@ -728,3 +728,10 @@ existing source. Each entry names the decision that made the change.
   again. Only `reified` parameters and packs remain excluded. Chapter 09
   now states the defining one-copy rule (`trait.dyn.safe.one-copy`), and
   the other dynamic-safety rules are its consequences.
+- Value categories of `void`, `never`, and newtypes (owner decisions VC-1
+  to VC-3, 2026-09-27): `void` implements `AnyVal`, so `T < AnyVal` now
+  accepts it; `never` implements neither `AnyVal` nor `AnyRef`, because it
+  has no values; and a newtype has its base type's category, so
+  `type Mile(i32)` satisfies `T < AnyVal` and `type Owner(User)` satisfies
+  `T < AnyRef`, both previously unspecified. `downcast_val` keeps its
+  `T < Inspectable` bound.

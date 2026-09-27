@@ -1079,7 +1079,7 @@ compiler and the standard library supply.
 | Rule | Trait | Implemented for |
 | --- | --- | --- |
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
-| r[trait.sealed.anyval] AnyVal | `AnyVal` | the primitive types, `string`, and tuples ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyval-types] AnyVal | `AnyVal` | the primitive types, `string`, `void`, tuples, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.anyref] AnyRef | `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
 | r[trait.sealed.shape-metadata] ShapeMetadata | `ShapeMetadata` | the concrete shape types ([Common Shape Representation](14-annotations.md#common-shape-representation)) |
@@ -1307,6 +1307,9 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 7. r[trait.downcast.optional] An erased `User?` therefore downcasts to `User?`, giving a `User??`, and never to `User`.
 8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
 9. r[trait.downcast.unboxed] A value without identity is unboxed.
+
+> **Note.** `downcast_val` is bounded by `Inspectable` alone on purpose:
+> generic code over a type of either category needs only one downcast.
 
 #### Ordinary Rules For Recovery
 

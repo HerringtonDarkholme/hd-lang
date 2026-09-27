@@ -37,6 +37,11 @@ import {
 import { CallChecker } from "./calls.ts";
 export abstract class PatternChecker extends CallChecker {
   protected isIdentityType(type: ValueType): boolean {
+    // Access permission does not change the category (04 types.sealed.permission).
+    if (readonlyType(type) !== type) return this.isIdentityType(readonlyType(type));
+    // A newtype has its base type's category (04 types.sealed.newtype).
+    const newtype = this.dataTypes.get(type);
+    if (newtype?.newtype && newtype.fields[0]) return this.isIdentityType(newtype.fields[0].type);
     const generic = genericTypeName(type);
     if (generic) return (this.signature.referenceParameters ?? []).includes(generic);
     if (type.startsWith("trait:")) return true;

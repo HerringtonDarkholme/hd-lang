@@ -234,8 +234,10 @@ pub fn main() -> void:
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
 2. r[module.prelude.anyref] `AnyRef` is implemented by data values, stored enum values (optionals included), lists, maps, dynamic trait values, and `Any`. It is also implemented by closures, suspensions, and runtime handles that have identity, and payload-free enum values with canonical variant identity.
 3. r[module.prelude.anyref-not] `AnyRef` is not implemented by primitives or tuples.
-4. r[module.prelude.anyval] `AnyVal` is implemented by exactly the primitives and tuples.
-5. r[module.prelude.any-sealed] User code cannot implement either.
+4. r[module.prelude.anyval-types] `AnyVal` is implemented by exactly the primitives, `void`, tuples, and newtypes whose base type implements `AnyVal`.
+5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
+6. r[module.prelude.never-exempt] `never` implements neither, because it has no values.
+7. r[module.prelude.any-sealed] User code cannot implement either.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any),
 [Sealed Traits](09-traits.md#sealed-traits).

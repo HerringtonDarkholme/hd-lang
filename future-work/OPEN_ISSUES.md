@@ -114,27 +114,6 @@ traits may take `Secret[T]` parameters so the host receives the real value
 without an `expose()` in hd code; whether exported functions may take
 `Secret[T]` inputs; and that a secret never encodes or appears in outputs.
 
-### Shape Intrinsic Coverage
-
-**Problem.** `shape[T]()` gives typed `fields` and `variants` members, but
-three reflection targets have no typed spelling. Parameter shapes are reached
-only through `shape_of(f).params`, and variant payload fields only through a
-`VariantShape`'s `payload` list, both by position. `shape_of` of a generic
-function is unspecified: the old `shape(get_user)` form never said how a
-generic function's type parameters are supplied.
-
-**Options.** (1) Add typed `params` and `payload` records the same way as
-`fields`, keeping `param_list` and `payload_list` for iteration. (2) Accept
-`shape_of(identity[i32])` with a complete explicit type-argument list and
-reject a bare generic function name. (3) Reject generic functions in
-`shape_of` outright.
-
-**Recommendation.** Option 1 for consistency with `fields`, and option 2 for
-generic functions, since it reuses the generic function reference syntax.
-
-**Unblocks.** Statically checked parameter metadata lookups and tool adapters
-over generic functions.
-
 ### Serializable Closures And Incremental Computation
 
 **Problem.** Closures have per-evaluation identity but no
@@ -322,28 +301,6 @@ type for every implementation.
 its own coherence review.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
-
-### Value-Category Coverage Of `AnyVal` And `AnyRef`
-
-**Problem.** Every value type implements exactly one of the sealed
-`AnyVal` and `AnyRef`
-([Trait Values And `Any`](../spec/04-type-system.md#trait-values-and-any)).
-The two lists name the primitives, tuples, and reference values, but not
-`void`, `never`, or nominal newtypes such as `type Mile(i32)`. Separately,
-`std.inspect.downcast_val` in
-[Inspectable decision 15](INSPECTABLE.md) is bounded by `T < Inspectable`
-only, although it exists to recover `AnyVal` values.
-
-**Options.** (1) `void` joins `AnyVal` like `()`, and `never` is exempt
-from the rule because it has no values. (2) A newtype follows its
-underlying type, or (3) a newtype is always `AnyRef`, like a fieldful data
-type. (4) Bound `downcast_val` by `T < AnyVal + Inspectable`, so a
-reference target is a compile error instead of `.None`.
-
-**Recommendation.** None yet; the owner decides each point.
-
-**Unblocks.** A complete partition statement and exact bounds for the
-downcast functions.
 
 ### Resource Non-Escape And Cleanup Policy
 

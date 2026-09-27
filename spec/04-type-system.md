@@ -849,12 +849,14 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 | Trait | Types | Identity |
 | --- | --- | --- |
-| r[types.sealed.anyval] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, and tuples | These values have no identity. |
+| r[types.sealed.anyval-types] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, `void`, and tuples | These values have no identity. |
 | r[types.sealed.anyref] `AnyRef` | data types, enums (including optionals and `Result`), `List`, `Map`, function types, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
-5. r[types.sealed.permission] Access permission does not change the category, so `mut User` implements `AnyRef`.
-6. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
-7. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
+5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.
+6. r[types.sealed.never] `never` implements neither, because it has no values.
+7. r[types.sealed.permission] Access permission does not change the category, so `mut User` implements `AnyRef`.
+8. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
+9. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
 
 ```text
 data Handle: pass

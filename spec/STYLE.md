@@ -357,3 +357,10 @@ style lint rejects a chapter that reuses one.
 - `types.trait.safe.method-generic`: retired 2026-09-27. The owner's TQ-10
   revision exempts row parameters from the `AnyRef` bound. Replaced by
   `types.trait.safe.method-type-param`.
+- `types.sealed.anyval`: retired 2026-09-27. Owner decision VC-1 adds
+  `void` to `AnyVal`. Replaced by `types.sealed.anyval-types`.
+- `trait.sealed.anyval`: retired 2026-09-27. Owner decisions VC-1 and VC-2
+  add `void` and newtypes over `AnyVal` types. Replaced by
+  `trait.sealed.anyval-types`.
+- `module.prelude.anyval`: retired 2026-09-27. Owner decisions VC-1 and
+  VC-2 add `void` and newtypes. Replaced by `module.prelude.anyval-types`.

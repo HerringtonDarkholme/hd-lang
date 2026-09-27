@@ -1126,3 +1126,5 @@ typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	08-da
 typing/invalid/payload-free-enum-equality.hd	type	reject:missing-partial-eq	09-traits.md#r-trait.hash.not-inferred
 runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	08-data-and-enums.md#r-data.shared.per-variant
 typing/valid/dynamic-trait-suspending-method.hd	type	accept	09-traits.md#r-trait.dyn.safe.suspending
+typing/valid/newtype-value-category.hd	type	accept	04-type-system.md#r-types.sealed.newtype
+typing/invalid/newtype-value-category.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.sealed.newtype

@@ -1027,3 +1027,5 @@ typing/invalid/payload-free-enum-equality.hd	type
 runtime/valid/enum-shared-data-per-variant.hd	runtime
 runtime/valid/variant-identity-through-any.hd	runtime
 typing/valid/dynamic-trait-suspending-method.hd	type
+typing/valid/newtype-value-category.hd	type
+typing/invalid/newtype-value-category.hd	type
