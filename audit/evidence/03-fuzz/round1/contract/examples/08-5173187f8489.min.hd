@@ -1,2 +1,0 @@
-fn main ( ) -> Result [ void , ConsoleError ] :
-    Ok()

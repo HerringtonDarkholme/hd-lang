@@ -1,5 +1,0 @@
-# test: nested suspension frames propagate pending state
-# expect-result: main = 42
-
-fn child!() -> i32: 41
-fn main!() -> i32: child!() + 1

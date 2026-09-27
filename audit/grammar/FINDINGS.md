@@ -35,10 +35,12 @@ All tools are under [`tools/`](tools/). They import only Node built-ins and
     the token level.
   - `amb firstfollow`: LL(1) FIRST/FOLLOW conflicts on `:`, `[`, `$`, `!`,
     `?`, `<`, `else`, `for`, `if`, `...`, and the layout tokens.
-  - `amb cases FILE`: hand-written probes in [`probes/`](probes/), each run
-    through both the reference parser and the derivation counter.
+  - `amb cases FILE`: hand-written probes, each run through both the
+    reference parser and the derivation counter. Only
+    [`probes/reference.cases`](probes/reference.cases) remains; the probes
+    for resolved findings were removed.
 - Rerun the probes with
-  `audit/grammar/tools/amb cases audit/grammar/probes/*.cases`.
+  `audit/grammar/tools/amb cases audit/grammar/probes/reference.cases`.
 
 The audit found no unintended ambiguity in the fixtures: every ambiguity is
 one the spec hands to name resolution. `:` has no LL(1) conflict at the
@@ -56,7 +58,7 @@ rejected).
 
 ### GR-10: Reference-parser heuristics disagree with the spec
 
-Severity: Medium. Status: items f and g open, re-checked on 2026-09-26 with
+Severity: Medium. Status: items f and g open, re-checked on 2026-09-27 with
 `amb cases audit/grammar/probes/reference.cases` (probes R12 and R11).
 
 | # | Input | Reference | Spec |

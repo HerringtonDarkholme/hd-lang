@@ -174,10 +174,10 @@ repeat exactly.
 
 Needs no owner decisions; tracked in [the audit folder](../audit/README.md).
 
-- The applied decisions the prototype does not follow yet: G2, G3, L2, L6,
-  L7, L8, L9.
-- The 22 conformance cases where it emits its own codes (F-205).
-- The bugs that lose console output (F-708, F-709).
+- The applied decisions the prototype does not follow yet, listed in the
+  audit README with the conformance cases each one keeps failing.
+- The open prototype findings in `audit/findings/`, grouped by ID in
+  `audit/evidence/w9/failures-by-id.tsv`.
 
 ## 7. Audit Cleanup
 

@@ -7,22 +7,11 @@ at commit 158a430. Sources: Rust Reference, RFC 1023, RFC 2451, rustc-dev-guide
 Swift Evolution SE-0143, SE-0185, SE-0266, SE-0302, SE-0309, SE-0335, SE-0364;
 Kotlin docs (interfaces, extensions, delegation, data classes) and spec.
 Items marked (unverified) were not confirmed in official text.
+The sections on coherence and on method resolution were removed: the
+decisions they informed (TQ-1 to TQ-4, the member-lookup decisions) are
+applied and recorded in the spec's Revision Notes.
 
-## 1. Coherence, Orphan Rule, Overlap
-
-| | Rule |
-| --- | --- |
-| Rust | Orphan (RFC 2451): `impl<P..> Trait<T1..Tn> for T0` is allowed if the trait is local, or some `Ti` is local and no uncovered type parameter appears before it. Fundamental types (`&`, `&mut`, `Box`, `Pin`) do not cover. Overlap: every impl pair is checked; also rejected if a conflicting impl *could* be added upstream ("upstream crates may add a new impl"). Negative reasoning only for traits/types the crate owns (RFC 1023). |
-| MoonBit | Only the package of the trait or of the type may write `impl T for Ty`, giving a globally unique impl per pair. Trait visibility controls implementability: `pub` traits are read-only (sealed) outside, `pub(open)` are implementable anywhere. Impl visibility matters. Overlap of generic impls: not documented (unverified). |
-| Swift | A type conforms to a protocol at most once, even if conditional constraints look disjoint (SE-0143). Retroactive conformance of a foreign type to a foreign protocol warns unless marked `@retroactive` (SE-0364). Runtime uniqueness is assumed; duplicates are undefined. |
-| Kotlin | No impl concept; classes declare interfaces. Extensions are static and imported. |
-| hd today | Trait-or-target package owns the impl; trait arguments never confer ownership. Overlap text both uses and ignores bounds (TY-01). Link-time check over interface files. Annotation facets rely on a different, undocumented ownership rule (TY-02). |
-
-Lesson: Swift's "conform once" is the simplest and fully local; Rust's rule
-needs global knowledge of who may add impls. hd's link-time check already
-accepts some global failure; ignoring bounds removes the rest.
-
-## 2. Impl Selection
+## 1. Impl Selection
 
 | | Rule |
 | --- | --- |
@@ -31,7 +20,7 @@ accepts some global failure; ignoring bounds removes the rest.
 | MoonBit | Unique per pair by placement; no documented solver. |
 | hd today | "At most one implementation" plus overlap; no stated candidate order, determinism, or termination (TY-04, TY-24). |
 
-## 3. Supertraits
+## 2. Supertraits
 
 | | Rule |
 | --- | --- |
@@ -41,7 +30,7 @@ accepts some global failure; ignoring bounds removes the rest.
 | Kotlin | Interfaces extend interfaces. |
 | hd today | `missing-supertrait-implementation` for concrete impls; generic-impl obligations and implied bounds unstated (TY-07, TY-08). |
 
-## 4. Default Methods And Conflicts
+## 3. Default Methods And Conflicts
 
 | | Rule |
 | --- | --- |
@@ -51,7 +40,7 @@ accepts some global failure; ignoring bounds removes the rest.
 | MoonBit | Defaults written `impl Trait with m(...)`; a regular method beats an attached trait method. Implicit dot-callability of trait methods is deprecated because a new upstream default method can make an existing dot call ambiguous. |
 | hd today | Conflicts are ambiguous at the dot call; inherent method or `Trait::m` resolves. Default-body dispatch, supertrait defaults, and name reuse unstated (TY-13). |
 
-## 5. Dynamic Safety
+## 4. Dynamic Safety
 
 | | Rule |
 | --- | --- |
@@ -65,7 +54,7 @@ hd's `AnyRef` rule is more permissive than Rust (generic methods allowed
 when they share one representation). Rust's per-method exclusion
 (`where Self: Sized`) is an option hd lacks; nothing here recommends adding it.
 
-## 6. Derivation
+## 5. Derivation
 
 | | Rule |
 | --- | --- |
@@ -79,21 +68,7 @@ Locality note: Swift and Kotlin forbid mixing generated and hand-written halves
 only partly; Kotlin's suppression (a hand-written `equals` suppresses generation)
 is implicit. hd's explicit `@derive` list is closer to Rust.
 
-## 7. Method Resolution
-
-| | Rule |
-| --- | --- |
-| Rust | Receiver steps (autoderef, then `&`, `&mut`); at each step inherent before in-scope trait methods; type-parameter bounds before other traits; several at one step is an error. |
-| MoonBit | Methods live in the type's namespace; trait methods dot-callable only after `extend Type with Trait::{..}`; regular beats attached; type-parameter dot calls only for the single written constraint. |
-| Swift | Concrete members beat protocol-extension members; more constrained extension wins. |
-| Kotlin | Member always beats extension. Delegation `class C(b: B) : B by b`: body overrides beat delegated members; delegate's own calls do not see the overrides. Two delegates supplying one member require an explicit override (unverified). |
-| hd today | Inherent > promoted > trait list conflicts with the pooling sentence (TY-03); no permission step; no multi-instantiation rule (TY-09). |
-
-Kotlin delegation is the closest analog to hd embedding-with-bodyless-impl:
-explicit opt-in per interface, local overrides win. It supports hd keeping
-"embedding never grants conformance".
-
-## 8. Automatic Traits
+## 6. Automatic Traits
 
 | | Rule |
 | --- | --- |

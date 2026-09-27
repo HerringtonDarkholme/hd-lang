@@ -2,7 +2,7 @@
 Severity: minor
 Area: runtime
 Duplicates: F-611 (merged: formatting edits break replay), F-264 (merged into F-611 earlier)
-Evidence: audit/evidence/04-runtime/edits.tsv (row `v04-helper-body-change.hd`); audit/evidence/06-compiler/replay-identity.md; audit/evidence/02-coverage/s5-replay.tsv row comment-inside-executed; `instantiate` in src/compiler.ts still hashes `source.slice(span)` per function and closure (re-checked 2026-09-26)
+Evidence: audit/evidence/04-runtime/edits.tsv (row `v04-helper-body-change.hd`); audit/evidence/06-compiler/replay-identity.md; `instantiate` in src/compiler.ts still hashes `source.slice(span)` per function and closure (re-checked 2026-09-26)
 Effect: Two symptoms of one cause.
 - A changed body in an executed non-suspending function is accepted. base.hd
   is recorded, and its `main` returns 42. Changing `helper` from `value * 2`

@@ -1,12 +1,13 @@
 # 5.1 to 5.3: Object Model, Allocation, Generic Erasure
 
 Commit `bd985d7`, 2026-09-25. The worker could not write report files; the
-coordinator wrote this file from the worker's final report. The coordinator
-reproduced F-500 independently
-(`audit/probes/coordinator/prim-partialeq.hd`:
-`missing-trait-implementation: type 'i32' does not implement PartialEq`).
-F-160 and F-500 are fixed; that probe and `failures-f160-f500.txt` were
-removed in the 2026-09-26 cleanup.
+coordinator wrote this file from the worker's final report. This phase also
+reproduced F-160 (`f64` ordering crashed WAT emission) and F-500 (primitives
+did not satisfy `PartialEq` or `PartialOrd` bounds). Both are fixed, and
+their probes (`om-f64-ordering.hd`, `erasure-primitive-bounds.hd`) and
+`failures-f160-f500.txt` were removed, so the rows naming those probes in
+`alloc-static.tsv`, `cli-runs.txt`, and `static-alloc-sites.tsv` are
+historical.
 
 ## Headline
 
@@ -42,8 +43,7 @@ Evidence, in this directory:
 - `cli-runs.txt`;
 - `static-alloc-sites.tsv`, `alloc-static.tsv`, `alloc-per-iteration.tsv`,
   `frames.tsv`;
-- `timing-map-string.txt`, `erasure-bench*.txt`, `erasure-values.txt`,
-  `failures-f160-f500.txt`.
+- `timing-map-string.txt`, `erasure-bench*.txt`, `erasure-values.txt`.
 
 ## 5.1 Object Model
 
@@ -135,15 +135,12 @@ Liveness analysis would remove 75 to 100% of frame slots.
 
 | ID    | Severity | Title                                                                      |
 | ----- | -------- | -------------------------------------------------------------------------- |
-| F-500 | major    | primitives do not satisfy `T: PartialEq` or `T: PartialOrd`                |
 | F-501 | major    | `map` has no hashing: O(n) `get` and insert, O(n²) build                  |
 | F-502 | major    | bounded generic calls rebuild dictionaries every call, plus a trait value per method call |
 | F-503 | minor    | interpolation concatenates pairwise and re-allocates literals each time    |
 | F-504 | minor    | the optional carrier allocates for each `nil`, each `for` step, and each `map.get` |
 | F-505 | note     | concrete `list[i32]` stores boxes                                          |
 | F-506 | note     | suspension frames keep dead locals and dead heap references                |
-
-Also reproduced: F-160 (any `f64` `<`, `>`, `<=`, `>=` crashes WAT emission).
 
 ## Phase-7 Questions
 
@@ -154,15 +151,17 @@ Also reproduced: F-160 (any `f64` `<`, `>`, `<=`, `>=` crashes WAT emission).
    `erasure-shared-storage.hd` shows generic code mutating a concrete
    `list[(i32, i32)]` in place. Should specialized layouts be allowed for
    values without identity?
-3. Should map operation complexity be specified?
-4. Is distinct identity for fieldless data intended?
-5. Does "`Suspend[T]` is dynamic" force a wrapper on every stored suspension?
-6. Should `string.len()` be allowed to be O(n)?
+3. Does "`Suspend[T]` is dynamic" force a wrapper on every stored suspension?
+
+Three questions from this phase are answered in the spec: map operations
+take expected amortized O(1) time (chapter 10), a fieldless data value is
+canonical (chapter 08), and `string.len()` may take linear time (chapter 04).
 
 ## Not Done
 
 - Non-canonical NaN: hd source cannot produce one.
-- `f64` sort and `PartialOrd`-bounded sort: blocked by F-160 and F-500.
+- `f64` sort and `PartialOrd`-bounded sort were not measured; F-160 and
+  F-500 blocked them at the time.
 - An unboxed baseline: impossible to write in hd today.
 - Live sets were derived by hand.
 - Timings are noisy (contended CPU).

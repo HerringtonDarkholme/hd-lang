@@ -41,7 +41,6 @@ files it cites are in this directory.
 | scale and edit timing | `scale.ts <dir> 250,500,1000,2000`                          | `scale.md`                                 |
 | WAT stability         | `wat-stability.ts probes/compiler/scale-100.hd`             | `wat-stability.md`                         |
 | closure nesting       | `nested-closures.ts <dir> 20`                               | `nested-closures.md`                       |
-| module initialization | `init-dag.ts`; `hd check` and `hd run` on `init-*.hd`       | `init-dag.md`, `module-initialization.md`  |
 | interpolation spans   | `hd check interp-span*.hd`                                  | `interpolation-span.md`                    |
 | replay identity       | `hd record` and `hd replay` on 3 formatting variants        | `replay-identity.md`                       |
 | frame liveness        | `hd build --wat frame-liveness.hd`                          | `frame-liveness.md`                        |
@@ -186,7 +185,7 @@ and a loop counter.
 - WAT stability, out of 628 functions: changing one literal changes 1;
   inserting a function changes 308; inserting a closure changes 204.
 - Replay identity breaks on a comment or whitespace edit inside a function
-  (F-611).
+  (F-611, merged into F-401).
 
 Design points that block query-based or incremental compilation. Each is an
 implementation choice unless marked as a language rule:
@@ -198,8 +197,7 @@ implementation choice unless marked as a language rule:
    its source position. **Language rule**, but `10-modules.md:222-226` is
    ambiguous.
 4. Transitive initialization checking. **Language rule**
-   (`10-modules.md:228-233`). The unmemoized walk behind F-602 is an
-   implementation choice.
+   (`10-modules.md:228-233`).
 5. Trait resolution scans every implementation. The coherence requirement is
    a **language rule** (`09-traits.md:190-227`); the linear scan is not.
 6. Closure inference checks each body twice (F-604).
@@ -247,8 +245,6 @@ stable declaration identities, and one shared lowered IR.
 | ----- | -------- | ----------------------------------------------------------------------------- |
 | F-600 | minor    | `explain-requirements` skips 23 of 80 HIR kinds and reports real uses as "declared" |
 | F-601 | minor    | `explain-requirements` shows closure-routed requirements as a direct `$.use`  |
-| F-602 | major    | the module-initialization check takes exponential time (8.6 s at call depth 22) |
-| F-603 | major    | the initialization check misses bound and dynamic trait dispatch; an accepted program silently reads a zero global |
 | F-604 | minor    | nested unannotated closures double check time per level (3.2 s at depth 20)   |
 | F-605 | minor    | error recovery limits                                                         |
 | F-606 | minor    | errors inside `${...}` are reported at 1:1                                    |
@@ -256,7 +252,6 @@ stable declaration identities, and one shared lowered IR.
 | F-608 | note     | program-wide numbering makes WAT unstable under edits                         |
 | F-609 | note     | desugaring split between checker and emitter; control flow lowered three times |
 | F-610 | note     | `??` dispatch chains defeat exhaustiveness checking                           |
-| F-611 | note     | replay code identity breaks on whitespace or comment edits                    |
 | F-612 | note     | `explain-requirements` output grows exponentially                             |
 
 ## Phase-7 Questions
@@ -264,15 +259,17 @@ stable declaration identities, and one shared lowered IR.
 1. Named functions already must declare rows. Should the spec state that a
    missing clause means an empty row? Or should private functions infer rows,
    at the cost of a whole-module fixpoint?
-2. Does "functions reached by trait dispatch" (module initialization)
-   include bounded and dynamic dispatch? Every implementation in scope, or
-   only those whose type can reach that point?
-3. In `10-modules.md:225`, does "later function bodies" mean source order or
+2. In `10-modules.md:225`, does "later function bodies" mean source order or
    execution order?
-4. Should replay code identity be normalized, over tokens or HIR?
-5. Should the conformance contract require independent errors from
+3. Should the conformance contract require independent errors from
    different declarations to be reported?
-6. Should `explain-requirements` print one witness path per key?
+4. Should `explain-requirements` print one witness path per key?
+
+Two questions from this phase are answered. Module initialization counts a
+trait call through a bound or a dynamic value as reaching every
+implementation of the method in the module (chapter 10). Replay code
+identity is a hash of the module's semantic content, per the Replay Rules in
+`future-work/RUNTIME_AND_LIBRARY.md`; F-401 tracks the prototype.
 
 ## Not Done
 

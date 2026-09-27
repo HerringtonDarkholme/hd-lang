@@ -1,105 +1,27 @@
-# MVP Audit Report
+# Prototype Audit: Open Items
 
-**Subject:** the Wasm GC MVP compiler in `src/`, commit `bd985d7`.
-**Date:** 2026-09-25.
-Every number below comes from a command that was run at that commit. The
-evidence folder for each section is linked in place.
+**Subject:** the Wasm GC prototype compiler in `src/`, audited at commit
+`bd985d7` on 2026-09-25. Measurements below come from that commit unless a
+later date is given; the evidence folder for each section is linked in place.
 
-**Since the audit:** the conformance work fixed every test-integrity,
-fixture-format, and reference-parser finding, and the owner's decisions are
-in the specification. This report now keeps only what is still open. On
-2026-09-26 the compiler passes 942 of the 1,085 conformance cases: the 942 in
-`test/portable/cases.tsv`, which `npm run test:portable` runs with 21
-fixture tests. Each of the other 143 is listed in
-`test/portable/KNOWN_FAILURES.tsv` with a finding or decision ID, and
-[`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) groups
-them. Decision IDs are in [`README.md`](README.md).
+Everything the audit found that has since been fixed or decided is gone from
+this report: the verdict, the scorecard, the claim ledger, the coverage and
+blind-fixture runs, and the fuzzing rounds. The repository history keeps
+them. What remains is the architecture review, which still describes the
+prototype, and the findings that are still open. On 2026-09-27 the prototype
+passes 942 of the 1,085 conformance cases; [`README.md`](README.md) says
+where the other 143 are listed.
 
-## 1. Verdict
-
-The MVP largely delivers what it claims, and its authors did not grade their
-own homework unfairly:
-
-- Its own suites pass: 173 TypeScript tests and 551 portable cases.
-- Slice gates S0 to S4 are met, and S5 is partly met.
-- 141 of 150 claims in its status documents were verified by execution.
-- No fixture was weakened, and no spec rule was bent to fit the code.
-
-Independent tests written from the spec alone pass at **72%** (43 of 60).
-They pass 100% on the hardest semantic areas: evaluation order,
-cancellation, requirement rows, and iterator invalidation.
-
-The failures cluster where the suite's authors chose not to look:
-
-- three soundness holes:
-  - plain closures can mutate captured `mut` values;
-  - the module-initialization check misses trait dispatch, so a program reads
-    a zero global;
-  - `Ok`/`Err` payload types are not checked, so a type-checked program
-    fails Wasm validation;
-- common operations that do not work: every `f64` `<`, `<=`, `>`, `>=`
-  crashes code generation, and primitives do not satisfy `PartialEq`,
-  `PartialOrd`, or `Display` bounds.
-
-All of these have since been fixed in the prototype (F-351, F-603, F-304,
-F-160, F-500).
-
-**Architecture:** sound for a single-file semantic prototype. The HIR is a
+The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
-per call. It is not a base for a production compiler:
+per call. It is not a base for a production compiler: types are strings,
+there is no lowered IR and no liveness, boxing reaches even concrete lists
+and optionals, maps are linear, dictionaries are rebuilt on every call, and
+suspension costs about 13 times a plain call and grows code super-linearly.
 
-- types are strings;
-- there is no lowered IR and no liveness;
-- boxing reaches even concrete lists and optionals;
-- maps are linear, and dictionaries are rebuilt on every call;
-- suspension costs about 13 times a plain call and grows code
-  super-linearly.
+## 1. Architecture
 
-This matches the plan's framing of the MVP as a semantic probe that will be
-replaced.
-
-## 2. Scorecard
-
-| Measure                                   | Result                                                            | Evidence |
-| ----------------------------------------- | ----------------------------------------------------------------- | -------- |
-| portable suite                            | 551/551 (209 conformance + 342 fixtures); 173/173 TypeScript tests | [`00-baseline`](evidence/00-baseline/) |
-| full conformance                          | 210/286 (73.4%): 209 selected + 1 unselected passing              | [`02-coverage`](evidence/02-coverage/SUMMARY.md) |
-| unselected cases                          | 77: 51 deferred, 25 in scope and failing, 1 passing               | same |
-| structured rejection of deferred features (MVP goal 5) | 7 of 51                                              | same |
-| blind fixtures                            | 43/60 (71.7%); 45/60 if two ambiguities go the implementation's way | [`03-blind-run`](evidence/03-blind-run/SUMMARY.md) |
-| gap probes (high-risk mechanisms)         | 16/19; all 3 failures are `f64` ordering                          | [`01-harness`](evidence/01-harness/SUMMARY.md) |
-| claim ledger                              | 150 claims: 141 verified, 9 contradicted, 0 without evidence      | [`02-claims`](evidence/02-claims/) |
-| spec examples                             | 85 of 141 accept or mixed examples compile; 82 run cleanly        | [`02-coverage`](evidence/02-coverage/SUMMARY.md) |
-| spec edits in the MVP window              | 7 hunks: 0 relaxed; 179 fixtures touched, 0 weakened              | [`01-spec-edits`](evidence/01-spec-edits/SUMMARY.md) |
-| fuzzing                                   | 30,000 generated cases plus 1,000 cross-implementation cases: 0 phase-consistency violations, 0 cross-implementation disagreements, 17 findings (4 of them in the reference parser) | [`03-fuzz`](evidence/03-fuzz/SUMMARY.md) |
-| findings                                  | 112 filed (1 blocker, 31 major, 60 minor, 20 note); about 96 after merging cross-worker duplicates; 58 still open on 2026-09-26 | [`findings-table.md`](evidence/findings-table.md) |
-
-Blind pass rate by area:
-
-| Area                         | Pass |
-| ---------------------------- | ---- |
-| 1 evaluation order           | 7/7  |
-| 2 cancellation and `defer`   | 8/8  |
-| 3 requirement rows           | 7/7  |
-| 4 erasure boundaries         | 3/8  |
-| 5 identity                   | 3/6  |
-| 6 permission weakening       | 2/6  |
-| 7 iterator invalidation      | 6/6  |
-| 8 defaults and copy-update   | 3/5  |
-| 9 strings                    | 4/7  |
-
-None of the 17 blind failures was a fixture error:
-
-- 9 are implementation bugs;
-- 9 are unsupported features (6 with a structured diagnostic, 3 with only a
-  parse error);
-- 3 are spec ambiguities.
-
-Some fixtures have more than one cause.
-
-## 3. Architecture
-
-### 3.1 Runtime representation
+### 1.1 Runtime Representation
 
 Evidence: [`05-object-model`](evidence/05-object-model/SUMMARY.md),
 [`05-requirements`](evidence/05-requirements/SUMMARY.md).
@@ -161,7 +83,7 @@ implemented, it is not a good long-term default. It needs:
 The HIR already carries most of the fields specialization needs. Two gaps
 remain: calls have no explicit type-argument list, and types are strings.
 
-### 3.2 Compiler architecture
+### 1.2 Compiler Architecture
 
 Evidence: [`06-compiler`](evidence/06-compiler/SUMMARY.md).
 
@@ -201,9 +123,8 @@ functions (F-608). Row inference is local to closures, not a whole-program
 fixpoint, because named functions declare rows. That language rule helps
 incremental compilation.
 
-**Scaling hazards:** the module-initialization check is exponential in call
-depth (8.6 s at depth 22, F-602, since fixed: 1 ms). Nested unannotated closures double check
-time per level (F-604).
+**Scaling hazard:** nested unannotated closures double check time per level
+(F-604).
 
 **HIR verdict:** the design makes sense for a single-file MVP. Before
 multi-module or incremental work, it needs:
@@ -212,11 +133,12 @@ multi-module or incremental work, it needs:
 - stable declaration identities;
 - one shared lowered IR.
 
-## 4. Key Findings
+## 2. Open Findings
 
-Ranked by impact. Duplicates found by several workers are merged under one
-canonical ID, and the other IDs are listed. The 58 findings still open are in
-[`evidence/findings-table.md`](evidence/findings-table.md).
+The most important open findings, ranked by impact. All 58 open findings,
+with the conformance cases each one keeps failing, are in
+[`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
+by several workers are merged under one canonical ID.
 
 ### Correctness
 
@@ -254,30 +176,10 @@ Merged duplicates:
 - F-252 = F-309 = F-315;
 - F-250 = F-312.
 
-## 5. Fuzzing
+## 3. Fuzzing
 
-Evidence: [`03-fuzz`](evidence/03-fuzz/SUMMARY.md); tool, now in the spec:
-[`spec/tools/fuzz/`](../spec/tools/fuzz/README.md).
-
-The fuzzer is implementation-neutral: it drives any compiler through the
-command contract in [`spec/conformance/README.md`](../spec/conformance/README.md) and imports
-nothing from `src/`. It ran two seeded rounds of 5,000 cases for each of
-four fuzzers, plus 1,000 cross-implementation cases:
-
-| Fuzzer                 | Round 1 signatures | Round 2 signatures | Result                                                        |
-| ---------------------- | ------------------ | ------------------ | ------------------------------------------------------------- |
-| parse agreement        | 19                 | 18                 | disagreements with the reference parser in both directions    |
-| contract               | 13                 | 11                 | crashes and codes outside the spec inventory                  |
-| phase consistency      | 0                  | 0                  | `parse`, `check`, and `run` never contradict each other       |
-| Wasm validity          | 3                  | 3                  | type-checked programs that fail Binaryen validation           |
-| cross-implementation   | 0 (1,000 cases)    |                    | a negative control produced 20 of 20 disagreements, as intended |
-
-- Round 2 repeated 16 of 19 parse classes and every contract and Wasm
-  class, so the common failure classes are exhausted.
-- 58.5% of `check` rejections carry one of 48 codes missing from the spec
-  inventory (since fixed in the prototype).
-- Implementation bugs still open: F-310 (front end); F-315 is merged into
-  F-252, and F-311 and F-316 are fixed.
-- Minimized findings are portable `.hd` fixtures in
-  [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/); the ones the
-  spec settles are now conformance cases.
+The fuzzer is now [`spec/tools/fuzz/`](../spec/tools/fuzz/README.md). Its
+audit rounds are finished; the one implementation bug they found that is
+still open on its own is F-310. The minimized fixtures for open findings
+(F-306 in F-265, F-310, F-312 in F-250, and F-315 in F-252) are in
+[`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/).

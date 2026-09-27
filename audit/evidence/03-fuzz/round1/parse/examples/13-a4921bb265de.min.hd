@@ -1,4 +1,0 @@
-f64 = fn ( ) -> mut ( mut Self ) :
-    ( ( while true : false else :
-        return
-    ) ) = if false : return

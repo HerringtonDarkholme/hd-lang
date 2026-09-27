@@ -1,4 +1,0 @@
-test "text" : continue
-@ self ( self_value = mut fn ! ( map : mut Self ? , Eq : ( Self ? ? ) ? ? ? , ) : break len := false & true & true & true | false & false ^ true ^ true & false & true & true ^ true | false ^ true & true & false & true ^ false or false ^ false & true & true ^ false | true & true & true & true or false or false ) ?
-data x : pass
-return

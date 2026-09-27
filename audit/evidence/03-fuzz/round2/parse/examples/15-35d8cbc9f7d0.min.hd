@@ -1,5 +1,0 @@
-match T := fn ( ) : continue
-:
-    T => for self_value in i32 := fn ( ) : return
-    : return
-    : return

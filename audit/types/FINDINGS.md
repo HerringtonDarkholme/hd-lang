@@ -4,7 +4,8 @@ Roadmap area 2. Scope: Type System (04), Traits (09), Variadic Generics (12),
 GADTs (13), and the trait-related parts of 03, 05, 06, 07, 08, 10, 11, 14.
 Audited at commit 158a430; re-checked against the specification on 2026-09-26.
 Resolved findings are removed (TY-01, TY-02, TY-03, TY-09, TY-11, TY-12,
-TY-33); the decisions that settled them are in the spec's Revision Notes.
+TY-27, TY-33); the decisions that settled them are in the spec's Revision
+Notes.
 Decisions taken but not yet applied are in [QUESTIONS.md](QUESTIONS.md).
 
 Severity: **High**: two normative statements contradict, or a permitted reading
@@ -20,7 +21,7 @@ anchor, or statement is missing.
 | TY-07 | Med | Supertraits | Supertrait obligations of generic impls unchecked | R5.1 | - |
 | TY-08 | Med | Supertraits | Implied supertrait bounds used but never stated | R5.3 | - |
 | TY-10 | Med | Assoc. functions | `Type::f`, `Trait::f()`, `T::f()` have no lookup rule | R9.8 | TQ-9 (not applied) |
-| TY-13 | Med | Defaults | What a default body sees, child-trait defaults, `x.greet()` for `T < A + B` | R6.1-R6.5 | TY-13 (not applied) |
+| TY-13 | Med | Defaults | What a default body sees, child-trait defaults, `x.greet()` for `T < A + B` | R6.1, R6.3, R6.5 | TY-13 (not applied) |
 | TY-14 | Med | Dynamic safety | Row, pack, reified, suspending method params uncovered | R8.1 | TQ-10 (decided; 09 is silent on suspending methods) |
 | TY-15 | Med | Dynamic safety | Requirement keys must be dynamically safe; rule missing | R8.5 | - |
 | TY-16 | Med | Derivation | Ch. 04 says newtypes can derive; grammar forbids | R10.1 | TQ-11 (not applied) |
@@ -31,14 +32,13 @@ anchor, or statement is missing.
 | TY-21 | Med | LCT | Supertrait widening and `never` operands | R11.3-R11.5 | TQ-15 (not applied) |
 | TY-22 | Med | Mutable paths | `mut`-bounded type params and `Self` receivers uncovered | R12.1 | - |
 | TY-23 | Med | Packs | Bounds on packs and impls over packs have no semantics | R4.8, R3.5 | - |
-| TY-24 | Med | Solver | Bound-solving termination unspecified | R1.6, R4.7 | TQ-20 |
+| TY-24 | Med | Solver | Bound-solving termination unspecified | R4.7 | TQ-20 (not applied) |
 | TY-25 | Med | Locality | Impls may sit in any module of the owning package | R2.3 | TQ-17 (not applied) |
 | TY-26 | Med | Inherent impls | Generic inherent impls and member uniqueness | R9.9 | TQ-19 (not applied) |
-| TY-27 | Med | Trait values | Where `downcast` lives (impl targets settled) | R8.7 | TQ-22 (not applied) |
 | TY-28 | Low | Diagnostics | `mutable-receiver-required` contradicts Mutable Paths prose | R12.2 | - |
 | TY-29 | Low | Diagnostics | 11 trait codes only in README table and fixtures | R14 | - |
 | TY-30 | Low | Variance | Trait-parameter and dynamic-value variance undefined | R8.8 | TQ-16 (not applied) |
-| TY-31 | Low | Provided traits | "Sealed" undefined; `Any` coverage loose | R13 | - |
+| TY-31 | Low | Provided traits | Whether `void` and `never` satisfy `Any` | R13.2 | - |
 | TY-32 | Low | Assoc. types | An ambiguous projection has no code | R4.10 | - |
 
 ## TY-04: "Constrained By A Reachable Bound" Is Ambiguous
@@ -145,7 +145,7 @@ Medium. Anchor: 09 Default-Method Conflicts.
     impl User:
         fn name(self) -> string: "inherent"   # does greet see this?
 
-Fix: R6.1-R6.5.
+Fix: R6.1, R6.3, R6.5.
 
 ## TY-14: Dynamic Safety Misses Row, Pack, Reified, Suspending
 Medium. Anchor: 09 Dynamic Trait Values; 04 Trait Values And Any.
@@ -263,10 +263,11 @@ with every arity (R4.8, R3.5).
 
 ## TY-24: Bound-Solving Termination
 Status: K2 removed `where` clauses, so every bound is inline and its subject
-is a generic parameter. Termination of bound solving is still unspecified.
+is a generic parameter. Termination is decided by TQ-20 (a fixed,
+spec-defined depth limit whose excess is an error) but not yet applied.
 Medium. Anchor: 02 Traits And Implementations; 09.
 
-Fix: TQ-20 (a fixed depth limit as a backstop), R1.6, R4.7.
+Fix: apply TQ-20; R4.7.
 
 ## TY-25: Impl Placement Is Package-Wide
 Medium. Anchor: 09 Trait Implementations; Open Issues Annotation Locality.
@@ -290,14 +291,6 @@ Medium. Anchor: 09 Inherent Implementations.
 
 Fix: TQ-19 (R9.9).
 
-## TY-27: Where `downcast` Lives
-Status: impl targets settled (`trait-value-impl-target`: no impl targets a
-trait value type). The other half of TQ-22, `downcast` as a compiler-provided
-method limited to `Inspectable`, is decided but not yet applied.
-Medium. Anchor: 09 Inherent Implementations; Open Issues runtime Q1.
-
-Fix: apply TQ-22 (R8.7).
-
 ## TY-28: mutable-receiver-required Versus Prose
 Low. Anchor: 04 Mutable Paths.
 
@@ -309,14 +302,14 @@ promoted `mut self` code is unstated.
 Fix: R12.2 (align prose with the normative table and fixtures).
 
 ## TY-29: Codes Without A Chapter Anchor
-Low. Re-checked 2026-09-26: `trait-not-dynamically-safe`,
-`sealed-trait-implementation`, `trait-method-visibility`,
+Low. Re-checked 2026-09-27: `trait-not-dynamically-safe`,
+`trait-method-visibility`,
 `local-impl-nonlocal-pair`, `field-not-eq`, `field-not-hash`,
 `missing-derived-bound`, `missing-partial-eq`, `missing-partial-ord`,
 `duplicate-annotation-impl`, and `overlapping-annotation-impl` appear in no
-chapter. (`ambiguous-method`, `orphan-impl`, `overlapping-impl`, and
-`mutable-receiver-required` now do; `promoted-mutable-requirement` was
-removed.)
+chapter. (`ambiguous-method`, `orphan-impl`, `overlapping-impl`,
+`mutable-receiver-required`, and `sealed-trait-implementation` now do;
+`promoted-mutable-requirement` was removed.)
 Fix: R14.
 
 ## TY-30: Trait-Parameter Variance
@@ -330,11 +323,12 @@ Low. Anchor: 04 Variance; 02.
 signatures" sentence is ambiguous.
 Fix: TQ-16 (R8.8).
 
-## TY-31: Sealed And Any
-Low. `AnyRef`, `Suspend`, `ShapeMetadata` are each called sealed in a
-different chapter; no definition. `Any` coverage of `void`, `never`, function
-types, `mut T`, and `impl Any for X` unstated.
-Fix: R13.
+## TY-31: `Any` Coverage Of `void` And `never`
+Low. Status: "sealed" is now defined (09 Sealed Traits), and `impl Any for X`
+is `sealed-trait-implementation`. Chapter 04 now says every value type,
+including optionals, function types, and `mut` views, satisfies `Any`. Still
+unstated: whether `void` and `never` do.
+Fix: R13.2.
 
 ## TY-32: Ambiguous Projections Have No Code
 Low. K2 added associated type bindings in bounds

@@ -1,4 +1,0 @@
-# test: unused locals warn without failing compilation
-fn value() -> i32:
-    unused := 1  # warning: unused-local-binding
-    2

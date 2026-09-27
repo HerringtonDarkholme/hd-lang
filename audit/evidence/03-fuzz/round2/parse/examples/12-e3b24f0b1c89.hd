@@ -1,2 +1,0 @@
-pub data value [ Item , Point : None . i64 . main + Clock . len . Clock + Clock + Some . Some , ] : pass
-trait print [ + Display ]

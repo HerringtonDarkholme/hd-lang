@@ -1,2 +1,0 @@
-enum f64 [ Eq : f [ fn ( ) -> ( ) ] ] :
-    self_value

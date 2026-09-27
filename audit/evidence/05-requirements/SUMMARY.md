@@ -131,7 +131,6 @@ Measurements:
   - Instance B runs while instance A is started.
   - Re-entering the same instance panics with `suspension-competing-driver`,
     including re-entry from a host callback.
-  - The guard stays set after a panic (F-556).
 - **Pending host provider through `main`:** busy-polls forever; killed after
   5 s (F-555).
 
@@ -252,7 +251,6 @@ Re-measure on an idle machine.
 | F-553 | minor    | resume and control-flow dispatch use linear `if` chains, not `br_table`      |
 | F-554 | minor    | an immediately ready `fn!` call costs about 13 times a plain call; `-O2` does not help |
 | F-555 | minor    | the `main` export busy-polls forever when a host provider stays pending      |
-| F-556 | note     | the driver guard stays set after a panic, so later calls report the wrong panic code |
 | F-557 | minor    | every module embeds the full runtime library                                 |
 | F-558 | minor    | strings cross the host boundary one byte per import call                     |
 | F-559 | minor    | two type-checked fixtures crash Wasm emission with an internal error         |

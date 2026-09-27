@@ -1,3 +1,0 @@
-let divisor: i32 = 0
-fn build(self, target: TypeShape) -> Validator: Validator {}
-result := 10 / divisor

@@ -1,5 +1,0 @@
-enum Expr[T]:
-    If [ T ]
-fn eval [ T ] ( ) -> T :
-    match expr:
-        IntLit ( ) => value

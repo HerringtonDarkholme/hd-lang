@@ -4,6 +4,11 @@ Draft text for chapters 04 and 09, ready to paste once approved. A rule tagged
 **[TQ-n]** encodes the recommended answer to that question and changes if the
 owner decides otherwise. Untagged rules restate or complete behavior the spec
 already implies. Codes marked *(new)* are not in the README table yet.
+Rules for decisions the spec has applied or superseded (TQ-1 to TQ-8, TQ-22,
+the embedding and member-lookup decisions, K2's removal of `where`, and the
+sealed-trait definition) have been removed; the spec's Revision Notes in
+`spec/README.md` are their record. Remaining rules keep their numbers, so the
+[findings](FINDINGS.md) can cite them.
 
 ## R0. Terms
 
@@ -12,7 +17,7 @@ already implies. Codes marked *(new)* are not in the README table yet.
 - **Slot**: `(Tr[A..], strip(X))`. Coherence counts impls per slot.
 - **View**: the type through which a value is accessed, `X` or `mut X`.
 - **Assumption set Γ**: the bounds in scope. These are generic-parameter bounds,
-  impl bounds, `where` predicates, GADT arm equalities, and existential bounds,
+  impl bounds, GADT arm equalities, and existential bounds,
   closed under R5.3.
 - **Obligation** `V < Tr[A..]`: a requirement to be proven.
 - **Evidence**: what a proof selects. This is an impl instantiation, an assumption,
@@ -27,34 +32,20 @@ already implies. Codes marked *(new)* are not in the README table yet.
   Extra methods are rejected (`trait-method-signature`); use an inherent impl.
 - R1.2 An impl binds every associated type of the trait with `type N = T`,
   and binds nothing else.
-- R1.3 **[TQ-5]** An impl target must not be written with an outer `mut`
-  (`permission-in-impl-head` *(new)*). Trait arguments are complete types:
-  `Store[User]` and `Store[mut User]` are distinct instantiations.
 - R1.4 Every impl parameter occurs in a trait argument or in the target type.
   Otherwise the impl is rejected (`unconstrained-impl-parameter` *(new)*).
   Projections such as `I::Item` do not count as separate parameters.
 - R1.5 Supertrait obligations are checked per R5.1.
-- R1.6 **[TQ-20]** The subject of every `where` predicate and inline bound
-  contains at least one impl parameter. A predicate with no parameter is
-  rejected (`unconstrained-where-predicate` *(new)*).
 - R1.7 Local impls: as in chapter 09 today (`local-impl-nonlocal-pair`).
 
 ## R2. Ownership
 
-- R2.1 **[TQ-2]** A trait impl is allowed in package P when one of these holds:
-  (a) P owns the trait;
-  (b) P owns the outer nominal constructor of the target;
-  (c) P owns the outer nominal constructor of some trait argument, and the
-  target is not a bare impl type parameter.
-  Otherwise report `orphan-impl`. Transparent aliases confer nothing; newtypes
-  confer ownership; `std` owns primitives, built-in collections, and tuples.
-  `annotate F for X` follows the same rule through its lowered
-  `impl Annotate[F] for X`, plus the root-package exception of chapter 14.
 - R2.2 An inherent impl is allowed only in the package that owns its target.
   Its target is a nominal type, not a trait value, primitive, alias, or
   foreign type (`orphan-impl`).
 - R2.3 **[TQ-17]** Within the owning package, a trait impl sits in a module
-  that declares one of the things that gave ownership under R2.1. An inherent
+  that declares one of the things that gave ownership under chapter 09's
+  ownership rule (TQ-2, applied). An inherent
   impl sits in the module that declares its target. Otherwise report
   `nonlocal-impl` *(new)*.
 
@@ -62,11 +53,6 @@ already implies. Codes marked *(new)* are not in the README table yet.
 
 - R3.1 A resolved program has at most one impl per slot. Checking happens per
   package at compile time and again at link time over all interface files.
-- R3.2 **[TQ-1]** Two impls of the same trait overlap when their trait
-  arguments and stripped targets unify under some substitution. Bounds and
-  `where` predicates are not consulted. Overlap is `overlapping-impl`,
-  reported on the impl that is later by module identity, then by source
-  position.
 - R3.3 Derived impls (R10) and lowered annotation impls take part in the same
   table. For annotation slots, report `duplicate-annotation-impl` or
   `overlapping-annotation-impl` instead.
@@ -116,27 +102,10 @@ already implies. Codes marked *(new)* are not in the README table yet.
 - R6.1 A default body is checked once, inside the trait, with Γ = {`Self <`
   the trait}. Names in it resolve against that bound and never against methods
   of the eventual implementing type.
-- R6.2 A default applies to an impl unless the impl writes the method, or a
-  promoted method fills it under R7.2 (with the TQ-7 answer).
 - R6.3 A trait provides defaults only for its own members.
-- R6.4 **[TQ-6]** A trait must not declare a member whose name is also a
-  member of one of its transitive supertraits (`duplicate-trait-member`).
 - R6.5 If more than one trait supplies a dot-call candidate with the same
   name, the call is `ambiguous-method`, whether the methods are defaults or
   written. An inherent method, or a qualified `Trait::m` call, resolves it.
-
-## R7. Embedding
-
-- R7.1 Embedding never grants conformance.
-- R7.2 **[TQ-7]** In an explicit impl, a trait method that has no default and
-  is not written is filled by the unique shortest promoted inherent method of
-  that name. The promoted signature must equal the instantiated requirement
-  exactly. A missing or ambiguous candidate is `missing-trait-method`, and the
-  diagnostic lists the candidates.
-- R7.3 A `mut self` requirement cannot be filled by promotion
-  (`promoted-mutable-requirement`).
-- R7.4 **[TQ-8]** Only fields and inherent methods are promoted. An embedded
-  type's trait methods are not.
 
 ## R8. Dynamic Trait Values
 
@@ -145,11 +114,11 @@ already implies. Codes marked *(new)* are not in the README table yet.
   - it declares no associated types or associated functions;
   - `Self` occurs only as a receiver;
   - every method-level type parameter is bounded by `AnyRef`;
-  - suspending methods are allowed;
-  - row parameters are allowed, and providers are passed keyed;
-  - `reified` parameters are allowed;
-  - pack parameters are not allowed.
+  - no method has row parameters, `reified` parameters, packs, or
+    suspension.
   Otherwise, using the trait as a value type is `trait-not-dynamically-safe`.
+  (The draft allowed row, `reified`, and suspending methods; the TQ-10
+  decision replaced it.)
 - R8.2 A dynamic `Tr` value satisfies `Tr` and its supertraits, and exposes
   exactly their methods.
 - R8.3 Construction: `S` to `Tr` when `S < Tr`, and `mut S` to `mut Tr`.
@@ -159,34 +128,15 @@ already implies. Codes marked *(new)* are not in the README table yet.
 - R8.5 A requirement key must be a dynamically safe trait instantiation
   (`trait-not-dynamically-safe`, reported at the row).
 - R8.6 Method bodies reached through dynamic dispatch are the impl's bodies.
-- R8.7 **[TQ-22]** No impl, inherent or trait, may target a dynamic trait value
-  type or `Any` (`orphan-impl`).
 - R8.8 **[TQ-16]** Trait parameters are invariant, and variance markers on a
   trait are rejected (`invalid-variance`).
 
 ## R9. Method Resolution
 
-For `e.m(args)`, where `e` has view `V`:
+Method lookup for `e.m(args)` is applied (the member-lookup decisions in the
+Revision Notes). What remains is associated functions and generic inherent
+impls:
 
-- R9.1 Candidates are the members named `m` that are visible from the calling
-  module.
-- R9.2 Tier 1: inherent methods of strip(V)'s nominal type, or of a built-in
-  receiver.
-- R9.3 **[TQ-3]** If tier 1 is empty, tier 2 is the union of:
-  - unique shortest promoted inherent methods (R7.4);
-  - methods of traits that are available (chapter 09 scope rule, or the bounds
-    of a generic receiver) and that V satisfies.
-  Candidates that denote the same body count once, as when a promotion fills
-  an impl slot. More than one candidate is `ambiguous-method`.
-- R9.4 A dynamic trait value receiver has only R8.2 methods.
-- R9.5 **[TQ-4]** If the candidates come from several instantiations of one
-  generic trait, the call is `ambiguous-method`. Argument types never select
-  among them.
-- R9.6 Selection uses names only. Receiver permission is checked after
-  selection (R12.2), and a failed check never falls through to another
-  candidate.
-- R9.7 `Trait[A..]::m(recv, ..)` selects that trait's own member `m`.
-  Supertrait members need their own trait name.
 - R9.8 **[TQ-9]** Associated function calls:
   - `Type::f` looks up inherent functions first. If there are none, it looks
     up functions of traits that are available and implemented by `Type`; more
@@ -231,12 +181,8 @@ For `e.m(args)`, where `e` has view `V`:
 
 ## R11. Assignability And Least Common Type
 
-- R11.1 **[TQ-14]** Assignability is rules 1-9 of chapter 04, plus `never` to
-  any type, plus these two-step compositions and no others:
-  - widening or weakening, then optional injection;
-  - trait construction or supertrait widening, then optional injection;
-  - weakening, then trait construction (`mut S` to `Tr`).
-  Weakening combined with variance stays deferred.
+- R11.1 Assignability is the single-step rules of chapter 04 (TQ-14), plus
+  `never` to any type.
 - R11.2 `mut S` to `mut Tr` is rule 6 applied at the mutable view (R8.3).
 - R11.3 **[TQ-15]** Least-common-type inference does not use trait
   construction (rule 6) or supertrait widening (rule 7).
@@ -260,16 +206,8 @@ For `e.m(args)`, where `e` has view `V`:
 
 ## R13. Compiler-Provided Traits
 
-- R13.1 **Sealed** traits: user impls are `sealed-trait-implementation`. The
-  sealed traits are `AnyRef`, `Suspend[T]`, `ShapeMetadata`, `Any`, and,
-  when adopted, `Inspectable` and `NonEscapable`.
-- R13.2 `Any` is satisfied by every type except optionals, `void`, and
-  `never`. `mut X` satisfies `mut Any` when X is a composite.
-- R13.3 `AnyRef`: as the prelude lists today.
-- R13.4 Provided evidence is constant and cannot be overridden.
-- R13.5 **[TQ-1]** Iterator adapter: a `mut X` view with `mut X < Iterator[T]`
-  satisfies `Iterable[T]` with `iter` returning itself. A type with any
-  `Iterator` impl must not also have an `Iterable` impl (`overlapping-impl`).
+- R13.2 `Any` is not satisfied by `void` or `never`. (Optionals satisfy it
+  by A3, and sealed traits are defined in 09 Sealed Traits.)
 
 ## R14. Diagnostics
 
@@ -277,18 +215,14 @@ Existing codes, now tied to the rules above:
 
 | Code | Rule |
 | --- | --- |
-| `ambiguous-method` | R6.5, R9.3, R9.5, R9.8 |
-| `orphan-impl` | R2.1, R2.2, R8.7 |
-| `overlapping-impl` | R3.2, R3.4, R10.7, R13.5 |
+| `ambiguous-method` | R6.5, R9.8 |
+| `orphan-impl` | R2.2 |
+| `overlapping-impl` | R3.4, R10.7 |
 | `trait-not-dynamically-safe` | R8.1, R8.5 |
-| `sealed-trait-implementation` | R13.1 |
-| `promoted-mutable-requirement` | R7.3 |
 | `missing-derived-bound` | R10.5 |
 | `field-not-eq`, `field-not-hash`, `missing-partial-eq`, `missing-partial-ord` | R10.4 |
 | `mutable-receiver-required` | R12.2 |
 | `missing-supertrait-implementation` | R5.1 |
 
-Proposed new codes: `permission-in-impl-head`,
-`unconstrained-impl-parameter`, `unconstrained-where-predicate`,
-`nonlocal-impl`, `trait-resolution-depth`, `ambiguous-projection`,
+Proposed new codes: `unconstrained-impl-parameter`, `nonlocal-impl`, `trait-resolution-depth`, `ambiguous-projection`,
 `underivable-trait`, `underivable-variant`, `mixed-derived-law`.

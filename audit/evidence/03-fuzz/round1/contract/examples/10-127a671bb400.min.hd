@@ -1,3 +1,0 @@
-trait Database
-fn main ( ) -> void $ Database :
-    pass

@@ -1,5 +1,0 @@
-Label :
-    fn ( ) -> void :
-        ( )
-fn normalize ( ) -> i32 :
-    ( "\u{1F600}" )

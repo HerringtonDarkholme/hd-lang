@@ -1,4 +1,0 @@
-test "a $x b" : continue
-test "a $x b" : _ := bool := bool . bool . print . len :: annotation_ref ( fn ( ) -> main )
-return
-return

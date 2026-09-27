@@ -1,4 +1,0 @@
-test "" :
-    fn Point ! [ reified Display , reified main ... : mut f64 . map . Ok . main [ mut fn ( ) -> $ . Context [ None . string + ( ( ( x . Clock + ( ( x . value [ i32 , print , ] + ( print + ( Eq - f64 - i32 - Display ) - Display . i32 . T . string [ f , i32 , ] ) - print . len ) - bool . map - map . list - i32 . self_value ) + ( ( ( ( f64 ) - f64 [ main , list , ] ) + ( ( f - y ) - list [ f , Some , Eq , ] ) + Ok ) ) + Some ) ) ) + Ok ] ] , Clock ] ( ) -> Clock : return
-return
-return

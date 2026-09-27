@@ -4,7 +4,9 @@ Applied decisions have been removed from this file; the spec's Revision Notes
 in `spec/README.md` are their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
 TQ-27 to TQ-29, TQ-31 and TQ-36, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S,
 Cut 2, trait delegation, the embedding limits, the single view, A2, A3, and
-C1 to C3). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too.
+C1 to C3). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
+and so is TQ-22: its impl-target half is applied, and the Inspectable
+decisions, also applied, replaced its `downcast` half.
 TQ-21 is answered by K2: a bound may bind associated types, as in
 `I < Supplier[Item = T]`. Findings with the evidence are in
 [FINDINGS.md](FINDINGS.md), and the proposed rule text in
@@ -12,7 +14,8 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 
 ## Decided, Not Yet Applied
 
-Decided 2026-09-26. None of these is in the specification yet.
+Decided 2026-09-26, except TQ-20 (2026-09-27). None of these is in the
+specification yet.
 
 - **TQ-9** (TY-10). `Type::f` checks inherent, then implemented available
   traits; `T::f` under a bound goes through the bound's dictionary;
@@ -46,12 +49,6 @@ Decided 2026-09-26. None of these is in the specification yet.
   member name when their targets cannot unify (`impl Box[i32]` and
   `impl Box[string]`); `impl[T] Box[T]` and `impl Box[i32]` with the same
   name are `duplicate-inherent-member`.
-- **TQ-22** (TY-27, settles runtime identity question 1). Superseded
-  2026-09-26: `downcast` is an ordinary generic free function,
-  `std.inspect.downcast[reified T < Inspectable](value: Inspectable) -> T?`
-  (and `downcast_mut`), not a compiler-provided method; see
-  [INSPECTABLE.md](../../future-work/INSPECTABLE.md) decision 13. (The
-  other half, `trait-value-impl-target`, is applied.)
 - **TQ-23** (settles Complete Runtime Shape Coverage). `TypeShape` gains
   `Mut(inner)`, `Trait(decl, args)`, `Any`, `Suspend(result)`, and
   `Newtype(decl, base)`; 14 today has `Newtype(base)` only.
@@ -59,6 +56,11 @@ Decided 2026-09-26. None of these is in the specification yet.
   instantiations; only the outer `mut` of a target is banned.
 - **TY-13.** A trait's default method body sees only the trait's members and
   its supertraits' members; `Self`'s fields are not accessible there.
+- **TQ-20** (TY-24), decided 2026-09-27. Bound solving keeps a fixed,
+  spec-defined recursion depth limit as a backstop, and exceeding it is an
+  error. The limit is not configurable per package, and there are no
+  Paterson-style structural conditions. (K2 removed `where` clauses, so the
+  original question about predicate subjects no longer arises.)
 
 ## Decided, No Specification Change
 
@@ -68,16 +70,6 @@ Decided 2026-09-26. None of these is in the specification yet.
 - **TQ-14** (TY-20): assignability stays single-step. `let wide: i64? =
   small_i8` and passing a `User` to a `Display?` parameter need explicit
   conversions.
-
-## Open Questions
-
-### TQ-20: Bound-solving termination
-
-K2 removed `where` clauses, so every bound is written inline and its subject
-is a generic parameter; the original question about predicate subjects no
-longer arises. What remains is termination: should the solver carry a fixed
-depth limit as a backstop (the recommendation), rely on a depth limit alone
-as Rust does, or impose Paterson-style structural conditions?
 
 ## Parked
 

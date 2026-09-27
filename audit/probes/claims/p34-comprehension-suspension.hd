@@ -1,5 +1,0 @@
-# test: suspension calls are forbidden in comprehensions
-fn load!() -> i32: 1
-
-fn build!() -> List[i32]:
-    [for value in [1, 2] => load!()]  # diagnostic: suspension-forbidden-context

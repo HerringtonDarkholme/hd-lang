@@ -1,6 +1,0 @@
-# test: comprehensions reject suspension calls
-
-fn ready!() -> i32: 1
-
-fn main!() -> List[i32]:
-    [for value in [1] => ready!()]  # diagnostic: suspension-forbidden-context

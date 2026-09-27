@@ -1,4 +1,0 @@
-# test: host fixtures can keep a GC frame pending across deterministic polls
-# expect-result: main = 42
-
-fn main!() -> i32: 42
