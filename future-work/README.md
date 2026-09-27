@@ -15,6 +15,9 @@ language specification:
   roadmap area 5.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
+- [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
+  surveys derivation in other languages and proposes how libraries derive
+  typed trait implementations, schemas, and tool adapters (roadmap area 2).
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and

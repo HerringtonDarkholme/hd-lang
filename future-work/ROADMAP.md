@@ -68,7 +68,9 @@ Goal: state trait behavior as normative rules rather than prose.
   - [Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified);
   - [Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage);
   - the language half of
-    [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets);
+    [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
+    with a survey, candidate designs, and owner questions in
+    [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md);
   - the propagation rules and dependent-return provenance from
     [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy);
   - [Confirmed Deferred Type Features](OPEN_ISSUES.md#confirmed-deferred-type-features);
