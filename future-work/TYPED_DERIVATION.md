@@ -1,25 +1,26 @@
 # Typed Derivation: Survey And Design Options
 
-**Deferred by the owner (2026-09-27).** After two stress tests
-([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md))
-left critical problems open (R1 `mut` member handles, R2 the enum protocol,
-R3 `= pass` and law partners, R5 handles escaping the walk, P13 tier-1
-selection), and error derivation moved to the `@derive(Error)` intrinsic
-([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)), typed
-derivation is parked. Until it is reopened, `@derive` stays a closed list of
-compiler intrinsics (the comparison and hash traits, and `Error`). M1-M16
-below are kept as the record of the design so far; nothing here is to be
-applied.
+Status: design record for roadmap area 2. Typed derivation is fully
+decided by owner decisions M1-M21 (2026-09-27), tested by three stress tests
+([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
+[round 3](DERIVATION_STRESS_TEST_3.md)). Nothing here is accepted language
+behavior yet: the specification and the prototype compiler are unchanged
+until the decisions are applied.
 
-Status: design exploration for roadmap area 2. Nothing here is accepted
-language behavior. The specification, the prototype compiler, and the
-decisions already recorded are unchanged. Questions for the owner are at the
-end.
+`@derive` lists the intrinsic comparison traits and traits with a `by
+Structure` template (M18). It does not include `Error`: an error type uses
+the separate `@error` intrinsic
+([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)). The
+[current example](#current-design-full-example-m1-m21) and
+[rules](#current-rules-m1-m21) show M1-M21 together, and
+[Remaining Open](#remaining-open) lists what is still undecided. Decisions
+1-12, the survey, and its questions below are kept as history.
 
 
 ## Owner Decisions
 
-Decided 2026-09-26:
+Decided 2026-09-26 (decisions 1-12, superseded by M1-M21 below and kept
+as history):
 
 1. **Design G: compiler-generated visitors** (supersedes the Design D
    recommendation below). A sealed, compiler-implemented `std.derive.Structure`
@@ -350,7 +351,8 @@ never needs an empty hand-written impl. Decided (Swift model): one `Eq` with
 `Eq` with IEEE semantics (`NaN != NaN`, a documented law exception);
 `PartialOrd` and `Ord` stay, so floats are `Eq + PartialOrd` but not `Ord`.
 Applied as EQ-1 in [Comparison Traits](../spec/09-traits.md#comparison-traits). Still under discussion: P1-P3 (the core walk), P5 (where
-configuration lives), and the rest of the stress test's problems.
+configuration lives), and the rest of the stress test's problems. (Closed
+since: P1-P3 by M14 and M19, P5 by M13, the rest by M15-M21.)
 
 (M13, decided 2026-09-27; P5 of the stress test; supersedes the
 `visitor()` hook of M10 and M11) Derivation configuration is a type-level
@@ -366,7 +368,8 @@ dynamically safe; nothing collides; configuration may differ per direction.
 Accepted cost: a missing or foreign fact silently means the default, not a
 compile error. Still open: how a tier-1 type-level annotation selects the
 templates it opts in to (stress test P13), now that no hook returns its
-type.
+type. (Decided by M18 P13: `@derive` selects, and annotations only attach
+facts.)
 
 (M14, decided 2026-09-27; closes stress-test P1, P2 and P3; replaces the
 value-passing `visit` and `member(m, value)` protocol of M9) Typed member
@@ -406,7 +409,8 @@ per-member allocation (`default()` allocates `.Some` for reference-shaped
 members; `has_default()` does not). Prior art: GHC.Generics, Scala 3
 `Mirror`. Still open: whether `T -> U` mapping between two types is in
 scope, how `= pass` members appear in `walk` and `build`, and the exact
-handle API.
+handle API. (Since: the handle API is written by M18 P11g, M20, and M21;
+`= pass` follows M3; `T -> U` is still open.)
 
 (M15, decided 2026-09-27; closes stress-test P12 and P14) Typed derivation
 deliberately does not cover impl families: one impl per variant or member,
@@ -415,7 +419,8 @@ gives one trait instantiation per opt-in. Error derivation, the one case that
 needs a family (`From` per variant) together with `Display` and
 `Error::cause` from the same per-variant markers, is the compiler intrinsic
 `@derive(Error)`, hd's `thiserror`, with the variant markers `@message`,
-`@from`, `@source`, and `@transparent`; see
+`@from`, `@source`, and `@transparent` (since respelled as the `@error`
+annotation, not part of `@derive`); see
 [Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions). For
 other libraries' facts, the fact check hook is accepted (P14): a fact type
 may define a compile-time `check` against the member or variant it is
@@ -425,7 +430,8 @@ attached to, run at the opt-in site. Its exact form is not yet designed.
 An embedded part is one member. `walk` and `build` pass a handle
 `Field[S, P]` for the embedded field, named by the embedded type as in
 08 (`post.Timestamps`), with `info` marking it `embedded`; `get` returns the
-part, a copy, per value semantics. Flattening or nesting is a library
+part, a copy, per value semantics (corrected by M21: the part itself, per
+08 `data.part.alias`). Flattening or nesting is a library
 policy read from that mark (json may flatten like Go's `encoding/json`, or
 nest like serde's default); the language never flattens, because promotion's
 depth shadowing would make a flattened walk follow lookup rules and leave
@@ -463,6 +469,9 @@ handles marked `shared` (libraries choose to show or skip them), and `build`
 never reads them from input (the variant's `->` expression computes them);
 the owner also asked to revisit the shared-data design itself (now
 ENUM_SEMANTICS decision 4: per-variant constants, read from the variant).
+(Superseded by Enum Semantics decision 4 and M21 R3-7: shared constants
+live on `VariantInfo` as `(name, Any)` pairs and are never visited as
+handles.)
 P11e: a tier-2 block lives only in the target type's module. P11f: GADT
 enums are rejected at the opt-in for now. P11g: a member's `info` carries
 name, position, facts, doc comment, and the `embedded` flag (the handle
@@ -494,6 +503,7 @@ tier 2 (`impl X for T by Structure:` with member lines) stays for per-trait
 customization, and listing a trait in `@derive` plus a tier-2 block for it
 is an ordinary `overlapping-impl`. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
+(Closed by M19.)
 
 (M19, decided 2026-09-27; closes stress-test round 2 R2; revises M14's
 walk protocol) The walk is value-driven and hands out member values:
@@ -522,7 +532,7 @@ and use `h.get` on it; nested members go through their own type's impl
 (M7), so each walk covers exactly one value's own members. M9's
 strengthened member bounds apply to `Walker::member`, `Describer::member`,
 and `Source::member`. The Current Design example below still shows M14's
-protocol and needs updating.
+protocol and needs updating. (Updated to M21 per R3-12.)
 
 (M20, decided 2026-09-27; answers stress-test round 3, see
 [DERIVATION_STRESS_TEST_3.md](DERIVATION_STRESS_TEST_3.md)) R3-12: the
@@ -569,286 +579,267 @@ template may declare a constant computed once per opt-in at compile time by
 the annotation evaluator, from `T::facts()` and `T::describe` with a pure
 `Describer` (M18 P8), so key tables and lookups are not rebuilt per call.
 
-### Current Design: Full Example (M1-M14)
+### Current Design: Full Example (M1-M21)
 
-This is the reference example for the design as decided on 2026-09-27. When
-a later decision changes the design, update this example in the same change.
+This is the reference example for the design as decided through M21. When a
+later decision changes the design, update this example in the same change.
 
-The code is written in specification syntax (02, 05, 07, 08, 10): named
-arguments use `=`, data literals use braces, no `mut` is written at an
-argument site, packages are used as `use dep.json` (so json's annotation
-function is written `@json.json(case=.Camel)`), and a template names its
-target as `T::`, because `Self::f()` is not a primary expression. Two forms
-are not yet specified. The member lines of M3 and M13 (`name = [facts]`,
-`name += [facts]`, `name = pass`, `Self += [facts]`) are new syntax, marked
-`# hypothetical syntax` below. `impl Trait for X by Structure` parses as 09
-trait delegation (`by identifier`) but means a template here (P18). The
-[Parse Log](#parse-log) records each block's result.
-
-Since M14 the compiler generates value-free walks over typed member handles
-in place of M9's value-passing `visit`. Every traversal below is library code
-over those handles: json encodes with `walk` plus `h.get(value)`, decodes
-with `build` and falls back to `h.default()`, and describes a type with a
-`walk` that holds no value; `std.cmp` compares two values in one walk, and
-`Clone` builds a new value from an old one. Error enums are not derived
-here: `@derive(Error)` is a compiler intrinsic (M15).
+The code uses specification syntax: named arguments with `=`, brace data
+literals, no `mut` at an argument site, and `T::f()` inside a template.
+`Structure`'s signatures are the ones [round 3](DERIVATION_STRESS_TEST_3.md#surface-being-tested)
+assumed (A1): `walk` takes the value as a readonly `self` and is called
+`Structure::walk(self, w)`; `describe` and `build` are receiverless
+(`T::describe(d)`, `T::build(s)`). Three forms are not yet specified and are
+marked `# hypothetical syntax`: member lines (M3, M13), a template's
+compile-time constant (M21 R3-4), and decorators on payload parameters (M20
+R3-9). `impl Trait for X by Structure` parses as 09 trait delegation but
+means a template here. The [Parse Log](#parse-log) records each block.
 
 ```text
 # ══ std.structure ═════════════════════════════════════════════════
-# The compiler supplies Structure and the handle constants. Everything else
-# here, and in every library below, is ordinary code. The exact handle API
-# is open (M14): Member and VariantInfo are not yet declared by this record.
-# The example uses m.name and m.facts on a Member, and v.info.name,
-# v.info.index, and v.info.facts on a Variant; facts.find[M]() returns the
-# fact of type M, if any, as M?.
+# The compiler supplies Structure, the handle constants, and the bodies
+# written `pass`. Everything else, here and below, is ordinary library code.
 
-pub trait Structure:                     # sealed; exists only inside `by Structure` templates
-    fn facts() -> Facts                  # the type-level facts (M13)
-    fn walk[W < Walker[Self]](w: mut W) -> Result[void, W::Error]
-    fn build[S < Source[Self]](s: mut S) -> Result[Self, S::Error]
+pub trait Structure:                     # sealed; usable only inside `by Structure` templates
+    fn facts() -> Facts                                                     # type-level facts (M13)
+    fn walk[W < Walker[Self]](self, w: mut W) -> Result[void, W::Error]     # one value (M19)
+    fn describe[D < Describer[Self]](d: mut D) -> Result[void, D::Error]    # the type only
+    fn build[S < Source[Self]](s: mut S) -> Result[mut Self, S::Error]      # input-driven (M17, M21)
 
-pub data Field[S, F]:                    # one constant per member of S, of type F
+pub data Member:                         # M18 P11g, M20 R3-9
+    pub name: string                     # `_0`, `_1`, ... for an unnamed payload member
+    pub position: i32                    # 0-based within its variant
+    pub facts: Facts
+    pub doc: string?
+    pub embedded: bool                   # an embedded part (M16)
+    pub positional: bool                 # an unnamed payload member
+
+pub data VariantInfo:                    # M18 P11g, M20 R3-2, M21 R3-7
+    pub name: string                     # for a data type: the type's name
+    pub index: i32
+    pub facts: Facts
+    pub doc: string?                     # for a data type: the type's doc
+    pub of_data: bool                    # true for the one variant of a data type
+    pub shared: List[(string, Any)]      # shared constructor data, built once at compile time
+
+pub data Field[-S, +F]:                  # one constant per member (M14, M21 R3-1)
     pub info: Member
 
 impl[S, F] Field[S, F]:
-    pub fn get(self, s: S) -> F:         # one projection; panics on another variant's payload
-        pass                             # compiler-supplied
-    pub fn has_default(self) -> bool:
-        pass                             # compiler-supplied
-    pub fn default(self) -> F?:          # evaluates the declared default, if any
-        pass                             # compiler-supplied
+    pub fn get(self, s: S) -> F: pass    # a build handle needs `s: mut S`; panics on another variant
+    pub fn has_default(self) -> bool: pass
+    pub fn default(self) -> F?: pass     # evaluates the declared default
 
-pub data Variant[S]:                     # one constant per variant of S
+pub data Variant[S]:                     # one constant per variant
     pub info: VariantInfo
 
 impl[S] Variant[S]:
-    pub fn holds(self, s: S) -> bool:
-        pass                             # compiler-supplied
+    pub fn holds(self, s: S) -> bool: pass
 
-# An impl may strengthen member's bound (M9, applied to handles by M14).
+pub data Members[S]:                     # the chosen variant's members (M21 R3-3)
+    pub infos: List[Member]
+
+impl[S] Members[S]:
+    pub fn end(self) -> Key[S]: pass                               # the input has no more members
+    pub fn at(self, position: i32) -> Key[S]: pass                 # end() when out of range
+    pub fn find(self, matches: fn(Member) -> bool) -> Key[S]: pass # end() when none matches
+
+pub data Key[S]:                         # one member of the chosen variant, or the end
+    pub info: Member
+    pub is_end: bool
+
+# An impl of these three traits may strengthen F's bound (M9).
 pub trait Walker[S]:
     type Error
-    fn variant(mut self, v: Variant[S]) -> bool          # true: walk its members
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+
+pub trait Describer[S]:
+    type Error
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
     fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
 
 pub trait Source[S]:
     type Error
     fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn member[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
+    fn next(mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
+```
 
+A json library: an encoder walker, a decoder source, a schema describer, and
+a key plan built once per opt-in at compile time.
 
-# ══ std.cmp: one Eq, derived with a walker that holds two values ═══
-use std.structure.{Structure, Field, Variant, Walker}
-
-pub trait Eq:                            # the Swift model (M12, EQ-1)
-    fn eq(self, other: Self) -> bool
-
-impl[T] Eq for T by Structure:
-    fn eq(self, other: Self) -> bool:
-        let w: mut EqWalker[T] = EqWalker { a: self, b: other, equal: true, enums: false, entered: false }
-        _ := T::walk(w)
-        w.equal && (w.entered || !w.enums)   # values of different variants enter none
-
-data EqWalker[S]:
-    a: S
-    b: S
-    equal: bool
-    enums: bool
-    entered: bool
-
-impl[S] Walker[S] for EqWalker[S]:
-    type Error = never
-
-    fn variant(mut self, v: Variant[S]) -> bool:
-        self.enums = true
-        both := v.holds(self.a) && v.holds(self.b)
-        if both:
-            self.entered = true
-        both
-
-    fn member[F < Eq](mut self, h: Field[S, F]) -> Result[void, never]:
-        if self.equal:
-            self.equal = h.get(self.a).eq(h.get(self.b))
-        .Ok()
-
-
-# ══ std.clone (illustrative): a new value built from an old one ════
-use std.structure.{Structure, Field, Variant, Source}
-
-pub trait Clone:
-    fn clone(self) -> Self
-
-impl[T] Clone for T by Structure:
-    fn clone(self) -> Self:
-        let s: mut CloneSource[T] = CloneSource { old: self }
-        match T::build(s):
-            .Ok(copy) => copy
-            .Err(e) => e                 # e: never
-
-data CloneSource[S]:
-    old: S
-
-impl[S] Source[S] for CloneSource[S]:
-    type Error = never
-
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
-        for v in choices:
-            if v.holds(self.old):
-                return .Ok(v)
-        panic("a value holds exactly one variant")
-
-    fn member[F < Clone](mut self, h: Field[S, F]) -> Result[F, never]:
-        .Ok(h.get(self.old).clone())     # build asks only for the chosen variant's members
-
-
+```text
 # ══ library json ══════════════════════════════════════════════════
-use std.structure.{Structure, Facts, Field, Member, Variant, Walker, Source}
-use std.inspect.{Inspectable, TypeId}
+use std.structure.{Structure, Facts, Member, Field, Variant, Members, Key, Walker, Describer, Source}
 
 pub enum Case:
     Plain
     Camel
     Snake
 
-pub data Style:                          # json's configuration fact; json owns the type
+pub data Style:                          # json's configuration: a type-level fact (M13)
     case: Case = .Plain
-    key: Option[fn(Member) -> string] = .None
     tag: string = "type"
 
-# Tier-1 annotation function: evaluated at compile time; requirement-free,
-# non-suspending. On a type, its value is a type-level fact (M13).
-pub fn json(case: Case = .Plain, key: Option[fn(Member) -> string] = .None, tag: string = "type") -> Style:
-    Style { case: case, key: key, tag: tag }
+pub fn style(case: Case = .Plain, tag: string = "type") -> Style:    # @json.style(...)
+    Style { case: case, tag: tag }
 
-pub data Rename:                         # a fact is a plain value
+pub data Rename:                         # a member fact: @json.rename("mail")
     name: string
 
 pub fn rename(name: string) -> Rename:
     Rename { name: name }
 
-# Three traits (M11). None has a configuration member: configuration is a
-# type-level fact (M13). A schema describes the encoding, so Schema < Encode.
 pub trait Encode:
     fn encode(self, out: mut Writer) -> Result[void, EncodeError]
 
 pub trait Decode:
     fn decode(p: mut Parser) -> Result[Self, DecodeError]
 
-pub trait Schema < Encode:
-    fn schema(defs: mut Defs) -> Node
+pub trait Schema:
+    fn schema() -> Node
 
-# (elided: Writer and Parser, json's output and input streams, where
-# Writer {} starts an empty output, Parser { text: text } reads text, and
-# p.seek_key(k) reports whether the current object has key k; EncodeError
-# and DecodeError, which implement std.error.Error; Defs and Node, a schema
-# under construction; the helpers apply_case, find_variant, and
-# default_node; hand-written Encode, Decode, and Schema impls for i64,
-# string, bool, List[T], Map[K, V], and T?)
+# (elided: Writer, Parser, Node, EncodeError, DecodeError, apply_case,
+# find_variant, KeyPlan.name, and hand-written Encode, Decode, and Schema
+# impls for i64, string, and List[T])
 
-# Configuration: a template reads Style from the type-level facts and falls
-# back to json's default when none is present (M13).
 fn style_of(facts: Facts) -> Style:
     match facts.find[Style]():
         .Some(style) => style
-        .None => Style {}
+        .None => Style {}                # no fact: json's default
 
-# Precedence is json's choice, not a language rule.
 fn key_for(style: Style, m: Member) -> string:
     match m.facts.find[Rename]():
         .Some(r) => r.name
-        .None => match style.key:
-            .Some(f) => f(m)
-            .None => apply_case(style.case, m.name)
+        .None => apply_case(style.case, m.name)
 
-# Templates. They never apply by themselves; only the trait's module may
-# declare them. Each has a body that walks or builds (M12, M14).
+# A pure describer that plans every key once (M21 R3-4).
+data KeyPlan:
+    style: Style
+    variant: i32
+    names: mut Map[(i32, i32), string]       # (variant index, member position) -> key
+    positions: mut Map[(i32, string), i32]   # (variant index, key) -> member position
+
+fn planner(facts: Facts) -> mut KeyPlan:
+    KeyPlan { style: style_of(facts), variant: 0, names: {}, positions: {} }
+
+impl[S] Describer[S] for KeyPlan:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        self.variant = v.info.index
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        key := key_for(self.style, h.info)
+        self.names[(self.variant, h.info.position)] = key
+        self.positions[(self.variant, key)] = h.info.position
+        .Ok()
+
+# Templates: they never apply by themselves, and only this module may declare them.
 impl[T] Encode for T by Structure:
+    const KEYS: KeyPlan:                 # hypothetical syntax: evaluated once per opt-in (M21 R3-4)
+        let p: mut KeyPlan = planner(T::facts())
+        _ := T::describe(p)
+        p
+
     fn encode(self, out: mut Writer) -> Result[void, EncodeError]:
         out.begin_object()
-        let w: mut Encoder[T] = Encoder { value: self, out: out, style: style_of(T::facts()) }
-        T::walk(w)?
+        let w: mut Encoder = Encoder { out: out, keys: KEYS, variant: 0 }
+        Structure::walk(self, w)?
         out.end_object()
         .Ok()
 
 impl[T] Decode for T by Structure:
+    const KEYS: KeyPlan:                 # hypothetical syntax
+        let p: mut KeyPlan = planner(T::facts())
+        _ := T::describe(p)
+        p
+
     fn decode(p: mut Parser) -> Result[Self, DecodeError]:
         p.begin_object()?
-        let s: mut FieldSource[T] = FieldSource { parser: p, style: style_of(T::facts()) }
+        let s: mut FieldSource = FieldSource { parser: p, keys: KEYS, variant: 0 }
         value := T::build(s)?
         p.end_object()?
         .Ok(value)
 
-# Structure gives no type name (open: exact handle API), so the $defs key
-# comes from std.inspect under a T < Inspectable bound.
-impl[T < Inspectable] Schema for T by Structure:
-    fn schema(defs: mut Defs) -> Node:
-        key := TypeId::of[T]().to_string()
-        if defs.reserve(key):            # false when known or in progress: recursion
-            let w: mut SchemaWalker[T] = SchemaWalker { defs: defs, style: style_of(T::facts()), objects: [] }
-            _ := T::walk(w)
-            defs.define(key, Node.OneOf(w.objects))
-        Node.Ref(key)
+impl[T] Schema for T by Structure:
+    fn schema() -> Node:
+        let d: mut SchemaDescriber = SchemaDescriber { style: style_of(T::facts()), variants: [] }
+        _ := T::describe(d)
+        Node.one_of(d.variants)          # one object for a data type; $defs elided
 
-# The walkers and the source: the only place json's member bounds appear.
-data Encoder[S]:
-    value: S
+data Encoder:
     out: mut Writer
-    style: Style
+    keys: KeyPlan
+    variant: i32
 
-impl[S] Walker[S] for Encoder[S]:
+impl[S] Walker[S] for Encoder:
     type Error = EncodeError
 
-    fn variant(mut self, v: Variant[S]) -> bool:
-        if !v.holds(self.value):
-            return false
-        self.out.key(self.style.tag)
-        self.out.string(apply_case(self.style.case, v.info.name))
-        true
+    fn variant(mut self, v: Variant[S]) -> Result[void, EncodeError]:
+        self.variant = v.info.index
+        if !v.info.of_data:              # an enum writes its tag; a data type does not (M20 R3-2)
+            self.out.key(self.keys.style.tag)
+            self.out.string(apply_case(self.keys.style.case, v.info.name))
+        .Ok()
 
-    fn member[F < Encode](mut self, h: Field[S, F]) -> Result[void, EncodeError]:
-        self.out.key(key_for(self.style, h.info))
-        h.get(self.value).encode(self.out)   # F's own impl: nesting follows M7
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, EncodeError]:
+        self.out.key(self.keys.name(self.variant, h.info.position))   # planned, not renamed
+        value.encode(self.out)           # F's own impl (M7)
 
-data FieldSource[S]:
+data FieldSource:
     parser: mut Parser
-    style: Style
+    keys: KeyPlan
+    variant: i32
 
-impl[S] Source[S] for FieldSource[S]:
+impl[S] Source[S] for FieldSource:
     type Error = DecodeError
 
     fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], DecodeError]:
-        if !self.parser.seek_key(self.style.tag)?:
-            return .Err(DecodeError.Missing(self.style.tag))
-        name := self.parser.string()?
-        find_variant(choices, name, self.style.case)
+        if choices[0].info.of_data:
+            return .Ok(choices[0])
+        v := find_variant(choices, self.parser.find_tag(self.keys.style.tag)?, self.keys.style.case)?
+        self.variant = v.info.index
+        .Ok(v)
 
-    fn member[F < Decode](mut self, h: Field[S, F]) -> Result[F, DecodeError]:
-        key := key_for(self.style, h.info)
-        if self.parser.seek_key(key)?:
-            return F::decode(self.parser)    # type → impl, through F's dictionary
-        match h.default():                   # absent key: the declared default (P3)
+    fn next(mut self, members: Members[S]) -> Result[Key[S], DecodeError]:
+        while self.parser.more_keys()?:
+            key := self.parser.key()?
+            match self.keys.positions[(self.variant, key)]:   # one lookup
+                .Some(position) => return .Ok(members.at(position))
+                .None => self.parser.skip_value()?            # an unknown key is ignored
+        .Ok(members.end())
+
+    fn member[F < Decode](mut self, h: Field[S, F], previous: F?) -> Result[F, DecodeError]:
+        if previous.is_some():           # a repeated key: JSON rejects it; protobuf would merge
+            return .Err(DecodeError.Duplicate(h.info.name))
+        F::decode(self.parser)
+
+    fn missing[F < Decode](mut self, h: Field[S, F]) -> Result[F, DecodeError]:
+        match h.default():               # an absent key: the declared default (P3)
             .Some(value) => .Ok(value)
-            .None => .Err(DecodeError.Missing(key))
+            .None => .Err(DecodeError.Missing(h.info.name))
 
-data SchemaWalker[S]:
-    defs: mut Defs
+data SchemaDescriber:
     style: Style
-    objects: mut List[Node]              # one object per variant; one for a data type
+    variants: mut List[mut Node]
 
-impl[S] Walker[S] for SchemaWalker[S]:
+impl[S] Describer[S] for SchemaDescriber:
     type Error = never
 
-    fn variant(mut self, v: Variant[S]) -> bool:  # no value: enter every variant
-        self.objects.append(Node.tagged(self.style.tag, apply_case(self.style.case, v.info.name)))
-        true
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        let node: mut Node = Node.object(title=v.info.name, doc=v.info.doc)   # a data type's name and doc
+        if !v.info.of_data:
+            node.constant(self.style.tag, apply_case(self.style.case, v.info.name))
+        self.variants.append(node)
+        .Ok()
 
     fn member[F < Schema](mut self, h: Field[S, F]) -> Result[void, never]:
-        if self.objects.is_empty():
-            self.objects.append(Node.object())
-        node := F::schema(self.defs)
-        match h.default():                   # value-free, and the default is reachable
-            .Some(d) => self.objects.last_mut().optional(key_for(self.style, h.info), node, default_node(d))
-            .None => self.objects.last_mut().required(key_for(self.style, h.info), node)
+        key := key_for(self.style, h.info)
+        self.variants.last_mut().property(key, F::schema(), required=!h.has_default())
         .Ok()
 
 pub fn to_json[T < Encode](value: T) -> Result[string, EncodeError]:
@@ -858,355 +849,366 @@ pub fn to_json[T < Encode](value: T) -> Result[string, EncodeError]:
 
 pub fn from_json[T < Decode](text: string) -> Result[T, DecodeError]:
     T::decode(Parser { text: text })
+```
 
-pub fn schema_of[T < Schema]() -> string:
-    let defs: mut Defs = Defs {}
-    root := T::schema(defs)
-    defs.document(root)
+A diff library: a two-value walker that checks `v.holds(old)` before any
+`h.get(old)` (M20 R3-11).
 
+```text
+# ══ library diff ══════════════════════════════════════════════════
+use std.structure.{Structure, Field, Variant, Walker}
 
+pub trait Diff:
+    fn diff(self, old: Self, path: string, out: mut List[string]) -> void
+
+impl[T] Diff for T by Structure:
+    fn diff(self, old: Self, path: string, out: mut List[string]) -> void:
+        let w: mut DiffWalker[T] = DiffWalker { old: old, path: path, out: out }
+        if Structure::walk(self, w).is_err():
+            out.append(path)             # another variant: the whole value changed
+
+data VariantChanged: pass
+
+data DiffWalker[S]:
+    old: S
+    path: string
+    out: mut List[string]
+
+impl[S] Walker[S] for DiffWalker[S]:
+    type Error = VariantChanged
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, VariantChanged]:
+        if !v.holds(self.old):           # checked first: h.get on another variant panics
+            return .Err(VariantChanged {})
+        .Ok()
+
+    fn member[F < Diff](mut self, h: Field[S, F], value: F) -> Result[void, VariantChanged]:
+        value.diff(h.get(self.old), self.path + "." + h.info.name, self.out)   # a walk handle: read type
+        .Ok()
+```
+
+User code. `@derive` is the only opt-in, and annotations only attach facts
+(M18 P13).
+
+```text
 # ══ app ═══════════════════════════════════════════════════════════
 use dep.json
-use dep.db
-use std.clone.{Clone}
+use dep.diff
 use std.error.{Error}
-use std.structure.{Member}
 
-# ── Tier 0: no derivation. No Structure, no JSON. ──
-data Secret:
-    value: string
-
-# ── Tier 1: one annotation per concern, shared by every trait it derives ──
-@json.json(case=.Snake)
+@derive(Eq, Hash, json.Encode, json.Decode)
+@json.style(case=.Snake)
 pub data Address:
     pub streetLine: string               # "street_line"
     pub zipCode: string                  # "zip_code"
 
-@json.json(case=.Camel)
+@derive(Eq, Hash, json.Encode, json.Decode)   # two intrinsics, two templates
+@json.style(case=.Camel)                 # a type-level fact; creates no impl
 pub data User:
     pub id: i64
     pub full_name: string                # "fullName"
-    @json.rename("mail")                 # a declaration fact, visible to every impl
+    @json.rename("mail")                 # a member fact, visible to every impl
     pub email: string
-    pub address: Address                 # Address's own derivation: snake_case (M7)
-    pub nickname: string = ""            # absent on input: decode uses "" (P3)
+    pub address: Address                 # Address's own impls: snake_case (M7)
+    pub nickname: string = ""            # absent on input: missing() returns ""
 
-# @json.json(case=.Camel) puts the type-level fact Style { case: .Camel } on
-# User, where every impl sees it (M13). It also opts User in to json's
-# templates, as if these bodiless tier-2 blocks were written:
-#   impl json.Encode for User by Structure
-#   impl json.Decode for User by Structure
-#   impl json.Schema for User by Structure
-# (open: P13) How a tier-1 annotation selects the templates it opts in to is
-# not decided; no hook returns the annotation's type any more.
+# Shared constructor data, with payload and payload-free variants.
+@derive(json.Encode, json.Decode, json.Schema, diff.Diff)
+@json.style(tag="kind")
+pub enum Reply(code: i32):
+    Sent(id: i64) -> Reply(200)
+    Moved(to: string, @json.rename("why") reason: string) -> Reply(301)   # hypothetical syntax
+    Raw(string) -> Reply(200)            # an unnamed payload: member `_0`, positional
+    Busy -> Reply(503)                   # payload-free
 
-@json.json(tag="kind")
-pub enum Event:
-    Login(user: i64)
-    Logout(user: i64, reason: string)
+# A newtype derives through its base: i64's impls, rewrapped (M18 P11b, M21 R3-5).
+@derive(Eq, Hash, json.Encode, json.Decode)
+type UserId(i64)
 
-# Other libraries' templates, applied with bodiless tier-2 blocks.
-impl Eq for Event by Structure
-impl Clone for Event by Structure
-
-# Generic target: T < Trait for each parameter in a walked member (M12).
-# Derived: impl[T < json.Encode] json.Encode for Tree[T], and the same for
-# json.Decode and json.Schema. Node's Tree[T] members may assume that impl
-# while it is checked (coinductive recursion).
-@json.json()
-pub enum Tree[T]:
-    Leaf(value: T)
-    Node(left: Tree[T], right: Tree[T])
-
-# ── Tier 2: one block per trait; lines are local to their block ──
-fn legacy_key(m: Member) -> string:
-    "x_" + m.name
-
-@db.table("orders")                      # db stays tier 1: a type-level fact for db
+# Tier 2: one block per trait; member lines are local to their block (M10, M11).
 pub data Order:
-    @db.primary_key()
-    pub id: i64
-    pub items: List[string]
+    pub id: UserId
     pub total_cents: i64
-    pub cache: Cache = Cache::empty()    # Cache has no json impls
+    pub cache: Cache = Cache {}          # Cache has no json impls
 
 impl json.Encode for Order by Structure:
-    Self += [json.json(key=.Some(legacy_key))]   # hypothetical syntax; this block's facts() only
-    total_cents = [json.rename("total")]         # hypothetical syntax; this block's walk only
-    cache = pass                                 # hypothetical syntax; not walked
+    Self += [json.style(case=.Snake)]    # hypothetical syntax: this block's facts() only
+    total_cents = [json.rename("total")] # hypothetical syntax
+    cache = pass                         # hypothetical syntax: not walked or described
 
 impl json.Decode for Order by Structure:
-    Self += [json.json(key=.Some(legacy_key))]   # hypothetical syntax; may differ per direction
-    total_cents = [json.rename("total", "total_cents")]   # hypothetical syntax; accept both
-    cache = pass                                 # hypothetical syntax; decode uses Cache::empty()
+    Self += [json.style(case=.Snake)]    # hypothetical syntax
+    cache = pass                         # hypothetical syntax: build uses Cache {}
+# warning (M20 R3-6): Order's json.Encode and json.Decode blocks have different member lines
 
-# ── Tier 3: hand-written, no Structure ──
-pub data Money:
-    cents: i64
-
-impl json.Encode for Money:              # encode-only: no Decode impl (M11)
-    fn encode(self, out: mut json.Writer) -> Result[void, json.EncodeError]:
-        out.raw(format_decimal(self.cents, places=2))
-        .Ok()
-
-# ── Use ──
 pub fn main() -> Result[void, Error] $ Console:
     u := User { id: 7, full_name: "Ada L", email: "ada@x",
                 address: Address { streetLine: "1 Main", zipCode: "02139" } }
-    text := json.to_json(u)?
-    println(text)
+    println(json.to_json(u)?)
     # {"id":7,"fullName":"Ada L","mail":"ada@x","address":{"street_line":"1 Main","zip_code":"02139"},"nickname":""}
-    let back: User = json.from_json(r"""{"id":7,"fullName":"Ada L","mail":"ada@x","address":{"street_line":"1 Main","zip_code":"02139"}}""")?
-    println(back.nickname == "")         # true: the declared default
-    println(json.schema_of[User]())      # $defs for User and Address; nickname optional, default ""
+    let back: User = json.from_json(r"""{"mail":"ada@x","id":7,"fullName":"Ada L","address":{"zip_code":"02139","street_line":"1 Main"}}""")?
+    println(back == u)                   # true: keys in any order; nickname from its default
 
-    e := Event.Logout(user=7, reason="idle")
-    println(json.to_json(e)?)
-    # {"kind":"Logout","user":7,"reason":"idle"}
-    println(e.eq(e.clone()))             # true: Clone built a new Logout from e
-    println(e.eq(Event.Login(user=7)))   # false: different variants, no variant entered
-    println(json.to_json(Order { id: 1, items: ["tea"], total_cents: 1250 })?)
-    # {"x_id":1,"x_items":["tea"],"total":1250}
+    r := Reply.Moved(to="/new", reason="renamed")
+    println(json.to_json(r)?)            # {"kind":"Moved","to":"/new","why":"renamed"}
+    let changes: mut List[string] = []
+    r.diff(Reply.Busy, "reply", changes)
+    println(changes)                     # ["reply"]: another variant, and no panic
+    println(json.to_json(Order { id: UserId(1), total_cents: 1250 })?)
+    # {"id":1,"total":1250}
     .Ok()
 ```
 
-(`json.rename("total", "total_cents")` with aliases is illustrative; the
-fact vocabulary is json's own. `Self += [...]` keeps `@db.table`'s fact;
-`Self = [...]` would replace the type-level facts for that block.)
-
-What the compiler generates (ordinary hd; tooling can print it). Handle
-names such as `h_id` and `v_login` are illustrative constants.
+What the compiler generates (ordinary hd; tooling can print it). Handle and
+member-list names such as `h_id` and `ADDRESS_MEMBERS` are illustrative.
 
 ```text
-# Handles for User, one constant per member:
+# User's handles. Walk and describe pass the read view; build passes the
+# declared view. They coincide here because no member is `mut` (M21 R3-1).
 #   h_id: Field[User, i64], h_full_name: Field[User, string],
-#   h_email: Field[User, string]    (h_email.info.facts = [Rename { name: "mail" }]),
-#   h_address: Field[User, Address], h_nickname: Field[User, string]
-#   h_nickname.has_default() is true; h_nickname.default() evaluates "" and returns .Some("")
+#   h_email: Field[User, string] (h_email.info.facts == [Rename { name: "mail" }]),
+#   h_address: Field[User, Address], h_nickname: Field[User, string] (has_default() is true)
+#   v_user.info: name "User", index 0, of_data true, shared []
+# Reply: v_moved.info.shared == [("code", 301)]; h_raw_0.info: name "_0", positional true
 
-# User.walk, inside User's Encode impl, for json's Encoder[User]. The template
-# built the Encoder with Style { case: .Camel }, read from T::facts().
-fn walk(w: mut Encoder[User]) -> Result[void, EncodeError]:
-    w.member[i64](h_id)?                           # needs i64 < Encode ✓
-    w.member[string](h_full_name)?
-    w.member[string](h_email)?
-    w.member[Address](h_address)?                  # needs Address < Encode ✓ (its own @json.json)
-    w.member[string](h_nickname)?
+# Structure::walk(r, w) for Reply inside its Encode impl: one match, then
+# one call per member of the value's variant (M19).
+fn walk(value: Reply, w: mut json.Encoder) -> Result[void, json.EncodeError]:
+    match value:
+        Reply.Sent(id) =>
+            w.variant(v_sent)?
+            w.member[i64](h_sent_id, id)?          # needs i64 < json.Encode
+        Reply.Moved(to, reason) =>
+            w.variant(v_moved)?
+            w.member[string](h_moved_to, to)?
+            w.member[string](h_moved_reason, reason)?
+        Reply.Raw(text) =>
+            w.variant(v_raw)?
+            w.member[string](h_raw_0, text)?
+        Reply.Busy =>
+            w.variant(v_busy)?
     .Ok()
 
-# Event.walk, inside Event's Eq impl, for std.cmp's EqWalker[Event]: it asks
-# about every variant and walks the members of the variants it enters.
-fn walk(w: mut EqWalker[Event]) -> Result[void, never]:
-    if w.variant(v_login):
-        w.member[i64](h_login_user)?
-    if w.variant(v_logout):
-        w.member[i64](h_logout_user)?
-        w.member[string](h_logout_reason)?
-    .Ok()
-
-# The projection behind h_logout_reason.get, and v_logout.holds.
-fn get_logout_reason(s: Event) -> string:
-    match s:
-        Event.Logout(reason=r) => r
-        _ => panic("Field.get: the value holds another variant")
-
-fn holds_logout(s: Event) -> bool:
-    match s:
-        Event.Logout(_, _) => true
-        _ => false
-
-# Event.build, inside Event's Decode impl, for json's FieldSource[Event]
-fn build(s: mut FieldSource[Event]) -> Result[Event, DecodeError]:
-    choice := s.variant([v_login, v_logout])?
-    if choice.info.index == 0:
-        .Ok(Event.Login(user=s.member[i64](h_login_user)?))
-    else:
-        .Ok(Event.Logout(user=s.member[i64](h_logout_user)?, reason=s.member[string](h_logout_reason)?))
-
-# Order.build, inside Order's Decode impl: only that block's lines apply.
-# Its facts() are db.table's fact plus the block's Style; the Encode block's
-# lines do not reach here. `cache = pass` is shown as M3 states it: no
-# member call and the declared default (open: how `= pass` members appear
-# in walk and build).
-fn build(s: mut FieldSource[Order]) -> Result[Order, DecodeError]:
-    .Ok(Order { id: s.member[i64](h_id)?, items: s.member[List[string]](h_items)?,
-                total_cents: s.member[i64](h_total_cents)?, cache: Cache::empty() })
-    # db.Row's build for Order sees the declaration facts only, and builds cache.
+# T::build(s) for Address inside its Decode impl: the input names the members (M21 R3-3).
+fn build(s: mut json.FieldSource) -> Result[mut Address, json.DecodeError]:
+    _ := s.variant([v_address])?
+    let street: string? = .None                    # one local per member
+    let zip: string? = .None
+    while true:
+        key := s.next(ADDRESS_MEMBERS)?
+        if key.is_end:
+            break
+        match key.info.position:
+            0 =>
+                street = .Some(s.member[string](h_street_line, street)?)
+            1 =>
+                zip = .Some(s.member[string](h_zip_code, zip)?)
+            _ =>
+                panic("a key from another type or variant")
+    street_value := match street:
+        .Some(v) => v
+        .None => s.missing[string](h_street_line)?
+    zip_value := match zip:
+        .Some(v) => v
+        .None => s.missing[string](h_zip_code)?
+    .Ok(Address { streetLine: street_value, zipCode: zip_value })
 ```
 
-At run time each `member[i64]` call runs the `i64`-shaped body of the
-walker's `member` with `i64`'s dictionary, a constant, and `h.get` is one
-projection; there is no per-member allocation. `h.default()` constructs a
-`.Some` only when a decoder finds a key missing, or when a schema reads the
-default.
+Each `member[i64]` call runs the walker's `member` body with `i64`'s
+dictionary, a constant, so there is no per-member allocation. Generated code
+never creates a `Self::Error`: every failure it could detect is the
+source's call.
 
 What the compiler rejects:
 
 ```text
-@json.json()
+@derive(json.Encode)
 pub data Bad:
     handle: FileHandle
-# error at @json.json: member `handle`: FileHandle does not implement json.Encode
+# error at @derive: member `handle`: FileHandle does not implement json.Encode;
 #   use `handle = pass` in a tier-2 block, or change the member's type
 
-@json.json()
-pub data Twice:
-    x: i64
-impl json.Encode for Twice by Structure
-# error: overlapping-impl: json.Encode for Twice is already implemented by @json.json
-#   (ordinary 09 Overlap; tier 1 is sugar for this impl, as in Rust's E0119)
+@derive(Error)
+pub enum Failure:
+    Io
+# error: Error has no template and is not intrinsic; an error type uses @error
 
-# in the module that declares the marker trait Audited
-pub trait Audited
-impl[T] Audited for T by Structure
-# error: a `by Structure` template must have a body that walks or builds;
-#   there are no marker templates (M12)
+pub trait Index:                         # with a `by Structure` template, elided
+    fn index(values: List[Self]) -> Map[Self, i64]
 
-fn dump[X < Structure](x: X) -> void:
-    pass
-# error: Structure may bound only a `by Structure` template
+@derive(Index)
+type Tag(string)
+# error at @derive: Index.index has Self in Map[Self, i64]; a newtype forwards
+#   only the receiver, Self, Self?, Result[Self, E], and List[Self] (M21 R3-5)
 
-impl Structure for Secret
-# error: sealed-trait-implementation
+data ShareSource[S]:
+    old: S
 
-fn sneak[S, W < Walker[S]](w: mut W, h: Field[S, Cache]) -> Result[void, W::Error]:
-    w.member[Cache](h)
-# error: Walker::member may be called through a generic walker only by
-#   generated code
+impl[S] Source[S] for ShareSource[S]:   # variant, next, and missing elided
+    type Error = never
 
-# in std.convert
-impl[T, P] From[P] for T by Structure:
-    fn from(value: P) -> Self:
-        pass
-# rejected by design (M15): templates give one trait instantiation per
-#   opt-in, never an impl family; per-variant From comes from @derive(Error)
+    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(h.get(self.old))
+# error: `get` on a build handle needs `mut S`; `self.old` is readonly (M21 R3-1)
 ```
 
-Not rejected: a walker whose `variant` answers `true` for a variant that its
-value does not hold makes the generated walk call `member` for that
-variant's handles, and `h.get` then panics at run time (M14).
+Not rejected: a two-value walker that calls `h.get(old)` without checking
+`v.holds(old)` compiles, and panics when `old` holds another variant (M20
+R3-11).
+
+### Current Rules (M1-M21)
+
+1. **Opt-in** (M18 P13). `@derive(...)` lists traits and is the only thing
+   that creates impls. It accepts the intrinsic comparison traits and any
+   trait with a `by Structure` template; `@derive(json.Encode)` means
+   exactly `impl json.Encode for T by Structure`. `Error` is not on the
+   list: an error type uses the `@error` intrinsic
+   ([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
+2. **Comparison intrinsics** (M12, M18 R3). `Eq`, `PartialOrd`, `Ord`, and
+   `Hash` stay compiler intrinsics over all members, with no member lines.
+   There is one `Eq` with `fn eq(self, other: Self) -> bool`, applied as
+   EQ-1 in [Comparison Traits](../spec/09-traits.md#comparison-traits).
+3. **Structure** (M1, M6, M8, M19). The compiler generates `Structure` for
+   each opted-in type, with the four signatures shown above. It is sealed
+   (`sealed-trait-implementation`), exists only inside `by Structure`
+   templates, and may bound nothing else. `walk` takes the value as `self`;
+   `describe` and `build` are receiverless; `build` returns `mut Self`
+   (M17).
+4. **Templates** (M8, M12, M15, M18 P10). `impl[T] Trait for T by
+   Structure:` declares a template, only in the trait's module, so there is
+   at most one per trait. It never applies by itself, so it cannot overlap a
+   hand-written impl. Its body must walk, describe, or build: there are no
+   marker templates. A template implements an existing trait once per
+   opt-in: no impl families, derived types, or derived builders.
+5. **Tier 2** (M3, M10, M11, M13, M18 P11d, P11e). `impl Trait for X by
+   Structure:` applies one template, in `X`'s module only. Its member lines
+   (`f += [facts]`, `f = [facts]`, `f = pass`, and `Self` lines for
+   type-level facts) are local to that block. In an enum's block, lines name
+   whole variants, and `Variant = pass` is an error. Listing a trait in
+   `@derive` and writing its block is an ordinary `overlapping-impl`.
+6. **`= pass`** (M3). The member is left out of that block's generated
+   calls, so its type need not support the trait; `build` uses its declared
+   default, and a member without one is an error.
+7. **Facts** (M2, M13, M20 R3-9). Facts are typed values, purely
+   descriptive. Declaration facts (type-level, member, and payload
+   parameter, the last through Error Conversion decision 12's grammar) are
+   seen by every impl. A template reads configuration from `T::facts()`
+   and falls back to its own default. A lint flags a configuration fact
+   whose package derives nothing on the type (M18 P13).
+8. **Drift lint** (M20 R3-6). Tier-2 blocks for traits of one package on
+   one type, or such a block beside a `@derive` of the same package, get a
+   warning when their member lines differ. Differences stay legal.
+9. **Walk** (M19). Generated `walk` makes one `match` on the value, calls
+   `w.variant(v)` once for its variant, then `w.member(h, value)` for each
+   member of that variant. A data type is one variant with `of_data` true
+   (M20 R3-2). Nested members use their own type's impl (M7).
+10. **Describe** (M19). Generated `describe` calls `d.variant(v)` for every
+    variant in order, then `d.member(h)` for each of its members. It holds
+    no value.
+11. **Build** (M18 P7, M21 R3-3). Generated `build` calls `s.variant` once,
+    then `s.next(members)` until the end key. For each key it calls
+    `s.member(h, previous)`, where `previous` is the value already read for
+    a repeated key. It then calls `s.missing(h)` once per member never
+    named, and constructs. It keeps one local per member and never creates
+    a `Self::Error`.
+12. **Handles** (M14, M17, M21 R3-1). Each member has a constant
+    `Field[-S, +F]` and each variant a constant `Variant[S]`. Walk and
+    describe handles carry the read type (`Cell` for `hits: mut Cell`);
+    build handles carry the declared type (`mut Cell`), and their `get`
+    requires `s: mut S`. A declared handle weakens to its read type by
+    variance.
+13. **Other variants** (M14, M20 R3-11). `h.get` on another variant's
+    payload panics. A two-value walker checks `v.holds(other)` first, as the
+    diff walker does.
+14. **Member and variant information** (M18 P11g, M20, M21 R3-7). `Member`
+    has `name`, `position`, `facts`, `doc`, `embedded`, and `positional`;
+    an unnamed payload member is named `_0`, `_1`, and so on. `VariantInfo`
+    has `name`, `index`, `facts`, `doc`, `of_data`, and `shared`. For a data
+    type, the variant's name and doc are the type's.
+15. **Shared constructor data** (M21 R3-7,
+    [Enum Semantics decision 4](ENUM_SEMANTICS.md#owner-decisions)). A
+    variant's shared constants are `(name, Any)` pairs on `VariantInfo`,
+    built once at compile time. They are never passed as handles, and
+    `build` never reads them: the variant's `->` expression fixes them.
+16. **Embedded parts** (M16, M21 R3-8). An embedded part is one member with
+    `embedded` true. Its value is the part itself, not a copy
+    (`data.part.alias`). Flattening is library code, as in serde.
+17. **Bounds** (M9, M12). An impl of `Walker`, `Describer`, or `Source` may
+    strengthen `member[F]`'s and `missing[F]`'s bound. These traits are not
+    09-sealed. Only generated code may call `member` through a generic
+    walker or source. The obligation is checked at the opt-in, naming the
+    member, and `= pass` members are exempt.
+18. **Generic targets** (M12). A derived impl for a generic type gets
+    `T < Trait` for each parameter in a walked or built member. Recursion is
+    checked coinductively. When a member needs more, the error suggests a
+    tier-2 block with an explicit header.
+19. **Newtypes** (M18 P11b, M21 R3-5). A newtype derives through its base
+    type. Forwarding is allowed only where `Self` is the receiver, plain
+    `Self`, `Self?`, `Result[Self, E]`, or `List[Self]`. Any other position
+    is an error at the opt-in, naming the trait method.
+20. **Purity and plans** (M18 P8, M21 R3-4). `walk`, `describe`, `build`,
+    and the three traits have the empty requirement row and never suspend.
+    A template may declare a constant that the annotation evaluator computes
+    once per opt-in at compile time, from `T::facts()` and `T::describe`
+    with a pure describer.
+21. **Out of scope** (M18 P11f, P15, M21 R3-10). GADT enums are rejected at
+    the opt-in. A foreign type is derived through a local mirror type, with
+    no orphan exception. There is no in-place traversal: zeroize and
+    in-place merge are hand-written, and a derived merge returns a new
+    value.
+22. **Escape and stability** (M18 R5, P19, P20). Handles may escape the
+    walk; opting in is consent. Package interfaces carry template, walker,
+    source, and annotation-function bodies. Wire stability is documented,
+    not checked.
+23. **Cost** (M9, M14). Handles are constants, and each member call passes
+    a constant dictionary, so there is no per-member allocation.
+    `default()` allocates `.Some`; `has_default()` does not.
+
+### Remaining Open
+
+Nothing below is decided. Each item waits for the owner.
+
+- **Fact check hook** (M15). The form of a fact type's compile-time `check`,
+  and whether it covers cross-member and type-level checks (round 2 R8).
+- **Non-escaping handles** (M18 R5). Whether the NonEscapable design (TQ-24
+  to TQ-26) makes handles non-escaping once it is ready.
+- **Build view in types** (M21 R3-1). Whether the `mut S` rule for build
+  handles is a separate handle type or a rule on `Field`. This decides
+  whether a source may read non-`mut` members from a readonly value, as a
+  derived `Clone` over readonly `self` would.
+- **Plan constants** (M21 R3-4). The declaration and reference syntax of a
+  template's constant (the example's `const KEYS: KeyPlan:` is
+  hypothetical), and the compile-time evaluator's exact limits.
+- **Typed shared constants** (M21 R3-7). Typed constant handles may come
+  later.
+- **`T -> U` mapping** (M14). Whether mapping between two types is in
+  scope.
+- **Name clashes** (round 2 R13). `walk`, `describe`, and `build` collide
+  with trait methods of the same name; the example avoids it with
+  `Structure::walk(self, w)`.
+- **Derived bound** (round 2 R14). Rule 18 names the trait, while the
+  checked obligation is the walker's or source's strengthened bound; they
+  differ when a walker asks for more than the trait.
+- **`default()` allocation** (round 2 R15). 04 and 05 give every `.Some`
+  its own identity, so `default()` may allocate for every member type, not
+  only reference-shaped ones.
+- **Composing templates** (round 1 P16). A wrapper walker cannot forward to
+  an inner walker's `member`, because M9 lets only generated code call it
+  through a generic parameter.
+- **Function targets and chapter 14.** Function targets wait for
+  [FN_TYPE.md](FN_TYPE.md). How chapter 14's annotators and `Annotate`
+  relate to this design is open: decisions 7 and 10 predate M1-M21.
+
+### Current Design: Full Example (M1-M14)
+
+Superseded by the [M1-M21 example](#current-design-full-example-m1-m21).
+Rounds 1-3 of the stress test link here for the example they read; the M14
+version is in this file's git history (commit 913bcc7 and earlier).
 
 ### Current Rules (M1-M14)
 
-1. `Structure` is sealed (`impl Structure for T` is
-   `sealed-trait-implementation`). It exists only inside `by Structure`
-   templates and may bound nothing else.
-2. `impl[T] Trait for T by Structure:` declares a template. Only the trait's
-   module may declare it, so there is at most one per trait. It never
-   applies by itself, so it cannot overlap a hand-written impl (hd otherwise
-   has no blanket impls: 09 `bare-parameter-impl-target`). A template must
-   have a body that walks or builds; a bodiless template is an error, so
-   there are no marker templates (M12, M14).
-3. `impl Trait for X by Structure:` (tier 2) applies one trait's template to
-   `X`. Its body overrides template methods like default methods and carries
-   M3 member lines: `f += [facts]`, `f = [facts]`, `f = pass`. The line
-   named `Self` edits the type-level facts: `Self += [facts]`,
-   `Self = [facts]` (M13).
-4. Member lines, `Self` lines included, are local to their impl (M10).
-   Declaration facts, type-level and member, are visible to every impl.
-   Tier-2 blocks for related traits (such as `Encode` and `Decode`) are
-   written separately and may repeat lines, and their configuration may
-   differ per direction (M11, M13).
-5. Tier 1: an annotation function runs at compile time and must be
-   requirement-free and non-suspending. On a type, its value is a type-level
-   fact, as a member annotation's value is a member fact (M13). The
-   annotation also opts the type in to templates, as bodiless tier-2 blocks
-   would. Which templates it selects is still open (open: P13).
-6. Configuration is a type-level fact, not a trait member (M13). There is
-   no `visitor()` hook. A template reads its configuration through
-   `Structure`, as in `T::facts().find[Style]()` (M14), and falls back to
-   its own default when none is present. Derivation adds no member to the
-   trait, so it does not affect the trait's dynamic safety. Accepted cost: a
-   missing or foreign fact silently means the default.
-7. There is no separate duplicate rule: tier 1 is sugar for tier-2 impls, so
-   both on one type for one trait is an ordinary `overlapping-impl`
-   (09 Overlap).
-8. Generic targets (M12): a derived impl for a generic type gets
-   `T < Trait` for each type parameter that appears in a walked or built
-   member. Recursion is checked coinductively: `Tree[T]` may assume its own
-   impl while its members are checked. When a member needs more (a `Set[T]`
-   member needs `T < Hash`), the error suggests a tier-2 block with an
-   explicit header, such as `impl[T < Trait + Hash] Trait for X[T] by
-   Structure`.
-9. Handles (M14): for each opted-in type the compiler generates only
-   `facts()`, `walk`, `build`, one constant `Field[S, F]` per member, and one
-   constant `Variant[S]` per variant. `walk` holds no value: for a data type
-   it calls `member` once per member; for an enum it asks `w.variant(v)`
-   about each variant and calls `member` only for the members of the
-   variants it enters. `build` asks `s.variant(choices)` for an enum and
-   then `member` for each member of the chosen variant. `h.get(s)` is one
-   projection, and on an enum payload handle it panics for a value of
-   another variant. `h.has_default()` reports a declared default, and
-   `h.default()` evaluates it. This replaces the value-passing `visit` and
-   `member(m, value)` protocol of M9.
-10. Walkers and sources (M9, applied by M14): an impl of `Walker[S]` or
-    `Source[S]` may strengthen `member[F]`'s bound; only the generated `walk`
-    and `build` may call `member` through a generic walker or source;
-    templates pass a concrete walker or source; the member obligation is
-    checked at the opt-in site, naming the member, and `= pass` members are
-    exempt. Two-value traversals (`Eq`, `Ord`, diff) are walkers that hold
-    both values and enter a variant only when both hold it; value-to-value
-    traversals (clone, patch, shrinking) are sources that read an old value;
-    value-free traversals (schemas, CLI help, tool schemas) are walkers that
-    hold no value.
-11. Nested members use their own derivation; a parent's walker never
-    propagates (M7).
-12. Per-member customization is metadata only; custom behavior for one member
-    means changing the member's type (M6).
-13. Comparison (M12, Swift model): there is one `Eq`, with
-    `fn eq(self, other: Self) -> bool`, and `PartialEq` is dropped. Floats
-    implement `Eq` with IEEE semantics (`NaN != NaN`, a documented law
-    exception). `PartialOrd` and `Ord` stay, so floats are
-    `Eq + PartialOrd` but not `Ord`. Applied as EQ-1 in
-    [Comparison Traits](../spec/09-traits.md#comparison-traits).
-14. Impl families are out of scope (M15). A template gives one trait
-    instantiation per opt-in. Error enums use the compiler intrinsic
-    `@derive(Error)`, which generates `Display`, `Error` with `cause()`, and
-    one `From[P]` per `@from` variant
-    ([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
-    A fact type may define a compile-time `check` against its member or
-    variant, run at the opt-in site (M15, P14); its form is open.
-15. Cost: handles are constants, and generated code passes a constant
-    dictionary per member, so there is no per-member allocation. `default()`
-    allocates `.Some`; `has_default()` does not (M14).
-
-Still open: how a tier-1 annotation selects its templates (P13); how `= pass`
-members appear in `walk` and `build`; whether `T -> U` mapping between two
-types is in scope; the exact handle API, including the member and variant
-information types and any type-level information beyond `facts()` (the
-example's schema takes its `$defs` key from `TypeId`); the compile-time
-evaluator's exact limits (proposed: a panic is a compile error at the
-annotation, a step budget, and results built from literals, data, enums,
-`List`, `Map`, strings, numbers, and references to named functions);
-function targets wait for [FN_TYPE.md](FN_TYPE.md); the chapter 14 rewrite
-and the removal of `Annotate` wait for the spec style rollout; and the rest
-of the [stress test](DERIVATION_STRESS_TEST.md)'s problems.
-
-Found while updating this example to M14, recorded without changing any
-decision:
-
-- **`default()` allocation.** M14 says `default()` allocates `.Some` for
-  reference-shaped members only. 04 Composite Representation and 05 give
-  every `.Some` construction its own identity, as a tagged record that holds
-  a scalar unboxed, so `default()` allocates for every member type.
-- **"Sealed" walkers and sources.** M9 calls `Visitor` and `Source` sealed,
-  and M14 carries that to `Walker` and `Source`, but libraries implement
-  them. Under 09 Sealed Traits, any impl of a sealed trait outside the
-  standard library is `sealed-trait-implementation`. What M9 means is a
-  trait whose `member` bound an impl may strengthen, and whose `member` only
-  generated code may call through a generic parameter.
-- **`mut` members.** For a member `hits: mut Cell`, `build` needs
-  `F = mut Cell` to construct the value, but `get(s: S)` on a readonly `s`
-  cannot return `mut Cell` (04 Mutable Paths). One `F` cannot serve both
-  (stress test P17).
-- **The bound rule names the trait, not the walker's bound.** Rule 8 gives
-  `T < Trait`, while the member obligation is the walker's or source's
-  strengthened bound. They differ whenever a walker asks for more than the
-  trait (for example `F < Schema + Encode`). This example avoids the gap by
-  declaring `Schema < Encode`.
-- **Superseded spelling.** M13's text reads configuration through
-  `T::describe().facts`. M14 replaces `describe()` with `facts()`, so the
-  example and rule 6 use `T::facts()`.
+Superseded by the [M1-M21 rules](#current-rules-m1-m21). The M14 rules are
+in the same git history.
 
 ## Contents
 
@@ -2260,21 +2262,27 @@ block fails, as intended. Parsing checks syntax only; names such as `json`,
 | Probe, not shown: `@derive(json.Encode)` before `type Mile(i32)` | Was `syntax-error` when logged; parses since TQ-11 was applied ([Derived Newtypes](../spec/09-traits.md#derived-newtypes)). |
 | Probe, not shown: a decorator before `trait` | `syntax-error`; not used by the recommendation. |
 
-The three blocks of the [current design](#current-design-full-example-m1-m14)
-and its [rules](#current-rules-m1-m14) were rewritten in specification
-syntax on 2026-09-27, rewritten again for M14 (typed member handles) the same
-day, and checked with the same parser each time. The decision records M8,
-M9, and M14 above keep their original spelling.
+The [current design](#current-design-full-example-m1-m21) was rewritten in
+specification syntax on 2026-09-27, rewritten for M14 the same day, and
+rewritten again for M1-M21 (R3-12). Each time its blocks were checked with
+the same parser; the M21 results are below. The decision records M8, M9, and
+M14 above keep their original spelling, and the M8 and M9 blocks do not
+parse as written.
 
 | Block | Result |
 | --- | --- |
-| Full example (std.structure, std.cmp, std.clone, library json, app) | As written, `syntax-error` at the first M3/M13 member line (`Self += [...]` in Order's Encode block), as expected. With the six lines marked `# hypothetical syntax` removed (and the colon of an impl header left without a body), parses. `by Structure` parses as the 09 delegation form. |
+| std.structure | Parses. `Field[-S, +F]` uses 04's variance markers. |
+| library json | As written, `syntax-error` at line 70, the first `const KEYS: KeyPlan:` header (M21 R3-4), as expected. With both headers read as `fn keys() -> KeyPlan:`, parses. |
+| library diff | Parses. |
+| app | As written, `syntax-error` at line 27, the decorated payload parameter of `Moved` (M20 R3-9), as expected. With the six lines marked `# hypothetical syntax` removed, and each bodiless impl header's colon dropped, parses. `by Structure` parses as the 09 delegation form. |
 | Generated code | Parses. |
 | Rejected code | Parses; every error shown is semantic. |
 
-Parsing checks syntax only. The M14 surface (`Field`, `Variant`, `Walker`,
-`Source`, `facts()`) and the compiler-supplied method bodies, written `pass`,
-are not type-checked, and nothing in the example ran.
+Parsing checks syntax only. The M21 surface (`Structure`, `Field`,
+`Variant`, `Members`, `Key`, `Walker`, `Describer`, `Source`) and the
+compiler-supplied bodies, written `pass`, are not type-checked, and nothing
+in the example ran. Decorators on payload parameters still need the grammar
+change of Error Conversion decision 12.
 
 Two reference-parser findings from this exercise:
 

@@ -21,8 +21,8 @@ language specification:
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
-  Owner decisions M1-M20 are recorded; the round 3 stress test's questions
-  are being answered.
+  Owner decisions M1-M21 fully decide the design; one current example and
+  rule list show it, with the few remaining open points listed.
 - [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)
   tests the current derivation design against 21 use cases and ranks the problems found, with questions for the owner.
 - [Typed Derivation: Stress Test Round 2 (M1-M15)](DERIVATION_STRESS_TEST_2.md)
@@ -33,6 +33,7 @@ language specification:
 - [Typed Derivation: Stress Test Round 3 (M1-M19)](DERIVATION_STRESS_TEST_3.md)
   retests the value-driven walk (M19) on 14 library cases, proposes a
   `Source` protocol for input-driven `build`, and ranks what still breaks.
+  The owner answered round 3 with decisions M20 and M21.
 - [Nominal Function Types](FN_TYPE.md) records the owner's decisions 1-9
   making function types standard generic constructors such as
   `Fn[(Is...), O, R]`, so they can be implementation targets. Per-declaration
