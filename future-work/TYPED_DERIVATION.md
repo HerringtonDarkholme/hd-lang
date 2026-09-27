@@ -357,24 +357,38 @@ compile error. Still open: how a tier-1 type-level annotation selects the
 templates it opts in to (stress test P13), now that no hook returns its
 type.
 
-### Current Design: Full Example (M1-M11)
+### Current Design: Full Example (M1-M13)
 
 This is the reference example for the design as decided on 2026-09-27. When
 a later decision changes the design, update this example in the same change.
 
+The code is written in specification syntax (02, 05, 07, 08, 10): named
+arguments use `=`, data literals use braces, no `mut` is written at an
+argument site, packages are used as `use dep.json` (so json's annotation
+function is written `@json.json(case=.Camel)`), and a template names its
+target as `T::`, because `Self::f()` is not a primary expression. Two forms
+are not yet specified. The member lines of M3 and M13 (`name = [facts]`,
+`name += [facts]`, `name = pass`, `Self += [facts]`) are new syntax, marked
+`# hypothetical syntax` below. `impl Trait for X by Structure` parses as 09
+trait delegation (`by identifier`) but means a template here (P18). The
+[Parse Log](#parse-log) records each block's result.
+
 ```text
 # ══ std.structure ═════════════════════════════════════════════════
 # The compiler supplies Structure. Everything else here is ordinary code.
+# Shape, Member, and Variant are not yet declared by this record. The example
+# uses describe().facts, m.name, m.facts, v.name, and v.index; facts.find[M]()
+# returns the fact of type M, if any, as M?.
 
 pub trait Structure:                     # sealed; exists only inside `by Structure` templates
-    fn describe() -> Shape
-    fn visit[V < Visitor](self, v: mut V) -> Result[(), V::Error]
+    fn describe() -> Shape               # facts: the type-level facts (M13)
+    fn visit[V < Visitor](self, v: mut V) -> Result[void, V::Error]
     fn build[S < Source](s: mut S) -> Result[Self, S::Error]
 
 pub trait Visitor:                       # an impl may strengthen member's bound (M9)
     type Error
-    fn member[F](mut self, m: Member, value: F) -> Result[(), Self::Error]
-    fn variant(mut self, v: Variant) -> Result[(), Self::Error]
+    fn member[F](mut self, m: Member, value: F) -> Result[void, Self::Error]
+    fn variant(mut self, v: Variant) -> Result[void, Self::Error]
 
 pub trait Source:
     type Error
@@ -383,58 +397,63 @@ pub trait Source:
 
 
 # ══ library json ══════════════════════════════════════════════════
-use std.structure.{Structure, Visitor, Source, Member, Variant}
+use std.structure.{Structure, Visitor, Source, Shape, Member, Variant}
 
 pub enum Case:
     Plain
     Camel
     Snake
 
-pub data Style:                          # json's visitor configuration; json owns the type
+pub data Style:                          # json's configuration fact; json owns the type
     case: Case = .Plain
     key: Option[fn(Member) -> string] = .None
     tag: string = "type"
 
 # Tier-1 annotation function: evaluated at compile time; requirement-free,
-# non-suspending.
-pub fn json(case: Case = .Plain, key: Option[fn(Member) -> string] = .None,
-            tag: string = "type") -> Style:
-    Style(case: case, key: key, tag: tag)
+# non-suspending. On a type, its value is a type-level fact (M13).
+pub fn json(case: Case = .Plain, key: Option[fn(Member) -> string] = .None, tag: string = "type") -> Style:
+    Style { case: case, key: key, tag: tag }
 
 pub data Rename:                         # a fact is a plain value
     name: string
 
 pub fn rename(name: string) -> Rename:
-    Rename(name: name)
+    Rename { name: name }
 
-# Two traits, one per direction. Each has the visitor hook as an ordinary
-# default method.
+# Two traits, one per direction (M11). Neither has a configuration member:
+# configuration is a type-level fact (M13).
 pub trait Encode:
-    fn visitor() -> Style:
-        Style()
-    fn encode(self, out: mut Writer) -> Result[(), EncodeError]
+    fn encode(self, out: mut Writer) -> Result[void, EncodeError]
 
 pub trait Decode:
-    fn visitor() -> Style:
-        Style()
     fn decode(p: mut Parser) -> Result[Self, DecodeError]
 
-# (hand-written Encode and Decode impls for i64, string, bool, List[T],
-# Map[K, V], T?)
+# (elided: Writer and Parser, json's output and input streams, where
+# Writer {} starts an empty output and Parser { text: text } reads text;
+# EncodeError and DecodeError, which implement std.error.Error; the helpers
+# apply_case and find_variant; hand-written Encode and Decode impls for i64,
+# string, bool, List[T], Map[K, V], and T?)
+
+# Configuration: the template reads Style from the type-level facts and
+# falls back to json's default when none is present (M13).
+fn style_of(shape: Shape) -> Style:
+    match shape.facts.find[Style]():
+        .Some(style) => style
+        .None => Style {}
 
 # Templates. They never apply by themselves; only the trait's module may
-# declare them.
+# declare them. Each has a body that visits or builds (M12).
 impl[T] Encode for T by Structure:
-    fn encode(self, out: mut Writer) -> Result[(), EncodeError]:
+    fn encode(self, out: mut Writer) -> Result[void, EncodeError]:
         out.begin_object()
-        self.visit(mut Encoder(out: out, style: Self::visitor()))?
+        self.visit(Encoder { out: out, style: style_of(T::describe()) })?
         out.end_object()
-        .Ok(())
+        .Ok()
 
 impl[T] Decode for T by Structure:
     fn decode(p: mut Parser) -> Result[Self, DecodeError]:
         p.begin_object()?
-        value := Self::build(mut FieldSource(parser: p, style: Self::visitor()))?
+        value := T::build(FieldSource { parser: p, style: style_of(T::describe()) })?
         p.end_object()?
         .Ok(value)
 
@@ -446,14 +465,14 @@ data Encoder:
 impl Visitor for Encoder:
     type Error = EncodeError
 
-    fn member[F < Encode](mut self, m: Member, value: F) -> Result[(), EncodeError]:
+    fn member[F < Encode](mut self, m: Member, value: F) -> Result[void, EncodeError]:
         self.out.key(key_for(self.style, m))
-        value.encode(mut self.out)       # F's own impl: nesting follows M7
+        value.encode(self.out)           # F's own impl: nesting follows M7
 
-    fn variant(mut self, v: Variant) -> Result[(), EncodeError]:
+    fn variant(mut self, v: Variant) -> Result[void, EncodeError]:
         self.out.key(self.style.tag)
         self.out.string(apply_case(self.style.case, v.name))
-        .Ok(())
+        .Ok()
 
 data FieldSource:
     parser: mut Parser
@@ -464,7 +483,7 @@ impl Source for FieldSource:
 
     fn member[F < Decode](mut self, m: Member) -> Result[F, DecodeError]:
         self.parser.seek_key(key_for(self.style, m))?
-        F::decode(mut self.parser)       # type → impl, through F's dictionary
+        F::decode(self.parser)           # type → impl, through F's dictionary
 
     fn variant(mut self, choices: List[Variant]) -> Result[Variant, DecodeError]:
         self.parser.seek_key(self.style.tag)?
@@ -480,17 +499,18 @@ fn key_for(style: Style, m: Member) -> string:
             .None => apply_case(style.case, m.name)
 
 pub fn to_json[T < Encode](value: T) -> Result[string, EncodeError]:
-    w := Writer()
-    value.encode(mut w)?
+    let w: mut Writer = Writer {}
+    value.encode(w)?
     .Ok(w.finish())
 
 pub fn from_json[T < Decode](text: string) -> Result[T, DecodeError]:
-    T::decode(mut Parser(text: text))
+    T::decode(Parser { text: text })
 
 
 # ══ app ═══════════════════════════════════════════════════════════
-use json
-use db
+use dep.json
+use dep.db
+use std.error.{Error}
 use std.structure.{Member}
 
 # ── Tier 0: no derivation. No Structure, no JSON. ──
@@ -498,12 +518,12 @@ data Secret:
     value: string
 
 # ── Tier 1: one annotation per concern, shared by both directions ──
-@json(case: .Snake)
+@json.json(case=.Snake)
 pub data Address:
     pub streetLine: string               # "street_line"
     pub zipCode: string                  # "zip_code"
 
-@json(case: .Camel)
+@json.json(case=.Camel)
 pub data User:
     pub id: i64
     pub full_name: string                # "fullName"
@@ -511,93 +531,108 @@ pub data User:
     pub email: string
     pub address: Address                 # Address's own derivation: snake_case (M7)
 
-# @json(case: .Camel) is exactly these two tier-2 blocks:
-#   impl json.Encode for User by Structure:
-#       fn visitor() -> json.Style:
-#           json.Style(case: .Camel)     # the annotation's value, a constant
-#   impl json.Decode for User by Structure:
-#       fn visitor() -> json.Style:
-#           json.Style(case: .Camel)
+# @json.json(case=.Camel) puts the type-level fact Style { case: .Camel } on
+# User, where every impl sees it (M13). It also opts User in to json's
+# templates, as if these bodiless tier-2 blocks were written:
+#   impl json.Encode for User by Structure
+#   impl json.Decode for User by Structure
+# (open: P13) How a tier-1 annotation selects the templates it opts in to is
+# not decided; no hook returns the annotation's type any more.
 
-@json(tag: "kind")
+@json.json(tag="kind")
 pub enum Event:
     Login(user: i64)
     Logout(user: i64, reason: string)
+
+# Generic target: T < Trait for each parameter in a visited member (M12).
+# Derived: impl[T < json.Encode] json.Encode for Tree[T], and the same for
+# json.Decode. Node's Tree[T] members may assume that impl while it is
+# checked (coinductive recursion).
+@json.json()
+pub enum Tree[T]:
+    Leaf(value: T)
+    Node(left: Tree[T], right: Tree[T])
 
 # ── Tier 2: one block per trait; lines are local to their block ──
 fn legacy_key(m: Member) -> string:
     "x_" + m.name
 
-@db.table("orders")                      # db stays tier 1, in its own annotation
+@db.table("orders")                      # db stays tier 1: a type-level fact for db
 pub data Order:
     @db.primary_key()
     pub id: i64
     pub items: List[string]
     pub total_cents: i64
-    pub cache: Cache = Cache.empty()     # Cache has no json impls
+    pub cache: Cache = Cache::empty()    # Cache has no json impls
 
 impl json.Encode for Order by Structure:
-    fn visitor() -> json.Style:          # override only to customize
-        json.json(key: .Some(legacy_key))
-    total_cents = [json.rename("total")] # affects this impl's visit only
-    cache = pass                         # not visited
+    Self += [json.json(key=.Some(legacy_key))]   # hypothetical syntax; this block's describe() only
+    total_cents = [json.rename("total")]         # hypothetical syntax; this block's visit only
+    cache = pass                                 # hypothetical syntax; not visited
 
 impl json.Decode for Order by Structure:
-    fn visitor() -> json.Style:
-        json.json(key: .Some(legacy_key))
-    total_cents = [json.rename("total", "total_cents")]   # e.g. accept both on input
-    cache = pass                         # decode uses Cache.empty()
+    Self += [json.json(key=.Some(legacy_key))]   # hypothetical syntax; may differ per direction
+    total_cents = [json.rename("total", "total_cents")]   # hypothetical syntax; accept both
+    cache = pass                                 # hypothetical syntax; decode uses Cache::empty()
 
 # ── Tier 3: hand-written, no Structure ──
 pub data Money:
     cents: i64
 
-impl json.Encode for Money:              # encode-only: no Decode impl
-    fn encode(self, out: mut json.Writer) -> Result[(), json.EncodeError]:
-        out.raw(format_decimal(self.cents, places: 2))
-        .Ok(())
+impl json.Encode for Money:              # encode-only: no Decode impl (M11)
+    fn encode(self, out: mut json.Writer) -> Result[void, json.EncodeError]:
+        out.raw(format_decimal(self.cents, places=2))
+        .Ok()
 
 # ── Use ──
-pub fn main() $ Console:
-    u := User(id: 7, full_name: "Ada L", email: "ada@x",
-              address: Address(streetLine: "1 Main", zipCode: "02139"))
+pub fn main() -> Result[void, Error] $ Console:
+    u := User { id: 7, full_name: "Ada L", email: "ada@x",
+                address: Address { streetLine: "1 Main", zipCode: "02139" } }
     text := json.to_json(u)?
     println(text)
     # {"id":7,"fullName":"Ada L","mail":"ada@x","address":{"street_line":"1 Main","zip_code":"02139"}}
-    back: User = json.from_json(text)?
+    let back: User = json.from_json(text)?
+    println(back.full_name)
 
-    println(json.to_json(Event.Logout(user: 7, reason: "idle"))?)
+    println(json.to_json(Event.Logout(user=7, reason="idle"))?)
     # {"kind":"Logout","user":7,"reason":"idle"}
-    println(json.to_json(Order(id: 1, items: ["tea"], total_cents: 1250))?)
+    println(json.to_json(Order { id: 1, items: ["tea"], total_cents: 1250 })?)
     # {"x_id":1,"x_items":["tea"],"total":1250}
+    .Ok()
 ```
 
 (`json.rename("total", "total_cents")` with aliases is illustrative; the
-fact vocabulary is json's own.)
+fact vocabulary is json's own. `Self += [...]` keeps `@db.table`'s fact;
+`Self = [...]` would replace the type-level facts for that block.)
 
 What the compiler generates (ordinary hd; tooling can print it):
 
 ```text
-# User.visit, inside User's Encode impl, for json's Encoder
-fn visit(self, v: mut Encoder) -> Result[(), EncodeError]:
+# User.visit, inside User's Encode impl, for json's Encoder. The template
+# built the Encoder with Style { case: .Camel }, read from T::describe().facts.
+fn visit(self, v: mut Encoder) -> Result[void, EncodeError]:
     v.member[i64](m_id, self.id)?                  # needs i64 < Encode ✓
     v.member[string](m_full_name, self.full_name)?
-    v.member[string](m_email, self.email)?         # m_email.facts = [Rename("mail")]
-    v.member[Address](m_address, self.address)?    # needs Address < Encode ✓ (its own @json)
-    .Ok(())
+    v.member[string](m_email, self.email)?         # m_email.facts = [Rename { name: "mail" }]
+    v.member[Address](m_address, self.address)?    # needs Address < Encode ✓ (its own @json.json)
+    .Ok()
 
 # Event.build, inside Event's Decode impl, for json's FieldSource
 fn build(s: mut FieldSource) -> Result[Event, DecodeError]:
-    match s.variant([v_login, v_logout])?.index:
-        0 => .Ok(.Login(user: s.member[i64](m_user)?))
-        1 => .Ok(.Logout(user: s.member[i64](m_user)?, reason: s.member[string](m_reason)?))
+    choice := s.variant([v_login, v_logout])?
+    if choice.index == 0:
+        .Ok(Event.Login(user=s.member[i64](m_login_user)?))
+    else:
+        .Ok(Event.Logout(user=s.member[i64](m_logout_user)?, reason=s.member[string](m_logout_reason)?))
 
-# Order.build inside Order's Decode impl: only that block's lines apply;
-# `cache = pass` means no member call and the declared default
-    .Ok(Order(id: s.member[i64](m_id)?, items: s.member[List[string]](m_items)?,
-              total_cents: s.member[i64](m_total_cents)?, cache: Cache.empty()))
-    # The Encode block's lines do not reach here, and db.Row's build for Order
-    # sees the declaration facts only, and visits cache.
+# Order.build, inside Order's Decode impl: only that block's lines apply.
+# Its describe().facts are db.table's fact plus the block's Style; the
+# Encode block's lines do not reach here. `cache = pass` means no member
+# call and the declared default.
+fn build(s: mut FieldSource) -> Result[Order, DecodeError]:
+    .Ok(Order { id: s.member[i64](m_id)?, items: s.member[List[string]](m_items)?,
+                total_cents: s.member[i64](m_total_cents)?, cache: Cache::empty() })
+    # db.Row's build for Order sees the declaration facts only, and visits cache.
 ```
 
 At run time each `member[i64]` call runs the `i64`-shaped body with `i64`'s
@@ -606,20 +641,27 @@ dictionary, a constant; there is no per-member allocation.
 What the compiler rejects:
 
 ```text
-@json
+@json.json()
 pub data Bad:
     handle: FileHandle
-# error at @json: member `handle`: FileHandle does not implement json.Encode
+# error at @json.json: member `handle`: FileHandle does not implement json.Encode
 #   use `handle = pass` in a tier-2 block, or change the member's type
 
-@json
+@json.json()
 pub data Twice:
     x: i64
 impl json.Encode for Twice by Structure
-# error: overlapping-impl: json.Encode for Twice is already implemented by @json
+# error: overlapping-impl: json.Encode for Twice is already implemented by @json.json
 #   (ordinary 09 Overlap; tier 1 is sugar for this impl, as in Rust's E0119)
 
-fn dump[X < Structure](x: X)
+# in the module that declares the marker trait Audited
+pub trait Audited
+impl[T] Audited for T by Structure
+# error: a `by Structure` template must have a body that visits or builds;
+#   there are no marker templates (M12)
+
+fn dump[X < Structure](x: X) -> void:
+    pass
 # error: Structure may bound only a `by Structure` template
 
 impl Structure for Secret
@@ -631,7 +673,7 @@ fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
 #   generated code
 ```
 
-### Current Rules (M1-M11)
+### Current Rules (M1-M13)
 
 1. `Structure` is sealed (`impl Structure for T` is
    `sealed-trait-implementation`). It exists only inside `by Structure`
@@ -639,37 +681,62 @@ fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
 2. `impl[T] Trait for T by Structure:` declares a template. Only the trait's
    module may declare it, so there is at most one per trait. It never
    applies by itself, so it cannot overlap a hand-written impl (hd otherwise
-   has no blanket impls: 09 `bare-parameter-impl-target`).
+   has no blanket impls: 09 `bare-parameter-impl-target`). A template must
+   have a body that visits or builds; a bodiless template is an error, so
+   there are no marker templates (M12).
 3. `impl Trait for X by Structure:` (tier 2) applies one trait's template to
    `X`. Its body overrides template methods like default methods and carries
-   M3 member lines: `f += [facts]`, `f = [facts]`, `f = pass`.
-4. Member lines are local to their impl (M10). Declaration facts are
-   visible to every impl. Tier-2 blocks for related traits (such as `Encode`
-   and `Decode`) are written separately and may repeat lines (M11).
-5. Tier 1: an annotation function runs at compile time and returns a value
-   of type `V`. `@f(...)` on `X` is exactly one tier-2 block for each trait
-   whose template lives in `V`'s package and that declares a parameterless
-   associated function returning `V`, with that function overridden to
-   return the annotation's value. (Proposed; not yet confirmed.)
-6. There is no separate duplicate rule: tier 1 is sugar for tier-2 impls, so
+   M3 member lines: `f += [facts]`, `f = [facts]`, `f = pass`. The line
+   named `Self` edits the type-level facts: `Self += [facts]`,
+   `Self = [facts]` (M13).
+4. Member lines, `Self` lines included, are local to their impl (M10).
+   Declaration facts, type-level and member, are visible to every impl.
+   Tier-2 blocks for related traits (such as `Encode` and `Decode`) are
+   written separately and may repeat lines, and their configuration may
+   differ per direction (M11, M13).
+5. Tier 1: an annotation function runs at compile time and must be
+   requirement-free and non-suspending. On a type, its value is a type-level
+   fact, as a member annotation's value is a member fact (M13). The
+   annotation also opts the type in to templates, as bodiless tier-2 blocks
+   would. Which templates it selects is still open (open: P13).
+6. Configuration is a type-level fact, not a trait member (M13). There is
+   no `visitor()` hook. A template reads its configuration through
+   `Structure`, as in `T::describe().facts.find[Style]()`, and falls back to
+   its own default when none is present. Derivation adds no member to the
+   trait, so it does not affect the trait's dynamic safety. Accepted cost: a
+   missing or foreign fact silently means the default.
+7. There is no separate duplicate rule: tier 1 is sugar for tier-2 impls, so
    both on one type for one trait is an ordinary `overlapping-impl`
    (09 Overlap).
-7. Visitors and sources: an impl of the sealed `Visitor` or `Source` may
+8. Generic targets (M12): a derived impl for a generic type gets
+   `T < Trait` for each type parameter that appears in a visited member.
+   Recursion is checked coinductively: `Tree[T]` may assume its own impl
+   while its members are checked. When a member needs more (a `Set[T]`
+   member needs `T < Hash`), the error suggests a tier-2 block with an
+   explicit header, such as `impl[T < Trait + Hash] Trait for X[T] by
+   Structure`.
+9. Visitors and sources: an impl of the sealed `Visitor` or `Source` may
    strengthen `member[F]`'s bound; only generated `visit`/`build` may call
    `member` through a generic visitor or source; templates pass a concrete
    visitor or source; the member obligation is checked at the opt-in site,
    naming the member, and `= pass` members are exempt (M9).
-8. Nested members use their own derivation; a parent's visitor never
-   propagates (M7).
-9. Per-member customization is metadata only; custom behavior for one member
-   means changing the member's type (M6).
+10. Nested members use their own derivation; a parent's visitor never
+    propagates (M7).
+11. Per-member customization is metadata only; custom behavior for one member
+    means changing the member's type (M6).
+12. Comparison (M12, Swift model): there is one `Eq`, with
+    `fn eq(self, other: Self) -> bool`, and `PartialEq` is dropped. Floats
+    implement `Eq` with IEEE semantics (`NaN != NaN`, a documented law
+    exception). `PartialOrd` and `Ord` stay, so floats are
+    `Eq + PartialOrd` but not `Ord`. Not yet applied to 09.
 
 Still open: the compile-time evaluator's exact limits (proposed: a panic is a
 compile error at the annotation, a step budget, and results built from
 literals, data, enums, `List`, `Map`, strings, numbers, and references to
 named functions); function targets wait for [FN_TYPE.md](FN_TYPE.md); the
 chapter 14 rewrite and the removal of `Annotate` wait for the spec style
-rollout.
+rollout; P1-P3 (the core walk) and the rest of the
+[stress test](DERIVATION_STRESS_TEST.md)'s problems.
 
 ## Contents
 
@@ -1720,6 +1787,17 @@ block fails, as intended. Parsing checks syntax only; names such as `json`,
 | MCP adapter and registration | Parses; `FnView`, `fn_view`, `pack.try_map` are hypothetical. |
 | Probe, not shown: `@derive(json.Encode)` before `type Mile(i32)` | `syntax-error`: `decorated_decl` excludes `type_decl` (TQ-11 is not yet applied). |
 | Probe, not shown: a decorator before `trait` | `syntax-error`; not used by the recommendation. |
+
+The three blocks of the [current design](#current-design-full-example-m1-m13)
+and its [rules](#current-rules-m1-m13) were rewritten in specification
+syntax and checked with the same parser on 2026-09-27. The decision records
+M8 and M9 above keep their original spelling.
+
+| Block | Result |
+| --- | --- |
+| Full example (std.structure, library json, app) | As written, `syntax-error` at the first M3/M13 member line (`Self += [...]` in Order's Encode block), as expected. With the six lines marked `# hypothetical syntax` removed (and the colon of an impl header left without a body), parses. `by Structure` parses as the 09 delegation form. |
+| Generated code | Parses. |
+| Rejected code | Parses; every error shown is semantic. |
 
 Two reference-parser findings from this exercise:
 
