@@ -144,6 +144,103 @@ line keep the declaration's facts. This supersedes the "no
 compiler-interpreted fact" wording above: `= pass` is the one form that
 changes generated code.
 
+(M4, owner proposal 2026-09-27, under discussion) Derivation takes a
+visitor, so users can customize it (for example, camelCase for every field)
+without the library anticipating it. The library author writes an ordinary
+impl for a wrapper, `impl[T] Trait for Derive[T, V]:`, whose methods get the
+visitor with `Self::visitor()` and consume it however they choose (for
+example `Self::visitor().visit(self)`). The library author decides the
+visitor's type and how it is used; the compiler provides only `Structure`.
+Prior art: Haskell's `DerivingVia` with `Generically`. Open points: how
+`Self` in non-receiver positions (such as `decode -> Result[Self, E]`)
+forwards between `User` and `Derive[User, V]`, how M3's per-impl member lines
+reach the wrapper's impl, and how `visitor()` constructs a `V`.
+
+(M5, decided 2026-09-27) Two tiers of customization. Tier 1: a library
+annotation on the declaration, such as `@json(case: .Camel) data T:`, is the
+easiest way to derive; the annotation is a plain function returning a
+visitor. Tier 2: an explicit `impl Trait for T by Derive[T]:` with M3 member
+lines. The visitor stays a visitor: no map/reduce split (a fold would still
+need build and variant halves, and map-then-reduce allocates). `Structure` is
+opt-in, never implemented for every type automatically. An annotation
+function is evaluated at compile time and must be requirement-free and
+non-suspending.
+
+(M6, decided 2026-09-27) `Structure` is a sealed trait (09 Sealed Traits):
+`impl Structure for T` is rejected, and a type gets it only by opting in to a
+derivation (tier 1 or tier 2). A tier-1 annotation and a tier-2 impl of the
+same trait for the same type is an error. Per-member customization is
+metadata (facts) only; custom behavior for one member means changing that
+member's type. Direction for how an annotation knows its traits: the
+returned visitor's type carries that knowledge.
+
+(M7, decided 2026-09-27) Nested members use their own derivation: a parent's
+visitor never propagates into a member's type, as in serde and Go. Recursion
+is the visitor's per-member bound (`F < json.Encode`) calling `F`'s own impl.
+The owner asked to rethink the `Derive[T]` wrapper because forwarding `Self`
+between `T` and the wrapper needs coercions (Haskell's roles); a no-wrapper
+alternative is under discussion.
+
+(M8, decided 2026-09-27; supersedes the `Derive[T, V]` wrapper of M4)
+Derivation templates, no wrapper, so `Self` is always the user's type and
+nothing is forwarded:
+
+```text
+# std
+pub trait Derivable[V]:
+    fn visitor() -> V
+
+# library json
+pub type Json = Derivable[Style]                    # transparent alias
+impl[T] Json for T by Structure:                    # default visitor
+    fn visitor() -> Style:
+        Style()
+impl[T < Json] Encode for T by Structure:           # templates
+    fn to_json(self) -> string:
+        # Self::visitor(), self.visit(...)
+impl[T < Json] Decode for T by Structure:
+    fn from_json(text: string) -> Result[Self, DecodeError]:
+        # Self::visitor(), Self::build(...)
+
+# user, tier 2: one block per concern
+impl json.Json for Order by Structure:
+    fn visitor() -> json.Style:                     # override only to customize
+        json.json(key: .Some(legacy_key))
+    total_cents = [json.rename("total")]            # seen by Encode and Decode
+    cache = pass
+
+# user, tier 1: sugar for the same block, visitor() returning the value
+@json(case: .Camel)
+data User: ...
+```
+
+- `impl[T] Trait for T by Structure:` declares a template; it never applies
+  by itself, so it cannot overlap a hand-written impl. Only the trait's module
+  may declare it, so there is at most one per trait. Inside, `self` has
+  `Structure`. `Structure` may bound nothing else (`fn f[X < Structure]` is
+  rejected), and `impl Structure for T` stays `sealed-trait-implementation`.
+- `impl Trait for X by Structure:` applies the template. Its body overrides
+  template methods like default methods and carries M3 member lines, which
+  edit the `Structure` that instantiation sees.
+- The visitor travels only through `Derivable[V]`, a template *bound*, not a
+  supertrait, so hand-written impls (`impl json.Encode for Money`) need no
+  visitor.
+- Opting in to `Derivable[V]` by `Structure` (the tier-2 block, or a tier-1
+  annotation returning `V`) derives every template in `V`'s package that
+  requires `Derivable[V]`. Tier 1 is exactly the tier-2 block with
+  `visitor()` returning the annotation's compile-time value.
+- One block means member lines are written once, so encode and decode cannot
+  drift. A subset (only `Encode`) cannot be derived through the block; the
+  trait left out is hand-written.
+
+Open (gap 1): std's `Visitor::member[F]` cannot carry each library's bound
+(`F < json.Encode`, `F < db.Column`). Options: (1) a visitor impl of the
+sealed `Visitor`/`Source` may strengthen `F`'s bound, becoming the obligation
+"every visited member implements it", checked at the opt-in site and naming
+the member (`= pass` exempts it); templates must call `visit` with a concrete
+visitor (recommended; what decision 6 assumed); (2) trait-kinded generic
+parameters; (3) associated type packs from chapter 12.
+
 ## Contents
 
 1. [Problem](#problem)
