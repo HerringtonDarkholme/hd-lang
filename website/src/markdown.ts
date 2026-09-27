@@ -1,7 +1,10 @@
+import { posix } from "node:path";
+
 import markdownIt, { type MarkdownIt, type Token } from "markdown-it";
 
 import { parseSource } from "../../spec/reference-parser/parser.ts";
 import { classify } from "../../src/highlight.ts";
+import { type GrammarIndex, ruleAnchor, ruleTarget, tokenizeEbnf } from "./ebnf.ts";
 
 /** A heading found while rendering, used for the page outline and search. */
 export interface Heading {
@@ -21,6 +24,8 @@ export type RenderEnv = {
   readonly playgroundUrl: (code: string) => string;
   readonly headings: Heading[];
   readonly slugCounts: Map<string, number>;
+  /** The site-wide rule index that ```ebnf rule references link through. */
+  readonly grammar?: GrammarIndex;
 };
 
 /**
@@ -92,6 +97,48 @@ export function highlightHd(code: string): string {
     .join("\n");
 }
 
+/** The URL of rule `name`'s definition on page `target`, from the page `env` renders. */
+function ruleUrl(env: RenderEnv, target: string, name: string): string {
+  const fragment = `#${ruleAnchor(name)}`;
+  if (target === env.source) return fragment;
+  const relative = posix.relative(posix.dirname(env.source), target);
+  return env.resolveLink(relative + fragment, env.source);
+}
+
+/**
+ * Renders an EBNF block as spans with `eb-*` token classes. A rule's first
+ * definition on a page carries its anchor and links to the canonical
+ * definition (itself, on the page that owns the rule). A name in a rule body
+ * links to its definition on this page, else to the canonical one.
+ */
+export function highlightEbnf(code: string, env: RenderEnv): string {
+  return tokenizeEbnf(code)
+    .map(({ text, kind }) => {
+      const html = escapeHtml(text);
+      if (kind === "plain") return html;
+      if (kind === "definition") {
+        const id = ruleAnchor(text);
+        if (env.headings.some((heading) => heading.id === id))
+          throw new Error(`${env.source}: heading id ${id} collides with a grammar rule anchor`);
+        const first = !env.slugCounts.has(id);
+        if (first) env.slugCounts.set(id, 1);
+        const canonical = env.grammar?.definitions.get(text)?.[0] ?? env.source;
+        const restated = canonical !== env.source;
+        const href = restated ? ruleUrl(env, canonical, text) : `#${id}`;
+        const idAttribute = first ? ` id="${escapeHtml(id)}"` : "";
+        const title = restated ? ` title="Canonical definition: ${escapeHtml(canonical)}"` : "";
+        return `<a class="eb-definition" href="${escapeHtml(href)}"${idAttribute}${title}>${html}</a>`;
+      }
+      if (kind === "reference" || kind === "token") {
+        const target = env.grammar && ruleTarget(env.grammar, text, env.source);
+        if (target !== undefined)
+          return `<a class="eb-${kind}" href="${escapeHtml(ruleUrl(env, target, text))}">${html}</a>`;
+      }
+      return `<span class="eb-${kind}">${html}</span>`;
+    })
+    .join("");
+}
+
 function inlineText(token: Token): string {
   return (token.children ?? [])
     .filter((child) => child.type === "text" || child.type === "code_inline")
@@ -142,6 +189,8 @@ export function createMarkdown(): MarkdownIt {
     const token = tokens[index]!;
     const info = token.info.trim().split(/\s+/, 1)[0] ?? "";
     const code = token.content.replace(/\n$/, "");
+    if (info === "ebnf")
+      return `<pre class="code ebnf"><code class="language-ebnf">${highlightEbnf(code, asRenderEnv(env))}</code></pre>\n`;
     if (!isHdBlock(info, code)) {
       const language = info === "" ? "" : ` class="language-${escapeHtml(info)}"`;
       return `<pre class="code"><code${language}>${escapeHtml(code)}</code></pre>\n`;

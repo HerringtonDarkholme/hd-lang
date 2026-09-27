@@ -7,6 +7,7 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { buildSite, PAGES_BASE } from "../build.ts";
+import type { GrammarIndex } from "../src/ebnf.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "../src/learn-check.ts";
 import { checkLinks } from "../src/links.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
@@ -14,6 +15,8 @@ import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 let scratch = "";
+/** The rule index of the Pages-base build in the first test. */
+let grammar: GrammarIndex | undefined;
 
 before(async () => {
   scratch = await mkdtemp(join(tmpdir(), "hd-website-"));
@@ -32,6 +35,7 @@ describe("website build", () => {
       playgroundDist: join(scratch, "missing"),
     });
     assert.equal(result.playground, false);
+    grammar = result.grammar;
     const sources = new Set(PAGES.map((entry) => entry.source));
     for (const directory of ["spec", "guide"])
       for (const name of await readdir(join(REPO_DIR, directory)))
@@ -75,6 +79,56 @@ describe("website build", () => {
       Buffer.from(match[1]!, "base64url").toString("utf8"),
       '# hello.hd\nprintln("hello, hd-lang")',
     );
+  });
+});
+
+describe("grammar blocks", () => {
+  const RULE_LINK = /<a class="eb-(?:definition|reference|token)" href="([^"]*)"/g;
+
+  test("indexes the specification's rules and lists names no rule defines", () => {
+    assert.ok(grammar, "the Pages-base build ran");
+    for (const rule of ["source_file", "trait_decl", "requirement_clause", "identifier"])
+      assert.ok(grammar.definitions.has(rule), rule);
+    assert.equal(grammar.definitions.get("requirement_clause")?.[0], "spec/02-grammar.md");
+    assert.ok(grammar.linkedCount > 500);
+    assert.ok(grammar.abstractTokens.includes("NEWLINE"));
+    assert.ok(grammar.abstractTokens.includes("SUITE_END"));
+    for (const { name } of grammar.unresolved) assert.ok(!grammar.definitions.has(name), name);
+  });
+
+  test("anchors definitions and links references within and across pages", async () => {
+    const outDir = join(scratch, "pages");
+    const chapter = await readFile(join(outDir, "spec/02-grammar.html"), "utf8");
+    assert.match(
+      chapter,
+      /<a class="eb-definition" href="#rule-trait_decl" id="rule-trait_decl">trait_decl<\/a>/,
+    );
+    assert.match(chapter, /<a class="eb-reference" href="#rule-trait_member">trait_member<\/a>/);
+    assert.match(chapter, /<span class="eb-token">NEWLINE<\/span>/);
+    assert.match(chapter, /<span class="eb-terminal">&quot;trait&quot;<\/span>/);
+    assert.match(chapter, /<span class="eb-operator">\|<\/span>/);
+
+    const gadts = await readFile(join(outDir, "spec/13-gadts.html"), "utf8");
+    assert.match(
+      gadts,
+      /<a class="eb-reference" href="\/hd-lang\/spec\/02-grammar\.html#rule-decorator_line">decorator_line<\/a>/,
+    );
+
+    // Every rule link on every page names an anchor that exists in its target.
+    let checked = 0;
+    for (const entry of PAGES) {
+      const html = await readFile(join(outDir, entry.output), "utf8");
+      for (const [, href] of html.matchAll(RULE_LINK)) {
+        const hash = href!.indexOf("#");
+        const path = href!.slice(0, hash);
+        const target =
+          path === "" ? html : await readFile(join(outDir, path.slice(PAGES_BASE.length)), "utf8");
+        assert.ok(target.includes(` id="${href!.slice(hash + 1)}"`), `${entry.output}: ${href}`);
+        checked += 1;
+      }
+    }
+    // One link per definition and one per reference that names a rule.
+    assert.equal(checked, grammar!.definitionCount + grammar!.linkedCount);
   });
 });
 

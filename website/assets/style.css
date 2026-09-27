@@ -542,6 +542,61 @@ pre.code code {
   color: var(--hl-operator);
 }
 
+/* EBNF grammar blocks: rule names link to their definitions. */
+
+.eb-definition {
+  color: var(--hl-function);
+  font-weight: 600;
+}
+
+.eb-reference {
+  color: var(--hl-type);
+}
+
+.eb-token {
+  color: var(--hl-keyword);
+}
+
+.eb-terminal {
+  color: var(--hl-string);
+}
+
+.eb-operator {
+  color: var(--hl-operator);
+}
+
+.eb-comment {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+
+.eb-special {
+  color: var(--hl-literal);
+  font-style: italic;
+}
+
+pre.ebnf a {
+  text-decoration: none;
+  border-radius: 3px;
+}
+
+pre.ebnf a:hover,
+pre.ebnf a:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+pre.ebnf a:hover {
+  background: var(--accent-soft);
+}
+
+pre.ebnf .eb-definition:target {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* Home */
 
 .cards {
