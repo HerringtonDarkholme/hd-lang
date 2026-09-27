@@ -516,6 +516,41 @@ pub fn root_cause(error: Error) -> Error:
     current
 ```
 
+Context and boundary reports ([Error Conversion decision
+15](ERROR_CONVERSION.md#owner-decisions)):
+
+```text
+pub data Context:
+    pub message: string
+    pub cause: Error
+
+impl Display for Context:
+    fn to_string(self) -> string:
+        self.message
+
+impl Error for Context:
+    fn cause(self) -> Error?:
+        .Some(self.cause)
+
+pub fn context[T, E < Error](result: Result[T, E], message: string) -> Result[T, Error]:
+    match result:
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(Context { message: message, cause: error })
+
+pub data ErrorReport:                    # boundary-safe snapshot
+    pub message: string
+    pub causes: List[string]
+
+pub fn report_of(error: Error) -> ErrorReport:
+    let causes: mut List[string] = []
+    for part in chain(error):
+        causes.append(part.to_string())
+    ErrorReport { message: error.to_string(), causes: causes }
+```
+
+`.context(...)` is written as a method on `Result` once method syntax for
+it is settled; the free function shows its typing.
+
 `Error` extends the sealed `Inspectable`
 ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)), so it
 inherits `downcast` and `downcast_mut`, and a chain can be searched for a

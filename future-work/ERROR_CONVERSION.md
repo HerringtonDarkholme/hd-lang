@@ -66,18 +66,27 @@ Decided 2026-09-26:
     Markers, recognized only under `@derive(Error)`:
     - `@message("... $member ...")` on a variant, or on a data type: the
       `Display` text (see E1 below). A variant without `@message` displays as its variant name.
-    - `@from` on a one-payload variant: generates `impl From[P] for E`
-      (pure, as 09 requires) and makes the payload the cause. Two `@from`
-      variants with the same payload type are an error naming both. Common
-      enum fields of a `@from` variant must have defaults, otherwise the
-      error names the missing one. Generic payloads work (`@from
-      Inner(error: E)` in `enum AppError[E]` gives
-      `impl[E] From[E] for AppError[E]`).
-    - `@source` on a one-payload variant, or on a named payload member: that
-      member is the cause, with no `From` (for variants that share a payload
-      type with a `@from` variant).
+    - **Automatic `From`** (revised 2026-09-27, review): every one-payload
+      variant whose payload type implements `Error` gets
+      `impl From[P] for E` (pure, as 09 requires), unless another such
+      variant has the same payload type. Among conflicting variants, the one
+      marked `@from` gets the `From`; with none marked, none does and a lint
+      note names them (write the `From` by hand if you want one). Marking
+      more than one conflicting variant `@from` is an error naming them;
+      `@from` elsewhere is redundant and accepted. Unpromoted payloads such
+      as `Invalid(reason: string)` never yield `From[string]`, because
+      `string` does not implement `Error`. Common enum fields of a promoted
+      variant must have defaults, otherwise the error names the missing one.
+      A type-parameter payload is promoted with a generated `E < Error`
+      bound (`Inner(error: E)` in `enum AppError[E]` gives
+      `impl[E < Error] From[E] for AppError[E]`).
+    - **Automatic cause:** a variant's cause is its member whose type
+      implements `Error`, or is `E?` with `E < Error` (an absent optional
+      cause gives `.None`); a data-type error's cause is such a field. When a
+      variant or data type has two such members, `@source` on one of them
+      says which; otherwise `@source` is redundant and accepted.
     - `@transparent` on a one-payload variant: `Display` and `cause()`
-      forward to the payload; it may combine with `@from`.
+      forward to the payload.
     Refinements decided 2026-09-27: (E1) a `@message` text is an ordinary
     hd interpolated string (`$name`, `${expression}`) with the variant's
     payload members and the enum's common fields in scope, so placeholder
@@ -86,14 +95,12 @@ Decided 2026-09-26:
     always generated, so a hand-written `Display` cannot be combined with
     `@derive(Error)`; (E3) a `@transparent` variant's `cause()` returns the
     inner error's cause, as thiserror does, so `chain` does not repeat the
-    inner message; (E4) `@source` may mark one member of a multi-member
-    variant or one field of a data-type error
-    (`Parse(path: string, line: i64, @source error: SyntaxError)`); a
-    variant has at most one `@source` or `@from` member; the member's type
-    is `E < Error` or `E?` (an absent optional cause gives `.None`);
-    `@from` stays one-payload; common enum fields cannot be `@source`.
+    inner message; (E4) `@source` is written on a payload parameter or data
+    field (`Parse(path: string, line: i64, @source error: SyntaxError)`,
+    decision 12); common enum fields cannot be the cause.
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
-    `from`, `source`, `transparent`) and no more. It has no error codes:
+    conversions, causes, `transparent`), with conversions and causes
+    inferred where thiserror needs `#[from]` and `#[source]`, and no more. It has no error codes:
     inside a program the typed variant is the code (`find[T]()` then
     `match`), and codes for logs and APIs belong to the boundary-safe
     report type of decision 6 (miette keeps codes on a separate
@@ -112,6 +119,22 @@ Decided 2026-09-26:
     [STDLIB decision 7](STDLIB.md#owner-decisions)); code imports them with
     `use std.convert.From` and `use std.error.Error`. `?` uses `From` without
     the caller importing it.
+12. **Annotations on enum payload parameters** (2026-09-27, review F1):
+    the grammar accepts annotations before a payload parameter,
+    `Parse(path: string, @source error: SyntaxError)`, as it already does
+    on data field lines. Not yet applied to 02 or 08.
+13. **A failing entry point prints the error chain** (2026-09-27, review
+    R2) when its error type implements `Error`; otherwise it prints
+    `Display.to_string` as today. Not yet applied to 10.
+14. **`?` in test blocks** (2026-09-27, review R1): a `test` block is a
+    propagation target as if it returned `Result[void, Error]`; `.Err` fails
+    the test and prints the chain. Not yet applied to 05.
+15. **`std.error` sketches `.context(...)` and `ErrorReport`** (2026-09-27,
+    review R3): `fn context[T, E < Error](self: Result[T, E], message:
+    string) -> Result[T, Error]` producing a `Context { message, cause }`
+    error, and `ErrorReport { message, causes }` with
+    `report_of(error: Error) -> ErrorReport` as the boundary snapshot.
+    Library API (STDLIB), not specification text.
 
 ### Applied To The Specification
 
@@ -176,28 +199,23 @@ pub enum FsError:
 @derive(Error)
 pub enum RuleCoreError:
     @message("Fail to parse yaml as RuleConfig")
-    @from
-    Yaml(error: YamlError)
+    Yaml(error: YamlError)                    # From and cause, automatic
     @message("`utils` is not configured correctly.")
-    @source
-    Utils(error: RuleSerializeError)
+    Utils(error: RuleSerializeError)          # shares its payload type: cause only
     @message("`rule` is not configured correctly.")
     @from
-    Rule(error: RuleSerializeError)
+    Rule(error: RuleSerializeError)           # the tie-break: this one gets From
     @message("Undefined meta var `$var` used in `$context`.")
     UndefinedMetaVar(var: string, context: string)
 
 @derive(Error)
 pub enum LoadError:
     @message("$path:$line: invalid rule")
-    @source(error)
-    Parse(path: string, line: i64, error: SyntaxError)
+    Parse(path: string, line: i64, error: SyntaxError)   # cause: the one Error-typed member
     @message("cannot read $path")
-    @source(error)
-    Read(path: string, error: FsError?)
+    Read(path: string, error: FsError?)                  # an optional cause
     @transparent
-    @from
-    Rules(error: RuleCoreError)
+    Rules(error: RuleCoreError)               # From automatic; message and cause forward
 
 @derive(Error)
 @message("config $name is missing")
@@ -222,16 +240,15 @@ fn run(path: string) -> Result[void, Error]:
 2. **`@derive(Error)`** (decision 10, E1-E4) is a compiler intrinsic, Rust's
    `thiserror` moved into hd, on an enum or a data type. It generates
    `impl Display` (always; a variant without `@message` displays as its
-   name), `impl Error` with `cause()`, and one `impl From[P] for E` per
-   `@from` variant. Markers: `@message("...")` (an ordinary hd interpolated
-   string with the payload members and common fields in scope),
-   `@from` (one-payload variant: `From` plus cause; two with one payload
-   type are an error), `@source` (the cause without `From`; for a
-   multi-member variant written `@source(member)` on the variant, for a
-   data type on the field; its type is `E < Error` or `E?`),
-   `@transparent` (message and `cause()` forward to the payload; `cause()`
-   returns the inner error's cause). At most one `@source`/`@from` member
-   per variant. No error codes.
+   name), `impl Error` with `cause()`, and `From` conversions. `@message`
+   is an ordinary hd interpolated string with the payload members and
+   common fields in scope. `From` is automatic for every one-payload
+   variant whose payload implements `Error` and whose payload type is
+   unique among them; among conflicting variants only a `@from`-marked one
+   gets it. The cause is automatic: the member whose type implements
+   `Error` (or `E?`); `@source` picks one when there are two.
+   `@transparent` forwards message and `cause()` (to the inner error's
+   cause). No error codes.
 3. **`?`** ([05 Propagation](../spec/05-expressions.md#propagation)):
    assignability by one rule (including construction of the erased
    `Error`), otherwise one call of the target's `From[E]`; never both, never
@@ -251,9 +268,23 @@ fn run(path: string) -> Result[void, Error]:
    enters a durable history; code converts it to a domain enum or a report
    value first (decision 6).
 8. **Entry point:** `pub fn main() -> Result[void, E]` with `E < Display`
-   renders the error with `Display.to_string` and exits with status 1
-   ([10 Executable Entry Point](../spec/10-modules.md#executable-entry-point)).
-9. **Not in hd, deliberately:** anonymous error unions (decision 9), a
+   exits with status 1 on `.Err`; when `E` implements `Error` (including the
+   erased `Error`) the runtime prints the message and then each cause as
+   `caused by: ...`, otherwise `Display.to_string` (decision 13;
+   [10 Executable Entry Point](../spec/10-modules.md#executable-entry-point)
+   today prints only `Display.to_string`).
+9. **Tests:** `?` works in a `test` block as if the block returned
+   `Result[void, Error]`; an `.Err` fails the test and prints the chain
+   (decision 14; 05 Propagation today gives test blocks no target).
+10. **Context and reports** (decision 15, `std.error` API):
+    `result.context("loading rules")` wraps any `E < Error` into the erased
+    `Error` as a std `Context { message, cause }`; `ErrorReport { message,
+    causes }` with `report_of(error)` is the boundary-safe snapshot.
+11. **Generic error types:** a generated impl for `enum AppError[E]` gets
+    `E < Error` for a `@from`/`@source` member of type `E` and `E < Display`
+    when a message interpolates it, per used parameter (typed derivation
+    M12's rule).
+12. **Not in hd, deliberately:** anonymous error unions (decision 9), a
    mapping clause on `?` (decision 8), chained conversions (decision 5),
    impl-family derivation outside `@derive(Error)`.
 
@@ -261,9 +292,9 @@ fn run(path: string) -> Result[void, Error]:
 
 Not decided, and deliberately not specified:
 
-- **`@derive(Error)`** (decision 10) is decided but not yet in the
-  specification (09 Error Trait and Comparison Traits' `@derive` list, 08
-  for variant annotations).
+- **`@derive(Error)`** (decision 10) and decisions 12-14 (payload-parameter
+  annotations, chain printing at the entry point, `?` in test blocks) are
+  decided but not yet in the specification (02, 05, 08, 09, 10).
 - **`Console.write_line!` taking `mut self`,** raised by the recording
   `BufferConsole` in [STDLIB](STDLIB.md#stdconsole), is tracked with
   [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), not here.
