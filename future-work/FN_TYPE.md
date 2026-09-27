@@ -1,8 +1,7 @@
 # Nominal Function Types: Survey And Design Options
 
-Status: design exploration. Nothing here is accepted language behavior. The
-specification, the prototype compiler, and the recorded decisions are
-unchanged. Questions for the owner are at the end.
+Status: design exploration with owner decisions 1-4 (2026-09-27); nothing
+is applied to the specification yet. Remaining questions are at the end.
 
 The owner's sketch is to make function types an ordinary generic type
 constructor, `Fn[Is..., O, Rs...]`, so that the rules for nominal types
@@ -17,6 +16,34 @@ uppercase generic parameters (including row parameters), `AnyRef` and
 was parsed with the [reference parser](../spec/reference-parser/index.ts) on
 2026-09-27 unless its first line says **Hypothetical syntax**. A block that
 parses still needs the rules proposed here to type-check.
+
+## Owner Decisions
+
+Decided 2026-09-27:
+
+1. **Q1: `Fn[(Is...), O, R]`.** The inputs are one tuple-kinded argument,
+   the output one type, and the requirement row one row-kinded argument.
+   One constructor covers every arity; one impl over `Fn[(Is...), O, R]`
+   covers all functions.
+2. **Q2: no mutation capability on function types.** A closure may mutate
+   its captures freely (as in Swift, Kotlin, and Go); `mut fn`, the
+   `mutable-capture-requires-mut-fn` rule, and the plain closure's
+   readonly view of its captures are removed, and `mut` on a function type
+   is an error (a function value has no fields to take a permission on).
+   Rust's `FnMut` exists for unique borrows, which hd does not have. The
+   standard constructors are therefore `Fn` and `SuspendFn` only, and
+   question 6 disappears.
+3. **Q3: the sugar is exact.** `fn(A) -> O $ R` and `Fn[(A,), O, R]` are the
+   same type, either spelling is valid anywhere, and diagnostics print the
+   sugar, as for `T?` and `Option[T]`.
+4. **Q4: varargs stay in function types, through a marker element** of the
+   input tuple, for example `Fn[(string, Rest[i32]), i32, $()]` for
+   `fn(string, i32...) -> i32`; `Rest[T]` is valid only as the final element
+   of a function type's input tuple.
+
+Open: questions 5 and 7 to 12, and the requirement-row spelling the owner
+raised the same day (rows list separate injected values, so `+`, which
+elsewhere means several bounds on one type, may be the wrong separator).
 
 ## Contents
 
