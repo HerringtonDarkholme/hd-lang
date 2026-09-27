@@ -442,9 +442,11 @@ and a `mut s` gives `mut Cell`; `Source::member[F](h) -> F` produces the
 member's declared type. `build` returns `mut Self`, because a built value
 is fresh like a data literal; callers weaken it by ordinary assignability.
 
-(M18, decided 2026-09-27 while reviewing the parked design) R5: handles
-must not escape the walk (no capture, no storage); this waits for the
-parked NonEscapable design (TQ-24 to TQ-26), so typed derivation stays
+(M18, decided 2026-09-27 while reviewing the parked design) R5 (revised
+the same day): handles may escape the walk for now; opting a type in is
+consent for that library to read its members, as with round 1's `visit`.
+This may change when the parked NonEscapable design (TQ-24 to TQ-26) is
+ready, which could make handles non-escaping; typed derivation is not
 blocked on it. P8: traversal stays pure: `walk`, `build`, `Walker`, and
 `Source` have the empty requirement row and never suspend; I/O happens
 before `build`, as in serde. R3: the comparison traits (`Eq`, `PartialOrd`,
