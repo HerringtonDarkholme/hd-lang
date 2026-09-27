@@ -37,6 +37,10 @@ const portableManifest = resolve(root, "test/portable/cases.tsv");
 const conformanceRunner = resolve(root, "spec/tools/run-conformance.ts");
 const fixtureRoot = resolve(root, "test/fixtures");
 
+// Fixture expectations compare plain text; a FORCE_COLOR inherited from the
+// caller's shell or CI would make Node color printed values.
+const { FORCE_COLOR: _forceColor, ...childEnv } = process.env;
+
 function splitCommand(value: string): string[] {
   const parts: string[] = [];
   const pattern = /"([^"]*)"|'([^']*)'|([^\s]+)/g;
@@ -77,6 +81,7 @@ async function invoke(
   return new Promise((complete, reject) => {
     const child = spawn(command[0]!, [...command.slice(1), action, ...options, path], {
       cwd: root,
+      env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

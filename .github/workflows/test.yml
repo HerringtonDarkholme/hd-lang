@@ -1,0 +1,68 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request supersedes the running one.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check (types, lint, format, tests, fuzz smoke, spec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: npm run check
+
+  e2e:
+    name: End-to-end (playground and website)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The website's REPL panel uses the playground's compiler worker, so the
+      # playground is built first.
+      - name: Build playground
+        run: npm run playground:build
+
+      - name: Build website
+        run: npm run website:build
+
+      # ubuntu runners ship Google Chrome at /usr/bin/google-chrome, which
+      # playground/test/chrome.ts finds.
+      - name: Playground end-to-end
+        run: npm run playground:e2e
+
+      - name: Website end-to-end
+        run: npm run website:e2e
