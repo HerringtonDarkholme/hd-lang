@@ -54,6 +54,11 @@ Decided 2026-09-26:
 9. **Question 9: `TypeId::of[T]()` exists.**
 10. **Question 12: no type-pattern sugar in `match` for now.**
 11. **Question 13: `std.error` ships `root_cause`.**
+12. **Question 10: a `TypeId` is derived from the code identity,** so it is
+    the same in every process and run of one build (resumed workflows are
+    pinned to their build, and histories never hold erased values or
+    `TypeId`s). It is not meant to be persisted across builds; use explicit
+    versioned tags for that.
 
 ## Contents
 
