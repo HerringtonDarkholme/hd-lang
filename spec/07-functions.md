@@ -182,6 +182,9 @@ function type writes an ellipsis after its final element type, such as
 `fn(string, i32...) -> i32`.
 
 A named function value may be passed anywhere its function type is expected.
+So may a variant constructor with exactly one payload field, such as
+`SyncError.Fs` of type `fn(FsError) -> SyncError`
+([Enum Declarations](08-data-and-enums.md#enum-declarations)).
 Function types are invariant in parameter and result types. Parameter and
 result types must therefore match after transparent alias expansion; ordinary
 numeric or reference-view coercions do not create a different function value
@@ -485,3 +488,10 @@ such as `User::guest()`, `Display::to_string(value)`, or
 `Add[Money]::add(left, right)` remains an ordinary call. An explicit closure,
 such as `fn(user: User) -> string: user.domain()`, adapts a method where a
 function value is needed.
+
+The deferral covers methods and associated functions only. A variant
+constructor with exactly one payload field, written `Enum.Variant` with a
+`.` and no argument clause, is already a function value
+([Enum Declarations](08-data-and-enums.md#enum-declarations)); a
+constructor with two or more payload fields stays an
+`unsaturated-enum-constructor` error.

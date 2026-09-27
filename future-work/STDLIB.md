@@ -52,6 +52,8 @@ every user module that already declares it.
 | `std.annotation` | shape and annotator names | [Annotations](../spec/14-annotations.md) |
 | `std.testing` | `assert`, `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
+| `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
+| `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
 | `std.time` | `Duration` | [Use Forms](../spec/10-modules.md#use-forms) (example) |
 | `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -256,7 +258,8 @@ std
 ├── bytes           Bytes (decision 5)
 ├── option          inherent methods on T?
 ├── result          inherent methods on Result[T, E]
-├── error           Error trait, error chains
+├── convert         From[T] (fixed)
+├── error           Error trait (fixed), error chains
 ├── collections     Set, Deque, SortedMap, SortedSet; inherent List and Map methods
 ├── path            Path (pure, platform-neutral)
 ├── resource        ResourceError[E] (fixed)
@@ -490,8 +493,15 @@ chain can be searched for a concrete type with `downcast`. Until that issue
 lands, `Error` has only `Display` and `cause`. Domain errors (`FsError`,
 `HttpError`) are enums that implement `Error`.
 
-How `?` combines errors from several domains is drafted in
-[Error Conversion](ERROR_CONVERSION.md).
+The specification fixes the trait's module, its `Display` supertrait, the
+rule that every member has a default, and that an erased `Error` never
+crosses a registered boundary ([Error Trait](../spec/09-traits.md#error-trait)).
+`cause`, `Context`, `.context(...)`, and `chain` are library API. How `?`
+combines errors from several domains is specified in
+[Propagation](../spec/05-expressions.md#propagation), with the conversion
+trait `std.convert.From` in
+[Conversion Trait](../spec/09-traits.md#conversion-trait); the design record
+is [Error Conversion](ERROR_CONVERSION.md).
 
 ### `std.collections`
 

@@ -1,0 +1,15 @@
+# test: a From implementation must not declare a requirement row
+# Spec 09 Conversion Trait: an implementation whose `from` declares a requirement clause is a
+# `trait-method-signature` error.
+use std.convert.From
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError $ Console:  # diagnostic: trait-method-signature
+        println("converting")
+        SyncError.Fs(value)

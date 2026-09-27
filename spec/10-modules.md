@@ -142,6 +142,12 @@ prelude: prelude names are used directly and are not re-imported.
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 | `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
+Standard traits outside this table are imported. The conversion trait
+`std.convert.From` ([Conversion Trait](09-traits.md#conversion-trait)) and
+the error trait `std.error.Error` ([Error Trait](09-traits.md#error-trait))
+are not prelude names, so a module may declare its own `From` or `Error`.
+Postfix `?` still finds the standard `From` without an import.
+
 The built-in collection types are `List` and `Map`. Like every nominal type
 outside the primitives, they are capitalized. The lowercase names `list` and
 `map` are not prelude names; they resolve like any other identifier, so a type
@@ -369,7 +375,10 @@ pub fn main() -> void:
 
 It may instead return `Result[void, E]`, in which case `Err` reports invocation
 failure through the runtime adapter and requires `E < Display`; an error type
-without that implementation is an `entry-error-not-display` error. The host
+without that implementation is an `entry-error-not-display` error. A dynamic
+trait value type whose trait is `Display` or has it as a supertrait, such as
+the erased `std.error.Error`, satisfies the requirement
+([Dynamic Trait Values](09-traits.md#dynamic-trait-values)). The host
 renders the error with `Display.to_string` and exits with status 1. A panic exits with a
 distinct nonzero status selected by the runtime profile and poisons the program
 instance. `main` has no source-level arguments;
@@ -408,7 +417,10 @@ Registered boundaries initially allow recursively structural values:
 
 Mutable types, dynamic trait values, closures, and live runtime handles are not
 boundary-safe. Requirement-row entries are host bindings and are not serialized
-parameters.
+parameters. In particular, the erased error `std.error.Error`
+([Error Trait](09-traits.md#error-trait)) never crosses a registered boundary:
+a registered function returns a boundary-safe error type, such as a domain
+error enum, and code converts an erased error to such a type explicitly.
 
 Boundary values have tree semantics. Encoding a cycle is a boundary error;
 when an acyclic graph shares a node, each incoming path encodes a duplicate

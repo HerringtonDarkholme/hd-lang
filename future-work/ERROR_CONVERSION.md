@@ -1,10 +1,14 @@
 # Error Conversion
 
-Status: design draft for
+Status: design record for
 [Roadmap area 4](ROADMAP.md#4-standard-library), with one type-checking
-change for [area 2](ROADMAP.md#2-type-checking-rules). Nothing here is
-accepted. Accepted parts move into the
-[specification](../spec/README.md) and [Standard Library Design](STDLIB.md).
+change for [area 2](ROADMAP.md#2-type-checking-rules). The owner decided the
+questions on 2026-09-26 ([Owner Decisions](#owner-decisions)), and the
+language parts are applied to the [specification](../spec/README.md); library
+API stays in [Standard Library Design](STDLIB.md).
+[Still To Do](#still-to-do) lists what is not settled. The survey, candidates,
+and questions below are kept as the record of how the decisions were reached;
+the sections on the specification describe it as it was before them.
 
 The standard-library draft fixes one error enum per domain (`FsError`,
 `HttpError`, `ConsoleError`; [STDLIB owner decision 6](STDLIB.md#owner-decisions)).
@@ -30,9 +34,9 @@ Decided 2026-09-26:
 2. **Question 2: a general `From[T]` trait, not a narrow `FromError`.** When
    assignability fails, `?` converts the error through the target error
    type's `From[E]` implementation. `From` is an ordinary conversion trait
-   that other code may also call. Still to settle: whether a `From`
-   implementation may have a requirement row or suspend, and whether `?`
-   ever chains conversions (the single-step rule of TQ-14 suggests not).
+   that other code may also call. Whether a `From` implementation may have a
+   requirement row or suspend, and whether `?` ever chains conversions, were
+   left open here and settled by decision 5.
 3. **Questions 3 and 4: the erased application error is the dynamic trait
    value `Error`,** and `std` ships `.context("...")`, `Context`, and cause
    `chain`.
@@ -51,6 +55,65 @@ Decided 2026-09-26:
 9. **Question 10: no anonymous error unions.**
 10. **Question 11: derived `From` implementations wait for typed
     derivation.**
+11. **Location: `From[T]` is declared in `std.convert` and the erased error
+    trait in `std.error`.** Neither is a prelude name (consistent with
+    [STDLIB decision 7](STDLIB.md#owner-decisions)); code imports them with
+    `use std.convert.From` and `use std.error.Error`. `?` uses `From` without
+    the caller importing it.
+
+### Applied To The Specification
+
+Applied 2026-09-26:
+
+- **Decisions 1, 2, and 5:** [Propagation](../spec/05-expressions.md#propagation)
+  defines the one-step rule: assignability by one rule, otherwise one call of
+  the target's `From[E]` implementation, never both and never chained;
+  anything else is `invalid-result-propagation`.
+  [Result Types](../spec/04-type-system.md#result-types) points to it.
+  [Conversion Trait](../spec/09-traits.md#conversion-trait) declares
+  `From[T]` with the purity rule: a `from` with a requirement clause or `!`
+  does not match the trait method and is `trait-method-signature`, so no new
+  diagnostic code was needed. It also covers ordinary coherence and direct
+  `Target::from(x)` calls, which choose among instantiations like a dot call.
+- **Decision 3 (language part) and decision 6:**
+  [Error Trait](../spec/09-traits.md#error-trait) states that `std.error`
+  declares `Error < Display`, that every member has a default, that the
+  dynamic value `Error` is the erased application error, and that it never
+  crosses a registered boundary ([Wasm Boundary](../spec/10-modules.md#wasm-boundary)).
+  `.context`, `Context`, `cause`, and `chain` stay library API in
+  [STDLIB](STDLIB.md#stderror).
+- **Decision 4:** [Dynamic Trait Values](../spec/09-traits.md#dynamic-trait-values)
+  states that a dynamic trait value type satisfies bounds on its own trait
+  and its supertraits; [Executable Entry Point](../spec/10-modules.md#executable-entry-point)
+  notes that `Result[void, Error]` is a valid entry result.
+- **Decision 7:** [Enum Declarations](../spec/08-data-and-enums.md#enum-declarations)
+  makes a single-payload variant constructor a function value;
+  [Function Types And Values](../spec/07-functions.md#function-types-and-values)
+  and [Unsupported Function Extensions](../spec/07-functions.md#unsupported-function-extensions)
+  cross-reference it from the method-value deferral (P6). Two or more
+  payload fields stay `unsaturated-enum-constructor`.
+- **Decisions 8 and 9:** listed as unsupported extensions in
+  [Expressions](../spec/05-expressions.md#unsupported-expression-extensions)
+  and [Type System](../spec/04-type-system.md#unsupported-type-system-extensions).
+- **Decision 11:** [Prelude](../spec/10-modules.md#prelude) and the two
+  trait sections name the modules.
+
+## Still To Do
+
+Not decided, and deliberately not specified:
+
+- **`downcast` and `find[T]` on error chains.** They are designed with
+  `Inspectable` in [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified).
+  Until then `Error` has no downcast, and the specification says only that
+  every `Error` member has a default.
+- **Derived `From`** (decision 10) waits for
+  [typed derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+- **`Console.write_line!` taking `mut self`,** raised by the recording
+  `BufferConsole` in [STDLIB](STDLIB.md#stdconsole), is tracked with
+  [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), not here.
+- **Error-chain helpers** (`cause`, `Context`, `.context`, `chain`, a chain
+  printer) are standard-library API for [STDLIB](STDLIB.md#stderror), not
+  specification text.
 
 ## Contents
 
@@ -115,7 +178,7 @@ Today the author has three ways out, all by hand:
 
    Parses. (The prototype also rejects this block, because it types the
    `return` arm as `void` instead of `never`; that is a prototype bug, not a
-   language rule.)
+   language rule. Fixed 2026-09-26.)
 
 2. **`map_err` with a closure.** Not in the normative method table yet;
    [STDLIB owner decision 8](STDLIB.md#owner-decisions) lets `std` add it as

@@ -1,0 +1,20 @@
+# test: ? never follows a From conversion with an optional injection
+# Spec 05 Propagation: a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is
+# `invalid-result-propagation`, because the conversion to `B` would need an injection after it.
+use std.convert.From
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
+
+fn read_config(path: string) -> Result[string, FsError]:
+    Err(FsError.NotFound(path))
+
+fn sync(path: string) -> Result[string, SyncError?]:
+    text := read_config(path)?  # diagnostic: invalid-result-propagation
+    Ok(text)

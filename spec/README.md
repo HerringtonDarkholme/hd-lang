@@ -472,3 +472,30 @@ existing source. Each entry names the decision that made the change.
   `unknown-type` error unless a declaration in scope supplies `list`. Literals
   are unchanged: `[1, 2]` has type `List[i32]` and `{"k": 1}` has type
   `Map[string, i32]`.
+- Error conversion (Error Conversion decisions 1 to 11): postfix `?` on a
+  `Result` defines "accepts" as one step. The error propagates when it is
+  assignable to the enclosing error type by one assignability rule;
+  otherwise `?` calls that type's `From[E]` implementation once. The two
+  steps never combine and conversions never chain. A `?` whose error was
+  previously rejected for not matching exactly may now be accepted: an
+  `FsError` that implements a dynamically safe trait `Tr` propagates into
+  `Result[U, Tr]`, and an `FsError` propagates into `Result[U, SyncError]`
+  when `SyncError` implements `From[FsError]`. Anything else stays
+  `invalid-result-propagation`. The standard library declares the
+  conversion trait `From[T]` in `std.convert` and the error trait `Error`
+  (a `Display` subtrait whose members all have defaults) in `std.error`.
+  Neither is a prelude name, so a module may still declare its own `From`
+  or `Error`. A `from` with a requirement clause or `!` is
+  `trait-method-signature`. The erased `Error` never crosses a registered
+  boundary.
+- Error conversion, decision 4: a dynamic trait value type satisfies a
+  generic bound on its own trait and on its supertraits. A call such as
+  `show(value)` with `value: Display` and `fn show[T < Display]`, previously
+  `unsatisfied-trait-bound`, is valid, and `Result[void, Error]` is a valid
+  entry-point result.
+- Error conversion, decision 7: a variant constructor with exactly one
+  payload field, written without an argument clause, is a function value of
+  type `fn(P) -> Enum`. `ToolError.NotFound` with one payload, previously
+  `unsaturated-enum-constructor`, is valid. A constructor with two or more
+  payload fields stays `unsaturated-enum-constructor`. Postfix `?` has no
+  mapping clause, and there are no anonymous error unions.

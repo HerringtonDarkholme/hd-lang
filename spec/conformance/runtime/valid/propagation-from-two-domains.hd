@@ -1,0 +1,65 @@
+# test: ? converts errors from two domains through the target's From implementations
+# Spec 05 Propagation, step 2: when the error is not assignable to the enclosing error
+# type, ? returns the result of the target's From[E] implementation.
+use std.convert.From
+use std.testing.assert_equal
+
+enum FsError:
+    NotFound(path: string)
+
+enum HttpError:
+    Timeout(url: string)
+
+enum SyncError:
+    Fs(error: FsError)
+    Http(error: HttpError)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
+
+impl From[HttpError] for SyncError:
+    fn from(value: HttpError) -> SyncError: SyncError.Http(value)
+
+fn read_config(path: string) -> Result[string, FsError]:
+    if path == "config.txt":
+        Ok("https://example.test")
+    else:
+        Err(FsError.NotFound(path))
+
+fn fetch(url: string, online: bool) -> Result[string, HttpError]:
+    if online:
+        Ok("body of " + url)
+    else:
+        Err(HttpError.Timeout(url))
+
+fn sync(path: string, online: bool) -> Result[string, SyncError]:
+    url := read_config(path)?
+    body := fetch(url, online)?
+    Ok(body)
+
+fn fs_path(error: FsError) -> string:
+    match error:
+        FsError.NotFound(path) => path
+
+fn http_url(error: HttpError) -> string:
+    match error:
+        HttpError.Timeout(url) => url
+
+fn label(error: SyncError) -> string:
+    match error:
+        SyncError.Fs(inner) => "fs: " + fs_path(inner)
+        SyncError.Http(inner) => "http: " + http_url(inner)
+
+fn describe(result: Result[string, SyncError]) -> string:
+    match result:
+        Ok(body) => body
+        Err(error) => label(error)
+
+test "both steps succeed":
+    assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")
+
+test "a file error converts to SyncError.Fs":
+    assert_equal(describe(sync("missing.txt", true)), "fs: missing.txt", reason="From[FsError]")
+
+test "a network error converts to SyncError.Http":
+    assert_equal(describe(sync("config.txt", false)), "http: https://example.test", reason="From[HttpError]")

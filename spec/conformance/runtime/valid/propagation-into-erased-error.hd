@@ -1,0 +1,36 @@
+# test: ? propagates a domain error into the erased Error by single-step assignability
+# Spec 05 Propagation, step 1: an error assignable to the enclosing error type by one
+# assignability rule, here construction of a dynamic trait value, is returned converted.
+use std.error.Error
+use std.testing.assert_equal
+
+enum FsError:
+    NotFound(path: string)
+
+impl Display for FsError:
+    fn to_string(self) -> string:
+        match self:
+            FsError.NotFound(path) => "not found: " + path
+
+impl Error for FsError
+
+fn read_config(path: string, present: bool) -> Result[string, FsError]:
+    if present:
+        Ok(" https://example.test ")
+    else:
+        Err(FsError.NotFound(path))
+
+fn load(path: string, present: bool) -> Result[string, Error]:
+    text := read_config(path, present)?
+    Ok(text.trim())
+
+fn describe(result: Result[string, Error]) -> string:
+    match result:
+        Ok(text) => text
+        Err(error) => "error: " + error.to_string()
+
+test "the success value continues":
+    assert_equal(describe(load("a.txt", true)), "https://example.test", reason="Ok passes through ?")
+
+test "the domain error becomes an erased Error":
+    assert_equal(describe(load("a.txt", false)), "error: not found: a.txt", reason="Err is wrapped as a dynamic Error value")

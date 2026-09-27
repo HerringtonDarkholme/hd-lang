@@ -1,0 +1,35 @@
+# test: ? uses assignability before a From implementation
+# Spec 05 Propagation: the error becomes the returned error by the first step that applies;
+# an identical error type is assignable, so a reflexive From implementation is not called.
+use std.convert.From
+use std.testing.assert_equal
+
+enum Failure:
+    Original(code: i32)
+    Converted
+
+impl From[Failure] for Failure:
+    fn from(value: Failure) -> Failure: Failure.Converted
+
+fn fail() -> Result[i32, Failure]:
+    Err(Failure.Original(7))
+
+fn relay() -> Result[i32, Failure]:
+    value := fail()?
+    Ok(value)
+
+fn failure_code(failure: Failure) -> i32:
+    match failure:
+        Failure.Original(code) => code
+        Failure.Converted => -1
+
+fn code(result: Result[i32, Failure]) -> i32:
+    match result:
+        Ok(value) => value
+        Err(failure) => failure_code(failure)
+
+test "the identical error type propagates unchanged":
+    assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
+
+test "a direct call still uses the implementation":
+    assert_equal(code(Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")

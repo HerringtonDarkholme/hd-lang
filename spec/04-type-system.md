@@ -243,8 +243,14 @@ spelling for this case.
 
 Postfix `?` on `Result[T, E]` either produces the success value or immediately
 returns the error from the nearest function. The enclosing function must return
-a `Result[U, F]` whose error type accepts the propagated error. Returning an
-`Err` value without `?` does not itself alter control flow. The success value
+a `Result[U, F]`. The error reaches `F` in one step: by one rule of
+[Assignability And Coercion](#assignability-and-coercion), or otherwise by one
+call of `F`'s `From[E]` implementation
+([Conversion Trait](09-traits.md#conversion-trait)). It is never both, and
+conversions are never chained. [Propagation](05-expressions.md#propagation)
+defines the rule and its diagnostic. Returning an
+`Err` value without `?` does not itself alter control flow, and it never
+calls a conversion. The success value
 retains its declared generic type `T`, including `mut U` when `T = mut U`,
 regardless of whether the `Result` value itself is readonly.
 
@@ -700,6 +706,11 @@ cannot be reversed without an unsupported downcast. This direct widening may
 rewrap dispatch metadata and is therefore not representation-preserving for a
 variance conversion.
 
+A dynamic trait value type satisfies a generic bound on its own trait and on
+each of that trait's supertraits, so a `Display` value is a valid argument
+for `T < Display`. It is still not an implementation target;
+[Dynamic Trait Values](09-traits.md#dynamic-trait-values) gives the rule.
+
 `Any` is the built-in universal empty trait. Every value type, including an
 optional type, satisfies it automatically. As a value type, `Any` erases the concrete type.
 `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
@@ -903,7 +914,11 @@ injection do not, which is why [Variance](#variance) excludes them.
 
 ## Unsupported Type-System Extensions
 
-The language has no runtime type tests or downcasts involving trait values. The exact
+The language has no runtime type tests or downcasts involving trait values.
+It has no anonymous union types, including error unions such as
+`FsError | HttpError`: an error type is a nominal type or a dynamic trait
+value such as `std.error.Error`
+([Error Trait](09-traits.md#error-trait)). The exact
 host representation of a checked runtime panic is an ABI concern; its
 language-level control-flow semantics are defined in
 [Control Flow](06-control-flow.md#runtime-panics).
