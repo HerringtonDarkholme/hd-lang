@@ -19,6 +19,7 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
+import { optionalType } from "../types.ts";
 import { ExpressionParser } from "./expression.ts";
 import { ParseFailure, type ExpressionParseResult } from "./base.ts";
 
@@ -1041,7 +1042,7 @@ class Parser extends ExpressionParser {
         : elements[0]!.name;
       let end = close.span.end;
       while (this.matchText("?")) {
-        rendered += "?";
+        rendered = optionalType(rendered);
         end = this.peek(-1).span.end;
       }
       return { name: rendered, span: { start, end } };
@@ -1126,7 +1127,7 @@ class Parser extends ExpressionParser {
       // `Option[T]` is exactly `T?`; both spellings render to one type.
       rendered =
         name.text === "Option" && arguments_.length === 1
-          ? `${arguments_[0]!.name}?`
+          ? optionalType(arguments_[0]!.name)
           : `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
       end = close.span.end;
     }

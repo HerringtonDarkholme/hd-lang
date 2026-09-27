@@ -5,7 +5,7 @@ import type {
   HirStatement,
   ValueType,
 } from "../hir.ts";
-import { mutableType, nominalGenericType } from "../types.ts";
+import { mutableType, nominalGenericType, optionalType } from "../types.ts";
 import { functionName, indent, localName } from "./shared.ts";
 import { ValueComparisonEmitter } from "./value-comparison.ts";
 
@@ -66,7 +66,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
         ? expression.iterable.type
         : mutableType(nominalGenericType("Iterator", [expression.yieldType]));
     const iterator = this.allocateTemporary(iteratorType);
-    const next = this.allocateTemporary(`${expression.yieldType}?`);
+    const next = this.allocateTemporary(optionalType(expression.yieldType));
     const yielded = this.allocateTemporary(expression.yieldType);
     const iteratorValue = `(local.get ${iterator})`;
     const nextValue = `(ref.as_non_null (local.get ${next}))`;
@@ -190,7 +190,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
         ? clause.iterable.type
         : mutableType(nominalGenericType("Iterator", [clause.yieldType]));
     const iterator = this.allocateTemporary(iteratorType);
-    const next = this.allocateTemporary(`${clause.yieldType}?`);
+    const next = this.allocateTemporary(optionalType(clause.yieldType));
     const yielded = this.allocateTemporary(clause.yieldType);
     const iteratorValue = `(local.get ${iterator})`;
     const nextValue = `(ref.as_non_null (local.get ${next}))`;
@@ -232,7 +232,7 @@ export abstract class IteratorEmitter extends ValueComparisonEmitter {
     elementType: ValueType,
   ): string {
     const iteratorTemporary = this.allocateTemporary(receiverType);
-    const resultTemporary = this.allocateTemporary(`${elementType}?`);
+    const resultTemporary = this.allocateTemporary(optionalType(elementType));
     const iterator = `(ref.as_non_null (local.get ${iteratorTemporary}))`;
     const list = `(struct.get $hd.iterator $hd.iterator-list ${iterator})`;
     return [

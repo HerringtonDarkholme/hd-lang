@@ -18,6 +18,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  optionalType,
   readonlyType,
   resultParts,
   tupleParts,
@@ -340,7 +341,7 @@ export function substituteGenericType(
     );
   const optional = optionalInner(type);
   if (optional !== undefined)
-    return `${substituteGenericType(optional, substitutions, rowSubstitutions)}?`;
+    return optionalType(substituteGenericType(optional, substitutions, rowSubstitutions));
   const result = resultParts(type);
   if (result)
     return `Result[${substituteGenericType(result.ok, substitutions, rowSubstitutions)},${substituteGenericType(result.error, substitutions, rowSubstitutions)}]`;
@@ -767,7 +768,7 @@ export function resolveGenericType(
     );
   const optional = optionalInner(type);
   if (optional !== undefined)
-    return `${resolveGenericType(optional, genericParameters, rowParameters)}?`;
+    return optionalType(resolveGenericType(optional, genericParameters, rowParameters));
   const result = resultParts(type);
   if (result)
     return `Result[${resolveGenericType(result.ok, genericParameters, rowParameters)},${resolveGenericType(result.error, genericParameters, rowParameters)}]`;
@@ -971,7 +972,7 @@ export function resolveTraitType(
   if (tuple !== undefined)
     return tupleType(tuple.map((element) => resolveTraitType(element, traitTypes)));
   const optional = optionalInner(type);
-  if (optional !== undefined) return `${resolveTraitType(optional, traitTypes)}?`;
+  if (optional !== undefined) return optionalType(resolveTraitType(optional, traitTypes));
   const result = resultParts(type);
   if (result)
     return `Result[${resolveTraitType(result.ok, traitTypes)},${resolveTraitType(result.error, traitTypes)}]`;

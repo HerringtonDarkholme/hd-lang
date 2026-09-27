@@ -947,3 +947,4 @@ parse/invalid/same-line-suite-comma.hd	parse
 parse/invalid/same-line-let-comma.hd	parse
 parse/valid/raw-string-escaped-quote.hd	parse
 parse/invalid/colon-generic-bound.hd	parse
+runtime/valid/propagation-in-closure-targets-closure.hd	runtime

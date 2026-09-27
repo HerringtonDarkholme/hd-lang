@@ -8,6 +8,7 @@ import type {
 import {
   nominalGenericParts,
   optionalInner,
+  optionalType,
   readonlyType,
   resultParts,
   tupleParts,
@@ -583,7 +584,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const leftTemporary = this.allocateTemporary(type);
     const rightTemporary = this.allocateTemporary(type);
     const indexTemporary = this.allocateTemporary("i32");
-    const foundTemporary = this.allocateTemporary(`${valueType}?`);
+    const foundTemporary = this.allocateTemporary(optionalType(valueType));
     const label = `$equality${this.loopCounter++}`;
     const leftMap = `(ref.as_non_null (local.get ${leftTemporary}))`;
     const rightMap = `(ref.as_non_null (local.get ${rightTemporary}))`;

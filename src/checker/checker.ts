@@ -225,6 +225,11 @@ export class FunctionChecker extends ExpressionControlChecker {
         };
       }
       case "closure": {
+        // An optional function type checks the closure against its payload;
+        // the caller's coercion then injects it into the optional.
+        const optionalCallable = expected ? optionalInner(expected) : undefined;
+        if (optionalCallable && functionParts(optionalCallable))
+          return this.checkClosureExpression(expression, optionalCallable);
         const expectedCallable = expected ? functionParts(expected) : undefined;
         const suspending = expression.suspending === true;
         if (expectedCallable && expectedCallable.suspending !== suspending) {

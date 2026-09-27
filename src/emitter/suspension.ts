@@ -8,7 +8,7 @@ import type {
   HirStatement,
   ValueType,
 } from "../hir.ts";
-import { mutableType, nominalGenericType } from "../types.ts";
+import { mutableType, nominalGenericType, optionalType } from "../types.ts";
 
 export type HirSuspensionDrive = Extract<
   HirExpression,
@@ -982,7 +982,7 @@ class SuspensionPlanBuilder {
     const after = continuation(result ? this.local(result, expression.span) : undefined);
     const iteratorType = mutableType(nominalGenericType("Iterator", [expression.yieldType]));
     const iterator = this.temporary(iteratorType, expression.iterable.span, "iterator");
-    const next = this.temporary(`${expression.yieldType}?`, expression.span, "next");
+    const next = this.temporary(optionalType(expression.yieldType), expression.span, "next");
     const iteratorValue = this.local(iterator, expression.iterable.span);
     const nextValue = this.local(next, expression.span);
     const condition: HirExpression = {
@@ -1057,7 +1057,7 @@ class SuspensionPlanBuilder {
             kind: "iterator-next",
             receiver: iteratorValue,
             elementType: expression.yieldType,
-            type: `${expression.yieldType}?`,
+            type: optionalType(expression.yieldType),
             span: expression.span,
           },
         },

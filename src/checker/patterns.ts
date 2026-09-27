@@ -18,6 +18,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  optionalType as renderOptionalType,
   readonlyType,
   resultParts,
   storedSuspensionParts,
@@ -114,7 +115,7 @@ export abstract class PatternChecker extends CallChecker {
         variant: "optional-present",
         payload,
         payloadType: payload.type,
-        type: `${payload.type}?`,
+        type: renderOptionalType(payload.type),
         span,
       };
     }

@@ -100,8 +100,25 @@ export function nominalGenericType(name: string, arguments_: readonly ValueType[
   return `${name}[${arguments_.join(",")}]`;
 }
 
+function isFunctionTypeText(type: ValueType): boolean {
+  return (type.startsWith("fn(") || type.startsWith("fn!(")) && functionParts(type) !== undefined;
+}
+
+/**
+ * The payload of an optional type. A function type's trailing `?` belongs to
+ * its result, so an optional function type is rendered `(fn(...)->R)?`.
+ */
 export function optionalInner(type: ValueType): ValueType | undefined {
-  return type.endsWith("?") ? type.slice(0, -1) : undefined;
+  if (!type.endsWith("?") || isFunctionTypeText(type)) return undefined;
+  const inner = type.slice(0, -1);
+  if (inner.startsWith("(") && inner.endsWith(")") && isFunctionTypeText(inner.slice(1, -1)))
+    return inner.slice(1, -1);
+  return inner;
+}
+
+/** `T?`, parenthesizing a function type so its `?` is not read as the result's. */
+export function optionalType(inner: ValueType): ValueType {
+  return isFunctionTypeText(inner) ? `(${inner})?` : `${inner}?`;
 }
 
 export function resultParts(type: ValueType): ResultParts | undefined {
@@ -211,7 +228,8 @@ export function substituteTypeParameters(
   if (tuple !== undefined)
     return tupleType(tuple.map((element) => substituteTypeParameters(element, substitutions)));
   const optional = optionalInner(type);
-  if (optional !== undefined) return `${substituteTypeParameters(optional, substitutions)}?`;
+  if (optional !== undefined)
+    return optionalType(substituteTypeParameters(optional, substitutions));
   const result = resultParts(type);
   if (result)
     return `Result[${substituteTypeParameters(result.ok, substitutions)},${substituteTypeParameters(result.error, substitutions)}]`;

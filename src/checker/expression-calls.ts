@@ -8,6 +8,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  optionalType,
   readonlyType,
   resultParts,
   storedSuspensionParts,
@@ -247,7 +248,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         kind: "iterator-next",
         receiver,
         elementType,
-        type: `${elementType}?`,
+        type: optionalType(elementType),
         span: expression.span,
       };
     }
@@ -337,7 +338,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         key,
         keyType,
         valueType,
-        type: `${valueType}?`,
+        type: optionalType(valueType),
         span: expression.span,
       };
     }

@@ -7,6 +7,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  optionalType,
   readonlyType,
   tupleParts,
 } from "../types.ts";
@@ -668,7 +669,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             key,
             keyType: nominal.arguments[0]!,
             valueType: nominal.arguments[1]!,
-            type: `${nominal.arguments[1]}?`,
+            type: optionalType(nominal.arguments[1]!),
             span: expression.span,
           };
         }

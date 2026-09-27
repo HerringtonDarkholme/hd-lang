@@ -1,7 +1,13 @@
 import type { Expression, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirTrait, ValueType } from "../hir.ts";
-import { mutableInner, nominalGenericParts, optionalInner, readonlyType } from "../types.ts";
+import {
+  mutableInner,
+  nominalGenericParts,
+  optionalInner,
+  optionalType,
+  readonlyType,
+} from "../types.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
 import { genericTypeName, traitTypeName } from "./shared.ts";
@@ -184,7 +190,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
       traitIndex: trait.index,
       value: erased,
       dictionary,
-      type: `${mutable ? `mut:${target}` : target}?`,
+      type: optionalType(mutable ? `mut:${target}` : target),
       span: expression.span,
     };
   }
@@ -222,7 +228,7 @@ export abstract class InspectChecker extends MemberLookupChecker {
       traitIndex: trait.index,
       value,
       dictionary,
-      type: `${target}?`,
+      type: optionalType(target),
       span: expression.span,
     };
   }
