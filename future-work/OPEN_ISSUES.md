@@ -331,6 +331,10 @@ to recover a concrete type from an erased value.
    the checked-downcast option in
    [Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
 
+**Design draft.** [Runtime Type Identity](INSPECTABLE.md) proposes the
+trait, the runtime type object, and `downcast` semantics, and lists the
+remaining questions.
+
 **Unblocks.** Error-chain inspection, plugin registries, typed extension maps,
 and a reviewable parametricity guarantee for erased generics.
 
