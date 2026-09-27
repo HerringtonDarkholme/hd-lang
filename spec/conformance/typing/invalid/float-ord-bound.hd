@@ -1,0 +1,7 @@
+# test: floating-point types implement PartialOrd but not Ord
+
+fn smallest[T < Ord](left: T, right: T) -> T:
+    left
+
+fn invalid() -> f64:
+    smallest(1.5, 2.5)  # diagnostic: unsatisfied-trait-bound

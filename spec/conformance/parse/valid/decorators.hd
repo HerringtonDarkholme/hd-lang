@@ -16,6 +16,6 @@ enum Status:
 fn get_user(id: i32) -> User:
     User { name: "Ada" }
 
-@derive(PartialEq, Eq)
+@derive(Eq)
 data Key:
     value: i32

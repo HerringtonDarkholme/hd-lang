@@ -1,16 +1,16 @@
 use std.testing.assert_equal
 
-@derive(PartialEq, Eq, PartialOrd, Ord)
+@derive(Eq, PartialOrd, Ord)
 data Key:
     first: i32
     second: i32
 
-@derive(PartialEq, Eq, PartialOrd, Ord)
+@derive(Eq, PartialOrd, Ord)
 enum Priority:
     Low(value: i32)
     High(value: i32)
 
-@derive(PartialEq, PartialOrd)
+@derive(Eq, PartialOrd)
 data Measurement:
     value: f64
 

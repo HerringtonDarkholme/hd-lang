@@ -1,0 +1,8 @@
+# test: PartialOrd has Eq as a supertrait
+
+data Score:
+    value: i32
+
+impl PartialOrd for Score:  # diagnostic: missing-supertrait-implementation
+    fn partial_cmp(self, other: Score) -> Ordering?:
+        .Some(Ordering.Equal)

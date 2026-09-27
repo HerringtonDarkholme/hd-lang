@@ -116,7 +116,11 @@ enum TypeShape:
     Map(key: TypeShape, value: TypeShape)
     Tuple(elements: List[TypeShape])
     Named(decl: DeclarationId, args: List[TypeShape])
-    Newtype(base: TypeShape)
+    Newtype(decl: DeclarationId, base: TypeShape)
+    Mut(inner: TypeShape)
+    Trait(decl: DeclarationId, args: List[TypeShape])
+    Any
+    Suspend(result: TypeShape)
     Fn(
         params: List[TypeShape],
         result: TypeShape,
@@ -192,12 +196,11 @@ facility in [Runtime Type Identity](09-traits.md#runtime-type-identity), and
 a `TypeId` exposes no shape. `TypeShape.is_optional() -> bool` is also a compiler-provided readonly
 method and is true exactly for `TypeShape.Optional`.
 
-`TypeShape` does not yet encode mutable access, a dynamic trait value, `Any`, or
-`Suspend[T]`. A `shape` or `shape_of` request, annotation derivation, or
-generated shape implementation whose target or recursively inspected member
-signature requires one of those encodings is rejected with
-`unrepresentable-type-shape`; the underlying declaration remains legal. This
-is an interim rejection rule rather than an opaque or lossy descriptor.
+`TypeShape.Mut` encodes mutable access, `TypeShape.Trait` a dynamic trait
+value type with its trait declaration and arguments, `TypeShape.Any` the
+`Any` type, and `TypeShape.Suspend` a `Suspend[T]` type with its result.
+`TypeShape.Newtype` carries the newtype's own declaration identity beside its
+base type.
 
 Shape values are readonly runtime values and may be passed, stored, and
 inspected like other composite values.

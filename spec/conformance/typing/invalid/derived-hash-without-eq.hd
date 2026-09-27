@@ -1,0 +1,5 @@
+# test: deriving Hash requires Eq in the same derive list
+
+@derive(Hash)  # diagnostic: mixed-derived-law
+data Key:
+    name: string

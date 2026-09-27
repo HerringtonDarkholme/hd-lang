@@ -1,0 +1,10 @@
+# test: inherent members with one name clash when their targets unify
+
+data Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn show(self) -> string: "box"
+
+impl Box[i32]:
+    fn show(self) -> string: "int box"  # diagnostic: duplicate-inherent-member

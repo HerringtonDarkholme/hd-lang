@@ -1,0 +1,4 @@
+# test: a transparent alias takes no derive decorator
+
+@derive(Eq)
+type Name = string  # diagnostic: syntax-error

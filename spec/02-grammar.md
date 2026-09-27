@@ -1249,9 +1249,14 @@ context_entry = requirement_key, "=", expression
 
 ```ebnf
 decorated_decl = decorator_line, { decorator_line },
-                 [ "pub" ], ( data_decl | enum_decl | function_decl ) ;
+                 [ "pub" ], ( data_decl | enum_decl | function_decl )
+               | derive_line, { derive_line }, [ "pub" ], newtype_decl ;
 
 decorator_line = "@", ( derive_decorator | closed_expression ), NEWLINE ;
+
+derive_line = "@", derive_decorator, NEWLINE ;
+
+newtype_decl = "type", identifier, [ type_params ], "(", type, ")", NEWLINE ;
 
 derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
@@ -1295,6 +1300,8 @@ facet_override = metadata_assignment | function_decl ;
 6. r[grammar.annot.generic] Generic parameters and their bounds follow the same rules as a generic `impl`.
 7. r[grammar.annot.generic-target] A generic annotation target denotes a family of concrete targets.
 8. r[grammar.annot.coherence] Coherence and overlap are checked as if the generic annotation were the lowered generic `impl Annotate[Facet] for Target`.
+9. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
+10. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
 
 ## Pack Expansion
 

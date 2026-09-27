@@ -1,0 +1,16 @@
+# test: least-common-type inference never widens trait values to a supertrait
+
+trait Named:
+    fn name(self) -> string
+
+trait Shown < Named:
+    fn show(self) -> string
+
+trait Tagged < Named:
+    fn tag(self) -> string
+
+fn mix(shown: Shown, tagged: Tagged) -> void:
+    items := [shown, tagged]  # diagnostic: no-common-type
+
+fn expected(shown: Shown, tagged: Tagged) -> List[Named]:
+    [shown, tagged]

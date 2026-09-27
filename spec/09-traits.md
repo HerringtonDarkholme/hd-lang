@@ -44,6 +44,26 @@ trait Named:
     fn name(self) -> string  # error: duplicate-trait-member
 ```
 
+### Default Method Bodies
+
+1. r[trait.default.checked-once] A default method body is checked once, in the trait declaration, with `Self` bounded by the trait.
+2. r[trait.default.visible] Through `self` and `Self`, the body sees only the members of the trait and of its transitive supertraits.
+3. r[trait.default.no-self-members] The fields and inherent methods of an implementing type are not accessible there, even when every implementing type declares them.
+4. r[trait.default.no-self-members.error] A call there of a method that neither the trait nor a supertrait declares is an error. Error: `unknown-method`.
+
+```text
+trait Greeter:
+    fn name(self) -> string
+
+    fn greet(self) -> string:
+        "hi " + self.name()
+
+    fn shout(self) -> string:
+        self.loud_name()  # error: unknown-method
+```
+
+See also: [Supertraits](#supertraits).
+
 ### Generic Traits
 
 Traits may be generic:
@@ -54,6 +74,15 @@ trait Add[T]:
 ```
 
 1. r[trait.decl.generic] Traits may be generic.
+2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[mut User]` and `Source[User]` are unrelated trait instantiations.
+3. r[trait.decl.generic.no-variance] A variance marker on a trait's generic parameter is an error. Error: `invalid-variance`.
+
+```text
+trait Source[+T]:  # error: invalid-variance
+    fn source(self) -> T
+```
+
+See also: [Variance](04-type-system.md#variance).
 
 ### Marker Traits
 
@@ -151,22 +180,27 @@ and the rules that every trait implementation follows.
 
 ### Comparison Traits
 
-The standard library defines `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and
-`Ordering` in `std.cmp`.
+The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
+`std.cmp`.
 
 | Rule | Trait | Requires |
 | --- | --- | --- |
-| r[trait.cmp.partial-eq] Partial equality | `PartialEq` | `fn eq(self, other: Self) -> bool` |
-| r[trait.cmp.eq] Equality | `Eq < PartialEq` | nothing: `Eq` is a marker asserting reflexive equality |
-| r[trait.cmp.partial-ord] Partial ordering | `PartialOrd < PartialEq` | `fn partial_cmp(self, other: Self) -> Ordering?`, where `.None` means unordered |
-| r[trait.cmp.ord] Ordering | `Ord < Eq + PartialOrd` | `fn cmp(self, other: Self) -> Ordering` |
+| r[trait.cmp.equality] Equality | `Eq` | `fn eq(self, other: Self) -> bool` |
+| r[trait.cmp.partial-ordering] Partial ordering | `PartialOrd < Eq` | `fn partial_cmp(self, other: Self) -> Ordering?`, where `.None` means unordered |
+| r[trait.cmp.total-ordering] Ordering | `Ord < PartialOrd` | `fn cmp(self, other: Self) -> Ordering` |
 
-1. r[trait.cmp.module] The standard library defines `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and `Ordering` in `std.cmp`.
+1. r[trait.cmp.std-module] The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in `std.cmp`.
 2. r[trait.cmp.ordering] `Ordering` has `Less`, `Equal`, and `Greater` cases.
-3. r[trait.cmp.agree] `Eq` and `Ord` implementations must agree with their partial counterparts.
-4. r[trait.cmp.laws] These semantic laws are obligations of the implementer; ordinary trait checking cannot prove them.
-5. r[trait.cmp.float] In particular, floating-point values do not satisfy `Eq` or `Ord` because of NaN.
-6. r[trait.cmp.operators] Comparison traits are the only traits invoked by operator syntax.
+3. r[trait.cmp.one-eq] `Eq` is the only equality trait. There is no separate partial-equality trait.
+4. r[trait.cmp.reflexive] An `Eq` implementation must be reflexive: `x.eq(x)` is `true` for every value `x`.
+5. r[trait.cmp.ord-agree] An `Ord` implementation must agree with the type's `PartialOrd` implementation.
+6. r[trait.cmp.laws] These semantic laws are obligations of the implementer; ordinary trait checking cannot prove them.
+7. r[trait.cmp.float-eq] Floating-point types implement `Eq` with IEEE 754 semantics, so NaN is unequal even to itself. This is the one documented exception to the reflexive law.
+8. r[trait.cmp.float-ord] Floating-point types implement `PartialOrd` but not `Ord`, because NaN is unordered.
+9. r[trait.cmp.operators] Comparison traits are the only traits invoked by operator syntax.
+
+> **Why.** This follows Swift's `Equatable`: one equality trait serves `==`,
+> map keys, and derivation, and floats keep IEEE 754 equality.
 
 #### Hashing
 
@@ -192,24 +226,66 @@ trait Hash:
 
 1. r[trait.derive.no-automatic] There is no automatic conformance for user-defined data or enum types.
 2. r[trait.derive.explicit-impl] An explicit implementation may choose domain-specific equality or ordering.
-3. r[trait.derive.intrinsic] `@derive(PartialEq, Eq)` is an explicit compiler intrinsic on a data or enum declaration.
+3. r[trait.derive.intrinsic-decl] `@derive(Eq, Hash)` is an explicit compiler intrinsic on a data, enum, or newtype declaration.
 4. r[trait.derive.arguments] Its arguments name traits, not annotator values.
 5. r[trait.derive.generate] The compiler generates ordinary implementations of the named traits from the declaration's shape.
 6. r[trait.derive.check] The compiler checks trait requirements and coherence, and rejects traits for which it has no derivation rule.
 7. r[trait.derive.no-annotate] It does not generate `Annotate[A]` conformance or run a `DataAnnotator`.
 8. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
-9. r[trait.derive.bounds.example] Thus `@derive(PartialEq) data Box[T]` produces conformance only when `T < PartialEq`.
+9. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
 10. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
-11. r[trait.derive.consistency] Implementers remain responsible for consistency with any manually implemented comparison traits.
+
+#### Law Partners
+
+The comparison and hash traits whose laws relate them are **law partners**:
+
+| Rule | Trait | Law partners |
+| --- | --- | --- |
+| r[trait.derive.partners.hash] Hash | `Hash` | `Eq` |
+| r[trait.derive.partners.partial-ord] Partial ordering | `PartialOrd` | `Eq` |
+| r[trait.derive.partners.ord] Ordering | `Ord` | `Eq` and `PartialOrd` |
+
+1. r[trait.derive.partners.same-list] Deriving `Hash`, `PartialOrd`, or `Ord` requires each of its law partners to be derived in the same `@derive` list.
+2. r[trait.derive.partners.no-mix] One type's law partners must be all derived or all hand-written: a derived implementation and a hand-written implementation of two law partners never coexist.
+3. r[trait.derive.partners.error] A derivation that breaks either rule is an error, reported on its `@derive` line. Error: `mixed-derived-law`.
+
+```text
+@derive(Hash)  # error: mixed-derived-law
+data Session:
+    token: string
+
+impl Eq for Session:
+    fn eq(self, other: Session) -> bool: self.token == other.token
+```
+
+> **Why.** A hand-written `Eq` that ignores a field, beside a derived `Hash`
+> that hashes it, would put equal keys in different buckets.
+
+#### Derived Newtypes
+
+1. r[trait.derive.newtype] `@derive` on a newtype declaration generates each named trait's implementation from the base type's implementation.
+2. r[trait.derive.newtype.base] The generated method applies the base type's method to the wrapped values, as in `Mile(1) == Mile(1)` comparing the two `i32` values.
+3. r[trait.derive.newtype.requires] The base type must implement each derived trait, as a derived field must.
+4. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
+
+```text
+@derive(Eq, Hash)
+type Mile(i32)
+
+fn same(left: Mile, right: Mile) -> bool:
+    left == right
+```
+
+See also: [Newtypes](04-type-system.md#newtypes).
 
 #### Derived Equality
 
-1. r[trait.derive.eq.fields] Derived `PartialEq` compares every declared data field, including embedded fields, by its `PartialEq` implementation.
+1. r[trait.derive.eq.compare-fields] Derived `Eq` compares every declared data field, including embedded fields, by its `Eq` implementation.
 2. r[trait.derive.eq.no-exclusion] No field is implicitly excluded.
 3. r[trait.derive.eq.enum] Derived enum equality first compares the variant, then every payload field of that variant, including common enum fields.
 4. r[trait.derive.eq.variants] Different variants are unequal.
 5. r[trait.derive.eq.eq] Derived `Eq` requires every compared field to satisfy `Eq`.
-6. r[trait.derive.eq.cycles] Derived equality does not detect cycles or track previously compared objects: it recursively invokes each field's `PartialEq` implementation.
+6. r[trait.derive.eq.cycles] Derived equality does not detect cycles or track previously compared objects: it recursively invokes each field's `Eq` implementation.
 7. r[trait.derive.eq.stack] A comparison that repeatedly traverses a cycle may exhaust the execution stack.
 
 #### Derived Ordering
@@ -427,6 +503,8 @@ constructor.
 13. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
 14. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
 15. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
+16. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
+17. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
 
 ```text
 trait Describe:
@@ -479,6 +557,17 @@ impl Display for i32:  # error: orphan-impl
 
 > **Why.** These ownership rules prevent downstream packages from creating
 > globally surprising conformance.
+
+#### Implementation Modules
+
+1. r[trait.own.module.inherent] An inherent implementation must be declared in the module that declares its target type.
+2. r[trait.own.module.trait] A trait implementation must be declared in a module that declares the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
+3. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
+4. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
+
+> **Why.** A reader of the type's or the trait's module sees every
+> implementation that can answer a call, and no distant module of the package
+> can add one.
 
 #### Annotation Ownership
 
@@ -567,9 +656,12 @@ See also: [Implementation Ownership](#implementation-ownership),
 
 ### Inherent Member Names
 
-1. r[trait.inherent.unique] An inherent member name must not duplicate another inherent member on the same type. Error: `duplicate-inherent-member`.
-2. r[trait.inherent.field-names] An inherent member may share its name with a field of the type, named or embedded, because fields and methods are separate namespaces.
-3. r[trait.inherent.no-overloading] hd-lang has no method or associated-function overloading.
+1. r[trait.inherent.unique-unifying] Two inherent members with one name are an error when their implementations' targets unify, including two members of one implementation. Error: `duplicate-inherent-member`.
+2. r[trait.inherent.unique-unifying.disjoint] Inherent implementations of one type constructor whose targets cannot unify may repeat a member name. `impl Box[i32]` and `impl Box[string]` may each declare `show`, but `impl[T] Box[T]` and `impl Box[i32]` may not.
+3. r[trait.inherent.unique-unifying.unify] Targets unify as implementation heads do in [Overlap](#overlap), after renaming each implementation's parameters apart.
+4. r[trait.inherent.target-match] An inherent member is a member of a receiver's type only when its implementation's target matches that type, so `box.show()` on a `Box[string]` calls the member of `impl Box[string]`.
+5. r[trait.inherent.field-names] An inherent member may share its name with a field of the type, named or embedded, because fields and methods are separate namespaces.
+6. r[trait.inherent.no-overloading] hd-lang has no method or associated-function overloading.
 
 ```text
 data User: pass
@@ -577,6 +669,15 @@ data User: pass
 impl User:
     fn name(self) -> string: "first"
     fn name(self) -> string: "second"  # error: duplicate-inherent-member
+
+data Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn show(self) -> string: "box"
+
+impl Box[i32]:
+    fn show(self) -> string: "int box"  # error: duplicate-inherent-member
 ```
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution).
@@ -707,6 +808,42 @@ sum := Add[Money]::add(left, right)
 6. r[trait.qualified.trait-arguments] The trait's own type arguments stay before `::`.
 7. r[trait.qualified.generic-rules] The type argument list follows the rules of [Generic Functions](07-functions.md#generic-functions).
 
+### Associated Function Calls
+
+An associated function is called through a type, a type parameter, or a
+trait:
+
+```text
+trait Factory:
+    fn create() -> Self
+
+data User:
+    name: string
+
+impl Factory for User:
+    fn create() -> User:
+        User { name: "new" }
+
+fn make[T < Factory]() -> T:
+    T::create()
+
+first := User::create()
+second := make[User]()
+```
+
+1. r[trait.assoc-call.type] `Type::f(args)` first looks for an inherent associated function or method `f` of `Type`.
+2. r[trait.assoc-call.type.traits] When `Type` has no inherent member `f`, the candidates are the members named `f` of the available traits that `Type` implements.
+3. r[trait.assoc-call.type.ambiguous] Two or more trait candidates are an error, and a trait-qualified call resolves it. Error: `ambiguous-method`.
+4. r[trait.assoc-call.type.none] No candidate at all is an error. Error: `unknown-method`.
+5. r[trait.assoc-call.parameter] `T::f(args)`, where `T` is a type parameter, resolves `f` through the bounds of `T`, and the call uses the bound's evidence.
+6. r[trait.assoc-call.parameter.one] Exactly one trait among the bounds of `T` and their supertraits must declare `f`. Two or more are an error. Error: `ambiguous-method`.
+7. r[trait.assoc-call.parameter.static] `T::f()` is always resolved statically through a bound, never through a runtime type object.
+8. r[trait.assoc-call.trait] `Trait::f(args)` for an associated function `f` infers `Self` like a generic argument of the call, from the arguments and the expected type.
+9. r[trait.assoc-call.trait.undetermined] A `Trait::f(args)` call whose `Self` that inference does not determine is invalid; write `Type::f(args)` or `T::f(args)` instead.
+
+See also: [Trait-Qualified Calls](#trait-qualified-calls),
+[Trait Availability](#trait-availability).
+
 ## Generic Bounds And Static Dispatch
 
 A generic bound requires explicit conformance and uses static dispatch:
@@ -730,8 +867,11 @@ fn audit[T < Display + Named](value: T) -> string:
 5. r[trait.bound.mut-any] `T < mut Any` requires mutable-root access without a type-specific behavior requirement.
 6. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
 7. r[trait.bound.unsatisfied.cases] This includes a non-reference type for `T < AnyRef`, a reference type for `T < AnyVal`, and a readonly argument for `T < mut Trait`.
-8. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
-9. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics, including reflection behavior for reified parameters.
+8. r[trait.bound.depth] A bound required directly by a use has depth 1. A bound of the implementation that proves a bound of depth `n` has depth `n + 1`.
+9. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
+10. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
+11. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
+12. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics, including reflection behavior for reified parameters.
 
 ```text
 trait Clear:
@@ -751,6 +891,9 @@ fn reject_readonly() -> void:
     counter := Counter { value: 42 }
     clear_value(counter)  # error: unsatisfied-trait-bound
 ```
+
+> **Why.** A fixed limit makes every implementation accept the same programs,
+> and it ends bound solving that would otherwise never finish.
 
 See also: the non-normative
 [Implementation Model](04-type-system.md#implementation-model-non-normative).
@@ -834,8 +977,21 @@ fn print_display(value: Display) -> void $ Console:
 2. r[trait.dyn.safe.no-assoc] Neither the trait nor a supertrait may declare an associated type or associated function.
 3. r[trait.dyn.safe.anyref] Every method-level generic parameter must be bounded by `AnyRef`. Further bounds on such a parameter are allowed.
 4. r[trait.dyn.safe.self] `Self` may occur only as a method receiver.
-5. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
-6. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+5. r[trait.dyn.safe.method-params] No method of the trait or of a supertrait may declare a row parameter, a `reified` parameter, or a type or value pack.
+6. r[trait.dyn.safe.error] Using a trait that breaks one of these rules as a value type is an error. Error: `trait-not-dynamically-safe`.
+7. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
+8. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+
+```text
+trait Runner:
+    fn run[R](self, job: fn() -> void $ R) -> void $ R
+
+fn invalid(runner: Runner) -> void:  # error: trait-not-dynamically-safe
+    pass
+```
+
+> **Why.** A method called through a trait value has exactly one body, so
+> nothing in its signature may need a per-call specialization.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
@@ -984,7 +1140,7 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 #### `TypeId` Values
 
 1. r[trait.typeid.opaque] `TypeId` is an opaque data type. User code cannot construct one or read its fields.
-2. r[trait.typeid.traits] `TypeId` implements `PartialEq`, `Eq`, `Hash`, and `Display`.
+2. r[trait.typeid.traits] `TypeId` implements `Eq`, `Hash`, and `Display`.
 3. r[trait.typeid.of] `TypeId` has the associated function `TypeId::of[T]()`, which returns the `TypeId` of `T`.
 4. r[trait.typeid.equality] Equality holds exactly when two `TypeId` values denote the same runtime identity, as defined below.
 5. r[trait.typeid.no-ops] `TypeId` has no other operations. It exposes no type arguments, fields, or shape.

@@ -1,0 +1,34 @@
+# test: associated functions resolve through types, inherent members first, and bounds
+
+use std.testing.assert_equal
+
+trait Factory:
+    fn create() -> Self
+
+data User:
+    name: string
+
+impl User:
+    pub fn label() -> string: "inherent"
+
+impl Factory for User:
+    fn create() -> User:
+        User { name: "made" }
+
+trait Labeled:
+    fn label() -> string
+
+impl Labeled for User:
+    fn label() -> string: "trait"
+
+fn make[T < Factory]() -> T:
+    T::create()
+
+test "a type finds a trait associated function":
+    assert_equal(User::create().name, "made", reason="trait function through the type")
+
+test "an inherent associated function wins over a trait one":
+    assert_equal(User::label(), "inherent", reason="inherent first")
+
+test "a type parameter calls through its bound":
+    assert_equal(make[User]().name, "made", reason="bound evidence supplies create")

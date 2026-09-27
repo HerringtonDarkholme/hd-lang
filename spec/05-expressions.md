@@ -569,13 +569,13 @@ fn main() -> f64: 2 ** 2.0                     # error: mixed-numeric-types
 
 ### Equality
 
-1. r[expr.eq.partial-eq] `==` calls `PartialEq.eq` and `!=` negates that result.
+1. r[expr.eq.calls-eq] `==` calls `Eq.eq` and `!=` negates that result.
 2. r[expr.eq.std] Standard-library implementations provide value equality for primitives, optional and result values, tuples, lists, and maps when their elements support equality.
 3. r[expr.eq.map-order] Map equality is independent of entry order.
-4. r[expr.eq.no-implicit] A user-defined data or enum type has no implicit `PartialEq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
+4. r[expr.eq.no-implicit] A user-defined data or enum type has no implicit `Eq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
 5. r[expr.eq.no-identity-fallback] Equality never silently falls back to reference identity.
-6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself.
-7. r[expr.eq.functions] Function and closure values do not implement `PartialEq`; applying `==` or `!=` to them is an error. Error: `unsupported-equality`.
+6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
+7. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `unsupported-equality`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:

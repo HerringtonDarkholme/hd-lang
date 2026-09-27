@@ -2,7 +2,7 @@
 data User:
     id: string
 
-impl PartialEq for User:
+impl Eq for User:
     fn eq(self, other: Self) -> bool:
         self.id == other.id
 

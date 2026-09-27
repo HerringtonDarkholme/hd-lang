@@ -1,0 +1,18 @@
+# test: two available traits supplying one associated function name are ambiguous
+
+trait Left:
+    fn label() -> string
+
+trait Right:
+    fn label() -> string
+
+data User: pass
+
+impl Left for User:
+    fn label() -> string: "left"
+
+impl Right for User:
+    fn label() -> string: "right"
+
+fn invalid() -> string:
+    User::label()  # diagnostic: ambiguous-method

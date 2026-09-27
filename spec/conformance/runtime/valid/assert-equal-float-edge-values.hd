@@ -9,4 +9,4 @@ test "negative zero equals positive zero":
     let negative_zero: f64 = -0.0
     let positive_zero: f64 = 0.0
     assert(negative_zero == positive_zero, reason="IEEE 754 equality treats the zeros as equal")
-    assert_equal(negative_zero, positive_zero, reason="PartialEq treats the zeros as equal")
+    assert_equal(negative_zero, positive_zero, reason="Eq treats the zeros as equal")

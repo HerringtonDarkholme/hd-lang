@@ -1,7 +1,0 @@
-data Cell:
-    value: i32
-
-data Holder:
-    cell: mut Cell
-
-holder_shape := shape[Holder]()  # diagnostic: unrepresentable-type-shape

@@ -1,0 +1,21 @@
+# test: a mut inside a trait argument makes a distinct instantiation
+
+trait Store[T]:
+    fn keep(self, value: T) -> i32
+
+data User:
+    name: string
+
+data Shelf: pass
+
+impl Store[User] for Shelf:
+    fn keep(self, value: User) -> i32: 1
+
+impl Store[mut User] for Shelf:
+    fn keep(self, value: mut User) -> i32: 2
+
+fn readonly_store(shelf: Shelf, user: User) -> i32:
+    Store[User]::keep(shelf, user)
+
+fn mutable_store(shelf: Shelf, user: mut User) -> i32:
+    Store[mut User]::keep(shelf, user)

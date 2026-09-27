@@ -151,7 +151,7 @@ every module has:
 | --- | --- |
 | `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
 | `std.format` | `Display` |
-| `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
+| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
 | `std.iter` | `Iterator`, `Iterable` |
 | `std.console` | `Console`, `ConsoleError`, `println` |
@@ -285,14 +285,14 @@ See also: [Indexing](05-expressions.md#indexing).
 
 ```text
 fn assert(condition: bool, reason: string) -> void
-fn assert_equal[T < PartialEq](actual: T, expected: T, reason: string) -> void
+fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
 ```
 
 1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
 3. r[module.testing.failure] A failed assertion reports test failure when called from a test.
 4. r[module.testing.panic] Otherwise a failed assertion causes a runtime panic. Panic: `assertion-failed`.
-5. r[module.testing.partial-eq] `assert_equal` uses `PartialEq.eq`.
+5. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
 6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
 
 ```text
@@ -301,7 +301,7 @@ use std.testing.assert_equal
 data Error:
     message: string
 
-test "result equality needs PartialEq":
+test "result equality needs Eq":
     let actual: Result[i32, Error] = .Ok(1)
     assert_equal(actual, .Ok(1), reason="values match")  # error
 ```

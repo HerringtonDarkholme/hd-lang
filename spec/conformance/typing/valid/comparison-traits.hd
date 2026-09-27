@@ -2,7 +2,7 @@
 data Score:
     value: i32
 
-impl PartialEq for Score:
+impl Eq for Score:
     fn eq(self, other: Self) -> bool:
         self.value == other.value
 

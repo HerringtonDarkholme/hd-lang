@@ -727,6 +727,7 @@ data Cell[T]:
 2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly public surface.
 3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and every inherent method available with the nominal type.
 4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
+5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
 
 ### GADT Results
 
@@ -809,10 +810,11 @@ gives the rule.
 1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type.
 2. r[types.trait.safe.members] A dynamically safe trait and every supertrait must have no associated types or associated functions, and `Self` may appear only as the receiver type.
 3. r[types.trait.safe.method-generic] A method-level generic parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef + Display` are allowed.
-4. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
-5. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
-6. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
-7. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
+4. r[types.trait.safe.no-specialized-params] A method must not declare a row parameter, a `reified` parameter, or a type or value pack.
+5. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
+6. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
+7. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
+8. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch.
@@ -870,10 +872,10 @@ This section defines which types may be map keys, and how keys behave.
 4. r[types.map-key.builtin] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, payload-free enums, tuples of hashable elements, and optionals of hashable elements.
 5. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
 6. r[types.map-key.user-impl] User data and stored enums require an explicit or derived implementation.
-7. r[types.map-key.float-eq] Floating-point types do not implement `Eq`.
+7. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
 8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
 
-> **Why.** Floating-point types do not implement `Eq` because of NaN.
+> **Why.** A NaN key is unequal even to itself, so no lookup could find it.
 
 ### Lookup And Order
 
@@ -913,10 +915,11 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 
 1. r[types.lct.no-any] The compiler never falls back to `Any` merely to make heterogeneous values type-check.
 2. r[types.lct.no-trait-value] Unconstrained inference also does not introduce a dynamic trait-value conversion.
-3. r[types.lct.expected-trait] An expected type such as `List[Display]` or `Map[K, Display]` may request that conversion explicitly.
-4. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
-5. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
-6. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
+3. r[types.lct.no-supertrait-widening] It also never widens a dynamic trait value to a supertrait value, so values of two child traits of one supertrait have no common type.
+4. r[types.lct.expected-trait] An expected type such as `List[Display]` or `Map[K, Display]` may request that conversion explicitly.
+5. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
+6. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
+7. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
 
 ```text
 fn pick(flag: bool) -> void:
@@ -936,7 +939,13 @@ fn pick(flag: bool) -> void:
 ```text
 fn combine(small: mut List[mut User], wide: List[User]) -> void:
     both := [small, wide]  # error: no-least-common-type
+
+fn mix(shown: Shown, tagged: Tagged) -> void:
+    items := [shown, tagged]  # error: no-common-type
 ```
+
+In the second function, `Shown` and `Tagged` are traits that both extend
+`Named`; `let items: List[Named] = [shown, tagged]` is valid.
 
 ## Type Inference Boundaries
 

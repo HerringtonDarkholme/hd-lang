@@ -1,0 +1,4 @@
+# test: a trait's generic parameters take no variance marker
+
+trait Source[+T]:  # diagnostic: invalid-variance
+    fn source(self) -> T

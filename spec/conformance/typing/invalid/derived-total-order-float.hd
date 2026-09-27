@@ -1,4 +1,4 @@
 
-@derive(PartialEq, Eq, PartialOrd, Ord)
+@derive(Eq, PartialOrd, Ord)
 data Measurement:
     value: f64  # diagnostic: field-not-eq

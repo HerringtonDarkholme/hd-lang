@@ -1,0 +1,4 @@
+# test: there is no PartialEq trait; Eq is the one equality trait
+
+fn same[T < PartialEq](left: T, right: T) -> bool:  # diagnostic: unknown-trait
+    true

@@ -76,7 +76,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `ambiguous-method`, `ambiguous-promoted-member`, `annotation-build-signature`, `annotation-resolution-reentry`, `annotation-top-level-read`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-annotation-impl`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `entry-error-not-display`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `function-impl-target`, `generic-kind-mismatch`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-field-metadata`, `invalid-map-key`, `invalid-parameter-metadata`, `invalid-result-propagation`, `invalid-variance`, `local-impl-nonlocal-pair`, `missing-child-annotation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-capture-requires-mut-fn`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `orphan-annotation-in-library`, `orphan-impl`, `overlapping-annotation-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-value-impl-target`, `type-used-as-value`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unrepresentable-type-shape`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
+| Error | `ambiguous-method`, `ambiguous-promoted-member`, `annotation-build-signature`, `annotation-resolution-reentry`, `annotation-top-level-read`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-annotation-impl`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `entry-error-not-display`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `function-impl-target`, `generic-kind-mismatch`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-field-metadata`, `invalid-map-key`, `invalid-parameter-metadata`, `invalid-result-propagation`, `invalid-variance`, `local-impl-nonlocal-pair`, `missing-child-annotation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-capture-requires-mut-fn`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `orphan-annotation-in-library`, `orphan-impl`, `overlapping-annotation-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `mixed-script-identifier`, `unreachable-code`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -635,3 +635,72 @@ existing source. Each entry names the decision that made the change.
   `t.0.1` with its floating-point token `0.1`, are now `syntax-error`; no new
   code was added. A leading-dot line such as `._0` now continues the
   previous line, while `.0` still does not.
+- One equality trait (owner decision EQ-1, 2026-09-27): `std.cmp` has one
+  equality trait, `Eq`, which declares `fn eq(self, other: Self) -> bool`;
+  `PartialEq` was removed, so `T < PartialEq`, `impl PartialEq for X`, and
+  `@derive(PartialEq)` are now `unknown-trait`, and `PartialEq` is no longer
+  a prelude name. `PartialOrd` now extends `Eq`, and `Ord` extends only
+  `PartialOrd`. Floating-point types now implement `Eq` with IEEE 754
+  semantics, a documented exception to the reflexive law, so `f64`
+  satisfies `T < Eq`, previously `unsatisfied-trait-bound`; they still
+  implement neither `Hash` nor `Ord`, so they are still not map keys.
+  `assert_equal` now requires `T < Eq`. The diagnostic code
+  `missing-partial-eq` keeps its spelling and now reports a missing `Eq`.
+- Law partners (owner decision TQ-12, 2026-09-26, revised by EQ-1): `Hash`
+  and `PartialOrd` have `Eq` as law partner, and `Ord` has `Eq` and
+  `PartialOrd`. Deriving `Hash`, `PartialOrd`, or `Ord` now requires each
+  partner in the same `@derive` list, and a derived implementation beside a
+  hand-written law partner is an error. `@derive(Hash)` alone, or beside a
+  hand-written `Eq`, and `@derive(Eq)` beside a hand-written `Hash`, all
+  previously valid, are now the new code `mixed-derived-law`.
+- Derived newtypes (owner decision TQ-11, 2026-09-26): a newtype declaration
+  may carry `@derive(...)`, and each derived implementation applies the base
+  type's implementation to the wrapped value. `@derive(Eq, Hash)` before
+  `type Mile(i32)`, previously a `syntax-error`, is valid. Other decorators
+  on a newtype remain a `syntax-error`.
+- Default method bodies (owner decision TY-13, 2026-09-26): a trait's
+  default method body sees only the members of the trait and its
+  supertraits. A default body that calls an inherent method of an
+  implementing type is now `unknown-method`, and one that reads a field of
+  an implementing type is rejected.
+- Trait parameter variance (owner decision TQ-16, 2026-09-26): trait
+  generic parameters are invariant, and a variance marker on one, as in
+  `trait Source[+T]`, is now `invalid-variance`.
+- Inner `mut` in implementation heads (owner decision TQ-30, 2026-09-26):
+  `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` implement
+  distinct instantiations and do not overlap; only a target's outer `mut`
+  stays `mutable-impl-target`.
+- Implementation modules (owner decision TQ-17, 2026-09-26): an inherent
+  implementation must be in the module that declares its target type, and a
+  trait implementation in a module that declares the trait, the target's
+  constructor, or an owned trait argument's constructor. An implementation
+  elsewhere in the owning package, previously valid, is now the new code
+  `nonlocal-impl`.
+- Inherent member names (owner decision TQ-19, 2026-09-26): inherent members
+  with one name clash only when their implementations' targets unify.
+  `impl Box[i32]` and `impl Box[string]` may now each declare `show`,
+  previously `duplicate-inherent-member`; `impl[T] Box[T]` beside
+  `impl Box[i32]` with one name stays `duplicate-inherent-member`.
+- Associated function calls (owner decision TQ-9, 2026-09-26): `Type::f`
+  looks for an inherent member first, then members of available traits that
+  `Type` implements, and two trait candidates are `ambiguous-method`;
+  `T::f` under a bound resolves through the bound, never a runtime type
+  object; and `Trait::f(...)` whose `Self` inference does not determine is
+  invalid. Existing source that compiled keeps its meaning.
+- Dynamic safety (owner decision TQ-10, 2026-09-26, in part): a trait whose
+  method, or a supertrait's method, declares a row parameter, a `reified`
+  parameter, or a type or value pack is not dynamically safe; using it as a
+  value type, previously accepted, is now `trait-not-dynamically-safe`. The
+  decision's exclusion of suspending methods is not applied yet.
+- Least common type (owner decision TQ-15, 2026-09-26): inference never
+  widens a dynamic trait value to a supertrait, so `[shown, tagged]` with two
+  child traits of `Named` is `no-common-type` unless an expected type such as
+  `List[Named]` is given.
+- Bound depth (owner decision TQ-20, 2026-09-27): a bound proof that needs a
+  bound nested more than 64 deep is the new code `trait-resolution-depth`.
+  The limit is fixed by the specification.
+- Complete type shapes (owner decision TQ-23, 2026-09-26): `TypeShape` gains
+  `Mut(inner)`, `Trait(decl, args)`, `Any`, and `Suspend(result)`, and
+  `Newtype(base)` became `Newtype(decl, base)`. A shape of a type that uses
+  mutable access, a trait value, `Any`, or `Suspend[T]`, previously
+  `unrepresentable-type-shape`, is valid, and that code was removed.

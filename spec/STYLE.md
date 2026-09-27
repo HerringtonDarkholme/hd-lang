@@ -295,3 +295,37 @@ style lint rejects a chapter that reuses one.
 - `data.shared.numeric-field`: retired 2026-09-27. Owner decision TUP-1
   spells unnamed shared parameters `_0`, `_1`, and so on. Replaced by
   `data.shared.underscore-field`.
+- `trait.cmp.partial-eq`: retired 2026-09-27. Owner decision EQ-1 removed
+  `PartialEq`. Replaced by `trait.cmp.equality`.
+- `trait.cmp.eq`: retired 2026-09-27. Owner decision EQ-1 made `Eq` declare
+  `eq` instead of being a marker. Replaced by `trait.cmp.equality` and
+  `trait.cmp.reflexive`.
+- `trait.cmp.partial-ord`: retired 2026-09-27. Owner decision EQ-1 made
+  `Eq` the supertrait of `PartialOrd`. Replaced by
+  `trait.cmp.partial-ordering`.
+- `trait.cmp.ord`: retired 2026-09-27. Owner decision EQ-1 made
+  `PartialOrd` the only supertrait of `Ord`. Replaced by
+  `trait.cmp.total-ordering`.
+- `trait.cmp.module`: retired 2026-09-27. Owner decision EQ-1 removed
+  `PartialEq` from `std.cmp`. Replaced by `trait.cmp.std-module`.
+- `trait.cmp.agree`: retired 2026-09-27. Owner decision EQ-1 left no
+  partial equality to agree with. Replaced by `trait.cmp.ord-agree`.
+- `trait.cmp.float`: retired 2026-09-27. Owner decision EQ-1 made floats
+  implement `Eq`. Replaced by `trait.cmp.float-eq` and
+  `trait.cmp.float-ord`.
+- `trait.derive.intrinsic`: retired 2026-09-27. Owner decision TQ-11 allows
+  `@derive` on newtypes. Replaced by `trait.derive.intrinsic-decl`.
+- `trait.derive.consistency`: retired 2026-09-27. Owner decision TQ-12
+  forbids mixing derived and hand-written law partners. Replaced by
+  `trait.derive.partners.no-mix`.
+- `trait.derive.eq.fields`: retired 2026-09-27. Owner decision EQ-1 derives
+  `Eq` instead of `PartialEq`. Replaced by `trait.derive.eq.compare-fields`.
+- `trait.inherent.unique`: retired 2026-09-27. Owner decision TQ-19 lets
+  inherent implementations with non-unifying targets repeat a name.
+  Replaced by `trait.inherent.unique-unifying`.
+- `types.map-key.float-eq`: retired 2026-09-27. Owner decision EQ-1 made
+  floats implement `Eq`. Replaced by `types.map-key.float-no-hash`.
+- `expr.eq.partial-eq`: retired 2026-09-27. Owner decision EQ-1 removed
+  `PartialEq`. Replaced by `expr.eq.calls-eq`.
+- `module.testing.partial-eq`: retired 2026-09-27. Owner decision EQ-1
+  removed `PartialEq`. Replaced by `module.testing.uses-eq`.

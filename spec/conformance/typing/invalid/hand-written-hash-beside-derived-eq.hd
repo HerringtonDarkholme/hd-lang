@@ -1,0 +1,9 @@
+# test: a hand-written Hash beside a derived Eq mixes law partners
+
+@derive(Eq)  # diagnostic: mixed-derived-law
+data Key:
+    name: string
+
+impl Hash for Key:
+    fn hash(self, state: mut Hasher) -> void:
+        pass

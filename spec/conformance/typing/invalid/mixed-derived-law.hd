@@ -1,0 +1,10 @@
+# test: a derived Hash beside a hand-written Eq mixes law partners
+
+@derive(Hash)  # diagnostic: mixed-derived-law
+data Session:
+    token: string
+    cache: string
+
+impl Eq for Session:
+    fn eq(self, other: Session) -> bool:
+        self.token == other.token

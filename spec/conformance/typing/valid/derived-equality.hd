@@ -1,16 +1,16 @@
 use std.testing.assert_equal
 
-@derive(PartialEq, Eq)
+@derive(Eq)
 data Revision:
     number: i32
 
-@derive(PartialEq, Eq)
+@derive(Eq)
 data User:
     Revision
     id: i64
     name: string
 
-@derive(PartialEq, Eq)
+@derive(Eq)
 enum State:
     Active(code: i32, label: string)
     Paused(code: i32)

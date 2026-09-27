@@ -1,0 +1,7 @@
+# test: a method with a type pack makes a trait not dynamically safe
+
+trait Logger:
+    fn log[Ts... < AnyRef](self, values: Ts...) -> void
+
+fn invalid(logger: Logger) -> void:  # diagnostic: trait-not-dynamically-safe
+    pass

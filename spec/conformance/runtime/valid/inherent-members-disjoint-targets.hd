@@ -1,0 +1,16 @@
+# test: inherent members may repeat a name when their targets cannot unify
+
+use std.testing.assert_equal
+
+data Box[T]:
+    value: T
+
+impl Box[i32]:
+    fn show(self) -> string: "int box"
+
+impl Box[string]:
+    fn show(self) -> string: "string box"
+
+test "the member of the matching target is called":
+    assert_equal(Box { value: 1 }.show(), "int box", reason="Box[i32] member")
+    assert_equal(Box { value: "a" }.show(), "string box", reason="Box[string] member")

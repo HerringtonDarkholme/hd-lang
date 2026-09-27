@@ -1,0 +1,16 @@
+# test: a default method body does not see the implementing type's inherent methods
+
+trait Greeter:
+    fn name(self) -> string
+
+    fn shout(self) -> string:
+        self.loud_name()  # diagnostic: unknown-method
+
+data User:
+    value: string
+
+impl User:
+    pub fn loud_name(self) -> string: self.value
+
+impl Greeter for User:
+    fn name(self) -> string: self.value

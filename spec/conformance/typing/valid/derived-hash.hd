@@ -1,14 +1,14 @@
 
-@derive(PartialEq, Eq, Hash)
+@derive(Eq, Hash)
 data Revision:
     number: i32
 
-@derive(PartialEq, Eq, Hash)
+@derive(Eq, Hash)
 data Key:
     Revision
     name: string
 
-@derive(PartialEq, Eq, Hash)
+@derive(Eq, Hash)
 enum Status:
     Ready(code: i32)
     Failed(code: i32, reason: string)
