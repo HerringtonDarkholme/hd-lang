@@ -330,7 +330,8 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "boolean", value: token.text === "true", span: token.span };
     }
     if (this.matchText("[")) {
-      if (this.atText("for")) return this.parseListComprehension(token);
+      if (this.atText("for") && !this.atForExpressionElement())
+        return this.parseListComprehension(token);
       const elements: Expression[] = [];
       const spreads: boolean[] = [];
       if (!this.atText("]")) {
@@ -660,6 +661,28 @@ export abstract class ExpressionParser extends ParserBase {
     };
   }
 
+  /**
+   * At `for` directly after `[`: true when the `for` header ends in `:`, so
+   * the list holds a for expression, not a comprehension clause
+   * (02-grammar.md#comprehensions).
+   */
+  private atForExpressionElement(): boolean {
+    const depth = this.delimiterDepth(this.index);
+    let afterIn = false;
+    for (let index = this.index + 1; index < this.tokens.length; index += 1) {
+      const token = this.tokens[index]!;
+      if (token.kind === "eof" || this.delimiterDepth(index) < depth) return false;
+      if (this.delimiterDepth(index) > depth || token.raw) continue;
+      if (!afterIn) {
+        afterIn = token.text === "in";
+        continue;
+      }
+      if (token.text === ":") return true;
+      if (["=>", "for", "if", "]"].includes(token.text)) return false;
+    }
+    return false;
+  }
+
   private parseListComprehension(open: Token): Expression {
     const clauses = this.parseComprehensionClauses();
     this.expectText("=>");
@@ -730,7 +753,9 @@ export abstract class ExpressionParser extends ParserBase {
   protected parseMatch(keyword: Token): Expression {
     const subject = this.parseExpression();
     this.rejectHeaderEndingInSuite(keyword, subject);
+    const colonIndex = this.index;
     this.expectText(":");
+    this.openNestedLayout(colonIndex, false);
     this.expectKind("newline", "expected a line ending after a match header");
     this.expectKind("indent", "expected indented match arms");
     const arms: MatchArm[] = [];
@@ -800,25 +825,10 @@ export abstract class ExpressionParser extends ParserBase {
     };
   }
 
-  // Inside brackets the lexer emits no layout tokens, so a closure body that
-  // starts on a later line than its `:` is an indented body nested in
-  // brackets. The line after it must start with `,` or a closing delimiter
-  // (01-lexical-structure.md#physical-and-logical-lines).
+  // A closure body nested in brackets ends only at a line that starts with
+  // `,` or a closing delimiter (01-lexical-structure.md#physical-and-logical-lines).
   protected parseClosureBody(): readonly Statement[] {
-    const colon = this.current();
-    const first = this.peek(1);
-    const body = this.parseSuite();
-    const nested = first.kind !== "newline" && first.span.start.line > colon.span.start.line;
-    const next = this.current();
-    if (nested && [",", ")", "]", "}"].includes(next.text)) {
-      if (next.span.start.line <= this.peek(-1).span.end.line)
-        this.fail(
-          "syntax-error",
-          "an indented closure body inside brackets ends at a line that starts with ',' or a closing delimiter",
-          next.span,
-        );
-    }
-    return body;
+    return this.parseSuite(true);
   }
 
   protected parseLocalFunction(): Statement {

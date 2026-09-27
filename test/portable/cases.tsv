@@ -953,3 +953,8 @@ runtime/valid/trim-unicode-white-space.hd	runtime
 runtime/valid/replace-non-overlapping.hd	runtime
 typing/invalid/least-type-weakening-variance.hd	type
 runtime/valid/inspectable-generic-inner-mut-argument.hd	runtime
+runtime/valid/multiple-inline-closures.hd	runtime
+parse/valid/closure-body-ends-at-comma-line.hd	parse
+parse/valid/closing-delimiter-ends-nested-suite.hd	parse
+parse/valid/bracketed-suite-header-line.hd	parse
+parse/valid/same-line-loop-else.hd	parse

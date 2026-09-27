@@ -1149,15 +1149,11 @@ class Parser extends ExpressionParser {
     return { name: rendered, span: { start: name.span.start, end } };
   }
 
-  protected parseSuite(): readonly Statement[] {
+  protected parseSuite(closureBody = false): readonly Statement[] {
     const colonIndex = this.index;
-    const colon = this.expectText(":");
-    const first = this.current();
-    if (first.kind !== "newline" && first.span.start.line > colon.span.end.line) {
-      // An indented body nested inside brackets: the lexer emits no layout.
-      this.checkNestedSuiteIndent(colonIndex, first);
-      return [this.parseStatement(true)];
-    }
+    this.expectText(":");
+    // An indented body nested inside brackets gets its layout now.
+    this.openNestedLayout(colonIndex, closureBody);
     if (!this.atKind("newline")) {
       this.inlineSuiteDepths.push(this.delimiterDepth(colonIndex));
       try {
@@ -1229,18 +1225,14 @@ class Parser extends ExpressionParser {
     // A trailing block may complete each right-hand side that accepts a suite
     // expression (02-grammar.md#statements).
     if (this.matchText("return")) {
-      const value =
-        this.atKind("newline") || this.atKind("dedent") ? undefined : this.parseRightSide();
+      const value = this.atValuelessEnd(topOrInline) ? undefined : this.parseRightSide();
       const end = value
         ? this.finishExpressionStatement(value, topOrInline)
         : this.finishSimpleStatement(topOrInline);
       return { kind: "return", value, span: { start, end } };
     }
     if (this.matchText("break")) {
-      const value =
-        this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")
-          ? undefined
-          : this.parseRightSide();
+      const value = this.atValuelessEnd(topOrInline) ? undefined : this.parseRightSide();
       const end = value
         ? this.finishExpressionStatement(value, topOrInline)
         : this.finishSimpleStatement(topOrInline);
@@ -1336,6 +1328,13 @@ class Parser extends ExpressionParser {
     }
     const end = this.finishExpressionStatement(expression, topOrInline);
     return { kind: "expression", expression, span: { start, end } };
+  }
+
+  // After `return` or `break`: the statement ends without a value, at a line
+  // ending or, in a same-line suite, where that suite ends.
+  private atValuelessEnd(topOrInline: boolean): boolean {
+    if (this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")) return true;
+    return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
   }
 
   // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an

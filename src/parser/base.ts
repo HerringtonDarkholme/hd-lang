@@ -1,6 +1,6 @@
 import type { Expression, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
-import type { Token } from "../lexer.ts";
+import type { Token, TokenKind } from "../lexer.ts";
 
 export class ParseFailure extends Error {}
 
@@ -10,13 +10,15 @@ export interface ExpressionParseResult {
 }
 
 export abstract class ParserBase {
-  protected readonly tokens: readonly Token[];
+  // Mutable: a suite nested inside brackets gets its layout tokens spliced in
+  // when the parser reaches its header (see `openNestedLayout`).
+  protected readonly tokens: Token[];
   protected index = 0;
   protected readonly diagnostics: Diagnostic[] = [];
   protected activeGenericParameters: ReadonlySet<string> = new Set();
 
   constructor(tokens: readonly Token[]) {
-    this.tokens = tokens;
+    this.tokens = [...tokens];
   }
 
   // Set while parsing a declaration or closure result (02-grammar.md#types):
@@ -35,7 +37,7 @@ export abstract class ParserBase {
     }
   }
 
-  protected abstract parseSuite(): readonly Statement[];
+  protected abstract parseSuite(closureBody?: boolean): readonly Statement[];
   protected abstract parseStatement(topOrInline: boolean): Statement;
   protected abstract parseRequirements(): readonly string[];
   protected abstract parseRequirementKey(): string;
@@ -134,6 +136,117 @@ export abstract class ParserBase {
         "a comma ends a same-line suite, so several names need an indented body or parentheses",
         this.current().span,
       );
+  }
+
+  /**
+   * Layout for an indented suite nested inside brackets
+   * (01-lexical-structure.md#physical-and-logical-lines). The lexer emits no
+   * layout inside brackets, so when the parser reaches a suite header whose
+   * `:` (at `colonIndex`) ends its line, this splices in the `NEWLINE`,
+   * `INDENT`, and `DEDENT` tokens that layout processing emits for the body:
+   * its lines at the suite's delimiter depth, including the suites nested in
+   * it at that depth, are laid out as at depth zero. The body ends at a
+   * closing delimiter at that depth or at a line indented less than the body.
+   * A closure body ends only at a line indented no farther than its header's
+   * line that starts with `,` or a closing delimiter at that depth. Returns
+   * false when the suite does not start on a later line inside brackets.
+   */
+  protected openNestedLayout(colonIndex: number, closureBody: boolean): boolean {
+    const first = this.index;
+    const firstToken = this.tokens[first]!;
+    const colon = this.tokens[colonIndex]!;
+    if (
+      ["newline", "indent", "dedent", "eof"].includes(firstToken.kind) ||
+      firstToken.span.start.line <= colon.span.end.line
+    )
+      return false;
+    this.checkNestedSuiteIndent(colonIndex, firstToken);
+    const depth = this.delimiterDepth(first);
+    const headerIndent = this.lineIndentAt(colonIndex);
+    const bodyIndent = firstToken.span.start.column - 1;
+    const closers = new Set([")", "]", "}"]);
+    const inserts: { readonly at: number; readonly kinds: readonly TokenKind[] }[] = [
+      { at: first, kinds: ["newline", "indent"] },
+    ];
+    const indents = [bodyIndent];
+    let previous = firstToken;
+    let end = first + 1;
+    for (; end < this.tokens.length; end += 1) {
+      const token = this.tokens[end]!;
+      if (token.kind === "eof") break;
+      if (["newline", "indent", "dedent"].includes(token.kind)) continue;
+      if (this.delimiterDepth(end) > depth) {
+        previous = token;
+        continue;
+      }
+      const closer = closers.has(token.text);
+      const startsLine = token.span.start.line > previous.span.end.line;
+      if (!startsLine) {
+        if (!closer) {
+          previous = token;
+          continue;
+        }
+        if (closureBody)
+          this.fail(
+            "syntax-error",
+            "a closing delimiter on a body line does not end an indented closure body; start the line with it",
+            token.span,
+          );
+        break;
+      }
+      const indent = token.span.start.column - 1;
+      if (indent > indents.at(-1)!) {
+        const leadingDot =
+          token.text === "." &&
+          this.tokens[end + 1]?.kind === "identifier" &&
+          previous.text !== ":" &&
+          previous.text !== "=>";
+        if (!leadingDot) {
+          inserts.push({ at: end, kinds: ["newline", "indent"] });
+          indents.push(indent);
+        }
+      } else if (indent >= bodyIndent) {
+        const kinds: TokenKind[] = ["newline"];
+        while (indent < indents.at(-1)!) {
+          indents.pop();
+          kinds.push("dedent");
+        }
+        if (indent !== indents.at(-1))
+          this.fail(
+            "invalid-dedent",
+            `column ${indent + 1} is not an active indentation level`,
+            token.span,
+          );
+        inserts.push({ at: end, kinds });
+      } else {
+        if (closureBody && indent > headerIndent)
+          this.fail(
+            "syntax-error",
+            "a line after an indented closure body must be indented no farther than the closure header",
+            token.span,
+          );
+        if (closureBody && !closer && token.text !== ",")
+          this.fail(
+            "syntax-error",
+            "after an indented closure body inside brackets, the next line must start with ',' or a closing delimiter",
+            token.span,
+          );
+        break;
+      }
+      previous = token;
+    }
+    inserts.push({ at: end, kinds: ["newline", ...indents.map((): TokenKind => "dedent")] });
+    for (const insert of inserts.reverse()) {
+      const position = this.tokens[insert.at]!.span.start;
+      const span = { start: position, end: position };
+      this.tokens.splice(
+        insert.at,
+        0,
+        ...insert.kinds.map((kind) => ({ kind, text: kind === "newline" ? "\n" : "", span })),
+      );
+    }
+    this.depths = undefined;
+    return true;
   }
 
   /** True when the current token starts on the line where the previous token ends. */
