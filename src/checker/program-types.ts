@@ -532,7 +532,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
           diagnostics,
           memberGenerics,
         );
-        return type && parameter.variadic ? nominalGenericType("list", [type]) : type;
+        return type && parameter.variadic ? nominalGenericType("List", [type]) : type;
       });
       const result =
         typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??

@@ -1,4 +1,4 @@
-let names: list[string] = ["Ada"]
+let names: List[string] = ["Ada"]
 first := apply(first_name)
 
 fn apply(callback: fn() -> string) -> string:

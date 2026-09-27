@@ -8,11 +8,11 @@ data User:
 data Box[T]:
     value: T
 
-test "readonly list[mut User] permits element mutation on the path":
+test "readonly List[mut User] permits element mutation on the path":
     let user: mut User = User { name: "a" }
-    let users: list[mut User] = [user]
+    let users: List[mut User] = [user]
     users[0].name = "b"
-    assert_equal(user.name, "b", reason="table: list[mut User] can mutate referenced elements")
+    assert_equal(user.name, "b", reason="table: List[mut User] can mutate referenced elements")
 
 test "readonly Box[mut User] permits child mutation on the path":
     let user: mut User = User { name: "a" }

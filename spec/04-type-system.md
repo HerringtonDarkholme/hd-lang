@@ -13,7 +13,7 @@ The type forms are:
 - primitive types;
 - nominal data types and enums;
 - tuples;
-- `list[T]` and `map[K, V]`;
+- `List[T]` and `Map[K, V]`;
 - optional types `T?`;
 - function types `fn(...) -> T` and mutable function types
   `mut fn(...) -> T`;
@@ -472,8 +472,8 @@ time from the expression it extends:
   step ([Member Resolution](03-names-and-scopes.md#member-resolution)).
 - Indexing, iteration, and lookup on a built-in collection yield its declared
   element or value type, whatever the collection's own permission: indexing
-  readonly `list[mut User]` yields `mut User`, and a successful lookup in a
-  readonly `map[K, mut User]` yields `mut User` after unwrapping. Optional and
+  readonly `List[mut User]` yields `mut User`, and a successful lookup in a
+  readonly `Map[K, mut User]` yields `mut User` after unwrapping. Optional and
   `Result` unwrapping, tuple element extraction, and generic enum payloads
   likewise yield their declared contents. A non-generic enum payload declared
   `mut U` follows the field rule above.
@@ -515,10 +515,10 @@ Container mutation and element mutation are independent:
 
 | Type | Replace elements | Mutate referenced elements |
 | --- | --- | --- |
-| `list[User]` | no | no |
-| `list[mut User]` | no | yes |
-| `mut list[User]` | yes | no |
-| `mut list[mut User]` | yes | yes |
+| `List[User]` | no | no |
+| `List[mut User]` | no | yes |
+| `mut List[User]` | yes | no |
+| `mut List[mut User]` | yes | yes |
 
 Generic type arguments are never weakened because their enclosing value is
 readonly; only a mutable edge or an embedded field loses `mut` through a
@@ -652,8 +652,8 @@ unmarked invariant parameter may occur in any position.
 
 Variance conversion applies only to a readonly outer view. Every `mut G[T]`
 view is invariant in all generic arguments because the mutable view may replace
-stored values. The built-in `list` declares a covariant element parameter for
-its readonly view. Readonly `map[K, V]` is invariant in `K`, because keys are
+stored values. The built-in `List` declares a covariant element parameter for
+its readonly view. Readonly `Map[K, V]` is invariant in `K`, because keys are
 both accepted for lookup and exposed during traversal, and covariant in `V`.
 
 A variance conversion `G[S] -> G[T]` requires a representation-preserving
@@ -701,7 +701,7 @@ optional type, satisfies it automatically. As a value type, `Any` erases the con
 
 ## Map Key Types
 
-`map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
+`Map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
 `Hash` is a standard-library trait in `std.hash`; user-defined data and enum
 types can become keys by explicitly implementing or deriving both traits. Standard-library
 implementations cover eligible built-in scalar types and their supported
@@ -754,11 +754,11 @@ weakening with a variance step for the same candidate conversion.
 The compiler never falls back to `Any` merely to make heterogeneous values
 type-check. Unconstrained inference also does not introduce a dynamic
 trait-value conversion, because a concrete type may satisfy multiple unrelated
-traits; an expected type such as `list[Display]` or `map[K, Display]` may
+traits; an expected type such as `List[Display]` or `Map[K, Display]` may
 request that conversion explicitly. A contextual variant, `.None` included,
 takes its type only from an expected type, never from the other values: `[1,
 .None]` or `if c: 1 else: .None` without an expected type is a
-`missing-contextual-enum-type` error, and `let values: list[i32?] = [1,
+`missing-contextual-enum-type` error, and `let values: List[i32?] = [1,
 .None]` supplies the type.
 
 If no unique least type exists, inference fails and the user must add an
@@ -832,7 +832,7 @@ A generic function is compiled in its defining package once for each shape,
 at most five bodies, so a downstream package needs only its signature (see
 [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages)).
 All reference-shaped instantiations share one body. Scalar-shaped instantiations
-get a specialized body, so a generic function over `list[i32]` reads and
+get a specialized body, so a generic function over `List[i32]` reads and
 writes unboxed `i32` elements. Trait bounds are passed as dictionaries of the
 selected operations; associated types are represented through those
 dictionaries. A dictionary for a statically known implementation is a

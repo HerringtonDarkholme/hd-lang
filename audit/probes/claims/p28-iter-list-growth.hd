@@ -1,6 +1,6 @@
 # test: list growth during iteration invalidates the cursor
 fn main() -> i32:
-    let values: mut list[i32] = [1, 2]
+    let values: mut List[i32] = [1, 2]
     let total: i32 = 0
     for value in values:
         values.append(value)  # panic: iterator-invalidated

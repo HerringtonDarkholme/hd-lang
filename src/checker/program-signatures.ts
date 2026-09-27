@@ -199,7 +199,7 @@ export function createProgramSignatures(
         genericParameters,
         new Set(rowParameters),
       );
-      return type && parameter.variadic ? nominalGenericType("list", [type]) : type;
+      return type && parameter.variadic ? nominalGenericType("List", [type]) : type;
     });
     const result = typeName(
       declaration.result,

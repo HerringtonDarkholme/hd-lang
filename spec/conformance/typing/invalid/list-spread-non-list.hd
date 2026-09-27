@@ -1,4 +1,4 @@
 # test: a list spread operand must be a list
 
-fn numbers(count: i32) -> list[i32]:
+fn numbers(count: i32) -> List[i32]:
     [0, count...]  # diagnostic: type-mismatch

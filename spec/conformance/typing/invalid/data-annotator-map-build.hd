@@ -18,6 +18,6 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: map[string, FieldValidator],  # diagnostic: annotation-build-signature
+        fields: Map[string, FieldValidator],  # diagnostic: annotation-build-signature
     ) -> Validator:
         Validator {}

@@ -17,8 +17,8 @@ fn flag(log: mut Log, tag: string, value: bool) -> bool:
     log.text = log.text + tag
     value
 
-fn keys(values: map[string, i32]) -> list[string]:
-    let result: mut list[string] = []
+fn keys(values: Map[string, i32]) -> List[string]:
+    let result: mut List[string] = []
     for name, value in values:
         if value >= 0:
             result.append(name)

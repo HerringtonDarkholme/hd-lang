@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 test "absent removal yields .None":
-    let values: mut map[string, i32] = {"a": 1, "b": 2}
+    let values: mut Map[string, i32] = {"a": 1, "b": 2}
     let absent: i32? = .None
     assert_equal(values.remove("missing"), absent, reason="absent key yields .None")
     assert_equal(values, {"a": 1, "b": 2}, reason="no entry was removed")

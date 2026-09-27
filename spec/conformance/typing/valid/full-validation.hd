@@ -28,7 +28,7 @@ data FieldValidator:
 data VariantValidator:
     name: string
     description: string?
-    fields: list[FieldValidator]
+    fields: List[FieldValidator]
 
 enum Validator:
     Bool
@@ -36,8 +36,8 @@ enum Validator:
     String(rules: StringRules)
     Optional(inner: AnnotationRef[Validator])
     List(item: AnnotationRef[Validator])
-    Data(name: string, fields: list[(string, FieldValidator)])
-    Enum(name: string, variants: list[(string, VariantValidator)])
+    Data(name: string, fields: List[(string, FieldValidator)])
+    Enum(name: string, variants: List[(string, VariantValidator)])
 
 data MinLen:
     value: i32
@@ -123,7 +123,7 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, FieldValidator)],
+        fields: List[(string, FieldValidator)],
     ) -> Validator:
         Validator.Data(name=target.name, fields=fields)
 
@@ -141,7 +141,7 @@ impl EnumAnnotator for Validation:
     fn map_variant(
         self,
         variant: VariantShape,
-        fields: list[FieldValidator],
+        fields: List[FieldValidator],
     ) -> VariantValidator:
         VariantValidator {
             name: variant.name,
@@ -154,7 +154,7 @@ impl EnumAnnotator for Validation:
     fn build(
         self,
         target: EnumShape,
-        variants: list[(string, VariantValidator)],
+        variants: List[(string, VariantValidator)],
     ) -> Validator:
         Validator.Enum(name=target.name, variants=variants)
 
@@ -173,7 +173,7 @@ data Folder:
     path: string
     note: string?
     owner: Email
-    entries: list[Entry]
+    entries: List[Entry]
 
 enum Entry:
     File(name: string, size: i32)
@@ -189,7 +189,7 @@ annotate Entry:
 annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
-annotate[reified T < Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for List[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 

@@ -1,15 +1,15 @@
 # probe 5.1: list growth policy, element storage, bounds check
-fn sum(values: list[i32]) -> i32:
+fn sum(values: List[i32]) -> i32:
     let total = 0
     for value in values:
         total = total + value
     total
 
-fn indexed(values: list[i32]) -> i32:
+fn indexed(values: List[i32]) -> i32:
     values[0] + values[values.len() - 1]
 
 fn build(n: i32) -> i32:
-    let values: mut list[i32] = []
+    let values: mut List[i32] = []
     let i = 0
     while i < n:
         values.append(i)

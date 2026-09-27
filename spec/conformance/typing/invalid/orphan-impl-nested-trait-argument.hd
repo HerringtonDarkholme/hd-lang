@@ -3,6 +3,6 @@
 data Word:
     text: string
 
-impl Iterable[list[Word]] for string:  # diagnostic: orphan-impl
-    fn iter(self) -> mut Iterator[list[Word]]:
+impl Iterable[List[Word]] for string:  # diagnostic: orphan-impl
+    fn iter(self) -> mut Iterator[List[Word]]:
         [[Word { text: self }]].iter()

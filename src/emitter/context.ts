@@ -197,9 +197,9 @@ export class EmitterContext {
     const nominalData = nominalGenericParts(type);
     if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
       return `(ref null $hd.iterator)`;
-    if (nominalData?.name === "list" && nominalData.arguments.length === 1)
+    if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref null $hd.vector)`;
-    if (nominalData?.name === "map" && nominalData.arguments.length === 2)
+    if (nominalData?.name === "Map" && nominalData.arguments.length === 2)
       return `(ref null $hd.map)`;
     if (nominalData && this.dataByName.has(nominalData.name))
       return `(ref null $d${this.dataByName.get(nominalData.name)!.index})`;
@@ -318,11 +318,11 @@ export class EmitterContext {
       return `(ref.cast (ref null $closure${this.functionSignatures.get(type)}) ${payload})`;
     const data = this.dataByName.get(type);
     const nominalData = nominalGenericParts(type);
-    if (nominalData?.name === "list" && nominalData.arguments.length === 1)
+    if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref.cast (ref null $hd.vector) ${payload})`;
     if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
       return `(ref.cast (ref null $hd.iterator) ${payload})`;
-    if (nominalData?.name === "map" && nominalData.arguments.length === 2)
+    if (nominalData?.name === "Map" && nominalData.arguments.length === 2)
       return `(ref.cast (ref null $hd.map) ${payload})`;
     if (nominalData && this.dataByName.has(nominalData.name))
       return `(ref.cast (ref null $d${this.dataByName.get(nominalData.name)!.index}) ${payload})`;
@@ -360,9 +360,9 @@ export class EmitterContext {
     const nominalData = nominalGenericParts(type);
     if (nominalData?.name === "Iterator" && nominalData.arguments.length === 1)
       return `(ref.null $hd.iterator)`;
-    if (nominalData?.name === "list" && nominalData.arguments.length === 1)
+    if (nominalData?.name === "List" && nominalData.arguments.length === 1)
       return `(ref.null $hd.vector)`;
-    if (nominalData?.name === "map" && nominalData.arguments.length === 2)
+    if (nominalData?.name === "Map" && nominalData.arguments.length === 2)
       return `(ref.null $hd.map)`;
     if (nominalData && this.dataByName.has(nominalData.name))
       return `(ref.null $d${this.dataByName.get(nominalData.name)!.index})`;

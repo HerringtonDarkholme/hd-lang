@@ -39,7 +39,7 @@ every user module that already declares it.
 
 | Module | Names fixed today | Source |
 | --- | --- | --- |
-| `std.core` | primitives, `list`, `map`, `Any`, `Reference`, `Result`, `Ok`, `Err`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
+| `std.core` | primitives, `List`, `Map`, `Any`, `Reference`, `Result`, `Ok`, `Err`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.format` | `Display` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md) |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
@@ -57,7 +57,7 @@ every user module that already declares it.
 
 Other facts the library must respect:
 
-- There is no `bytes` primitive; `Hasher.write` takes `list[u8]`.
+- There is no `bytes` primitive; `Hasher.write` takes `List[u8]`.
 - An inherent `impl` cannot target a primitive, so methods on `string`, `i32`,
   and other primitives come either from the normative built-in method table or
   from traits that the standard library implements for them.
@@ -274,8 +274,9 @@ std
 ```
 
 Names follow the existing convention: lowercase single-word modules, one
-concept each, capitalized nominal types, and lowercase names only for the
-literal-bearing built-ins `list` and `map`.
+concept each, and capitalized nominal types, including the literal-bearing
+built-ins `List` and `Map`. Only primitive types such as `i32`, `bool`, and
+`string` have lowercase names.
 
 ## Core Layer
 
@@ -346,11 +347,11 @@ pub trait StringExt:
     fn trim_end(self) -> string
     fn strip_prefix(self, prefix: string) -> string?
     fn strip_suffix(self, suffix: string) -> string?
-    fn chars(self) -> list[char]
-    fn lines(self) -> list[string]
+    fn chars(self) -> List[char]
+    fn lines(self) -> List[string]
     fn repeat(self, count: i32) -> string
     fn is_empty(self) -> bool
-    fn to_utf8(self) -> list[u8]
+    fn to_utf8(self) -> List[u8]
 
 impl StringExt for string:
     fn ends_with(self, suffix: string) -> bool:
@@ -360,14 +361,14 @@ pub enum Utf8Error:
     InvalidSequence(position: i32)
     Truncated
 
-pub fn from_utf8(bytes: list[u8]) -> Result[string, Utf8Error]:
+pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
     pass
 
-pub fn join(parts: list[string], separator: string) -> string:
+pub fn join(parts: List[string], separator: string) -> string:
     pass
 
 pub data StringBuilder:
-    parts: list[string]
+    parts: List[string]
 
 impl StringBuilder:
     pub fn new() -> mut StringBuilder:
@@ -430,12 +431,12 @@ lands, `Error` has only `Display` and `cause`. Domain errors (`FsError`,
 
 ### `std.collections`
 
-`list` and `map` stay built in. `set` is not part of the prelude, and the
+`List` and `Map` stay built in. `set` is not part of the prelude, and the
 survey favors library types for the rest:
 
 ```text
 pub data Set[T < Eq + Hash]:
-    entries: map[T, bool]
+    entries: Map[T, bool]
 
 impl[T < Eq + Hash] Set[T]:
     pub fn new() -> mut Set[T]:
@@ -454,23 +455,23 @@ impl[T < Eq + Hash] Set[T]:
         pass
 
 pub data Deque[T]:
-    items: list[T]
+    items: List[T]
 
 pub data SortedMap[K < Ord, V]:
-    keys: list[K]
-    values: list[V]
+    keys: List[K]
+    values: List[V]
 
 pub trait ListExt[T]:
-    fn filter(self, keep: fn(T) -> bool) -> list[T]
-    fn sorted_by(self, compare: fn(T, T) -> Ordering) -> list[T]
+    fn filter(self, keep: fn(T) -> bool) -> List[T]
+    fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]
     fn first(self) -> T?
     fn last(self) -> T?
-    fn reversed(self) -> list[T]
-    fn chunks(self, size: i32) -> list[list[T]]
-    fn zip[U](self, other: list[U]) -> list[(T, U)]
+    fn reversed(self) -> List[T]
+    fn chunks(self, size: i32) -> List[List[T]]
+    fn zip[U](self, other: List[U]) -> List[(T, U)]
 ```
 
-`Set` iterates in insertion order to match `map`. `SortedMap` gives ordered
+`Set` iterates in insertion order to match `Map`. `SortedMap` gives ordered
 iteration for deterministic output. Field layouts above are placeholders.
 
 ### `std.iter`
@@ -484,7 +485,7 @@ pub trait IteratorExt[T]:
     fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]
     fn take(mut self, count: i32) -> mut Iterator[T]
     fn enumerate(mut self) -> mut Iterator[(i32, T)]
-    fn collect(mut self) -> list[T]
+    fn collect(mut self) -> List[T]
     fn fold[A](mut self, initial: A, step: fn(A, T) -> A) -> A
 
 pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
@@ -508,7 +509,7 @@ preopened directory). It exists so that `FsRead` does not take raw strings:
 
 ```text
 pub data Path:
-    segments: list[string]
+    segments: List[string]
 
 impl Path:
     pub fn parse(text: string) -> Path:
@@ -634,12 +635,12 @@ impl Rng:
     pub fn below(mut self, bound: u64) -> u64:
         pass
 
-    pub fn shuffle[T](mut self, items: mut list[T]) -> void:
+    pub fn shuffle[T](mut self, items: mut List[T]) -> void:
         pass
 
 pub trait Random:
     fn next_u64!(self) -> u64
-    fn fill!(self, count: i32) -> list[u8]
+    fn fill!(self, count: i32) -> List[u8]
 
 pub fn rng!() -> mut Rng $ Random:
     Rng::from_seed($.use(Random).next_u64!())
@@ -665,25 +666,25 @@ one invocation, so they are recorded once and their reads are not suspending:
 ```text
 pub trait Args:
     fn program_name(self) -> string
-    fn arguments(self) -> list[string]
+    fn arguments(self) -> List[string]
 
 pub trait Env:
     fn get(self, name: string) -> string?
-    fn names(self) -> list[string]
+    fn names(self) -> List[string]
 
 pub data MapEnv:
-    values: map[string, string]
+    values: Map[string, string]
 
 impl Env for MapEnv:
     fn get(self, name: string) -> string?:
         self.values.get(name)
 
-    fn names(self) -> list[string]:
+    fn names(self) -> List[string]:
         pass
 
 pub data MapArgs:
     program: string
-    values: list[string]
+    values: List[string]
 ```
 
 Secrets do not come from `Env` as plain strings; see `std.secret`.
@@ -698,13 +699,13 @@ pub trait ConsoleInput:
     fn read_line!(self) -> Result[string?, ConsoleError]
 
 pub data BufferConsole:
-    lines: Cell[list[string]]
+    lines: Cell[List[string]]
 
 impl BufferConsole:
     pub fn new() -> BufferConsole:
         pass
 
-    pub fn output(self) -> list[string]:
+    pub fn output(self) -> List[string]:
         self.lines.get()
 
 impl Console for BufferConsole:
@@ -739,26 +740,26 @@ pub data Metadata:
     pub size: u64
 
 pub trait FsRead:
-    fn read!(self, path: Path) -> Result[list[u8], FsError]
+    fn read!(self, path: Path) -> Result[List[u8], FsError]
     fn read_text!(self, path: Path) -> Result[string, FsError]
-    fn list!(self, path: Path) -> Result[list[Path], FsError]
+    fn list!(self, path: Path) -> Result[List[Path], FsError]
     fn metadata!(self, path: Path) -> Result[Metadata, FsError]
 
 pub trait FsWrite:
-    fn write!(self, path: Path, contents: list[u8]) -> Result[void, FsError]
+    fn write!(self, path: Path, contents: List[u8]) -> Result[void, FsError]
     fn write_text!(self, path: Path, text: string) -> Result[void, FsError]
     fn create_dir!(self, path: Path) -> Result[void, FsError]
     fn remove!(self, path: Path) -> Result[void, FsError]
     fn rename!(self, from: Path, to: Path) -> Result[void, FsError]
 
 pub data MemoryFs:
-    files: Cell[map[string, list[u8]]]
+    files: Cell[Map[string, List[u8]]]
 
 impl MemoryFs:
     pub fn new() -> MemoryFs:
         pass
 
-    pub fn with_files(files: map[string, string]) -> MemoryFs:
+    pub fn with_files(files: Map[string, string]) -> MemoryFs:
         pass
 
     pub fn scoped(self, root: Path) -> MemoryFs:
@@ -777,13 +778,13 @@ data Subtree:
     root: Path
 
 impl FsRead for Subtree:
-    fn read!(self, path: Path) -> Result[list[u8], FsError]:
+    fn read!(self, path: Path) -> Result[List[u8], FsError]:
         self.inner.read!(self.root.join_path(path))
 
     fn read_text!(self, path: Path) -> Result[string, FsError]:
         self.inner.read_text!(self.root.join_path(path))
 
-    fn list!(self, path: Path) -> Result[list[Path], FsError]:
+    fn list!(self, path: Path) -> Result[List[Path], FsError]:
         self.inner.list!(self.root.join_path(path))
 
     fn metadata!(self, path: Path) -> Result[Metadata, FsError]:
@@ -811,13 +812,13 @@ pub enum Method:
 pub data Request:
     pub method: Method
     pub url: string
-    pub headers: map[string, string]
-    pub body: list[u8]
+    pub headers: Map[string, string]
+    pub body: List[u8]
 
 pub data Response:
     pub status: u16
-    pub headers: map[string, string]
-    pub body: list[u8]
+    pub headers: Map[string, string]
+    pub body: List[u8]
 
 pub enum HttpError:
     InvalidUrl(url: string)
@@ -829,8 +830,8 @@ pub trait Http:
     fn send!(self, request: Request) -> Result[Response, HttpError]
 
 pub data ScriptedHttp:
-    routes: map[string, Response]
-    requests: Cell[list[Request]]
+    routes: Map[string, Response]
+    requests: Cell[List[Request]]
 ```
 
 `ScriptedHttp` answers from a route table and records what it received.
@@ -846,14 +847,14 @@ it.
 ```text
 pub data Command:
     pub program: string
-    pub arguments: list[string]
-    pub environment: map[string, string]
-    pub stdin: list[u8]
+    pub arguments: List[string]
+    pub environment: Map[string, string]
+    pub stdin: List[u8]
 
 pub data Output:
     pub status: i32
-    pub stdout: list[u8]
-    pub stderr: list[u8]
+    pub stdout: List[u8]
+    pub stderr: List[u8]
 
 pub enum ProcessError:
     NotFound(program: string)
@@ -864,7 +865,7 @@ pub trait Process:
     fn run!(self, command: Command) -> Result[Output, ProcessError]
 
 pub data ScriptedProcess:
-    outputs: map[string, Output]
+    outputs: Map[string, Output]
 ```
 
 ### `std.observe` and `std.log`
@@ -889,10 +890,10 @@ pub fn block_on[T](s: mut Suspend[T]) -> T:
 pub fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
     pass
 
-pub fn all_list![T](tasks: list[mut Suspend[T]]) -> list[T]:
+pub fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
     pass
 
-pub fn race![T](tasks: list[mut Suspend[T]]) -> T:
+pub fn race![T](tasks: List[mut Suspend[T]]) -> T:
     pass
 
 pub enum Timeout[T]:
@@ -961,8 +962,8 @@ pub enum Json:
     Bool(value: bool)
     Number(value: f64)
     Text(value: string)
-    Array(items: list[Json])
-    Object(fields: map[string, Json])
+    Array(items: List[Json])
+    Object(fields: Map[string, Json])
 
 pub data JsonError:
     pub message: string
@@ -978,7 +979,7 @@ pub fn print_pretty(value: Json, indent: i32 = 2) -> string:
     pass
 ```
 
-`Object` keeps insertion order because `map` does. Integers beyond 2^53 need
+`Object` keeps insertion order because `Map` does. Integers beyond 2^53 need
 a decision: a separate `Integer(value: i64)` case, or a raw-number case.
 
 Typed encoding and decoding (`User` to `Json` and back) is blocked on
@@ -1023,10 +1024,10 @@ pub enum Algorithm:
 pub data Fingerprint:
     pub algorithm: Algorithm
     pub version: u32
-    pub digest: list[u8]
+    pub digest: List[u8]
 
 pub trait Fingerprinter:
-    fn write_bytes(mut self, bytes: list[u8]) -> void
+    fn write_bytes(mut self, bytes: List[u8]) -> void
     fn write_text(mut self, text: string) -> void
     fn finish(mut self) -> Fingerprint
 
@@ -1036,7 +1037,7 @@ pub trait Fingerprintable:
 pub fn of[T < Fingerprintable](value: T) -> Fingerprint:
     pass
 
-pub fn of_bytes(bytes: list[u8]) -> Fingerprint:
+pub fn of_bytes(bytes: List[u8]) -> Fingerprint:
     pass
 ```
 
@@ -1134,12 +1135,12 @@ part that needs no derivation is a strategy type over the pure `Rng`:
 ```text
 pub data Strategy[T]:
     generate: fn(mut Rng, i32) -> T
-    shrink: fn(T) -> list[T]
+    shrink: fn(T) -> List[T]
 
 pub fn integers(low: i64, high: i64) -> Strategy[i64]:
     pass
 
-pub fn lists[T](element: Strategy[T], max_len: i32) -> Strategy[list[T]]:
+pub fn lists[T](element: Strategy[T], max_len: i32) -> Strategy[List[T]]:
     pass
 
 pub fn check[T](strategy: Strategy[T], property: fn(T) -> bool, reason: string, cases: i32 = 100) -> void:
@@ -1189,7 +1190,7 @@ Decided 2026-09-26:
 4. **Question 4: deterministic providers live next to their trait**
    (`std.time.ManualClock`); `std.testing.hermetic()` bundles them.
 5. **Question 5: a library `std.bytes.Bytes`**, readonly and compact,
-   convertible to and from `list[u8]`.
+   convertible to and from `List[u8]`.
 6. **Question 6: one error enum per domain** (`FsError`, `HttpError`).
 7. **Question 7: the prelude does not grow**; `Error`, `Duration`, `Set` are
    imported.
@@ -1313,14 +1314,14 @@ fn simulate!() -> Timestamp $ Clock:
 
 ### 5. What is the byte-sequence type?
 
-- **A.** `list[u8]` everywhere, as `Hasher.write` does today.
+- **A.** `List[u8]` everywhere, as `Hasher.write` does today.
 - **B.** A library `std.bytes.Bytes`: readonly, compact, convertible to and
-  from `list[u8]`.
+  from `List[u8]`.
 - **C.** A primitive `bytes` type with literals.
 
-**Recommendation: B.** A `list[u8]` of Wasm GC references is wasteful for
+**Recommendation: B.** A `List[u8]` of Wasm GC references is wasteful for
 file and network payloads; a library type avoids a grammar change. The
-sketches above use `list[u8]` until this is decided.
+sketches above use `List[u8]` until this is decided.
 
 ```text
 use std.bytes.Bytes
@@ -1363,7 +1364,7 @@ use std.time.Duration
 
 ### 8. How do built-in types get more methods?
 
-`string`, `T?`, `list`, and `Result` have a short normative method table.
+`string`, `T?`, `List`, and `Result` have a short normative method table.
 
 - **A.** Grow the normative table in the specification.
 - **B.** Extension traits in `std` (`StringExt`, `OptionExt`), dot-callable
@@ -1395,7 +1396,7 @@ money-handling tools need it; `BigInt` can be a package.
 ```text
 use std.decimal.Decimal
 
-fn total(prices: list[Decimal]) -> Decimal:
+fn total(prices: List[Decimal]) -> Decimal:
     pass
 ```
 

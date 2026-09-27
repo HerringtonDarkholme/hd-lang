@@ -11,7 +11,7 @@ fn note(log: mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label
     value
 
-fn items(log: mut Log) -> list[i32]:
+fn items(log: mut Log) -> List[i32]:
     log.text = log.text + "r"
     [10, 20, 30]
 

@@ -1,7 +1,7 @@
 use std.testing.assert
 
 test "list iterator yields values and remains exhausted":
-    let values: mut list[i32] = [20, 22]
+    let values: mut List[i32] = [20, 22]
     let iterator: mut Iterator[i32] = values.iter()
     let first: i32? = 20
     let second: i32? = 22
@@ -12,7 +12,7 @@ test "list iterator yields values and remains exhausted":
     assert(iterator.next() == exhausted, reason="an exhausted iterator remains exhausted")
 
 test "element replacement preserves an iterator and changes a later yield":
-    let values: mut list[i32] = [1, 2]
+    let values: mut List[i32] = [1, 2]
     let iterator: mut Iterator[i32] = values.iter()
     let first: i32? = 1
     let replacement: i32? = 42
@@ -21,7 +21,7 @@ test "element replacement preserves an iterator and changes a later yield":
     assert(iterator.next() == replacement, reason="replacement does not invalidate the iterator")
 
 test "for continues from a partly consumed mutable iterator":
-    let values: mut list[i32] = [20, 21, 22]
+    let values: mut List[i32] = [20, 21, 22]
     let iterator: mut Iterator[i32] = values.iter()
     let first: i32? = 20
     assert(iterator.next() == first, reason="the explicit call consumes the first value")

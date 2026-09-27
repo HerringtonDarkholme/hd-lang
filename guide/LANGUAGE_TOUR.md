@@ -188,7 +188,7 @@ literal := r"$name and ${user.name} are not expanded here"
 Use `\$` for a literal dollar sign in an interpreted string. Raw strings treat
 every dollar sign literally.
 
-Core types, traits, and functions such as `list`, `map`, `Result`, `Display`,
+Core types, traits, and functions such as `List`, `Map`, `Result`, `Display`,
 `Ordering`, and `println` come from the prelude. A declaration, type parameter,
 parameter, local binding, or explicit `use` cannot reuse a prelude name; use
 the names directly without importing them again. The complete list is in the
@@ -335,8 +335,8 @@ fn label(name: string?) -> string?:
 Collections are typed:
 
 ```text
-names := ["Ada", "Grace", "Linus"]       # list[string]
-scores := {"Ada": 10, "Grace": 12}       # map[string, i32]
+names := ["Ada", "Grace", "Linus"]       # List[string]
+scores := {"Ada": 10, "Grace": 12}       # Map[string, i32]
 ```
 
 List comprehensions build lists from iterables:
@@ -403,7 +403,7 @@ else:
 Use `return` for early exits:
 
 ```text
-fn find_name(names: list[string], prefix: string) -> string?:
+fn find_name(names: List[string], prefix: string) -> string?:
     for name in names:
         if name.starts_with(prefix):
             return name
@@ -591,35 +591,35 @@ fn normalize_user(user: mut User) -> User:
 The same rule composes through containers:
 
 ```text
-fn edit_users(users: mut list[mut User]) -> void:
+fn edit_users(users: mut List[mut User]) -> void:
     users[0].display_name = "new"
 ```
 
 Here the list is a mutable root and its element references are mutable edges.
-`mut list[User]` can replace list elements but cannot mutate the referenced
-users; `list[mut User]` cannot replace list elements but can mutate its
+`mut List[User]` can replace list elements but cannot mutate the referenced
+users; `List[mut User]` cannot replace list elements but can mutate its
 referenced users, because indexing retains the generic element type.
 
 The two rules also compose through a readonly containing object:
 
 ```text
 data Cart:
-    items: mut list[mut LineItem]
+    items: mut List[mut LineItem]
 
 fn inspect_cart(cart: Cart, item: mut LineItem) -> void:
     cart.items[0].quantity = 0  # allowed: element remains mut LineItem
     cart.items.append(item)     # error: readonly Cart weakens the direct list field
 ```
 
-Iterating `list[mut T]` likewise yields `mut T`, even through a readonly list.
+Iterating `List[mut T]` likewise yields `mut T`, even through a readonly list.
 
-Container and element permissions are independent, so all four forms are meaningful: `list[User]`, `list[mut User]`, `mut list[User]`, and `mut list[mut User]`.
+Container and element permissions are independent, so all four forms are meaningful: `List[User]`, `List[mut User]`, `mut List[User]`, and `mut List[mut User]`.
 
-A readonly list view may weaken element permission because `list` declares its element parameter as covariant, conceptually `list[+T]`: `list[mut User]` can be used as `list[User]`. Mutable list views are invariant, so `mut list[mut User]` cannot become `mut list[User]`; that mutable view could insert a readonly `User` into storage requiring `mut User`.
+A readonly list view may weaken element permission because `List` declares its element parameter as covariant, conceptually `List[+T]`: `List[mut User]` can be used as `List[User]`. Mutable list views are invariant, so `mut List[mut User]` cannot become `mut List[User]`; that mutable view could insert a readonly `User` into storage requiring `mut User`.
 
-Maps follow the same separation: a readonly `map[K, mut User]` can yield
+Maps follow the same separation: a readonly `Map[K, mut User]` can yield
 `mut User` from lookup or iteration, but replacing an entry requires a
-`mut map[K, mut User]`. Lookup returns `mut User?`; matching the present case
+`mut Map[K, mut User]`. Lookup returns `mut User?`; matching the present case
 or propagating `?` yields `mut User`.
 The same generic-content rule applies to `Result[mut User, E]`: propagating a
 successful result with `?` yields `mut User`, not a weakened reference.
@@ -1231,7 +1231,7 @@ language has not yet defined their compatibility or execution semantics.
 When a closure is passed where a function type is already expected, parameter and return types can usually be inferred:
 
 ```text
-fn map_names(names: list[string], f: fn(string) -> string) -> list[string]:
+fn map_names(names: List[string], f: fn(string) -> string) -> List[string]:
     ...
 
 lower_names := map_names(names, fn(name):
@@ -1250,7 +1250,7 @@ Shorthand argument closures such as `$0 + $1` are not supported; closures use na
 Generic functions put generic arguments after the function name:
 
 ```text
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     if items.len() == 0:
         .None
     else:
@@ -1278,7 +1278,7 @@ user := convert[_, User](payload)
 ```
 
 Every `_` must be determined by the call arguments, expected result type, or
-generic constraints. It is not a type and cannot be used in `list[_]`.
+generic constraints. It is not a type and cannot be used in `List[_]`.
 
 Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
 
@@ -1559,10 +1559,10 @@ suggestion: use i16(huge) if range checking is intended
 Generic types and functions use square brackets:
 
 ```text
-let names: list[string] = ["Ada", "Grace"]
-let scores: map[string, i32] = {"Ada": 10, "Grace": 12}
+let names: List[string] = ["Ada", "Grace"]
+let scores: Map[string, i32] = {"Ada": 10, "Grace": 12}
 
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     if items.len() == 0:
         .None
     else:
@@ -1594,7 +1594,7 @@ Function generic parameters are erased by default. Use `reified` only when runti
 fn resolve[reified T]() -> T $ TypeProvider:
     ...
 
-items := resolve[list[i32]]()
+items := resolve[List[i32]]()
 ```
 
 At the language level, a reified call behaves as if it passes a hidden runtime
@@ -1612,7 +1612,7 @@ fn call_with[Args..., R](f: fn(Args...) -> R, args: Args...) -> R:
 The value-pack parameter must be the final positional parameter; calls never
 guess how to split positional arguments between a pack and a later parameter.
 
-This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `list[Any]` or a weak tuple type.
+This lets the compiler preserve the exact argument types of higher-order functions instead of collapsing them into `List[Any]` or a weak tuple type.
 
 A pattern containing a pack can be expanded once per pack element. This is especially useful for a heterogeneous concurrency combinator:
 
@@ -1674,7 +1674,7 @@ fn accept_mutable[T < mut Any](value: T) -> void:
     pass
 ```
 
-`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut list[User]` satisfies `mut Any`; `list[mut User]` does not, because its root is readonly.
+`mut Trait` is likewise a mutable dynamic trait view. `mut Any` preserves mutable access to an erased composite value, but provides no type-specific operation by itself. `mut List[User]` satisfies `mut Any`; `List[mut User]` does not, because its root is readonly.
 
 There is no implicit nullability. `T` and `T?` are different types, and only optional values can be `.None`:
 
@@ -1742,7 +1742,7 @@ forms shown here:
 trait Notifier:
     fn notify(self, message: string) -> void
 
-impl[N < Notifier] Notifier for list[N]:
+impl[N < Notifier] Notifier for List[N]:
     fn notify(self, message: string) -> void:
         for notifier in self:
             notifier.notify(message)
@@ -1759,7 +1759,7 @@ let narrow: i16 = 12
 let wide: i64 = 30
 let total: i64 = narrow + wide
 
-let labels: list[Display] = ["Ada", "Grace"]
+let labels: List[Display] = ["Ada", "Grace"]
 
 fn invoke[r](callback: fn() -> void $ r) -> void $ r:
     callback()
@@ -1912,18 +1912,18 @@ The ordinary function rules still apply. Use the `!` suffix only when `main` can
 
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 
-Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, data types, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
+Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `List[T]`, `Map[K, V]`, data types, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
 
 ```text
 pub data LookupRequest:
-    pub ids: list[UserId]
-    pub filters: map[string, string]
+    pub ids: List[UserId]
+    pub filters: Map[string, string]
 
 pub enum LookupError:
     InvalidId(id: string)
     Unavailable(message: string)
 
-fn lookup_users!(request: LookupRequest) -> Result[list[User], LookupError] $ Database:
+fn lookup_users!(request: LookupRequest) -> Result[List[User], LookupError] $ Database:
     ...
 ```
 
@@ -2077,7 +2077,7 @@ Requirement polymorphism for higher-order functions preserves callback
 requirements rather than erasing them:
 
 ```text
-fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+fn transform[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r:
     ...
 ```
 
@@ -2151,7 +2151,7 @@ data SearchHit:
     title: string
 
 @tool(strict=true)
-fn search(query: string) -> list[SearchHit]:
+fn search(query: string) -> List[SearchHit]:
     ...
 ```
 
@@ -2172,12 +2172,12 @@ annotate User:
     display_name = [min_len(1), max_len(80)]
 ```
 
-For `display_name: string`, the assignment is contextually typed as `list[FieldMetadata[string]]`. `MinLen` and `MaxLen` are different concrete values implementing the same dynamic trait, so the collection is homogeneous.
+For `display_name: string`, the assignment is contextually typed as `List[FieldMetadata[string]]`. `MinLen` and `MaxLen` are different concrete values implementing the same dynamic trait, so the collection is homogeneous.
 
 Metadata values and reusable metadata lists are ordinary values:
 
 ```text
-let display_name_metadata: list[FieldMetadata[string]] = [
+let display_name_metadata: List[FieldMetadata[string]] = [
     min_len(1),
     max_len(80),
 ]
@@ -2354,7 +2354,7 @@ enum Validator:
     String
     List(item: AnnotationRef[Validator])
     Custom(name: string)
-    Data(name: string, fields: list[(string, FieldValidator)])
+    Data(name: string, fields: List[(string, FieldValidator)])
 
 impl Annotation for Validation:
     type Info = Validator
@@ -2376,13 +2376,13 @@ Generic target families use the same binders and bounds as generic
 implementations:
 
 ```text
-annotate[reified T < Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for List[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
 
 This occupies the same coherence slot as the corresponding generic
-`impl Annotate[Validation] for list[T]`. There is no unconstrained wildcard
+`impl Annotate[Validation] for List[T]`. There is no unconstrained wildcard
 `annotate Validation for type` fallback.
 
 Default facet derivation with `: pass` is available for data, enum, and
@@ -2420,7 +2420,7 @@ trait DataAnnotator < Annotation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, Self::FieldTarget)],
+        fields: List[(string, Self::FieldTarget)],
     ) -> Self::Info
 ```
 
@@ -2446,7 +2446,7 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, FieldValidator)],
+        fields: List[(string, FieldValidator)],
     ) -> Validator:
         Validator.Data(name=target.name, fields=fields)
 ```
@@ -2475,13 +2475,13 @@ trait EnumAnnotator < Annotation:
     fn map_variant(
         self,
         variant: VariantShape,
-        fields: list[Self::FieldTarget],
+        fields: List[Self::FieldTarget],
     ) -> Self::VariantTarget
 
     fn build(
         self,
         target: EnumShape,
-        variants: list[(string, Self::VariantTarget)],
+        variants: List[(string, Self::VariantTarget)],
     ) -> Self::Info
 
 trait FuncAnnotator < Annotation:
@@ -2492,13 +2492,13 @@ trait FuncAnnotator < Annotation:
     fn build(
         self,
         target: FnShape,
-        params: list[(string, Self::ParamTarget)],
+        params: List[(string, Self::ParamTarget)],
     ) -> Self::Info
 ```
 
 `VariantMetadata` provides the corresponding homogeneous dynamic-trait
 collection for variants. A parameter of type `T` uses
-`list[ParamMetadata[T]]`; function annotators can read it together with each
+`List[ParamMetadata[T]]`; function annotators can read it together with each
 `ParamShape`'s name, type, default presence, and documentation. This metadata
 customizes `map_param` but does not directly replace its `ParamTarget` result.
 `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for

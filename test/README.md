@@ -68,7 +68,7 @@ cannot be conformance cases yet. Each stays here for the reason given. The
 TypeScript tests read promoted fixtures from `spec/conformance/` through
 `conformance()` in `fixture.ts`.
 
-- `compiler-types/collections/lists/void-element-type.hd`: marks unknown-type for list[void]; void resolves, and the spec names no code for a void type argument.
+- `compiler-types/collections/lists/void-element-type.hd`: marks unknown-type for List[void]; void resolves, and the spec names no code for a void type argument.
 - `compiler-types/enums/generic/unsaturated-type.hd`: marks unknown-type for a generic enum used without arguments; the name resolves, and no inventoried code fits.
 - `frontend/00-core-program.hd`: implementation detail: lexer and AST snapshot input.
 - `requirements/closure-provider.hd`: implementation detail: explain-requirements output.

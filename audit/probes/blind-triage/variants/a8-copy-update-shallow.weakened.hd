@@ -8,7 +8,7 @@ data Child:
 data Parent:
     child: mut Child
     label: string
-    tags: list[string] = []
+    tags: List[string] = []
 
 test "a copied composite field is shared with the source":
     let original: mut Parent = Parent { child: Child { name: "a" }, label: "x" }

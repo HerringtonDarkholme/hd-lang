@@ -21,7 +21,7 @@ impl FuncAnnotator for Tool:
     fn build(
         self,
         target: FnShape,
-        params: list[(string, ToolParam)],
+        params: List[(string, ToolParam)],
     ) -> ToolSpec:
         ToolSpec { strict: self.strict }
 

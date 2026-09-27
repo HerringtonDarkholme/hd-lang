@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 test "replacement":
-    let scores: mut map[string, i32] = {"a": 1, "b": 2}
+    let scores: mut Map[string, i32] = {"a": 1, "b": 2}
     let seen: i32 = 0
     for key, value in scores:
         scores["b"] = 20

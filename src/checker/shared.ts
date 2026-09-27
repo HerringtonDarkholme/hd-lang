@@ -51,9 +51,9 @@ export function iterableInfo(
   implementations: readonly HirTraitImplementation[],
 ): IterableInfo | undefined {
   const nominal = nominalGenericParts(readonlyType(iterable.type));
-  if (nominal?.name === "list" && nominal.arguments.length === 1)
+  if (nominal?.name === "List" && nominal.arguments.length === 1)
     return { iteratorKind: "list", yieldType: nominal.arguments[0]! };
-  if (nominal?.name === "map" && nominal.arguments.length === 2)
+  if (nominal?.name === "Map" && nominal.arguments.length === 2)
     return { iteratorKind: "map", yieldType: tupleType(nominal.arguments) };
   if (
     nominal?.name === "Iterator" &&
@@ -263,14 +263,14 @@ export function isKnownType(
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "list") {
+    if (nominal.name === "List") {
       return (
         nominal.arguments.length === 1 &&
         nominal.arguments[0] !== "void" &&
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "map") {
+    if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
         mapKeyKind(nominal.arguments[0]!) !== undefined &&
@@ -908,7 +908,7 @@ export function typeName(
   }
   const nominal = nominalGenericParts(resolved);
   if (
-    nominal?.name === "map" &&
+    nominal?.name === "Map" &&
     nominal.arguments.length === 2 &&
     isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
     isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes) &&

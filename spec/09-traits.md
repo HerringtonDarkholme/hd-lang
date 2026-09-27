@@ -119,7 +119,7 @@ The standard library also defines `Hash` and `Hasher` in `std.hash`:
 
 ```text
 trait Hasher:
-    fn write(mut self, bytes: list[u8]) -> void
+    fn write(mut self, bytes: List[u8]) -> void
 
 trait Hash:
     fn hash(self, state: mut Hasher) -> void
@@ -219,7 +219,7 @@ through its enclosing suite and child scopes, not before or outside that scope.
 
 The target of every implementation, trait or inherent, starts with a type
 constructor: a data, enum, or newtype declaration; a built-in type
-constructor such as `i32`, `string`, `list`, or `map`; or a tuple
+constructor such as `i32`, `string`, `List`, or `Map`; or a tuple
 constructor. Tuples have one built-in constructor per arity, so `(A, B)` is
 the two-element tuple constructor applied to `A` and `B`, and
 `impl Display for (i32, string)` is a valid target. Tuples of different
@@ -241,7 +241,7 @@ A trait value type is never an implementation target either: `Display` used
 as a type names a dynamic trait value, not a type constructor.
 `impl Marker for Display` and `impl Marker for Any` are
 `trait-value-impl-target` errors. A trait value type may still be a
-constructor's argument, as in `impl Marker for list[Display]`.
+constructor's argument, as in `impl Marker for List[Display]`.
 
 A target must not be written with an outer `mut`. `impl Marker for mut Counter`
 is a `mutable-impl-target` error. Permission belongs to method receivers
@@ -306,8 +306,8 @@ full heads unify: after each implementation's parameters are renamed apart,
 one substitution makes both their trait arguments and their complete target
 types equal. Overlap is decided from the implementation heads alone. Bounds,
 including associated type bindings, are never used to claim that two
-implementations are disjoint. Thus `impl[T] Marker for list[T]` overlaps
-`impl Marker for list[i32]`, and `impl[T] Marker for Box[T]` overlaps
+implementations are disjoint. Thus `impl[T] Marker for List[T]` overlaps
+`impl Marker for List[i32]`, and `impl[T] Marker for Box[T]` overlaps
 `impl Marker for Box[i32]`. `impl Marker for Box[i32]` and
 `impl Marker for Box[string]` do not overlap, nor do
 `impl Add[i32] for Money` and `impl Add[Money] for Money`.

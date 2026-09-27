@@ -1,4 +1,4 @@
-# F-501: `map[K, V]` is an unhashed association list with O(n) get and insert
+# F-501: `Map[K, V]` is an unhashed association list with O(n) get and insert
 Severity: major
 Area: runtime
 Evidence: audit/evidence/05-object-model/timing-map-string.txt (`node --experimental-strip-types audit/scripts/arch/om-timing.ts`); audit/evidence/05-object-model/wat/om-map.wat; `$hd.map_get` / `$hd.map_insert` in src/emitter/runtime/map.wat

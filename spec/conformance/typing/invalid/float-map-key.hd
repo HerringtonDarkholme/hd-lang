@@ -1,2 +1,2 @@
 
-let values: map[f64, string] = {}  # diagnostic: invalid-map-key
+let values: Map[f64, string] = {}  # diagnostic: invalid-map-key

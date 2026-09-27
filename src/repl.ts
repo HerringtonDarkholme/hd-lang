@@ -434,7 +434,7 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     return ["match value:", `    .Some(present) => ${inner}(present)`, '    .None => ".None"'];
   }
   const generic = splitGeneric(type);
-  if (generic?.name === "list" && generic.arguments.length === 1) {
+  if (generic?.name === "List" && generic.arguments.length === 1) {
     const element = nameFor(generic.arguments[0]!);
     return [
       'let text: string = "["',
@@ -447,7 +447,7 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
       'text + "]"',
     ];
   }
-  if (generic?.name === "map" && generic.arguments.length === 2) {
+  if (generic?.name === "Map" && generic.arguments.length === 2) {
     const key = nameFor(generic.arguments[0]!);
     const entry = nameFor(generic.arguments[1]!);
     return [

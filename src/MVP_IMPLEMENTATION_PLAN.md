@@ -13,7 +13,7 @@ dynamic trait dispatch, and for enum payload constructors, while preserving
 source evaluation order. Pure function-parameter defaults lower through hidden
 helpers and run after explicit arguments in declaration order, including for
 generic and suspending functions. Homogeneous
-varargs use the existing `list[T]` ABI and support positional elements, one
+varargs use the existing `List[T]` ABI and support positional elements, one
 positional list spread, or a named list across ordinary, generic, suspending,
 static-trait, and dynamic-trait calls. First-class `fn(T...) -> U` values retain
 the same list ABI and calling convention. Data-field defaults are checked
@@ -209,7 +209,7 @@ matching parent instantiation while preserving the erased receiver. Generic data
 use one erased GC layout, accept inferred or complete explicit type arguments
 at construction, preserve instantiated types in HIR,
 and box or unbox exact generic fields at storage boundaries. Generic enums use
-the same rule for payloads and recursive fields. Homogeneous `list[T]` values
+the same rule for payloads and recursive fields. Homogeneous `List[T]` values
 use a growable GC vector with typed literals, indexing, `len()`, mutable
 `append()`, and erased element storage in HIR. Built-in list and map iterators
 are mutable Wasm GC cursors: `next()` yields `T?`, remains exhausted after the
@@ -220,7 +220,7 @@ cursor protocol, including when continuing a partly consumed iterator.
 Concrete user types may also implement the prelude `Iterator[T]` trait; loops
 and comprehensions resolve its specialized mutable `next()` implementation and
 lower direct calls without allocating a built-in cursor wrapper.
-`map[K, V]` uses a GC object
+`Map[K, V]` uses a GC object
 with insertion-ordered erased arrays,
 growable insertion, duplicate replacement, optional indexed or `get()` lookup,
 mutable `remove()`, and built-in scalar or string keys.
@@ -234,7 +234,7 @@ acquire equality implicitly.
 through the canonical `Ordering?` result. Built-in tuple and list ordering is
 lexicographic, optional ordering places `.None` first, and unordered floating
 components make all four relational operators false. Both comparison paths
-carry nested strategies through erased composites, so a `list[T]`, tuple,
+carry nested strategies through erased composites, so a `List[T]`, tuple,
 optional, `Result`, or map can invoke explicit element implementations and
 generic bound dictionaries recursively.
 
@@ -387,8 +387,8 @@ registered `defer` suites from the innermost unfinished frame outward.
 ### S4: Traits And Erased Generics
 
 Implement erased generic calls, trait dictionaries, dynamic trait values, and
-the comparison traits needed by ordinary collections. Build `list[T]` and
-`map[K, V]` only to the extent required by chosen examples.
+the comparison traits needed by ordinary collections. Build `List[T]` and
+`Map[K, V]` only to the extent required by chosen examples.
 
 Done when the selected trait fixtures and representative erased collection
 programs run through Wasm GC.

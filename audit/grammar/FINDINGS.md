@@ -74,7 +74,7 @@ position accepted any type and a type position accepted the keyword:
 ```text
 fn f(x: type) -> void: pass      # accepted, spec: syntax error
 i32 Id = i32                     # accepted as a type declaration
-list[i32] Id(i32)                # accepted as a newtype
+List[i32] Id(i32)                # accepted as a newtype
 ```
 
 Fix applied: literals compile to quoted terminals and productions never scan

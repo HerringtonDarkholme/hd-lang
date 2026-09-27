@@ -55,7 +55,7 @@ fn log_message(message: string) -> void $ Logger:
     logger := $.use(Logger)
     logger.write(message)
 
-fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+fn transform[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r:
     [for item in items => f(item)]
 
 loader := fn!(id: string) -> Result[User?, DbError] $ Database:

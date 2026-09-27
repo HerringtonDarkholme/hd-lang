@@ -145,8 +145,8 @@ export const PRELUDE_NAMES = new Set([
   "char",
   "string",
   "void",
-  "list",
-  "map",
+  "List",
+  "Map",
   "Any",
   "Reference",
   "Option",
@@ -229,8 +229,8 @@ export function isPermissionWeakening(actual: ValueType, expected: ValueType): b
     return stored?.mutable === true && stored.result === actualCallable.result;
   }
   if (
-    actualNominal?.name === "list" &&
-    expectedNominal?.name === "list" &&
+    actualNominal?.name === "List" &&
+    expectedNominal?.name === "List" &&
     actualNominal.arguments.length === 1 &&
     expectedNominal.arguments.length === 1
   ) {
@@ -327,14 +327,14 @@ export function isKnownType(
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "list") {
+    if (nominal.name === "List") {
       return (
         nominal.arguments.length === 1 &&
         nominal.arguments[0] !== "void" &&
         isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes)
       );
     }
-    if (nominal.name === "map") {
+    if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
         mapKeyKind(nominal.arguments[0]!) !== undefined &&
@@ -1123,12 +1123,12 @@ export abstract class CheckerContext {
       return ok && error ? { kind: "result", ok, error } : undefined;
     }
     const nominal = nominalGenericParts(comparedType);
-    if (nominal?.name === "list" && nominal.arguments.length === 1) {
+    if (nominal?.name === "List" && nominal.arguments.length === 1) {
       const element = this.equalityStrategy(nominal.arguments[0]!);
       return element ? { kind: "list", element } : undefined;
     }
     if (
-      nominal?.name === "map" &&
+      nominal?.name === "Map" &&
       nominal.arguments.length === 2 &&
       mapKeyKind(nominal.arguments[0]!) !== undefined
     ) {
@@ -1174,7 +1174,7 @@ export abstract class CheckerContext {
       return value ? { kind: "optional", value } : undefined;
     }
     const nominal = nominalGenericParts(comparedType);
-    if (nominal?.name === "list" && nominal.arguments.length === 1) {
+    if (nominal?.name === "List" && nominal.arguments.length === 1) {
       const element = this.orderingStrategy(nominal.arguments[0]!);
       return element ? { kind: "list", element } : undefined;
     }
@@ -1246,7 +1246,7 @@ export abstract class CheckerContext {
     );
     const nominal = nominalGenericParts(declared);
     if (
-      nominal?.name === "map" &&
+      nominal?.name === "Map" &&
       nominal.arguments.length === 2 &&
       isKnownType(nominal.arguments[0]!, this.dataTypes, this.enumTypes, this.traitTypes) &&
       isKnownType(nominal.arguments[1]!, this.dataTypes, this.enumTypes, this.traitTypes) &&

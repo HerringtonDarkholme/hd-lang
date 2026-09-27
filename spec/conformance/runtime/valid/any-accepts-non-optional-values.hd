@@ -11,5 +11,5 @@ enum Status:
     Blocked
 
 test "primitive, string, data, enum, tuple, and list values convert to Any":
-    let values: list[Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
+    let values: List[Any] = [1, "text", User { name: "Ada" }, Status.Active, (1, 2), [true]]
     assert_equal(values.len(), 6, reason="six erased values")

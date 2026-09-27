@@ -49,7 +49,7 @@ export abstract class PatternChecker extends CallChecker {
     )
       return true;
     const nominal = nominalGenericParts(type);
-    if (nominal?.name === "list" || nominal?.name === "map") return true;
+    if (nominal?.name === "List" || nominal?.name === "Map") return true;
     if (nominal && (this.dataTypes.has(nominal.name) || this.enumTypes.has(nominal.name)))
       return true;
     return this.dataTypes.has(type) || this.enumTypes.has(type);

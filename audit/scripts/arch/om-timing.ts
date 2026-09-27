@@ -23,7 +23,7 @@ const map = await instantiatePlain(
 );
 const reps = 20000;
 log(
-  "\n## map[i32, i32]: get cost (lookup(n, reps) - lookup(n, 0)), and build cost",
+  "\n## Map[i32, i32]: get cost (lookup(n, reps) - lookup(n, 0)), and build cost",
 );
 log("n\tbuild_ms\tget_total_ms\tns_per_get\tns_per_get / n");
 for (const n of [10, 100, 1000, 10000]) {

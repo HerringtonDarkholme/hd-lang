@@ -15,7 +15,7 @@ test "empty string basics":
     assert_equal("[$empty]", "[]", reason="interpolating empty")
 
 test "empty separator and empty input":
-    let no_pieces: list[string] = []
+    let no_pieces: List[string] = []
     assert_equal("".split(""), no_pieces, reason="empty input with empty separator is an empty list")
 
 test "split keeps empty pieces between and around separators":

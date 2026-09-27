@@ -117,7 +117,7 @@ export abstract class StatementChecker extends CheckerContext {
           );
         }
         const nominal = nominalGenericParts(mutableReceiver);
-        if (nominal?.name === "list" && nominal.arguments.length === 1) {
+        if (nominal?.name === "List" && nominal.arguments.length === 1) {
           const index = this.requireCoercion(
             this.checkExpression(statement.target.index, "i32"),
             "i32",
@@ -142,7 +142,7 @@ export abstract class StatementChecker extends CheckerContext {
             span: statement.span,
           };
         }
-        if (nominal?.name === "map" && nominal.arguments.length === 2) {
+        if (nominal?.name === "Map" && nominal.arguments.length === 2) {
           const key = this.requireCoercion(
             this.checkExpression(statement.target.index, nominal.arguments[0]),
             nominal.arguments[0]!,

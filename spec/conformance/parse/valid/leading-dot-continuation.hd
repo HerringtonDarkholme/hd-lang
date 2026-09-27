@@ -5,7 +5,7 @@ enum Step:
     Add
     Double
 
-fn chain(users: list[string], step: Step) -> i32:
+fn chain(users: List[string], step: Step) -> i32:
     names := users
         .filter(fn(user): user != "")
         # a comment line does not end the chain

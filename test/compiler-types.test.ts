@@ -370,7 +370,7 @@ test("owning a trait argument's outer constructor permits a foreign trait impl (
     [],
   );
   const nested = analyze(
-    "data Word:\n    text: string\n\nimpl Iterator[list[Word]] for string:\n    fn next(mut self) -> list[Word]?: .None\n",
+    "data Word:\n    text: string\n\nimpl Iterator[List[Word]] for string:\n    fn next(mut self) -> List[Word]?: .None\n",
   );
   assert.deepEqual(
     nested.diagnostics.map((diagnostic) => diagnostic.code),

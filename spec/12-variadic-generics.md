@@ -103,7 +103,7 @@ once per position.
 
 `pack.map(items, mapper, extras...)` maps a statically known tuple to another
 tuple. `pack.map_list(items, mapper, extras...)` maps the same input to a
-homogeneous `list[R]`. Both are compiler-recognized operations on tuples, not
+homogeneous `List[R]`. Both are compiler-recognized operations on tuples, not
 ordinary first-class functions or runtime reflection. The token sequences
 `pack.map(` and `pack.map_list(` always denote these operations, even where a
 local or parameter named `pack` is in scope
@@ -120,9 +120,9 @@ polymorphic function type.
 `pack.map` returns `(R1, ..., Rn)`, where `Ri` is the result type of mapper
 call `i`. `pack.map_list` requires all mapper results to be assignable to one
 element type `R` using the ordinary collection-literal inference rules; an
-expected `list[R]` may provide that type. It does not infer `Any` merely to
+expected `List[R]` may provide that type. It does not infer `Any` merely to
 combine heterogeneous results. Mapping an empty tuple with `pack.map` returns
-`()`. Empty `pack.map_list` requires an expected `list[R]` type.
+`()`. Empty `pack.map_list` requires an expected `List[R]` type.
 
 The tuple expression `(values...)` expands a value pack into tuple elements;
 it is not a runtime pack object. A tuple-element `...` without a pack reference
@@ -144,7 +144,7 @@ fn take_ready[T](slot: mut Slot[T]) -> T:
 
 # Illustrative typed steps of an all!-style driver, with Ts... from its tasks:
 slots := pack.map((tasks...), make_slot)     # (mut Slot[Ts]...)
-ready := pack.map_list(slots, poll_slot, context)  # list[bool]
+ready := pack.map_list(slots, poll_slot, context)  # List[bool]
 results := pack.map(slots, take_ready)        # (Ts...)
 ```
 
@@ -174,7 +174,7 @@ Pack arguments are inferred. Explicit pack arguments, partial explicit packs,
 and pack placeholders are not language constructs.
 
 At runtime, each expanded parameter is an ordinary parameter and `(Ts...)` is
-an ordinary tuple. No hidden `list[Any]`, reflection array, or allocation is
+an ordinary tuple. No hidden `List[Any]`, reflection array, or allocation is
 required by the source semantics.
 
 ## Deliberate Limits

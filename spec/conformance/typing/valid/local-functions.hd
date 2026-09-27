@@ -1,4 +1,4 @@
-fn total_with_bonus(values: list[i32], bonus: i32) -> i32:
+fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
     fn add_bonus(value: i32) -> i32:
         value + bonus
 

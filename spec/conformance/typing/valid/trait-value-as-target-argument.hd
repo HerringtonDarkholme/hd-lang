@@ -1,4 +1,4 @@
 # test: a trait value type may be a type argument of an implementation target
 trait Marker
 
-impl Marker for list[Display]
+impl Marker for List[Display]

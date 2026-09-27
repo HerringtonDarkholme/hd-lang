@@ -581,7 +581,7 @@ signatures and the complete intrinsic set remain standard-library API design.
 Higher-order code preserves callback requirements with a row parameter:
 
 ```text
-fn transform[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r:
+fn transform[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r:
     ...
 ```
 

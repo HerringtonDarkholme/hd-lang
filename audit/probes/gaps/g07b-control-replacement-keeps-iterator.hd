@@ -2,8 +2,8 @@
 use std.testing.assert_equal
 
 test "replacement is observed":
-    let values: mut list[i32] = [1, 2, 3]
-    let total: mut list[i32] = []
+    let values: mut List[i32] = [1, 2, 3]
+    let total: mut List[i32] = []
     for value in values:
         values[2] = 30
         total.append(value)

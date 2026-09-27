@@ -33,21 +33,21 @@ interface Pair {
 
 const pairs: Pair[] = [
   {
-    label: "sum list[i32]",
+    label: "sum List[i32]",
     generic: "bench_sum_generic_i32",
     mono: "bench_sum_mono_i32",
     n: 1000,
     reps: 4000,
   },
   {
-    label: "sum list[f64]",
+    label: "sum List[f64]",
     generic: "bench_sum_generic_f64",
     mono: "bench_sum_mono_f64",
     n: 1000,
     reps: 4000,
   },
   {
-    label: "insertion sort list[i32]",
+    label: "insertion sort List[i32]",
     generic: "bench_sort_generic_i32",
     mono: "bench_sort_mono_i32",
     n: 300,

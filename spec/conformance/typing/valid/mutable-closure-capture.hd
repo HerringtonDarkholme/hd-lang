@@ -1,4 +1,4 @@
-fn make_appender(items: mut list[i32]) -> mut fn(i32) -> void:
+fn make_appender(items: mut List[i32]) -> mut fn(i32) -> void:
     mut fn(value: i32) -> void:
         items.append(value)
 

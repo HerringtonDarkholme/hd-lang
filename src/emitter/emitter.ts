@@ -1140,11 +1140,11 @@ function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
       collectType(storedSuspensionParts(type)!.result);
       return;
     }
-    if (nominal?.name === "list" && nominal.arguments.length === 1) {
+    if (nominal?.name === "List" && nominal.arguments.length === 1) {
       nominal.arguments.forEach(collectType);
       return;
     }
-    if (nominal?.name === "map" && nominal.arguments.length === 2) {
+    if (nominal?.name === "Map" && nominal.arguments.length === 2) {
       nominal.arguments.forEach(collectType);
       return;
     }

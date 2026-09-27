@@ -47,8 +47,6 @@ const PRIMITIVE_TYPES = new Set([
   "string",
   "void",
   "never",
-  "list",
-  "map",
 ]);
 // Contextual words that are keywords only in declaration or statement heads.
 const CONTEXTUAL_KEYWORDS = new Set(["test", "with"]);

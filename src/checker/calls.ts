@@ -506,7 +506,7 @@ export abstract class CallChecker extends StatementChecker {
         return this.requireCoercion(checked, formal, source.span);
       }
       const nominal = nominalGenericParts(formal);
-      const elementType = nominal?.name === "list" ? nominal.arguments[0]! : "void";
+      const elementType = nominal?.name === "List" ? nominal.arguments[0]! : "void";
       const elements = entry.argumentIndices.map((argumentIndex) => {
         const source = expression.arguments[argumentIndex]!;
         return this.requireCoercion(
@@ -621,7 +621,7 @@ export abstract class CallChecker extends StatementChecker {
         return this.requireCoercion(checked, instantiatedFormal, source.span);
       }
       const nominal = nominalGenericParts(formal);
-      const elementFormal = nominal?.name === "list" ? nominal.arguments[0]! : "void";
+      const elementFormal = nominal?.name === "List" ? nominal.arguments[0]! : "void";
       const elements = entry.argumentIndices.map((argumentIndex) => {
         const source = expression.arguments[argumentIndex]!;
         const inferredElement = substituteGenericType(
@@ -651,7 +651,7 @@ export abstract class CallChecker extends StatementChecker {
         kind: "list",
         elements,
         elementType,
-        type: nominalGenericType("list", [elementType]),
+        type: nominalGenericType("List", [elementType]),
         span: expression.span,
       };
     });

@@ -8,7 +8,7 @@ fn area(width: i32, height: i32 = width) -> i32:
 fn chain(a: i32, b: i32 = a * 2, c: i32 = b + 1) -> i32:
     a * 100 + b * 10 + c
 
-fn fresh(items: list[i32] = []) -> list[i32]:
+fn fresh(items: List[i32] = []) -> List[i32]:
     items
 
 test "a default reads an earlier explicit parameter":

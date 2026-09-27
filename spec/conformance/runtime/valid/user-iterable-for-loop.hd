@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 data Bag:
-    items: list[i32]
+    items: List[i32]
 
 impl Iterable[i32] for Bag:
     fn iter(self) -> mut Iterator[i32]:
@@ -15,7 +15,7 @@ fn sum(bag: Bag) -> i32:
         total = total + value
     total
 
-fn doubled(bag: Bag) -> list[i32]:
+fn doubled(bag: Bag) -> List[i32]:
     [for value in bag => value * 2]
 
 test "a user Iterable drives loops and comprehensions":

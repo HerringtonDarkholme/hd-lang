@@ -286,7 +286,7 @@ APIs, language keywords, and compiler-generated source names use ASCII.
 
 An identifier that exactly matches a reserved word is not an identifier token.
 The complete reserved-word set is listed below. Built-in
-type names such as `i32`, `string`, `list`, and `map` are ordinary names rather
+type names such as `i32`, `string`, `List`, and `Map` are ordinary names rather
 than lexically distinct tokens.
 
 ### Raw Identifiers
