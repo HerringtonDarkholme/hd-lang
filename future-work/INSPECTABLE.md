@@ -39,6 +39,14 @@ Decided 2026-09-26:
 3. **Questions 1 and 2: `Inspectable` and the runtime type object live in
    `std.inspect`, and the type object is named `TypeId`** (`runtime_type`
    becomes the method returning a `TypeId`; rename consistently).
+4. **Question 6: erasing a generic value requires `T < Inspectable`;**
+   `reified T` alone does not allow erasure. Direction item 11 in Open
+   Issues changes accordingly.
+5. **Question 4: trait value types and `Any` may appear as type arguments of
+   an inspectable type, matched exactly.** An erased `List[FsError]` does not
+   downcast to `List[Error]` (different exact type and representation).
+6. **Question 5: data types with function-typed fields, and newtypes over
+   function types, are inspectable.**
 
 ## Contents
 
