@@ -18,8 +18,8 @@ removed from this folder. What remains:
   prototype's fix list, grouped by ID.
 - [`bench/`](bench/): the small benchmark set kept for future direction.
 
-On 2026-09-26 the prototype passes 898 of the 1,036 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 138 are listed in
+On 2026-09-26 the prototype passes 909 of the 1,049 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 140 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below.
 
@@ -56,3 +56,4 @@ types (F-253), and A3's optional-to-`Any` case needs `Any` (F-255).
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
+| EC | Error conversion decision 4: a dynamic trait value type satisfies a bound on its own trait and its supertraits. The prototype passes a trait value to a bounded parameter only with a dictionary from an implementation, so it reports `unsatisfied-trait-bound`; supporting it needs a dictionary whose methods forward through the value's own table. |

@@ -1,0 +1,29 @@
+# test: a dynamic trait value satisfies bounds on its own trait and its supertraits
+# Spec 09 Dynamic Trait Values: a dynamic trait value type satisfies a generic bound on its
+# own trait and on each direct or transitive supertrait of that trait.
+use std.testing.assert_equal
+
+trait Named < Display:
+    fn name(self) -> string
+
+data User:
+    handle: string
+
+impl Display for User:
+    fn to_string(self) -> string: "@" + self.handle
+
+impl Named for User:
+    fn name(self) -> string: self.handle
+
+fn show[T < Display](value: T) -> string:
+    value.to_string()
+
+fn tag[T < Named](value: T) -> string:
+    value.name()
+
+fn describe(named: Named, shown: Display) -> string:
+    tag(named) + " " + show(named) + " " + show(shown)
+
+test "own trait and supertrait bounds":
+    user := User { handle: "ada" }
+    assert_equal(describe(user, 42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")

@@ -897,3 +897,14 @@ typing/invalid/none-beside-values-needs-expected-type.hd	type
 typing/invalid/none-branch-needs-expected-type.hd	type
 runtime/valid/none-with-expected-list-type.hd	runtime
 typing/invalid/lowercase-list-type.hd	type
+runtime/valid/propagation-into-erased-error.hd	runtime
+runtime/valid/propagation-from-two-domains.hd	runtime
+runtime/valid/propagation-prefers-assignability.hd	runtime
+typing/invalid/propagation-no-chained-conversion.hd	type
+typing/invalid/propagation-conversion-then-injection.hd	type
+typing/invalid/propagation-error-without-conversion.hd	type
+runtime/valid/from-direct-call.hd	runtime
+typing/invalid/from-implementation-with-requirement.hd	type
+typing/invalid/from-implementation-suspending.hd	type
+runtime/valid/single-payload-variant-function-value.hd	runtime
+typing/invalid/two-payload-variant-as-function-value.hd	type

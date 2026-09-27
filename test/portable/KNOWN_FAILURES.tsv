@@ -138,3 +138,4 @@ parse/valid/closing-delimiter-ends-nested-suite.hd	parse fails: syntax-error at 
 parse/valid/bracketed-suite-header-line.hd	parse fails: expected-comprehension-clause at line 5: a bracketed for, if, or closure header cannot end its line	F-252
 parse/valid/same-line-loop-else.hd	parse fails: expected-expression at line 6: else does not close a same-line for or while suite	F-252
 parse/invalid/colon-generic-bound.hd	MVP parse accepts a generic bound written with ':'	F-710
+runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC

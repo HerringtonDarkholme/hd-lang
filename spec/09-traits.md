@@ -172,6 +172,91 @@ an existing implementation or another derivation. Implementers remain
 responsible for consistency with any manually implemented comparison traits.
 Comparison traits are the only traits invoked by operator syntax.
 
+### Conversion Trait
+
+The standard library declares the general conversion trait `From` in
+`std.convert`:
+
+```text
+trait From[T]:
+    fn from(value: T) -> Self
+```
+
+An implementation `impl From[T] for X` converts a `T` into an `X`. `From` is
+not a prelude name; code that names it imports it, as in
+`use std.convert.From`. Postfix `?` uses the trait without an import: when an
+error is not assignable to the enclosing function's error type, `?` calls
+that error type's `From` implementation once
+([Propagation](05-expressions.md#propagation)). Any code may also call a
+conversion directly as `X::from(value)`.
+
+A conversion is pure. The trait method `from` has the empty requirement row
+and is not suspending, and an implementation method must agree with it on
+both ([Requirement Rows](11-requirements-and-suspension.md#requirement-rows)).
+An implementation whose `from` declares a requirement clause, as in
+`fn from(value: FsError) -> SyncError $ Console`, or is suspending, as in
+`fn from!(value: FsError) -> SyncError`, is a `trait-method-signature` error.
+Its body may still panic.
+
+`From` implementations follow the ordinary rules for implementation targets,
+ownership, overlap, and uniqueness. `impl From[FsError] for SyncError` may be
+declared by the package that owns `SyncError`, the package that owns
+`FsError`, or the standard library. Implementations for different source
+types never overlap, because their trait arguments differ, so one error type
+may implement both `From[FsError]` and `From[HttpError]`. A reflexive
+`impl[T] From[T] for T` is a `bare-parameter-impl-target` error, and a trait
+value type is never a target, so `impl From[FsError] for Error` is a
+`trait-value-impl-target` error.
+
+When `X` implements `From` at several instantiations, `X::from(value)`
+chooses among them by the rule for instantiations of one generic trait in
+[Method Resolution](#method-resolution). Each instantiation is a candidate,
+and the one whose parameter the argument fits is selected; when none fits,
+the call is a `type-mismatch` error.
+
+### Error Trait
+
+The standard library declares the standard error trait `Error` in
+`std.error`. `Error` is dynamically safe and has `Display` as a supertrait.
+Every member it declares has a default, so an implementation needs no body:
+`impl Error for FsError` is complete when `FsError` implements `Display`.
+Those members, and error-chain helpers built on them, are standard-library
+API. `Error` is not a prelude name; code imports it with
+`use std.error.Error`.
+
+The dynamic trait value `Error` is the erased application error. A
+`Result[T, Error]` holds any error that implements `Error`, and `?` reaches
+it by assignability, constructing the dynamic value
+([Propagation](05-expressions.md#propagation)). Because a dynamic trait value
+satisfies bounds on its own trait and its supertraits
+([Dynamic Trait Values](#dynamic-trait-values)), `Error` satisfies an entry
+point's `E < Display` requirement, so `pub fn main() -> Result[void, Error]`
+is a valid entry point. Like every dynamic trait value, an erased `Error` is
+not boundary-safe and never crosses a registered boundary
+([Wasm Boundary](10-modules.md#wasm-boundary)); code converts it explicitly
+to a boundary-safe error type first.
+
+```text
+use std.error.Error
+
+enum FsError:
+    NotFound(path: string)
+
+impl Display for FsError:
+    fn to_string(self) -> string:
+        match self:
+            FsError.NotFound(path) => "not found: " + path
+
+impl Error for FsError
+
+fn read_config(path: string) -> Result[string, FsError]:
+    Err(FsError.NotFound(path))
+
+fn load(path: string) -> Result[string, Error]:
+    text := read_config(path)?
+    Ok(text.trim())
+```
+
 ### Implementation Declarations
 
 An explicit implementation names the trait and target type:
@@ -548,6 +633,31 @@ the value type names one complete instantiation.
 A child-trait bound or dynamic value exposes the methods of its transitive
 supertraits. A dynamic child-trait value widens implicitly to a supertrait
 value, losing access to child-only methods; there is no reverse downcast.
+
+A dynamic trait value type satisfies a generic bound on its own trait and on
+each direct or transitive supertrait of that trait. For a generic trait, the
+bound must name the same instantiation, so `Repository[User]` satisfies
+`T < Repository[User]`. A statically dispatched call through such a bound
+dispatches each method through the value's table. Dynamic safety guarantees
+the trait has no associated function or associated type that a bound could
+need. A readonly trait value never satisfies a `mut` bound; `mut Tr`
+satisfies `T < mut Tr`. The rule adds no implementation: the trait value type
+satisfies no other bound through it, and it still cannot be an
+implementation target.
+
+```text
+trait Named < Display:
+    fn name(self) -> string
+
+fn show[T < Display](value: T) -> string:
+    value.to_string()
+
+fn tag[T < Named](value: T) -> string:
+    value.name()
+
+fn describe(named: Named, shown: Display) -> string:
+    tag(named) + show(named) + show(shown)
+```
 
 Converting a concrete value to a trait value requires an explicit
 implementation. The concrete type can be composite or primitive. Mutable

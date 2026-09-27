@@ -225,6 +225,9 @@ Method values are deferred, and their future spellings `Type::name` and
 `value::name` are reserved and diagnosed
 ([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
 Explicit closures can adapt method calls where a function value is needed.
+`Enum.Variant` is not member access: it names an enum variant, and a variant
+constructor with exactly one payload field is a function value
+([Enum Declarations](08-data-and-enums.md#enum-declarations)).
 
 Member access through a readonly data root weakens a direct `mut U` field to
 `U` and an embedded field to readonly access, but does not weaken a generic
@@ -300,18 +303,88 @@ Postfix `?` handles either an optional or a `Result` value:
 - for `T?`, `.Some(value)` produces `value` as `T`; `.None` immediately
   returns `.None` from the nearest function;
 - for `Result[T, E]`, `Ok(value)` produces the declared `T`, including a
-  mutable type argument; `Err(error)` immediately returns a compatible `Err`
-  from the nearest function.
+  mutable type argument; `Err(error)` immediately returns `Err` from the
+  nearest function, holding the error converted as described below.
 
 The operand is evaluated once. `?` does not catch runtime panics and does not
 interact with suspension by itself.
 
+Let the nearest enclosing named function or closure return `Result[U, F]`.
+The error of type `E` becomes the returned error by the first of these steps
+that applies:
+
+1. **Assignability.** If `E` is assignable to `F` by one rule of
+   [Assignability And Coercion](04-type-system.md#assignability-and-coercion),
+   the returned error is the error converted by that rule. This covers an
+   identical type, numeric widening, permission weakening, variance,
+   construction of a dynamic trait value such as the erased `Error`
+   ([Error Trait](09-traits.md#error-trait)), supertrait widening of a
+   dynamic value, and optional injection.
+2. **Conversion.** Otherwise, if `F` implements `From[E]`
+   ([Conversion Trait](09-traits.md#conversion-trait)), the returned error is
+   the result of that implementation's `from` applied to the error. An outer
+   `mut` on `E` is removed before the implementation is chosen. The code
+   using `?` does not need to import `From`.
+3. Otherwise the `?` is an `invalid-result-propagation` error. Its message
+   should name `E` and `F` and suggest an implementation of `From[E]` for
+   `F` or an explicit mapping of the error.
+
+Exactly one step converts the error. `?` never combines an assignability rule
+with a conversion, and it never chains conversions. With
+`impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a
+function returning `Result[U, C]` is `invalid-result-propagation`. So is a
+`?` on `Result[T, A]` in a function returning `Result[U, B?]`, because the
+conversion to `B` would need an optional injection after it. Assignability
+is itself one rule: an `A` that implements the dynamically safe trait `Tr`
+does not propagate into `Result[U, Tr?]`.
+
+Only `?` calls a conversion. `return Err(error)` and every other `Err`
+construction use ordinary assignability. The conversion is part of the
+propagated value, so it runs before any deferred cleanup
+([Deferred Cleanup](06-control-flow.md#deferred-cleanup)). A conversion
+neither suspends nor uses a requirement, because `from` has neither. When the
+nearest function is a closure whose result type is neither written nor
+supplied by an expected function type, `?` performs no conversion: `E`
+itself contributes to the inferred result type.
+
 Postfix `?` is invalid when there is no enclosing named function or closure
 with the required optional or `Result` return type. Module top-level statements
-and `test` blocks do not provide an implicit propagation target. Both misuses
-of `?` are `invalid-result-propagation` errors: an operand that is neither
-optional nor a `Result`, and a `?` whose enclosing function or closure does not
-return a compatible optional or `Result`.
+and `test` blocks do not provide an implicit propagation target. Every misuse
+of `?` is an `invalid-result-propagation` error: an operand that is neither
+optional nor a `Result`, a `?` whose enclosing function or closure does not
+return a compatible optional or a `Result`, and a `Result` error that
+neither step above converts to the enclosing error type.
+
+```text
+use std.convert.From
+
+enum FsError:
+    NotFound(path: string)
+
+enum HttpError:
+    Timeout
+
+enum SyncError:
+    Fs(error: FsError)
+    Http(error: HttpError)
+
+impl From[FsError] for SyncError:
+    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
+
+impl From[HttpError] for SyncError:
+    fn from(value: HttpError) -> SyncError: SyncError.Http(value)
+
+fn read_config(path: string) -> Result[string, FsError]:
+    Err(FsError.NotFound(path))
+
+fn fetch(url: string) -> Result[string, HttpError]:
+    Err(HttpError.Timeout)
+
+fn sync(path: string) -> Result[string, SyncError]:
+    url := read_config(path)?
+    body := fetch(url)?
+    Ok(body)
+```
 
 ## Unary And Binary Operators
 
@@ -517,4 +590,8 @@ Closures are expressions described in [Functions](07-functions.md). `if`,
 ## Unsupported Expression Extensions
 
 hd-lang has no user-defined arithmetic or bitwise operator overloading, comparison chaining, or
-fallback conversion of heterogeneous literals to `Any`.
+fallback conversion of heterogeneous literals to `Any`. Postfix `?` has no
+mapping clause: a site that needs a different error conversion maps the
+`Result` explicitly before `?`, for example with a function that takes a
+single-payload variant constructor as its mapper
+([Enum Declarations](08-data-and-enums.md#enum-declarations)).

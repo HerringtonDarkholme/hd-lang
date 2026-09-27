@@ -1,0 +1,14 @@
+# test: a From implementation must not suspend
+# Spec 09 Conversion Trait: an implementation whose `from` is suspending is a
+# `trait-method-signature` error.
+use std.convert.From
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+
+impl From[FsError] for SyncError:
+    fn from!(value: FsError) -> SyncError:  # diagnostic: trait-method-signature
+        SyncError.Fs(value)

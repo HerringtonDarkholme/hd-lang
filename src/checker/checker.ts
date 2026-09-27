@@ -1,8 +1,18 @@
 import type { Expression, FunctionDecl, Parameter } from "../ast.ts";
-import type { HirExpression, HirFunction, HirStatement, ValueType } from "../hir.ts";
-import { contextType, functionType, functionParts, optionalInner, resultParts } from "../types.ts";
+import type { SourceSpan } from "../diagnostics.ts";
+import type { HirExpression, HirFunction, HirLocal, HirStatement, ValueType } from "../hir.ts";
+import {
+  contextType,
+  functionType,
+  functionParts,
+  nominalGenericParts,
+  optionalInner,
+  readonlyType,
+  resultParts,
+} from "../types.ts";
 import { CheckFailure, type Signature } from "./context.ts";
-import { functionTypeMatchesRowPattern } from "./shared.ts";
+import { functionTypeMatchesRowPattern, matchTraitImplementation } from "./shared.ts";
+import { STANDARD_FROM } from "./standard-traits.ts";
 
 import { ExpressionControlChecker } from "./expression-control.ts";
 export class FunctionChecker extends ExpressionControlChecker {
@@ -25,6 +35,134 @@ export class FunctionChecker extends ExpressionControlChecker {
       this.checkClosureExpression(expression, expected);
     if (checked !== undefined) return checked;
     throw new Error(`unsupported expression '${expression.kind}'`);
+  }
+
+  /**
+   * 05 Propagation: an error of type `source` reaches the enclosing error type
+   * `target` in one step, by one assignability rule or otherwise by one call of
+   * `target`'s `std.convert.From[source]` implementation. The `?` is checked
+   * as `match operand: Ok($ok) => $ok; Err($err) => return Err(conversion)`.
+   */
+  private checkConvertingPropagation(
+    expression: Extract<Expression, { kind: "propagate" }>,
+    operand: HirExpression,
+    source: ValueType,
+    target: ValueType,
+    expected?: ValueType,
+  ): HirExpression {
+    const span = expression.span;
+    const errorName: Expression = { kind: "name", name: "$err", span };
+    let conversion: Expression | undefined;
+    if (this.assignableInOneStep(source, target, span)) conversion = errorName;
+    else if (this.hasStandardFrom(source, target)) {
+      const nominal = nominalGenericParts(target);
+      conversion = {
+        kind: "call",
+        callee: {
+          kind: "qualified-name",
+          owner: nominal?.name ?? target,
+          ownerTypeArguments: nominal?.arguments.map((argument) => ({ name: argument, span })),
+          name: "from",
+          span,
+        },
+        arguments: [errorName],
+        span,
+      };
+    }
+    if (!conversion)
+      this.fail(
+        "invalid-result-propagation",
+        `error type '${source}' is neither assignable to '${target}' nor converted by an implementation of From[${readonlyType(source)}] for '${target}'; implement it or map the error explicitly`,
+        span,
+      );
+    const subject: HirLocal = {
+      name: "$propagated",
+      type: operand.type,
+      index: this.locals.length,
+      mutable: false,
+      parameter: false,
+      span,
+    };
+    this.locals.push(subject);
+    this.scopes.push(new Map([[subject.name, subject]]));
+    let checked: HirExpression;
+    try {
+      checked = this.checkExpression(
+        {
+          kind: "match",
+          subject: { kind: "name", name: subject.name, span },
+          arms: [
+            {
+              pattern: {
+                kind: "result-variant",
+                variantName: "Ok",
+                bindings: ["$ok"],
+                payloadPatterns: [{ kind: "binding", name: "$ok", span }],
+                span,
+              },
+              body: [{ kind: "expression", expression: { kind: "name", name: "$ok", span }, span }],
+              span,
+            },
+            {
+              pattern: {
+                kind: "result-variant",
+                variantName: "Err",
+                bindings: ["$err"],
+                payloadPatterns: [{ kind: "binding", name: "$err", span }],
+                span,
+              },
+              body: [
+                {
+                  kind: "return",
+                  value: {
+                    kind: "call",
+                    callee: { kind: "name", name: "Err", span },
+                    arguments: [conversion],
+                    span,
+                  },
+                  span,
+                },
+              ],
+              span,
+            },
+          ],
+          span,
+        },
+        expected,
+      );
+    } finally {
+      this.scopes.pop();
+    }
+    if (checked.kind !== "match") throw new Error("converting propagation must check as a match");
+    return { ...checked, subject: operand };
+  }
+
+  /** One rule of 04 Assignability And Coercion, never two (TQ-14). */
+  private assignableInOneStep(source: ValueType, target: ValueType, span: SourceSpan): boolean {
+    const inner = optionalInner(target);
+    if (inner !== undefined && source !== inner && optionalInner(source) === undefined)
+      return false;
+    const probe: HirLocal = {
+      name: "$probe",
+      type: source,
+      index: -1,
+      mutable: false,
+      parameter: false,
+      span,
+    };
+    const coerced = this.coerce({ kind: "local", local: probe, type: source, span }, target, span);
+    return coerced.type === target;
+  }
+
+  /** Whether `target` implements the standard `From[source]` (spec/09-traits.md#conversion-trait). */
+  private hasStandardFrom(source: ValueType, target: ValueType): boolean {
+    const localName = [...this.imports].find(([, imported]) => imported === STANDARD_FROM)?.[0];
+    const trait = localName === undefined ? undefined : this.traitTypes.get(localName);
+    if (!trait) return false;
+    const argument = readonlyType(source);
+    return this.implementations.some((implementation) =>
+      matchTraitImplementation(implementation, trait.index, readonlyType(target), [argument]),
+    );
   }
 
   protected checkClosureExpression(
@@ -61,13 +199,21 @@ export class FunctionChecker extends ExpressionControlChecker {
             `? requires an optional or Result operand, found '${operand.type}'`,
             expression.span,
           );
-        if (!target || parts.error !== target.error) {
+        if (!target) {
           this.fail(
             "invalid-result-propagation",
             "Result propagation requires a function with a compatible Result error type",
             expression.span,
           );
         }
+        if (parts.error !== target.error)
+          return this.checkConvertingPropagation(
+            expression,
+            operand,
+            parts.error,
+            target.error,
+            expected,
+          );
         return {
           kind: "propagate",
           operand,

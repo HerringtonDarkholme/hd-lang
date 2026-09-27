@@ -14,12 +14,14 @@ import {
 import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
+import { withStandardTraits } from "./standard-traits.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
 }
 
-export function check(program: Program, options: CheckOptions = {}): CheckResult {
+export function check(source: Program, options: CheckOptions = {}): CheckResult {
+  const program = withStandardTraits(source);
   const context: ProgramCheckContext = {
     program,
     diagnostics: [],

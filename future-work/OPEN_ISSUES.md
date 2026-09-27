@@ -98,7 +98,9 @@ target-indexed output. Generate boundary adapters in the compiler and include
 `Secret[T]`/`Redact` in the contract; avoid general mutable reflection.
 
 **Unblocks.** Serializers, property generators, schema-backed RPC/tool
-invocation, validation at the boundary, and reliable secret redaction. These
+invocation, validation at the boundary, reliable secret redaction, and
+derived `std.convert.From` implementations for error enums
+([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)). These
 are language-design tasks, not merely library work.
 
 **Design notes.** [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
@@ -321,8 +323,13 @@ to recover a concrete type from an erased value.
     `reified T`. Whether generic objects also store their arguments per object
     is an implementation choice.
 12. The standard error trait extends `Inspectable`, so error chains are
-    inspectable. Error conversion at `?` is drafted separately in
-    [Error Conversion](ERROR_CONVERSION.md).
+    inspectable. The specification already declares `std.error.Error` with
+    every member defaulted ([Error Trait](../spec/09-traits.md#error-trait)),
+    so adding the compiler-provided `Inspectable` supertrait breaks no
+    implementation. `downcast` and a chain search (`find[T]`) on errors wait
+    on this issue ([Error Conversion, Still To Do](ERROR_CONVERSION.md#still-to-do));
+    conversion at `?` is specified in
+    [Propagation](../spec/05-expressions.md#propagation).
 
 **Open questions.**
 

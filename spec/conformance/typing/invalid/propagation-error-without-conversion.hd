@@ -1,0 +1,16 @@
+# test: ? rejects an error that is neither assignable nor convertible
+# Spec 05 Propagation, step 3: when the error is not assignable to the enclosing error type
+# and that type has no `From[E]` implementation, the `?` is `invalid-result-propagation`.
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+
+fn read_config(path: string) -> Result[string, FsError]:
+    Err(FsError.NotFound(path))
+
+fn sync(path: string) -> Result[string, SyncError]:
+    text := read_config(path)?  # diagnostic: invalid-result-propagation
+    Ok(text)

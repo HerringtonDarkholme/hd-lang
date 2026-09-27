@@ -1036,3 +1036,15 @@ typing/invalid/none-branch-needs-expected-type.hd	type	reject:missing-contextual
 runtime/valid/none-with-expected-list-type.hd	runtime	accept	04-type-system.md#least-common-type
 runtime/valid/optional-erased-to-any.hd	runtime	accept	09-traits.md#any
 typing/invalid/lowercase-list-type.hd	type	reject:unknown-type	10-modules.md#prelude
+runtime/valid/propagation-into-erased-error.hd	runtime	accept	05-expressions.md#propagation
+runtime/valid/propagation-from-two-domains.hd	runtime	accept	05-expressions.md#propagation
+runtime/valid/propagation-prefers-assignability.hd	runtime	accept	05-expressions.md#propagation
+typing/invalid/propagation-no-chained-conversion.hd	type	reject:invalid-result-propagation	05-expressions.md#propagation
+typing/invalid/propagation-conversion-then-injection.hd	type	reject:invalid-result-propagation	05-expressions.md#propagation
+typing/invalid/propagation-error-without-conversion.hd	type	reject:invalid-result-propagation	05-expressions.md#propagation
+runtime/valid/from-direct-call.hd	runtime	accept	09-traits.md#conversion-trait
+typing/invalid/from-implementation-with-requirement.hd	type	reject:trait-method-signature	09-traits.md#conversion-trait
+typing/invalid/from-implementation-suspending.hd	type	reject:trait-method-signature	09-traits.md#conversion-trait
+runtime/valid/single-payload-variant-function-value.hd	runtime	accept	08-data-and-enums.md#enum-declarations
+typing/invalid/two-payload-variant-as-function-value.hd	type	reject:unsaturated-enum-constructor	08-data-and-enums.md#enum-declarations
+runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	runtime	accept	09-traits.md#dynamic-trait-values

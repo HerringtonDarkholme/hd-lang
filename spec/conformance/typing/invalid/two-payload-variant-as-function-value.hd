@@ -1,0 +1,15 @@
+# test: a variant constructor with two payload fields is not a function value
+# Spec 08 Enum Declarations: a variant constructor with two or more payload fields is not a
+# function value; using one without an argument clause is `unsaturated-enum-constructor`.
+
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Retry(attempt: i32, error: FsError)
+
+fn apply(make: fn(i32, FsError) -> SyncError) -> SyncError:
+    make(1, FsError.NotFound("a.txt"))
+
+fn retry() -> SyncError:
+    apply(SyncError.Retry)  # diagnostic: unsaturated-enum-constructor

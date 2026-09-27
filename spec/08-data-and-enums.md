@@ -371,10 +371,42 @@ A named argument that names no payload field of the variant is an
 `unknown-data-field` error. Other argument errors use the call codes in
 [Expressions](05-expressions.md#calls), such as `duplicate-argument`.
 
-A payload-bearing variant constructor is not itself a first-class function
-value  and must be called. Use an explicit closure to pass construction as
-a function value. A payload-free variant, including one whose declaration
-initializes shared enum data, is an enum value and is selected without `()`.
+A variant constructor with exactly one payload field is a function value
+when it is written without an argument clause. `ToolError.NotFound` has type
+`fn(string) -> ToolError`: one positional parameter of the payload type, the
+enum as result, no suspension, and the empty requirement row. It may be
+passed wherever that function type is expected, such as to a standard-library
+`map_err` in `result.map_err(SyncError.Fs)`. The payload's field name and positional or
+named declaration do not matter, because function values take positional
+arguments only ([Function Types And Values](07-functions.md#function-types-and-values)).
+For a generic enum, or a variant with its own generic parameters
+([Generalized Algebraic Data Types](13-gadts.md)), the value follows the
+rule for generic function values: an expected monomorphic function type must
+instantiate every generic parameter. The contextual shorthand `.Variant`
+still needs an expected enum type, so it is never a function value. Calling
+the value constructs the variant, exactly as calling the constructor does.
+
+A variant constructor with two or more payload fields is not a function value
+and must be called. Using one without an argument clause is an
+`unsaturated-enum-constructor` error; an explicit closure passes its
+construction as a function value. A payload-free variant, including one whose
+declaration initializes shared enum data, is an enum value and is selected
+without `()`.
+
+```text
+enum FsError:
+    NotFound(path: string)
+
+enum SyncError:
+    Fs(error: FsError)
+    Retry(attempt: i32, error: FsError)
+
+fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
+    [for error in errors => wrap(error)]
+
+wrapped := wrap_all([FsError.NotFound("a.txt")], SyncError.Fs)
+retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
+```
 
 ## Shared Enum Constructor Data
 

@@ -1,0 +1,26 @@
+# test: ? never chains conversions
+# Spec 05 Propagation: with `impl From[A] for B` and `impl From[B] for C`, a `?` on
+# `Result[T, A]` in a function returning `Result[U, C]` is `invalid-result-propagation`.
+use std.convert.From
+
+enum LowError:
+    Broken
+
+enum MidError:
+    Low(error: LowError)
+
+enum TopError:
+    Mid(error: MidError)
+
+impl From[LowError] for MidError:
+    fn from(value: LowError) -> MidError: MidError.Low(value)
+
+impl From[MidError] for TopError:
+    fn from(value: MidError) -> TopError: TopError.Mid(value)
+
+fn low() -> Result[i32, LowError]:
+    Err(LowError.Broken)
+
+fn top() -> Result[i32, TopError]:
+    value := low()?  # diagnostic: invalid-result-propagation
+    Ok(value)
