@@ -1,6 +1,6 @@
 # Nominal Function Types: Survey And Design Options
 
-Status: design exploration with owner decisions 1-4 (2026-09-27); nothing
+Status: design exploration with owner decisions 1-8 (2026-09-27); nothing
 is applied to the specification yet. Remaining questions are at the end.
 
 The owner's sketch is to make function types an ordinary generic type
@@ -41,9 +41,22 @@ Decided 2026-09-27:
    `fn(string, i32...) -> i32`; `Rest[T]` is valid only as the final element
    of a function type's input tuple.
 
-Open: questions 5 and 7 to 12, and the requirement-row spelling the owner
-raised the same day (rows list separate injected values, so `+`, which
-elsewhere means several bounds on one type, may be the wrong separator).
+5. **Q5: declared variance.** `Fn` and `SuspendFn` are contravariant in
+   each input element, covariant in the output, and invariant in the row;
+   04's special function-variance paragraph is deleted.
+6. **Q7: function types are implementation targets** under the ordinary
+   ownership and overlap rules; `function-impl-target` is removed. Row
+   positions in impl heads are a row parameter or a concrete row.
+7. **Q8: function values stay out of `Inspectable`,** as values and as type
+   arguments; the exclusion list names `Fn` and `SuspendFn`.
+8. **Q12: `Fn`, `SuspendFn`, and `Rest[T]` live in `std.function`.** The
+   sugar needs no import; the spelled forms are imported where written.
+
+Requirement rows (raised the same day) are comma lists with no `+` or `-`,
+so a row type argument is written `$(Db, Cache)` (see the row sweep in
+spec 02 and 11). Open: question 11 (identity of named function values) and
+questions 9-10 (per-declaration data for tools; option B depends on typed
+derivation, which is deferred). Question 6 disappeared with decision 2.
 
 ## Contents
 
