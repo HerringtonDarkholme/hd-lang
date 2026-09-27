@@ -95,6 +95,15 @@ Decided 2026-09-26:
    type's package sees only public fields; a private field that would be
    visited is an error.
    Still open: function targets (tools), previously `FuncAnnotator`.
+10. **`Annotation` and `Annotate` are removed.** A facet is an ordinary
+    derivable trait with an associated function (for example
+    `trait Validate: fn validator() -> Validator`, derived through
+    `@derivable`); `Validation::annotation(User)` becomes
+    `User::validator()`. Memoization and recursion move to one general
+    standard-library cache for derived associated functions: a value built
+    lazily once per (trait, type) per program instance, with `Ref[T]`
+    deferred references and cycle detection replacing `AnnotationRef`.
+    Function targets are decided with the function-item question.
 
 ## Contents
 

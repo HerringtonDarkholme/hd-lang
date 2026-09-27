@@ -103,6 +103,11 @@ Decided 2026-09-26:
     `std.inspect.downcast_val[T < Inspectable](value: Inspectable) -> T?`,
     which is never `mut`. `std.error.Error` inherits the methods, and `find[T]`
     can be a default method of `Error` bounded the same way.
+16. **Inner `mut` counts toward identity** (revises decision 2). A `TypeId`
+    includes `mut` inside type arguments, so `List[User]` and
+    `List[mut User]` differ and an erased `List[User]` cannot be downcast to
+    `List[mut User]`. Only the outer `mut` of the erased view is ignored
+    (it is carried statically by `Inspectable` versus `mut Inspectable`).
 
 The specification pass recorded one consequence of decision 2 as open: a
 value erased as `List[User]` downcasts to `List[mut User]`
