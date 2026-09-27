@@ -232,9 +232,12 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	16	accept	typing/valid/row-subtraction-entailment.hd
 12-variadic-generics.md	1	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	2	accept	typing/valid/variadic-generics.hd
-12-variadic-generics.md	3	accept	typing/valid/variadic-generics.hd
-12-variadic-generics.md	4	illustrative-pseudocode	-
-12-variadic-generics.md	5	expression-fragment	-
+12-variadic-generics.md	3	mixed	typing/invalid/multiple-positional-value-packs.hd|typing/invalid/nonfinal-positional-value-pack.hd
+12-variadic-generics.md	4	accept	typing/valid/variadic-generics.hd
+12-variadic-generics.md	5	mixed	typing/invalid/pack-length-mismatch.hd
+12-variadic-generics.md	6	mixed	typing/invalid/pack-map-mapper-mismatch.hd
+12-variadic-generics.md	7	illustrative-pseudocode	-
+12-variadic-generics.md	8	expression-fragment	-
 13-gadts.md	1	accept	typing/valid/gadts.hd
 13-gadts.md	2	accept	typing/valid/gadts.hd
 13-gadts.md	3	accept	typing/valid/gadts.hd
