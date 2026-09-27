@@ -1,7 +1,11 @@
 # Enum Semantics: Value Category And Identity
 
-Status: decided 2026-09-27 (see Owner Decisions); not yet applied. Research from 2026-09-26 below; nothing here is normative;
-the [specification](../spec/README.md) is unchanged.
+Status: decided 2026-09-27 (see Owner Decisions) and applied to the
+specification on 2026-09-27 (commit 15dbc2c): [Shared Enum Constructor Data](../spec/08-data-and-enums.md#shared-enum-constructor-data),
+[`data.enum.immutable`](../spec/08-data-and-enums.md#r-data.enum.immutable),
+[Map Key Types](../spec/04-type-system.md#map-key-types), and the
+non-normative [Composite Representation](../spec/04-type-system.md#composite-representation).
+The research from 2026-09-26 below is kept as the record.
 
 The specification has two sealed auto traits under `Any`
 ([Prelude](../spec/10-modules.md#prelude)):
@@ -27,11 +31,6 @@ the [reference parser](../spec/reference-parser/index.ts), checked
 2026-09-26. Parsing is not type checking: each example states what today's
 rules and each option would do with it.
 
-
-**Status: deferred by the owner (2026-09-26).** The enum value category
-(question 1) and whether shared constructor data becomes read-only
-(question 2) are postponed; until then the specification keeps enums on
-`AnyRef` as it is today.
 
 ## Owner Decisions
 

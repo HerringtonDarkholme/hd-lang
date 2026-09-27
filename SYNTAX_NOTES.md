@@ -1020,9 +1020,10 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 
 Shared enum constructor parameters may have pure defaults. The function-default
 ordering rule applies: after the first defaulted parameter, all later shared
-parameters need defaults. Omitted defaults are evaluated per construction after
-explicit arguments, in parameter order. Variant payload parameters have no
-defaults.
+parameters need defaults. Shared data is a per-variant constant: each
+variant's `->` expression, with its omitted defaults, is evaluated once at
+compile time, cannot use the payload, and is never stored in enum values.
+Shared fields are read-only. Variant payload parameters have no defaults.
 
 Enums support generic ADTs, recursive enums, and GADT-style variants with explicit result types:
 

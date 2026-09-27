@@ -46,15 +46,6 @@ are applied later in one `spec-update` pass, not per chapter.
   `Iterator[mut Word]` or builds readonly elements explicitly. Fix the
   fixture `trait-argument-owner-impl.hd` accordingly.
 
-- **Enum shared constructor data is read-only** (ENUM_SEMANTICS question 2,
-  decided 2026-09-27): a `mut` enum view can no longer reassign a named
-  shared constructor field, so an enum's own slots (tag, payload, shared
-  fields) never change once built. This is shallow: a payload may be a
-  mutable reference (`Loaded(user: mut User)`), and that object can still
-  change, as with a tuple holding references. Enums stay `AnyRef` with
-  today's identity rule (ENUM_SEMANTICS decision 1); add the
-  implementation note that payload-free enums may be integers.
-
 - **Decided 2026-09-27 from the restyle notes:** (07) one declared result
   type in a recursive cycle is enough; the others are inferred
   (`fn.recursion.named` is aligned with `fn.decl.omitted-cycle.resolve`);

@@ -276,7 +276,9 @@ Derived ordering compares data fields in declaration order. Enum variants
 compare by declaration order before their shared data and payload fields.
 Derived `Hash` hashes every declared data field, or the enum variant identity
 followed by its shared data and payload fields. Each such field needs `Hash`;
-`Eq + Hash` lets a user-defined type serve as a map key.
+`Eq + Hash` lets a user-defined type serve as a map key. This holds for a
+payload-free enum too: it gets no automatic `Eq` or `Hash`, although `is`
+already compares its canonical variants.
 Deriving `Hash`, `PartialOrd`, or `Ord` needs `Eq` (and `Ord` also
 `PartialOrd`) in the same `@derive` list; mixing a derived trait with a
 hand-written partner is `mixed-derived-law`. A newtype may also derive, as in
@@ -870,14 +872,17 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
     ServiceUnavailable -> HttpStatus(503, phrase="Service Unavailable", retryable=true)
 ```
 
-Shared enum constructor parameters may have pure defaults. Defaults follow
-function-parameter ordering and run when omitted for each construction, after
-explicit arguments. Variant payload parameters remain required.
+Shared data belongs to the variant, like a Java enum constant's constructor
+arguments: each variant's `->` expression is evaluated once, at compile time,
+and cannot use the variant's payload. Shared enum constructor parameters may
+have pure defaults, which follow function-parameter ordering. Variant payload
+parameters remain required.
 
-Shared named constructor data is available on every enum value as a field, such
-as `HttpStatus.NotFound.phrase`. Unnamed shared data uses a zero-based
-tuple-style member, such as `StatusCode.NotFound._0`. Variant-specific
-payloads remain available through pattern matching.
+Shared named constructor data is available on every enum value as a
+read-only field, such as `HttpStatus.NotFound.phrase`. Unnamed shared data
+uses a zero-based tuple-style member, such as `StatusCode.NotFound._0`.
+Variant-specific payloads remain available through pattern matching. An enum
+value never changes once built.
 
 Enums can be generic algebraic data types:
 
