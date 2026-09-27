@@ -239,10 +239,12 @@ specification	block	classification	fixture
 12-variadic-generics.md	7	illustrative-pseudocode	-
 12-variadic-generics.md	8	expression-fragment	-
 13-gadts.md	1	accept	typing/valid/gadts.hd
-13-gadts.md	2	accept	typing/valid/gadts.hd
+13-gadts.md	2	mixed	typing/invalid/variant-result-owner.hd
 13-gadts.md	3	accept	typing/valid/gadts.hd
 13-gadts.md	4	accept	typing/valid/gadts.hd
 13-gadts.md	5	accept	typing/valid/gadts.hd
+13-gadts.md	6	mixed	typing/invalid/impossible-gadt-pattern.hd
+13-gadts.md	7	accept	typing/valid/gadts.hd
 14-annotations.md	1	accept	typing/valid/shape-api.hd
 14-annotations.md	2	type-fragment	-
 14-annotations.md	3	type-fragment	-
