@@ -39,6 +39,14 @@ Decided 2026-09-26:
    becomes the general rule for traits marked `@derivable`, replacing
    chapter 14's "compiler-intrinsic exception" wording; ordinary decorators
    still never change behavior.
+3. **Skip and custom codecs: metadata changes generated calls.** A
+   metadata type implementing `std.derive.Skip[V]` makes the generated
+   `visit` omit the field for visitor type `V` (and `build` use the skip's
+   default); one implementing `std.derive.With[V, Codec]` routes the field
+   through `Codec`, so the visitor's bound applies to the codec's output type.
+   This is checked statically, applies only in explicit `@derive` output and
+   in annotators rebuilt on `describe`, and affects only the named visitor's
+   library. Other libraries' visitors still see the field.
 
 ## Contents
 
