@@ -2,8 +2,11 @@
 
 Status: language specification draft.
 
-Modules organize names by source path. Packages organize compilation,
-dependencies, and Wasm artifacts.
+This chapter defines modules, packages, the prelude, program initialization,
+entry points, and the Wasm boundary.
+
+1. r[module.kind.module] Modules organize names by source path.
+2. r[module.kind.package] Packages organize compilation, dependencies, and Wasm artifacts.
 
 ## Package Manifest
 
@@ -21,10 +24,12 @@ root = "src"
 billing = "1.2.0"
 ```
 
-The default source root is `src`. The complete manifest schema, dependency
-resolution algorithm, lockfile, and version semantics remain tooling work; the
-language-level use model assumes that the manifest maps each dependency name
-to one resolved package.
+1. r[module.manifest.file] An hd-lang package has an `hd.toml` manifest.
+2. r[module.manifest.source-root] The default source root is `src`.
+3. r[module.manifest.tooling] The complete manifest schema, dependency resolution algorithm, lockfile, and version semantics remain tooling work.
+4. r[module.manifest.dependency] The language-level use model assumes that the manifest maps each dependency name to one resolved package.
+
+See also: [Tooling, ABI, And Unsupported Extensions](#tooling-abi-and-unsupported-extensions).
 
 ## Path-Inferred Modules
 
@@ -35,7 +40,10 @@ src/user/types.hd    # user.types
 src/user/service.hd  # user.service
 ```
 
-There is no `module` or `package` declaration in source.
+1. r[module.path.name] A source file's path relative to the source root determines its module name.
+2. r[module.path.no-declaration] There is no `module` or `package` declaration in source.
+
+### Directory Modules
 
 A directory is itself a module only when it contains `mod.hd`:
 
@@ -44,37 +52,39 @@ src/user/mod.hd      # user
 src/user/types.hd    # user.types
 ```
 
-`mod.hd` is the directory module's source file and public index. Child modules
-are not brought automatically into the parent, and parent declarations are not
-implicitly visible in children.
+1. r[module.path.directory] A directory is itself a module only when it contains `mod.hd`.
+2. r[module.path.mod-file] `mod.hd` is the directory module's source file and public index.
+3. r[module.path.no-child-import] Child modules are not brought automatically into the parent.
+4. r[module.path.no-parent-scope] Parent declarations are not implicitly visible in children.
 
-Two files must not map to the same module identity. Case sensitivity of module
-paths is defined by the source language rather than the host filesystem:
+### Module Identity
 
-- every non-`mod.hd` path component used in a module identity must be an NFC
-  Unicode identifier under the source identifier rules;
-- module identities are case-sensitive; and
-- a package is rejected if two source paths collide after full Unicode case
-  folding followed by NFC normalization of each module path component, even
-  when the host filesystem could otherwise distinguish them.
+1. r[module.path.unique] Two files must not map to the same module identity.
+2. r[module.path.case-source] Case sensitivity of module paths is defined by the source language rather than the host filesystem, by the rules below.
+3. r[module.path.identifier] Every non-`mod.hd` path component used in a module identity must be an NFC Unicode identifier under the source identifier rules.
+4. r[module.path.case-sensitive] Module identities are case-sensitive.
+5. r[module.path.case-collision] A package is rejected if two source paths collide after full Unicode case folding followed by NFC normalization of each module path component. This holds even when the host filesystem could otherwise distinguish them.
+6. r[module.path.suffix] The final `.hd` suffix and the special filename `mod.hd` are lowercase and case-sensitive.
+7. r[module.path.unicode-version] The compiler applies the declared Unicode data version from the lexical rules to path validation and collision checks.
 
-The final `.hd` suffix and the special filename `mod.hd` are lowercase and
-case-sensitive. The compiler applies the declared Unicode data version from
-the lexical rules to path validation and collision checks. This rejects
-ambiguous module names before host filesystem case behavior can change the
-module graph.
+> **Why.** Checking paths this way rejects ambiguous module names before
+> host filesystem case behavior can change the module graph.
 
 ## Use Roots
 
 Every absolute use path begins with one of these roots:
 
-- `pkg` for the current package;
-- `std` for the standard library;
-- `dep.<name>` for a manifest dependency.
+| Root | Names |
+| --- | --- |
+| `pkg` | the current package |
+| `std` | the standard library |
+| `dep.<name>` | a manifest dependency |
 
-The package manifest distinguishes standard library, current package, and
-external dependency namespaces; source syntax does not require a different
-prefix for each dependency beyond `dep.<name>`.
+1. r[module.root.absolute] Every absolute use path begins with one of the roots in the table.
+2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
+3. r[module.root.dep-prefix] Source syntax does not require a different prefix for each dependency beyond `dep.<name>`.
+
+### Relative Uses
 
 Relative use paths use `self` and `super`:
 
@@ -83,20 +93,25 @@ use self.types.{User, UserId}
 use super.shared.{Email}
 ```
 
-Relative lookup starts at the source file's containing directory module. For a
-regular file `src/user/service.hd`, that base is `user`; for
-`src/user/mod.hd`, the base is the `user` module itself; for a file directly
-under `src`, the base is the package root namespace. `self` names that base and
-each leading `super` moves to its parent.
+Relative lookup starts at a base that depends on the source file:
 
-Consequently, from `src/user/service.hd`, `self.types` resolves to
-`pkg.user.types` and `super.shared` resolves to `pkg.shared`. Moving above the
-package root is a compile-time error. Relative use paths cannot cross into `std`
-or a dependency.
+| Source file | Base |
+| --- | --- |
+| `src/user/service.hd`, a regular file | `user` |
+| `src/user/mod.hd` | the `user` module itself |
+| a file directly under `src` | the package root namespace |
+
+1. r[module.relative.keywords] Relative use paths use `self` and `super`.
+2. r[module.relative.base] Relative lookup starts at the source file's containing directory module, as the table shows.
+3. r[module.relative.self] `self` names that base.
+4. r[module.relative.super] Each leading `super` moves to its parent.
+5. r[module.relative.example] Consequently, from `src/user/service.hd`, `self.types` resolves to `pkg.user.types` and `super.shared` resolves to `pkg.shared`.
+6. r[module.relative.above-root] Moving above the package root is a compile-time error.
+7. r[module.relative.no-cross] Relative use paths cannot cross into `std` or a dependency.
 
 ## Use Forms
 
-Use a single public declaration or a module namespace:
+A use names a single public declaration or a module namespace:
 
 ```text
 use std.time.Duration
@@ -104,32 +119,33 @@ use pkg.user.types
 use pkg.user.types as user_types
 ```
 
-Use selected public declarations:
+A grouped use names selected public declarations:
 
 ```text
 use pkg.user.types.{User, UserId}
 use dep.billing.types.{UserId as BillingUserId}
 ```
 
-Grouped uses may have a trailing comma. Wildcard uses are not supported. Enum
-variants are members, not module declarations, and cannot be used directly.
-Using a private or missing declaration is a compile-time error.
+1. r[module.use.single] A use may name a single public declaration or a module namespace.
+2. r[module.use.grouped] A grouped use names selected public declarations.
+3. r[module.use.trailing-comma] Grouped uses may have a trailing comma.
+4. r[module.use.no-wildcard] Wildcard uses are not supported.
+5. r[module.use.no-variant] Enum variants are members, not module declarations, and cannot be used directly.
+6. r[module.use.private-or-missing] Using a private or missing declaration is a compile-time error.
+7. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix.
+8. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
+9. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 
-Only the grouped form accepts a `pub` prefix. Public facades expose selected
-declarations rather than module namespace aliases.
-
-Use declarations introduce names for the whole module and are resolved before
-type checking.
+```text
+use std.testing.*                 # error
+use pkg.status.{Status.Queued}    # error
+pub use std.testing.assert_equal  # error
+```
 
 ## Prelude
 
-Every module implicitly has the following public standard-library names in
-scope. This implicit scope is called the prelude; it is equivalent to fixed
-`use` declarations and does not create ambient host authority. A module
-declaration, use, type parameter, parameter, or local binding may not shadow a
-prelude name; every conflict is a `prelude-name-shadow` error. This includes a
-redundant `use` that names the same declaration already supplied by the
-prelude: prelude names are used directly and are not re-imported.
+The **prelude** is the implicit scope of public standard-library names that
+every module has:
 
 | Origin module | Implicit names |
 | --- | --- |
@@ -142,51 +158,91 @@ prelude: prelude names are used directly and are not re-imported.
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 | `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
-Standard traits outside this table are imported. The conversion trait
-`std.convert.From` ([Conversion Trait](09-traits.md#conversion-trait)) and
-the error trait `std.error.Error` ([Error Trait](09-traits.md#error-trait))
-are not prelude names, so a module may declare its own `From` or `Error`.
-Postfix `?` still finds the standard `From` without an import. Likewise
-`std.inspect` declares `Inspectable`, `TypeId`, and `downcast_val`
-([Runtime Type Identity](09-traits.md#runtime-type-identity)), which code
-imports, as in `use std.inspect.{Inspectable, TypeId}`.
-`std.error.Error` extends `Inspectable` without its users importing it.
+1. r[module.prelude.names] Every module implicitly has the public standard-library names in the table in scope.
+2. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
+3. r[module.prelude.no-authority] The prelude does not create ambient host authority.
+4. r[module.prelude.no-shadow] A module declaration, use, type parameter, parameter, or local binding must not shadow a prelude name. Every conflict is an error. Error: `prelude-name-shadow`.
+5. r[module.prelude.no-reimport] This includes a redundant `use` that names the same declaration already supplied by the prelude: prelude names are used directly and are not re-imported. Error: `prelude-name-shadow`.
 
-The built-in collection types are `List` and `Map`. Like every nominal type
-outside the primitives, they are capitalized. The lowercase names `list` and
-`map` are not prelude names; they resolve like any other identifier, so a type
-written `list[i32]` is an `unknown-type` error unless a declaration in scope
-supplies `list`.
+```text
+use std.format.Display                               # error: prelude-name-shadow
 
-The prelude functions have these signatures: `panic(message: string) ->
-never` and `println[T < Display](value: T) -> void $ Console`. `shape` and
-`shape_of` are compiler intrinsics whose result types depend on their
-arguments; they are specified in
-[Shape Intrinsics](14-annotations.md#shape-intrinsics). The standard
-console surface includes:
+fn println() -> void: pass                           # error: prelude-name-shadow
+fn consume(Console: i32) -> i32: Console             # error: prelude-name-shadow
+fn identity[Result](value: Result) -> Result: value  # error: prelude-name-shadow
+
+fn main() -> i32:
+    let Hash: i32 = 42  # error: prelude-name-shadow
+    Hash
+```
+
+### Standard Names Outside The Prelude
+
+1. r[module.prelude.imported] Standard traits outside this table are imported.
+2. r[module.prelude.from-error] The conversion trait `std.convert.From` and the error trait `std.error.Error` are not prelude names.
+3. r[module.prelude.own-from-error] A module may therefore declare its own `From` or `Error`.
+4. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
+5. r[module.prelude.inspect] Likewise `std.inspect` declares `Inspectable`, `TypeId`, and `downcast_val`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
+6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
+
+See also: [Conversion Trait](09-traits.md#conversion-trait),
+[Error Trait](09-traits.md#error-trait),
+[Runtime Type Identity](09-traits.md#runtime-type-identity).
+
+### Collection Type Names
+
+1. r[module.prelude.collections] The built-in collection types are `List` and `Map`.
+2. r[module.prelude.capitalized] Like every nominal type outside the primitives, they are capitalized.
+3. r[module.prelude.lowercase] The lowercase names `list` and `map` are not prelude names; they resolve like any other identifier.
+4. r[module.prelude.lowercase-unknown] A type written `list[i32]` is therefore an error unless a declaration in scope supplies `list`. Error: `unknown-type`.
+
+```text
+fn count() -> i32:
+    let values: list[i32] = [1, 2]  # error: unknown-type
+    return 2
+```
+
+### Prelude Functions
+
+1. r[module.prelude.panic] The prelude function `panic` has the signature `panic(message: string) -> never`.
+2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
+3. r[module.prelude.shape] `shape` and `shape_of` are compiler intrinsics whose result types depend on their arguments.
+
+See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics), which
+specifies `shape` and `shape_of`.
+
+### Console
+
+The standard console surface includes:
 
 ```text
 trait Console:
     fn write_line!(self, text: string) -> Result[void, ConsoleError]
 ```
 
-`Console` is a host capability trait, and `ConsoleError` is its standard
-boundary-safe error type; `ConsoleError` implements `Display`. Thus `println`
-is convenient to name but not a global
-host API: each call must be covered by a `Console` requirement row or a
-lexical provider scope.
+1. r[module.console.host-trait] `Console` is a host capability trait.
+2. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
+3. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
 
-`AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`
-([Trait Values And `Any`](04-type-system.md#trait-values-and-any)).
-`AnyRef` is implemented by data values, stored enum
-values (optionals included), lists, maps, dynamic trait values, `Any`, closures, suspensions, and
-runtime handles that have identity, and payload-free enum values with canonical
-variant identity. It is not implemented by primitives or tuples.
-`AnyVal` is implemented by exactly the primitives and tuples.
-User code cannot implement either ([Sealed Traits](09-traits.md#sealed-traits)).
+```text
+pub fn main() -> void:
+    println("missing")  # error
+```
 
-The following built-in methods are normative. Lengths and scalar positions use
-`i32`.
+### Value-Category Traits
+
+1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
+2. r[module.prelude.anyref] `AnyRef` is implemented by data values, stored enum values (optionals included), lists, maps, dynamic trait values, and `Any`. It is also implemented by closures, suspensions, and runtime handles that have identity, and payload-free enum values with canonical variant identity.
+3. r[module.prelude.anyref-not] `AnyRef` is not implemented by primitives or tuples.
+4. r[module.prelude.anyval] `AnyVal` is implemented by exactly the primitives and tuples.
+5. r[module.prelude.any-sealed] User code cannot implement either.
+
+See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any),
+[Sealed Traits](09-traits.md#sealed-traits).
+
+### Built-In Methods
+
+The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
@@ -198,25 +254,30 @@ The following built-in methods are normative. Lengths and scalar positions use
 | `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
 | `Display` | `to_string(self) -> string` |
 
-`List.map` and optional `map` are non-suspending and evaluate the transform in
-source order. No `set` type is part of the core prelude.
+1. r[module.method.normative] The built-in methods in the table are normative.
+2. r[module.method.i32] Lengths and scalar positions use `i32`.
+3. r[module.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
+4. r[module.method.no-set] No `set` type is part of the core prelude.
 
-Map lookup, insertion, and removal take expected amortized O(1) time. This
-covers `get`, `remove`, reading `entries[key]`, and inserting or replacing
-through `entries[key] = value`
-([Indexing](05-expressions.md#indexing)). Each call of the key type's `Hash`
-or `Eq` implementation counts as one step.
+#### Map Complexity
 
-String methods operate on Unicode scalar-value strings without locale. `lower`
-uses Unicode Default Case Conversion with full mappings. `trim` removes the
-Unicode `White_Space` property at both ends. `split(separator)` retains empty
-pieces between adjacent separators and at either end; an empty separator
-splits into one-scalar strings, with an empty input producing an empty list.
-With a non-empty separator, an input without that separator, including the
-empty string, yields one piece, so `"".split(",")` is `[""]`.
-`replace` replaces non-overlapping matches from left to right, and an empty
-`old` inserts the replacement at scalar boundaries. `starts_with` compares
-scalar sequences exactly and performs no normalization or case folding.
+1. r[module.map.complexity] Map lookup, insertion, and removal take expected amortized O(1) time.
+2. r[module.map.complexity.operations] This covers `get`, `remove`, reading `entries[key]`, and inserting or replacing through `entries[key] = value`.
+3. r[module.map.complexity.step] Each call of the key type's `Hash` or `Eq` implementation counts as one step.
+
+See also: [Indexing](05-expressions.md#indexing).
+
+#### String Methods
+
+1. r[module.string.scalar] String methods operate on Unicode scalar-value strings without locale.
+2. r[module.string.lower] `lower` uses Unicode Default Case Conversion with full mappings.
+3. r[module.string.trim] `trim` removes the Unicode `White_Space` property at both ends.
+4. r[module.string.split] `split(separator)` retains empty pieces between adjacent separators and at either end.
+5. r[module.string.split.empty-separator] An empty separator splits into one-scalar strings, with an empty input producing an empty list.
+6. r[module.string.split.absent] With a non-empty separator, an input without that separator, including the empty string, yields one piece, so `"".split(",")` is `[""]`.
+7. r[module.string.replace] `replace` replaces non-overlapping matches from left to right.
+8. r[module.string.replace.empty] An empty `old` inserts the replacement at scalar boundaries.
+9. r[module.string.starts-with] `starts_with` compares scalar sequences exactly and performs no normalization or case folding.
 
 ## Standard Testing
 
@@ -227,68 +288,100 @@ fn assert(condition: bool, reason: string) -> void
 fn assert_equal[T < PartialEq](actual: T, expected: T, reason: string) -> void
 ```
 
-`reason` is required and must explain the checked condition. A failed assertion
-reports test failure when called from a test and otherwise causes an
-`assertion-failed` runtime panic. `assert_equal` uses `PartialEq.eq`; it does not
-grant implicit equality to its argument type.
+1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
+2. r[module.testing.reason] `reason` is required and must explain the checked condition.
+3. r[module.testing.failure] A failed assertion reports test failure when called from a test.
+4. r[module.testing.panic] Otherwise a failed assertion causes a runtime panic. Panic: `assertion-failed`.
+5. r[module.testing.partial-eq] `assert_equal` uses `PartialEq.eq`.
+6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
+
+```text
+use std.testing.assert_equal
+
+data Error:
+    message: string
+
+test "result equality needs PartialEq":
+    let actual: Result[i32, Error] = .Ok(1)
+    assert_equal(actual, .Ok(1), reason="values match")  # error
+```
 
 ## Module Initialization
 
-A **script** is an entry module whose top-level executable statements are the
-entry behavior and which has no `main` declaration. An **entry module** is the
-selected root module of an executable package. If it contains both top-level
-statements and `main`, its top-level statements initialize the module first and
-then the runtime invokes `main`; that form is an executable entry module, not a
-script. A **program instance** is one instantiated Wasm module graph together
-with its module storage, provider bindings, and execution state.
+This section defines which modules initialize, in what order, and what their
+top-level code may do.
 
-Before execution, the compiler resolves the acyclic use graph reachable from
-the selected script or executable entry module. Every reachable module is
-initialized exactly once per program instance after all modules it uses have
-been initialized. When multiple modules are otherwise ready, their fully
-qualified module identities order them lexicographically, making initialization
-independent of filesystem enumeration.
+1. r[module.init.script] A **script** is an entry module whose top-level executable statements are the entry behavior and which has no `main` declaration.
+2. r[module.init.entry-module] An **entry module** is the selected root module of an executable package.
+3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.
+4. r[module.init.program-instance] A **program instance** is one instantiated Wasm module graph together with its module storage, provider bindings, and execution state.
 
-Within one module, named declarations are available before initialization and
-top-level executable statements run in source order. Use declarations do not
-execute as statements. Top-level bindings are initialized at their statement,
-before later function bodies may access them. Their storage remains available
-to functions in that module for the lifetime of the program instance. A module
-with no top-level executable statements has no observable initialization step.
-Before accepting a top-level executable statement, the compiler verifies that
-every top-level binding in the transitive read set of each referenced function
-or closure is already initialized. References passed as values and functions
-reached by trait dispatch, interpolation, iteration, or another implicit call
-are included. A trait method call through a generic bound or a dynamic trait
-value reaches every implementation of that method in the module. This
-definite-initialization check covers the whole module value-flow and call
-graph. The check is local to one module. Note: an
-implementation can compute it from a per-function summary of the top-level
-bindings each function reads, combined bottom-up over the module's call graph;
-it never needs another module's function bodies.
+### Initialization Order
 
-After dependency initialization, a script executes its top-level statements as
-that module's initialization. An executable package then invokes `main` after
-its entry module has initialized. Test runners initialize the test module and
-the modules it uses before invoking discovered test blocks; test block bodies
-are not part of module initialization.
+1. r[module.init.graph] Before execution, the compiler resolves the acyclic use graph reachable from the selected script or executable entry module.
+2. r[module.init.once] Every reachable module is initialized exactly once per program instance after all modules it uses have been initialized.
+3. r[module.init.ready-order] When multiple modules are otherwise ready, their fully qualified module identities order them lexicographically.
 
-Top-level code in a non-entry module must be requirement-free
-initialization. It may not use `$.use`, enter a provider scope, make a bang
-call, or call a callable whose requirement row is not empty. A script module may
-use requirements and suspension only through an inferred entry requirement row,
-which the compiler reports alongside `main!` rows for host configuration. A
-script's top level is not itself a suspension driver; bang calls must occur in
-a suspending entry function or another specified driver context.
+> **Why.** Ordering by module identity makes initialization independent of
+> filesystem enumeration.
 
-This rule governs one program instance. Interactive cell re-execution and
-durable replay have separate runtime histories described in
-[`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md).
+### Top-Level Statements
+
+1. r[module.init.declarations] Within one module, named declarations are available before initialization.
+2. r[module.init.source-order] Top-level executable statements run in source order.
+3. r[module.init.uses] Use declarations do not execute as statements.
+4. r[module.init.binding] Top-level bindings are initialized at their statement, before later function bodies may access them.
+5. r[module.init.storage] Their storage remains available to functions in that module for the lifetime of the program instance.
+6. r[module.init.no-step] A module with no top-level executable statements has no observable initialization step.
+
+### Definite Initialization
+
+1. r[module.init.definite] Before accepting a top-level executable statement, the compiler checks the transitive read set of each function or closure it references. Every top-level binding in that set must already be initialized.
+2. r[module.init.definite.implicit] References passed as values and functions reached by trait dispatch, interpolation, iteration, or another implicit call are included.
+3. r[module.init.definite.dispatch] A trait method call through a generic bound or a dynamic trait value reaches every implementation of that method in the module.
+4. r[module.init.definite.whole-module] This definite-initialization check covers the whole module value-flow and call graph.
+5. r[module.init.definite.local] The check is local to one module.
+
+```text
+first := apply(first_name)  # error
+let names: List[string] = ["Ada"]
+
+fn apply(callback: fn() -> string) -> string:
+    callback()
+
+fn first_name() -> string:
+    names[0]
+```
+
+> **Note.** An implementation can compute the check from a per-function
+> summary of the top-level bindings each function reads, combined bottom-up
+> over the module's call graph. It never needs another module's function
+> bodies.
+
+### Entry Behavior
+
+1. r[module.init.script-body] After dependency initialization, a script executes its top-level statements as that module's initialization.
+2. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
+3. r[module.init.tests] Test runners initialize the test module and the modules it uses before invoking discovered test blocks.
+4. r[module.init.test-bodies] Test block bodies are not part of module initialization.
+
+### Requirement-Free Initialization
+
+1. r[module.init.requirement-free] Top-level code in a non-entry module must be requirement-free initialization.
+2. r[module.init.requirement-free.forms] It must not use `$.use`, enter a provider scope, make a bang call, or call a callable whose requirement row is not empty.
+3. r[module.init.script-row] A script module may use requirements and suspension only through an inferred entry requirement row.
+4. r[module.init.script-row.report] The compiler reports that row alongside `main!` rows for host configuration.
+5. r[module.init.script-not-driver] A script's top level is not itself a suspension driver. Bang calls must occur in a suspending entry function or another specified driver context.
+
+### Program Instances
+
+1. r[module.init.per-instance] This initialization rule governs one program instance.
+2. r[module.init.histories] Interactive cell re-execution and durable replay have separate runtime histories described in [`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md).
 
 ## Public Uses And Visibility
 
-Declarations are module-private by default. Prefix `pub` makes a declaration
-available to other modules:
+Declarations are module-private by default, and prefix `pub` makes a
+declaration available to other modules:
 
 ```text
 pub type UserId(string)
@@ -297,6 +390,11 @@ pub data User:
     pub id: UserId
     pub email: string
 ```
+
+1. r[module.vis.private-default] Declarations are module-private by default.
+2. r[module.vis.pub] Prefix `pub` makes a declaration available to other modules.
+
+### Public Uses
 
 Use `pub use` in a `mod.hd` file to expose a package-facing API:
 
@@ -311,70 +409,79 @@ Another module can then use the names through the directory module:
 use pkg.user.{User, UserId, load_user}
 ```
 
-A publicly used declaration must already be public in its defining module.
-`pub use` introduces the same local binding as `use` and additionally exposes
-that binding to other modules. It does not create a new declaration identity.
-Cycles involving `use` or `pub use` are rejected.
+1. r[module.pub-use.facade] `pub use` in a `mod.hd` file exposes a package-facing API, whose names another module can use through the directory module.
+2. r[module.pub-use.public-source] A publicly used declaration must already be public in its defining module.
+3. r[module.pub-use.binding] `pub use` introduces the same local binding as `use` and additionally exposes that binding to other modules.
+4. r[module.pub-use.identity] `pub use` does not create a new declaration identity.
+5. r[module.pub-use.cycles] Cycles involving `use` or `pub use` are rejected.
 
-There is no package-private visibility modifier: another module in the same
-package can use only `pub` declarations. Named fields and inherent methods
-are module-private unless individually marked `pub`; embedded fields take no
-marker and are always public; enum variants inherit their enum's visibility.
-Trait methods follow their trait's visibility; a usable implementation
-additionally requires its target type to be visible.
+### Member Visibility
 
-A public declaration's complete source-level signature must not expose a
-module-private declaration. This check recursively covers function parameters
-and results, data fields (every embedded field included), enum constructor
-data and payloads, alias/newtype
-underlying types, trait bounds, supertraits, public generic arguments, and every
-requirement-row key. A
-private implementation detail may occur in a public function body but not in
-its public typed interface.
+1. r[module.vis.no-package-private] There is no package-private visibility modifier: another module in the same package can use only `pub` declarations.
+2. r[module.vis.members] Named fields and inherent methods are module-private unless individually marked `pub`.
+3. r[module.vis.embedded] Embedded fields take no marker and are always public.
+4. r[module.vis.variants] Enum variants inherit their enum's visibility.
+5. r[module.vis.trait-methods] Trait methods follow their trait's visibility.
+6. r[module.vis.impl-target] A usable implementation additionally requires its target type to be visible.
+
+### Public Signatures
+
+1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration.
+2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, data fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key.
+3. r[module.vis.body] A private implementation detail may occur in a public function body but not in its public typed interface.
+
+```text
+data Secret:
+    value: string
+
+pub fn reveal() -> Secret:  # error
+    Secret { value: "hidden" }
+```
+
+See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 
 ## Name Resolution Across Packages
 
-An absolute qualified name identifies one declaration after dependency
-resolution. Two dependencies do not share declarations merely because their
-package names and source paths match; resolved package identity is part of a
-declaration's identity.
+1. r[module.package.identity] An absolute qualified name identifies one declaration after dependency resolution.
+2. r[module.package.no-sharing] Two dependencies do not share declarations merely because their package names and source paths match.
+3. r[module.package.identity-part] Resolved package identity is part of a declaration's identity.
+4. r[module.package.public-surface] A package must not access another package except through declarations reachable from that package's public module surface.
+5. r[module.package.separate] Implementations may compile packages separately.
 
-A package must not access another package except through declarations reachable
-from that package's public module surface. Implementations may compile packages
-separately.
+### Fully Annotated Declarations
 
-Every public declaration is fully annotated: its complete signature, including
-parameter and result types, requirement rows, suspension, generic parameters
-with their bounds, variance, and reification, and the types of public fields
-and enum data, is written in source. Nothing in a public signature is
-inferred from a function body. Top-level bindings cannot be public.
+1. r[module.package.annotated] Every public declaration is fully annotated: its complete signature is written in source.
+2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds, variance, and reification. It also includes the types of public fields and enum data.
+3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
+4. r[module.package.no-pub-binding] Top-level bindings cannot be public.
 
-A package interface must contain exported declaration identities and complete
-signatures; visibility; generic kinds, variance, bounds, and reification;
-requirement rows; associated types; every ordinary, local, and annotation
-implementation head needed for coherence; and the bodies of pack and reified
-code, which downstream compilation specializes. An interface may also carry
-ordinary generic bodies to enable inlining, but downstream compilation must
-not require them: an implementation compiles each ordinary generic function
-in its defining package, and a downstream use supplies only its dictionaries.
-A package interface is therefore determined by the package's declarations and
-does not depend on any other function body. A downstream package can be
-compiled as soon as the interfaces of its dependencies are known, without
-waiting for their function bodies to be checked or compiled. Coherence is
-checked at link time over the complete set of resolved interface files, so
-linking may reject a graph even when each package compiled independently.
+```text
+pub answer := 42  # error
+```
+
+### Package Interfaces
+
+A package interface must contain:
+
+| Interface content |
+| --- |
+| exported declaration identities and complete signatures |
+| visibility |
+| generic kinds, variance, bounds, and reification |
+| requirement rows |
+| associated types |
+| every ordinary, local, and annotation implementation head needed for coherence |
+| the bodies of pack and reified code, which downstream compilation specializes |
+
+1. r[module.interface.contents] A package interface must contain every item in the table.
+2. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
+3. r[module.interface.dictionaries] An implementation compiles each ordinary generic function in its defining package, and a downstream use supplies only its dictionaries.
+4. r[module.interface.determined] A package interface is therefore determined by the package's declarations and does not depend on any other function body.
+5. r[module.interface.early] A downstream package can be compiled as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled.
+6. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
+7. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
 
 ## Executable Entry Point
-
-An executable entry point is a public top-level function named `main` or
-`main!` with no parameters. It returns `void` or `Result[void, E]` with
-`E < Display`, and it may declare a requirement row. Every key in that row must
-be a host capability trait of the selected runtime profile; any other key is a
-`nonhost-entry-requirement` error. A key written `mut K` also requires the
-profile to mark `K` mutable; otherwise it is a `mutable-upgrade` error
-([Mutable Providers](11-requirements-and-suspension.md#mutable-providers)).
-A top-level `main` that is not public is an ordinary function and is not an
-entry point.
 
 The conventional non-suspending entry point is:
 
@@ -383,45 +490,65 @@ pub fn main() -> void:
     ...
 ```
 
-It may instead return `Result[void, E]`, in which case an `.Err` result reports invocation
-failure through the runtime adapter and requires `E < Display`; an error type
-without that implementation is an `entry-error-not-display` error. A dynamic
-trait value type whose trait is `Display` or has it as a supertrait, such as
-the erased `std.error.Error`, satisfies the requirement
-([Dynamic Trait Values](09-traits.md#dynamic-trait-values)). The host
-renders the error with `Display.to_string` and exits with status 1. A panic exits with a
-distinct nonzero status selected by the runtime profile and poisons the program
-instance. `main` has no source-level arguments;
-process arguments, console access, environment, and other host facilities are
-requirements supplied by the runtime through the requirement model.
+1. r[module.entry.definition] An **executable entry point** is a public top-level function named `main` or `main!` with no parameters.
+2. r[module.entry.result] It returns `void` or `Result[void, E]` with `E < Display`.
+3. r[module.entry.row] It may declare a requirement row.
+4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
+5. r[module.entry.row.mut] A key written `mut K` also requires the profile to mark `K` mutable. Otherwise the key is an error. Error: `mutable-upgrade`.
+6. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
+7. r[module.entry.suspending] A suspending entry point is spelled `main!`.
 
-A suspending entry point is spelled `main!`.
+See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
+
+### Entry Results
+
+1. r[module.entry.err] An entry point may instead return `Result[void, E]`, in which case an `.Err` result reports invocation failure through the runtime adapter.
+2. r[module.entry.err-display] That form requires `E < Display`. An error type without that implementation is an error. Error: `entry-error-not-display`.
+3. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the requirement.
+4. r[module.entry.err-render] The host renders the error with `Display.to_string` and exits with status 1.
+5. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
+
+```text
+data HiddenError: pass
+
+pub fn main() -> Result[void, HiddenError]:  # error: entry-error-not-display
+    .Err(HiddenError {})
+```
+
+See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values).
+
+### Entry Arguments
+
+1. r[module.entry.no-arguments] `main` has no source-level arguments.
+2. r[module.entry.host-facilities] Process arguments, console access, environment, and other host facilities are requirements supplied by the runtime through the requirement model.
 
 ## Wasm Boundary
 
-A **runtime profile** is a named compile-time set of host capability traits,
-their boundary adapters, and runtime choices such as panic exit statuses. For
-each trait, the profile also fixes the access with which it binds the host
-provider: readonly, or mutable when the profile marks the trait mutable. An
-entry-point row may contain `mut K` only for a trait `K` the profile marks
-mutable
-([Mutable Providers](11-requirements-and-suspension.md#mutable-providers)).
-The compiler receives the selected profile as build configuration. The default
-profile contains at least the prelude `Console` trait; another profile may add
-or omit host traits explicitly.
+This section defines runtime profiles, registered boundary functions, the
+values that cross a boundary, and the official host boundary.
 
-`pub` is module visibility, not Wasm export registration. A tool, workflow, or
-other host-callable function becomes visible only through explicit registration
-provided by its library or annotation facet.
+### Runtime Profiles
 
-Every registered boundary function is an entry point for provider checking.
-Its registration contract selects a runtime profile and declares which
-requirement traits that profile can bind, and with which access, including
-application traits such as `Database` when the adapter explicitly supports
-them. Every key in the
-registered function's row must be in that bindable set, and the host must bind
-all of them before invocation; otherwise registration or startup fails before
-user code executes.
+1. r[module.profile.definition] A **runtime profile** is a named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses.
+2. r[module.profile.access] For each trait, the profile also fixes the access with which it binds the host provider. That access is readonly, or mutable when the profile marks the trait mutable.
+3. r[module.profile.mut-key] An entry-point row may contain `mut K` only for a trait `K` the profile marks mutable.
+4. r[module.profile.build] The compiler receives the selected profile as build configuration.
+5. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
+6. r[module.profile.other] Another profile may add or omit host traits explicitly.
+
+See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
+
+### Registration
+
+1. r[module.register.pub] `pub` is module visibility, not Wasm export registration.
+2. r[module.register.explicit] A tool, workflow, or other host-callable function becomes visible only through explicit registration provided by its library or annotation facet.
+3. r[module.register.entry] Every registered boundary function is an entry point for provider checking.
+4. r[module.register.contract] Its registration contract selects a runtime profile and declares which requirement traits that profile can bind, and with which access.
+5. r[module.register.application] That bindable set may include application traits such as `Database` when the adapter explicitly supports them.
+6. r[module.register.row] Every key in the registered function's row must be in that bindable set, and the host must bind all of them before invocation.
+7. r[module.register.failure] Otherwise registration or startup fails before user code executes.
+
+### Boundary-Safe Values
 
 Registered boundaries initially allow recursively structural values:
 
@@ -431,39 +558,45 @@ Registered boundaries initially allow recursively structural values:
 - data types and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
-Mutable types, dynamic trait values (including `Inspectable` values),
-`std.inspect.TypeId`, closures, and live runtime handles are not
-boundary-safe. Requirement-row entries are host bindings and are not serialized
-parameters. In particular, the erased error `std.error.Error`
-([Error Trait](09-traits.md#error-trait)) never crosses a registered boundary:
-a registered function returns a boundary-safe error type, such as a domain
-error enum, and code converts an erased error to such a type explicitly.
+1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
+2. r[module.boundary.not-safe] Mutable types, dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
+3. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
+4. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
+5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
 
-Boundary values have tree semantics. Encoding a cycle is a boundary error;
-when an acyclic graph shares a node, each incoming path encodes a duplicate
-tree value and decoding does not restore sharing. Every field and enum payload
-that crosses a boundary must be `pub`, so a host cannot construct private
-state. Decoding a map invokes the key type's ordinary `Eq` and `Hash`
-implementations. If either panics, the adapter reports
-`boundary-decoder-panic`, does not enter the registered function, and treats the
-event as an ordinary poisoning panic: the program instance must be discarded.
+See also: [Error Trait](09-traits.md#error-trait).
 
-One program instance executes on one thread and has no shared-memory
-parallelism or source-level atomics. Hosts may run multiple Wasm instances in
-parallel only by exchanging boundary-safe values; their heaps, mutable globals,
-suspension drivers, and annotation registries are disjoint.
+### Boundary Encoding
 
-The official compiler targets Wasm only. The official runtime uses Wasm GC for
-managed language values and a WASI-compatible host boundary. Authority-bearing
-providers originate at that boundary. The only normative host boundary is the
-WebAssembly Component Model, and strings cross it as canonical-ABI strings.
-Hooks that a toolchain adds for development, testing, or tracing are
-implementation tooling, not a language boundary. Every host facility is
-injected through an ordinary requirement trait; the eventual standard
-capability-trait set is runtime and library work.
+1. r[module.boundary.tree] Boundary values have tree semantics.
+2. r[module.boundary.cycle] Encoding a cycle is a boundary error.
+3. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
+4. r[module.boundary.pub] Every field and enum payload that crosses a boundary must be `pub`.
+5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
+6. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
+7. r[module.boundary.decoder-poison] The adapter treats that event as an ordinary poisoning panic: the program instance must be discarded.
 
-The exact component-model ABI and registration APIs are runtime and library
-specification work.
+> **Why.** Every crossing field and payload is `pub`, so a host cannot
+> construct private state.
+
+### Instances And Threads
+
+1. r[module.instance.thread] One program instance executes on one thread and has no shared-memory parallelism or source-level atomics.
+2. r[module.instance.parallel] Hosts may run multiple Wasm instances in parallel only by exchanging boundary-safe values.
+3. r[module.instance.disjoint] Their heaps, mutable globals, suspension drivers, and annotation registries are disjoint.
+
+### Host Boundary
+
+1. r[module.host.wasm] The official compiler targets Wasm only.
+2. r[module.host.runtime] The official runtime uses Wasm GC for managed language values and a WASI-compatible host boundary.
+3. r[module.host.providers] Authority-bearing providers originate at that boundary.
+4. r[module.host.component-model] The only normative host boundary is the WebAssembly Component Model, and strings cross it as canonical-ABI strings.
+5. r[module.host.tooling-hooks] Hooks that a toolchain adds for development, testing, or tracing are implementation tooling, not a language boundary.
+6. r[module.host.requirements] Every host facility is injected through an ordinary requirement trait.
+7. r[module.host.capability-set] The eventual standard capability-trait set is runtime and library work.
+8. r[module.host.abi] The exact component-model ABI and registration APIs are runtime and library specification work.
+
+### Closable Handles
 
 Closable runtime handles use `std.resource.ResourceError[E]`:
 
@@ -473,15 +606,14 @@ enum ResourceError[E]:
     Disposed
 ```
 
-An operation whose ordinary error type is `E` returns
-`Result[T, ResourceError[E]]`. Once the handle has been closed, every further
-operation returns `.Err(ResourceError.Disposed)` and must not trap or access the
-host resource. Closing is itself an operation and a repeated close returns the
-same `Disposed` error. This checked behavior applies through every alias.
+1. r[module.resource.error] Closable runtime handles use `std.resource.ResourceError[E]`.
+2. r[module.resource.result] An operation whose ordinary error type is `E` returns `Result[T, ResourceError[E]]`.
+3. r[module.resource.disposed] Once the handle has been closed, every further operation returns `.Err(ResourceError.Disposed)` and must not trap or access the host resource.
+4. r[module.resource.close] Closing is itself an operation, and a repeated close returns the same `Disposed` error.
+5. r[module.resource.aliases] This checked behavior applies through every alias.
 
 ## Tooling, ABI, And Unsupported Extensions
 
-The complete `hd.toml` schema, lockfile, version constraints, and dependency
-resolver belong to package tooling. The exact Wasm component boundary and
-registration mechanism belong to the runtime ABI. hd-lang has no package-private
-visibility or independent visibility for enum variants and trait methods.
+1. r[module.tooling.package] The complete `hd.toml` schema, lockfile, version constraints, and dependency resolver belong to package tooling.
+2. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
+3. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
