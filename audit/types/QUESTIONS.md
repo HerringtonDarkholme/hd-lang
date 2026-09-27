@@ -46,9 +46,11 @@ Decided 2026-09-26. None of these is in the specification yet.
   member name when their targets cannot unify (`impl Box[i32]` and
   `impl Box[string]`); `impl[T] Box[T]` and `impl Box[i32]` with the same
   name are `duplicate-inherent-member`.
-- **TQ-22** (TY-27, settles runtime identity question 1).
-  `value.downcast[T]()` is a compiler-provided method available only on
-  `Inspectable` values and on parameters bounded by `Inspectable`. (The
+- **TQ-22** (TY-27, settles runtime identity question 1). Superseded
+  2026-09-26: `downcast` is an ordinary generic free function,
+  `std.inspect.downcast[reified T < Inspectable](value: Inspectable) -> T?`
+  (and `downcast_mut`), not a compiler-provided method; see
+  [INSPECTABLE.md](../../future-work/INSPECTABLE.md) decision 13. (The
   other half, `trait-value-impl-target`, is applied.)
 - **TQ-23** (settles Complete Runtime Shape Coverage). `TypeShape` gains
   `Mut(inner)`, `Trait(decl, args)`, `Any`, `Suspend(result)`, and

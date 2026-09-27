@@ -293,9 +293,11 @@ to recover a concrete type from an erased value.
    visible, deliberate choice and discourages casual use.
 4. A generic type's runtime type object contains its type arguments, so
    `Box[User]` and `Box[Post]` are distinguishable.
-5. A type test is a downcast method, `value.downcast[T]() -> T?`, with `T`
-   reified. It works on a dynamic `Inspectable` value and on a parameter
-   bounded by `T: Inspectable`. `downcast` is not a trait method: like Rust's
+5. A type test is the generic free function
+   `std.inspect.downcast[T](value) -> T?` (owner decision, superseding the
+   earlier method spelling `value.downcast[T]()`), with `T` reified. It works
+   on a dynamic `Inspectable` value and on a parameter bounded by
+   `T: Inspectable`. `downcast` is not a trait method: like Rust's
    `downcast_ref` on `dyn Any`, it is defined outside `Inspectable` on top of
    the trait's non-generic runtime-type method. The dynamic-safety rule is
    unchanged, and trait methods on trait values still take no generic
@@ -333,9 +335,8 @@ to recover a concrete type from an erased value.
 
 **Open questions.**
 
-1. Where `downcast` is declared. Candidates: inherent methods on a trait value
-   type, which would be a new kind of `impl` target, or a compiler-provided
-   method limited to `Inspectable`.
+1. Where `downcast` is declared. Decided: a generic free function in
+   `std.inspect` (see [INSPECTABLE.md](INSPECTABLE.md) decision 13).
 2. Calling static (receiverless) functions. Under a bound, `T::create()` with
    `T: Factory` could be served by the bound's dictionary, but the
    specification only shows concrete `Type::function(...)` calls. Through a
