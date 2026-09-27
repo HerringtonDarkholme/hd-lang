@@ -720,7 +720,10 @@ specification does not have it yet.
 5. **Question 5: `use` inside `test` blocks.** A `test` block may contain
    `use` declarations scoped to that block, and only those may name
    test-only dependencies; test builds include test dependencies, and the
-   separate `tests/` root may use them anywhere.
+   separate `tests/` root may use them anywhere. Detail decided 2026-09-27:
+   the `use` lines come first in the block, and like any inner scope they
+   may shadow a module-level name. The owner wants to revisit the test
+   design as a whole before this reaches the specification.
 6. **Question 6: adding an implementation or annotation for a foreign trait
    or facet is a minor change;** `hd update` reports a resulting coherence
    conflict before writing.

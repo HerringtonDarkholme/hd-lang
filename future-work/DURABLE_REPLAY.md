@@ -82,6 +82,19 @@ only a pointer here.
 15. **Question 12: a panic is recorded by its specification diagnostic
     name,** not an exit status.
 
+Decided 2026-09-27, not yet written into Replay Rules or the specification:
+
+16. **The recording levels differ only in output detail.** At the
+    provider-calls level, an input records its result and an output records
+    a fingerprint. At the everything level, an output also records its full
+    arguments, for audit and debugging. Replay behaves the same at both
+    levels.
+17. **Limit failures are outside the replay guarantee.** Equal limits make a
+    repeat likely, but a stack or memory failure is not guaranteed to recur,
+    because frame sizes and collection timing are not in the code identity.
+    If replay hits a limit the recording did not, or misses one it did,
+    replay reports a limit-divergence error.
+
 ## Problem
 
 The accepted model re-executes a suspending entry point from the start and
