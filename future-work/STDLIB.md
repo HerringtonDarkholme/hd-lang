@@ -1363,6 +1363,11 @@ Decided 2026-09-26:
     `as_u64()`, `as_f64()`; `Eq`, `Hash`, and printing as the original JSON
     text. `Json.Number(Number)` is a single variant.
 
+14. **Mutable host providers.** Runtime profiles may bind host providers as
+    `mut` for traits the profile marks mutable (`Clock`, `Random`,
+    `FsWrite`, `Console`); an entry row may then contain `$ mut K`. Tests
+    keep installing deterministic providers with `$.with(mut K=...)`.
+
 ## Questions For The Owner
 
 All thirteen questions are decided; see [Owner Decisions](#owner-decisions).
