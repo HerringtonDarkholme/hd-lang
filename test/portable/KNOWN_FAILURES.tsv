@@ -106,6 +106,3 @@ runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (
 typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse (F-705), so the invariance of embedded fields cannot be checked	VE
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
-typing/invalid/embedded-non-data.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
-typing/invalid/embedded-collection-type.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
-typing/invalid/embedded-type-parameter.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA

@@ -979,3 +979,6 @@ runtime/valid/closure-captured-let-shared.hd	runtime
 runtime/valid/mut-closure-capture-runtime.hd	runtime
 typing/valid/mutable-closure-capture.hd	type
 typing/invalid/plain-closure-mutable-capture-argument.hd	type
+typing/invalid/embedded-non-data.hd	type
+typing/invalid/embedded-collection-type.hd	type
+typing/invalid/embedded-type-parameter.hd	type

@@ -308,6 +308,16 @@ export function defineProgramData(context: ProgramCheckContext): void {
           message: "a data field cannot have type void",
           span: field.span,
         });
+      // An embedded field names a data type (08-data-and-enums.md#r-data.embed.data-only).
+      const embeddedData = field.embedded
+        ? dataTypes.get(nominalGenericParts(type)?.name ?? type)
+        : undefined;
+      if (field.embedded && type !== "void" && (!embeddedData || embeddedData.newtype))
+        diagnostics.push({
+          code: "embedded-non-data",
+          message: `an embedded field must name a data type, not '${field.type.name}'`,
+          span: field.span,
+        });
       // An embedded field is always public (08-data-and-enums.md#data-declarations).
       const leaked =
         declaration.public && field.embedded ? firstPrivateSignatureType(type, program) : undefined;
