@@ -102,6 +102,13 @@ Decided 2026-09-26:
     inner message; consequently `find[Inner]()` does not see the
     transparent inner error itself, exactly as in Rust (confirmed in
     review R10: follow thiserror); (E4) see `@source` above; common enum fields cannot be the cause.
+    (Gap 1, decided 2026-09-27) Bounds of the generated impls for a
+    generic error type are inferred per use, as thiserror does: `Display`
+    gets `P < Display` for each type parameter `P` whose value a message
+    interpolates (or that a `@transparent` variant forwards to), and `Error`
+    gets `P < Error` for each type parameter that is the type of a
+    `@source`/`@from` member; a parameter that is only carried gets no
+    bound. Tooling (`hd doc`) shows the inferred bounds.
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
     `@from`, `@source`, `@transparent`) and no more. It has no error codes:
     inside a program the typed variant is the code (`find[T]()` then
