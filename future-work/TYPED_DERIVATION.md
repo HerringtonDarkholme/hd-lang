@@ -1,5 +1,16 @@
 # Typed Derivation: Survey And Design Options
 
+**Deferred by the owner (2026-09-27).** After two stress tests
+([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md))
+left critical problems open (R1 `mut` member handles, R2 the enum protocol,
+R3 `= pass` and law partners, R5 handles escaping the walk, P13 tier-1
+selection), and error derivation moved to the `@derive(Error)` intrinsic
+([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)), typed
+derivation is parked. Until it is reopened, `@derive` stays a closed list of
+compiler intrinsics (the comparison and hash traits, and `Error`). M1-M16
+below are kept as the record of the design so far; nothing here is to be
+applied.
+
 Status: design exploration for roadmap area 2. Nothing here is accepted
 language behavior. The specification, the prototype compiler, and the
 decisions already recorded are unchanged. Questions for the owner are at the
