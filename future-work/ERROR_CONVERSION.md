@@ -66,31 +66,27 @@ Decided 2026-09-26:
     Markers, recognized only under `@derive(Error)`:
     - `@message("... $member ...")` on a variant, or on a data type: the
       `Display` text (see E1 below). A variant without `@message` displays as its variant name.
-    - **Automatic `From`** (revised 2026-09-27, review): every one-payload
-      variant whose payload type implements `Error` gets
-      `impl From[P] for E` (pure, as 09 requires), unless another such
-      variant has the same payload type. Among conflicting variants, the one
-      marked `@from` gets the `From`; with none marked, none does and a lint
-      note names them (write the `From` by hand if you want one). Marking
-      more than one conflicting variant `@from` is an error naming them;
-      `@from` elsewhere is redundant and accepted. Unpromoted payloads such
-      as `Invalid(reason: string)` never yield `From[string]`, because
-      `string` does not implement `Error`. Common enum fields of a promoted
-      variant must have defaults, otherwise the error names the missing one.
-      A payload whose type is a bare type parameter is never promoted
-      (review R6): `impl[E] From[E] for AppError[E]` would overlap every
-      concrete `From[FsError] for AppError[E]` under 09 Overlap, the same
-      conflict Rust reports as E0119 for thiserror's `#[from]` on a generic
-      field. Such a variant is still a cause (with a generated `E < Error`
-      bound); `@from` on it is an error. A variant whose enum has a common
-      field without a default gets no automatic `From` (a lint note says
-      why), since `From` has only the payload to build it from (review
-      R12).
-    - **Automatic cause:** a variant's cause is its member whose type
-      implements `Error`, or is `E?` with `E < Error` (an absent optional
-      cause gives `.None`); a data-type error's cause is such a field. When a
-      variant or data type has two such members, `@source` on one of them
-      says which; otherwise `@source` is redundant and accepted.
+    - **`@from`** on a one-payload variant (explicit, as in thiserror;
+      the automatic `From` and automatic cause of an earlier revision the
+      same day were withdrawn after the [error stress
+      test](ERROR_STRESS_TEST.md): automatic `From` could not be turned
+      off, an upstream type starting to implement `Error` silently changed
+      downstream derives, and adding a variant could remove an existing
+      `From`): generates `impl From[P] for E` (pure, as 09 requires) and
+      makes the payload the cause. Two `@from` variants with the same
+      payload type are an error naming both. A payload whose type is a bare
+      type parameter may not be `@from` (review R6: it would overlap every
+      concrete `From` under 09 Overlap, as thiserror's `#[from]` on a
+      generic field does in Rust, E0119); use `map_err(AppError.Inner)`.
+      A `@from` variant whose enum has a common field without a default is
+      an error naming the field (review R12).
+    - **`@source`** on a one-payload variant, on one payload parameter of a
+      multi-member variant (`Parse(path: string, @source error:
+      SyntaxError)`, decision 12), or on a data-type error's field: that
+      member is the cause, with no `From`; its type is `E < Error` or `E?`
+      (an absent optional cause gives `.None`). There is no automatic cause
+      and no field-name convention: a variant without `@from` or `@source`
+      has no cause. At most one `@from`/`@source` member per variant.
     - `@transparent` on a one-payload variant: `Display` and `cause()`
       forward to the payload.
     Refinements decided 2026-09-27: (E1) a `@message` text is an ordinary
@@ -105,12 +101,9 @@ Decided 2026-09-26:
     inner error's cause, as thiserror does, so `chain` does not repeat the
     inner message; consequently `find[Inner]()` does not see the
     transparent inner error itself, exactly as in Rust (confirmed in
-    review R10: follow thiserror); (E4) `@source` is written on a payload parameter or data
-    field (`Parse(path: string, line: i64, @source error: SyntaxError)`,
-    decision 12); common enum fields cannot be the cause.
+    review R10: follow thiserror); (E4) see `@source` above; common enum fields cannot be the cause.
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
-    conversions, causes, `transparent`), with conversions and causes
-    inferred where thiserror needs `#[from]` and `#[source]`, and no more. It has no error codes:
+    `@from`, `@source`, `@transparent`) and no more. It has no error codes:
     inside a program the typed variant is the code (`find[T]()` then
     `match`), and codes for logs and APIs belong to the boundary-safe
     report type of decision 6 (miette keeps codes on a separate
@@ -194,7 +187,9 @@ Applied 2026-09-26:
 
 The whole error design as decided on 2026-09-27, in one place. When a
 decision changes it, update this section in the same change. The example
-parses with the [reference parser](../spec/reference-parser/index.ts).
+parses with the [reference parser](../spec/reference-parser/index.ts)
+except the two lines marked hypothetical, which need decision 12's grammar
+extension (annotations on enum payload parameters).
 
 ```text
 use std.error.Error
@@ -209,23 +204,26 @@ pub enum FsError:
 @derive(Error)
 pub enum RuleCoreError:
     @message("Fail to parse yaml as RuleConfig")
-    Yaml(error: YamlError)                    # From and cause, automatic
+    @from
+    Yaml(error: YamlError)
     @message("`utils` is not configured correctly.")
-    Utils(error: RuleSerializeError)          # shares its payload type: cause only
+    @source
+    Utils(error: RuleSerializeError)          # same payload type as Rule: cause only
     @message("`rule` is not configured correctly.")
     @from
-    Rule(error: RuleSerializeError)           # the tie-break: this one gets From
+    Rule(error: RuleSerializeError)
     @message("Undefined meta var `$var` used in `$context`.")
     UndefinedMetaVar(var: string, context: string)
 
 @derive(Error)
 pub enum LoadError:
     @message("$path:$line: invalid rule")
-    Parse(path: string, line: i64, error: SyntaxError)   # cause: the one Error-typed member
+    Parse(path: string, line: i64, @source error: SyntaxError)   # hypothetical syntax: decision 12
     @message("cannot read $path")
-    Read(path: string, error: FsError?)                  # an optional cause
+    Read(path: string, @source error: FsError?)                  # hypothetical syntax: decision 12
     @transparent
-    Rules(error: RuleCoreError)               # From automatic; message and cause forward
+    @from
+    Rules(error: RuleCoreError)
 
 @derive(Error)
 @message("config $name is missing")
@@ -252,11 +250,9 @@ fn run(path: string) -> Result[void, Error]:
    `impl Display` (always; a variant without `@message` displays as its
    name), `impl Error` with `cause()`, and `From` conversions. `@message`
    is an ordinary hd interpolated string with the payload members and
-   common fields in scope. `From` is automatic for every one-payload
-   variant whose payload implements `Error` and whose payload type is
-   unique among them; among conflicting variants only a `@from`-marked one
-   gets it. The cause is automatic: the member whose type implements
-   `Error` (or `E?`); `@source` picks one when there are two.
+   common fields in scope. `@from` on a one-payload variant generates
+   `From` and makes the payload the cause; `@source` marks a cause without
+   `From`; there is no automatic `From` or cause.
    `@transparent` forwards message and `cause()` (to the inner error's
    cause). No error codes.
 3. **`?`** ([05 Propagation](../spec/05-expressions.md#propagation)):
