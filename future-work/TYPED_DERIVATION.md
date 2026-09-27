@@ -536,8 +536,38 @@ and `Member` info gains `positional: bool`. R3-2 (A): `VariantInfo` gains
 `of_data: bool` and `doc: string?`; for a data type, its one variant's name
 and doc are the type's. R3-6 (A): a lint warns when tier-2 blocks (or a
 tier-2 block beside a `@derive`) for traits from one package on one type
-have different member lines; differences stay legal (M11). R3-7 is pending
-an owner clarification about shared enum constructor data.
+have different member lines; differences stay legal (M11). R3-7 is
+answered by M21.
+
+(M21, decided 2026-09-27; closes the rest of stress-test round 3) R3-7:
+shared enum constructor data (`enum HttpStatus(code: i32, ...)` with
+`NotFound -> HttpStatus(404, ...)`) stays; typed derivation exposes a
+variant's constants as an untyped list of `(name, Any)` pairs on
+`VariantInfo`, built once at compile time; typed constant handles may come
+later. R3-10: no in-place traversal; zeroize and in-place merge are
+hand-written, and a derived merge returns a new value. R3-8: flattening an
+embedded part is library code (a members-only encode plus buffered decode,
+as in serde, so flattening excludes `deny_unknown_fields`); M16's "`get`
+returns the part, a copy" is corrected to 08's alias rule
+(`data.part.alias`). R3-1 (A, two handle views): walk and describe pass
+handles whose member type is the read type (for `hits: mut Cell`, `Cell`);
+build passes handles with the declared type (`mut Cell`), and `get` on a
+build handle requires `s: mut S`, so a derived `Clone` or source cannot
+upgrade a readonly member (`data.edge.principle`). `Field[-S, +F]`
+variance lets a declared handle weaken to its read type. R3-5: newtypes keep
+deriving through their base (P11b, TQ-11, VC-2), and forwarding is allowed
+only when `Self` appears as the receiver, plain `Self`, `Self?`,
+`Result[Self, E]`, or `List[Self]`; any other position (for example
+`Map[Self, V]` or `Set[Self]`, whose contents depend on the key's own
+`Hash`, `Eq`, or `Ord`) is an error at the opt-in naming the trait method.
+R3-3: `Source` has four methods, following Kotlin's `decodeElementIndex`
+loop: `variant(choices)`, `next(members) -> Key[S]` (a member key or end),
+`member[F](h, previous: F?) -> F` (`previous` is the earlier value of a
+repeated key, so protobuf merges and JSON rejects), and `missing[F](h) -> F`
+(default or error); generated code never creates a `Self::Error`. R3-4: a
+template may declare a constant computed once per opt-in at compile time by
+the annotation evaluator, from `T::facts()` and `T::describe` with a pure
+`Describer` (M18 P8), so key tables and lookups are not rebuilt per call.
 
 ### Current Design: Full Example (M1-M14)
 
