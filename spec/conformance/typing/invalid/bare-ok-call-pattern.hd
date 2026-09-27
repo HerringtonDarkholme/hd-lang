@@ -1,0 +1,6 @@
+# test: a bare Ok(...) pattern names a variant of Result and must be written .Ok(...)
+
+fn value_or_zero(result: Result[i32, string]) -> i32:
+    match result:
+        Ok(number) => number  # diagnostic: bare-variant-pattern
+        .Err(_) => 0

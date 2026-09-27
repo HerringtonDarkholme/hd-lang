@@ -133,7 +133,7 @@ prelude: prelude names are used directly and are not re-imported.
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `Ok`, `Err`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
 | `std.format` | `Display` |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
@@ -379,7 +379,7 @@ pub fn main() -> void:
     ...
 ```
 
-It may instead return `Result[void, E]`, in which case `Err` reports invocation
+It may instead return `Result[void, E]`, in which case an `.Err` result reports invocation
 failure through the runtime adapter and requires `E < Display`; an error type
 without that implementation is an `entry-error-not-display` error. A dynamic
 trait value type whose trait is `Display` or has it as a supertrait, such as
@@ -470,7 +470,7 @@ enum ResourceError[E]:
 
 An operation whose ordinary error type is `E` returns
 `Result[T, ResourceError[E]]`. Once the handle has been closed, every further
-operation returns `Err(ResourceError.Disposed)` and must not trap or access the
+operation returns `.Err(ResourceError.Disposed)` and must not trap or access the
 host resource. Closing is itself an operation and a repeated close returns the
 same `Disposed` error. This checked behavior applies through every alias.
 

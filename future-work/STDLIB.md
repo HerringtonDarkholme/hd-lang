@@ -42,7 +42,7 @@ every user module that already declares it.
 
 | Module | Names fixed today | Source |
 | --- | --- | --- |
-| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Result`, `Ok`, `Err`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
+| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.format` | `Display` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md) |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
@@ -183,7 +183,7 @@ pub data Stamped:
 pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead + Clock:
     files, clock := $.use(FsRead, Clock)
     text := files.read_text!(path)?
-    Ok(Stamped { text: text, loaded_at: clock.now() })
+    .Ok(Stamped { text: text, loaded_at: clock.now() })
 ```
 
 The test binds deterministic providers through the ordinary provider scope.
@@ -221,7 +221,7 @@ use std.time.Clock
 pub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:
     stamped := load_stamped!(Path::parse("app.toml"))?
     println(stamped.text)
-    Ok()
+    .Ok()
 ```
 
 A pure helper has no row at all, and a reviewer knows it touches nothing.
@@ -1618,6 +1618,6 @@ use std.json
 
 fn port(text: string) -> i64?:
     match json.parse(text):
-        Ok(json.Json.Number(number)) => number.as_i64()
+        .Ok(json.Json.Number(number)) => number.as_i64()
         _ => .None
 ```

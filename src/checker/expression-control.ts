@@ -277,7 +277,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         : context.optional !== undefined
           ? [!context.covered.has(0) && ".None", !context.covered.has(1) && ".Some"].filter(Boolean)
           : context.result
-            ? [!context.covered.has(0) && "Ok", !context.covered.has(1) && "Err"].filter(Boolean)
+            ? [!context.covered.has(0) && ".Ok", !context.covered.has(1) && ".Err"].filter(Boolean)
             : context.boolean
               ? [
                   !context.covered.has("bool:false") && "false",
@@ -553,7 +553,18 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         (arm.pattern.enumName === undefined || arm.pattern.enumName === "Option")
       ) {
         tag = this.checkOptionalArm(arm.pattern, context, guarded, bindings, tests);
-      } else if (context.result && arm.pattern.kind === "result-variant") {
+      } else if (
+        context.result &&
+        (arm.pattern.kind === "result-variant" ||
+          (arm.pattern.kind === "variant" &&
+            (arm.pattern.enumName === undefined || arm.pattern.enumName === "Result")))
+      ) {
+        if (arm.pattern.variantName !== "Ok" && arm.pattern.variantName !== "Err")
+          this.fail(
+            "unknown-variant",
+            `enum 'Result' has no variant '${arm.pattern.variantName}'`,
+            arm.pattern.span,
+          );
         const ok = arm.pattern.variantName === "Ok";
         tag = ok ? 0 : 1;
         if (context.covered.has(tag))
@@ -615,6 +626,13 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           this.fail(
             "bare-variant-pattern",
             `bare variant '${bindingName}' must be written as '.${bindingName}' or 'Option.${bindingName}'`,
+            arm.pattern.span,
+          );
+        }
+        if (context.result && (bindingName === "Ok" || bindingName === "Err")) {
+          this.fail(
+            "bare-variant-pattern",
+            `bare variant '${bindingName}' must be written as '.${bindingName}(...)' or 'Result.${bindingName}(...)'`,
             arm.pattern.span,
           );
         }

@@ -2,7 +2,7 @@ data SaveError:
     message: string
 
 fn save() -> Result[i32, SaveError]:
-    Err(SaveError { message: "failed" })
+    .Err(SaveError { message: "failed" })
 
 fn save_all(values: List[i32]) -> void:
     for value in values:

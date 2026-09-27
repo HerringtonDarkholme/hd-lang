@@ -316,9 +316,11 @@ test("parser retains nested Result payload patterns", () => {
   const statement = result.program?.functions[0]?.body[0];
   if (statement?.kind === "expression" && statement.expression.kind === "match") {
     const pattern = statement.expression.arms[0]?.pattern;
-    assert.equal(pattern?.kind, "result-variant");
-    if (pattern?.kind === "result-variant")
+    assert.equal(pattern?.kind, "variant");
+    if (pattern?.kind === "variant") {
+      assert.equal(pattern.variantName, "Err");
       assert.equal(pattern.payloadPatterns?.[0]?.kind, "variant");
+    }
   } else {
     assert.fail("expected a match expression");
   }

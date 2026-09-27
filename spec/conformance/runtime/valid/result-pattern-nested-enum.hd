@@ -8,11 +8,11 @@ data Failure:
     code: i32
 
 fn outcome() -> Result[i32, ResourceError[Failure]]:
-    Err(ResourceError.Disposed)
+    .Err(ResourceError.Disposed)
 
 fn main() -> i32:
     match outcome():
-        Err(ResourceError.Disposed) => 42
+        .Err(ResourceError.Disposed) => 42
         _ => 0
 
 test "main returns 42":

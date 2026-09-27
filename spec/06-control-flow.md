@@ -219,8 +219,8 @@ unguarded arm is unreachable.
 If a bare identifier resolves to a variant of the subject enum, it is a
 `bare-variant-pattern` error rather than a new catch-all binding; write
 `.Variant` or a qualified variant name. An unqualified identifier followed by
-a payload list, such as `Some(value)`, is also a `bare-variant-pattern` error,
-except the `Result` spellings `Ok(pattern)` and `Err(pattern)`.
+a payload list, such as `Some(value)` or `Ok(value)`, is also a
+`bare-variant-pattern` error.
 An optional is matched like any other enum. For a subject of type `T?`,
 `.Some(value)` matches only the present case and binds `value` as `T`, and
 `.None` matches only absence; `Option.Some(value)` and `Option.None` are the

@@ -470,8 +470,8 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     const error = nameFor(generic.arguments[1]!);
     return [
       "match value:",
-      `    Ok(success) => "Ok(" + ${ok}(success) + ")"`,
-      `    Err(failure) => "Err(" + ${error}(failure) + ")"`,
+      `    .Ok(success) => ".Ok(" + ${ok}(success) + ")"`,
+      `    .Err(failure) => ".Err(" + ${error}(failure) + ")"`,
     ];
   }
   if (type.startsWith("(") && type.endsWith(")")) {

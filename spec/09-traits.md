@@ -250,11 +250,11 @@ impl Display for FsError:
 impl Error for FsError
 
 fn read_config(path: string) -> Result[string, FsError]:
-    Err(FsError.NotFound(path))
+    .Err(FsError.NotFound(path))
 
 fn load(path: string) -> Result[string, Error]:
     text := read_config(path)?
-    Ok(text.trim())
+    .Ok(text.trim())
 ```
 
 ### Implementation Declarations

@@ -7,13 +7,13 @@ fn label(value: string?) -> string?:
 
 fn parse(input: string) -> Result[i32, ParseError]:
     if input == "":
-        return Err(ParseError { message: "empty" })
-    Ok(1)
+        return .Err(ParseError { message: "empty" })
+    .Ok(1)
 
 fn parse_twice(input: string) -> Result[i32, ParseError]:
     first := parse(input)?
     second := parse(input)?
-    Ok(first + second)
+    .Ok(first + second)
 
 let nested: string?? = .None
 let callback: (fn(i32) -> string)? = .None

@@ -1058,3 +1058,8 @@ typing/invalid/bare-none-is-unknown-name.hd	type	reject:unknown-name	04-type-sys
 typing/invalid/bare-some-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#optional-types
 typing/valid/contextual-some-constructor.hd	type	accept	04-type-system.md#optional-types
 typing/invalid/bare-some-call-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
+typing/invalid/bare-ok-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#result-types
+typing/invalid/bare-err-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#result-types
+typing/invalid/bare-ok-call-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
+runtime/valid/result-enum-spellings.hd	runtime	accept	04-type-system.md#result-types
+typing/valid/ok-err-are-not-prelude-names.hd	type	accept	10-modules.md#prelude

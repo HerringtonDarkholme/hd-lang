@@ -947,7 +947,8 @@ In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; th
 Because the compiler knows every variant, it checks that callers handle every state. This matters for AI-generated code: missing cases become compiler diagnostics instead of latent production behavior.
 
 `T?` is sugar for the prelude enum `Option[T]` (variants `Some(value)` and
-`None`), and `Result[T, E]` is a standard enum-like form:
+`None`), and `Result[T, E]` is the prelude enum with variants `Ok(value)` and
+`Err(error)`:
 
 ```text
 let name: string? = .None
@@ -961,11 +962,13 @@ implicit wrap adds one layer only. In a `match`, `.Some(user)` matches a
 present optional and binds `user` as `User`; `.None` matches absence. A bare
 `user` pattern would bind the entire optional.
 
-Construct `Result` values with capitalized helper constructors:
+Construct `Result` values with its variants, written `.Ok(...)` and
+`.Err(...)` where a `Result` type is expected, or `Result.Ok(...)`. The
+variants are not prelude names, so a bare `Ok(user)` is an unknown name:
 
 ```text
-return Ok(user)
-return Err(db_error)
+return .Ok(user)
+return .Err(db_error)
 ```
 
 `Result[T, E]`, `T?`, and `mut Suspend[T]` are must-use values. Do not leave
@@ -1905,10 +1908,10 @@ use std.host.Args
 pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args, console := $.use(Args, Console)
     console.write_line!("starting " + args.program_name())?
-    Ok()
+    .Ok()
 ```
 
-`Ok()` is the success constructor for `Result[void, E]`; it is distinct from
+`.Ok()` is the success constructor for `Result[void, E]`; it is distinct from
 both the `void` expression `pass` and the unit tuple `()`.
 `ConsoleError` implements `Display`, as required for an entry-point error type.
 
@@ -1917,7 +1920,7 @@ selected runtime profile, such as `Args` and `Console` above. Application
 traits such as `Database` are not injected merely because they appear on
 `main`; bind them with `$.with` inside the entry point.
 
-The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `Err` to a failed invocation.
+The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `.Err` result to a failed invocation.
 
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 
@@ -1962,12 +1965,12 @@ trait Database:
 data MockDatabase: pass
 
 impl Database for MockDatabase:
-    fn count!(self) -> Result[i32, DbError]: Ok(3)
+    fn count!(self) -> Result[i32, DbError]: .Ok(3)
 
 test "loads the count":
     $.with(Database=MockDatabase {}):
         result := $.use(Database).count!()
-        assert_equal(result, Ok(3), reason="mock count is returned")
+        assert_equal(result, .Ok(3), reason="mock count is returned")
 ```
 
 A test passes when the block completes normally and fails on an assertion
@@ -2009,7 +2012,7 @@ trait Cache:
 fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     match cache.get_user(id):
-        .Some(user) => return Ok(user)
+        .Some(user) => return .Ok(user)
         .None => pass
     db.get_user!(id)
 ```
@@ -2039,7 +2042,7 @@ data MockDatabase:
 
 impl Database for MockDatabase:
     fn get_user!(self, id: UserId) -> Result[User?, DbError]:
-        Ok(self.user)
+        .Ok(self.user)
 
 mock_db := MockDatabase {
     user: User {

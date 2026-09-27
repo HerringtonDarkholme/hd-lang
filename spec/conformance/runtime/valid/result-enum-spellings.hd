@@ -1,0 +1,41 @@
+# test: Result is an ordinary prelude enum; .Ok, .Err, Result.Ok, and Result.Err build and match it
+use std.testing.assert_equal
+
+fn contextual_ok(value: i32) -> Result[i32, string]:
+    .Ok(value)
+
+fn contextual_err(message: string) -> Result[i32, string]:
+    .Err(message)
+
+fn qualified_ok(value: i32) -> Result[i32, string]:
+    Result.Ok(value)
+
+fn qualified_err(message: string) -> Result[i32, string]:
+    Result.Err(message)
+
+fn finish() -> Result[void, string]:
+    .Ok()
+
+fn describe(result: Result[i32, string]) -> string:
+    match result:
+        .Ok(value) => "ok $value"
+        Result.Err(message) => "error $message"
+
+fn describe_qualified(result: Result[i32, string]) -> string:
+    match result:
+        Result.Ok(value) => "ok $value"
+        .Err(message) => "error $message"
+
+fn finished(result: Result[void, string]) -> bool:
+    match result:
+        .Err(_) => false
+        _ => true
+
+test "contextual and qualified spellings build the same values":
+    assert_equal(contextual_ok(1), qualified_ok(1), reason=".Ok and Result.Ok agree")
+    assert_equal(contextual_err("x"), qualified_err("x"), reason=".Err and Result.Err agree")
+    assert_equal(describe(contextual_ok(2)), "ok 2", reason=".Ok matches a success")
+    assert_equal(describe(qualified_err("y")), "error y", reason="Result.Err matches a failure")
+    assert_equal(describe_qualified(qualified_ok(3)), "ok 3", reason="Result.Ok matches a success")
+    assert_equal(describe_qualified(contextual_err("z")), "error z", reason=".Err matches a failure")
+    assert_equal(finished(finish()), true, reason=".Ok() builds a void success")

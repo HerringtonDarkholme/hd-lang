@@ -1,0 +1,12 @@
+# test: Ok and Err are not prelude names, so a module may declare them
+
+data Ok:
+    code: i32
+
+data Err:
+    reason: string
+
+fn codes(ok: Ok, result: Result[Ok, Err]) -> i32:
+    match result:
+        .Ok(inner) => ok.code + inner.code
+        .Err(_) => ok.code

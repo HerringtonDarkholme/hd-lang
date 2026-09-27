@@ -24,6 +24,6 @@ test "NaN inside composites is unequal":
     let present: f64? = nan
     assert(present != present, reason="optional payload compares with IEEE equality")
     assert({"k": nan} != {"k": nan}, reason="map values compare with IEEE equality")
-    let ok: Result[f64, string] = Ok(nan)
+    let ok: Result[f64, string] = .Ok(nan)
     assert(ok != ok, reason="Result payload compares with IEEE equality")
     assert(!same(values, values), reason="generic list equality keeps IEEE element equality")

@@ -628,17 +628,17 @@ pub fn report!() -> Result[string, Error] $ FsRead + Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
-    Ok("status ${response.status}")
+    .Ok("status ${response.status}")
 
 pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
     match report!():
-        Ok(line) => println(line)
-        Err(error) =>
+        .Ok(line) => println(line)
+        .Err(error) =>
             match find[FsError](error):
                 .Some(FsError.NotFound(path)) => println("missing ${path}")
                 _ => println(error.to_string())
-            return Err(error)
-    Ok()
+            return .Err(error)
+    .Ok()
 ```
 
 Parses. Each `?` constructs a dynamic `Error` from a domain error (rule 6),

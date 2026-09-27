@@ -210,7 +210,7 @@ any other trait of the profile is `mutable-upgrade`.
   runner passes no `--profile` option for it. It implements the prelude
   `Console` ([Prelude](../10-modules.md#prelude)): each
   `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
-  of `text` followed by one U+000A to standard output, and returns `Ok`.
+  of `text` followed by one U+000A to standard output, and returns `.Ok()`.
   It marks `Console` mutable.
 - `disposed-file` implements the fixture's `Files` and `FileHandle` traits.
   The fixture declares exactly these three methods, where `E` is the
@@ -227,10 +227,10 @@ any other trait of the profile is `mutable-upgrade`.
 
   - `open!` completes on its first poll with a fresh open handle.
   - Before the handle is closed, `read!` completes on its first poll with
-    `Ok("")`.
-  - The first `close` returns `Ok`.
+    `.Ok("")`.
+  - The first `close` returns `.Ok()`.
   - After a successful close, every operation on that handle, including a
-    second `close`, returns `Err(ResourceError.Disposed)` and must not trap.
+    second `close`, returns `.Err(ResourceError.Disposed)` and must not trap.
 
   The profile marks no trait mutable.
 - `pending-gate` implements the fixture's

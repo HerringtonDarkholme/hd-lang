@@ -19,6 +19,7 @@ import {
   nominalGenericType,
   optionalInner,
   readonlyType,
+  resultParts,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -140,6 +141,77 @@ export abstract class PatternChecker extends CallChecker {
       !this.availableCaptures.has(name) &&
       !this.resolveGlobal(name)
     );
+  }
+
+  /** `Result` names the prelude enum unless a local, capture, or global shadows it. */
+  protected namesResultEnum(name: string): boolean {
+    return (
+      name === "Result" &&
+      !this.resolveLocal(name) &&
+      !this.availableCaptures.has(name) &&
+      !this.resolveGlobal(name)
+    );
+  }
+
+  /**
+   * Checks `.Ok(value)`, `.Err(error)`, and their `Result.`-qualified forms
+   * (04-type-system.md#result-types). A `void` success takes no argument.
+   */
+  protected checkResultVariant(
+    variantName: string,
+    expression: Extract<Expression, { kind: "call" }>,
+    expected: ValueType | undefined,
+  ): HirExpression {
+    if (variantName !== "Ok" && variantName !== "Err")
+      this.fail(
+        "unknown-variant",
+        `enum 'Result' has no variant '${variantName}'`,
+        expression.span,
+      );
+    if (expression.argumentSpreads?.some(Boolean))
+      this.fail(
+        "positional-spread-needs-vararg",
+        "enum constructors have no variadic parameter",
+        expression.span,
+      );
+    const parts = expected && resultParts(expected);
+    if (!parts)
+      this.fail(
+        "unresolved-generic-placeholder",
+        `could not infer the generic parameters of 'Result.${variantName}'`,
+        expression.span,
+      );
+    const ok = variantName === "Ok";
+    const payloadType = ok ? parts.ok : parts.error;
+    const expectedCount = ok && payloadType === "void" ? 0 : 1;
+    if (expression.arguments.length !== expectedCount) {
+      this.fail(
+        "argument-count",
+        `variant '${variantName}' takes ${expectedCount} argument${expectedCount === 1 ? "" : "s"}, found ${expression.arguments.length}`,
+        expression.span,
+      );
+    }
+    this.resolveArgumentMapping(
+      expression,
+      expectedCount === 0 ? [] : [ok ? "value" : "error"],
+      `Result.${variantName}`,
+    );
+    const payload =
+      expectedCount === 1
+        ? this.requireCoercion(
+            this.checkExpression(expression.arguments[0]!, payloadType),
+            payloadType,
+            expression.arguments[0]!.span,
+          )
+        : undefined;
+    return {
+      kind: "variant-wrap",
+      variant: ok ? "result-ok" : "result-error",
+      payload,
+      payloadType,
+      type: expected,
+      span: expression.span,
+    };
   }
 
   protected checkEnumConstructor(

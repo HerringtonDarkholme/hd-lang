@@ -455,7 +455,7 @@ impl DataAnnotator for JsonCodec:
 
 pub fn decode[reified T < Annotate[JsonCodec]](json: Json) -> Result[T, DecodeError]:
     erased := JsonCodec::annotation(T).decode(json)?
-    Ok(erased.downcast[T]().expect("codec built for T"))
+    .Ok(erased.downcast[T]().expect("codec built for T"))
 ```
 
 - **Deriver sees** shapes and metadata, as annotators do today.
@@ -575,7 +575,7 @@ pub trait Encode:
 pub trait Decode:
     fn decode(json: Json) -> Result[Self, DecodeError]
     fn decode_missing() -> Result[Self, DecodeError]:
-        Err(DecodeError.Missing(field=""))
+        .Err(DecodeError.Missing(field=""))
 
 # Metadata: renames are plain values.
 pub data Rename:
@@ -631,7 +631,7 @@ fn decode_slot[T < Decode](slot: Slot[T], entries: Map[string, Json]) -> Result[
     match entries.get(wire_name(slot.info)):
         .Some(json) => T::decode(json)
         .None => match slot.default:
-            .Some(make) => Ok(make())
+            .Some(make) => .Ok(make())
             .None => T::decode_missing()
 
 impl[S, Ts... < Decode] Decode for Product[S, (Ts...)]:
@@ -639,8 +639,8 @@ impl[S, Ts... < Decode] Decode for Product[S, (Ts...)]:
         match json:
             Json.Object(entries) =>
                 values := pack.try_map(Product[S, (Ts...)]::slots(), decode_slot, entries)?
-                Ok(Product[S, (Ts...)]::build(values))
-            _ => Err(DecodeError.Expected(what="object"))
+                .Ok(Product[S, (Ts...)]::build(values))
+            _ => .Err(DecodeError.Expected(what="object"))
 
 # Sums: one helper-trait obligation per case, no nested packs.
 pub trait EncodeCase[E]:
@@ -757,11 +757,11 @@ fn param_schema[T < Schema](param: Param[T], defs: mut SchemaDefs) -> (string, S
 
 fn decode_param[T < Decode](param: Param[T], entries: Map[string, Json]) -> Result[T?, ToolError]:
     match entries.get(param.info.name):
-        .Some(value) => Ok(.Some(T::decode(value).map_err(bad_arguments)?))
+        .Some(value) => .Ok(.Some(T::decode(value).map_err(bad_arguments)?))
         .None =>
             if param.info.has_default:
-                return Ok(.None)
-            Err(ToolError.MissingArgument(name=param.info.name))
+                return .Ok(.None)
+            .Err(ToolError.MissingArgument(name=param.info.name))
 
 pub fn tool[Ps... < Decode + Schema, R < Encode + Schema, Rq](
     view: FnView[fn!(Ps...) -> R $ Rq],
@@ -773,7 +773,7 @@ pub fn tool[Ps... < Decode + Schema, R < Encode + Schema, Rq](
     invoke := fn!(arguments: Json) -> Result[Json, ToolError] $ Rq:
         entries := expect_object(arguments)?
         values := pack.try_map(params, decode_param, entries)?
-        Ok(view.call!(values).encode())
+        .Ok(view.call!(values).encode())
     Tool {
         name: view.info().name,
         description: view.info().doc,
@@ -788,8 +788,8 @@ The application registers the tool explicitly, as chapter 14 requires:
 ```text
 pub fn get_user!(@mcp.describe("User identifier") id: UserId, include_deleted: bool = false) -> Result[User, NotFound] $ Users:
     match $.use(Users).find!(id):
-        .Some(user) => Ok(user)
-        .None => Err(NotFound.User(id=id))
+        .Some(user) => .Ok(user)
+        .None => .Err(NotFound.User(id=id))
 
 fn tools() -> mcp.Registry[Users]:
     registry := mcp.Registry::new()

@@ -116,7 +116,7 @@ export class FunctionChecker extends ExpressionControlChecker {
                   kind: "return",
                   value: {
                     kind: "call",
-                    callee: { kind: "name", name: "Err", span },
+                    callee: { kind: "contextual-variant", name: "Err", span },
                     arguments: [conversion],
                     span,
                   },

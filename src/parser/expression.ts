@@ -1113,16 +1113,6 @@ export abstract class ExpressionParser extends ParserBase {
         `'${first.text}?' is not a pattern; match an optional with '.Some(${first.text})'`,
         this.current().span,
       );
-    if ((first.text === "Ok" || first.text === "Err") && this.atText("(")) {
-      const { bindings, patterns } = this.parsePatternBindings();
-      return {
-        kind: "result-variant",
-        variantName: first.text,
-        bindings,
-        payloadPatterns: patterns,
-        span: { start, end: this.peek(-1).span.end },
-      };
-    }
     if (this.atText("(")) {
       const { bindings, names, patterns } = this.parsePatternBindings();
       return {
