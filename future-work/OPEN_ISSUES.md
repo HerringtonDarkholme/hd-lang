@@ -304,7 +304,8 @@ to recover a concrete type from an erased value.
     `reified T`. Whether generic objects also store their arguments per object
     is an implementation choice.
 12. The standard error trait extends `Inspectable`, so error chains are
-    inspectable.
+    inspectable. Error conversion at `?` is drafted separately in
+    [Error Conversion](ERROR_CONVERSION.md).
 
 **Open questions.**
 

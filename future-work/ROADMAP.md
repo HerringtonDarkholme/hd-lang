@@ -129,6 +129,9 @@ specification once accepted.
   - serialization and JSON, which depend on derivation from area 2;
   - `std.testing`: property testing, shrinking, and providers;
   - time, fingerprint, and `Secret[T]`.
+- Error conversion: how `?` combines errors from several domains, drafted in
+  [Error Conversion](ERROR_CONVERSION.md). Its `?` typing change belongs to
+  area 2.
 - Moved here: the host capability catalog, provider configuration format,
   task combinators, property testing, the library half of derivation,
   generated artifacts, and exporter configuration.

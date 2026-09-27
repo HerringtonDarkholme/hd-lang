@@ -428,6 +428,9 @@ chain can be searched for a concrete type with `downcast`. Until that issue
 lands, `Error` has only `Display` and `cause`. Domain errors (`FsError`,
 `HttpError`) are enums that implement `Error`.
 
+How `?` combines errors from several domains is drafted in
+[Error Conversion](ERROR_CONVERSION.md).
+
 ### `std.collections`
 
 `list` and `map` stay built in. `set` is not part of the prelude, and the
