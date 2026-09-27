@@ -27,6 +27,10 @@ language specification:
   languages and compares designs for using `?` across domain error types.
 - [Runtime Type Identity](INSPECTABLE.md) drafts the `Inspectable` trait, the
   `RuntimeType` object, and `downcast`, with questions for the owner.
+- [Enum Semantics: Value Category And Identity](ENUM_SEMANTICS.md) asks
+  whether enums, `Option`, and `Result` belong with values (`AnyVal`) or
+  references (`AnyRef`), surveys other languages, and recommends making
+  every enum an identity-free value, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
