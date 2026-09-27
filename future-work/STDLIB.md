@@ -1441,6 +1441,10 @@ Decided 2026-09-26:
    for them, and those methods are available without a `use`. Applied
    2026-09-27:
    [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std).
+   Detail decided 2026-09-27: the list includes `Result` as well as
+   `Option`. Tuples get no helper methods at all, only trait
+   implementations; a tuple that needs methods should be a named `data`
+   ([`trait.own.inherent.std.no-tuple`](../spec/09-traits.md#r-trait.own.inherent.std.no-tuple)).
 9. **Question 9: `decimal` only** beyond the primitives; `BigInt` is a
    package.
 10. **Question 10: virtual time auto-advances now** (`sleep!` on a manual
