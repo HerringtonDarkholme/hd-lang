@@ -5,6 +5,30 @@ language behavior. The specification, the prototype compiler, and the
 decisions already recorded are unchanged. Questions for the owner are at the
 end.
 
+
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Design G: compiler-generated visitors** (supersedes the Design D
+   recommendation below). A sealed, compiler-implemented `std.derive.Structure`
+   trait is generated per data type and enum, with `visit[V <
+   FieldVisitor](self, visitor: mut V)` and `build[B < FieldSource](source: mut
+   B) -> Result[Self, B::Error]` making one statically dispatched, per-field
+   generic call (`field[F]`) in declaration order (variants through
+   `visit_variant` / `build_variant`). Libraries write visitors and a
+   structural function once (for example `json.encode_structure[T <
+   Structure]`), and a derivable trait names its structural implementation
+   (`@derivable(encode_structure)`), so `@derive(json.Encode)` generates a
+   concrete forwarding impl. After specialization the generated code is
+   straight-line and typed: no per-field boxing or allocation. A field whose
+   type fails the visitor's bound is reported at the derive site, naming the
+   field. No packs, views, retyping, or blanket impls. Field metadata stays
+   annotations, read from a static `FieldInfo`. `@derive(From)` for error
+   enums uses the variant visitor. Still to design: how metadata can mark a
+   field as not visited by one library's visitors (skip and custom codecs),
+   and the exact `@derivable` form.
+
 ## Contents
 
 1. [Problem](#problem)
