@@ -450,7 +450,14 @@ blocked on it. P8: traversal stays pure: `walk`, `build`, `Walker`, and
 before `build`, as in serde. R3: the comparison traits (`Eq`, `PartialOrd`,
 `Ord`, `Hash`) stay on the closed `@derive` list permanently (all members,
 no member lines); hand-written impls are trusted obligations as in Rust, and
-TQ-12 forbids mixing derived and hand-written partners. R2 (the enum protocol, with a proposed
+TQ-12 forbids mixing derived and hand-written partners. P7: `build` is
+input-driven, as in serde: the source names the next member, and generated
+code keeps one local per member, then constructs. P10: templates only
+implement existing traits; builders, patch types, and field-key enums are
+not derived (literals with defaults and copy-update cover builders). P11b:
+a newtype derives through its base type (TQ-11), so `Mile` encodes like
+`i32`. P13 (tier-1 template selection; the proposal is `@derives(...)` on
+the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
 
 ### Current Design: Full Example (M1-M14)
