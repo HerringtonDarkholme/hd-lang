@@ -469,7 +469,10 @@ constants. P11d: in an enum's tier-2 block, member lines name whole
 variants only (`Login = [facts]`, `Login += [facts]`); payload members get
 no lines (declaration facts on payload parameters still apply), and a whole
 variant cannot be skipped (`Login = pass` is an error, since `build` could
-never produce it). P13
+never produce it). P20: wire stability is documented, not checked:
+reordering or renaming members or variants changes derived formats,
+`Variant.index`, and derived `Ord`; libraries may require explicit tags,
+and a toolchain check can come later from recorded interfaces. P13
 (tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
