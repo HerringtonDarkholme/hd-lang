@@ -9,7 +9,12 @@ import {
   nominalGenericType,
   readonlyType,
 } from "../types.ts";
-import { genericTypeName, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
+import {
+  containsGenericType,
+  genericTypeName,
+  matchGenericTypePattern,
+  substituteGenericType,
+} from "./shared.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
@@ -269,7 +274,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       receiver,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+      erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
       type,
       span,
     };

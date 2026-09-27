@@ -494,7 +494,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       value,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+      erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
       type: "void",
       span: statement.span,
     };
@@ -653,7 +653,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             receiver,
             enumIndex: enumDeclaration.index,
             fieldIndex: field.index,
-            erasedFieldType: genericTypeName(field.type) ? field.type : undefined,
+            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
             type,
             span: expression.span,
           };

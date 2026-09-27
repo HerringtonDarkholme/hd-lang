@@ -16,6 +16,7 @@ import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import { withStandardTraits } from "./standard-traits.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
+import { varianceDiagnostics } from "./variance.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 
 export interface CheckOptions {
@@ -45,6 +46,9 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
   declareProgramTypes(context);
   defineProgramData(context);
   defineProgramEnums(context);
+  context.diagnostics.push(
+    ...varianceDiagnostics({ data: context.dataTypes, enums: context.enumTypes }),
+  );
   defineProgramTraits(context);
   validateHostCapabilities(context);
   prepareImplementations(context);

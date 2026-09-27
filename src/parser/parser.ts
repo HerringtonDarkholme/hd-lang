@@ -17,6 +17,7 @@ import type {
   TypeRef,
   UseDecl,
   UseName,
+  VarianceMarker,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
@@ -850,9 +851,11 @@ class Parser extends ExpressionParser {
     const start = this.expectText("data").span.start;
     const name = this.expectKind("identifier", "expected a data type name");
     const genericParameters: string[] = [];
+    const variances: VarianceMarker[] = [];
     if (this.matchText("[")) {
       if (!this.atText("]")) {
         do {
+          variances.push(this.parseVarianceMarker());
           const parameter = this.expectKind("identifier", "expected a generic data parameter");
           if (genericParameters.includes(parameter.text))
             this.fail(
@@ -880,6 +883,7 @@ class Parser extends ExpressionParser {
         ...(public_ ? { public: true } : {}),
         name: name.text,
         genericParameters,
+        ...(variances.some(Boolean) ? { variances } : {}),
         fields: [],
         doc,
         span: { start, end },
@@ -943,6 +947,7 @@ class Parser extends ExpressionParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
+      ...(variances.some(Boolean) ? { variances } : {}),
       fields,
       doc,
       span: { start, end: close.span.end },
@@ -953,9 +958,11 @@ class Parser extends ExpressionParser {
     const start = this.expectText("enum").span.start;
     const name = this.expectKind("identifier", "expected an enum type name");
     const genericParameters: string[] = [];
+    const variances: VarianceMarker[] = [];
     if (this.matchText("[")) {
       if (!this.atText("]")) {
         do {
+          variances.push(this.parseVarianceMarker());
           const parameter = this.expectKind("identifier", "expected a generic enum parameter");
           if (genericParameters.includes(parameter.text))
             this.fail(
@@ -1047,6 +1054,7 @@ class Parser extends ExpressionParser {
       ...(public_ ? { public: true } : {}),
       name: name.text,
       genericParameters,
+      ...(variances.some(Boolean) ? { variances } : {}),
       sharedFields,
       variants,
       doc,
@@ -1389,13 +1397,6 @@ class Parser extends ExpressionParser {
     }
     const end = this.finishExpressionStatement(expression, topOrInline);
     return { kind: "expression", expression, span: { start, end } };
-  }
-
-  // After `return` or `break`: the statement ends without a value, at a line
-  // ending or, in a same-line suite, where that suite ends.
-  private atValuelessEnd(topOrInline: boolean): boolean {
-    if (this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")) return true;
-    return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
   }
 
   // The right side of `let ... =`, `=`, `_ :=`, `return`, and `break`: an

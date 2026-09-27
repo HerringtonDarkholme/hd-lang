@@ -3,7 +3,6 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
-runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (syntax-error)	F-705
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
 typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 and i64 (sized numeric types unimplemented); the newtype and its unwrap are implemented	F-253
@@ -16,7 +15,6 @@ typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 in
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
 typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
-typing/invalid/variance-position.hd	MVP reports syntax-error at line 2 instead of invalid-variance: expected a generic data parameter	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
 typing/valid/annotations.hd	check fails: expected-expression at line 39: expected an expression, found 'annotate'	F-250
@@ -47,8 +45,6 @@ typing/valid/direct-annotation-impl.hd	check fails: unknown-trait at line 8: unk
 typing/invalid/duplicate-direct-annotation-impl.hd	MVP reports expected-expression at line 30 instead of duplicate-annotation-impl: expected an expression, found 'annotate'	F-250
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
-typing/invalid/variance-representation-change.hd	MVP reports syntax-error at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
-typing/valid/variance-permission-weakening.hd	check fails: syntax-error at line 4: expected a generic data parameter	F-250
 typing/invalid/library-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
 typing/valid/root-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
 typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at line 12 instead of annotation-resolution-reentry: expected an expression, found 'annotate'	F-250
@@ -65,7 +61,6 @@ typing/invalid/annotation-top-level-read.hd	MVP reports expected-expression at l
 typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 10: expected an expression, found 'annotate'	F-250
 typing/valid/shape-api.hd	check fails: unknown-type at line 10 for TypeShape; the shape and shape_of intrinsics are unimplemented	K1
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
-typing/invalid/contravariant-representation-change.hd	MVP reports syntax-error at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
 typing/invalid/unrepresentable-type-shape.hd	MVP reports unknown-name at line 7 instead of unrepresentable-type-shape: the shape intrinsic is unimplemented	K1
 typing/invalid/shape-of-local-binding.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
 typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
@@ -99,6 +94,5 @@ typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usa
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (sized numeric types unimplemented); value embedding itself is implemented, and the case passes with i32 fields	F-253
-typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse (F-705), so the invariance of embedded fields cannot be checked	VE
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC

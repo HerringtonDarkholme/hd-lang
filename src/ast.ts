@@ -118,11 +118,16 @@ export interface DataField {
   readonly span: SourceSpan;
 }
 
+/** A declared variance marker: `+T`, `-T`, or none (04-type-system.md#variance). */
+export type VarianceMarker = "+" | "-" | undefined;
+
 export interface DataDecl {
   readonly kind: "data";
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  /** Present when a parameter is written `+T` or `-T`. */
+  readonly variances?: readonly VarianceMarker[];
   readonly fields: readonly DataField[];
   readonly doc?: string;
   /** Lowered from `type Name(Base)`: its one field is the base value. */
@@ -157,6 +162,8 @@ export interface EnumDecl {
   readonly public?: boolean;
   readonly name: string;
   readonly genericParameters: readonly string[];
+  /** Present when a parameter is written `+T` or `-T`. */
+  readonly variances?: readonly VarianceMarker[];
   readonly sharedFields: readonly DataField[];
   readonly variants: readonly EnumVariant[];
   readonly doc?: string;

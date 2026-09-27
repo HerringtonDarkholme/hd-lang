@@ -1,9 +1,11 @@
 import type { HirTraitDictionaryPlan, ValueType } from "../hir.ts";
+import { genericTypeName } from "./shared.ts";
 import {
   functionParts,
   mutableInner,
   nominalGenericParts,
   nominalGenericType,
+  readonlyType,
   storedSuspensionParts,
   tupleType,
 } from "../types.ts";
@@ -45,6 +47,20 @@ export function isPermissionWeakening(actual: ValueType, expected: ValueType): b
     return (
       actualNominal.arguments[0] === expectedNominal.arguments[0] ||
       isPermissionWeakening(actualNominal.arguments[0]!, expectedNominal.arguments[0]!)
+    );
+  }
+  // Readonly `Map[K, V]` is invariant in `K` and covariant in `V`
+  // (04-type-system.md#variance).
+  if (
+    actualNominal?.name === "Map" &&
+    expectedNominal?.name === "Map" &&
+    actualNominal.arguments.length === 2 &&
+    expectedNominal.arguments.length === 2 &&
+    actualNominal.arguments[0] === expectedNominal.arguments[0]
+  ) {
+    return (
+      actualNominal.arguments[1] === expectedNominal.arguments[1] ||
+      isPermissionWeakening(actualNominal.arguments[1]!, expectedNominal.arguments[1]!)
     );
   }
   return false;
@@ -121,4 +137,36 @@ export function collectionIterablePlan(
     supertraits: [],
     builtin: { kind: "iterable", traitIndex, targetType: type },
   };
+}
+
+/**
+ * The argument type a bounded parameter is inferred from: an argument passed
+ * directly as a bounded `T` supplies its readonly view, while a `mut` inside a
+ * type argument, as in `List[mut User]` for `List[T]`, stays part of `T`
+ * (09-traits.md#erasure-to-inspectable).
+ */
+export function weakenBoundedGenericActual(
+  formal: ValueType,
+  actual: ValueType,
+  bounded: ReadonlySet<string>,
+  nested = false,
+): ValueType {
+  const generic = genericTypeName(formal);
+  if (generic && bounded.has(generic)) return nested ? actual : readonlyType(actual);
+  const formalNominal = nominalGenericParts(formal);
+  const actualNominal = nominalGenericParts(readonlyType(actual));
+  if (
+    formalNominal &&
+    actualNominal &&
+    formalNominal.name === actualNominal.name &&
+    formalNominal.arguments.length === actualNominal.arguments.length
+  ) {
+    return nominalGenericType(
+      actualNominal.name,
+      actualNominal.arguments.map((argument, index) =>
+        weakenBoundedGenericActual(formalNominal.arguments[index]!, argument, bounded, true),
+      ),
+    );
+  }
+  return actual;
 }

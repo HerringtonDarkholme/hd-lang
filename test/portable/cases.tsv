@@ -986,3 +986,9 @@ typing/invalid/iterator-for-iterable-bound.hd	type
 runtime/valid/user-iterable-for-loop.hd	runtime
 typing/invalid/orphan-impl-nested-trait-argument.hd	type
 runtime/valid/iterable-and-iterator-for-loop.hd	runtime
+runtime/valid/covariant-readonly-weakening.hd	runtime
+typing/invalid/variance-position.hd	type
+typing/invalid/variance-representation-change.hd	type
+typing/valid/variance-permission-weakening.hd	type
+typing/invalid/contravariant-representation-change.hd	type
+typing/invalid/covariant-embedded-field.hd	type

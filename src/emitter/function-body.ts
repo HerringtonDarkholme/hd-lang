@@ -831,10 +831,11 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           const sourceIndex = sourceByField.get(fieldIndex);
           if (sourceIndex === undefined) return this.defaultValue(fieldType);
           const value = `(local.get ${temporaries[sourceIndex]})`;
-          return expression.erasedFieldTypes &&
-            isGenericValueType(expression.erasedFieldTypes[fieldIndex]!)
-            ? this.boxWatValue(value, expression.fields[sourceIndex]!.type)
-            : value;
+          return this.storeErased(
+            value,
+            expression.erasedFieldTypes?.[fieldIndex],
+            expression.fields[sourceIndex]!.type,
+          );
         });
         return [
           `(block (result ${this.watType(expression.type)})`,
@@ -847,25 +848,18 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       }
       case "member": {
         const value = `(struct.get $d${expression.dataIndex} $d${expression.dataIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)})`;
-        return expression.erasedFieldType && isGenericValueType(expression.erasedFieldType)
-          ? this.unboxValue(value, expression.type)
-          : value;
+        return this.loadErased(value, expression.erasedFieldType, expression.type);
       }
       case "embedded-copy":
         return this.emitEmbeddedCopy(expression);
       case "field-set": {
         const value = this.emitExpression(expression.value);
-        const stored =
-          expression.erasedFieldType && isGenericValueType(expression.erasedFieldType)
-            ? this.boxWatValue(value, expression.value.type)
-            : value;
+        const stored = this.storeErased(value, expression.erasedFieldType, expression.value.type);
         return `(struct.set $d${expression.dataIndex} $d${expression.dataIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)} ${stored})`;
       }
       case "enum-member": {
         const value = `(struct.get $e${expression.enumIndex} $e${expression.enumIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)})`;
-        return expression.erasedFieldType && isGenericValueType(expression.erasedFieldType)
-          ? this.unboxValue(value, expression.type)
-          : value;
+        return this.loadErased(value, expression.erasedFieldType, expression.type);
       }
       case "string-length":
         return `(call $hd.string_len ${this.emitExpression(expression.receiver)})`;
@@ -1105,14 +1099,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     formalType: ValueType,
     actualType: ValueType,
   ): string {
-    const key = `${formalType}\u0000${actualType}`;
-    let adapter = this.callableAdapters.get(key);
-    if (!adapter) {
-      adapter = { index: this.callableAdapters.size, formalType, actualType };
-      this.callableAdapters.set(key, adapter);
-    }
-    const formalSignature = this.functionSignatures.get(formalType);
-    return `(struct.new $closure${formalSignature} (ref.func $adapt${adapter.index}) ${this.emitExpression(expression)})`;
+    return this.adaptCallable(this.emitExpression(expression), formalType, actualType);
   }
 
   emitCallableAdapters(): string {
@@ -1136,9 +1123,12 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const closure = `(ref.cast (ref $closure${actualSignature}) (local.get $env))`;
         const arguments_ = formal.parameters.map((parameter, index) => {
           const value = `(local.get $a${index})`;
-          return isGenericValueType(parameter)
-            ? this.unboxValue(value, actual.parameters[index]!)
-            : value;
+          const actualParameter = actual.parameters[index]!;
+          if (isGenericValueType(parameter) && !isGenericValueType(actualParameter))
+            return this.unboxValue(value, actualParameter);
+          if (isGenericValueType(actualParameter) && !isGenericValueType(parameter))
+            return this.boxWatValue(value, parameter);
+          return value;
         });
         const concreteFormal = new Map(
           formal.requirements
@@ -1167,10 +1157,13 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           );
         });
         const call = `(call_ref $sig${actualSignature} (struct.get $closure${actualSignature} $closure${actualSignature}env ${closure})${arguments_.length ? " " : ""}${arguments_.join(" ")}${actualProviders.length ? " " : ""}${actualProviders.join(" ")} (struct.get $closure${actualSignature} $closure${actualSignature}fn ${closure}))`;
-        const body =
-          !formal.suspending && isGenericValueType(formal.result)
+        const body = formal.suspending
+          ? call
+          : isGenericValueType(formal.result) && !isGenericValueType(actual.result)
             ? this.boxWatValue(call, actual.result)
-            : call;
+            : isGenericValueType(actual.result) && !isGenericValueType(formal.result)
+              ? this.unboxValue(call, formal.result)
+              : call;
         return `(func $adapt${adapter.index} (type $sig${formalSignature}) (param $env anyref) ${[...parameters, ...providers].join(" ")}${result}\n  ${body}\n)`;
       })
       .join("\n\n");

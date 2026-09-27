@@ -1,4 +1,4 @@
-import type { Expression, Statement, TypeRef } from "../ast.ts";
+import type { Expression, Statement, TypeRef, VarianceMarker } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
 
@@ -247,6 +247,20 @@ export abstract class ParserBase {
     }
     this.depths = undefined;
     return true;
+  }
+
+  // `+T` and `-T` declare variance (04-type-system.md#variance).
+  protected parseVarianceMarker(): VarianceMarker {
+    if (this.matchText("+")) return "+";
+    if (this.matchText("-")) return "-";
+    return undefined;
+  }
+
+  // After `return` or `break`: the statement ends without a value, at a line
+  // ending or, in a same-line suite, where that suite ends.
+  protected atValuelessEnd(topOrInline: boolean): boolean {
+    if (this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")) return true;
+    return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
   }
 
   /** True when the current token starts on the line where the previous token ends. */

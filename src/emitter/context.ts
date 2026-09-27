@@ -15,6 +15,7 @@ import {
   isErasedVariant,
   mutableInner,
   nominalGenericParts,
+  readonlyType,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -280,6 +281,42 @@ export class EmitterContext {
     return (
       type === "i32" || type === "bool" || type === "char" || type === "f64" || type === "void"
     );
+  }
+
+  /** Wraps the closure `value` of type `actualType` as a closure of `formalType`. */
+  protected adaptCallable(value: string, formalType: ValueType, actualType: ValueType): string {
+    const key = `${formalType}\u0000${actualType}`;
+    let adapter = this.callableAdapters.get(key);
+    if (!adapter) {
+      adapter = { index: this.callableAdapters.size, formalType, actualType };
+      this.callableAdapters.set(key, adapter);
+    }
+    const formalSignature = this.functionSignatures.get(formalType);
+    return `(struct.new $closure${formalSignature} (ref.func $adapt${adapter.index}) ${value})`;
+  }
+
+  /**
+   * A value stored into a field whose declared type mentions a generic
+   * parameter: a generic value is boxed, and a closure is adapted to the
+   * erased function type.
+   */
+  protected storeErased(value: string, erased: ValueType | undefined, type: ValueType): string {
+    if (!erased) return value;
+    if (isGenericValueType(erased)) return this.boxWatValue(value, type);
+    const readonly = readonlyType(type);
+    return functionParts(erased) && functionParts(readonly) && erased !== readonly
+      ? this.adaptCallable(value, erased, readonly)
+      : value;
+  }
+
+  /** The inverse of `storeErased` for a field read. */
+  protected loadErased(value: string, erased: ValueType | undefined, type: ValueType): string {
+    if (!erased) return value;
+    if (isGenericValueType(erased)) return this.unboxValue(value, type);
+    const readonly = readonlyType(type);
+    return functionParts(erased) && functionParts(readonly) && erased !== readonly
+      ? this.adaptCallable(value, readonly, erased)
+      : value;
   }
 
   protected boxWatValue(value: string, type: ValueType): string {

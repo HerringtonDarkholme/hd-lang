@@ -26,8 +26,13 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
-import { collectionIterablePlan, isPermissionWeakening } from "./assignability.ts";
+import {
+  collectionIterablePlan,
+  isPermissionWeakening,
+  weakenBoundedGenericActual,
+} from "./assignability.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
+import { varianceConversion } from "./variance.ts";
 import {
   genericTypeName,
   matchTraitImplementation,
@@ -205,44 +210,12 @@ export const PRELUDE_NAMES = new Set([
   "shape_of",
 ]);
 
-export { isPermissionWeakening };
+export { isPermissionWeakening, weakenBoundedGenericActual };
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
   if (type === "i32" || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
-}
-
-/**
- * The argument type a bounded parameter is inferred from: an argument passed
- * directly as a bounded `T` supplies its readonly view, while a `mut` inside a
- * type argument, as in `List[mut User]` for `List[T]`, stays part of `T`
- * (09-traits.md#erasure-to-inspectable).
- */
-export function weakenBoundedGenericActual(
-  formal: ValueType,
-  actual: ValueType,
-  bounded: ReadonlySet<string>,
-  nested = false,
-): ValueType {
-  const generic = genericTypeName(formal);
-  if (generic && bounded.has(generic)) return nested ? actual : readonlyType(actual);
-  const formalNominal = nominalGenericParts(formal);
-  const actualNominal = nominalGenericParts(readonlyType(actual));
-  if (
-    formalNominal &&
-    actualNominal &&
-    formalNominal.name === actualNominal.name &&
-    formalNominal.arguments.length === actualNominal.arguments.length
-  ) {
-    return nominalGenericType(
-      actualNominal.name,
-      actualNominal.arguments.map((argument, index) =>
-        weakenBoundedGenericActual(formalNominal.arguments[index]!, argument, bounded, true),
-      ),
-    );
-  }
-  return actual;
 }
 
 export function isKnownType(
@@ -582,6 +555,17 @@ export abstract class CheckerContext {
     if (isPermissionWeakening(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
+    const variance = varianceConversion(value.type, expected, {
+      data: this.dataTypes,
+      enums: this.enumTypes,
+    });
+    if (variance === "representation-change")
+      this.fail(
+        "variance-representation-change",
+        `'${value.type}' cannot become '${expected}': a variance conversion must not change a value's representation`,
+        span,
+      );
+    if (variance) return { kind: "permission-weaken", operand: value, type: expected, span };
     const storedSuspension = storedSuspensionParts(expected);
     const concreteSuspension = suspensionParts(value.type) ?? traitSuspensionParts(value.type);
     if (storedSuspension && concreteSuspension?.result === storedSuspension.result) {

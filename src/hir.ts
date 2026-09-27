@@ -17,6 +17,8 @@ export interface HirData {
   readonly name: string;
   readonly index: number;
   readonly genericParameters: readonly string[];
+  /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
+  readonly variances?: readonly ("+" | "-" | undefined)[];
   readonly fields: readonly HirDataField[];
   /** A newtype (`type Name(Base)`): its one field holds the base value. */
   readonly newtype?: true;
@@ -36,6 +38,8 @@ export interface HirEnumVariant {
 export interface HirEnum {
   readonly name: string;
   readonly index: number;
+  /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
+  readonly variances?: readonly ("+" | "-" | undefined)[];
   /** Declared in a block suite, so not inspectable. */
   readonly local?: true;
   readonly genericParameters: readonly string[];

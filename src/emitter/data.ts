@@ -90,10 +90,11 @@ export abstract class DataEmitter extends IteratorEmitter {
         return `(struct.get $d${expression.dataIndex} $d${expression.dataIndex}f${field.index} (local.get ${spreadTemporary}))`;
       }
       const value = `(local.get ${temporaries[sourceIndex]})`;
-      return expression.erasedFieldTypes &&
-        isGenericValueType(expression.erasedFieldTypes[field.index]!)
-        ? this.boxWatValue(value, expression.fields[sourceIndex]!.type)
-        : value;
+      return this.storeErased(
+        value,
+        expression.erasedFieldTypes?.[field.index],
+        expression.fields[sourceIndex]!.type,
+      );
     });
     return [
       `(block (result ${this.watType(expression.type)})`,
