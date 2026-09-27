@@ -1,10 +1,11 @@
-import type { ValueType } from "../hir.ts";
+import type { HirTraitDictionaryPlan, ValueType } from "../hir.ts";
 import {
   functionParts,
   mutableInner,
   nominalGenericParts,
   nominalGenericType,
   storedSuspensionParts,
+  tupleType,
 } from "../types.ts";
 
 // Assignability by permission weakening and readonly list variance, and the
@@ -93,4 +94,31 @@ export function leastCommonType(types: readonly ValueType[]): LeastCommonType {
   return values.every((type) => assignable(type, readonlyView))
     ? { code: "no-least-common-type" }
     : { code: "no-common-type" };
+}
+
+/**
+ * `List[T]` is `Iterable[T]` and `Map[K, V]` is `Iterable[(K, V)]`
+ * (06-control-flow.md#for-loops); their compiler-supplied dictionary returns a
+ * cursor.
+ */
+export function collectionIterablePlan(
+  traitIndex: number,
+  type: ValueType,
+  traitArguments: readonly ValueType[],
+): HirTraitDictionaryPlan | undefined {
+  const collection = nominalGenericParts(type);
+  const element =
+    collection?.name === "List" && collection.arguments.length === 1
+      ? collection.arguments[0]
+      : collection?.name === "Map" && collection.arguments.length === 2
+        ? tupleType(collection.arguments)
+        : undefined;
+  if (traitArguments.length !== 1 || element === undefined || element !== traitArguments[0])
+    return undefined;
+  return {
+    bounds: [],
+    implementationIndex: -1,
+    supertraits: [],
+    builtin: { kind: "iterable", traitIndex, targetType: type },
+  };
 }

@@ -26,7 +26,7 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
-import { isPermissionWeakening } from "./assignability.ts";
+import { collectionIterablePlan, isPermissionWeakening } from "./assignability.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import {
   genericTypeName,
@@ -980,11 +980,12 @@ export abstract class CheckerContext {
     traitArguments: readonly ValueType[],
     span: SourceSpan,
   ): HirTraitDictionaryPlan | undefined {
-    if (traitArguments.length > 0) return undefined;
     const type = readonlyType(targetType);
     const traitName = [...this.traitTypes.values()].find(
       (candidate) => candidate.index === traitIndex,
     )?.name;
+    if (traitName === "Iterable") return collectionIterablePlan(traitIndex, type, traitArguments);
+    if (traitArguments.length > 0) return undefined;
     const plan = (
       builtin: HirBuiltinTraitImplementation,
       bounds: readonly HirExpression[] = [],

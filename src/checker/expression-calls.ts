@@ -172,6 +172,40 @@ export abstract class ExpressionCallChecker extends InspectChecker {
     return this.checkImplementedMemberCall(expression, receiver, expected);
   }
 
+  /**
+   * `value.iter()` when a loop or comprehension iterates a value whose type
+   * implements `Iterable`, or a type parameter bounded by it; Iterable wins
+   * over Iterator (06-control-flow.md#for-loops). Undefined otherwise.
+   */
+  protected iterableIterCall(value: HirExpression, source: Expression): HirExpression | undefined {
+    const iterable = this.traitTypes.get("Iterable");
+    if (!iterable) return undefined;
+    const type = readonlyType(value.type);
+    const generic = genericTypeName(type);
+    const bounded =
+      generic !== undefined &&
+      this.signature.genericBounds.some(
+        (bound) => bound.parameter === generic && bound.traitIndex === iterable.index,
+      );
+    const implemented =
+      generic === undefined &&
+      this.implementations.some(
+        (implementation) =>
+          implementation.traitIndex === iterable.index &&
+          matchGenericTypePattern(implementation.targetType, type, new Map()),
+      );
+    if (!bounded && !implemented) return undefined;
+    const call: MemberCallExpression = {
+      kind: "call",
+      callee: { kind: "member", receiver: source, name: "iter", span: source.span },
+      arguments: [],
+      span: source.span,
+    };
+    return bounded
+      ? this.checkDynamicMemberCall(call, value)
+      : this.checkImplementedMemberCall(call, value);
+  }
+
   private checkBuiltInMemberCall(
     expression: MemberCallExpression,
     receiver: HirExpression,
@@ -345,115 +379,6 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       };
     }
     return undefined;
-  }
-
-  private checkStringMemberCall(
-    expression: MemberCallExpression,
-    receiver: HirExpression,
-  ): HirExpression | undefined {
-    if (receiver.type !== "string") return undefined;
-    const method = expression.callee.name;
-    if (method === "len") {
-      if (expression.arguments.length !== 0)
-        this.fail("argument-count", "string.len expects no arguments", expression.span);
-      return { kind: "string-length", receiver, type: "i32", span: expression.span };
-    }
-    if (method === "trim" || method === "lower") {
-      if (expression.arguments.length !== 0)
-        this.fail("argument-count", `string.${method} expects no arguments`, expression.span);
-      return {
-        kind: "string-transform",
-        operation: method,
-        receiver,
-        type: "string",
-        span: expression.span,
-      };
-    }
-    if (method === "replace") return this.checkStringReplace(expression, receiver);
-    if (method !== "split" && method !== "starts_with") return undefined;
-    if (expression.arguments.length !== 1)
-      this.fail("argument-count", `string.${method} expects one argument`, expression.span);
-    if (expression.argumentSpreads?.some(Boolean))
-      this.fail(
-        "positional-spread-needs-vararg",
-        `string.${method} has no variadic parameter`,
-        expression.span,
-      );
-    const parameterName = method === "split" ? "separator" : "prefix";
-    const argumentName = expression.argumentNames?.[0];
-    if (argumentName && argumentName !== parameterName)
-      this.fail(
-        "unknown-named-argument",
-        `string.${method} has no parameter named '${argumentName}'`,
-        expression.arguments[0]!.span,
-      );
-    const argument = this.requireCoercion(
-      this.checkExpression(expression.arguments[0]!, "string"),
-      "string",
-      expression.arguments[0]!.span,
-    );
-    return method === "split"
-      ? {
-          kind: "string-split",
-          receiver,
-          separator: argument,
-          type: nominalGenericType("List", ["string"]),
-          span: expression.span,
-        }
-      : {
-          kind: "string-starts-with",
-          receiver,
-          prefix: argument,
-          type: "bool",
-          span: expression.span,
-        };
-  }
-
-  // `replace(self, old: string, replacement: string) -> string` (10 Prelude).
-  private checkStringReplace(
-    expression: MemberCallExpression,
-    receiver: HirExpression,
-  ): HirExpression {
-    const parameters = ["old", "replacement"];
-    if (expression.arguments.length !== parameters.length)
-      this.fail("argument-count", "string.replace expects two arguments", expression.span);
-    if (expression.argumentSpreads?.some(Boolean))
-      this.fail(
-        "positional-spread-needs-vararg",
-        "string.replace has no variadic parameter",
-        expression.span,
-      );
-    const slots: (HirExpression | undefined)[] = [undefined, undefined];
-    let positional = 0;
-    expression.arguments.forEach((argument, index) => {
-      const argumentName = expression.argumentNames?.[index];
-      const slot = argumentName === undefined ? positional++ : parameters.indexOf(argumentName);
-      if (slot < 0)
-        this.fail(
-          "unknown-named-argument",
-          `string.replace has no parameter named '${argumentName}'`,
-          argument.span,
-        );
-      if (slots[slot])
-        this.fail(
-          "duplicate-argument",
-          `string.replace received '${parameters[slot]}' more than once`,
-          argument.span,
-        );
-      slots[slot] = this.requireCoercion(
-        this.checkExpression(argument, "string"),
-        "string",
-        argument.span,
-      );
-    });
-    return {
-      kind: "string-replace",
-      receiver,
-      old: slots[0]!,
-      replacement: slots[1]!,
-      type: "string",
-      span: expression.span,
-    };
   }
 
   private checkDynamicMemberCall(

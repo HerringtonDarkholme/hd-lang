@@ -150,6 +150,14 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
       } else if (builtin.kind === "marker") {
         throw new Error("a marker dictionary has no adapter");
+      } else if (builtin.kind === "iterable") {
+        const map = nominalGenericParts(builtin.targetType)?.name === "Map";
+        const collection = map
+          ? `(ref.cast (ref $hd.map) (local.get $self))`
+          : `(ref.cast (ref $hd.vector) (local.get $self))`;
+        body = map
+          ? `(struct.new $hd.iterator (ref.null $hd.vector) ${collection} (i32.const 0) (struct.get $hd.map $hd.map-version ${collection}))`
+          : `(struct.new $hd.iterator ${collection} (ref.null $hd.map) (i32.const 0) (struct.get $hd.vector $hd.vector-version ${collection}))`;
       } else {
         const compared = this.emitValueOrdering(
           self,

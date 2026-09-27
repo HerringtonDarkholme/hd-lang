@@ -215,11 +215,37 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
+  // `Iterable[T]`: `for` and comprehension clauses call `iter` on a value
+  // whose type implements it (06-control-flow.md#for-loops).
+  traitTypes.set("Iterable", {
+    name: "Iterable",
+    index: program.traits.length + 5,
+    genericParameters: ["T"],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "iter",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: false,
+        parameters: [],
+        parameterNames: [],
+        variadic: false,
+        result: "mut:Iterator[generic:T]",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
   // `Any`, the built-in universal empty trait: every value type implements it
   // (04-type-system.md#trait-values-and-any).
   traitTypes.set("Any", {
     name: "Any",
-    index: program.traits.length + 5,
+    index: program.traits.length + 6,
     genericParameters: [],
     supertraits: [],
     associatedTypes: [],

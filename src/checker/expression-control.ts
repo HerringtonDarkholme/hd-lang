@@ -86,7 +86,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
         return { kind: "if", condition, thenBody, elseBody, type, span: expression.span };
       }
       case "for": {
-        const iterable = this.checkExpression(expression.iterable);
+        const value = this.checkExpression(expression.iterable);
+        const iterable = this.iterableIterCall(value, expression.iterable) ?? value;
         const info = iterableInfo(iterable, this.implementations);
         if (info?.iteratorKind === "trait" && mutableInner(iterable.type) === undefined)
           this.fail(

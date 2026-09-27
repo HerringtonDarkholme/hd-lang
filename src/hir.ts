@@ -140,6 +140,12 @@ export type HirBuiltinTraitImplementation =
       readonly strategy: HirOrderingStrategy;
     }
   | {
+      // `Iterable` for `List[T]` and `Map[K, V]`: `iter` returns a cursor.
+      readonly kind: "iterable";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+    }
+  | {
       // The compiler-supplied `Any`: a dictionary with no methods.
       readonly kind: "marker";
       readonly traitIndex: number;

@@ -982,3 +982,7 @@ typing/invalid/plain-closure-mutable-capture-argument.hd	type
 typing/invalid/embedded-non-data.hd	type
 typing/invalid/embedded-collection-type.hd	type
 typing/invalid/embedded-type-parameter.hd	type
+typing/invalid/iterator-for-iterable-bound.hd	type
+runtime/valid/user-iterable-for-loop.hd	runtime
+typing/invalid/orphan-impl-nested-trait-argument.hd	type
+runtime/valid/iterable-and-iterator-for-loop.hd	runtime
