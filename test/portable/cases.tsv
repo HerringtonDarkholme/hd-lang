@@ -961,3 +961,4 @@ parse/valid/same-line-loop-else.hd	parse
 typing/invalid/duplicate-binding-in-one-pattern.hd	type
 typing/invalid/variant-result-owner.hd	type
 runtime/valid/replace-empty-old.hd	runtime
+runtime/valid/generic-function-value-instantiation.hd	runtime

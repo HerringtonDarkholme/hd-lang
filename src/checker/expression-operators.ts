@@ -9,10 +9,82 @@ import {
   tupleParts,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { genericTypeName, traitTypeName } from "./shared.ts";
+import type { Signature } from "./context.ts";
+import {
+  genericTypeName,
+  inferGenericType,
+  substituteGenericType,
+  traitTypeName,
+} from "./shared.ts";
 
 import { ExpressionLiteralChecker } from "./expression-literals.ts";
+type NameExpression = Extract<Expression, { kind: "name" }>;
+
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
+  /**
+   * A generic function used as a value (07-functions.md#function-types-and-values):
+   * every generic parameter comes from a complete explicit type-argument list,
+   * where `_` asks for inference, or from the expected monomorphic function
+   * type. The value is a closure over a call of the function, so its
+   * dictionaries and boxing are those of an ordinary call. Returns undefined
+   * when some parameter stays unknown.
+   */
+  private instantiateFunctionValue(
+    expression: NameExpression,
+    signature: Signature,
+    expected: ValueType | undefined,
+  ): HirExpression | undefined {
+    if (signature.rowParameters.length > 0 || signature.variadic) return undefined;
+    const substitutions = new Map<string, ValueType>();
+    const typeArguments = expression.typeArguments;
+    if (typeArguments) {
+      if (typeArguments.length !== signature.genericParameters.length)
+        this.fail(
+          typeArguments.length < signature.genericParameters.length
+            ? "partial-generic-arguments"
+            : "generic-argument-count",
+          `function '${signature.name}' expects ${signature.genericParameters.length} type arguments, received ${typeArguments.length}`,
+          expression.span,
+        );
+      typeArguments.forEach((argument, index) => {
+        if (argument.name !== "_")
+          substitutions.set(signature.genericParameters[index]!, this.resolveType(argument));
+      });
+    }
+    const callable = expected ? functionParts(expected) : undefined;
+    if (callable && callable.parameters.length === signature.parameters.length) {
+      signature.parameters.forEach((parameter, index) =>
+        inferGenericType(parameter, callable.parameters[index]!, substitutions),
+      );
+      inferGenericType(signature.result, callable.result, substitutions);
+    }
+    if (!signature.genericParameters.every((parameter) => substitutions.has(parameter)))
+      return undefined;
+    const type = functionType(
+      signature.parameters.map((parameter) => substituteGenericType(parameter, substitutions)),
+      substituteGenericType(signature.result, substitutions),
+      signature.requirements,
+      false,
+      signature.suspending,
+    );
+    const span = expression.span;
+    const parameters = signature.parameters.map((_, index) => ({ name: `$value${index}`, span }));
+    const call: Expression = {
+      kind: signature.suspending ? "suspend-call" : "call",
+      callee: { kind: "name", name: expression.name, typeArguments, span },
+      arguments: parameters.map((parameter) => ({ kind: "name", name: parameter.name, span })),
+      span,
+    };
+    const closure: Expression = {
+      kind: "closure",
+      ...(signature.suspending ? { suspending: true } : {}),
+      parameters,
+      body: [{ kind: "expression", expression: call, span }],
+      span,
+    };
+    return this.checkExpression(closure, type);
+  }
+
   protected checkOperatorExpression(
     expression: Expression,
     _expected?: ValueType,
@@ -58,6 +130,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const signature = this.signatures.get(expression.name);
         if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
+            const instantiated = this.instantiateFunctionValue(expression, signature, _expected);
+            if (instantiated) return instantiated;
             this.fail(
               "unresolved-generic-placeholder",
               `generic function '${signature.name}' needs inferred or explicit type arguments before it can be used as a value`,

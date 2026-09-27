@@ -83,7 +83,7 @@ export abstract class ExpressionParser extends ParserBase {
       if (
         this.atText("[") &&
         (left.kind === "name" || left.kind === "member" || left.kind === "qualified-name") &&
-        this.typeArgumentsFollowedBySuffix()
+        (this.typeArgumentsFollowedBySuffix() || this.bracketHoldsTypeArgumentList())
       ) {
         const start = left.span.start;
         this.advance();
@@ -234,6 +234,30 @@ export abstract class ExpressionParser extends ParserBase {
       while (this.matchText(",") && !this.atText("]"));
     }
     return typeArguments;
+  }
+
+  /**
+   * At `[`: true when the brackets hold several entries or a `_` placeholder,
+   * which only a type-argument list can, as in `pair[i32, string]` or
+   * `first[_, bool]` (07-functions.md#function-types-and-values).
+   */
+  private bracketHoldsTypeArgumentList(): boolean {
+    let depth = 0;
+    for (let distance = 0; ; distance += 1) {
+      const token = this.peek(distance);
+      if (token.kind === "eof") return false;
+      if (["(", "[", "{"].includes(token.text)) depth += 1;
+      else if ([")", "]", "}"].includes(token.text)) {
+        depth -= 1;
+        if (depth === 0) return false;
+      } else if (depth === 1 && token.text === ",") return true;
+      else if (
+        depth === 1 &&
+        token.text === "_" &&
+        [",", "["].includes(this.peek(distance - 1).text)
+      )
+        return true;
+    }
   }
 
   protected typeArgumentsFollowedBySuffix(): boolean {

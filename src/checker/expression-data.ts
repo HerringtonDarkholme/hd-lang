@@ -1,4 +1,4 @@
-import type { Expression, Statement } from "../ast.ts";
+import type { Expression, Statement, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirEnum, HirExpression, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -20,7 +20,55 @@ import {
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
 
+/** The type an index operand spells, as in `List[i32]` or `(i32, string)`. */
+function typeRefFromExpression(expression: Expression): TypeRef | undefined {
+  const name = typeNameFromExpression(expression);
+  return name === undefined ? undefined : { name, span: expression.span };
+}
+
+function typeNameFromExpression(expression: Expression): string | undefined {
+  if (expression.kind === "name" && !expression.typeArguments) return expression.name;
+  if (expression.kind === "propagate") {
+    const inner = typeNameFromExpression(expression.operand);
+    return inner === undefined ? undefined : `${inner}?`;
+  }
+  if (expression.kind === "index") {
+    const owner = typeNameFromExpression(expression.receiver);
+    const argument = typeNameFromExpression(expression.index);
+    return owner === undefined || argument === undefined ? undefined : `${owner}[${argument}]`;
+  }
+  if (expression.kind === "tuple") {
+    const elements = expression.elements.map(typeNameFromExpression);
+    if (elements.some((element) => element === undefined)) return undefined;
+    return `(${elements.join(",")}${elements.length === 1 ? "," : ""})`;
+  }
+  return undefined;
+}
+
 export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker {
+  /**
+   * `f[T]` with `f` a generic function and nothing called parses as an index;
+   * it is the function value instantiated with `T`
+   * (07-functions.md#function-types-and-values).
+   */
+  private functionInstantiation(
+    expression: Extract<Expression, { kind: "index" }>,
+  ): Expression | undefined {
+    const receiver = expression.receiver;
+    if (receiver.kind !== "name" || receiver.typeArguments) return undefined;
+    if (
+      this.resolveLocal(receiver.name) ||
+      this.availableCaptures.has(receiver.name) ||
+      this.resolveGlobal(receiver.name) ||
+      this.globals.has(receiver.name)
+    )
+      return undefined;
+    const signature = this.signatures.get(receiver.name);
+    if (!signature || signature.genericParameters.length === 0) return undefined;
+    const argument = typeRefFromExpression(expression.index);
+    return argument && { ...receiver, typeArguments: [argument], span: expression.span };
+  }
+
   protected checkDataExpression(
     expression: Expression,
     expected?: ValueType,
@@ -646,6 +694,8 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         );
       }
       case "index": {
+        const instantiation = this.functionInstantiation(expression);
+        if (instantiation) return this.checkExpression(instantiation, expected);
         const receiver = this.checkExpression(expression.receiver);
         const nominal = nominalGenericParts(readonlyType(receiver.type));
         if (nominal?.name === "List" && nominal.arguments.length === 1) {
