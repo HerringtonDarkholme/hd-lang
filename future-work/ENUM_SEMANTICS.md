@@ -55,7 +55,12 @@ Decided 2026-09-27:
    slots never change once built; this is shallow, since a payload may be a
    mutable reference.
 
-The remaining questions (3-8) assumed option (b) and are closed by
+3. **Question 7: payload-free enums get no automatic `Eq` or `Hash`.**
+   `PayloadLess.A is PayloadLess.A` is always `true` (canonical identity),
+   and `==` needs `@derive(Eq)` (and `Hash` for map keys), as for every
+   other enum; adding a payload never silently removes a conformance.
+
+The remaining questions (3-6, 8) assumed option (b) and are closed by
 decision 1.
 
 ## Contents
