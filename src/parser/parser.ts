@@ -1160,7 +1160,7 @@ class Parser extends ExpressionParser {
     if (this.matchText("[")) {
       const arguments_: TypeRef[] = [];
       if (!this.atText("]")) {
-        do arguments_.push(this.parseType());
+        do arguments_.push(this.parseTypeArgument());
         while (this.matchText(",") && !this.atText("]"));
       }
       const close = this.expectText("]");

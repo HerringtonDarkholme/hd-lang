@@ -122,8 +122,16 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
               expression.span,
             );
           }
-          expression.typeArguments.forEach((argument, index) => {
-            substitutions.set(declaration.genericParameters[index]!, this.resolveType(argument));
+          // A row-kinded parameter reads a single requirement key as a row.
+          const written = this.resolveType({
+            name: nominalGenericType(
+              declaration.name,
+              expression.typeArguments.map((argument) => argument.name),
+            ),
+            span: expression.span,
+          });
+          (nominalGenericParts(written)?.arguments ?? []).forEach((argument, index) => {
+            substitutions.set(declaration.genericParameters[index]!, argument);
           });
         }
         const expectedNominal = expected ? nominalGenericParts(expected) : undefined;
@@ -494,7 +502,8 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       value,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+      erasedFieldType:
+        containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
       type: "void",
       span: statement.span,
     };
@@ -653,7 +662,10 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             receiver,
             enumIndex: enumDeclaration.index,
             fieldIndex: field.index,
-            erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+            erasedFieldType:
+              containsGenericType(field.type) || field.type.includes("row:")
+                ? field.type
+                : undefined,
             type,
             span: expression.span,
           };

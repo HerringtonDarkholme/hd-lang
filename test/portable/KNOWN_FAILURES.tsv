@@ -51,8 +51,6 @@ typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at l
 typing/valid/annotation-reference.hd	check fails: expected-expression at line 12: expected an expression, found 'annotate'	F-250
 typing/invalid/derived-generic-bound.hd	MVP reports decorator-not-top-level at line 1 instead of missing-derived-bound: decorators are only valid on top-level declarations	F-250
 typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at line 1: decorators are only valid on top-level declarations	F-250
-typing/valid/row-kinded-arguments.hd	check fails: syntax-error at line 7: expected '.', found '('	F-256
-typing/invalid/row-kind-mismatch.hd	MVP reports syntax-error at line 4 instead of generic-kind-mismatch: expected '.', found '('	F-256
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
 typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253

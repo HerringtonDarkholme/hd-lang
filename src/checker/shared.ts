@@ -21,6 +21,8 @@ import {
   optionalType,
   readonlyType,
   resultParts,
+  rowArgumentKeys,
+  rowArgumentType,
   tupleParts,
   tupleType,
 } from "../types.ts";
@@ -213,7 +215,7 @@ export function isKnownType(
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutable !== "void" && isKnownType(mutable, dataTypes, enumTypes, traitTypes);
-  if (genericTypeName(type)) return true;
+  if (genericTypeName(type) || rowArgumentKeys(type)) return true;
   if (TYPE_NAMES.has(type)) return true;
   const plainData = dataTypes.get(type);
   if (plainData) return plainData.genericParameters.length === 0;
@@ -363,7 +365,10 @@ export function substituteGenericType(
       callable.requirements.flatMap((requirement) => {
         const row = rowParameterName(requirement);
         return row
-          ? instantiateRowRequirement(requirement, rowSubstitutions.get(row) ?? [requirement])
+          ? instantiateRowRequirement(
+              requirement,
+              rowSubstitutions.get(row) ?? rowArgumentKeys(substitutions.get(row)) ?? [requirement],
+            )
           : [requirement];
       }),
       callable.variadic,
@@ -885,6 +890,60 @@ export function firstPrivateSignatureType(type: ValueType, program: Program): st
   return undefined;
 }
 
+/**
+ * Rewrites each argument of a row-kinded data parameter to the canonical row
+ * `$(A+B)`, reading a single requirement key or an enclosing row parameter as
+ * a row (02-grammar.md#types). A row given for a type-kinded parameter is a
+ * kind mismatch.
+ */
+export function normalizeRowArguments(
+  type: ValueType,
+  dataTypes: ReadonlyMap<string, HirData>,
+  rowParameters: ReadonlySet<string>,
+): ValueType | { readonly mismatch: string } {
+  let mismatch: string | undefined;
+  const visit = (current: ValueType): ValueType => {
+    const mutable = mutableInner(current);
+    if (mutable !== undefined) return mutableType(visit(mutable));
+    const tuple = tupleParts(current);
+    if (tuple !== undefined) return tupleType(tuple.map(visit));
+    const optional = optionalInner(current);
+    if (optional !== undefined) return optionalType(visit(optional));
+    const callable = functionParts(current);
+    if (callable)
+      return functionType(
+        callable.parameters.map(visit),
+        visit(callable.result),
+        callable.requirements,
+        callable.variadic,
+        callable.suspending,
+      );
+    const nominal = nominalGenericParts(current);
+    if (!nominal) return current;
+    const rows = new Set(dataTypes.get(nominal.name)?.rowParameters ?? []);
+    const parameters = dataTypes.get(nominal.name)?.genericParameters ?? [];
+    return nominalGenericType(
+      nominal.name,
+      nominal.arguments.map((argument, index) => {
+        const row = rowArgumentKeys(argument);
+        if (!rows.has(parameters[index] ?? "")) {
+          if (row)
+            mismatch ??= `'${nominal.name}' takes a type, not the row '${argument}', for '${parameters[index]}'`;
+          return visit(argument);
+        }
+        if (row) return rowArgumentType(row);
+        if (rowParameters.has(argument)) return rowArgumentType([symbolicRequirement(argument)]);
+        if (argument.startsWith("trait:"))
+          return rowArgumentType([argument.slice("trait:".length)]);
+        mismatch ??= `'${nominal.name}' takes a requirement row, not the type '${argument}', for '${parameters[index]}'`;
+        return argument;
+      }),
+    );
+  };
+  const normalized = visit(type);
+  return mismatch ? { mismatch } : normalized;
+}
+
 export function typeName(
   type: TypeRef,
   dataTypes: ReadonlyMap<string, HirData>,
@@ -894,10 +953,16 @@ export function typeName(
   genericParameters: ReadonlySet<string> = new Set(),
   rowParameters: ReadonlySet<string> = new Set(),
 ): ValueType | undefined {
-  const resolved = resolveTraitType(
-    resolveGenericType(type.name, genericParameters, rowParameters),
-    traitTypes,
+  const kinded = normalizeRowArguments(
+    resolveTraitType(resolveGenericType(type.name, genericParameters, rowParameters), traitTypes),
+    dataTypes,
+    rowParameters,
   );
+  if (typeof kinded !== "string") {
+    diagnostics.push({ code: "generic-kind-mismatch", message: kinded.mismatch, span: type.span });
+    return undefined;
+  }
+  const resolved = kinded;
   const dynamicTraitName = traitTypeName(resolved);
   const dynamicTrait = dynamicTraitName && traitTypes.get(dynamicTraitName);
   if (dynamicTrait && !traitIsDynamicallySafe(dynamicTrait, traitTypes)) {

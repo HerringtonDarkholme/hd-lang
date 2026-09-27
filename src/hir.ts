@@ -19,6 +19,8 @@ export interface HirData {
   readonly genericParameters: readonly string[];
   /** Declared `+T`/`-T` markers (04-type-system.md#variance); absent means all invariant. */
   readonly variances?: readonly ("+" | "-" | undefined)[];
+  /** Parameters used as requirement rows in a field type, as `R` in `fn() -> void $ R`. */
+  readonly rowParameters?: readonly string[];
   readonly fields: readonly HirDataField[];
   /** A newtype (`type Name(Base)`): its one field holds the base value. */
   readonly newtype?: true;

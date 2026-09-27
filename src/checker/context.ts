@@ -37,6 +37,7 @@ import {
   genericTypeName,
   matchTraitImplementation,
   normalizeBoundProjections,
+  normalizeRowArguments,
   resolveGenericType,
   resolveTraitType,
   substituteGenericType,
@@ -52,6 +53,7 @@ import {
   optionalInner,
   readonlyType,
   resultParts,
+  rowArgumentKeys,
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
@@ -227,7 +229,7 @@ export function isKnownType(
   const mutable = mutableInner(type);
   if (mutable !== undefined)
     return mutable !== "void" && isKnownType(mutable, dataTypes, enumTypes, traitTypes);
-  if (genericTypeName(type)) return true;
+  if (genericTypeName(type) || rowArgumentKeys(type)) return true;
   if (TYPE_NAMES.has(type)) return true;
   const plainData = dataTypes.get(type);
   if (plainData) return plainData.genericParameters.length === 0;
@@ -1303,10 +1305,13 @@ export abstract class CheckerContext {
       new Set(this.signature.genericParameters),
       new Set(this.signature.rowParameters),
     );
-    const declared = normalizeBoundProjections(
+    const kinded = normalizeRowArguments(
       resolveTraitType(resolved, this.traitTypes),
-      this.signature.genericBounds,
+      this.dataTypes,
+      new Set(this.signature.rowParameters),
     );
+    if (typeof kinded !== "string") this.fail("generic-kind-mismatch", kinded.mismatch, type.span);
+    const declared = normalizeBoundProjections(kinded, this.signature.genericBounds);
     const nominal = nominalGenericParts(declared);
     if (
       nominal?.name === "Map" &&

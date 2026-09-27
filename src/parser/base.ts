@@ -1,6 +1,7 @@
 import type { Expression, Statement, TypeRef, VarianceMarker } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
+import { rowArgumentType } from "../types.ts";
 
 export class ParseFailure extends Error {}
 
@@ -261,6 +262,23 @@ export abstract class ParserBase {
   protected atValuelessEnd(topOrInline: boolean): boolean {
     if (this.atKind("newline") || this.atKind("dedent") || this.atKind("eof")) return true;
     return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
+  }
+
+  // A type argument may be a row, `$()` or `A + B`, for a row-kinded
+  // parameter (02-grammar.md#types).
+  protected parseTypeArgument(): TypeRef {
+    const start = this.current().span.start;
+    if (this.atText("$") && this.peek(1).text === "(" && this.peek(2).text === ")") {
+      this.advance();
+      this.advance();
+      const close = this.advance();
+      return { name: "$()", span: { start, end: close.span.end } };
+    }
+    const first = this.parseType();
+    if (!this.atText("+")) return first;
+    const keys = [first.name];
+    while (this.matchText("+")) keys.push(this.parseRequirementKey());
+    return { name: rowArgumentType(keys), span: { start, end: this.peek(-1).span.end } };
   }
 
   /** True when the current token starts on the line where the previous token ends. */

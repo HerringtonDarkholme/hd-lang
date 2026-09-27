@@ -274,7 +274,8 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       receiver,
       dataIndex: declaration.index,
       fieldIndex: field.index,
-      erasedFieldType: containsGenericType(field.type) ? field.type : undefined,
+      erasedFieldType:
+        containsGenericType(field.type) || field.type.includes("row:") ? field.type : undefined,
       type,
       span,
     };

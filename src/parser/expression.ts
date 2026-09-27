@@ -230,7 +230,7 @@ export abstract class ExpressionParser extends ParserBase {
   private parseTypeArgumentList(): TypeRef[] {
     const typeArguments: TypeRef[] = [];
     if (!this.atText("]")) {
-      do typeArguments.push(this.parseType());
+      do typeArguments.push(this.parseTypeArgument());
       while (this.matchText(",") && !this.atText("]"));
     }
     return typeArguments;

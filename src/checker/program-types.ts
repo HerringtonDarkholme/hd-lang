@@ -3,7 +3,12 @@ import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
-import { firstPrivateSignatureType, resolveGenericType, typeName } from "./shared.ts";
+import {
+  collectRowParameterReferences,
+  firstPrivateSignatureType,
+  resolveGenericType,
+  typeName,
+} from "./shared.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
@@ -26,10 +31,17 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       });
       return;
     }
+    // A parameter used after `$` in a field type is a requirement row.
+    const rows = new Set<string>();
+    for (const field of declaration.fields)
+      collectRowParameterReferences(field.type.name, new Set(declaration.genericParameters), rows);
     dataTypes.set(declaration.name, {
       name: declaration.name,
       index,
       genericParameters: declaration.genericParameters,
+      ...(rows.size > 0
+        ? { rowParameters: declaration.genericParameters.filter((name) => rows.has(name)) }
+        : {}),
       fields: [],
       ...(declaration.newtype ? { newtype: true as const } : {}),
       ...(declaration.local ? { local: true as const } : {}),
@@ -321,6 +333,7 @@ export function defineProgramData(context: ProgramCheckContext): void {
           span: field.span,
         });
       names.add(field.name);
+      const rowParameters = new Set(data.rowParameters ?? []);
       const type =
         typeName(
           field.type,
@@ -328,7 +341,8 @@ export function defineProgramData(context: ProgramCheckContext): void {
           enumTypes,
           traitTypes,
           diagnostics,
-          new Set(declaration.genericParameters),
+          new Set(declaration.genericParameters.filter((name) => !rowParameters.has(name))),
+          rowParameters,
         ) ?? "void";
       if (type === "void")
         diagnostics.push({

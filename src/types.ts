@@ -293,3 +293,17 @@ export function storedSuspensionParts(type: ValueType): StoredSuspensionParts | 
     ? { mutable: mutable !== undefined, result: nominal.arguments[0]! }
     : undefined;
 }
+
+/**
+ * The keys of a row type argument such as `$(Clock+Logger)` or `$()`, the
+ * argument of a row-kinded generic parameter (02-grammar.md#types).
+ */
+export function rowArgumentKeys(type: ValueType | undefined): readonly string[] | undefined {
+  if (!type?.startsWith("$(") || !type.endsWith(")")) return undefined;
+  const contents = type.slice(2, -1);
+  return contents === "" ? [] : contents.split("+");
+}
+
+export function rowArgumentType(keys: readonly string[]): ValueType {
+  return `$(${[...new Set(keys)].sort().join("+")})`;
+}
