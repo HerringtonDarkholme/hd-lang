@@ -288,6 +288,16 @@ export abstract class PatternChecker extends CallChecker {
     };
   }
 
+  /** `Name(...)` without `.` or a qualifier never names a variant (06-control-flow.md#match-expressions). */
+  protected rejectBareCallPattern(pattern: Pattern): void {
+    if (pattern.kind === "variant" && pattern.bare)
+      this.fail(
+        "bare-variant-pattern",
+        `bare variant '${pattern.variantName}(...)' must be written as '.${pattern.variantName}(...)' or qualified by its enum`,
+        pattern.span,
+      );
+  }
+
   protected checkNestedPattern(
     pattern: Pattern,
     type: ValueType,
@@ -295,6 +305,7 @@ export abstract class PatternChecker extends CallChecker {
     bindings: Array<HirMatchArm["bindings"][number]>,
     tests: Array<NonNullable<HirMatchArm["tests"]>[number]>,
   ): boolean {
+    this.rejectBareCallPattern(pattern);
     if (pattern.kind === "wildcard") return true;
     if (pattern.kind === "binding") {
       bindings.push({

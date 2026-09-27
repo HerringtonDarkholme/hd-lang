@@ -991,7 +991,10 @@ tuple_pattern = "(", pattern, ",",
 ```
 
 Variant patterns may use a qualified enum variant name or `.Variant` when the
-matched value's type supplies one enum. Positional binding names need not match
+matched value's type supplies one enum. The unqualified
+`identifier, pattern_argument_clause` form parses so that a checker can report
+it; outside `Ok` and `Err` it is a `bare-variant-pattern` error
+([Match Expressions](06-control-flow.md#match-expressions)). Positional binding names need not match
 payload field names. In a payload list, only `field=pattern` is a named
 pattern, and no positional pattern may follow a named pattern.
 In a data pattern, bare `field` binds that field's value to a new name of the

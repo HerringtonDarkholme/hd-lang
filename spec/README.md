@@ -517,3 +517,9 @@ existing source. Each entry names the decision that made the change.
   prelude addition and a deliberate exception to Standard-library decision 7
   (the prelude does not grow), so a module that declares its own `AnyVal` or
   `AnyRef` is now `prelude-name-shadow`.
+- Option variants (owner decision, confirming O2): `Some` and `None` are not
+  prelude names. A bare `None` or `Some(value)` expression is `unknown-name`
+  unless a declaration in scope supplies the name. An unqualified variant
+  pattern with a payload list, such as `Some(value)`, is now
+  `bare-variant-pattern`, matching the bare `None` pattern; it was previously
+  unspecified.

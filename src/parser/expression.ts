@@ -1123,6 +1123,18 @@ export abstract class ExpressionParser extends ParserBase {
         span: { start, end: this.peek(-1).span.end },
       };
     }
+    if (this.atText("(")) {
+      const { bindings, names, patterns } = this.parsePatternBindings();
+      return {
+        kind: "variant",
+        variantName: first.text,
+        bare: true,
+        bindings,
+        bindingNames: names,
+        payloadPatterns: patterns,
+        span: { start, end: this.peek(-1).span.end },
+      };
+    }
     if (!this.matchText(".")) return { kind: "binding", name: first.text, span: first.span };
     const variant = this.expectKind("identifier", "expected a variant name after '.'");
     const { bindings, names, patterns } = this.parsePatternBindings();

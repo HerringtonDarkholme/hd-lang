@@ -1054,3 +1054,7 @@ typing/valid/anyref-bound-accepts-references.hd	type	accept	04-type-system.md#tr
 typing/invalid/user-anyref-implementation.hd	type	reject:sealed-trait-implementation	04-type-system.md#trait-values-and-any
 typing/invalid/user-anyval-implementation.hd	type	reject:sealed-trait-implementation	04-type-system.md#trait-values-and-any
 typing/invalid/reference-trait-name-unknown.hd	type	reject:unknown-trait	10-modules.md#prelude
+typing/invalid/bare-none-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#optional-types
+typing/invalid/bare-some-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#optional-types
+typing/valid/contextual-some-constructor.hd	type	accept	04-type-system.md#optional-types
+typing/invalid/bare-some-call-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions

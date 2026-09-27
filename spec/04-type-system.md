@@ -188,7 +188,9 @@ enum Option[T]:
 everywhere a type may appear, including implementation targets. `T` and `T?`
 are different types; a non-optional type never contains an absent value.
 `Option` is the only prelude name this adds; `Some` and `None` are variants,
-not prelude names.
+not prelude names. A bare `None` or `Some(value)` expression therefore
+resolves like any other identifier and is an `unknown-name` error unless a
+declaration in scope supplies that name.
 
 The absent value is written `.None` where an optional type is expected, or
 `Option.None`. A present value is written `.Some(value)` or

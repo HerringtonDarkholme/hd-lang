@@ -407,6 +407,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     let literal: HirExpression | undefined;
     const guarded = arm.guard !== undefined;
     try {
+      this.rejectBareCallPattern(arm.pattern);
       if (context.dataDeclaration && arm.pattern.kind === "data") {
         const irrefutable = this.checkDataPattern(
           arm.pattern,
