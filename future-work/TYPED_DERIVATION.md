@@ -299,6 +299,314 @@ treating trait values as bounds language-wide (generics stay: same-type
 parameters, typed returns, receiverless constructors, homogeneous
 collections).
 
+(M10, decided 2026-09-27; supersedes M8's `Derivable[V]`, the `Json` alias,
+and the fan-out of one opt-in to several traits) Member lines are local to
+the impl they are written in, as M3 said: they edit only the `visit` and
+`build` calls made inside that impl's bodies, and whatever visitor or source
+those bodies pass receives the edited members. Another impl of the same type
+(for example `db.Row`) sees the declaration facts only. Consequently a
+library that needs both directions to agree puts them in one trait: json has
+one trait `Json` with `encode` and `decode`, and the visitor hook is an
+ordinary default method `fn visitor() -> Style` on it. One opt-in derives
+exactly one trait. Cost: a type that can only be encoded must still write a
+`decode` (for example, one that returns an error); derivation never
+supported encode-only.
+
+### Current Design: Full Example (M1-M10)
+
+This is the reference example for the design as decided on 2026-09-27. When
+a later decision changes the design, update this example in the same change.
+
+```text
+# ══ std.structure ═════════════════════════════════════════════════
+# The compiler supplies Structure. Everything else here is ordinary code.
+
+pub trait Structure:                     # sealed; exists only inside `by Structure` templates
+    fn describe() -> Shape
+    fn visit[V < Visitor](self, v: mut V) -> Result[(), V::Error]
+    fn build[S < Source](s: mut S) -> Result[Self, S::Error]
+
+pub trait Visitor:                       # an impl may strengthen member's bound (M9)
+    type Error
+    fn member[F](mut self, m: Member, value: F) -> Result[(), Self::Error]
+    fn variant(mut self, v: Variant) -> Result[(), Self::Error]
+
+pub trait Source:
+    type Error
+    fn member[F](mut self, m: Member) -> Result[F, Self::Error]
+    fn variant(mut self, choices: List[Variant]) -> Result[Variant, Self::Error]
+
+
+# ══ library json ══════════════════════════════════════════════════
+use std.structure.{Structure, Visitor, Source, Member, Variant}
+
+pub enum Case:
+    Plain
+    Camel
+    Snake
+
+pub data Style:                          # json's visitor configuration; json owns the type
+    case: Case = .Plain
+    key: Option[fn(Member) -> string] = .None
+    tag: string = "type"
+
+# Tier-1 annotation function: evaluated at compile time; requirement-free,
+# non-suspending.
+pub fn json(case: Case = .Plain, key: Option[fn(Member) -> string] = .None,
+            tag: string = "type") -> Style:
+    Style(case: case, key: key, tag: tag)
+
+pub data Rename:                         # a fact is a plain value
+    name: string
+
+pub fn rename(name: string) -> Rename:
+    Rename(name: name)
+
+# json's one trait: both directions, plus the visitor hook.
+pub trait Json:
+    fn visitor() -> Style:               # ordinary default method
+        Style()
+    fn encode(self, out: mut Writer) -> Result[(), EncodeError]
+    fn decode(p: mut Parser) -> Result[Self, DecodeError]
+
+# (hand-written impls of Json for i64, string, bool, List[T], Map[K, V], T?)
+
+# The one template. It never applies by itself; only the trait's module may
+# declare it.
+impl[T] Json for T by Structure:
+    fn encode(self, out: mut Writer) -> Result[(), EncodeError]:
+        out.begin_object()
+        self.visit(mut Encoder(out: out, style: Self::visitor()))?
+        out.end_object()
+        .Ok(())
+
+    fn decode(p: mut Parser) -> Result[Self, DecodeError]:
+        p.begin_object()?
+        value := Self::build(mut FieldSource(parser: p, style: Self::visitor()))?
+        p.end_object()?
+        .Ok(value)
+
+# The visitor and the source: the only place json's member bound appears.
+data Encoder:
+    out: mut Writer
+    style: Style
+
+impl Visitor for Encoder:
+    type Error = EncodeError
+
+    fn member[F < Json](mut self, m: Member, value: F) -> Result[(), EncodeError]:
+        self.out.key(key_for(self.style, m))
+        value.encode(mut self.out)       # F's own impl: nesting follows M7
+
+    fn variant(mut self, v: Variant) -> Result[(), EncodeError]:
+        self.out.key(self.style.tag)
+        self.out.string(apply_case(self.style.case, v.name))
+        .Ok(())
+
+data FieldSource:
+    parser: mut Parser
+    style: Style
+
+impl Source for FieldSource:
+    type Error = DecodeError
+
+    fn member[F < Json](mut self, m: Member) -> Result[F, DecodeError]:
+        self.parser.seek_key(key_for(self.style, m))?
+        F::decode(mut self.parser)       # type → impl, through F's dictionary
+
+    fn variant(mut self, choices: List[Variant]) -> Result[Variant, DecodeError]:
+        self.parser.seek_key(self.style.tag)?
+        name := self.parser.string()?
+        find_variant(choices, name, self.style.case)
+
+# Precedence is json's choice, not a language rule.
+fn key_for(style: Style, m: Member) -> string:
+    match m.facts.find[Rename]():
+        .Some(r) => r.name
+        .None => match style.key:
+            .Some(f) => f(m)
+            .None => apply_case(style.case, m.name)
+
+pub fn to_json[T < Json](value: T) -> Result[string, EncodeError]:
+    w := Writer()
+    value.encode(mut w)?
+    .Ok(w.finish())
+
+pub fn from_json[T < Json](text: string) -> Result[T, DecodeError]:
+    T::decode(mut Parser(text: text))
+
+
+# ══ app ═══════════════════════════════════════════════════════════
+use json
+use db
+use std.structure.{Member}
+
+# ── Tier 0: no derivation. No Structure, no JSON. ──
+data Secret:
+    value: string
+
+# ── Tier 1: one annotation per concern ──
+@json(case: .Snake)
+pub data Address:
+    pub streetLine: string               # "street_line"
+    pub zipCode: string                  # "zip_code"
+
+@json(case: .Camel)
+pub data User:
+    pub id: i64
+    pub full_name: string                # "fullName"
+    @json.rename("mail")                 # a declaration fact, visible to every impl
+    pub email: string
+    pub address: Address                 # Address's own derivation: snake_case (M7)
+
+# @json(case: .Camel) is exactly this tier-2 block:
+#   impl json.Json for User by Structure:
+#       fn visitor() -> json.Style:
+#           json.Style(case: .Camel)     # the annotation's value, a constant
+
+@json(tag: "kind")
+pub enum Event:
+    Login(user: i64)
+    Logout(user: i64, reason: string)
+
+# ── Tier 2: one explicit block per concern ──
+fn legacy_key(m: Member) -> string:
+    "x_" + m.name
+
+@db.table("orders")                      # db stays tier 1, in its own annotation
+pub data Order:
+    @db.primary_key()
+    pub id: i64
+    pub items: List[string]
+    pub total_cents: i64
+    pub cache: Cache = Cache.empty()     # Cache has no Json impl
+
+impl json.Json for Order by Structure:
+    fn visitor() -> json.Style:          # override only to customize
+        json.json(key: .Some(legacy_key))
+    total_cents = [json.rename("total")] # affects this impl's visit/build only
+    cache = pass                         # not visited; decode uses Cache.empty()
+
+# ── Tier 3: hand-written, no Structure ──
+pub data Money:
+    cents: i64
+
+impl json.Json for Money:                # visitor() keeps its unused default
+    fn encode(self, out: mut json.Writer) -> Result[(), json.EncodeError]:
+        out.raw(format_decimal(self.cents, places: 2))
+        .Ok(())
+
+    fn decode(p: mut json.Parser) -> Result[Money, json.DecodeError]:
+        .Ok(Money(cents: parse_cents(p.number()?)?))
+
+# ── Use ──
+pub fn main() $ Console:
+    u := User(id: 7, full_name: "Ada L", email: "ada@x",
+              address: Address(streetLine: "1 Main", zipCode: "02139"))
+    text := json.to_json(u)?
+    println(text)
+    # {"id":7,"fullName":"Ada L","mail":"ada@x","address":{"street_line":"1 Main","zip_code":"02139"}}
+    back: User = json.from_json(text)?
+
+    println(json.to_json(Event.Logout(user: 7, reason: "idle"))?)
+    # {"kind":"Logout","user":7,"reason":"idle"}
+    println(json.to_json(Order(id: 1, items: ["tea"], total_cents: 1250))?)
+    # {"x_id":1,"x_items":["tea"],"total":1250}
+```
+
+What the compiler generates (ordinary hd; tooling can print it):
+
+```text
+# User.visit, inside User's Json impl, for json's Encoder
+fn visit(self, v: mut Encoder) -> Result[(), EncodeError]:
+    v.member[i64](m_id, self.id)?                  # needs i64 < Json ✓
+    v.member[string](m_full_name, self.full_name)?
+    v.member[string](m_email, self.email)?         # m_email.facts = [Rename("mail")]
+    v.member[Address](m_address, self.address)?    # needs Address < Json ✓ (its own @json)
+    .Ok(())
+
+# Event.build, inside Event's Json impl, for json's FieldSource
+fn build(s: mut FieldSource) -> Result[Event, DecodeError]:
+    match s.variant([v_login, v_logout])?.index:
+        0 => .Ok(.Login(user: s.member[i64](m_user)?))
+        1 => .Ok(.Logout(user: s.member[i64](m_user)?, reason: s.member[string](m_reason)?))
+
+# Order.build inside Order's Json impl: its lines apply; `cache = pass` means
+# no member call and the declared default
+    .Ok(Order(id: s.member[i64](m_id)?, items: s.member[List[string]](m_items)?,
+              total_cents: s.member[i64](m_total_cents)?, cache: Cache.empty()))
+    # m_total_cents.facts = [Rename("total")] here; db.Row's build for Order
+    # sees the declaration facts only, and visits cache.
+```
+
+At run time each `member[i64]` call runs the `i64`-shaped body with `i64`'s
+`Json` dictionary, a constant; there is no per-member allocation.
+
+What the compiler rejects:
+
+```text
+@json
+pub data Bad:
+    handle: FileHandle
+# error at @json: member `handle`: FileHandle does not implement json.Json
+#   use `handle = pass` in a tier-2 block, or change the member's type
+
+@json
+pub data Twice:
+    x: i64
+impl json.Json for Twice by Structure
+# error: Twice already derives json.Json through @json
+
+fn dump[X < Structure](x: X)
+# error: Structure may bound only a `by Structure` template
+
+impl Structure for Secret
+# error: sealed-trait-implementation
+
+fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
+    s.member[Cache](m)
+# error: Source::member may be called through a generic source only by
+#   generated code
+```
+
+### Current Rules (M1-M10)
+
+1. `Structure` is sealed (`impl Structure for T` is
+   `sealed-trait-implementation`). It exists only inside `by Structure`
+   templates and may bound nothing else.
+2. `impl[T] Trait for T by Structure:` declares a template. Only the trait's
+   module may declare it, so there is at most one per trait. It never
+   applies by itself, so it cannot overlap a hand-written impl (hd otherwise
+   has no blanket impls: 09 `bare-parameter-impl-target`).
+3. `impl Trait for X by Structure:` (tier 2) applies the template to `X`.
+   Its body overrides template methods like default methods and carries M3
+   member lines: `f += [facts]`, `f = [facts]`, `f = pass`.
+4. Member lines are local to their impl (M10). Declaration facts are
+   visible to every impl.
+5. Tier 1: an annotation function runs at compile time and returns a value
+   of type `V`. `@f(...)` on `X` is exactly the tier-2 block for the trait
+   whose template lives in `V`'s package and that declares a parameterless
+   associated function returning `V`, with that function overridden to
+   return the annotation's value. (Proposed with M10; not yet confirmed.)
+6. A tier-1 annotation and a tier-2 block for the same trait and type is an
+   error.
+7. Visitors and sources: an impl of the sealed `Visitor` or `Source` may
+   strengthen `member[F]`'s bound; only generated `visit`/`build` may call
+   `member` through a generic visitor or source; templates pass a concrete
+   visitor or source; the member obligation is checked at the opt-in site,
+   naming the member, and `= pass` members are exempt (M9).
+8. Nested members use their own derivation; a parent's visitor never
+   propagates (M7).
+9. Per-member customization is metadata only; custom behavior for one member
+   means changing the member's type (M6).
+
+Still open: the compile-time evaluator's exact limits (proposed: a panic is a
+compile error at the annotation, a step budget, and results built from
+literals, data, enums, `List`, `Map`, strings, numbers, and references to
+named functions); function targets wait for [FN_TYPE.md](FN_TYPE.md); the
+chapter 14 rewrite and the removal of `Annotate` wait for the spec style
+rollout.
+
 ## Contents
 
 1. [Problem](#problem)
