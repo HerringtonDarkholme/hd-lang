@@ -1,15 +1,17 @@
 # Standard Library Design
 
-Status: survey and first design draft for
-[Roadmap area 4](ROADMAP.md#4-standard-library). Nothing here is accepted.
-Accepted parts move into the [specification](../spec/README.md); unresolved
-language questions stay in [Open Issues](OPEN_ISSUES.md).
+Status: design draft for
+[Roadmap area 4](ROADMAP.md#4-standard-library), revised to the
+[owner decisions](#owner-decisions) of 2026-09-26. Nothing here is in the
+specification yet. Accepted parts move into the
+[specification](../spec/README.md); unresolved language questions stay in
+[Open Issues](OPEN_ISSUES.md).
 
 The roadmap orders this work after areas 2 and 3 settle traits, derivation,
 and requirements. This draft therefore fixes the parts that do not wait on
 them: module layout, naming, the effect-trait pattern, and the list of
-language features each module needs. Questions for the owner are collected at
-the end.
+language features each module needs. The owner's decisions, and the questions
+they answered, are collected at the end.
 
 Code sketches use only syntax that [the grammar](../spec/02-grammar.md)
 accepts, and each block parses with the
@@ -29,7 +31,8 @@ written `pass`; they are syntax placeholders, not type-correct bodies.
 9. [Data Layer](#data-layer)
 10. [Testing Layer](#testing-layer)
 11. [Open Language Dependencies](#open-language-dependencies)
-12. [Questions For The Owner](#questions-for-the-owner)
+12. [Owner Decisions](#owner-decisions)
+13. [Questions For The Owner](#questions-for-the-owner)
 
 ## What The Specification Already Names
 
@@ -58,15 +61,21 @@ every user module that already declares it.
 Other facts the library must respect:
 
 - There is no `bytes` primitive; `Hasher.write` takes `List[u8]`.
-- An inherent `impl` cannot target a primitive, so methods on `string`, `i32`,
-  and other primitives come either from the normative built-in method table or
-  from traits that the standard library implements for them.
+- User code cannot write an inherent `impl` for a primitive or another
+  built-in type. By decision 8, `std` owns the built-in types and declares
+  their extra methods as inherent methods, available without a `use`. This
+  needs an exception in
+  [Implementation Targets](../spec/09-traits.md#implementation-targets),
+  which today bars inherent implementations on primitives.
 - A trait's methods are callable with dot syntax only in modules that name the
   trait with `use` (or get it from the prelude).
 - `decimal` is named as a possible library type.
 - `Hash` values are process-dependent; persisted identity uses
   `std.fingerprint`.
-- A provider returned by `$.use` is a readonly value of its trait type.
+- `$.use(K)` returns a readonly value of the trait type. `$.use(mut K)`
+  returns `mut K` when the provider was installed with `$.with(mut K=value)`
+  ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+  Runtime profiles bind host providers readonly.
 
 ## Survey
 
@@ -131,7 +140,9 @@ Other facts the library must respect:
 3. **Each effect trait ships with a deterministic provider** in the same
    module: `ManualClock`, `SeededRandom`, `MemoryFs`, `MapEnv`,
    `BufferConsole`, `ScriptedHttp`, `ScriptedProcess`. They serve tests,
-   replay debugging, and simulation, not only unit tests.
+   replay debugging, and simulation, not only unit tests. A provider that
+   changes its own state does so through `mut self` methods, and is installed
+   with `$.with(mut K=value)` (decision 1).
 4. **Host providers cannot be constructed in hd code.** A real clock or
    filesystem reaches a program only through an entry-point row bound by the
    runtime profile. The standard library exposes the trait and the
@@ -139,11 +150,11 @@ Other facts the library must respect:
 5. **Narrow traits, attenuation by wrapping.** Traits are small enough that a
    provider can be wrapped to restrict it (a read-only or path-scoped
    filesystem) without new language features.
-6. **Inputs that replay must record are suspending.** A read whose result can
-   differ between runs goes through a bang call, so durable replay records it
-   ([Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules)). Invocation inputs
-   fixed at start (arguments, environment) are recorded once with the
-   invocation. See question 2.
+6. **I/O suspends; clock, random, and environment reads do not.**
+   Filesystem and network operations are bang calls. `clock.now()`,
+   `random.next_u64()`, and `env.get()` are plain calls. Replay records every
+   host call at the boundary regardless of suspension
+   ([Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules)). See decision 2.
 7. **Errors are values.** Each domain has its own error enum implementing
    `Display`, like the existing `ConsoleError`. Panics stay reserved for bugs.
 8. **Keep the prelude fixed.** New names go in modules and are imported. The
@@ -169,11 +180,12 @@ pub data Stamped:
 pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead + Clock:
     files, clock := $.use(FsRead, Clock)
     text := files.read_text!(path)?
-    Ok(Stamped { text: text, loaded_at: clock.now!() })
+    Ok(Stamped { text: text, loaded_at: clock.now() })
 ```
 
 The test binds deterministic providers through the ordinary provider scope.
-No patching, no global state, no special test mode:
+No patching, no global state, no special test mode. The function only reads,
+so readonly bindings are enough:
 
 ```text
 use std.fs.{FsRead, MemoryFs}
@@ -209,11 +221,11 @@ pub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:
     Ok()
 ```
 
-A pure helper has no row at all, and a reviewer knows it touches nothing:
+A pure helper has no row at all, and a reviewer knows it touches nothing.
+The string methods it calls are inherent methods from `std`, so it needs no
+`use`:
 
 ```text
-use std.text.StringExt
-
 pub fn port_line(text: string) -> string?:
     for line in text.split("\n"):
         if line.starts_with("port"):
@@ -238,18 +250,16 @@ std
 ├── cmp             comparison traits (fixed), min, max, clamp, sort keys
 ├── hash            Hash, Hasher (fixed), default hasher
 ├── iter            Iterator, Iterable (fixed), adapters
-├── num             checked, wrapping, saturating arithmetic; parsing; Integer, Float traits
-├── bigint          arbitrary-precision integer (optional, see question 9)
+├── num             inherent checked, wrapping, saturating arithmetic; parsing; Integer, Float traits
 ├── decimal         decimal number
-├── text            StringExt, StringBuilder, chars, UTF-8 encode and decode
-├── bytes           Bytes (see question 5)
-├── option          helpers for T?
-├── result          helpers for Result[T, E]
+├── text            inherent string methods, StringBuilder, UTF-8 encode and decode
+├── bytes           Bytes (decision 5)
+├── option          inherent methods on T?
+├── result          inherent methods on Result[T, E]
 ├── error           Error trait, error chains
-├── collections     Set, Deque, SortedMap, SortedSet, ListExt, MapExt
+├── collections     Set, Deque, SortedMap, SortedSet; inherent List and Map methods
 ├── path            Path (pure, platform-neutral)
 ├── resource        ResourceError[E] (fixed)
-├── cell            interior-mutable cell (only if question 1 chooses it)
 │
 ├── time            Duration, Instant, Timestamp; Clock; ManualClock
 ├── random          Rng (pure PRNG); Random; SeededRandom
@@ -262,11 +272,10 @@ std
 ├── observe         Observability (from the runtime draft); RecordingObservability
 ├── log             info, warn, error helpers over Observability
 │
-├── task            Suspend protocol (fixed), block_on, all!, race!, timeout!, retry!, scope!
+├── task            Suspend protocol (fixed), block_on, all!, race!, timeout!, retry!, scope! (structured only)
 │
 ├── json            Json value, parse, print; typed codecs after derivation
 ├── fingerprint     Fingerprint, Algorithm, fingerprinting trait
-├── secret          Secret[T], Redact
 ├── incremental     incremental computation (runtime draft)
 │
 ├── annotation      shapes and annotators (fixed)
@@ -278,6 +287,13 @@ concept each, and capitalized nominal types, including the literal-bearing
 built-ins `List` and `Map`. Only primitive types such as `i32`, `bool`, and
 `string` have lowercase names.
 
+Arbitrary-precision integers are not in `std`; `BigInt` is an ordinary
+package (decision 9). `std.cell` is gone: a provider changes its own state
+through `mut self` methods and `$.use(mut K)` (decision 1). `std.secret`,
+`Secret[T]`, and `Redact` are parked with typed derivation in
+[Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)
+(decision 12).
+
 ## Core Layer
 
 All core modules are pure: no declaration here has a requirement row.
@@ -285,8 +301,9 @@ All core modules are pure: no declaration here has a requirement row.
 ### `std.num`
 
 Integer overflow is checked by default; the tour promises "explicit wrapping
-APIs". Since primitives cannot take inherent methods, arithmetic variants are
-trait methods implemented by `std` for every integer type:
+APIs". `std` declares the arithmetic variants as inherent methods on every
+integer type (decision 8), so `count.checked_add(1)` needs no `use`. The
+`Integer` and `Float` traits collect the same methods for generic code:
 
 ```text
 pub enum ParseNumberError:
@@ -334,27 +351,49 @@ open question ([Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-i
 ### `std.text`
 
 The built-in `string` methods are the six in the
-[normative table](../spec/10-modules.md#prelude). The rest arrives through an
-extension trait, so one `use std.text.StringExt` makes them dot-callable:
+[normative table](../spec/10-modules.md#prelude). The rest are inherent
+methods that `std` declares on `string` (decision 8). They are available in
+every module without a `use`:
 
 ```text
-pub trait StringExt:
-    fn ends_with(self, suffix: string) -> bool
-    fn contains(self, needle: string) -> bool
-    fn find(self, needle: string) -> i32?
-    fn upper(self) -> string
-    fn trim_start(self) -> string
-    fn trim_end(self) -> string
-    fn strip_prefix(self, prefix: string) -> string?
-    fn strip_suffix(self, suffix: string) -> string?
-    fn chars(self) -> List[char]
-    fn lines(self) -> List[string]
-    fn repeat(self, count: i32) -> string
-    fn is_empty(self) -> bool
-    fn to_utf8(self) -> List[u8]
+impl string:
+    pub fn ends_with(self, suffix: string) -> bool:
+        pass
 
-impl StringExt for string:
-    fn ends_with(self, suffix: string) -> bool:
+    pub fn contains(self, needle: string) -> bool:
+        pass
+
+    pub fn find(self, needle: string) -> i32?:
+        pass
+
+    pub fn upper(self) -> string:
+        pass
+
+    pub fn trim_start(self) -> string:
+        pass
+
+    pub fn trim_end(self) -> string:
+        pass
+
+    pub fn strip_prefix(self, prefix: string) -> string?:
+        pass
+
+    pub fn strip_suffix(self, suffix: string) -> string?:
+        pass
+
+    pub fn chars(self) -> List[char]:
+        pass
+
+    pub fn lines(self) -> List[string]:
+        pass
+
+    pub fn repeat(self, count: i32) -> string:
+        pass
+
+    pub fn is_empty(self) -> bool:
+        pass
+
+    pub fn to_utf8(self) -> List[u8]:
         pass
 
 pub enum Utf8Error:
@@ -387,26 +426,48 @@ mappings. Normalization, segmentation, and collation are later additions
 
 ### `std.option` and `std.result`
 
-The normative method table gives `T?` only `map`. Two candidate mechanisms
-exist (question 8): grow the built-in table, or ship extension traits. The
-sketch uses extension traits, because they need no specification change:
+The normative method table gives `T?` only `map`. By decision 8, `std`
+declares the rest as inherent methods on `T?` and `Result[T, E]`. They need
+no `use`, and the normative table stays short:
 
 ```text
-pub trait OptionExt[T]:
-    fn unwrap_or(self, fallback: T) -> T
-    fn ok_or[E](self, error: E) -> Result[T, E]
-    fn is_some(self) -> bool
-    fn is_none(self) -> bool
-    fn expect(self, message: string) -> T
+impl[T] T?:
+    pub fn unwrap_or(self, fallback: T) -> T:
+        pass
 
-pub trait ResultExt[T, E]:
-    fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]
-    fn map_err[F](self, transform: fn(E) -> F) -> Result[T, F]
-    fn ok(self) -> T?
-    fn err(self) -> E?
-    fn is_ok(self) -> bool
-    fn unwrap_or(self, fallback: T) -> T
-    fn expect(self, message: string) -> T
+    pub fn ok_or[E](self, error: E) -> Result[T, E]:
+        pass
+
+    pub fn is_some(self) -> bool:
+        pass
+
+    pub fn is_none(self) -> bool:
+        pass
+
+    pub fn expect(self, message: string) -> T:
+        pass
+
+impl[T, E] Result[T, E]:
+    pub fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]:
+        pass
+
+    pub fn map_err[F](self, transform: fn(E) -> F) -> Result[T, F]:
+        pass
+
+    pub fn ok(self) -> T?:
+        pass
+
+    pub fn err(self) -> E?:
+        pass
+
+    pub fn is_ok(self) -> bool:
+        pass
+
+    pub fn unwrap_or(self, fallback: T) -> T:
+        pass
+
+    pub fn expect(self, message: string) -> T:
+        pass
 ```
 
 Callbacks take no row parameter here, so `map_err(fn(e): ...)` cannot use a
@@ -461,15 +522,31 @@ pub data SortedMap[K < Ord, V]:
     keys: List[K]
     values: List[V]
 
-pub trait ListExt[T]:
-    fn filter(self, keep: fn(T) -> bool) -> List[T]
-    fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]
-    fn first(self) -> T?
-    fn last(self) -> T?
-    fn reversed(self) -> List[T]
-    fn chunks(self, size: i32) -> List[List[T]]
-    fn zip[U](self, other: List[U]) -> List[(T, U)]
+impl[T] List[T]:
+    pub fn filter(self, keep: fn(T) -> bool) -> List[T]:
+        pass
+
+    pub fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]:
+        pass
+
+    pub fn first(self) -> T?:
+        pass
+
+    pub fn last(self) -> T?:
+        pass
+
+    pub fn reversed(self) -> List[T]:
+        pass
+
+    pub fn chunks(self, size: i32) -> List[List[T]]:
+        pass
+
+    pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
+        pass
 ```
+
+The `List` and `Map` methods beyond the normative table are inherent methods
+declared by `std` (decision 8), like the `string` methods.
 
 `Set` iterates in insertion order to match `Map`. `SortedMap` gives ordered
 iteration for deterministic output. Field layouts above are placeholders.
@@ -537,18 +614,22 @@ Every trait below is a requirement key. Each module has the same shape:
 3. a deterministic provider with a public constructor;
 4. no public constructor for the host provider.
 
-### A gap: stateful providers
+### Stateful providers
 
-`$.use` returns a readonly value, and viewpoint adaptation makes a field
-declared `mut U` read as `U` through it. A provider method with a `self`
-receiver therefore cannot change the provider's own state. Host providers
-hide their state in the host, so they are unaffected. Deterministic providers
-are not: `ManualClock.advance`, `MemoryFs` writes, `BufferConsole` capture,
-and the `RecordingObservability` example in
-[Runtime and Library Design](RUNTIME_AND_LIBRARY.md#provider-strategies) all
-need mutation through a readonly provider. Question 1 asks how to close this.
-The sketches below assume a sealed `std.cell.Cell[T]` whose `set` works
-through a readonly reference; that is option A of question 1.
+Deterministic providers keep state: `ManualClock` advances, `MemoryFs`
+stores writes, `SeededRandom` steps its generator. Decision 1 gives them
+ordinary `mut self` methods. A trait method that changes provider state takes
+`mut self`; callers require `mut K` in their row and retrieve the provider
+with `$.use(mut K)`; a test installs a mutable value with
+`$.with(mut K=value)` and may keep its own `mut` alias to inspect the state
+afterwards
+([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+
+Runtime profiles bind host providers readonly, and an entry-point row with
+`mut K` is a `mutable-upgrade` error. A host provider for a trait whose
+methods take `mut self` (`Clock.sleep!`, `Random`, `FsWrite` below) therefore
+needs a profile that can bind it with `mut` access. That choice is open in
+[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
 
 ### `std.time`
 
@@ -586,36 +667,53 @@ pub data Instant:
     ticks: i64
 
 pub trait Clock:
-    fn now!(self) -> Timestamp
-    fn monotonic!(self) -> Instant
-    fn sleep!(self, duration: Duration) -> void
+    fn now(self) -> Timestamp
+    fn monotonic(self) -> Instant
+    fn sleep!(mut self, duration: Duration) -> void
 
 pub data ManualClock:
-    current: Cell[Timestamp]
+    current: Timestamp
 
 impl ManualClock:
-    pub fn starting_at(start: Timestamp) -> ManualClock:
+    pub fn starting_at(start: Timestamp) -> mut ManualClock:
         pass
 
-    pub fn advance(self, duration: Duration) -> void:
-        pass
+    pub fn advance(mut self, duration: Duration) -> void:
+        self.current = self.current.plus(duration)
 
 impl Clock for ManualClock:
-    fn now!(self) -> Timestamp:
-        self.current.get()
+    fn now(self) -> Timestamp:
+        self.current
 
-    fn monotonic!(self) -> Instant:
+    fn monotonic(self) -> Instant:
         pass
 
-    fn sleep!(self, duration: Duration) -> void:
+    fn sleep!(mut self, duration: Duration) -> void:
         self.advance(duration)
+```
+
+Reading the clock is a plain call (decision 2); only `sleep!` suspends. A
+test installs a manual clock with mutable access, so `sleep!` can advance it:
+
+```text
+use std.time.{Clock, Duration, ManualClock, Timestamp}
+
+fn pause!(step: Duration) -> void $ mut Clock:
+    $.use(mut Clock).sleep!(step)
+
+fn simulate!() -> Timestamp:
+    let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
+    $.with(mut Clock=clock):
+        pause!(Duration::seconds(5))
+    clock.now()
 ```
 
 `Timestamp` is UTC wall time; `Instant` is monotonic and meaningful only
 against the clock that produced it. Calendar dates, time zones, and
 formatting stay outside `std` at first, as Kotlin kept them in
-`kotlinx-datetime`. `ManualClock.sleep!` advances immediately; a virtual-time
-provider that fires timers only when the driver is idle is question 10.
+`kotlinx-datetime`. `ManualClock.sleep!` advances immediately (decision 10);
+a virtual-time provider that fires timers only when the driver is idle comes
+later with a driver hook.
 
 ### `std.random`
 
@@ -639,29 +737,36 @@ impl Rng:
         pass
 
 pub trait Random:
-    fn next_u64!(self) -> u64
-    fn fill!(self, count: i32) -> List[u8]
+    fn next_u64(mut self) -> u64
+    fn fill(mut self, count: i32) -> List[u8]
 
-pub fn rng!() -> mut Rng $ Random:
-    Rng::from_seed($.use(Random).next_u64!())
+pub fn rng() -> mut Rng $ mut Random:
+    Rng::from_seed($.use(mut Random).next_u64())
 
 pub data SeededRandom:
-    generator: Cell[Rng]
+    generator: mut Rng
 
 impl SeededRandom:
-    pub fn new(seed: u64) -> SeededRandom:
+    pub fn new(seed: u64) -> mut SeededRandom:
+        pass
+
+impl Random for SeededRandom:
+    fn next_u64(mut self) -> u64:
+        self.generator.next_u64()
+
+    fn fill(mut self, count: i32) -> List[u8]:
         pass
 ```
 
-Code that needs many numbers takes one suspending seed and then runs the pure
-`Rng`, so replay records one event instead of one per number. Cryptographic
-randomness is `Random.fill!` from the host; no pure generator claims to be
-cryptographic.
+Random reads are plain calls (decision 2). Code that needs many numbers takes
+one seed from the host and then runs the pure `Rng`, so replay records one
+host call instead of one per number. Cryptographic randomness is
+`Random.fill` from the host; no pure generator claims to be cryptographic.
 
 ### `std.host`
 
-`Args` already appears in the tour. Arguments and environment are fixed for
-one invocation, so they are recorded once and their reads are not suspending:
+`Args` already appears in the tour. Argument and environment reads are
+plain calls (decision 2), and replay records each one at the boundary:
 
 ```text
 pub trait Args:
@@ -687,8 +792,6 @@ pub data MapArgs:
     values: List[string]
 ```
 
-Secrets do not come from `Env` as plain strings; see `std.secret`.
-
 ### `std.console`
 
 `Console` and `println` are fixed. Input is a separate key, so a program that
@@ -699,24 +802,33 @@ pub trait ConsoleInput:
     fn read_line!(self) -> Result[string?, ConsoleError]
 
 pub data BufferConsole:
-    lines: Cell[List[string]]
+    lines: mut List[string]
 
 impl BufferConsole:
-    pub fn new() -> BufferConsole:
+    pub fn new() -> mut BufferConsole:
         pass
 
     pub fn output(self) -> List[string]:
-        self.lines.get()
+        self.lines
 
 impl Console for BufferConsole:
     fn write_line!(self, text: string) -> Result[void, ConsoleError]:
         pass
 ```
 
+A test installs the buffer with `$.with(mut Console=console)` and reads
+`console.output()` through its own `mut` alias. The fixed
+`Console.write_line!` takes `self`, so the buffer cannot append through it
+yet. Recording needs `write_line!` to take `mut self`, a change to the
+[prelude trait](../spec/10-modules.md#prelude) that waits on
+[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), because the
+host console is bound readonly.
+
 ### `std.fs`
 
-The sketch uses a read/write split (question 3). Whole-file operations come
-first; streaming handles wait for
+The traits are a read/write split (decision 3). Writes take `mut self`, so a
+writer requires `mut FsWrite` and `MemoryFs` stores what it is given.
+Whole-file operations come first; streaming handles wait for
 [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy):
 
 ```text
@@ -746,20 +858,20 @@ pub trait FsRead:
     fn metadata!(self, path: Path) -> Result[Metadata, FsError]
 
 pub trait FsWrite:
-    fn write!(self, path: Path, contents: List[u8]) -> Result[void, FsError]
-    fn write_text!(self, path: Path, text: string) -> Result[void, FsError]
-    fn create_dir!(self, path: Path) -> Result[void, FsError]
-    fn remove!(self, path: Path) -> Result[void, FsError]
-    fn rename!(self, from: Path, to: Path) -> Result[void, FsError]
+    fn write!(mut self, path: Path, contents: List[u8]) -> Result[void, FsError]
+    fn write_text!(mut self, path: Path, text: string) -> Result[void, FsError]
+    fn create_dir!(mut self, path: Path) -> Result[void, FsError]
+    fn remove!(mut self, path: Path) -> Result[void, FsError]
+    fn rename!(mut self, from: Path, to: Path) -> Result[void, FsError]
 
 pub data MemoryFs:
-    files: Cell[Map[string, List[u8]]]
+    files: mut Map[string, List[u8]]
 
 impl MemoryFs:
-    pub fn new() -> MemoryFs:
+    pub fn new() -> mut MemoryFs:
         pass
 
-    pub fn with_files(files: Map[string, string]) -> MemoryFs:
+    pub fn with_files(files: Map[string, string]) -> mut MemoryFs:
         pass
 
     pub fn scoped(self, root: Path) -> MemoryFs:
@@ -831,10 +943,11 @@ pub trait Http:
 
 pub data ScriptedHttp:
     routes: Map[string, Response]
-    requests: Cell[List[Request]]
 ```
 
-`ScriptedHttp` answers from a route table and records what it received.
+`ScriptedHttp` answers from a route table. Recording the requests it receives
+would need `send!` to take `mut self`, which would put `mut Http` in every
+caller's row; the sketch keeps `Http` readonly until a test needs the record.
 `std.net` (TCP, UDP, DNS) waits for resource non-escape, since a socket is a
 live handle.
 
@@ -874,8 +987,9 @@ These take the draft in
 [Observability](RUNTIME_AND_LIBRARY.md#observability) as written:
 `Observability` with `sample` and `emit`, the `Observation` enum, and
 `log.info`, `log.warn`, `log.error` helpers with a `$ Observability` row.
-`RecordingObservability` is the deterministic provider; it hits the
-stateful-provider gap above.
+`RecordingObservability` is the deterministic provider. It records through
+`mut self` methods like the other stateful providers, with the same host
+binding question.
 
 ## Task Layer
 
@@ -900,7 +1014,7 @@ pub enum Timeout[T]:
     Completed(value: T)
     Elapsed
 
-pub fn timeout![T](limit: Duration, task: mut Suspend[T]) -> Timeout[T] $ Clock:
+pub fn timeout![T](limit: Duration, task: mut Suspend[T]) -> Timeout[T] $ mut Clock:
     pass
 
 pub data RetryPolicy:
@@ -911,17 +1025,18 @@ pub data RetryPolicy:
 pub fn retry![T, E](
     policy: RetryPolicy,
     attempt: fn() -> mut Suspend[Result[T, E]],
-) -> Result[T, E] $ Clock:
+) -> Result[T, E] $ mut Clock:
     pass
 ```
 
-`timeout!` and `retry!` require `Clock`, so a test binds `ManualClock` and
-the retry schedule becomes deterministic. `retry!` takes a constructor, not
+`timeout!` and `retry!` sleep, so they require `mut Clock`. A test installs a
+`ManualClock` with `$.with(mut Clock=clock)`, and the retry schedule becomes
+deterministic. `retry!` takes a constructor, not
 a suspension, because a `Suspend[T]` runs once. `race!` takes a homogeneous
 list; a heterogeneous race returns an enum the caller defines.
 
-`Task[T]` is the open "higher-level" API. The recommendation (question 11) is
-a structured scope rather than detached spawning:
+`Task[T]` exists only inside a structured scope (decision 11). There is no
+detached spawn:
 
 ```text
 pub data Scope:
@@ -946,7 +1061,8 @@ pub fn scope![T](body: fn!(Scope) -> T) -> T:
 ```
 
 `scope!` returns only after every started task finishes, and cancelling the
-scope cancels its tasks, so no task outlives its parent. This preserves
+scope cancels its tasks, so no task outlives its parent. An error or
+cancellation in one task cancels its siblings. This preserves
 one-shot `Suspend[T]` semantics: `start` takes ownership of driving, and
 `join!` returns the stored result.
 
@@ -954,16 +1070,67 @@ one-shot `Suspend[T]` semantics: `start` takes ownership of driving, and
 
 ### `std.json`
 
-An untyped value and a parser and printer need no derivation and can ship now:
+An untyped value and a parser and printer need no derivation and ship now
+(decision 13). Numbers use one `Number` type modeled on `serde_json::Number`:
 
 ```text
 pub enum Json:
     Null
     Bool(value: bool)
-    Number(value: f64)
+    Number(Number)
     Text(value: string)
     Array(items: List[Json])
     Object(fields: Map[string, Json])
+
+pub data Number:
+    repr: NumberRepr
+
+enum NumberRepr:
+    Unsigned(value: u64)
+    Signed(value: i64)
+    Float(value: f64)
+
+impl Number:
+    pub fn from_i64(value: i64) -> Number:
+        pass
+
+    pub fn from_u64(value: u64) -> Number:
+        pass
+
+    pub fn from_f64(value: f64) -> Number?:
+        pass
+
+    pub fn is_i64(self) -> bool:
+        pass
+
+    pub fn is_u64(self) -> bool:
+        pass
+
+    pub fn is_f64(self) -> bool:
+        pass
+
+    pub fn as_i64(self) -> i64?:
+        pass
+
+    pub fn as_u64(self) -> u64?:
+        pass
+
+    pub fn as_f64(self) -> f64?:
+        pass
+
+impl PartialEq for Number:
+    fn eq(self, other: Number) -> bool:
+        pass
+
+impl Eq for Number
+
+impl Hash for Number:
+    fn hash(self, state: mut Hasher) -> void:
+        pass
+
+impl Display for Number:
+    fn to_string(self) -> string:
+        pass
 
 pub data JsonError:
     pub message: string
@@ -979,8 +1146,12 @@ pub fn print_pretty(value: Json, indent: i32 = 2) -> string:
     pass
 ```
 
-`Object` keeps insertion order because `Map` does. Integers beyond 2^53 need
-a decision: a separate `Integer(value: i64)` case, or a raw-number case.
+`Object` keeps insertion order because `Map` does. The representation of
+`Number` is private: an unsigned integer, a signed integer, or a finite float.
+There is one constructor per integer type (`from_i8` through `from_u64`; the
+sketch shows two). `from_f64` returns `.None` for NaN and infinity, so a
+`Number` is always valid JSON. Integers keep full 64-bit precision, `Eq` and
+`Hash` compare the representation, and `Display` prints the JSON text.
 
 Typed encoding and decoding (`User` to `Json` and back) is blocked on
 [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
@@ -1002,8 +1173,7 @@ language:
 6. **Field metadata** for renames, defaults, and skipping; annotations already
    provide this.
 7. **Enum encoding policy**: tagged, adjacent, or untagged, chosen per type.
-8. **Redaction**: `Secret[T]` fields must not encode by default.
-9. **Round-trip stability** that matches the boundary encoding, so a value
+8. **Round-trip stability** that matches the boundary encoding, so a value
    crossing a registered boundary and one written to JSON agree.
 
 The same needs cover property-test generators and tool schemas, which is why
@@ -1045,40 +1215,6 @@ It mirrors `Hash` and `Hasher`, but the output is stable across processes and
 carries its algorithm and version. Deriving `Fingerprintable` needs a
 derivation rule, which falls under the same typed-derivation issue.
 
-### `std.secret`
-
-```text
-pub data Secret[T]:
-    value: T
-
-impl[T] Secret[T]:
-    pub fn new(value: T) -> Secret[T]:
-        pass
-
-    pub fn expose(self) -> T:
-        self.value
-
-impl[T] Display for Secret[T]:
-    fn to_string(self) -> string:
-        "<redacted>"
-
-pub trait Redact:
-    fn redacted(self) -> string
-
-pub trait SecretStore:
-    fn get!(self, name: string) -> Result[Secret[string], SecretError]
-
-pub enum SecretError:
-    NotFound(name: string)
-    Denied(name: string)
-```
-
-A library type can already hide the value from `Display` and interpolation.
-It cannot stop `Secret[T]` from crossing a registered boundary, being
-serialized, or being logged through a derived encoder. Those rules belong to
-[Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)
-and [Observability Hooks](OPEN_ISSUES.md#observability-hooks). See question 12.
-
 ## Testing Layer
 
 `std.testing` keeps `assert` and `assert_equal` with their mandatory reason,
@@ -1110,15 +1246,18 @@ use std.host.{Env, MapEnv}
 use std.random.{Random, SeededRandom}
 use std.time.{Clock, ManualClock, Timestamp}
 
-pub fn hermetic(seed: u64 = 0) -> $.Context[Clock + Random + Env + FsRead + FsWrite + Console]:
-    files := MemoryFs::new()
+pub fn hermetic(seed: u64 = 0) -> $.Context[mut Clock + mut Random + Env + FsRead + mut FsWrite + mut Console]:
+    let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
+    let random: mut SeededRandom = SeededRandom::new(seed)
+    let files: mut MemoryFs = MemoryFs::new()
+    let console: mut BufferConsole = BufferConsole::new()
     $.context(
-        Clock=ManualClock::starting_at(Timestamp::from_unix_seconds(0)),
-        Random=SeededRandom::new(seed),
+        mut Clock=clock,
+        mut Random=random,
         Env=MapEnv { values: {} },
         FsRead=files,
-        FsWrite=files,
-        Console=BufferConsole::new(),
+        mut FsWrite=files,
+        mut Console=console,
     )
 
 test "a hermetic run can override one provider":
@@ -1126,7 +1265,9 @@ test "a hermetic run can override one provider":
         pass
 ```
 
-Later entries win, so a test replaces one provider after the spread.
+Later entries win, so a test replaces one provider after the spread. The
+stateful providers enter the context with `mut` access, so code under test
+can advance the clock, step the generator, and write files.
 
 Property testing stays a library facility, as
 [Runtime and Library Design](RUNTIME_AND_LIBRARY.md#testing) requires. The
@@ -1154,18 +1295,18 @@ Stateful testing and replay artifacts wait for area 3's event log.
 
 | Module | Depends on | Open item |
 | --- | --- | --- |
-| every deterministic provider, `std.observe` | mutation through a readonly provider | question 1 (no open issue yet) |
-| `std.time`, `std.random`, `std.fs`, `std.http` | which host reads suspend for replay | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows), question 2 |
+| host providers for `Clock.sleep!`, `Random`, `FsWrite`, a recording `Console` | binding a host provider with `mut` access | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
+| `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2) | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) |
+| inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule | [Implementation Targets](../spec/09-traits.md#implementation-targets) |
 | `std.num` (`parse[T]`), `std.json`, `std.testing` strategies | static calls through a bound | [Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
 | `std.error` | `Inspectable` and `downcast` | [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
 | schema output, tool adapters | shape cases for `mut`, trait values, `Any` | [Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage) |
-| `std.secret` | boundary and encoder redaction contract | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets), [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
 | `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
 | `std.incremental` | closure identity, weak references | [Serializable Closures](OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |
 | `std.task.all!` | variadic packs (could be cut) | [Scope Reduction](OPEN_ISSUES.md#scope-reduction-and-distinctive-requirements) |
-| `std.task` virtual time | a driver idle signal | question 10 (no open issue yet) |
+| idle-driven virtual time (after decision 10) | a driver idle signal | no open issue yet |
 | attenuated providers (`for_tenant`) | principal and tenancy patterns | [Access Control](OPEN_ISSUES.md#access-control-and-tenancy-expressibility) |
 | capability catalog, provider configuration, combinator set | library and runtime work | [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work) |
 | how `std` versions with the compiler | package tooling | [Roadmap area 5](ROADMAP.md#5-packages) |
@@ -1206,6 +1347,11 @@ Decided 2026-09-26:
 11. **Question 11: structured scopes only.** `scope!` with `start` and
     `join!`; no task outlives its scope; an error or cancellation cancels the
     siblings.
+12. **Question 12: `Secret[T]` is removed from the design for now.** It is
+    too early; it is parked with typed derivation in
+    [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+    This document no longer sketches `std.secret`, `Secret[T]`, or
+    `Redact`.
 13. **Question 13: ship untyped `std.json.Json` now, with a unified
     `Number`** modeled on `serde_json::Number`: a private representation
     (unsigned integer, signed integer, or finite float); constructors from
@@ -1213,70 +1359,65 @@ Decided 2026-09-26:
     infinity; accessors `is_i64`, `is_u64`, `is_f64`, `as_i64() -> i64?`,
     `as_u64()`, `as_f64()`; `Eq`, `Hash`, and printing as the original JSON
     text. `Json.Number(Number)` is a single variant.
-12. **Question 12: `Secret[T]` is removed from the design for now.** It is
-    too early; it is parked with typed derivation in
-    [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
-    Sections of this document that mention `Secret[T]` or `Redact` are not
-    part of the current design.
 
 ## Questions For The Owner
 
+All thirteen questions are decided; see [Owner Decisions](#owner-decisions).
+Each entry keeps the options that were weighed and states the decision. The
+examples follow the decided design.
+
 ### 1. How does a deterministic provider change its own state?
 
-`$.use` returns a readonly provider, so `ManualClock.advance` and
-`MemoryFs.write!` cannot mutate through `self`.
+`$.use` returned only a readonly provider, so `ManualClock.advance` and
+`MemoryFs.write!` could not mutate through `self`.
 
 - **A. Sealed interior-mutable cell.** `std.cell.Cell[T]` with
   `get(self) -> T` and `set(self, value: T) -> void`, implemented as a
-  compiler intrinsic. Mutation through readonly becomes possible, but only
-  where the type says `Cell`.
+  compiler intrinsic.
 - **B. Mutable requirement keys.** Allow trait methods with `mut self` on
   requirement traits and make `$.use` return `mut Trait` when the bound value
-  is mutable. This changes chapter 11 and the context-entry typing.
+  is mutable.
 - **C. Runtime-backed test providers.** Deterministic providers are host
-  objects created by an intrinsic, like real ones. No language change, but
-  users cannot write their own stateful fakes.
+  objects created by an intrinsic, like real ones.
 
-**Recommendation: A.** It is a library type with one intrinsic, it matches
-how host providers already behave, and users can write their own fakes.
+**Decided: B** (decision 1). `$.use(mut K)` returns `mut K` for a provider
+installed with `$.with(mut K=value)`; there is no `std.cell`. The rules are in
+[Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
+Binding a host provider with `mut` access remains open in
+[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
 
 ```text
-data CountingClock:
-    calls: Cell[i32]
+use std.time.{Clock, Duration, ManualClock, Timestamp}
 
-impl Clock for CountingClock:
-    fn now!(self) -> Timestamp:
-        self.calls.set(self.calls.get() + 1)
-        Timestamp::from_unix_seconds(0)
+fn wait_twice!(step: Duration) -> void $ mut Clock:
+    $.use(mut Clock).sleep!(step)
+    $.use(mut Clock).sleep!(step)
 
-    fn monotonic!(self) -> Instant:
-        pass
-
-    fn sleep!(self, duration: Duration) -> void:
-        pass
+fn elapsed!() -> Timestamp:
+    let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
+    $.with(mut Clock=clock):
+        wait_twice!(Duration::seconds(1))
+    clock.now()
 ```
 
 ### 2. Which host reads are suspending?
 
-Replay records bang calls. A non-suspending read of the clock is invisible to
-replay; a suspending one forces every caller to be `fn!`.
-
 - **A.** Every host read is suspending (`now!`, `next_u64!`, `get!`).
 - **B.** Live reads suspend (clock, random, filesystem, network); invocation
-  inputs fixed at start (`Args`, `Env`) do not, and replay records them once
-  with the invocation.
+  inputs fixed at start (`Args`, `Env`) do not.
 - **C.** No reads suspend; replay intercepts every host provider call,
   suspending or not.
 
-**Recommendation: B.** It matches the replay rule that external inputs go
-through suspending dependencies, and keeps configuration code
-non-suspending. `Rng::from_seed` keeps bulk randomness cheap.
+**Decided: I/O suspends; clock, random, and environment reads do not**
+(decision 2). Filesystem and network operations are bang calls;
+`clock.now()`, `random.next_u64()`, and `env.get()` are plain calls. Replay
+records every host call at the boundary regardless of suspension.
 
 ```text
-fn deadline!(budget: Duration) -> Timestamp $ Clock + Env:
+fn deadline(budget: Duration) -> Timestamp $ Clock + Env:
     clock, env := $.use(Clock, Env)
     extra := env.get("EXTRA_SECONDS")
-    clock.now!().plus(budget)
+    clock.now().plus(budget)
 ```
 
 ### 3. One filesystem trait or several?
@@ -1285,15 +1426,14 @@ fn deadline!(budget: Duration) -> Timestamp $ Clock + Env:
 - **B.** `FsRead` and `FsWrite`, bound separately.
 - **C.** Finer traits: `FileRead`, `FileWrite`, `DirectoryList`, and more.
 
-**Recommendation: B.** The row then shows whether a function can change the
-disk, which is the fact reviewers care about. C multiplies keys without a
-matching review benefit. The same split applies to `Console` and
-`ConsoleInput`.
+**Decided: B** (decision 3). The row shows whether a function can change the
+disk. The same split applies to `Console` and `ConsoleInput`. Writes take
+`mut self`, so a writer requires `mut FsWrite`.
 
 ```text
-fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead + FsWrite:
+fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead + mut FsWrite:
     text := $.use(FsRead).read_text!(input)?
-    $.use(FsWrite).write_text!(output, text.upper())
+    $.use(mut FsWrite).write_text!(output, text.upper())
 ```
 
 ### 4. Where do deterministic providers live?
@@ -1301,15 +1441,14 @@ fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead + 
 - **A.** Next to their trait (`std.time.ManualClock`).
 - **B.** In `std.testing` (`std.testing.ManualClock`).
 
-**Recommendation: A.** They serve replay debugging and simulation too, and
-the survey shows test doubles kept apart from the interface drift from it.
+**Decided: A** (decision 4). They serve replay debugging and simulation too.
 `std.testing.hermetic` bundles them.
 
 ```text
 use std.time.{Clock, ManualClock, Timestamp}
 
-fn simulate!() -> Timestamp $ Clock:
-    $.use(Clock).now!()
+fn simulate() -> Timestamp $ Clock:
+    $.use(Clock).now()
 ```
 
 ### 5. What is the byte-sequence type?
@@ -1319,9 +1458,10 @@ fn simulate!() -> Timestamp $ Clock:
   from `List[u8]`.
 - **C.** A primitive `bytes` type with literals.
 
-**Recommendation: B.** A `List[u8]` of Wasm GC references is wasteful for
-file and network payloads; a library type avoids a grammar change. The
-sketches above use `List[u8]` until this is decided.
+**Decided: B** (decision 5). A `List[u8]` of Wasm GC references is wasteful
+for file and network payloads, and a library type needs no grammar change.
+The sketches above still write `List[u8]`; they move to `Bytes` when
+`std.bytes` is sketched.
 
 ```text
 use std.bytes.Bytes
@@ -1335,9 +1475,8 @@ fn checksum(payload: Bytes) -> u32:
 - **A.** One enum per domain (`FsError`, `HttpError`), like `ConsoleError`.
 - **B.** One shared `IoError` with a kind field.
 
-**Recommendation: A.** Each row key then has its own error type, and a
-`match` is exhaustive over errors that key can produce. A shared
-`IoErrorKind` can be embedded where domains overlap.
+**Decided: A** (decision 6). Each row key has its own error type, and a
+`match` is exhaustive over the errors that key can produce.
 
 ```text
 fn describe(error: FsError) -> string:
@@ -1348,14 +1487,10 @@ fn describe(error: FsError) -> string:
 
 ### 7. Does the prelude grow?
 
-Every prelude addition collides with user declarations of the same name.
-
 - **A.** Keep the prelude as specified; new names are imported.
 - **B.** Add a few (`Error`, `Duration`, `Set`) now, before users exist.
 
-**Recommendation: A.** Adding them later would break code, and importing is
-cheap for agents. If B is chosen, it must happen before any package is
-published.
+**Decided: A** (decision 7). `Error`, `Duration`, and `Set` are imported.
 
 ```text
 use std.error.Error
@@ -1371,15 +1506,13 @@ use std.time.Duration
   after one `use`.
 - **C.** Free functions only (`text.ends_with(s, "x")`).
 
-**Recommendation: B**, with A reserved for methods the compiler must
-understand. It needs no specification change and keeps the method set of a
-module visible from its `use` lines. It depends on the specification allowing
-a std `impl` whose target is `T?`; that needs confirming.
+**Decided: inherent methods declared in `std`** (decision 8), neither the
+normative table nor extension traits. `std` owns the built-in types, so it
+declares inherent implementations for them, and their methods need no `use`.
+This needs a `std` exception in
+[Implementation Targets](../spec/09-traits.md#implementation-targets).
 
 ```text
-use std.option.OptionExt
-use std.text.StringExt
-
 fn greeting(name: string?) -> string:
     name.unwrap_or("guest").upper()
 ```
@@ -1390,8 +1523,8 @@ fn greeting(name: string?) -> string:
 - **B.** `decimal` only (money and exact arithmetic).
 - **C.** `decimal` and `BigInt`.
 
-**Recommendation: B.** The tour already names `decimal`, and JSON and
-money-handling tools need it; `BigInt` can be a package.
+**Decided: B** (decision 9). `BigInt` is an ordinary package, not a `std`
+module.
 
 ```text
 use std.decimal.Decimal
@@ -1407,15 +1540,13 @@ fn total(prices: List[Decimal]) -> Decimal:
   Kotlin `runTest`. This needs an idle signal from the test driver.
 - **C.** Only explicit `advance` moves time.
 
-**Recommendation: A now, B later.** A makes `retry!` and `timeout!` tests
-deterministic today. B is correct for concurrent code (a timeout racing a
-fake network call) and needs a `std.task` driver hook, which belongs with
-area 3.
+**Decided: A now, B later** (decision 10). Idle-driven timers come with a
+`std.task` driver hook.
 
 ```text
 test "retry waits between attempts":
-    clock := ManualClock::starting_at(Timestamp::from_unix_seconds(0))
-    $.with(Clock=clock):
+    let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
+    $.with(mut Clock=clock):
         pass
 ```
 
@@ -1426,9 +1557,8 @@ test "retry waits between attempts":
 - **B.** Detached `spawn` returning a handle, as in Tokio.
 - **C.** No `Task[T]`; only `all!`, `race!`, and friends.
 
-**Recommendation: A.** It fits one-shot `Suspend[T]` and synchronous
-cancellation, and it keeps replay order deterministic. B makes lifetime and
-cancellation depend on handles that can be dropped.
+**Decided: A** (decision 11). An error or cancellation in one task cancels
+its siblings.
 
 ```text
 fn fetch_both!(left: Request, right: Request) -> (Response?, Response?) $ Http:
@@ -1441,35 +1571,25 @@ fn fetch_both!(left: Request, right: Request) -> (Response?, Response?) $ Http:
 
 ### 12. What may `Secret[T]` do at a boundary?
 
-- **A.** A `Secret[T]` is not boundary-safe and never encodes.
-- **B.** It crosses a registered boundary and encodes only through an
-  explicit `expose`.
-- **C.** It encodes as a redacted placeholder by default.
-
-**Recommendation: A** until the typed-derivation contract exists, then
-revisit B for tool inputs such as API keys.
-
-```text
-fn authorize!(token: Secret[string]) -> Result[void, HttpError] $ Http:
-    header := "Bearer " + token.expose()
-    Ok()
-```
+**Decided: not now** (decision 12). `Secret[T]` and `Redact` are removed from
+the design and parked with typed derivation in
+[Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
+which keeps the options that were discussed.
 
 ### 13. Does untyped JSON ship before typed derivation?
 
 - **A.** Ship `std.json.Json`, `parse`, and `print` now.
 - **B.** Wait and ship typed and untyped together.
 
-**Recommendation: A.** It is pure, needs no language feature, and every
-later typed codec goes through the same value type. The integer-precision
-case (`Integer(value: i64)` or not) is part of this decision.
+**Decided: A** (decision 13), with one `Number` type modeled on
+`serde_json::Number` in a single `Json.Number(Number)` variant. See
+[`std.json`](#stdjson).
 
 ```text
 use std.json
 
-fn port(text: string) -> f64?:
+fn port(text: string) -> i64?:
     match json.parse(text):
-        Ok(json.Json.Object(fields)) => pass
-        _ => pass
-    .None
+        Ok(json.Json.Number(number)) => number.as_i64()
+        _ => .None
 ```
