@@ -28,6 +28,17 @@ Decided 2026-09-26:
    enums uses the variant visitor. Still to design: how metadata can mark a
    field as not visited by one library's visitors (skip and custom codecs),
    and the exact `@derivable` form.
+2. **Unify with annotations.** `Structure` also has a value-free
+   `describe[D < Describer]()` that visits each slot with its static type.
+   Chapter 14's aggregate annotators (`DataAnnotator`, `EnumAnnotator`, and
+   possibly `FuncAnnotator`) are rebuilt on it, so `map_field` sees the
+   field's static type and can use that type's own facet directly (removing
+   the "no type-level function from field type to mapped output" limit).
+   Visitors and annotators share one metadata vocabulary: they receive the
+   existing `FieldShape` and read annotation member metadata. `@derive(T)`
+   becomes the general rule for traits marked `@derivable`, replacing
+   chapter 14's "compiler-intrinsic exception" wording; ordinary decorators
+   still never change behavior.
 
 ## Contents
 
