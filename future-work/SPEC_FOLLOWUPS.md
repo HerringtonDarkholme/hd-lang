@@ -40,6 +40,12 @@ are applied later in one `spec-update` pass, not per chapter.
 - **Fixture fix:** F-150's fixtures need `pub` added in `spec/conformance`
   (from the prototype catch-up).
 
+- **TQ-2 fresh elements, decided 2026-09-27:** an expected type does not
+  weaken the `mut` of freshly built elements. A comprehension of `Word`
+  literals returned as `Iterator[Word]` is an error; the author declares
+  `Iterator[mut Word]` or builds readonly elements explicitly. Fix the
+  fixture `trait-argument-owner-impl.hd` accordingly.
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -58,7 +64,3 @@ example, as the 08 pilot did.
 
 ## Open, for the owner
 
-- TQ-2 fixture `trait-argument-owner-impl.hd`: its comprehension builds
-  `mut Word` elements while the declared result is `Iterator[Word]`; may an
-  expected type weaken a fresh element's `mut`? (from the prototype
-  catch-up)
