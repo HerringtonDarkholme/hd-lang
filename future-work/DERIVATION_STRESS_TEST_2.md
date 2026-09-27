@@ -49,7 +49,7 @@ that needs it says what it assumes.
 
 | # | Use case | Verdict | Design element at fault |
 | --- | --- | --- | --- |
-| 1 | Error enums with `@derive(Error)` (ast-grep's `RuleCoreError`) | Works with friction; several shapes **break** | `@source` on a payload member has no syntax (R4). A generic `@from` payload overlaps a concrete one (R6). One computed message forces hand-writing every impl (R7). `@transparent` hides the payload from `find` (R10). `?` silently picks the `@from` variant among variants that share a payload type (R11). Spans per value cannot use `@from` (R12). |
+| 1 | Error enums with `@derive(Error)` (ast-grep's `RuleCoreError`) | Works for the reference case; two shapes **break** | A generic `@from` payload overlaps a concrete one (R6). Spans per value cannot use `@from`, and its common-field rule contradicts 08 (R12). `?` silently picks the `@from` variant among variants that share a payload type (R11). `@transparent` hides the payload from `find` (R10). Messages see a new scope and may recurse through `$self` (R7). The two spellings of member `@source` disagree (R4). |
 | 2 | Fact check hook | Works for single-fact checks; cross-member and type checks **break** | The hook sees one fact and its target, not the type (R8). Member types are visible only as exact `TypeId`s (R8). Facts on a type that no template reads are never checked (R8). |
 | 3 | `Eq`, `Ord`, `Hash` | Works with friction | Each walker rebuilds "same variant" bookkeeping; variant choice is a linear scan of `holds` (R2). `= pass` lines are per block, so `Eq` and `Hash` can disagree silently (R3). |
 | 4 | Clone, diff and patch, one-step shrinking | Clone works; with `mut` members **breaks**. Diff and patch: friction. Shrink: friction | `Field[S, F]` cannot type a `mut U` member for both `get` and `build` (R1). No patch type (P10). Shrinking recomputes each member's candidates per candidate (R2, P7). |
@@ -69,8 +69,9 @@ must reconstruct variant structure from `holds` answers, and `get` panics
 when it gets that wrong), mutability (a handle has one member type, but
 reading and constructing need different ones), and scope (handles are
 ordinary values that can outlive the walk). M15 moved error enums out of
-typed derivation. `@derive(Error)` handles the ast-grep reference case, but
-several common error shapes have no spelling in it.
+typed derivation. `@derive(Error)` with E1-E4 handles the ast-grep
+reference case and most thiserror shapes; generic wrapper enums and located
+errors are the ones it cannot spell.
 
 ## The Surface Being Tested
 
@@ -85,12 +86,17 @@ It does not assume a type name, member docs, a member count, an "is enum"
 flag, or a variant back-reference on `Field`. Where a case needs one, it
 says so.
 
-For `@derive(Error)` the surface is Error Conversion decision 10: markers
-`@message("... {member} ...")`, `@from`, `@source`, and `@transparent`; the
-compiler generates `impl Display`, `impl Error` with `cause()`, and one
-`impl From[P] for E` per `@from` variant. `std.error.Error` is as in
-[STDLIB](STDLIB.md#stderror): `cause(self) -> Error?` with a default, plus
-`find[T]`, `chain`, and `root_cause`.
+For `@derive(Error)` the surface is Error Conversion decision 10 with its
+refinements E1-E4 and the
+[Current Design](ERROR_CONVERSION.md#current-design) section: markers
+`@message("... $member ...")` (an ordinary interpolated string with the
+payload members and common fields in scope, E1), `@from`, `@source` (on a
+one-payload variant, or for one member of a multi-member variant, E4), and
+`@transparent` (whose `cause()` returns the inner error's cause, E3). The
+compiler always generates `impl Display` (E2), `impl Error` with `cause()`,
+and one `impl From[P] for E` per `@from` variant. `std.error.Error` is as
+in [STDLIB](STDLIB.md#stderror): `cause(self) -> Error?` with a default,
+plus `find[T]`, `chain`, and `root_cause`.
 
 For the fact check hook the surface is one sentence of M15: a fact type may
 define a compile-time `check` against its member or variant, run at the
@@ -128,7 +134,7 @@ pub enum RuleCoreError:
     @message("`transform` is not configured correctly.")
     @from
     Transform(error: TransformError)
-    @message("Undefined meta var `{var}` used in `{context}`.")
+    @message("Undefined meta var `$var` used in `$context`.")
     UndefinedMetaVar(var: string, context: string)
 
 fn try_new(config: SerializableRuleCore) -> Result[RuleCore, RuleCoreError]:
@@ -178,71 +184,56 @@ impl From[TransformError] for RuleCoreError:
 
 `.Some(error)` in `cause` is one conversion (the payload erased to `Error`
 inside an explicit `.Some`), so it is valid under single-step
-assignability. The whole reference case is expressible, and the message
-placeholders are checked. This part works.
+assignability. The whole reference case is expressible, and the messages
+are type-checked. This part works.
 
-What the reference case does not show:
+What the reference case does not show: **`?` picks `Rule` silently.** In
+`try_new`, writing `parse_utils(config.utils)?` without `.map_err`
+compiles, and the error displays as "`rule` is not configured correctly."
+Nothing warns that the payload type is shared with two `@source` variants
+(R11).
 
-- **`?` picks `Rule` silently.** In `parse_utils`'s caller, writing
-  `parse_utils(config.utils)?` without `.map_err` compiles, and the error
-  displays as "`rule` is not configured correctly." Nothing warns that the
-  payload type is shared with two `@source` variants (R11).
-- **`UndefinedMetaVar` has two payloads**, so neither can be marked as the
-  cause with `@source` on the member: see 1.4 (R4).
+#### 1.2 Messages
 
-#### 1.2 Messages and placeholders
+Under E1 a message is an ordinary interpolated string, type-checked with the
+variant's payload members and the enum's common fields in scope. That
+settles round 1's unchecked placeholders and makes computed messages
+ordinary expressions:
 
 ```text
 @derive(Error)
 pub enum FetchError:
-    @message("timed out after {secs}s")      # error: `secs` names no payload member (checked, good)
+    @message("timed out after ${secs}s")        # error: unknown-name `secs` (checked, good)
     Timeout(seconds: i64)
-    @message("expected `{` after {path}")    # a literal brace: no escape rule is stated
+    @message("expected `{` after $path")        # braces are ordinary string content
     Syntax(path: string)
-    @message("no route to $host")            # interpolates at the annotation: `host` is unknown-name
-    NoRoute(host: string)
-    @message("missing keys {keys}")          # error: List[string] does not implement Display
+    @message("missing ${keys.length()} keys: ${keys.join(", ")}")
     Missing(keys: List[string])
-    @message("bad hint {hint}")              # error: string? does not implement Display
-    Hint(hint: string?)
-    NotFound(string)                         # displays "NotFound"; `{0}` is not a placeholder form
+    @message("${plural(count, "file")} over the limit")
+    TooMany(count: i64)
+    @message("request failed: $self")           # accepted by type checking; recurses at run time
+    Failed(status: i32)
+    NotFound(string)                            # an unnamed payload: no name to interpolate
 ```
 
-The compile-time check is the main win over round 1, where a typo such as
-`{secs}` was silently left in the output. Five gaps remain (R18 collects
-the first four; the fifth is R7):
+What remains:
 
-1. **Two interpolation syntaxes.** hd strings interpolate `$name`
-   (01 Lexical Structure). A user who writes `"no route to $host"` gets an
-   `unknown-name` error at the annotation, or, if a module-level binding
-   named `host` exists, a message silently baked from that binding. The
-   marker should require a constant literal, and its diagnostic should
-   suggest `{host}`.
-2. **No escape for a literal brace.** thiserror uses `{{`. Decision 10 is
-   silent.
-3. **Unnamed payloads** (`NotFound(string)`, legal by 08 Variant Payloads)
-   cannot appear in a message. thiserror writes `{0}`.
-4. **Display only.** A `List[string]` or `string?` payload has no `Display`
-   (05 Literals: optional and user-defined values display only through an
-   impl), and there is no debug form such as thiserror's `{0:?}`.
-5. **All or nothing.** A message that must be computed (plural forms, a
-   joined list) cannot be written. A hand-written `impl Display` next to
-   `@derive(Error)` is `overlapping-impl`, so the enum loses the generated
-   `Error` and every `From` too (R7):
-
-```text
-@derive(Error)
-pub enum PackError:
-    @from
-    Io(error: FsError)
-    TooMany(count: i64)                      # wants "1 file" or "3 files"
-
-impl Display for PackError:                  # error: overlapping-impl with the generated Display
-    fn to_string(self) -> string:
-        match self:
-            PackError.Io(error) => error.to_string()
-            PackError.TooMany(count) => plural(count, "file")
-```
+1. **A new scope rule.** A decorator argument is otherwise an expression in
+   the enclosing module's scope (14 Annotations). Here it sees names that
+   the variant declares on the next line, and a payload member named like a
+   module-level function (`format`, `path`) shadows it inside the message.
+   Tooling and the reference parser treat the text as an ordinary string;
+   only the intrinsic knows the scope (R7).
+2. **`$self` recurses.** The message is the body of the generated
+   `to_string`, so `$self` calls it again. Type checking accepts it; the
+   intrinsic should reject `self` in a message (R7).
+3. **Unnamed payloads.** `NotFound(string)` is legal (08 Variant Payloads),
+   but nothing in scope names its payload, so the message cannot show it,
+   and `@source` cannot name it in a multi-member variant (R18).
+4. **Display is always generated** (E2). Any computed message fits in
+   `${...}` with a helper function, so a hand-written `Display` is rarely
+   needed. What remains is that a type cannot have a `Display` different
+   from its error message.
 
 #### 1.3 `From` through `@from`, and `?`
 
@@ -288,64 +279,60 @@ fn run() -> Result[void, CliError]:
   `.map_err(fn(e: FsError) -> CliError: CliError.Other(e))`.
 - **Bounds of the generated impls are unstated** (R16). For `AppError[E]`,
   the `From[E]` impl needs no bound, `Display` needs `E < Display` only
-  when a placeholder or `@transparent` uses `E`, and `Error` needs
+  when a message or `@transparent` uses `E`, and `Error` needs
   `E < Error` for the cause. 09's rule for `@derive` ("`T < Trait` for
   every parameter in a compared field") does not say which fields count
   for which generated impl.
 
 #### 1.4 Cause chains, `@source`, `@transparent`, and `find`
 
-`@source` on a named payload member is part of decision 10, but it has no
-syntax. `variant_parameter_clause` holds `data_parameter`s, which take no
-decorator (02 Enums), so the thiserror shape `Parse { path, #[source] error }`
-cannot be written (R4):
+E4 lets `@source` mark one member of a multi-member variant, and the two
+texts of the record spell it differently. Decision 10's E4 writes the
+marker on the member; the Current Design section writes it on the variant
+with the member's name:
 
 ```text
 @derive(Error)
 pub enum LoadError:
-    @message("cannot parse {path}")
-    Parse(path: string, @source error: yaml.YamlError)   # hypothetical syntax
+    @message("$path:$line: invalid rule")
+    Parse(path: string, line: i64, @source error: SyntaxError)   # hypothetical syntax
 ```
 
-The workaround is a data type, whose fields do take decorators, wrapped by
-a transparent variant:
-
 ```text
 @derive(Error)
-@message("cannot parse {path}")
-pub data ParseFailure:
-    path: string
-    @source
-    error: yaml.YamlError
-
-@derive(Error)
 pub enum LoadError:
+    @message("$path:$line: invalid rule")
+    @source(error)
+    Parse(path: string, line: i64, error: SyntaxError)
+    @message("cannot read $path")
+    @source(error)
+    Read(path: string, error: FsError?)       # an absent optional cause gives .None
     @transparent
     @from
-    Parse(failure: ParseFailure)
+    Rules(error: RuleCoreError)
 ```
 
-It costs a type per multi-payload variant with a cause, and it runs into the
-next problem. `@transparent` "forwards `Display` and `cause()` to the
-payload". If that means `cause()` returns the payload's own `cause()`, as
-thiserror's `source()` does, the payload is never in the chain:
+The first is a `syntax-error`: `variant_parameter_clause` holds
+`data_parameter`s, which take no decorator (02 Enums). The second parses,
+and `error` in `@source(error)` is resolved as a payload name, not as an
+expression (R4).
+
+`@transparent` returns the inner error's cause (E3), so the inner error is
+never in the chain:
 
 ```text
-fn is_parse_failure(e: LoadError) -> bool:
+fn is_rule_error(e: LoadError) -> bool:
     let erased: Error = e
-    erased.find[ParseFailure]().is_some()    # false: chain is [LoadError, YamlError]
+    erased.find[RuleCoreError]().is_some()   # false for LoadError.Rules
 ```
 
-`chain(erased)` visits `LoadError` and then `ParseFailure`'s cause, the
-`YamlError`. `find[ParseFailure]` downcasts `LoadError` (no) and
-`YamlError` (no). thiserror's `transparent` behaves the same way, but in
-hd `find` is the documented way to test an erased error (STDLIB
-`std.error`), so the wrapper type disappears from the only test users have
-(R10).
-
-A variant with two error payloads, such as
-`Retry(first: FsError, last: HttpError)`, needs `@source` on one member and
-hits R4 again.
+For `LoadError.Rules(inner)`, `chain(erased)` visits the `LoadError` and
+then `inner.cause()`, such as a `YamlError`. `find[RuleCoreError]`
+downcasts neither to `RuleCoreError`. E3 chose this so that `chain` does not
+repeat the inner message, as in thiserror. In hd, though, `find` is the
+documented way to test an erased error (STDLIB `std.error`), so the
+wrapped type disappears from the only test users have. The workaround is
+`erased.downcast[LoadError]()` and a `match` (R10).
 
 #### 1.5 Common enum fields: a span on every variant
 
@@ -358,7 +345,7 @@ a payload that the clause copies:
 ```text
 @derive(Error)
 pub enum ParseError(span: Span):
-    @message("{span}: unexpected {token}")
+    @message("$span: unexpected $token")
     Unexpected(token: string, at: Span) -> ParseError(at)
     @from
     Io(error: FsError) -> ParseError(Span::none())
@@ -371,14 +358,16 @@ pub enum ParseError(span: Span):
 - A variant that carries its own span has two payloads, so it can never be
   `@from`. Conversions through `?` produce `Span::none()`, which silently
   drops the location.
-- The idiom that works is a wrapper data type:
-  `data ParseError: span: Span` plus `@source kind: ParseErrorKind`, with a
-  hand-written `From[FsError]` that has no span to give either.
+- The idiom that works is a wrapper data type,
+  `data ParseError` with a `span` field and a `@source kind: ParseErrorKind`
+  field, plus a hand-written `From[FsError]` that has no span to give
+  either. E4 also forbids `@source` on a common field, so the span can
+  never be the cause, which is right.
 
 #### 1.6 Generic error types
 
 `@derive(Error)` on `enum Retry[E]: Failed(attempts: i64, last: E)` works in
-the checked parts (a placeholder `{last}` needs `E < Display`), but the
+the checked parts (interpolating `$last` needs `E < Display`), but the
 generated headers are unstated (R16), and a generic payload next to a
 concrete one overlaps (1.3, R6). Recovering a generic error from an erased
 `Error` needs the exact instantiation (`find[Retry[FsError]]`), because
@@ -406,9 +395,11 @@ module that also imports a function named `message` or `source` (a json
 or tracing library's fact function) has two readings of `@message(...)`
 (R17).
 
-**Verdict for case 1: works with friction for the reference case; breaks
-for multi-payload causes (R4), generic-plus-concrete conversions (R6),
-computed messages (R7), and spans per value with `@from` (R12).**
+**Verdict for case 1: works for the reference case and for the Current
+Design's `LoadError`; works with friction for message scope (R7), `?` among
+shared payload types (R11), and transparent payloads in `find` (R10);
+breaks for generic-plus-concrete conversions (R6) and for spans per value
+with `@from` (R12).**
 
 ### 2. The Fact Check Hook
 
@@ -1102,10 +1093,10 @@ named `build`, `walk`, or `facts` cannot be derived at all (R13).
 | P6 | No bound rule for generic targets | **Fixed** by M12, with a gap: the rule names the trait, not the walker's bound (R14). | Cases 4, 6 |
 | P7 | Declaration-order decode, per-call recomputation | **Remains.** Plans over handles are possible but need module storage and `Inspectable`. Enum walks add a linear scan (R2). | Cases 4, 7 |
 | P8 | No requirement row or suspension in traversal | **Remains.** Value-free planning plus prefetch is a workaround. | Case 10 |
-| P9 | A member is fully visited or absent | **Remains** for libraries. For errors, `@message` placeholders and `@source` replace the need (M15). | Cases 1, 6 |
+| P9 | A member is fully visited or absent | **Remains** for libraries. For errors, `@message` interpolation and `@source` replace the need (M15). | Cases 1, 6 |
 | P10 | Derivation cannot declare types or methods | **Remains** (typed builders, typed patches). | Cases 4, 9 |
 | P11 | Member model unspecified | **Remains**, and handles add questions: `F` for `mut` members, payload handle naming, shared fields in `walk`, embedded parts, newtypes, GADTs. | Cases 4, 6 |
-| P12 | No impl family indexed by member types | **Closed by M15** (out of scope; `@derive(Error)` intrinsic). The intrinsic has its own problems (R4, R6, R7, R10-R12, R16-R18). | Case 1 |
+| P12 | No impl family indexed by member types | **Closed by M15** (out of scope; `@derive(Error)` intrinsic). The intrinsic has its own problems (R4, R6, R7, R10-R12, R16-R18, R20). | Case 1 |
 | P13 | Tier-1 meaning depends on package contents | **Remains open**, and **worse**: more templates per library, so one skipped member now means up to eight blocks. | Cases 3, 12 |
 | P14 | Facts untyped against members, checked at run time | **Partly fixed** by the fact check hook (M15): value checks work. Type and cross-member checks do not (R8). | Case 2 |
 | P15 | Foreign types cannot be derived | **Remains.** | — |
@@ -1130,25 +1121,25 @@ the configuration hook).
 | 1 | R1 | A `mut` member's handle has no single member type | Critical | 4, 6 |
 | 2 | R2 | The enum protocol: linear `holds` scan, per-walker bookkeeping, panicking `get`, no error from `variant` | High | 3, 5, 6, 7 |
 | 3 | R3 | `= pass` in `walk` and `build` unspecified; law partners drift across blocks | High | 3, 6, 12 |
-| 4 | R4 | `@source` on a payload member has no syntax | High | 1 |
-| 5 | R5 | Handles escape the walk | High | 6 |
-| 6 | P13 | Tier-1 template selection still open, now with more templates per library | High | 3, 12 |
-| 7 | R7 | `@derive(Error)` is all or nothing | Medium | 1 |
-| 8 | R6 | A generic `@from` payload overlaps a concrete one | Medium | 1 |
-| 9 | R8 | The fact check hook sees one fact, exact types, and only opted-in types | Medium | 2, 8, 11 |
-| 10 | R13 | `Structure`'s `facts`, `walk`, `build` collide with trait methods | Medium | 6, 12 |
-| 11 | R11 | `?` silently picks the `@from` variant among variants sharing a payload type | Medium | 1 |
-| 12 | R9 | No type-level information beyond `facts()` | Medium | 5 |
-| 13 | R14 | The M12 bound names the trait, not the walker's bound | Medium | 4, 6 |
-| 14 | R10 | `@transparent` hides the payload from `find` | Medium | 1 |
-| 15 | R12 | `@from`'s common-field rule does not match 08; spans per value cannot use `@from` | Medium | 1 |
-| 16 | R16 | Bounds of the impls `@derive(Error)` generates are unstated | Medium | 1 |
-| 17 | P7 | Declaration-order decode and per-call recomputation | Medium | 4, 7 |
-| 18 | P8 | No requirement row or suspension in traversal | Medium | 10 |
-| 19 | P11 | Member model: shared fields, embedding, newtypes, GADTs, payload lines | Medium | 4, 6 |
-| 20 | R18 | Message placeholder syntax gaps | Low | 1 |
-| 21 | R17 | Error markers resolve by bare name | Low | 1 |
-| 22 | R20 | Opaque public errors: `@transparent` is variant-only | Low | 1 |
+| 4 | R5 | Handles escape the walk | High | 6 |
+| 5 | P13 | Tier-1 template selection still open, now with more templates per library | High | 3, 12 |
+| 6 | R6 | A generic `@from` payload overlaps a concrete one | Medium | 1 |
+| 7 | R12 | `@from`'s common-field rule contradicts 08; spans per value cannot use `@from` | Medium | 1 |
+| 8 | R8 | The fact check hook sees one fact, exact types, and only opted-in types | Medium | 2, 8, 11 |
+| 9 | R13 | `Structure`'s `facts`, `walk`, `build` collide with trait methods | Medium | 6, 12 |
+| 10 | R11 | `?` silently picks the `@from` variant among variants sharing a payload type | Medium | 1 |
+| 11 | R9 | No type-level information beyond `facts()` | Medium | 5 |
+| 12 | R14 | The M12 bound names the trait, not the walker's bound | Medium | 4, 6 |
+| 13 | R10 | `@transparent` hides the payload from `find` | Medium | 1 |
+| 14 | R16 | Bounds of the impls `@derive(Error)` generates are unstated | Medium | 1 |
+| 15 | P7 | Declaration-order decode and per-call recomputation | Medium | 4, 7 |
+| 16 | P8 | No requirement row or suspension in traversal | Medium | 10 |
+| 17 | P11 | Member model: shared fields, embedding, newtypes, GADTs, payload lines | Medium | 4, 6 |
+| 18 | R7 | Message scope: a new scope rule, and `$self` recursion | Low | 1 |
+| 19 | R4 | Two spellings of a member `@source`; E4's is not in the grammar | Low | 1 |
+| 20 | R17 | Error markers resolve by bare name | Low | 1 |
+| 21 | R20 | Opaque public errors: `@transparent` is variant-only | Low | 1 |
+| 22 | R18 | Unnamed payloads cannot be named in messages or `@source` | Low | 1 |
 | 23 | R19 | One template per trait, program-wide | Low | 8 |
 | 24 | R15 | `default()` allocates for every member type | Low | 7 |
 | 25 | P10 | Derivation cannot declare types or methods | Low | 4, 9 |
@@ -1233,27 +1224,6 @@ other compiles and breaks the map-key law silently. TQ-12's partner rule
   decides what to do. *Q:* is per-template meaning acceptable for a
   compiler-interpreted line?
 
-### R4. `@source` On A Payload Member Has No Syntax
-
-**Effect.** Decision 10 allows `@source` "on a named payload member", but
-`variant_parameter_clause` holds `data_parameter`s without decorators
-(02 Enums). `Parse(path: string, @source error: YamlError)` is a
-`syntax-error`, so every multi-payload variant with a cause needs a
-wrapper data type.
-
-**Candidate fixes.**
-
-- **A. Decorators on payload members.** `data_parameter` accepts
-  `decorator_line`-style prefixes, as data fields and function parameters
-  already do. *Q:* should payload member facts then also reach templates'
-  handles (a json rename of a payload member, round-1 Q11-d)?
-- **B. Name the member at the variant.** `@source("error")` on the variant,
-  checked against payload names. *Q:* is a checked string better than a
-  grammar change?
-- **C. Restrict `@source` to one-payload variants and data fields.** *Q:*
-  is the wrapper-type workaround acceptable for the thiserror shape
-  `Parse { path, #[source] error }`?
-
 ### R5. Handles Escape The Walk
 
 **Effect.** A walker can capture a handle in a closure and store it, so a
@@ -1284,23 +1254,6 @@ group. **B.** Tier 1 supplies configuration and a tier-2 block adds member
 lines instead of overlapping. **C.** Keep rule 5 with tooling. *Q:* which,
 now that `Eq`, `Hash`, and `Ord` would each need a block per type?
 
-### R7. `@derive(Error)` Is All Or Nothing
-
-**Effect.** A hand-written `Display` next to `@derive(Error)` is
-`overlapping-impl`. One variant whose message must be computed forces the
-whole enum to hand-write `Display`, `Error`, and every `From`.
-
-**Candidate fixes.**
-
-- **A. A computed-message marker.** `@message(describe)` names a function
-  `fn(PackError) -> string`, checked at compile time. *Q:* is a function
-  reference in a marker acceptable?
-- **B. Parts of the intrinsic.** `@derive(Error)` generates `Display` only
-  when no variant opts out, or the owner allows naming the parts. *Q:*
-  does that contradict "one intrinsic"?
-- **C. Keep it.** *Q:* is hand-writing three impls the intended cost of one
-  computed message?
-
 ### R6. A Generic `@from` Payload Overlaps A Concrete One
 
 **Effect.** `@from Inner(error: E)` and `@from Io(error: FsError)` in
@@ -1316,6 +1269,21 @@ is not expressible in hd at all.
   *Q:* is the better diagnostic enough, given that no spelling works?
 - **B. Document the limit** in the error-handling guide, with `map_err` for
   the concrete variant. *Q:* is that sufficient for generic wrapper enums?
+
+### R12. `@from`'s Common-Field Rule Contradicts 08; Spans
+
+**Effect.** Decision 10 requires a `@from` variant's common enum fields to
+have defaults. Under 08, a variant's `->` clause always initializes shared
+data, so the rule rejects `Io(error: FsError) -> ParseError(Span::none())`,
+which is otherwise valid. Separately, a span that varies per value must be
+a payload, so every variant that carries one has two payloads and cannot be
+`@from`.
+
+**Candidate fixes.**
+
+- **A. Drop or restate the rule.** *Q:* what case was it meant to reject?
+- **B. Document the wrapper idiom** (`data ParseError` with `span` and a
+  `@source kind`). *Q:* is that the intended design for located errors?
 
 ### R8. The Fact Check Hook's Scope
 
@@ -1407,31 +1375,19 @@ itself (`Patch` needs `T < json.Decode`) cannot say so.
 
 ### R10. `@transparent` Hides The Payload From `find`
 
-**Effect.** If a transparent variant's `cause()` forwards to the payload's
-`cause()`, as thiserror's `source()` does, the payload is never in
+**Effect.** E3 decided that a transparent variant's `cause()` returns the
+payload's own `cause()`, as thiserror's `source()` does, so `chain` does
+not repeat the inner message. The payload is then never in
 `chain(error)`, so `error.find[Payload]()` returns `.None`.
 
 **Candidate fixes.**
 
-- **A. `cause()` returns the payload itself;** only `Display` forwards.
-  *Q:* is a chain printer that shows the same message twice acceptable?
-- **B. Keep the forwarding** and document `downcast` on the outer error
-  first. *Q:* is `find` failing for transparent payloads acceptable?
-
-### R12. `@from`'s Common-Field Rule And Spans
-
-**Effect.** Decision 10 requires a `@from` variant's common enum fields to
-have defaults. Under 08, a variant's `->` clause always initializes shared
-data, so the rule rejects `Io(error: FsError) -> ParseError(Span::none())`,
-which is otherwise valid. Separately, a span that varies per value must be
-a payload, so every variant that carries one has two payloads and cannot be
-`@from`.
-
-**Candidate fixes.**
-
-- **A. Drop or restate the rule.** *Q:* what case was it meant to reject?
-- **B. Document the wrapper idiom** (`data ParseError` with `span` and a
-  `@source kind`). *Q:* is that the intended design for located errors?
+- **A. Keep E3 and document it** next to `find`: test a transparent
+  wrapper with `downcast` on the outer error first. *Q:* is that enough?
+- **B. Let `find` see the payload.** `Error` gains a defaulted
+  `transparent_inner(self) -> Error?` that `find` also visits, while
+  `chain` stays as E3 wants. *Q:* is a second chain for searching worth one
+  more `Error` member?
 
 ### R16. Bounds Of The Generated Error Impls
 
@@ -1440,7 +1396,7 @@ a payload, so every variant that carries one has two payloads and cannot be
 
 **Candidate fixes.**
 
-- **A. Per impl, the 09 rule.** `E < Display` for parameters in placeholder
+- **A. Per impl, the 09 rule.** `E < Display` for parameters in interpolated
   or transparent members (`Display`), `E < Error` for parameters in cause
   members (`Error`), none for `From`. *Q:* are three headers per enum
   acceptable?
@@ -1462,19 +1418,43 @@ a payload, so every variant that carries one has two payloads and cannot be
   whether an embedded part is one handle or one per part member. *Q:* can
   these be decided with R1 and R2, since all three shape the handle API?
 
-### R18. Message Placeholder Syntax Gaps
+### R7. Message Scope
 
-**Effect.** `@message` uses `{name}` while hd strings interpolate `$name`, so
-`"$host"` interpolates at the annotation. There is no brace escape, no
-placeholder for unnamed payloads, and no non-`Display` form.
+**Effect.** E1 makes a message an interpolated string with payload members
+in scope. A decorator argument otherwise sees the module's scope, so this is
+a scope rule of its own: names declared on the next line are visible, a
+payload member shadows a module-level function of the same name inside the
+message, and `$self` type-checks but calls the generated `to_string`
+recursively.
 
 **Candidate fixes.**
 
-- **A. Keep `{name}`,** require a literal without `$` segments, add `{{`,
-  and allow `{0}`. *Q:* are two placeholder syntaxes in one language
-  acceptable?
-- **B. Use `$name` in a raw string,** `@message(r"no route to $host")`,
-  checked like interpolation. *Q:* is a raw-string convention acceptable?
+- **A. State the rule and reject `self`.** The message is checked as the
+  body of the generated `to_string` arm, `self` is an error there, and
+  shadowing follows ordinary pattern-binding rules. *Q:* is that enough for
+  tooling (hover, rename) to treat the text as code?
+- **B. Bind the payload explicitly.** The message names what it uses, as in
+  `@message("$path:$line", path, line)`. *Q:* is the repetition worth the
+  ordinary scope?
+
+### R4. Two Spellings Of A Member `@source`
+
+**Effect.** Decision 10's E4 writes
+`Parse(path: string, line: i64, @source error: SyntaxError)`, which is a
+`syntax-error`: payload members take no decorators (02 Enums). The Current
+Design section writes `@source(error)` on the variant, which parses. The
+record disagrees with itself, and the variant form resolves its argument
+as a payload name rather than as an expression.
+
+**Candidate fixes.**
+
+- **A. Keep `@source(member)` on the variant** and correct E4's example.
+  *Q:* is a marker argument that names a payload member, not an
+  expression, acceptable?
+- **B. Allow decorators on payload members,** as data fields and function
+  parameters already allow. *Q:* should payload member facts then also
+  reach templates' handles (a json rename of a payload member, round-1
+  Q11-d)?
 
 ### R17. Error Markers Resolve By Bare Name
 
@@ -1503,6 +1483,21 @@ error enums only.
   data fields as well as variants?
 - **B. A one-variant enum.** *Q:* is the extra variant name in every match
   acceptable?
+
+### R18. Unnamed Payloads Cannot Be Named
+
+**Effect.** `NotFound(string)` is a legal variant (08 Variant Payloads),
+but nothing in a message's scope names its payload, and `@source(member)`
+has no member name to use. thiserror writes `{0}` and `#[source]` on a
+tuple field.
+
+**Candidate fixes.**
+
+- **A. Positional names in markers,** such as `$0` in messages and
+  `@source(0)`. *Q:* is a positional name that exists only inside markers
+  acceptable?
+- **B. Require named payloads** under `@derive(Error)` whenever a message or
+  `@source` refers to one. *Q:* is the diagnostic enough?
 
 ### R19. One Template Per Trait
 
@@ -1565,8 +1560,8 @@ prototype compiler implements none of this surface.
 
 | Blocks | Result |
 | --- | --- |
-| Case 1: `RuleCoreError` and its use, the generated `Display`, `Error`, and `From` impls, the placeholder examples, `PackError`, `AppError[E]` and `CliError`, `ParseFailure`, the `find` example, `ParseError(span: Span)` | Parse. Every error in their comments is semantic. |
-| Case 1.4: `Parse(path: string, @source error: yaml.YamlError)` | `syntax-error` at the `@source` line, as the text says (R4). Marked `# hypothetical syntax`. |
+| Case 1: `RuleCoreError` and its use, the generated `Display`, `Error`, and `From` impls, the message examples, `AppError[E]` and `CliError`, the Current Design's `LoadError` with `@source(error)`, the `find` example, `ParseError(span: Span)` | Parse. Every error in their comments is semantic. |
+| Case 1.4: E4's spelling `Parse(path: string, line: i64, @source error: SyntaxError)` | `syntax-error` at the `@source` member, as the text says (R4). Marked `# hypothetical syntax`. |
 | Case 2: the assumed `Range.check` and the user side | Parse. `FactTarget` is an assumed name. |
 | Cases 3-5: `Ord`, `Hash`, `Counter`, `HttpStatus`, `Patch`, `Shrink`, `SearchArgs`, `DdlWalker` | Parse. |
 | Case 3: `Session` with its `Eq` and `Hash` blocks | `syntax-error` at `cache = pass`, the one M3 member line, marked `# hypothetical syntax`. With it removed, parses. |
