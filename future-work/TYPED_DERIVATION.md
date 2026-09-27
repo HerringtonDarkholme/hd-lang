@@ -459,7 +459,13 @@ a newtype derives through its base type (TQ-11), so `Mile` encodes like
 `i32`. P11a: shared enum fields are visible to walks, visited first with
 handles marked `shared` (libraries choose to show or skip them), and `build`
 never reads them from input (the variant's `->` expression computes them);
-the owner also asked to revisit the shared-data design itself. P13
+the owner also asked to revisit the shared-data design itself (now
+ENUM_SEMANTICS decision 4: per-variant constants, read from the variant).
+P11e: a tier-2 block lives only in the target type's module. P11f: GADT
+enums are rejected at the opt-in for now. P11g: a member's `info` carries
+name, position, facts, doc comment, and the `embedded` flag (the handle
+has `has_default`); a variant's carries name, index, facts, and its shared
+constants. P13
 (tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
