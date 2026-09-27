@@ -1060,6 +1060,8 @@ runtime/valid/inspectable-generic-arguments-exact.hd	runtime	accept	09-traits.md
 runtime/valid/inspectable-downcast-mut.hd	runtime	accept	09-traits.md#recovering-a-concrete-type
 runtime/valid/inspectable-alias-and-newtype-identity.hd	runtime	accept	09-traits.md#inspectable-and-typeid
 runtime/valid/typeid-of-equality.hd	runtime	accept	09-traits.md#inspectable-and-typeid
+runtime/valid/inspectable-inner-mut-identity.hd	runtime	accept	09-traits.md#inspectable-and-typeid
+runtime/valid/inspectable-generic-inner-mut-argument.hd	runtime	accept	09-traits.md#erasure-to-inspectable
 runtime/valid/inspectable-generic-target-helper.hd	runtime	accept	09-traits.md#recovering-a-concrete-type
 runtime/valid/error-downcast-through-inspectable.hd	runtime	accept	09-traits.md#error-trait
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime	accept	09-traits.md#inspectable-types

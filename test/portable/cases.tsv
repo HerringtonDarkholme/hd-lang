@@ -919,6 +919,7 @@ runtime/valid/inspectable-downcast-success-and-failure.hd	runtime
 runtime/valid/inspectable-generic-arguments-exact.hd	runtime
 runtime/valid/inspectable-downcast-mut.hd	runtime
 runtime/valid/typeid-of-equality.hd	runtime
+runtime/valid/inspectable-inner-mut-identity.hd	runtime
 runtime/valid/inspectable-generic-target-helper.hd	runtime
 runtime/valid/error-downcast-through-inspectable.hd	runtime
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime

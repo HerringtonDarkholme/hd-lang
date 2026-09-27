@@ -8,9 +8,9 @@ evidence folder for each section is linked in place.
 **Since the audit:** the conformance work fixed every test-integrity,
 fixture-format, and reference-parser finding, and the owner's decisions are
 in the specification. This report now keeps only what is still open. On
-2026-09-26 the compiler passes 932 of the 1,074 conformance cases: the 932 in
+2026-09-26 the compiler passes 942 of the 1,085 conformance cases: the 942 in
 `test/portable/cases.tsv`, which `npm run test:portable` runs with 21
-fixture tests. Each of the other 142 is listed in
+fixture tests. Each of the other 143 is listed in
 `test/portable/KNOWN_FAILURES.tsv` with a finding or decision ID, and
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) groups
 them. Decision IDs are in [`README.md`](README.md).

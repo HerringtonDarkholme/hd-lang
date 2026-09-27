@@ -18,8 +18,8 @@ removed from this folder. What remains:
   prototype's fix list, grouped by ID.
 - [`bench/`](bench/): the small benchmark set kept for future direction.
 
-On 2026-09-26 the prototype passes 932 of the 1,074 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 142 are listed in
+On 2026-09-26 the prototype passes 942 of the 1,085 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 143 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below.
 
@@ -39,7 +39,8 @@ Revision Notes in `spec/README.md` are the record. Three implemented
 decisions keep cases in the known failures under a finding: L2's
 `unsigned-exponent.hd` and TQ-4's literal-default cases need sized numeric
 types (F-253), and A3's optional-to-`Any` case needs `Any` (F-255). Runtime type identity
-(Inspectable decisions 1 to 15) is implemented; its alias-and-newtype case
+(Inspectable decisions 1 to 16) is implemented except one case of decision 16
+(I16); its alias-and-newtype case
 and its local-type `impl Error` case need `type` and local declarations
 (F-254).
 
@@ -60,3 +61,4 @@ and its local-type `impl Error` case need `type` and local declarations
 | GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
 | EC | Error conversion decision 4: a dynamic trait value type satisfies a bound on its own trait and its supertraits. The prototype passes a trait value to a bounded parameter only with a dictionary from an implementation, so it reports `unsatisfied-trait-bound`; supporting it needs a dictionary whose methods forward through the value's own table. |
+| I16 | Inspectable decision 16: a `mut` inside a type argument is part of runtime identity. The prototype keeps it for written types, but a type parameter instantiated with `mut U` gets a dictionary built from `U`, so a `List[T]` erased inside the generic records `List[U]`. |

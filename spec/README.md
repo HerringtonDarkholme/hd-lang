@@ -553,3 +553,11 @@ existing source. Each entry names the decision that made the change.
   now `bare-variant-pattern`; and a module may now declare its own `Ok` or
   `Err`, previously `prelude-name-shadow`. `.Ok(value)` without an expected
   `Result` type is `missing-contextual-enum-type`.
+- Runtime type identity, inner `mut` (Inspectable owner decision 16,
+  revising decision 2): a `mut` inside a type argument is part of runtime
+  identity, and only the outer `mut` of the erased view is ignored.
+  `TypeId::of[List[mut User]]()` and `TypeId::of[List[User]]()`, previously
+  equal, now differ, and so do their printable names, which now show the
+  inner `mut`. An erased `List[User]` downcast to `List[mut User]`,
+  previously `.Some`, is now `.None`. `TypeId::of[mut User]()` still equals
+  `TypeId::of[User]()`.

@@ -1,6 +1,6 @@
 # Runtime Type Identity: `Inspectable`, `RuntimeType`, And `downcast`
 
-Status: design record. Owner decisions 1 to 15 are applied to the
+Status: design record. Owner decisions 1 to 16 are applied to the
 specification (2026-09-26): [Sealed Traits](../spec/09-traits.md#sealed-traits),
 [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity), the
 [Error Trait](../spec/09-traits.md#error-trait), assignability rule 6 in
@@ -10,8 +10,9 @@ the error-chain helpers are in [Standard Library Design](STDLIB.md#stderror).
 The proposal below predates decisions 2, 3, 13, 14, and 15: where it says
 `RuntimeType`, read `TypeId`; `value.downcast[T]()` is now a default method
 of `Inspectable` bounded by `T < Reference + Inspectable`, with no `reified`
-(value types use `std.inspect.downcast_val[T](value)`); and where it lets
-inner `mut` into identity, decision 2 removes it. What is still open is
+(value types use `std.inspect.downcast_val[T](value)`). Its rule that an
+inner `mut` is part of identity was removed by decision 2 and restored by
+decision 16. What is still open is
 tracked in
 [Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified).
 
@@ -109,9 +110,10 @@ Decided 2026-09-26:
     `List[mut User]`. Only the outer `mut` of the erased view is ignored
     (it is carried statically by `Inspectable` versus `mut Inspectable`).
 
-The specification pass recorded one consequence of decision 2 as open: a
-value erased as `List[User]` downcasts to `List[mut User]`
-([Open Issues, Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified)).
+The specification pass had recorded one consequence of decision 2 as open:
+a value erased as `List[User]` downcast to `List[mut User]`. Decision 16
+closes it, and the specification now states the inner-`mut` rule in
+[Runtime Type Identity](../spec/09-traits.md#inspectable-and-typeid).
 
 ## Contents
 

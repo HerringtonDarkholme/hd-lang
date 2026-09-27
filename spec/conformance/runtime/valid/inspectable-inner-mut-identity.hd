@@ -1,0 +1,37 @@
+# test: a mut inside a type argument is part of runtime identity; the outer mut is not
+# Spec 09 Inspectable And TypeId: an erased List[User] is not a List[mut User], so the
+# downcast cannot grant mutable elements that the erasing code never had.
+use std.inspect.Inspectable
+use std.testing.assert
+
+data User:
+    name: string
+
+fn is_owner_list(value: Inspectable) -> bool:
+    match value.downcast[List[mut User]]():
+        .Some(_) => true
+        .None => false
+
+fn is_reader_list(value: Inspectable) -> bool:
+    match value.downcast[List[User]]():
+        .Some(_) => true
+        .None => false
+
+test "an erased List[User] does not downcast to List[mut User]":
+    let readers: List[User] = [User { name: "Ada" }]
+    assert(!is_owner_list(readers), reason="inner mut differs")
+    assert(is_reader_list(readers), reason="List[User] matches List[User]")
+
+test "an erased List[mut User] downcasts only to List[mut User]":
+    let owners: List[mut User] = [User { name: "Ada" }]
+    assert(is_owner_list(owners), reason="List[mut User] matches List[mut User]")
+    assert(!is_reader_list(owners), reason="List[mut User] is not List[User]")
+
+test "the outer mut of the erased view is ignored":
+    let owners: mut List[mut User] = [User { name: "Ada" }]
+    assert(is_owner_list(owners), reason="mut List[mut User] records List[mut User]")
+
+test "a readonly weakening before erasure records the weakened type":
+    let owners: mut List[mut User] = [User { name: "Ada" }]
+    let readers: List[User] = owners
+    assert(!is_owner_list(readers), reason="the recorded type is the static type at erasure")

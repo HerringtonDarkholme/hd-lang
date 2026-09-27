@@ -278,33 +278,23 @@ debugging, and safer dependency upgrades.
 sealed `std.inspect.Inspectable` with `runtime_type() -> TypeId` and the
 default methods `downcast` and `downcast_mut` (bounded by
 `T < AnyRef + Inspectable`, no `reified`), `TypeId::of[T]()`,
-`downcast_val` for value types, exact matching with `mut` ignored at every
-level, generic erasure through `T < Inspectable`,
-`inspectable-requirement`, and `std.error.Error < Display + Inspectable`.
+`downcast_val` for value types, exact matching in which an inner `mut`
+counts and the outer `mut` is ignored, generic erasure through
+`T < Inspectable`, `inspectable-requirement`, and
+`std.error.Error < Display + Inspectable`.
 [INSPECTABLE.md](INSPECTABLE.md) keeps the design record and owner decisions
-1 to 15. What remains open:
+1 to 16. What remains open:
 
-1. **Inner `mut` in a recovered type.** Runtime identity ignores `mut` at
-   every level (decision 2), and `downcast` yields exactly `T`. A value
-   erased as `List[User]` therefore downcasts to `List[mut User]`, whose
-   readonly outer view still gives `mut User` elements: mutable access the
-   code that erased it never had. Options: (a) reject a target type
-   argument that is written with an inner `mut`, and treat a generic
-   target instantiated with one as never matching; (b) make inner `mut`
-   part of runtime identity again, keeping only the outer `mut` out;
-   (c) accept the upgrade as part of permission being a static discipline.
-   The specification states decision 2 as decided and adds no rule.
-2. **Calling static (receiverless) functions.** Under a bound, `T::create()`
+1. **Calling static (receiverless) functions.** Under a bound, `T::create()`
    with `T < Factory` could be served by the bound's dictionary, but the
    specification only shows concrete `Type::function(...)` calls. A
    `TypeId` never offers such calls.
-3. **The matching `TypeShape` case,** shared with
+2. **The matching `TypeShape` case,** shared with
    [Complete Runtime Shape Coverage](#complete-runtime-shape-coverage), and
    the checked-downcast option in
    [Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
 
-**Unblocks.** A sound recovery of inner permissions (item 1) and
-factory-style generic code (item 2).
+**Unblocks.** Factory-style generic code (item 1).
 
 ### Confirmed Deferred Type Features
 

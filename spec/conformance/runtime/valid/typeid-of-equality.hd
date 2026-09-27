@@ -1,6 +1,6 @@
 # test: TypeId equality follows runtime identity and prints the canonical name
-# Spec 09 Inspectable And TypeId: mut does not change identity, type arguments do,
-# and Display spells prelude names as written with T? and tuple sugar.
+# Spec 09 Inspectable And TypeId: the outer mut does not change identity, while an inner
+# mut and other type arguments do; Display spells prelude names with T? and tuple sugar.
 use std.inspect.{Inspectable, TypeId}
 use std.testing.{assert, assert_equal}
 
@@ -19,8 +19,10 @@ test "TypeId::of agrees with runtime_type":
     assert(of_value(7) == TypeId::of[i32](), reason="an i32 records i32")
     assert(of_value(7) != TypeId::of[string](), reason="i32 is not string")
 
-test "mut is not part of identity":
-    assert(TypeId::of[List[mut User]]() == TypeId::of[List[User]](), reason="mut is ignored at every level")
+test "only the outer mut is ignored":
+    assert(TypeId::of[mut User]() == TypeId::of[User](), reason="the outer mut is ignored")
+    assert(TypeId::of[List[mut User]]() != TypeId::of[List[User]](), reason="an inner mut is part of identity")
+    assert(TypeId::of[List[mut User]]().to_string() != TypeId::of[List[User]]().to_string(), reason="the printable name shows an inner mut")
 
 test "type arguments are part of identity":
     assert(TypeId::of[Box[i32]]() != TypeId::of[Box[string]](), reason="Box[i32] and Box[string] differ")

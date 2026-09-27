@@ -1,0 +1,22 @@
+# test: a type parameter instantiated with mut U keeps that inner mut in a composite identity
+# Spec 09 Erasure To Inspectable: a value built from T records the declaration applied to the
+# type T is instantiated with, so List[T] with T = mut User records List[mut User].
+use std.inspect.Inspectable
+use std.testing.assert
+
+data User:
+    name: string
+
+fn erase_list[T < Inspectable](values: List[T]) -> Inspectable:
+    values
+
+fn is_owner_list(value: Inspectable) -> bool:
+    match value.downcast[List[mut User]]():
+        .Some(_) => true
+        .None => false
+
+test "List[T] with T = mut User records List[mut User]":
+    let owners: List[mut User] = [User { name: "Ada" }]
+    assert(is_owner_list(erase_list(owners)), reason="the instantiation keeps the inner mut")
+    let readers: List[User] = [User { name: "Ada" }]
+    assert(!is_owner_list(erase_list(readers)), reason="T = User records List[User]")

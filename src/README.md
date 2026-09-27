@@ -239,7 +239,8 @@ else`, `break`, `break value`, and `continue`;
   its own trait);
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
-  `TypeId`, a data type holding the canonical printable name; every
+  `TypeId`, a data type holding the canonical printable name (an inner
+  `mut` kept, the outer `mut` dropped); every
   inspectable type erases to `Inspectable` or `mut Inspectable` through a
   generated dictionary whose `runtime_type` builds that name, splicing in the
   names carried by `T < Inspectable` dictionaries; `downcast`, `downcast_mut`,
@@ -252,7 +253,8 @@ else`, `break`, `break value`, and `continue`;
   parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
   closure types and provider scopes, qualified printable names (the
   prototype has one module), and opaqueness (`TypeId { key: ... }` is
-  constructible);
+  constructible), and the inner `mut` of a type parameter instantiated with
+  `mut U`, whose dictionary is built from `U` (I16);
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic

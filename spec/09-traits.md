@@ -775,8 +775,9 @@ a trait, and nothing can be constructed or called through it.
 
 Two types have the same **runtime identity** when they are the same
 declaration applied to type arguments that have the same runtime identity,
-after transparent aliases are expanded and every `mut` is removed, at every
-level. For this rule the primitive types, `string`, `void`, `List`, `Map`,
+after transparent aliases are expanded and the outer `mut` is removed. A
+`mut` inside a type argument stays, so the type arguments `mut U` and `U`
+differ. For this rule the primitive types, `string`, `void`, `List`, `Map`,
 each tuple arity, and `Any` count as declarations, and a trait value type is
 its trait declaration applied to its arguments. Therefore:
 
@@ -784,10 +785,13 @@ its trait declaration applied to its arguments. Therefore:
   and its base type do not
   ([Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes));
 - `Box[User]` and `Box[Post]` differ;
-- `User` and `mut User` are the same, and so are `List[User]` and
-  `List[mut User]`. The runtime does not track permission; permission is a
-  static discipline, carried by the signatures of `downcast` and
+- `User` and `mut User` are the same. The outer permission belongs to the
+  view, not the type, and is carried by the signatures of `downcast` and
   `downcast_mut`;
+- `List[User]` and `List[mut User]` differ, and so do `(User, i32)` and
+  `(mut User, i32)`. An inner permission is part of the type, so an erased
+  `List[User]` never downcasts to `List[mut User]`, whose elements would
+  be mutable;
 - `i32` and `i64`, `User` and `User?`, and `List[FsError]` and `List[Error]`
   differ. No numeric widening, optional injection, or variance applies;
 - two declarations named `User` in different modules differ.
@@ -805,8 +809,10 @@ prelude name is written as it is, as in `i32`, `string`, `List[string]`, or
 `Map[string, i32]`. Every other nominal declaration, including the trait of
 a trait value type, is written by its absolute qualified name, as in
 `std.error.Error`. `Option[T]` is written `T?` and a tuple `(A, B)`, with
-`, ` between elements and type arguments. No `mut` appears. The name is for
-people and logs; nothing parses it back into a type.
+`, ` between elements and type arguments. A `mut` inside a type argument is
+written before that argument, as in `List[mut acme.model.User]`; the outer
+`mut` never appears. The name is for people and logs; nothing parses it back
+into a type.
 
 ### Inspectable Types
 
@@ -854,10 +860,13 @@ from an inspectable type
 There is no cast operator. A trait that extends `Inspectable` still needs its
 own explicit implementation; only its `Inspectable` part is supplied.
 
-- The recorded type is the static type of the value at the erasure site. For
-  a value of a type parameter `T < Inspectable`, it is the type `T` is
-  instantiated with, which the bound supplies at run time; a value built from
-  `T`, such as a `Box[T]`, records `Box` applied to that type.
+- The recorded type is the static type of the value at the erasure site,
+  without its outer `mut`. For a value of a type parameter `T < Inspectable`,
+  it is the type `T` is instantiated with, which the bound supplies at run
+  time; a value built from `T`, such as a `Box[T]`, records `Box` applied to
+  that type, so `T` instantiated with `mut User` records `Box[mut User]`.
+  A `mut List[mut User]` weakened to `List[User]` before erasure records
+  `List[User]`.
 - Erasing a value of a type parameter requires an `Inspectable` bound on it.
   `reified T` alone does not allow the erasure, and a value of a type
   parameter without the bound is not assignable to `Inspectable`, which is a

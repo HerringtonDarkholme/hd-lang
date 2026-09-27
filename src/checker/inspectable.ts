@@ -10,7 +10,8 @@ import {
 import { INSPECTABLE, STANDARD_DOWNCAST_VAL } from "./standard-traits.ts";
 
 // Runtime type identity (spec/09-traits.md#runtime-type-identity). A type's
-// key is its canonical printable name with every `mut` removed; a key part
+// key is its canonical printable name with the outer `mut` removed; a `mut`
+// inside a type argument is kept (Inspectable decision 16). A key part
 // `{ generic }` stands for a bounded type parameter whose name the bound's
 // dictionary supplies at run time.
 export type InspectKeyPart = string | { readonly generic: string };
@@ -74,15 +75,20 @@ function join(parts: readonly (readonly InspectKeyPart[])[], separator: string):
 /**
  * The key parts of an inspectable type, or undefined when the type is not
  * inspectable. `argument` admits `void` and trait value types, which count
- * as inspectable only as type arguments.
+ * as inspectable only as type arguments. `nested` marks a type argument or
+ * element, whose `mut` is part of the identity; the outer `mut` is not.
  */
 export function inspectKey(
   type: ValueType,
   environment: InspectEnvironment,
   argument = false,
+  nested = false,
 ): InspectKeyPart[] | undefined {
   const mutable = mutableInner(type);
-  if (mutable !== undefined) return inspectKey(mutable, environment, argument);
+  if (mutable !== undefined) {
+    const inner = inspectKey(mutable, environment, argument, nested);
+    return nested && inner ? ["mut ", ...inner] : inner;
+  }
   if (PRIMITIVES.has(type)) return [type];
   if (type === "void") return argument ? ["void"] : undefined;
   if (type.startsWith("trait:")) {
@@ -90,7 +96,9 @@ export function inspectKey(
     const traitKey = type.slice("trait:".length);
     const application = nominalGenericParts(traitKey);
     if (!application) return [traitKey];
-    const arguments_ = application.arguments.map((item) => inspectKey(item, environment, true));
+    const arguments_ = application.arguments.map((item) =>
+      inspectKey(item, environment, true, true),
+    );
     if (arguments_.some((item) => item === undefined)) return undefined;
     return [`${application.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }
@@ -99,26 +107,26 @@ export function inspectKey(
   if (functionParts(type)) return undefined;
   const tuple = tupleParts(type);
   if (tuple !== undefined) {
-    const elements = tuple.map((element) => inspectKey(element, environment));
+    const elements = tuple.map((element) => inspectKey(element, environment, false, true));
     if (elements.some((element) => element === undefined)) return undefined;
     return ["(", ...join(elements as InspectKeyPart[][], ", "), ")"];
   }
   const optional = optionalInner(type);
   if (optional !== undefined) {
-    const inner = inspectKey(optional, environment, true);
+    const inner = inspectKey(optional, environment, true, true);
     return inner && [...inner, "?"];
   }
   const result = resultParts(type);
   if (result) {
-    const ok = inspectKey(result.ok, environment, true);
-    const error = inspectKey(result.error, environment, true);
+    const ok = inspectKey(result.ok, environment, true, true);
+    const error = inspectKey(result.error, environment, true, true);
     return ok && error ? ["Result[", ...ok, ", ", ...error, "]"] : undefined;
   }
   const nominal = nominalGenericParts(type);
   if (nominal) {
     if (nominal.name !== "List" && nominal.name !== "Map" && !environment.nominal(nominal.name))
       return undefined;
-    const arguments_ = nominal.arguments.map((item) => inspectKey(item, environment, true));
+    const arguments_ = nominal.arguments.map((item) => inspectKey(item, environment, true, true));
     if (arguments_.some((item) => item === undefined)) return undefined;
     return [`${nominal.name}[`, ...join(arguments_ as InspectKeyPart[][], ", "), "]"];
   }

@@ -32,3 +32,4 @@ GQ14	1	`annotate` declarations do not parse, so an annotation body holding only 
 TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
 VE	1	Value embedding is implemented except the variance rule: variance markers do not parse (F-705), so embedded fields cannot be checked as invariant positions
 EC	1	A dynamic trait value does not satisfy a bound on its own trait or a supertrait: the prototype has no dictionary that forwards bound calls through the value's table
+I16	1	A type parameter instantiated with `mut U` loses that `mut` inside a composite runtime type identity
