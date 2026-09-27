@@ -121,6 +121,17 @@ Decided 2026-09-26:
     `derive json.Codec for User:`. Still to design: the group declaration
     form, and whether one member of a group may be derived alone.
 
+**Rethink in progress (2026-09-27): a minimal design is replacing decisions
+1-12.** Agreed so far: (M1) the compiler adds only the sealed `Structure`
+trait (the zero-cost visitor: `visit`, `build`, `describe`) for every data
+type and enum; (M2) an impl body may name fields, variants, or parameters as
+`name = [facts]`, where facts are typed metadata values that only that
+impl's derived methods read; facts are purely descriptive, with no
+compiler-interpreted fact (so no view substitution, adapters, or markers);
+a field whose type does not support the derivation needs a changed data type
+or a hand-written method. Under discussion: how a trait opts in as derivable
+and how a type opts in to a derived impl.
+
 ## Contents
 
 1. [Problem](#problem)
