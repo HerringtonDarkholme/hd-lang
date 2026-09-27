@@ -56,13 +56,19 @@ Requirement rows (raised the same day) are comma lists with no `+` or `-`,
 so a row type argument is written `$(Db, Cache)` (see the row sweep in
 spec 02 and 11). Question 6 disappeared with decision 2.
 
-9. **Q11: canonical identity for non-generic named function values.** A
-   non-generic function declaration, and a one-payload variant
-   constructor, used as a value has one canonical identity, so
-   `get_user is get_user` is `true` (one immutable global each). The
-   identity of an instantiation of a generic function used as a value is
-   unspecified (keeping it would need a runtime intern table in generic
-   code). Each closure evaluation keeps its own identity.
+9. **Q11: function values are `AnyRef` with unspecified identity, and
+   cannot be compared** (revised 2026-09-27, following Scala, where
+   functions are `AnyRef` `FunctionN` objects and each eta-expansion or
+   lambda evaluation may or may not share an object). The identity of every
+   function value (named function, generic instantiation, one-payload
+   variant constructor, closure) is unspecified; the compiler may share or
+   allocate. A direct `is` on an expression whose static type is a function
+   type is an error (as is `==`, since function types have no `Eq`);
+   generic code over `T < AnyRef` may still compare, with an unspecified
+   result. Code that needs to remove a callback keeps a handle returned at
+   registration, or scopes the registration (see the example in question
+   11). This replaces the earlier "canonical for non-generic functions"
+   answer the same day.
 10. **Q9 and Q10 (per-declaration data for tools, item types) are parked
     with [typed derivation](TYPED_DERIVATION.md),** which the owner
     deferred; tools register functions by hand for now.
