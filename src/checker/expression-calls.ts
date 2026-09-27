@@ -91,6 +91,8 @@ export abstract class ExpressionCallChecker extends InspectChecker {
           expression.span,
           false,
         );
+      if (expected && resultParts(expected))
+        return this.checkResultVariant(expression.callee.name, expression, expected);
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(
           "positional-spread-needs-vararg",
@@ -129,6 +131,11 @@ export abstract class ExpressionCallChecker extends InspectChecker {
   }
 
   private checkMemberCall(expression: MemberCallExpression, expected?: ValueType): HirExpression {
+    if (
+      expression.callee.receiver.kind === "name" &&
+      this.namesResultEnum(expression.callee.receiver.name)
+    )
+      return this.checkResultVariant(expression.callee.name, expression, expected);
     if (
       expression.callee.receiver.kind === "name" &&
       this.namesOptionEnum(expression.callee.receiver.name)
@@ -1061,52 +1068,6 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         valueType: actual.type,
         strategy,
         type: "void",
-        span: expression.span,
-      };
-    }
-    if (expression.callee.name === "Ok" || expression.callee.name === "Err") {
-      if (expression.argumentSpreads?.some(Boolean))
-        this.fail(
-          "positional-spread-needs-vararg",
-          `${expression.callee.name} has no variadic parameter`,
-          expression.span,
-        );
-      const parts = expected && resultParts(expected);
-      if (!parts)
-        this.fail(
-          "unresolved-generic-placeholder",
-          `${expression.callee.name} requires an expected Result type`,
-          expression.span,
-        );
-      const ok = expression.callee.name === "Ok";
-      const payloadType = ok ? parts.ok : parts.error;
-      const expectedCount = ok && payloadType === "void" ? 0 : 1;
-      if (expression.arguments.length !== expectedCount) {
-        this.fail(
-          "argument-count",
-          `${expression.callee.name} expects ${expectedCount} argument${expectedCount === 1 ? "" : "s"}`,
-          expression.span,
-        );
-      }
-      this.resolveArgumentMapping(
-        expression,
-        expectedCount === 0 ? [] : [ok ? "value" : "error"],
-        expression.callee.name,
-      );
-      const payload =
-        expectedCount === 1
-          ? this.requireCoercion(
-              this.checkExpression(expression.arguments[0]!, payloadType),
-              payloadType,
-              expression.arguments[0]!.span,
-            )
-          : undefined;
-      return {
-        kind: "variant-wrap",
-        variant: ok ? "result-ok" : "result-error",
-        payload,
-        payloadType,
-        type: expected,
         span: expression.span,
       };
     }

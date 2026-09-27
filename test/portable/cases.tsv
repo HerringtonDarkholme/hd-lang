@@ -931,3 +931,12 @@ typing/invalid/inspectable-user-implementation.hd	type
 typing/invalid/inspectable-member-redeclared.hd	type
 typing/invalid/downcast-target-not-inspectable.hd	type
 typing/invalid/downcast-value-type-target.hd	type
+typing/invalid/bare-none-is-unknown-name.hd	type
+typing/invalid/bare-some-is-unknown-name.hd	type
+typing/valid/contextual-some-constructor.hd	type
+typing/invalid/bare-some-call-pattern.hd	type
+typing/invalid/bare-ok-is-unknown-name.hd	type
+typing/invalid/bare-err-is-unknown-name.hd	type
+typing/invalid/bare-ok-call-pattern.hd	type
+runtime/valid/result-enum-spellings.hd	runtime
+typing/valid/ok-err-are-not-prelude-names.hd	type

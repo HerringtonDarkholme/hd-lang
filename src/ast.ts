@@ -195,6 +195,8 @@ export type Pattern =
   | {
       readonly kind: "variant";
       readonly enumName?: string;
+      /** Written as `Name(...)` with neither a leading `.` nor an enum qualifier. */
+      readonly bare?: boolean;
       readonly variantName: string;
       readonly bindings: readonly (string | undefined)[];
       readonly bindingNames?: readonly (string | undefined)[];

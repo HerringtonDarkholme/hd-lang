@@ -9,8 +9,8 @@ enum SyncError:
     Fs(error: FsError)
 
 fn read_config(path: string) -> Result[string, FsError]:
-    Err(FsError.NotFound(path))
+    .Err(FsError.NotFound(path))
 
 fn sync(path: string) -> Result[string, SyncError]:
     text := read_config(path)?  # diagnostic: invalid-result-propagation
-    Ok(text)
+    .Ok(text)

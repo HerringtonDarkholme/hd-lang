@@ -1,0 +1,4 @@
+# test: Err is a variant of Result, not a prelude name; a bare Err call is an unknown name
+
+fn parse() -> Result[i32, string]:
+    Err("bad input")  # diagnostic: unknown-name

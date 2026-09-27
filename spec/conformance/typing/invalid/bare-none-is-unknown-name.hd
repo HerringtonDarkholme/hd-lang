@@ -1,0 +1,3 @@
+# test: None is a variant of Option, not a prelude name; a bare None is an unknown name
+
+let value: i32? = None  # diagnostic: unknown-name

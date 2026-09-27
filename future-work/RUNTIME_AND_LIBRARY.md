@@ -78,7 +78,7 @@ An entry point's transitive `$` requirements are the host provider-binding list:
 pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     config := load_config!("config/app.json")?
     sync_config!(config)?
-    Ok()
+    .Ok()
 ```
 
 The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. A runtime profile binds each host provider readonly unless it marks the provider's trait mutable, as a profile may for stateful services such as `Clock`, `Random`, `FsWrite`, and `Console`; an entry row may then require `$ mut K` for that trait ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)). Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
@@ -107,7 +107,7 @@ fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
     user := db.load_user!(id)?
     remote.push_user!(user)?
     db.mark_synced!(id)?
-    Ok()
+    .Ok()
 ```
 
 When a durable runner starts `sync_user!` with recording enabled, it records the entry function's stable identity, code identity, arguments, and provider configuration identity. It then runs the function normally. Calls that cross into the host append events to an append-only history; which calls are recorded, and how much each event holds, depend on the recording level (see Replay Rules below).
@@ -249,7 +249,7 @@ The compiler-generated boundary adapter conceptually performs these steps:
 6. Restore the previous context and emit `SpanEnded` with the derived `Outcome`.
 7. Return, fail, cancel, or interrupt exactly as the wrapped operation did.
 
-At a declared boundary, returning `Err(error)` maps to `Outcome.Failed` even though `Result` is returned through normal language control flow. Values are not captured by default; only the error type and explicitly supplied safe fields are recorded.
+At a declared boundary, returning `.Err(error)` maps to `Outcome.Failed` even though `Result` is returned through normal language control flow. Values are not captured by default; only the error type and explicitly supplied safe fields are recorded.
 
 Standard-library logging helpers use the same provider:
 
@@ -369,12 +369,12 @@ fn publish_file!() -> void:
 # Later, after cleanup has closed the handle.
 file := global_file?
 match file.read():
-    Err(ResourceError.Disposed) => pass
+    .Err(ResourceError.Disposed) => pass
     _ => panic("closed handle did not report Disposed")
 ```
 
 The accepted Wasm-handle contract already requires an operation after close to
-return `Err(ResourceError.Disposed)` rather than trap. That checked failure is
+return `.Err(ResourceError.Disposed)` rather than trap. That checked failure is
 not deterministic cleanup: lexical cleanup would run one action but would not
 invalidate aliases stored in
 globals, fields, containers, returns, or closures. Garbage collection also does

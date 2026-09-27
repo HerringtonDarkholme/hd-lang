@@ -1,3 +1,3 @@
-# test: Ok without context leaves the Result error type uninferred
+# test: Result.Ok without context leaves the Result error type uninferred
 
-value := Ok(1)  # diagnostic: unresolved-generic-placeholder
+value := Result.Ok(1)  # diagnostic: unresolved-generic-placeholder

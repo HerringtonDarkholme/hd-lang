@@ -331,9 +331,9 @@ For `Ts... = User, i32, bool`, the parameter pattern expands to `mut Suspend[Use
 
 If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. `pack.map((tasks...), make_slot)` maps a heterogeneous tuple through a named generic function and returns another tuple, preserving each result type. `pack.map_list(slots, poll_slot, context)` uses the same per-element instantiation but collects a homogeneous `List[bool]` for readiness checks. Both are compiler-recognized expressions, not ordinary function calls or first-class generic function values; each mapped call executes left to right. Filtering, indexing, splitting, and pack arithmetic remain unsupported. The scheduling and cancellation semantics of `all!` belong to the concurrency library.
 
-`all!` treats a child's `Err` as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `Err` values. Runtime panics and cancellation are separate from this result-value rule.
+`all!` treats a child's `.Err` result as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `.Err` values. Runtime panics and cancellation are separate from this result-value rule.
 
-`race!` returns the first completed child's value, including `Err`, and synchronously cancels the remaining children before returning. It does not wait for the first `Ok`. Tie-breaking between ready children remains unspecified.
+`race!` returns the first completed child's value, including an `.Err` result, and synchronously cancels the remaining children before returning. It does not wait for the first `.Ok`. Tie-breaking between ready children remains unspecified.
 
 Traits are explicit, not structural. A type does not implement a trait just because it has matching methods:
 
@@ -514,7 +514,7 @@ pub fn main!() -> Result[void, AppError] $ Args + Console:
     console.write_line!("starting " + args.program_name())?
 ```
 
-`main` has no source-level parameters. Arguments, environment, I/O, and other host facilities are supplied as context requirements. It follows ordinary suspension naming: use `main!` only when its body can suspend. Its return type may be `void` or `Result[void, E]`; the generated host adapter maps `Err` to invocation failure.
+`main` has no source-level parameters. Arguments, environment, I/O, and other host facilities are supplied as context requirements. It follows ordinary suspension naming: use `main!` only when its body can suspend. Its return type may be `void` or `Result[void, E]`; the generated host adapter maps an `.Err` result to invocation failure.
 
 `pub` only controls visibility between hd-lang modules. It does not export every public function through the Wasm component boundary. Tools, workflows, and library-facing functions require explicit registration, and that registration generates a typed host adapter. Their exact registration APIs are separate library/tooling designs.
 
@@ -1073,8 +1073,8 @@ In `Expr.Add(l, r)`, `l` and `r` are positional patterns that bind new names; th
 `Result` values use capitalized helper constructors:
 
 ```text
-return Ok(user)
-return Err(db_error)
+return .Ok(user)
+return .Err(db_error)
 ```
 
 ## Absence
@@ -1715,7 +1715,7 @@ The declaration also introduces a cold computation constructor. Given:
 ```text
 fn load_user!(id: UserId) -> Result[User, DbError]:
     user := fetch_user!(id)?
-    Ok(user)
+    .Ok(user)
 ```
 
 the two call forms differ deliberately:
@@ -1845,7 +1845,7 @@ The child helpers preserve the same exclusive driver identity through nested pol
 
 The runtime guard around the frame rejects competing drivers and reentrant entry before calling generated code. Terminal-state checks prevent repeated execution. Cancelling before the first poll never starts the body; cancelling while waiting synchronously cancels the active child. The child provider unregisters its pending waits, and stale wakes cannot re-enter the cancelled execution. This example has no user-owned resources or cleanup declarations; those remain in [Deferred Resource Cleanup And Scope Exit](#deferred-resource-cleanup-and-scope-exit).
 
-For example, polling `adjusted(10)` constructs its child once and saves `offset = 11`. If the child is pending, a later wake triggers another poll of that same child. When it returns `7`, the parent returns `Ready(18)`. Each further suspension point adds the necessary frame state and live locals. Loops reuse states, and a `Result` propagated by `?` completes with `Ready(Err(error))`; an ordinary error result is not cancellation.
+For example, polling `adjusted(10)` constructs its child once and saves `offset = 11`. If the child is pending, a later wake triggers another poll of that same child. When it returns `7`, the parent returns `Ready(18)`. Each further suspension point adds the necessary frame state and live locals. Loops reuse states, and a `Result` propagated by `?` completes with `Ready(.Err(error))`; an ordinary error result is not cancellation.
 
 For the Wasm GC backend, frames and captured language values use managed storage. A frame contains the state discriminator and the values needed for resumption; the compiler may optimize their layout. Durable workflow recovery reconstructs these frames by deterministic replay rather than serializing the frame or waker.
 
@@ -1864,7 +1864,7 @@ fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     cached := cache.get_user(id)
     if cached != .None:
-        return Ok(cached)
+        return .Ok(cached)
     db.get_user!(id)
 
 data MockDatabase:
@@ -1872,7 +1872,7 @@ data MockDatabase:
 
 impl Database for MockDatabase:
     fn get_user!(self, id: UserId) -> Result[User?, DbError]:
-        Ok(self.user)
+        .Ok(self.user)
 
 mock_db := MockDatabase {
     user: User {
@@ -1927,7 +1927,7 @@ The compiler derives and verifies requirements from the call graph. Manifests do
 Open syntax issues:
 
 1. Exact provider declaration syntax for production, tests, and package/app boundaries.
-2. `Result[T, E]` ergonomics beyond `?` propagation and `Ok(value)` / `Err(error)` construction, including pattern matching.
+2. `Result[T, E]` ergonomics beyond `?` propagation and `.Ok(value)` / `.Err(error)` construction, including pattern matching.
 
 Standard capability granularity is deferred until the standard library is implemented. Broad service traits and narrower least-authority traits should be compared against concrete APIs rather than selected as a standalone language rule.
 
@@ -2999,7 +2999,7 @@ fn __meta_User_id() -> Result[FieldShape, AnnotationError]:
         type=type(UserId),
     )
 
-    Ok(FieldShape.with_metadata(base, metadata=[]))
+    .Ok(FieldShape.with_metadata(base, metadata=[]))
 
 fn __meta_User_email() -> Result[FieldShape, AnnotationError]:
     base := FieldShape.base(
@@ -3008,7 +3008,7 @@ fn __meta_User_email() -> Result[FieldShape, AnnotationError]:
         type=type(string),
     )
 
-    Ok(FieldShape.with_metadata(
+    .Ok(FieldShape.with_metadata(
         base,
         metadata=[max_len(320), description("Company email")],
     ))
@@ -3039,7 +3039,7 @@ fn __annotation_DatabaseSchema_User() -> Result[TableSchema, AnnotationError]:
     # and that the right-hand side is a `DatabaseColumn`.
     fields["email"] = DatabaseColumn.Text(name="email", max_len=320)
 
-    Ok(DatabaseSchema.build(user_shape, fields))
+    .Ok(DatabaseSchema.build(user_shape, fields))
 
 # A source request such as `DatabaseSchema::annotation(User)` uses this generated path.
 fn __materialize_User_table() -> Result[TableSchema, AnnotationError]:

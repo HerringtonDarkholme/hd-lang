@@ -12,11 +12,11 @@ impl From[Failure] for Failure:
     fn from(value: Failure) -> Failure: Failure.Converted
 
 fn fail() -> Result[i32, Failure]:
-    Err(Failure.Original(7))
+    .Err(Failure.Original(7))
 
 fn relay() -> Result[i32, Failure]:
     value := fail()?
-    Ok(value)
+    .Ok(value)
 
 fn failure_code(failure: Failure) -> i32:
     match failure:
@@ -25,11 +25,11 @@ fn failure_code(failure: Failure) -> i32:
 
 fn code(result: Result[i32, Failure]) -> i32:
     match result:
-        Ok(value) => value
-        Err(failure) => failure_code(failure)
+        .Ok(value) => value
+        .Err(failure) => failure_code(failure)
 
 test "the identical error type propagates unchanged":
     assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
 
 test "a direct call still uses the implementation":
-    assert_equal(code(Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")
+    assert_equal(code(.Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")

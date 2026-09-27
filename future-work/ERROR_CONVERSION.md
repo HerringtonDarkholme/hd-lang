@@ -140,10 +140,10 @@ its own domain error:
 
 ```text
 fn read_config(path: string) -> Result[string, FsError]:
-    Err(FsError.NotFound(path))
+    .Err(FsError.NotFound(path))
 
 fn fetch(url: string) -> Result[string, HttpError]:
-    Err(HttpError.Timeout)
+    .Err(HttpError.Timeout)
 ```
 
 The caller wants to write this, and cannot:
@@ -156,7 +156,7 @@ enum SyncError:
 fn sync_bad(path: string) -> Result[string, SyncError]:
     url := read_config(path)?
     body := fetch(url)?
-    Ok(body)
+    .Ok(body)
 ```
 
 Both blocks parse. The prototype compiler rejects `sync_bad` with
@@ -171,12 +171,12 @@ Today the author has three ways out, all by hand:
    ```text
    fn sync(path: string) -> Result[string, SyncError]:
        url := match read_config(path):
-           Ok(text) => text
-           Err(e) => return Err(SyncError.Fs(e))
+           .Ok(text) => text
+           .Err(e) => return .Err(SyncError.Fs(e))
        body := match fetch(url):
-           Ok(b) => b
-           Err(e) => return Err(SyncError.Http(e))
-       Ok(body)
+           .Ok(b) => b
+           .Err(e) => return .Err(SyncError.Http(e))
+       .Ok(body)
    ```
 
    Parses. (The prototype also rejects this block, because it types the
@@ -209,8 +209,8 @@ mapping that is wrong.
 > function must return a `Result[U, F]` whose error type accepts the
 > propagated error.
 
-[Propagation](../spec/05-expressions.md#propagation) says `Err(error)`
-"immediately returns a compatible `Err`". Neither text defines "accepts" or
+[Propagation](../spec/05-expressions.md#propagation) says `.Err(error)`
+"immediately returns a compatible `.Err`". Neither text defines "accepts" or
 "compatible". Three facts pin down what is and is not decided:
 
 - **No conversion call exists.** Nothing in the specification calls user code
@@ -353,8 +353,8 @@ pub fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
     url := files.read_text!(path)?
     response := http.send!(Request::get(url.trim()))?
     if response.status != 200:
-        return Err(SyncError.BadStatus(response.status))
-    Ok(response)
+        return .Err(SyncError.BadStatus(response.status))
+    .Ok(response)
 ```
 
 Parses. Type-correct under A.
@@ -362,14 +362,14 @@ Parses. Type-correct under A.
 ### Typing rule
 
 Let the operand have type `Result[T, E]` and let the nearest enclosing
-function or closure have result type `Result[U, F]`. On `Err(error)`:
+function or closure have result type `Result[U, F]`. On `.Err(error)`:
 
 1. If `E` is assignable to `F` by one rule of
    [Assignability And Coercion](../spec/04-type-system.md#assignability-and-coercion),
-   `?` returns `Err` with the assigned value. This covers identity, widening,
+   `?` returns `.Err` with the assigned value. This covers identity, widening,
    weakening, and construction of a dynamic `Error` value.
 2. Otherwise, if `F` implements `FromError[E']`, where `E'` is `E` with an
-   outer `mut` removed, `?` returns `Err(FromError[E']::from_error(error))`
+   outer `mut` removed, `?` returns `.Err(FromError[E']::from_error(error))`
    with `Self = F`. For a generic `F` with the bound `F < FromError[E']`, the
    call goes through the bound's dictionary (TQ-9).
 3. Otherwise it is an `invalid-result-propagation` error. The message names
@@ -387,9 +387,9 @@ safe. That is fine: `?` always knows `F` statically. The trait signature fixes
 an empty row and no `!`, so a conversion cannot use a requirement, suspend, or
 make a host call. It can still panic, as any code can.
 
-The conversion applies only at `?`. `return Err(fs_error)` in a function
+The conversion applies only at `?`. `return .Err(fs_error)` in a function
 returning `Result[U, SyncError]` is still a type error; write
-`Err(SyncError.Fs(fs_error))`.
+`.Err(SyncError.Fs(fs_error))`.
 
 ### Coherence and orphan rule
 
@@ -432,7 +432,7 @@ conversion through a bound:
 ```text
 fn load[E < FromError[FsError]](path: Path) -> Result[string, E] $ FsRead:
     text := $.use(FsRead).read_text!(path)?
-    Ok(text)
+    .Ok(text)
 ```
 
 Parses. It needs static calls through a bound (TQ-9, decided but not yet
@@ -513,8 +513,8 @@ impl Error for Context:
 impl[T, E < Error] Result[T, E]:
     pub fn context(self, message: string) -> Result[T, Error]:
         match self:
-            Ok(value) => Ok(value)
-            Err(error) => Err(Context { message: message, inner: error })
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(Context { message: message, inner: error })
 
 pub fn chain(error: Error) -> List[Error]:
     let found: mut List[Error] = [error]
@@ -541,18 +541,18 @@ pub fn report!() -> Result[string, Error] $ FsRead + Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
-    Ok("status ${response.status}")
+    .Ok("status ${response.status}")
 
 pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
     match report!():
-        Ok(line) => println(line)
-        Err(error) =>
+        .Ok(line) => println(line)
+        .Err(error) =>
             for part in chain(error):
                 match part.downcast[FsError]():
                     .Some(FsError.NotFound(path)) => println("missing ${path}")
                     _ => println(part.to_string())
-            return Err(error)
-    Ok()
+            return .Err(error)
+    .Ok()
 ```
 
 Parses. `downcast` is the compiler-provided method TQ-22 decided.
@@ -637,7 +637,7 @@ A new type former in the error position, and new type patterns:
 fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead + Http:
     url := $.use(FsRead).read_text!(path)?
     response := $.use(Http).send!(Request::get(url))?
-    Ok(response)
+    .Ok(response)
 ```
 
 Hypothetical: the parser rejects `|` in a type.
@@ -704,14 +704,14 @@ pub enum ConfigError:
 impl[T, E] Result[T, E]:
     pub fn map_err[F, R](self, transform: fn(E) -> F $ R) -> Result[T, F] $ R:
         match self:
-            Ok(value) => Ok(value)
-            Err(error) => Err(transform(error))
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(transform(error))
 
 fn load!(path: Path, backup: Path) -> Result[string, ConfigError] $ FsRead:
     files := $.use(FsRead)
     primary := files.read_text!(path).map_err(fn(e): ConfigError.Missing(e))?
     extra := files.read_text!(backup).map_err(fn(e): ConfigError.Unreadable(e))?
-    Ok(primary + extra)
+    .Ok(primary + extra)
 ```
 
 Parses. This is the only design here that sends one source type to two
@@ -730,11 +730,11 @@ success value. This parses and is legal today:
 
 ```text
 fn make_adder() -> Result[fn(i32) -> i32, string]:
-    Ok(fn(x: i32) -> i32: x + 1)
+    .Ok(fn(x: i32) -> i32: x + 1)
 
 fn use_adder() -> Result[i32, string]:
     three := make_adder()?(2)
-    Ok(three)
+    .Ok(three)
 ```
 
 `?[...]` is indexing the success value and `??` is two unwraps of a `T??`, so
@@ -744,15 +744,15 @@ neither is free. A free spelling is `? else`:
 fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
     url := $.use(FsRead).read_text!(path)? else SyncError.Fs
     response := $.use(Http).send!(Request::get(url))? else SyncError.Http
-    Ok(response)
+    .Ok(response)
 ```
 
 Hypothetical: the parser rejects it. `else` in expression position is always
 followed by `:` today, so `? else` followed by an expression is unambiguous.
 
 Typing: in `operand? else mapper`, `mapper` is a single-payload variant
-constructor or an expression of type `fn(E) -> F`; on `Err(error)`, `?`
-returns `Err(mapper(error))`. No trait and no coherence question.
+constructor or an expression of type `fn(E) -> F`; on `.Err(error)`, `?`
+returns `.Err(mapper(error))`. No trait and no coherence question.
 
 ### Coherence, generics, `fn!`, boundaries, cost
 
@@ -828,7 +828,7 @@ Staging:
    [Propagation](../spec/05-expressions.md#propagation), with fixtures for:
    conversion accepted; no impl (`invalid-result-propagation`); assignability
    preferred over an impl; closure with inferred result gets no conversion;
-   `return Err(e)` not converted.
+   `return .Err(e)` not converted.
 3. **With Runtime Type Identity:** `Error < Display + Inspectable`,
    `downcast`, and a chain search (`std.error.find[reified T]`, like Go's
    `errors.As`).
@@ -854,7 +854,7 @@ with no new rule.
 ```text
 fn sync(path: string) -> Result[string, Error]:
     url := read_config(path)?    # FsError to Error by assignability rule 6
-    Ok(url)
+    .Ok(url)
 ```
 
 ### 2. Does `?` call a conversion, and through which trait?
@@ -890,7 +890,7 @@ impl for `AnyError`, and `downcast` already works on `Inspectable` values.
 pub fn main!() -> Result[void, Error] $ FsRead + Console:
     text := $.use(FsRead).read_text!(Path::parse("a.txt"))?
     println(text)
-    Ok()
+    .Ok()
 ```
 
 ### 4. Does `std` ship `context` and a chain walker?
@@ -924,7 +924,7 @@ to errors.
 
 ```text
 pub fn main() -> Result[void, Error]:
-    Err(Context { message: "no input", inner: FsError.Other("empty") })
+    .Err(Context { message: "no input", inner: FsError.Other("empty") })
 ```
 
 ### 6. How does an erased error cross a registered boundary?

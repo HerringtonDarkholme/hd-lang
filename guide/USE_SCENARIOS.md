@@ -63,7 +63,7 @@ trait Database:
 
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
     db := $.use(Database)
-    Ok(db.get_user!(id)?)
+    .Ok(db.get_user!(id)?)
 
 annotate Tool for get_user: pass
 tool_registry.register(Tool::annotation(get_user))

@@ -80,7 +80,13 @@ test("REPL values render structurally with their types", async () => {
   await session.evaluate("let maybe: i32? = .None");
   assert.equal((await session.evaluate("maybe")).value, ".None");
   await session.evaluate("let present: Option[i32] = .Some(3)");
-  assert.equal((await session.evaluate("present")).value, "3");
+  assert.equal((await session.evaluate("present")).value, ".Some(3)");
+  await session.evaluate("let nested: i32?? = .Some(.None)");
+  assert.equal((await session.evaluate("nested")).value, ".Some(.None)");
+  await session.evaluate("let success: Result[i32, string] = .Ok(2)");
+  assert.equal((await session.evaluate("success")).value, ".Ok(2)");
+  await session.evaluate('let failure: Result[i32, string] = Result.Err("no")');
+  assert.equal((await session.evaluate("failure")).value, '.Err("no")');
 });
 
 test("REPL rejects invalid inputs without changing the session", async () => {

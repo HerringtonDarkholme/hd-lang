@@ -216,7 +216,7 @@ payload variants, `is` separates two equal constructions and nothing else.
 
 What that identity costs:
 
-- **Allocation.** Every `.Some`, `Ok`, `Err`, and payload construction
+- **Allocation.** Every `.Some`, `.Ok`, `.Err`, and payload construction
   allocates a fresh record, including each implicit `T` to `T?` wrap and
   each successful `Map.get`.
 - **No niche.** `User?` cannot be a nullable reference to the `User`.

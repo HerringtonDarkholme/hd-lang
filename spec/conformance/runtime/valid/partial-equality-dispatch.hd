@@ -30,7 +30,7 @@ test "optional and Result equality use explicit payload implementations":
     same_ada := User { id: "ada" }
     let left: User? = ada
     let right: User? = same_ada
-    let left_result: Result[User, string] = Ok(ada)
-    let right_result: Result[User, string] = Ok(same_ada)
+    let left_result: Result[User, string] = .Ok(ada)
+    let right_result: Result[User, string] = .Ok(same_ada)
     assert_equal(left, right, reason="optional payload equality dispatch")
     assert_equal(left_result, right_result, reason="Result payload equality dispatch")

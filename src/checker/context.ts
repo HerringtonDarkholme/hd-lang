@@ -160,8 +160,6 @@ export const PRELUDE_NAMES = new Set([
   "AnyRef",
   "Option",
   "Result",
-  "Ok",
-  "Err",
   "panic",
   "Display",
   "PartialEq",

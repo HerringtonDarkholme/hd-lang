@@ -385,7 +385,7 @@ fn sync!(id: UserId) -> Result[void, DbError] $ Database:
     db := $.use(Database)
     cached := db          # an ordinary value; no call is "the provider call"
     _ := cached.load_user!(id)?
-    Ok()
+    .Ok()
 ```
 
 ### 2. Which host calls enter the history?
@@ -476,7 +476,7 @@ fn transfer!(a: Account, b: Account) -> Result[void, BankError] $ Bank:
     bank := $.use(Bank)
     bank.debit!(a)?     # event 0: Bank.debit, fingerprint(a)
     bank.credit!(b)?    # event 1: Bank.credit, fingerprint(b)
-    Ok()
+    .Ok()
 # divergence message: "event 1 expected Bank.credit at transfer (bang #2)"
 ```
 

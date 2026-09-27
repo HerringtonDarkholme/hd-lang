@@ -537,3 +537,19 @@ existing source. Each entry names the decision that made the change.
   redeclares a sealed supertrait's member (previously
   `duplicate-trait-member`). A trait that extends `Inspectable` as a
   requirement key is the new `inspectable-requirement`.
+- Option variants (owner decision, confirming O2): `Some` and `None` are not
+  prelude names. A bare `None` or `Some(value)` expression is `unknown-name`
+  unless a declaration in scope supplies the name. An unqualified variant
+  pattern with a payload list, such as `Some(value)`, is now
+  `bare-variant-pattern`, matching the bare `None` pattern; it was previously
+  unspecified.
+- Result variants (owner decision, extending O2 to `Result`): `Result` is the
+  ordinary prelude enum `enum Result[T, E]: Ok(value: T); Err(error: E)`, and
+  `Ok` and `Err` are no longer prelude names. Results are built with
+  `.Ok(value)`, `.Err(error)`, `Result.Ok(value)`, and `Result.Err(error)`
+  (`.Ok()` for `Result[void, E]`) and matched with the same spellings. Old
+  code is affected three ways: a bare `Ok(value)` or `Err(error)` expression
+  is now `unknown-name`; a bare `Ok(pattern)` or `Err(pattern)` pattern is
+  now `bare-variant-pattern`; and a module may now declare its own `Ok` or
+  `Err`, previously `prelude-name-shadow`. `.Ok(value)` without an expected
+  `Result` type is `missing-contextual-enum-type`.

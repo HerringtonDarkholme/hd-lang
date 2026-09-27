@@ -12,15 +12,15 @@ enum SyncError:
 
 fn map_err[T, E, F](result: Result[T, E], transform: fn(E) -> F) -> Result[T, F]:
     match result:
-        Ok(value) => Ok(value)
-        Err(error) => Err(transform(error))
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(transform(error))
 
 fn read_config(path: string) -> Result[string, FsError]:
-    Err(FsError.NotFound(path))
+    .Err(FsError.NotFound(path))
 
 fn load(path: string) -> Result[string, SyncError]:
     text := map_err(read_config(path), SyncError.Fs)?
-    Ok(text)
+    .Ok(text)
 
 fn fs_path(error: FsError) -> string:
     match error:
@@ -33,19 +33,19 @@ fn sync_label(error: SyncError) -> string:
 
 fn label(result: Result[string, SyncError]) -> string:
     match result:
-        Ok(text) => text
-        Err(error) => sync_label(error)
+        .Ok(text) => text
+        .Err(error) => sync_label(error)
 
 test "a constructor passed to a higher-order function":
     assert_equal(label(load("a.txt")), "fs: a.txt", reason="map_err applies SyncError.Fs")
 
 test "a constructor bound to a local and called":
     let wrap: fn(FsError) -> SyncError = SyncError.Fs
-    assert_equal(label(Err(wrap(FsError.NotFound("b.txt")))), "fs: b.txt", reason="calling the value constructs the variant")
+    assert_equal(label(.Err(wrap(FsError.NotFound("b.txt")))), "fs: b.txt", reason="calling the value constructs the variant")
 
 test "a payload of a primitive type":
     make := FsError.NotFound
-    assert_equal(label(Err(SyncError.Fs(make("c.txt")))), "fs: c.txt", reason="FsError.NotFound has type fn(string) -> FsError")
+    assert_equal(label(.Err(SyncError.Fs(make("c.txt")))), "fs: c.txt", reason="FsError.NotFound has type fn(string) -> FsError")
 
 fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
     [for error in errors => wrap(error)]
@@ -54,5 +54,5 @@ test "a constructor applied inside a comprehension":
     wrapped := wrap_all([FsError.NotFound("a.txt"), FsError.NotFound("b.txt")], SyncError.Fs)
     retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
     assert_equal(wrapped.len(), 2, reason="one wrapped error per input")
-    assert_equal(label(Err(wrapped[1])), "fs: b.txt", reason="elements keep their order")
-    assert_equal(label(Err(retry(FsError.NotFound("c.txt")))), "retry 1", reason="a closure adapts a two-payload constructor")
+    assert_equal(label(.Err(wrapped[1])), "fs: b.txt", reason="elements keep their order")
+    assert_equal(label(.Err(retry(FsError.NotFound("c.txt")))), "retry 1", reason="a closure adapts a two-payload constructor")

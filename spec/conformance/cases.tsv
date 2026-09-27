@@ -1073,3 +1073,12 @@ typing/invalid/inspectable-member-redeclared.hd	type	reject:sealed-trait-impleme
 typing/invalid/downcast-target-not-inspectable.hd	type	reject:unsatisfied-trait-bound	09-traits.md#recovering-a-concrete-type
 typing/invalid/downcast-value-type-target.hd	type	reject:unsatisfied-trait-bound	09-traits.md#recovering-a-concrete-type
 typing/invalid/error-implementation-local-type.hd	type	reject:missing-supertrait-implementation	09-traits.md#error-trait
+typing/invalid/bare-none-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#optional-types
+typing/invalid/bare-some-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#optional-types
+typing/valid/contextual-some-constructor.hd	type	accept	04-type-system.md#optional-types
+typing/invalid/bare-some-call-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
+typing/invalid/bare-ok-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#result-types
+typing/invalid/bare-err-is-unknown-name.hd	type	reject:unknown-name	04-type-system.md#result-types
+typing/invalid/bare-ok-call-pattern.hd	type	reject:bare-variant-pattern	06-control-flow.md#match-expressions
+runtime/valid/result-enum-spellings.hd	runtime	accept	04-type-system.md#result-types
+typing/valid/ok-err-are-not-prelude-names.hd	type	accept	10-modules.md#prelude

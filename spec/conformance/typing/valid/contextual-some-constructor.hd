@@ -1,0 +1,4 @@
+# test: .Some builds a present optional where an optional type is expected
+
+let value: i32? = .Some(1)
+let nested: i32?? = .Some(.None)

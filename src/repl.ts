@@ -431,7 +431,11 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
   if (type === "char") return ["\"'$value'\""];
   if (type.endsWith("?")) {
     const inner = nameFor(type.slice(0, -1));
-    return ["match value:", `    .Some(present) => ${inner}(present)`, '    .None => ".None"'];
+    return [
+      "match value:",
+      `    .Some(present) => ".Some(" + ${inner}(present) + ")"`,
+      '    .None => ".None"',
+    ];
   }
   const generic = splitGeneric(type);
   if (generic?.name === "List" && generic.arguments.length === 1) {
@@ -466,8 +470,8 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
     const error = nameFor(generic.arguments[1]!);
     return [
       "match value:",
-      `    Ok(success) => "Ok(" + ${ok}(success) + ")"`,
-      `    Err(failure) => "Err(" + ${error}(failure) + ")"`,
+      `    .Ok(success) => ".Ok(" + ${ok}(success) + ")"`,
+      `    .Err(failure) => ".Err(" + ${error}(failure) + ")"`,
     ];
   }
   if (type.startsWith("(") && type.endsWith(")")) {

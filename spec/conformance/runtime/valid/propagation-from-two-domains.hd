@@ -22,20 +22,20 @@ impl From[HttpError] for SyncError:
 
 fn read_config(path: string) -> Result[string, FsError]:
     if path == "config.txt":
-        Ok("https://example.test")
+        .Ok("https://example.test")
     else:
-        Err(FsError.NotFound(path))
+        .Err(FsError.NotFound(path))
 
 fn fetch(url: string, online: bool) -> Result[string, HttpError]:
     if online:
-        Ok("body of " + url)
+        .Ok("body of " + url)
     else:
-        Err(HttpError.Timeout(url))
+        .Err(HttpError.Timeout(url))
 
 fn sync(path: string, online: bool) -> Result[string, SyncError]:
     url := read_config(path)?
     body := fetch(url, online)?
-    Ok(body)
+    .Ok(body)
 
 fn fs_path(error: FsError) -> string:
     match error:
@@ -52,8 +52,8 @@ fn label(error: SyncError) -> string:
 
 fn describe(result: Result[string, SyncError]) -> string:
     match result:
-        Ok(body) => body
-        Err(error) => label(error)
+        .Ok(body) => body
+        .Err(error) => label(error)
 
 test "both steps succeed":
     assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")

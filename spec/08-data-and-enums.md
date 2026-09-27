@@ -524,11 +524,12 @@ matched with the same spellings as patterns. The only language support beyond
 an ordinary enum is the `T?` spelling, the one-layer implicit wrap of a plain
 `T` value where `T?` is expected, and postfix `?`.
 
-`Result[T, E]` behaves as a standard enum-like type with language support for
-postfix `?`. `Ok(value)` and `Err(error)` are the construction spellings for
-`Result`. In patterns, `Ok(pattern)` and `Err(pattern)` are the corresponding
-unqualified built-in spellings; they do not make ordinary enum variants
-directly nameable through `use`.
+`Result[T, E]` is likewise the prelude enum
+`enum Result[T, E]: Ok(value: T); Err(error: E)`
+([Result Types](04-type-system.md#result-types)). Its values are built with
+`.Ok(value)`, `.Err(error)`, `Result.Ok(value)`, and `Result.Err(error)`, and
+matched with the same spellings as patterns. The only language support beyond
+an ordinary enum is postfix `?` and the `Result[void, E]` entry-point result.
 
 The representation of either type is an ABI decision, not a source-language
 difference. An implementation may, for example, represent `.None` as a null

@@ -302,8 +302,8 @@ Postfix `?` handles either an optional or a `Result` value:
 
 - for `T?`, `.Some(value)` produces `value` as `T`; `.None` immediately
   returns `.None` from the nearest function;
-- for `Result[T, E]`, `Ok(value)` produces the declared `T`, including a
-  mutable type argument; `Err(error)` immediately returns `Err` from the
+- for `Result[T, E]`, `.Ok(value)` produces the declared `T`, including a
+  mutable type argument; `.Err(error)` immediately returns `.Err` from the
   nearest function, holding the error converted as described below.
 
 The operand is evaluated once. `?` does not catch runtime panics and does not
@@ -338,7 +338,7 @@ conversion to `B` would need an optional injection after it. Assignability
 is itself one rule: an `A` that implements the dynamically safe trait `Tr`
 does not propagate into `Result[U, Tr?]`.
 
-Only `?` calls a conversion. `return Err(error)` and every other `Err`
+Only `?` calls a conversion. `return .Err(error)` and every other `.Err`
 construction use ordinary assignability. The conversion is part of the
 propagated value, so it runs before any deferred cleanup
 ([Deferred Cleanup](06-control-flow.md#deferred-cleanup)). A conversion
@@ -375,15 +375,15 @@ impl From[HttpError] for SyncError:
     fn from(value: HttpError) -> SyncError: SyncError.Http(value)
 
 fn read_config(path: string) -> Result[string, FsError]:
-    Err(FsError.NotFound(path))
+    .Err(FsError.NotFound(path))
 
 fn fetch(url: string) -> Result[string, HttpError]:
-    Err(HttpError.Timeout)
+    .Err(HttpError.Timeout)
 
 fn sync(path: string) -> Result[string, SyncError]:
     url := read_config(path)?
     body := fetch(url)?
-    Ok(body)
+    .Ok(body)
 ```
 
 ## Unary And Binary Operators

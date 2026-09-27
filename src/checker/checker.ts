@@ -41,7 +41,7 @@ export class FunctionChecker extends ExpressionControlChecker {
    * 05 Propagation: an error of type `source` reaches the enclosing error type
    * `target` in one step, by one assignability rule or otherwise by one call of
    * `target`'s `std.convert.From[source]` implementation. The `?` is checked
-   * as `match operand: Ok($ok) => $ok; Err($err) => return Err(conversion)`.
+   * as `match operand: .Ok($ok) => $ok; .Err($err) => return .Err(conversion)`.
    */
   private checkConvertingPropagation(
     expression: Extract<Expression, { kind: "propagate" }>,
@@ -116,7 +116,7 @@ export class FunctionChecker extends ExpressionControlChecker {
                   kind: "return",
                   value: {
                     kind: "call",
-                    callee: { kind: "name", name: "Err", span },
+                    callee: { kind: "contextual-variant", name: "Err", span },
                     arguments: [conversion],
                     span,
                   },

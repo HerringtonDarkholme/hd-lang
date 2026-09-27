@@ -188,7 +188,9 @@ enum Option[T]:
 everywhere a type may appear, including implementation targets. `T` and `T?`
 are different types; a non-optional type never contains an absent value.
 `Option` is the only prelude name this adds; `Some` and `None` are variants,
-not prelude names.
+not prelude names. A bare `None` or `Some(value)` expression therefore
+resolves like any other identifier and is an `unknown-name` error unless a
+declaration in scope supplies that name.
 
 The absent value is written `.None` where an optional type is expected, or
 `Option.None`. A present value is written `.Some(value)` or
@@ -234,12 +236,23 @@ value. As with every generic composite, a mutable outer view is invariant.
 
 ## Result Types
 
-Recoverable errors use the ordinary generic type `Result[T, E]`. Values are
-constructed with `Ok(value)` and `Err(error)`.
+Recoverable errors use the prelude enum
+`enum Result[T, E]: Ok(value: T); Err(error: E)`.
+`Result` is a prelude name; `Ok` and `Err` are its variants, not prelude
+names. Values follow the ordinary enum construction rules
+([Enum Declarations](08-data-and-enums.md#enum-declarations)): `.Ok(value)`
+and `.Err(error)` where a `Result` type is expected, or `Result.Ok(value)` and
+`Result.Err(error)`. In particular `.Ok(value)` without an expected `Result`
+type is a `missing-contextual-enum-type` error. A bare `Ok(value)` or
+`Err(error)` expression resolves like any other identifier and is an
+`unknown-name` error unless a declaration in scope supplies that name.
+Results are matched with the patterns `.Ok(pattern)`, `.Err(pattern)`, and
+their `Result.`-qualified forms
+([Match Expressions](06-control-flow.md#match-expressions)).
 
-When `T` is `void`, the success constructor is written `Ok()` and has type
-`Result[void, E]` under an expected result type. `Ok(pass)` is not the source
-spelling for this case.
+When `T` is `void`, the success constructor is written `.Ok()` or
+`Result.Ok()` and has type `Result[void, E]` under an expected result type.
+`.Ok(pass)` is not the source spelling for this case.
 
 Postfix `?` on `Result[T, E]` either produces the success value or immediately
 returns the error from the nearest function. The enclosing function must return
@@ -249,7 +262,7 @@ call of `F`'s `From[E]` implementation
 ([Conversion Trait](09-traits.md#conversion-trait)). It is never both, and
 conversions are never chained. [Propagation](05-expressions.md#propagation)
 defines the rule and its diagnostic. Returning an
-`Err` value without `?` does not itself alter control flow, and it never
+`.Err` value without `?` does not itself alter control flow, and it never
 calls a conversion. The success value
 retains its declared generic type `T`, including `mut U` when `T = mut U`,
 regardless of whether the `Result` value itself is readonly.
