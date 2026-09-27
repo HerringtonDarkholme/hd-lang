@@ -180,6 +180,7 @@ if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$repo_dir/future-work/OPEN_ISSUES.md" \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
     "$repo_dir/future-work/RUNTIME_AND_LIBRARY.md" \
     "$repo_dir/SYNTAX_NOTES.md" \
     --include='*.md'; then
@@ -216,6 +217,7 @@ if grep -R -n -E 'let[[:space:]]+mut([[:space:]]|$)|fn [A-Za-z_][A-Za-z0-9_!]*\(
     "$spec_dir" \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \
+    "$repo_dir/guide/LEARN_IN_10_MINUTES.md" \
     "$repo_dir/future-work/RUNTIME_AND_LIBRARY.md" \
     --include='*.md' --include='*.hd'; then
     fail "obsolete mutability syntax found"
