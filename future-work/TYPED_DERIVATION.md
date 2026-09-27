@@ -410,6 +410,19 @@ other libraries' facts, the fact check hook is accepted (P14): a fact type
 may define a compile-time `check` against the member or variant it is
 attached to, run at the opt-in site. Its exact form is not yet designed.
 
+(M16, decided 2026-09-27; closes the embedding part of stress-test P11)
+An embedded part is one member. `walk` and `build` pass a handle
+`Field[S, P]` for the embedded field, named by the embedded type as in
+08 (`post.Timestamps`), with `info` marking it `embedded`; `get` returns the
+part, a copy, per value semantics. Flattening or nesting is a library
+policy read from that mark (json may flatten like Go's `encoding/json`, or
+nest like serde's default); the language never flattens, because promotion's
+depth shadowing would make a flattened walk follow lookup rules and leave
+`build` unable to fill a shadowed member. The part's insides come from its
+own derivation, like any nested type (M7). Related 08 rule, decided the same
+day: an embedded field must name a data type (`embedded-non-data`
+otherwise).
+
 ### Current Design: Full Example (M1-M14)
 
 This is the reference example for the design as decided on 2026-09-27. When
