@@ -2,9 +2,11 @@
 
 Applied decisions have been removed from this file; the spec's Revision Notes
 in `spec/README.md` are their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
-TQ-27 to TQ-29, TQ-31 and TQ-36, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S,
-Cut 2, trait delegation, the embedding limits, the single view, A2, A3,
-C1 to C3, and TUP-1 except its `@message` part). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
+TQ-9, TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-23, TQ-27 to TQ-31,
+TQ-36, TY-13, EQ-1, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S, Cut 2,
+trait delegation, the embedding limits, the single view, A2, A3, C1 to C3,
+TUP-1 except its `@message` part, and TQ-10 except its suspending-method
+part). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
 and so is TQ-22: its impl-target half is applied, and the Inspectable
 decisions, also applied, replaced its `downcast` half.
 TQ-21 is answered by K2: a bound may bind associated types, as in
@@ -14,66 +16,26 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 
 ## Decided, Not Yet Applied
 
-Decided 2026-09-26, except TQ-20, EQ-1, and TUP-1 (2026-09-27). None of these is in
+Decided 2026-09-26, except TUP-1 (2026-09-27). None of these parts is in
 the specification yet.
 
-- **TQ-9** (TY-10). `Type::f` checks inherent, then implemented available
-  traits; `T::f` under a bound goes through the bound's dictionary;
-  `Trait::f()` with an undetermined `Self` is rejected. `T::f()` is allowed
-  under a bound, never through a runtime type object (answers the runtime
-  type identity question on static calls).
-- **TQ-10** (TY-14): dynamic safety stays literal. A dynamically safe trait
-  may not have methods with row parameters, `reified` parameters, packs, or
-  suspension; only `AnyRef`-bounded method generics are allowed (G2).
-  09 Dynamic Trait Values states the `AnyRef` rule but not the exclusion
-  of suspending methods.
-- **TQ-11** (TY-16). Newtypes may carry `@derive(...)`; the derived
-  implementations use the base type's behavior.
-- **TQ-12** (TY-19), revised. Law partners may not mix derived and
-  hand-written implementations. Deriving `Hash`, `PartialOrd`, or `Ord`
-  requires its partners (`PartialEq`, and `PartialOrd` for `Ord`) to be
-  derived in the same list; if any partner is hand-written, all of them must
-  be hand-written.
-- **TQ-15** (TY-21). Least-common-type inference never constructs trait
-  values or widens to a supertrait; a mixed list needs an expected type.
-- **TQ-16** (TY-30). Trait parameters are invariant; variance markers on
-  trait parameters are rejected.
-- **TQ-17** (TY-25). An inherent impl sits in the target type's module; a
-  trait impl sits in the module declaring the trait, the target, or the owned
-  trait argument.
+- **TQ-10, suspending-method part** (TY-14). The decision also makes a trait
+  with a suspending method not dynamically safe. The row, `reified`, and
+  pack parts are applied in 09 Dynamic Safety. The suspension part is not:
+  the prelude `Console` declares the suspending `write_line!`, and
+  `$.use(Console)` yields a `Console` trait value. Applying it needs the
+  owner to reconcile the two.
 - **TQ-18** (settles Annotation Locality). A foreign-target annotation may
   appear in the facet's defining module without a marker, and in the root
   application package under the existing exception with an explicit marker;
-  an explicit `impl Annotate[F] for X` obeys the same rule.
-- **TQ-19** (TY-26). Inherent impls of one type constructor may repeat a
-  member name when their targets cannot unify (`impl Box[i32]` and
-  `impl Box[string]`); `impl[T] Box[T]` and `impl Box[i32]` with the same
-  name are `duplicate-inherent-member`.
-- **TQ-23** (settles Complete Runtime Shape Coverage). `TypeShape` gains
-  `Mut(inner)`, `Trait(decl, args)`, `Any`, `Suspend(result)`, and
-  `Newtype(decl, base)`; 14 today has `Newtype(base)` only.
-- **TQ-30** (TY-06). `Store[User]` and `Store[mut User]` are distinct trait
-  instantiations; only the outer `mut` of a target is banned.
-- **TY-13.** A trait's default method body sees only the trait's members and
-  its supertraits' members; `Self`'s fields are not accessible there.
-- **TQ-20** (TY-24), decided 2026-09-27. Bound solving keeps a fixed,
-  spec-defined recursion depth limit as a backstop, and exceeding it is an
-  error. The limit is not configurable per package, and there are no
-  Paterson-style structural conditions. (K2 removed `where` clauses, so the
-  original question about predicate subjects no longer arises.)
+  an explicit `impl Annotate[F] for X` obeys the same rule. The spelling of
+  the root-application marker is undecided, and chapter 14 is being
+  replaced, so this waits.
 - **TUP-1, `@message` part**, decided 2026-09-27. Inside a variant's
   `@message`, unnamed payload parameters are in scope as `_0`, `_1`, ...
   (ERROR_CONVERSION gap 3), so `"$_0"` interpolates one. This part waits
   for the error intrinsic. The rest of TUP-1 (`pair._0` and
   `StatusCode.NotFound._0` in place of `.0`) is applied.
-- **EQ-1**, decided 2026-09-27 (the Swift model). `std.cmp` has one `Eq`
-  trait, with `fn eq(self, other: Self) -> bool`, and `PartialEq` is
-  dropped. Floats implement `Eq` with IEEE semantics, so `NaN != NaN`, a
-  documented exception to the law. `PartialOrd` and `Ord` stay, with
-  `PartialOrd < Eq` and `Ord < PartialOrd`, so floats are `Eq + PartialOrd`
-  but not `Ord`. Map keys need `Eq + Hash`. This affects 09 Comparison
-  Traits, the `@derive` list, and TQ-12's partner rule, whose `PartialEq`
-  partner becomes `Eq`.
 
 ## Decided, No Specification Change
 

@@ -114,26 +114,6 @@ traits may take `Secret[T]` parameters so the host receives the real value
 without an `expose()` in hd code; whether exported functions may take
 `Secret[T]` inputs; and that a secret never encodes or appears in outputs.
 
-### Complete Runtime Shape Coverage
-
-**Problem.** `TypeShape` does not yet represent mutable access, dynamic trait
-values, `Any`, suspensions, or a newtype's own declaration identity. Generic
-annotation and schema walkers therefore cannot describe every legal field type.
-The accepted interim rule rejects shape materialization that would require one
-of these missing cases.
-
-**Options.** (1) Add `Mut(inner)`, `Trait(decl, args)`, `Any`,
-`Suspend(result)`, and `Newtype(decl, base)` cases. (2) Expose a lower-level
-opaque type descriptor for unsupported forms. (3) Reject those forms from
-shape-driven adapters.
-
-**Recommendation.** Use option 1, keeping declaration identities explicit and
-the surface closed and navigable; use option 3 temporarily until the cases are
-specified.
-
-**Unblocks.** Complete schema generation, annotation traversal, and reliable
-diagnostics for unsupported boundary types.
-
 ### Shape Intrinsic Coverage
 
 **Problem.** `shape[T]()` gives typed `fields` and `variants` members, but
@@ -244,6 +224,11 @@ after it rather than treated as removed.
 
 ### Annotation Locality And Inspection
 
+**Status.** Owner decision TQ-18
+([audit/types/QUESTIONS.md](../audit/types/QUESTIONS.md)) answers the three
+questions below, except the spelling of the root-application marker. It is
+not applied: that spelling is undecided, and chapter 14 is being replaced.
+
 **Problem.** The effective annotation for a target can be assembled
 across distant files and dependencies, making review and provenance difficult
 even with global coherence.
@@ -283,18 +268,20 @@ counts and the outer `mut` is ignored, generic erasure through
 `T < Inspectable`, `inspectable-requirement`, and
 `std.error.Error < Display + Inspectable`.
 [INSPECTABLE.md](INSPECTABLE.md) keeps the design record and owner decisions
-1 to 16. What remains open:
+1 to 16.
 
-1. **Calling static (receiverless) functions.** Under a bound, `T::create()`
-   with `T < Factory` could be served by the bound's dictionary, but the
-   specification only shows concrete `Type::function(...)` calls. A
-   `TypeId` never offers such calls.
-2. **The matching `TypeShape` case,** shared with
-   [Complete Runtime Shape Coverage](#complete-runtime-shape-coverage), and
-   the checked-downcast option in
-   [Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
+Two former items are now specified. Static (receiverless) calls resolve
+through a bound, as in `T::create()` with `T < Factory`, and never through a
+`TypeId` (TQ-9,
+[Associated Function Calls](../spec/09-traits.md#associated-function-calls)).
+`TypeShape` has `Trait(decl, args)` and `Any` cases (TQ-23,
+[Common Shape Representation](../spec/14-annotations.md#common-shape-representation)).
 
-**Unblocks.** Factory-style generic code (item 1).
+What remains open is the checked-downcast option in
+[Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
+
+**Unblocks.** Typed reflection that recovers a concrete value from an erased
+one.
 
 ### Confirmed Deferred Type Features
 

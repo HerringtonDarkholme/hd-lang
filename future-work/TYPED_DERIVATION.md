@@ -349,7 +349,7 @@ never needs an empty hand-written impl. Decided (Swift model): one `Eq` with
 `fn eq(self, other: Self) -> bool`; `PartialEq` is dropped; floats implement
 `Eq` with IEEE semantics (`NaN != NaN`, a documented law exception);
 `PartialOrd` and `Ord` stay, so floats are `Eq + PartialOrd` but not `Ord`.
-Not yet applied to 09 (recorded in audit/types/QUESTIONS.md). Still under discussion: P1-P3 (the core walk), P5 (where
+Applied as EQ-1 in [Comparison Traits](../spec/09-traits.md#comparison-traits). Still under discussion: P1-P3 (the core walk), P5 (where
 configuration lives), and the rest of the stress test's problems.
 
 (M13, decided 2026-09-27; P5 of the stress test; supersedes the
@@ -1083,7 +1083,8 @@ variant's handles, and `h.get` then panics at run time (M14).
     `fn eq(self, other: Self) -> bool`, and `PartialEq` is dropped. Floats
     implement `Eq` with IEEE semantics (`NaN != NaN`, a documented law
     exception). `PartialOrd` and `Ord` stay, so floats are
-    `Eq + PartialOrd` but not `Ord`. Not yet applied to 09.
+    `Eq + PartialOrd` but not `Ord`. Applied as EQ-1 in
+    [Comparison Traits](../spec/09-traits.md#comparison-traits).
 14. Impl families are out of scope (M15). A template gives one trait
     instantiation per opt-in. Error enums use the compiler intrinsic
     `@derive(Error)`, which generates `Display`, `Error` with `cause()`, and
@@ -1157,8 +1158,8 @@ parameter, is uppercase.
 
 ## Problem
 
-`@derive(...)` accepts only `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and
-`Hash` ([Traits](../spec/09-traits.md#comparison-traits)). Owner decision
+`@derive(...)` accepts only `Eq`, `PartialOrd`, `Ord`, and `Hash`
+([Traits](../spec/09-traits.md#comparison-traits)). Owner decision
 TQ-13 keeps that set closed until one typed derivation protocol exists, shared
 by `std` and libraries, with no ad-hoc additions meanwhile. Until then a
 library cannot offer any of these:
@@ -1595,7 +1596,7 @@ pub data Timestamps:
     pub created_at: i64
     pub updated_at: i64
 
-@derive(PartialEq, Eq, Hash, json.Encode, json.Decode, json.Schema)
+@derive(Eq, Hash, json.Encode, json.Decode, json.Schema)
 pub data UserId:
     pub value: string
 
@@ -1987,10 +1988,12 @@ without changing their current behavior.
    `Result[Ri, E]`; the result is `Result[(R1, ..., Rn), E]`, stopping at the
    first error. It keeps chapter 12's left-to-right evaluation.
 5. Container metadata (question 6), for enum tagging and rename-all policies.
-6. The already-decided pieces: TQ-9 static calls through a bound, TQ-11 newtype
-   derive, TQ-23 shape cases, and the grammar change that lets
-   `decorated_decl` include `type_decl` (today `@derive` before
-   `type Mile(i32)` is a `syntax-error`).
+6. The already-decided pieces, now applied: TQ-9 static calls through a
+   bound ([Associated Function Calls](../spec/09-traits.md#associated-function-calls)),
+   TQ-11 newtype derive ([Derived Newtypes](../spec/09-traits.md#derived-newtypes)),
+   TQ-23 shape cases
+   ([Common Shape Representation](../spec/14-annotations.md#common-shape-representation)),
+   and the grammar change that lets `@derive` precede `type Mile(i32)`.
 
 ## Questions For The Owner
 
@@ -2134,7 +2137,7 @@ rejected by an ordinary bound.
 
 ### 12. Should the built-in comparison derives move onto the views?
 
-- **A.** Later, as a specification of their meaning (`impl PartialEq for
+- **A.** Later, as a specification of their meaning (`impl Eq for
   Product[...]` in `std`), keeping the compiler's direct implementation.
 - **B.** Never; they stay a separate intrinsic.
 
@@ -2180,7 +2183,7 @@ block fails, as intended. Parsing checks syntax only; names such as `json`,
 | Schema | Parses. |
 | Printed expansion | Parses; `view` and `View` are hypothetical intrinsics. |
 | MCP adapter and registration | Parses; `FnView`, `fn_view`, `pack.try_map` are hypothetical. |
-| Probe, not shown: `@derive(json.Encode)` before `type Mile(i32)` | `syntax-error`: `decorated_decl` excludes `type_decl` (TQ-11 is not yet applied). |
+| Probe, not shown: `@derive(json.Encode)` before `type Mile(i32)` | Was `syntax-error` when logged; parses since TQ-11 was applied ([Derived Newtypes](../spec/09-traits.md#derived-newtypes)). |
 | Probe, not shown: a decorator before `trait` | `syntax-error`; not used by the recommendation. |
 
 The three blocks of the [current design](#current-design-full-example-m1-m14)

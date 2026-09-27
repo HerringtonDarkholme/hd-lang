@@ -4,9 +4,11 @@ Draft text for chapters 04 and 09, ready to paste once approved. A rule tagged
 **[TQ-n]** encodes the recommended answer to that question and changes if the
 owner decides otherwise. Untagged rules restate or complete behavior the spec
 already implies. Codes marked *(new)* are not in the README table yet.
-Rules for decisions the spec has applied or superseded (TQ-1 to TQ-8, TQ-22,
-the embedding and member-lookup decisions, K2's removal of `where`, and the
-sealed-trait definition) have been removed; the spec's Revision Notes in
+Rules for decisions the spec has applied or superseded (TQ-1 to TQ-9,
+TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-22, TY-13, EQ-1, the row,
+`reified`, and pack parts of TQ-10, the embedding and member-lookup
+decisions, K2's removal of `where`, and the sealed-trait definition) have
+been removed; the spec's Revision Notes in
 `spec/README.md` are their record. Remaining rules keep their numbers, so the
 [findings](FINDINGS.md) can cite them.
 
@@ -43,11 +45,6 @@ sealed-trait definition) have been removed; the spec's Revision Notes in
 - R2.2 An inherent impl is allowed only in the package that owns its target.
   Its target is a nominal type, not a trait value, primitive, alias, or
   foreign type (`orphan-impl`).
-- R2.3 **[TQ-17]** Within the owning package, a trait impl sits in a module
-  that declares one of the things that gave ownership under chapter 09's
-  ownership rule (TQ-2, applied). An inherent
-  impl sits in the module that declares its target. Otherwise report
-  `nonlocal-impl` *(new)*.
 
 ## R3. Coherence
 
@@ -77,8 +74,6 @@ sealed-trait definition) have been removed; the spec's Revision Notes in
   R3.1, the evidence is observably the same.
 - R4.6 An unmet obligation is `unsatisfied-trait-bound`. The message names
   the type, the trait, and the origin of the obligation.
-- R4.7 **[TQ-20]** Proof search that nests more than 64 obligations is
-  `trait-resolution-depth` *(new)*.
 - R4.8 A bound on a pack, `Ts... < Tr`, is one obligation per element, and each
   element passes its own evidence.
 - R4.9 Constructing a GADT variant with bounded existential parameters stores
@@ -97,28 +92,13 @@ sealed-trait definition) have been removed; the spec's Revision Notes in
 - R5.3 (Elaboration) An assumption `T < Child[A..]` adds `T < Parent[B..]`
   for every transitive supertrait, after substitution.
 
-## R6. Default Methods
-
-- R6.1 A default body is checked once, inside the trait, with Γ = {`Self <`
-  the trait}. Names in it resolve against that bound and never against methods
-  of the eventual implementing type.
-- R6.3 A trait provides defaults only for its own members.
-- R6.5 If more than one trait supplies a dot-call candidate with the same
-  name, the call is `ambiguous-method`, whether the methods are defaults or
-  written. An inherent method, or a qualified `Trait::m` call, resolves it.
-
 ## R8. Dynamic Trait Values
 
-- R8.1 **[TQ-10]** A trait is dynamically safe when it and every supertrait
-  meet all of these:
-  - it declares no associated types or associated functions;
-  - `Self` occurs only as a receiver;
-  - every method-level type parameter is bounded by `AnyRef`;
-  - no method has row parameters, `reified` parameters, packs, or
-    suspension.
-  Otherwise, using the trait as a value type is `trait-not-dynamically-safe`.
-  (The draft allowed row, `reified`, and suspending methods; the TQ-10
-  decision replaced it.)
+- R8.1 **[TQ-10]** A trait is not dynamically safe when its method, or a
+  supertrait's method, is suspending; using it as a value type is
+  `trait-not-dynamically-safe`. (09 Dynamic Safety already excludes row,
+  `reified`, and pack parameters. This remaining part conflicts with the
+  prelude `Console`, whose `write_line!` is suspending.)
 - R8.2 A dynamic `Tr` value satisfies `Tr` and its supertraits, and exposes
   exactly their methods.
 - R8.3 Construction: `S` to `Tr` when `S < Tr`, and `mut S` to `mut Tr`.
@@ -128,45 +108,22 @@ sealed-trait definition) have been removed; the spec's Revision Notes in
 - R8.5 A requirement key must be a dynamically safe trait instantiation
   (`trait-not-dynamically-safe`, reported at the row).
 - R8.6 Method bodies reached through dynamic dispatch are the impl's bodies.
-- R8.8 **[TQ-16]** Trait parameters are invariant, and variance markers on a
-  trait are rejected (`invalid-variance`).
-
-## R9. Method Resolution
-
-Method lookup for `e.m(args)` is applied (the member-lookup decisions in the
-Revision Notes). What remains is associated functions and generic inherent
-impls:
-
-- R9.8 **[TQ-9]** Associated function calls:
-  - `Type::f` looks up inherent functions first. If there are none, it looks
-    up functions of traits that are available and implemented by `Type`; more
-    than one is `ambiguous-method`.
-  - `T::f` with `T` generic resolves through T's bounds (exactly one must
-    declare `f`), using the dictionary.
-  - `Trait::f` for a receiverless `f` is rejected unless the trait's arguments
-    determine `Self`; write `Type::f` or `T::f` instead.
-- R9.9 **[TQ-19]** Inherent member names are unique across all inherent impls
-  of one nominal type constructor (`duplicate-inherent-member`). A bounded
-  inherent method is a candidate only when its bounds hold for the receiver.
 
 ## R10. Derivation
 
-- R10.1 **[TQ-11]** `@derive(Tr, ..)` applies to module-level data, enum, and
-  newtype declarations. For a newtype, the derived impl behaves like the base
-  type's impl applied to the single field.
-- R10.2 **[TQ-13]** Derivable traits are `PartialEq`, `Eq`, `PartialOrd`,
-  `Ord`, and `Hash`. Any other trait is `underivable-trait` *(new)*.
+- R10.2 **[TQ-13]** Derivable traits are `Eq`, `PartialOrd`, `Ord`, and
+  `Hash`. Any other trait is `underivable-trait` *(new)*.
 - R10.3 The generated impl is `impl[P..] Tr for D[P..]` with bound `Pi < Tr`
   for each parameter `Pi` that occurs in a field the trait uses.
 - R10.4 Each used field type must satisfy `Tr` under those bounds, with the
   impl being derived also available. This covers recursion. Failures report:
-  `missing-partial-eq` for `PartialEq`, `field-not-eq` for `Eq` and `Ord`,
+  `missing-partial-eq` for `Eq`, `field-not-eq` for `Ord`,
   `missing-partial-ord` for `PartialOrd`, and `field-not-hash` for `Hash`. The
   diagnostic sits on the field.
 - R10.5 Using the impl at a type where the added bound fails is
   `missing-derived-bound`.
 - R10.6 An enum with a variant that has an existential parameter cannot derive
-  `PartialEq`, `Eq`, `PartialOrd`, or `Ord`. It can derive `Hash` only when
+  `Eq`, `PartialOrd`, or `Ord`. It can derive `Hash` only when
   every existential field is `Hash`-bounded. Otherwise report
   `underivable-variant` *(new)*.
 - R10.7 The generated impl belongs to the declaration's module and package,
@@ -175,23 +132,14 @@ impls:
 - R10.8 Supertraits must be satisfied by an existing impl or by another derive
   in the same list, in any order.
 - R10.9 Field order and variant order are as chapter 09 states today.
-- R10.10 **[TQ-12]** Deriving `Hash`, `PartialOrd`, or `Ord` requires the
-  type's `PartialEq` to be derived in the same list, and `Ord` also requires
-  `PartialOrd`. Otherwise report `mixed-derived-law` *(new)*.
 
 ## R11. Assignability And Least Common Type
 
 - R11.1 Assignability is the single-step rules of chapter 04 (TQ-14), plus
   `never` to any type.
 - R11.2 `mut S` to `mut Tr` is rule 6 applied at the mutable view (R8.3).
-- R11.3 **[TQ-15]** Least-common-type inference does not use trait
-  construction (rule 6) or supertrait widening (rule 7).
 - R11.4 Operands of type `never` are dropped before computing the least common
   type. If every operand is `never`, the result is `never`.
-- R11.5 If a common type exists only through a conversion R11.3 excludes, the
-  error is `no-common-type`.
-- R11.6 If a candidate needs weakening plus variance, it is not a candidate
-  (R11.5 applies).
 
 ## R12. Mutable Paths
 
@@ -215,7 +163,6 @@ Existing codes, now tied to the rules above:
 
 | Code | Rule |
 | --- | --- |
-| `ambiguous-method` | R6.5, R9.8 |
 | `orphan-impl` | R2.2 |
 | `overlapping-impl` | R3.4, R10.7 |
 | `trait-not-dynamically-safe` | R8.1, R8.5 |
@@ -224,5 +171,5 @@ Existing codes, now tied to the rules above:
 | `mutable-receiver-required` | R12.2 |
 | `missing-supertrait-implementation` | R5.1 |
 
-Proposed new codes: `unconstrained-impl-parameter`, `nonlocal-impl`, `trait-resolution-depth`, `ambiguous-projection`,
-`underivable-trait`, `underivable-variant`, `mixed-derived-law`.
+Proposed new codes: `unconstrained-impl-parameter`, `ambiguous-projection`,
+`underivable-trait`, `underivable-variant`.

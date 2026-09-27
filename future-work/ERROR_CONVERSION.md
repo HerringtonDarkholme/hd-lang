@@ -664,8 +664,8 @@ fn load[E < FromError[FsError]](path: Path) -> Result[string, E] $ FsRead:
     .Ok(text)
 ```
 
-Parses. It needs static calls through a bound (TQ-9, decided but not yet
-applied).
+Parses. It needs static calls through a bound (TQ-9, now in
+[Associated Function Calls](../spec/09-traits.md#associated-function-calls)).
 
 ### `fn!`, replay, and boundaries
 

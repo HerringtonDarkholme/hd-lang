@@ -62,7 +62,7 @@ when they share one representation). Rust's per-method exclusion
 | MoonBit | Eq, Compare, Debug, Default, Hash, Arbitrary, Shrink, FromJson, ToJson (Show status unverified). "All fields used must implement T." Enum cases ordered by declaration. Derived methods are not dot-callable without `extend`. |
 | Swift | Equatable/Hashable synthesized when declared in the type or a same-file extension and all stored properties conform (SE-0185); user-written members win. Comparable for enums without raw type (SE-0266). |
 | Kotlin | Data classes generate equals/hashCode/toString/copy/componentN from primary-constructor properties; explicit equals/hashCode/toString suppress generation. |
-| hd today | PartialEq, Eq, PartialOrd, Ord, Hash on data and enums; bound per type parameter occurring in a compared field (between Rust and per-field); no field exclusion. Newtypes, GADT existentials, field obligations, placement, law partners unstated (TY-16..TY-19). |
+| hd today | Eq, PartialOrd, Ord, Hash on data, enums, and newtypes (EQ-1, TQ-11); bound per type parameter occurring in a compared field (between Rust and per-field); no field exclusion; law partners derived in one list (TQ-12). GADT existentials, field obligations, and placement unstated (TY-17, TY-18). |
 
 Locality note: Swift and Kotlin forbid mixing generated and hand-written halves
 only partly; Kotlin's suppression (a hand-written `equals` suppresses generation)

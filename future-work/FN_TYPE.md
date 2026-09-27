@@ -153,7 +153,7 @@ third needs something more than a function type, and is treated separately in
   structural spelling can sit on a constructor the standard library owns.
 - **Values.** A named function, a closure, or a single-payload variant
   constructor is a function value. Function values are `AnyRef`, have no
-  `PartialEq`, and each closure evaluation has its own identity. Function
+  `Eq`, and each closure evaluation has its own identity. Function
   types, closures, and function values are not inspectable, "whatever their
   row" ([Inspectable Types](../spec/09-traits.md#inspectable-types)).
 - **Method values** stay deferred (P6).

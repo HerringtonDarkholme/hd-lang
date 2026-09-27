@@ -253,14 +253,15 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `fn(...) -> ...:` | closure expression |
 | `:=` | binding expression, lowest precedence |
 
-`==` uses `PartialEq`, while ordering uses `PartialOrd`; `Eq` and `Ord` express
-the stronger total-equality and total-order contracts. Data and enums do not
+`==` uses `Eq`, while ordering uses `PartialOrd`; `Ord` expresses the
+stronger total-order contract. Floats implement `Eq` with IEEE 754 semantics,
+so NaN is unequal to itself, and `PartialOrd` but not `Ord`. Data and enums do not
 gain equality automatically: implement the trait or request explicit
 derivation. `is` checks whether two composite references point to the same
 object, independently of their values. `!(a is b)` checks distinct identity.
 
 ```text
-@derive(PartialEq, Eq, PartialOrd, Ord, Hash)
+@derive(Eq, PartialOrd, Ord, Hash)
 data User:
     id: i64
     name: string
@@ -276,6 +277,11 @@ compare by declaration order before their shared data and payload fields.
 Derived `Hash` hashes every declared data field, or the enum variant identity
 followed by its shared data and payload fields. Each such field needs `Hash`;
 `Eq + Hash` lets a user-defined type serve as a map key.
+Deriving `Hash`, `PartialOrd`, or `Ord` needs `Eq` (and `Ord` also
+`PartialOrd`) in the same `@derive` list; mixing a derived trait with a
+hand-written partner is `mixed-derived-law`. A newtype may also derive, as in
+`@derive(Eq, Hash)` before `type Mile(i32)`, reusing the base type's
+implementations.
 
 Use parentheses when a binding expression appears inside a larger expression.
 A nested multi-name binding is written `(a, b := value)` and is never parsed as
@@ -1587,6 +1593,9 @@ data Cell[T]:
     value: T
 ```
 
+Trait generic parameters are always invariant, so `trait Source[+T]` is
+`invalid-variance`.
+
 Variance conversions apply to readonly outer views. A `mut Producer[T]`, `mut Consumer[T]`, or other mutable generic view remains invariant because its fields can be replaced.
 They must also preserve representation. A function-valued field read through a
 converted container may reflect only the corresponding permission weakening
@@ -1955,7 +1964,7 @@ Use ordinary provider scopes for mocks and `std.testing` for assertions:
 ```text
 use std.testing.assert_equal
 
-@derive(PartialEq)
+@derive(Eq)
 data DbError:
     message: string
 
@@ -2296,9 +2305,10 @@ name is a compile-time error. Iterate the ordered members with `field_list` or
 `variant_list`. `shape_of` accepts only the name of a module-level function,
 not a closure or other function value.
 
-The current `TypeShape` surface cannot represent mutable access, dynamic trait
-values, `Any`, or `Suspend[T]`. Materializing a shape that would require one of
-those cases is rejected rather than producing a lossy descriptor.
+`TypeShape` covers every type a declaration can mention: besides primitives,
+collections, tuples, named types, and functions, it has `Newtype(decl, base)`,
+`Mut(inner)` for mutable access, `Trait(decl, args)` for dynamic trait values,
+`Any`, and `Suspend(result)`.
 
 `FnShape` includes ordered parameter shapes, the result type, default presence,
 the suspension marker, and the normalized unordered requirement row. Parameter

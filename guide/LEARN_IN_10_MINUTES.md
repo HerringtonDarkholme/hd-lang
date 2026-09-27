@@ -312,7 +312,7 @@ Inherent methods live in `impl Type` blocks. `@derive` generates standard
 trait implementations, and `by` delegates a trait to an embedded field.
 
 ```hd
-@derive(PartialEq, Eq, Hash)
+@derive(Eq, Hash)
 data Point:
     x: i32
     y: i32

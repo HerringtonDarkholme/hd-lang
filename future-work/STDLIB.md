@@ -44,7 +44,7 @@ every user module that already declares it.
 | --- | --- | --- |
 | `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.format` | `Display` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md) |
-| `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
+| `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.iter` | `Iterator`, `Iterable` | [For Loops](../spec/06-control-flow.md) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
@@ -349,8 +349,9 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
 ```
 
 One `parse_*` function per type stands in for a generic
-`parse[T < FromText](text)`: calling `T::parse` through a bound is still an
-open question ([Runtime Type Identity, item 1](OPEN_ISSUES.md#runtime-type-identity-and-reified)).
+`parse[T < FromText](text)`. This draft was written while calling `T::parse`
+through a bound was open; it is now specified in
+[Associated Function Calls](../spec/09-traits.md#associated-function-calls).
 
 ### `std.text`
 
@@ -1218,11 +1219,9 @@ impl Number:
     pub fn as_f64(self) -> f64?:
         pass
 
-impl PartialEq for Number:
+impl Eq for Number:
     fn eq(self, other: Number) -> bool:
         pass
-
-impl Eq for Number
 
 impl Hash for Number:
     fn hash(self, state: mut Hasher) -> void:
@@ -1266,10 +1265,10 @@ language:
 3. **Target-indexed output.** Produce a `Decoder[T]` or `Encoder[T]` per type,
    so the result is typed rather than `Any`.
 4. **Static calls through a bound.** A generic `decode[T < Decode](json)` must
-   call `T::decode`; see
-   [Runtime Type Identity, item 1](OPEN_ISSUES.md#runtime-type-identity-and-reified).
-5. **Complete shape coverage** for every legal field type, or a clear rejection
-   ([Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage)).
+   call `T::decode`; this is specified in
+   [Associated Function Calls](../spec/09-traits.md#associated-function-calls).
+5. **Complete shape coverage** for every legal field type, now specified in
+   [Common Shape Representation](../spec/14-annotations.md#common-shape-representation).
 6. **Field metadata** for renames, defaults, and skipping; annotations already
    provide this.
 7. **Enum encoding policy**: tagged, adjacent, or untagged, chosen per type.
@@ -1398,9 +1397,7 @@ Stateful testing and replay artifacts wait for area 3's event log.
 | host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | which traits each profile marks mutable; `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2) | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule | [Implementation Targets](../spec/09-traits.md#implementation-targets) |
-| `std.num` (`parse[T]`), `std.json`, `std.testing` strategies | static calls through a bound | [Runtime Type Identity, item 1](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
-| schema output, tool adapters | shape cases for `mut`, trait values, `Any` | [Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage) |
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
 | `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
 | `std.incremental` | closure identity, weak references | [Serializable Closures](OPEN_ISSUES.md#serializable-closures-and-incremental-computation) |

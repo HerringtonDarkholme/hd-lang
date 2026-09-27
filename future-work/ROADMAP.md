@@ -66,7 +66,8 @@ Goal: state trait behavior as normative rules rather than prose.
   - Kotlin: interface delegation.
 - Moved here:
   - [Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified);
-  - [Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage);
+  - complete runtime shape coverage, now specified in
+    [Common Shape Representation](../spec/14-annotations.md#common-shape-representation);
   - the language half of
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
     with a survey, candidate designs, and owner questions in

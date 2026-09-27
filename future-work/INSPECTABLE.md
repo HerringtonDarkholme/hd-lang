@@ -281,7 +281,7 @@ internals; the public surface is only what the next list names.
 
 **Public surface.**
 
-- `PartialEq` and `Eq`: two runtime types are equal exactly when they denote
+- `Eq`: two runtime types are equal exactly when they denote
   the same type, as defined below.
 - `Hash`, so `Map[RuntimeType, V]` works for registries. The hash is a
   deterministic function of the type within one program build

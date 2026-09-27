@@ -629,8 +629,10 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `\|` | bitwise or |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
 
-`==` and `!=` dispatch through `PartialEq`; relational comparisons use
-`PartialOrd`. `Eq` and `Ord` are the corresponding total-law refinements.
+`==` and `!=` dispatch through `Eq`, the one equality trait; relational
+comparisons use `PartialOrd`, and `Ord` is the total-order refinement. Floats
+implement `Eq` with IEEE 754 semantics (NaN is unequal to itself) and
+`PartialOrd`, but not `Ord` or `Hash`.
 User-defined data and enums do not receive implicit equality or ordering.
 Explicit trait implementation and compiler-intrinsic `@derive(Trait, ...)` are
 available. Derived equality compares every declared data field, including
@@ -761,7 +763,7 @@ fn current_user() -> mut User
 fn apply(user: mut User, operation: fn(mut User) -> void) -> void
 ```
 
-`mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Generic declarations state variance with `+` and `-`: `+T` is covariant, `-T` is contravariant, and an unmarked `T` is invariant. Variance applies to read-only outer views. Every `mut Generic[...]` view is invariant in its generic arguments because mutation could otherwise store a value that violates the original type.
+`mut T` can be used where `T` is expected; `T` cannot be used where `mut T` is required. Generic declarations state variance with `+` and `-`: `+T` is covariant, `-T` is contravariant, and an unmarked `T` is invariant. Trait generic parameters take no marker and are always invariant. Variance applies to read-only outer views. Every `mut Generic[...]` view is invariant in its generic arguments because mutation could otherwise store a value that violates the original type.
 
 ```text
 data Producer[+T]:
@@ -857,11 +859,13 @@ Trait values follow the same rule. `mut Trait` is a mutable dynamic trait view, 
 
 Map key types require `Eq + Hash`; user-defined data and enums can implement both. `mut T` remains disallowed as a key type, but a stored readonly key can still change through another mutable alias. If that changes its hash or equality, the map does not reindex it: lookup or removal can miss an entry that remains visible during iteration. The language does not verify agreement between custom `Eq` and `Hash` implementations.
 
-`@derive(Hash)` generates ordinary `Hash` conformance for data and enums. It
+`@derive(Eq, Hash)` generates ordinary `Hash` conformance for data and enums. It
 hashes all declared data fields in declaration order, including embeddings;
 for enums it hashes variant identity, shared data, then payload fields. Every
 hashed field must implement `Hash`. There is no cycle detection or cross-run
-hash stability guarantee.
+hash stability guarantee. Deriving `Hash`, `PartialOrd`, or `Ord` requires its
+law partners (`Eq`, and for `Ord` also `PartialOrd`) in the same `@derive`
+list; a derived trait beside a hand-written partner is `mixed-derived-law`.
 
 ### Alternative: Shallow Const Bindings And Implicit Const Borrows
 
@@ -2176,7 +2180,7 @@ annotate Entry:
 
 For `User.email: string`, the first right-hand side is contextually typed as `List[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
 
-Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a named or embedded field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Embedded-field metadata is checked through `FieldMetadata[EmbeddedType]` and stays on the embedded field's own shape rather than propagating to promoted members. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
+Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a named or embedded field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Embedded-field metadata is checked through `FieldMetadata[EmbeddedType]` and stays on the embedded field's own shape rather than propagating to promoted members. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
 
 All decorator and `annotate` forms are module-level. Local declarations cannot
 participate in package-global annotation coherence or memoization.

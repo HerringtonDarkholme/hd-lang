@@ -171,8 +171,8 @@ fn calm(status: mut HttpStatus) -> void:
   ([Mutable Paths](../spec/04-type-system.md#mutable-paths)). A generic
   payload binds its substituted type either way, as a tuple element does.
 
-**Equality and hashing.** User enums have no implicit `PartialEq`, `Eq`,
-`Hash`, or ordering. They derive them
+**Equality and hashing.** User enums have no implicit `Eq`, `Hash`, or
+ordering. They derive them
 ([Comparison Traits](../spec/09-traits.md#comparison-traits)). The standard
 library implements equality for `Option` and `Result`. `==` never falls back
 to identity.
@@ -313,7 +313,7 @@ Two lessons stand out:
 canonical identity. Every other construction has its own.
 
 **(b) All enums are `AnyVal`.** `is` on an enum type is rejected, like `is`
-on a tuple. Equality comes only from `PartialEq`. The compiler may share,
+on a tuple. Equality comes only from `Eq`. The compiler may share,
 copy, intern, unbox, or niche-encode enum values. Shared constructor data
 becomes read-only, so enum storage is fully immutable. `mut E` survives only
 as the payload viewpoint from question 1.
@@ -557,7 +557,7 @@ changes it.
 Adopt (b):
 
 1. Every enum, `Option` and `Result` included, is `AnyVal`. `is` on an
-   enum type is rejected, and equality comes only from `PartialEq`.
+   enum type is rejected, and equality comes only from `Eq`.
 2. Enum storage is fully immutable. Named shared constructor data becomes
    read-only. `mut E` remains as the static payload viewpoint, and a
    readonly `E` is never upgraded.
@@ -621,7 +621,7 @@ fn wrapped_twice(user: User) -> bool:
 ```
 
 Parses. Today it evaluates to `false`. Under (b) it is
-`identity-requires-references`; `first == second` needs `User < PartialEq`.
+`identity-requires-references`; `first == second` needs `User < Eq`.
 
 ### 2. Is shared constructor data read-only?
 
@@ -751,14 +751,14 @@ Parses. Today it is `true`. Under (b) with A it is `false`.
 This question stands on its own and applies under every option.
 [Map Key Types](../spec/04-type-system.md#map-key-types) lists
 "payload-free enums" among the types with standard `Hash`. Chapters 05 and 09
-say no user enum gets `PartialEq` or `Hash` without derivation.
+say no user enum gets `Eq` or `Hash` without derivation.
 
 Options: (A) delete the phrase from chapter 04, so C-like enums derive like
-every other enum; (B) give every all-payload-free enum built-in `PartialEq`,
-`Eq`, and `Hash`, and say so in chapters 05 and 09.
+every other enum; (B) give every all-payload-free enum built-in `Eq` and
+`Hash`, and say so in chapters 05 and 09.
 
 **Recommend A.** No automatic conformance is the rule everywhere else, and
-`@derive(PartialEq, Eq, Hash)` is one line.
+`@derive(Eq, Hash)` is one line.
 
 ```text
 enum Color:
@@ -769,7 +769,7 @@ fn palette() -> Map[Color, string]:
     {Color.Red: "red"}
 ```
 
-Parses. Under A this needs `@derive(PartialEq, Eq, Hash)` on `Color`.
+Parses. Under A this needs `@derive(Eq, Hash)` on `Color`.
 Under B it is valid as written.
 
 ### 8. Does a mutable view of an enum stay invariant?
