@@ -63,7 +63,7 @@ The shape types below are not parameterized by the reflected declaration: the
 type is `DataShape`, not `DataShape[S]`, and annotators receive these generic
 shape types. Only a direct `shape[T]()` request adds the typed member access
 described in [Shape Intrinsics](#shape-intrinsics). Aggregate mapped results
-are uniform collections such as `list[(string, DatabaseColumn)]`, where
+are uniform collections such as `List[(string, DatabaseColumn)]`, where
 `DatabaseColumn` is an example user-defined facet result rather than a prelude
 type.
 
@@ -114,14 +114,14 @@ enum TypeShape:
     Optional(inner: TypeShape)
     List(element: TypeShape)
     Map(key: TypeShape, value: TypeShape)
-    Tuple(elements: list[TypeShape])
-    Named(decl: DeclarationId, args: list[TypeShape])
+    Tuple(elements: List[TypeShape])
+    Named(decl: DeclarationId, args: List[TypeShape])
     Newtype(base: TypeShape)
     Fn(
-        params: list[TypeShape],
+        params: List[TypeShape],
         result: TypeShape,
         suspending: bool,
-        requirements: list[TypeShape],
+        requirements: List[TypeShape],
     )
 
 data FieldShape:
@@ -139,7 +139,7 @@ data DataShape:
     qualified_name: string
     source: SourcePosition
     doc: string?
-    field_list: list[FieldShape]
+    field_list: List[FieldShape]
 
 data VariantShape:
     id: DeclarationId
@@ -148,7 +148,7 @@ data VariantShape:
     source: SourcePosition
     position: i32
     doc: string?
-    payload: list[FieldShape]
+    payload: List[FieldShape]
 
 data EnumShape:
     id: DeclarationId
@@ -156,7 +156,7 @@ data EnumShape:
     qualified_name: string
     source: SourcePosition
     doc: string?
-    variant_list: list[VariantShape]
+    variant_list: List[VariantShape]
 
 data ParamShape:
     id: DeclarationId
@@ -174,10 +174,10 @@ data FnShape:
     qualified_name: string
     source: SourcePosition
     doc: string?
-    params: list[ParamShape]
+    params: List[ParamShape]
     result: TypeShape
     suspending: bool
-    requirements: list[TypeShape]
+    requirements: List[TypeShape]
 
 trait ShapeMetadata:
     fn metadata[reified M](self) -> M?
@@ -381,7 +381,7 @@ direct member or parameter. An embedded field is a direct member under its
 final type name; members promoted through it are not direct members. The block
 cannot add, rename, remove, or change the type of a member or parameter.
 
-Field metadata is contextually typed as `list[FieldMetadata[T]]`, where `T` is
+Field metadata is contextually typed as `List[FieldMetadata[T]]`, where `T` is
 the declared field type. Variant metadata uses the corresponding marker trait:
 
 ```text
@@ -391,7 +391,7 @@ trait ParamMetadata[T]
 ```
 
 Function parameter metadata is contextually typed as
-`list[ParamMetadata[T]]`, where `T` is the declared parameter type. One
+`List[ParamMetadata[T]]`, where `T` is the declared parameter type. One
 parameter must not contain two metadata values with the same concrete metadata
 type.
 
@@ -414,7 +414,7 @@ metadata values with the same concrete metadata type.
 Reusable compositions are ordinary values or lists, not new language syntax:
 
 ```text
-let email_metadata: list[FieldMetadata[string]] = [
+let email_metadata: List[FieldMetadata[string]] = [
     min_len(3),
     max_len(320),
     contains("@"),
@@ -448,7 +448,7 @@ annotate Validation for Email:
     fn build(self, target: TypeShape) -> Validator:
         Validator.Email
 
-annotate[reified T < Annotate[Validation]] Validation for list[T]:
+annotate[reified T < Annotate[Validation]] Validation for List[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
@@ -457,7 +457,7 @@ Annotation facets are open across exact targets and generic target families.
 A generic `annotate` declaration uses the same generic binders, bounds,
 coherence, and overlap rules as its lowered generic `impl`. There is no
 unconstrained wildcard `annotate Validation for type` fallback; a family names
-a concrete type pattern such as `list[T]`.
+a concrete type pattern such as `List[T]`.
 
 ## Grammar
 
@@ -523,8 +523,8 @@ expression.
 
 Generic parameters and their bounds have the same meaning as on an ordinary
 generic implementation. For example,
-`annotate[T] Validation for list[T]` occupies the same coherence slot as
-`impl[T] Annotate[Validation] for list[T]`; an overlapping exact annotation is
+`annotate[T] Validation for List[T]` occupies the same coherence slot as
+`impl[T] Annotate[Validation] for List[T]`; an overlapping exact annotation is
 rejected under the normal implementation-overlap rules.
 
 ## Aggregate Annotators
@@ -556,7 +556,7 @@ trait DataAnnotator < Annotation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, Self::FieldTarget)],
+        fields: List[(string, Self::FieldTarget)],
     ) -> Self::Info
 ```
 
@@ -581,13 +581,13 @@ trait EnumAnnotator < Annotation:
     fn map_variant(
         self,
         variant: VariantShape,
-        fields: list[Self::FieldTarget],
+        fields: List[Self::FieldTarget],
     ) -> Self::VariantTarget
 
     fn build(
         self,
         target: EnumShape,
-        variants: list[(string, Self::VariantTarget)],
+        variants: List[(string, Self::VariantTarget)],
     ) -> Self::Info
 ```
 
@@ -605,7 +605,7 @@ trait FuncAnnotator < Annotation:
     fn build(
         self,
         target: FnShape,
-        params: list[(string, Self::ParamTarget)],
+        params: List[(string, Self::ParamTarget)],
     ) -> Self::Info
 ```
 

@@ -20,7 +20,7 @@ typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patte
 parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	F-702
 parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	F-703
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
-runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type list[Any])	F-255
+runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
 parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254
 typing/valid/local-types.hd	check fails: expected-expression at line 2: expected an expression, found 'type'	F-254
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
@@ -79,7 +79,7 @@ typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at li
 typing/valid/row-kinded-arguments.hd	check fails: expected-token at line 7: expected '.', found '('	F-256
 typing/invalid/row-kind-mismatch.hd	MVP reports expected-token at line 4 instead of generic-kind-mismatch: expected '.', found '('	F-256
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/least-type-weakening-variance.hd	MVP reports no-common-type at line 5 instead of no-least-common-type: list elements have no common type: mut:list[mut:User] and list[User]	F-258
+typing/invalid/least-type-weakening-variance.hd	MVP reports no-common-type at line 5 instead of no-least-common-type: list elements have no common type: mut:List[mut:User] and List[User]	F-258
 typing/valid/mutable-closure-capture.hd	check fails: expected-expression at line 2: expected an expression, found 'mut'	F-257
 typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
 typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253
@@ -131,4 +131,4 @@ typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage te
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/embedded-part-follows-container.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse, and embedded fields are not invariant positions (VE not implemented)	VE
-runtime/valid/optional-erased-to-any.hd	check fails: MVP does not know Any (unknown-type list[Any])	F-255
+runtime/valid/optional-erased-to-any.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255

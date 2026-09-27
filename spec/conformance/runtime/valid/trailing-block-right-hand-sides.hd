@@ -21,7 +21,7 @@ fn via_discard() -> i32:
         1
     5
 
-fn via_break(values: list[i32]) -> i32:
+fn via_break(values: List[i32]) -> i32:
     for value in values:
         break twice():
             value

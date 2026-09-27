@@ -786,7 +786,7 @@ bracketed form is parsed as function type arguments because `first` resolves
 to a named generic function. A parser may preserve this syntactic ambiguity
 until name resolution. Each argument is a type, a type-pack expansion, or the
 inference placeholder `_`. The placeholder is not part of ordinary
-`type_arguments` and therefore cannot occur in a type such as `list[_]`.
+`type_arguments` and therefore cannot occur in a type such as `List[_]`.
 In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or
 `Type::name![T](...)`, type arguments of the qualifying type or trait stay
 before `::`, as in `Add[Money]::add`. Method-level type arguments follow the

@@ -5,8 +5,8 @@ test "equal lists pass assert_equal":
     assert_equal(["a", "b"], ["a", "b"], reason="string elements compare")
 
 test "equal empty lists pass assert_equal":
-    let left: list[i32] = []
-    let right: list[i32] = []
+    let left: List[i32] = []
+    let right: List[i32] = []
     assert_equal(left, right, reason="empty lists are equal")
 
 test "equal nested lists pass assert_equal":

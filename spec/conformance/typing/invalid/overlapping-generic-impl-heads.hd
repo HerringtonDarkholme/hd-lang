@@ -2,5 +2,5 @@
 
 trait Marker
 
-impl[Value] Marker for list[Value]
-impl Marker for list[i32]  # diagnostic: overlapping-impl
+impl[Value] Marker for List[Value]
+impl Marker for List[i32]  # diagnostic: overlapping-impl

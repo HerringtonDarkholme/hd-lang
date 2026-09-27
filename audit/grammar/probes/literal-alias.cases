@@ -4,7 +4,7 @@ fn f(x: type) -> void:
 #### A02 a type in place of the keyword type (spec: syntax error)
 i32 Id = i32
 #### A03 a type in place of keyword type, newtype form (spec: syntax error)
-list[i32] Id(i32)
+List[i32] Id(i32)
 #### A04 associated type declaration with a type in place of the keyword
 trait Iter:
     Self Item

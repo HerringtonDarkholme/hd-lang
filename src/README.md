@@ -60,11 +60,11 @@ linked through npm.
 - requirement-free function-parameter defaults evaluated per call after all explicit
   arguments, including earlier-parameter references, erased generics, and
   suspending function construction;
-- homogeneous `T...` parameters lowered as `list[T]`, with positional values,
+- homogeneous `T...` parameters lowered as `List[T]`, with positional values,
   positional list spread, and named-list supply across ordinary, generic,
   suspending, static-trait, and dynamic-trait calls;
 - first-class homogeneous-vararg function types and indirect calls using the
-  same `list[T]` ABI;
+  same `List[T]` ABI;
 - a recursive-descent declaration/statement parser and Pratt expression parser;
 - named functions, forward calls, typed parameters, typed results, and locals;
 - source-ordered module bindings backed by typed Wasm globals, including
@@ -265,12 +265,12 @@ else`, `break`, `break value`, and `continue`;
 - `string.split()` implemented in WAT, retaining boundary empty pieces and
   splitting an empty separator into Unicode scalar strings;
 - non-suspending `defer` on normal completion, return, break, and continue;
-- homogeneous `list[T]` literals, indexing, `len()`, and mutable `append()` over
+- homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
-  replacement through `mut list[T]`;
-- insertion-ordered `map[K, V]` literals with duplicate replacement, optional
+  replacement through `mut List[T]`;
+- insertion-ordered `Map[K, V]` literals with duplicate replacement, optional
   indexed or `get()` lookup, `len()`, growable indexed insertion and
-  `remove()` through `mut map[K, V]`, and erased Wasm GC key/value storage;
+  `remove()` through `mut Map[K, V]`, and erased Wasm GC key/value storage;
 - built-in list and map `iter()` values as mutable Wasm GC cursors whose
   `next()` yields `T?`; explicit and `for`-loop iteration share exhaustion,
   partly consumed cursor, replacement, and structural invalidation behavior;

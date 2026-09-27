@@ -1,2 +1,2 @@
-let values: mut list[i32] = [1]
+let values: mut List[i32] = [1]
 values[1] = 2  # panic: index-out-of-bounds

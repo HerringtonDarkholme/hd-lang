@@ -115,8 +115,8 @@ clauses accept the same two protocols by the same rules.
 No implementation makes every iterator an `Iterable`, so a generic parameter
 bounded by `Iterable[T]` does not accept an iterator argument.
 
-The built-in `list[T]` iterable yields each element as `T`, including `mut U`
-when `T = mut U`, even through a readonly list. The built-in `map[K, V]`
+The built-in `List[T]` iterable yields each element as `T`, including `mut U`
+when `T = mut U`, even through a readonly list. The built-in `Map[K, V]`
 iterable yields `(K, V)` tuples in insertion order. Destructuring each
 entry preserves `V`, including `mut U` when `V = mut U`, even through a
 readonly map. Iteration

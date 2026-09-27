@@ -8,7 +8,7 @@ impl Hash for Label:
     fn hash(self, state: mut Hasher) -> void:
         self.value.hash(state)
 
-fn normalize(values: mut list[string], entries: mut map[string, i32]) -> i32:
+fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
     values.append(" Added ")
     clean := values.map(fn(value: string): value.trim().lower())
     removed := entries.remove("old")

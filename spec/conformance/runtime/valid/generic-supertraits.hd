@@ -5,17 +5,17 @@ use std.testing.assert_equal
 trait Source[Output]:
     fn source(self) -> Output
 
-trait Wrapped[Item] < Source[list[Item]]:
+trait Wrapped[Item] < Source[List[Item]]:
     fn marker(self) -> i32
 
-trait Specialized[Item] < Source[list[Item]]:
+trait Specialized[Item] < Source[List[Item]]:
     fn specialized(self) -> i32
 
 data Box[T]:
     item: T
 
-impl[T] Source[list[T]] for Box[T]:
-    fn source(self) -> list[T]: [self.item]
+impl[T] Source[List[T]] for Box[T]:
+    fn source(self) -> List[T]: [self.item]
 
 impl[T] Wrapped[T] for Box[T]:
     fn marker(self) -> i32: 0
@@ -39,7 +39,7 @@ fn generic_supertrait_dynamic() -> i32:
     let value: Wrapped[i32] = Box[i32] { item: 42 }
     read_dynamic(value)
 
-fn read_source(value: Source[list[i32]]) -> i32:
+fn read_source(value: Source[List[i32]]) -> i32:
     value.source()[0]
 
 fn generic_supertrait_widened() -> i32:

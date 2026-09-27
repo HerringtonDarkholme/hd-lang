@@ -205,12 +205,12 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     const stringCall = this.checkStringMemberCall(expression, receiver);
     if (stringCall) return stringCall;
     const receiverNominal = nominalGenericParts(readonlyType(receiver.type));
-    if (receiverNominal?.name === "list" && expression.callee.name === "len") {
+    if (receiverNominal?.name === "List" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.len expects no arguments", expression.span);
       return { kind: "list-length", receiver, type: "i32", span: expression.span };
     }
-    if (receiverNominal?.name === "list" && expression.callee.name === "iter") {
+    if (receiverNominal?.name === "List" && expression.callee.name === "iter") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "list.iter expects no arguments", expression.span);
       const elementType = receiverNominal.arguments[0]!;
@@ -240,7 +240,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
         span: expression.span,
       };
     }
-    if (receiverNominal?.name === "list" && expression.callee.name === "append") {
+    if (receiverNominal?.name === "List" && expression.callee.name === "append") {
       if (mutableInner(receiver.type) === undefined)
         this.fail(
           "mutable-receiver-required",
@@ -271,12 +271,12 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
         span: expression.span,
       };
     }
-    if (receiverNominal?.name === "map" && expression.callee.name === "len") {
+    if (receiverNominal?.name === "Map" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.len expects no arguments", expression.span);
       return { kind: "map-length", receiver, type: "i32", span: expression.span };
     }
-    if (receiverNominal?.name === "map" && expression.callee.name === "iter") {
+    if (receiverNominal?.name === "Map" && expression.callee.name === "iter") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", "map.iter expects no arguments", expression.span);
       const elementType = tupleType(receiverNominal.arguments);
@@ -289,7 +289,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       };
     }
     if (
-      receiverNominal?.name === "map" &&
+      receiverNominal?.name === "Map" &&
       (expression.callee.name === "get" || expression.callee.name === "remove")
     ) {
       const removing = expression.callee.name === "remove";
@@ -382,7 +382,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
           kind: "string-split",
           receiver,
           separator: argument,
-          type: nominalGenericType("list", ["string"]),
+          type: nominalGenericType("List", ["string"]),
           span: expression.span,
         }
       : {

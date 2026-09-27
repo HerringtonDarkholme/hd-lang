@@ -51,7 +51,7 @@ and 06 For Loops (2026-09-26).
 High. Anchor: 09 Trait Implementations; 06 for-loops.
 
     data Bag:
-        items: list[i32]
+        items: List[i32]
     impl Iterable[i32] for Bag:
         fn iter(self) -> mut Iterator[i32]: self.items.iter()
 
@@ -273,7 +273,7 @@ Fix: R6.1-R6.5; name reuse is TQ-6.
 Medium. Anchor: 09 Dynamic Trait Values; 04 Trait Values And Any.
 
     trait Runner:
-        fn run[r](self, job: fn() -> void $ r) -> void $ r
+        fn run[R](self, job: fn() -> void $ R) -> void $ R
     trait Lookup:
         fn metadata[reified M](self) -> M?
 
@@ -376,7 +376,7 @@ Fix: define "mutable access type" once (R12.1).
 ## TY-23: Bounds On Packs, Impls Over Packs
 Medium. Anchor: 12; 02 Generic Parameters.
 
-    fn show_all[Ts... < Display](values: Ts...) -> list[string]: ...
+    fn show_all[Ts... < Display](values: Ts...) -> List[string]: ...
     impl[Ts... < Display] Display for (Ts...): ...
 
 Fix: element-wise bounds, one dictionary per element; a pack tuple head unifies
@@ -385,7 +385,7 @@ with every arity (R4.8, R3.5).
 ## TY-24: Where-Predicate Subjects And Termination
 Medium. Anchor: 02 Traits And Implementations.
 
-    impl[T] Show for Box[T] where list[T] < Hash: ...
+    impl[T] Show for Box[T] where List[T] < Hash: ...
     impl[T] Loop for T where Box[T] < Loop: ...     # never terminates
 
 Functions have no `where` clause, so `T::Item` cannot be bounded on a function.
@@ -461,7 +461,7 @@ Fix: R13.
 ## TY-32: Projections Cannot Be Constrained
 Low.
 
-    fn names[S < Supplier](source: S) -> list[string]:
+    fn names[S < Supplier](source: S) -> List[string]:
         # no way to say S::Item = string
 
 Fix: code `ambiguous-projection` (R4.10); feature decision TQ-21.

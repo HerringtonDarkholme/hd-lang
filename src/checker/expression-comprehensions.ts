@@ -52,13 +52,13 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
   ): HirExpression {
     const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
     const contextualElement =
-      expectedNominal?.name === "list" && expectedNominal.arguments.length === 1
+      expectedNominal?.name === "List" && expectedNominal.arguments.length === 1
         ? expectedNominal.arguments[0]
         : undefined;
     const checkedValue = this.checkExpression(expression.value, contextualElement);
     const elementType = contextualElement ?? checkedValue.type;
     const value = this.requireCoercion(checkedValue, elementType, expression.value.span);
-    const readonlyList = nominalGenericType("list", [elementType]);
+    const readonlyList = nominalGenericType("List", [elementType]);
     const type =
       (expected && mutableInner(expected) !== undefined) || expected === undefined
         ? mutableType(readonlyList)
@@ -80,11 +80,11 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
   ): HirExpression {
     const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
     const contextualKey =
-      expectedNominal?.name === "map" && expectedNominal.arguments.length === 2
+      expectedNominal?.name === "Map" && expectedNominal.arguments.length === 2
         ? expectedNominal.arguments[0]
         : undefined;
     const contextualValue =
-      expectedNominal?.name === "map" && expectedNominal.arguments.length === 2
+      expectedNominal?.name === "Map" && expectedNominal.arguments.length === 2
         ? expectedNominal.arguments[1]
         : undefined;
     const checkedKey = this.checkExpression(expression.key, contextualKey);
@@ -100,7 +100,7 @@ export abstract class ExpressionComprehensionChecker extends ExpressionDataCheck
         `type '${keyType}' does not have the MVP's built-in Eq and Hash support`,
         expression.key.span,
       );
-    const readonlyMap = nominalGenericType("map", [keyType, valueType]);
+    const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
     const type =
       (expected && mutableInner(expected) !== undefined) || expected === undefined
         ? mutableType(readonlyMap)

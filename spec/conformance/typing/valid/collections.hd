@@ -11,7 +11,7 @@ data Link:
     id: string
     owner_id: string
 
-fn collections(users: list[User]) -> map[string, User] $ Console:
+fn collections(users: List[User]) -> Map[string, User] $ Console:
     empty := ()
     single := (1,)
     point := (10, 20)
@@ -33,5 +33,5 @@ fn collections(users: list[User]) -> map[string, User] $ Console:
     _ := single
     by_id
 
-fn related(xs: list[Link], ys: list[Link]) -> list[(Link, Link)]:
+fn related(xs: List[Link], ys: List[Link]) -> List[(Link, Link)]:
     [for x in xs for y in ys if x.id == y.owner_id => (x, y)]

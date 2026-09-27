@@ -2,7 +2,7 @@
 Severity: major
 Area: runtime
 Evidence: audit/evidence/05-requirements/req-scaling.md (`node --experimental-strip-types audit/scripts/arch/req-probes.ts`), audit/evidence/05-requirements/row-chain-5.wat (`$adapt0`), audit/evidence/05-requirements/abi.wat (`$adapt0`)
-Effect: calling a named function through a row-generic callback parameter (`fn g[r](cb: fn(i32) -> i32 $ r)`) costs O(K^2) allocations and time for a K-entry row. Measured per 10-deep call: K=1: 1 pack node copied, 13 ns; K=5: 25 nodes, 85 ns; K=10: 100 nodes, 334 ns. The same chain with concrete rows stays at 4-5 ns for K=0..10.
+Effect: calling a named function through a row-generic callback parameter (`fn g[R](cb: fn(i32) -> i32 $ R)`) costs O(K^2) allocations and time for a K-entry row. Measured per 10-deep call: K=1: 1 pack node copied, 13 ns; K=5: 25 nodes, 85 ns; K=10: 100 nodes, 334 ns. The same chain with concrete rows stays at 4-5 ns for K=0..10.
 Recommendation: implementation change. Build the union pack once per adapter call, or pass `$p0` directly when the formal row is a single row variable:
 
 ```wat

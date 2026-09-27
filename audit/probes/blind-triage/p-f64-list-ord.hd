@@ -1,4 +1,4 @@
-# test: list[f64] ordering
+# test: List[f64] ordering
 # expect: accept
 pub fn probe() -> bool:
     [1.0] < [2.0]

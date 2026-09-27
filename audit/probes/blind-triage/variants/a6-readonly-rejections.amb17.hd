@@ -35,8 +35,8 @@ fn readonly_parent_weakens_field(parent: Parent) -> void:
 fn mutable_parent_keeps_field(parent: mut Parent) -> void:
     rename(parent.child)
 
-fn readonly_map_remove(values: map[string, i32]) -> void:
+fn readonly_map_remove(values: Map[string, i32]) -> void:
     _ := values.remove("a")  # diagnostic: mutable-receiver-required
 
-fn mutable_map_remove(values: mut map[string, i32]) -> void:
+fn mutable_map_remove(values: mut Map[string, i32]) -> void:
     _ := values.remove("a")

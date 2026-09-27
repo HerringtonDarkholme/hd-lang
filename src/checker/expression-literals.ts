@@ -116,7 +116,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           ? nominalGenericParts(expectedDataType)
           : undefined;
         const contextualElement =
-          expectedNominal?.name === "list" && expectedNominal.arguments.length === 1
+          expectedNominal?.name === "List" && expectedNominal.arguments.length === 1
             ? expectedNominal.arguments[0]
             : undefined;
         if (expression.elements.length === 0 && !contextualElement) {
@@ -131,7 +131,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           const checked = this.checkExpression(element, contextualElement);
           if (
             spreadOperands?.[index] &&
-            nominalGenericParts(readonlyType(checked.type))?.name !== "list"
+            nominalGenericParts(readonlyType(checked.type))?.name !== "List"
           )
             this.fail(
               "type-mismatch",
@@ -150,7 +150,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           }
           return this.requireCoercion(checked, elementType!, element.span);
         });
-        const readonlyList = nominalGenericType("list", [elementType!]);
+        const readonlyList = nominalGenericType("List", [elementType!]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
             ? mutableType(readonlyList)
@@ -185,11 +185,11 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
       case "map": {
         const expectedNominal = expected ? nominalGenericParts(readonlyType(expected)) : undefined;
         const contextualKey =
-          expectedNominal?.name === "map" && expectedNominal.arguments.length === 2
+          expectedNominal?.name === "Map" && expectedNominal.arguments.length === 2
             ? expectedNominal.arguments[0]
             : undefined;
         const contextualValue =
-          expectedNominal?.name === "map" && expectedNominal.arguments.length === 2
+          expectedNominal?.name === "Map" && expectedNominal.arguments.length === 2
             ? expectedNominal.arguments[1]
             : undefined;
         if (expression.entries.length === 0 && (!contextualKey || !contextualValue)) {
@@ -230,7 +230,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.span,
           );
         }
-        const readonlyMap = nominalGenericType("map", [keyType!, valueType!]);
+        const readonlyMap = nominalGenericType("Map", [keyType!, valueType!]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
             ? mutableType(readonlyMap)

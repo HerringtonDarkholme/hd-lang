@@ -9,7 +9,7 @@ fn log_message(message: string) -> i32 $ Logger:
 fn direct() -> i32 $ Logger:
     log_message("a")
 
-fn in_for(items: list[string]) -> void $ Logger:
+fn in_for(items: List[string]) -> void $ Logger:
     for item in items:
         _ := log_message(item)
 
@@ -19,7 +19,7 @@ fn in_tuple() -> (i32, i32) $ Logger:
 fn in_interp() -> string $ Logger:
     "n=${log_message("a")}"
 
-fn in_comprehension(items: list[string]) -> list[i32] $ Logger:
+fn in_comprehension(items: List[string]) -> List[i32] $ Logger:
     [for item in items => log_message(item)]
 
 fn main() -> i32:

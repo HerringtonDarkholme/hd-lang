@@ -600,7 +600,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
       case "index": {
         const receiver = this.checkExpression(expression.receiver);
         const nominal = nominalGenericParts(readonlyType(receiver.type));
-        if (nominal?.name === "list" && nominal.arguments.length === 1) {
+        if (nominal?.name === "List" && nominal.arguments.length === 1) {
           const index = this.checkExpression(expression.index, "i32");
           this.requireAssignable(index.type, "i32", expression.index.span);
           return {
@@ -612,7 +612,7 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             span: expression.span,
           };
         }
-        if (nominal?.name === "map" && nominal.arguments.length === 2) {
+        if (nominal?.name === "Map" && nominal.arguments.length === 2) {
           const key = this.checkExpression(expression.index, nominal.arguments[0]);
           this.requireAssignable(key.type, nominal.arguments[0]!, expression.index.span);
           return {

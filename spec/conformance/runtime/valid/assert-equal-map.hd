@@ -7,6 +7,6 @@ test "map equality is independent of entry order":
     assert_equal({"ada": 1, "grace": 2}, {"grace": 2, "ada": 1}, reason="same entries in a different order")
 
 test "equal empty maps pass assert_equal":
-    let left: map[string, i32] = {}
-    let right: map[string, i32] = {}
+    let left: Map[string, i32] = {}
+    let right: Map[string, i32] = {}
     assert_equal(left, right, reason="empty maps are equal")

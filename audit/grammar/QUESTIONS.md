@@ -93,14 +93,14 @@ function, closure, `defer`, and loop bodies, so
 `a := b := if c: 1 else: 2` stay valid. Q12: `Type::name[T]!(...)` is a
 `syntax-error`, and a method's explicit list must be followed by an ordinary
 call. Q13: a list may hold any number of spreads in any position, each of
-type `list[U]`. Q15: `$` before any other reserved word stays a
+type `List[U]`. Q15: `$` before any other reserved word stays a
 `syntax-error`.
 
 - **Grammar follow-ups B1 to B9.** (B1) A backticked word is always a plain
   identifier, equal to the unbackticked name, never a keyword or contextual
   word. (B2) `x.m[e]!(a)` is always field index then suspending call;
   `all[i32]!(a)` stays valid as instantiation then call, with `all![i32](a)`
-  preferred. (B3, B4) Accepted as applied: list spreads take `list[U]` only;
+  preferred. (B3, B4) Accepted as applied: list spreads take `List[U]` only;
   the Q9 ban covers every same-line suite. (B5) Inside brackets a line
   starting with `!(` never continues the previous element. (B6) Single-name
   binding chains stay. (B7, applied) A nested body not deeper than
@@ -447,7 +447,7 @@ Options:
 2. Q12: free `all[i32]!(a)` is still valid (a generic function value followed
    by a bang call); `x.m[T]!(...)` is invalid without a named code. Reject
    both, and with which code?
-3. Q13: list spreads accept only `list[U]`. Allow other iterables, or value
+3. Q13: list spreads accept only `List[U]`. Allow other iterables, or value
    packs?
 4. Q9: the ban covers every same-line suite (`fn f() -> i32: if c: 1 else: 2`
    is an error), while same-line `for` and `while` may still nest. Intended?

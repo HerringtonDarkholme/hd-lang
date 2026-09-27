@@ -23,10 +23,10 @@ fn one() -> i32 $ Clock:
 fn two() -> i32 $ Clock + Backup:
     $.use(Clock).now() + $.use(Backup).level()
 
-fn forward_row[r](callback: fn() -> i32 $ r) -> i32 $ r:
+fn forward_row[R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
-fn subtract[r](callback: fn() -> i32 $ r, clock: Clock) -> i32 $ (r - Clock):
+fn subtract[R](callback: fn() -> i32 $ R, clock: Clock) -> i32 $ (R - Clock):
     $.with(Clock=clock):
         callback()
 

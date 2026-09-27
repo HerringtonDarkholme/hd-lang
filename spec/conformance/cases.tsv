@@ -1034,3 +1034,4 @@ typing/invalid/none-beside-values-needs-expected-type.hd	type	reject:missing-con
 typing/invalid/none-branch-needs-expected-type.hd	type	reject:missing-contextual-enum-type	04-type-system.md#least-common-type
 runtime/valid/none-with-expected-list-type.hd	runtime	accept	04-type-system.md#least-common-type
 runtime/valid/optional-erased-to-any.hd	runtime	accept	09-traits.md#any
+typing/invalid/lowercase-list-type.hd	type	reject:unknown-type	10-modules.md#prelude

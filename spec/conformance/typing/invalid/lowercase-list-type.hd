@@ -1,0 +1,5 @@
+# test: the lowercase name list is not a built-in type
+
+fn count() -> i32:
+    let values: list[i32] = [1, 2]  # diagnostic: unknown-type
+    return 2

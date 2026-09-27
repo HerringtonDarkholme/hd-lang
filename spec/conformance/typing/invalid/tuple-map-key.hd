@@ -1,2 +1,2 @@
 
-let points: map[(i32, f64), string] = {}  # diagnostic: invalid-map-key
+let points: Map[(i32, f64), string] = {}  # diagnostic: invalid-map-key

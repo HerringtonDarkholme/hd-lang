@@ -40,7 +40,7 @@ fn with_spread() -> i32 $ Clock + Backup:
         read_both()
 
 # D: row subtraction installs one key over a generic row
-fn subtract[r](callback: fn() -> i32 $ r, clock: Clock) -> i32 $ (r - Clock):
+fn subtract[R](callback: fn() -> i32 $ R, clock: Clock) -> i32 $ (R - Clock):
     $.with(Clock=clock):
         callback()
 

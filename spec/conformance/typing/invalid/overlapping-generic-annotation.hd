@@ -8,10 +8,10 @@ impl TypeAnnotator for Validation:
     fn build(self, target: TypeShape) -> Validator:
         panic("exact annotation supplies build")
 
-annotate[T] Validation for list[T]:
+annotate[T] Validation for List[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator {}
 
-annotate Validation for list[i32]:  # diagnostic: overlapping-annotation-impl
+annotate Validation for List[i32]:  # diagnostic: overlapping-annotation-impl
     fn build(self, target: TypeShape) -> Validator:
         Validator {}

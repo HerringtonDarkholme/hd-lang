@@ -111,7 +111,7 @@ numeric member such as `point.0`.
 
 ### List And Map Expressions
 
-A list literal evaluates its elements left to right and produces `list[T]`,
+A list literal evaluates its elements left to right and produces `List[T]`,
 where every element is assignable to `T`:
 
 ```text
@@ -119,10 +119,10 @@ names := ["Ada", "Grace"]
 ```
 
 A list element ending in `...` is a spread. Its operand is evaluated once, in
-element order, and must have a list type `list[U]`; its elements are inserted
+element order, and must have a list type `List[U]`; its elements are inserted
 at that position, in order. A literal may contain several spreads in any
 position, so `[0, xs...]` and `[xs..., ys...]` are valid. With an expected
-`list[T]`, `U` must be assignable to `T`; without one, a spread contributes
+`List[T]`, `U` must be assignable to `T`; without one, a spread contributes
 `U` to the least common type of the elements.
 
 A map literal evaluates each key and then its value, processing entries from
@@ -142,7 +142,7 @@ Empty `[]` and `{}` literals require an expected collection type because they
 contain no values from which to infer type arguments. Without one, the literal
 is an `unresolved-generic-placeholder` error.
 
-When an expected `list[T]` or `map[K, V]` type is available, each literal
+When an expected `List[T]` or `Map[K, V]` type is available, each literal
 element is checked directly against the corresponding expected type. Without
 an expected type, the element type of a list, and the key type and the value
 type of a map, are the
@@ -236,17 +236,17 @@ forms follow their own access rules in [Type System](04-type-system.md).
 `receiver[index]` evaluates the receiver, then the index, and invokes the
 receiver type's indexing behavior.
 
-For `list[T]`, an index may have any integer type. It must be non-negative and
+For `List[T]`, an index may have any integer type. It must be non-negative and
 less than the list length. A failed check causes the standard checked runtime
 panic. Reading a list element yields its declared generic type `T`, including
 `mut U` when `T = mut U`, regardless of the list root's permission. Assigning
 `items[index] = value` still requires a mutable list root and an in-range index.
 
-For `map[K, V]`, the index must have type `K`. Reading `entries[key]` returns
+For `Map[K, V]`, the index must have type `K`. Reading `entries[key]` returns
 `V?`: `.None` means no equal key exists. The generic `V` is preserved through a
 readonly map, including `mut U` when `V = mut U`; unwrapping the optional
 returns `V`. Assigning
-`entries[key] = value` requires `mut map[K, V]` and inserts or replaces the
+`entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the
 entry. Removal and entry APIs are standard-library methods rather than special
 syntax.
 
@@ -269,7 +269,7 @@ name, is a `duplicate-argument` error. Evaluation order follows source argument
 order, not parameter declaration order.
 
 An argument ending in `...` is a positional spread. It is evaluated once, must
-have `list[T]` compatible with the callee's final `T...` parameter, and supplies
+have `List[T]` compatible with the callee's final `T...` parameter, and supplies
 that vararg's remaining positional elements. It cannot fill fixed parameters.
 A positional spread in a call whose callee has no vararg parameter is a
 `positional-spread-needs-vararg` error.
@@ -447,8 +447,8 @@ values likewise cannot be compared with `is`. Both operands
 must otherwise have compatible composite reference types: after removing
 `mut` at every level, the two types are equal, or one is a trait value or
 `Any` type that the other converts to. Permissions never affect identity, so
-`list[User]` and `mut list[mut User]` are compatible. Two composite reference
-operands that are not compatible, such as `list[User]` and `list[Order]`, are
+`List[User]` and `mut List[mut User]` are compatible. Two composite reference
+operands that are not compatible, such as `List[User]` and `List[Order]`, are
 an `incompatible-identity-operands` error. Use `!(a is b)` for distinct
 identities.
 

@@ -1,6 +1,6 @@
 # test: else closes a same-line for or while suite
 # expect: parse
 
-fn run(xs: list[i32], c: bool) -> void:
+fn run(xs: List[i32], c: bool) -> void:
     for x in xs: println("$x") else: println("done")
     while c: break else: println("never")

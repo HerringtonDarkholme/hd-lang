@@ -170,7 +170,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         strategy?.kind === "result" ? strategy.error : undefined,
       );
     const nominal = nominalGenericParts(readonly);
-    if (nominal?.name === "list" && nominal.arguments.length === 1)
+    if (nominal?.name === "List" && nominal.arguments.length === 1)
       return this.emitListEquality(
         left,
         right,
@@ -178,7 +178,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         nominal.arguments[0]!,
         strategy?.kind === "list" ? strategy.element : undefined,
       );
-    if (nominal?.name === "map" && nominal.arguments.length === 2)
+    if (nominal?.name === "Map" && nominal.arguments.length === 2)
       return this.emitMapEquality(
         left,
         right,
@@ -230,7 +230,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         strategy?.kind === "optional" ? strategy.value : undefined,
       );
     const nominal = nominalGenericParts(readonly);
-    if (nominal?.name === "list" && nominal.arguments.length === 1)
+    if (nominal?.name === "List" && nominal.arguments.length === 1)
       return this.emitListOrdering(
         left,
         right,

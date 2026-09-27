@@ -180,7 +180,7 @@ export function functionParts(type: ValueType): FunctionParts | undefined {
   const variadic = renderedParameters.at(-1)?.endsWith("...") === true;
   const parameters = renderedParameters.map((parameter, index) => {
     if (!variadic || index !== renderedParameters.length - 1) return parameter;
-    return nominalGenericType("list", [parameter.slice(0, -3)]);
+    return nominalGenericType("List", [parameter.slice(0, -3)]);
   });
   return { parameters, suspending, variadic, result, requirements };
 }
@@ -196,7 +196,7 @@ export function functionType(
   const rendered = parameters.map((parameter, index) => {
     if (!variadic || index !== parameters.length - 1) return parameter;
     const nominal = nominalGenericParts(parameter);
-    return `${nominal?.name === "list" && nominal.arguments.length === 1 ? nominal.arguments[0] : parameter}...`;
+    return `${nominal?.name === "List" && nominal.arguments.length === 1 ? nominal.arguments[0] : parameter}...`;
   });
   return `fn${suspending ? "!" : ""}(${rendered.join(",")})->${result}${row.length ? `$${row.join("+")}` : ""}`;
 }

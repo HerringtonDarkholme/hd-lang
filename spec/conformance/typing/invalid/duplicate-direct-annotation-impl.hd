@@ -19,7 +19,7 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, FieldValidator)],
+        fields: List[(string, FieldValidator)],
     ) -> Validator:
         Validator {}
 
@@ -31,6 +31,6 @@ annotate Validation for User:  # diagnostic: duplicate-annotation-impl
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, FieldValidator)],
+        fields: List[(string, FieldValidator)],
     ) -> Validator:
         Validator {}

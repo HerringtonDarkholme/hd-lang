@@ -26,7 +26,7 @@ data Point:
 impl Score for Point:
     fn score(self) -> i32: self.value
 
-impl[Item < Score] AsyncScore for list[Item]:
+impl[Item < Score] AsyncScore for List[Item]:
     fn score!(self) -> i32: self[0].score()
 
 fn score_bound![T < AsyncScore](value: T) -> i32:
@@ -43,8 +43,8 @@ test "blanket dictionaries retain their erased suspending ABI":
     )
 
 test "suspending blanket adapters retain captured bound dictionaries":
-    let first: list[Point] = [Point { value: 20 }]
-    let second: list[Point] = [Point { value: 22 }]
+    let first: List[Point] = [Point { value: 20 }]
+    let second: List[Point] = [Point { value: 22 }]
     let dynamic: AsyncScore = first
     assert_equal(
         dynamic.score!() + score_bound!(second),

@@ -10,5 +10,5 @@ impl Iterator[i32] for Counter:
         self.current = self.current + 1
         value
 
-fn consume(counter: mut Counter) -> list[i32]:
+fn consume(counter: mut Counter) -> List[i32]:
     [for value in counter => value]

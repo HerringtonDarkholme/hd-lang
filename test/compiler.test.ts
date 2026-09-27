@@ -97,7 +97,7 @@ test("homogeneous varargs lower through the existing list ABI", async () => {
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 34);
   const variadic = compilation.hir?.functions.find((fn) => fn.name === "count");
-  assert.equal(variadic?.parameters[0]?.type, "list[i32]");
+  assert.equal(variadic?.parameters[0]?.type, "List[i32]");
 });
 
 test("first-class vararg functions retain their calling convention", async () => {

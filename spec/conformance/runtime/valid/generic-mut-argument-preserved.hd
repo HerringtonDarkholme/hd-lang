@@ -24,9 +24,9 @@ test "a readonly Box[mut User] field read yields mut User":
     inner.name = "Lin"
     assert_equal(user.name, "Lin", reason="generic field keeps its substituted type")
 
-test "readonly list[mut User] yields mutable elements by index and iteration":
+test "readonly List[mut User] yields mutable elements by index and iteration":
     let user: mut User = User { name: "a" }
-    let users: list[mut User] = [user]
+    let users: List[mut User] = [user]
     let indexed: mut User = users[0]
     indexed.name = "b"
     for element in users:

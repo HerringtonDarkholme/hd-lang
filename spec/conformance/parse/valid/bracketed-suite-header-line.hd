@@ -1,7 +1,7 @@
 # test: bracketed control flow and closures may end a header line in a colon
 # expect: parse
 
-fn run(xs: list[i32], c: bool) -> void:
+fn run(xs: List[i32], c: bool) -> void:
     doubled := [for x in xs:
         x * 2
     ]

@@ -231,7 +231,7 @@ function prepareInherentImplementation(
           diagnostics,
           genericParameters,
         ) ?? "void";
-      return parameter.variadic ? nominalGenericType("list", [resolved]) : resolved;
+      return parameter.variadic ? nominalGenericType("List", [resolved]) : resolved;
     });
     const result =
       typeName(
@@ -530,7 +530,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
               diagnostics,
               methodGenerics,
             ) ?? "void";
-          return parameter.variadic ? nominalGenericType("list", [type]) : type;
+          return parameter.variadic ? nominalGenericType("List", [type]) : type;
         });
         const expectedParameters = [
           ...(required.associated

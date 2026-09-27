@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let values: mut list[i32] = []
+    let values: mut List[i32] = []
     values.append(1)
     values.append(2)
     values.append(3)

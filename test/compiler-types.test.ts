@@ -31,8 +31,8 @@ test("higher-order erased generics adapt concrete callable ABIs", () => {
 test("generic requirement rows pack callback providers for Wasm GC", () => {
   const source = conformance("runtime/valid/row-variable-binds-union");
   const compilation = compile(source);
-  assert.deepEqual(compilation.hir.functions[0]?.rowParameters, ["r"]);
-  assert.equal(compilation.hir.functions[0]?.parameters[0]?.type, "fn()->i32$row:r");
+  assert.deepEqual(compilation.hir.functions[0]?.rowParameters, ["R"]);
+  assert.equal(compilation.hir.functions[0]?.parameters[0]?.type, "fn()->i32$row:R");
   assert.match(compilation.wat, /type \$hd\.providers \(struct/);
   assert.match(compilation.wat, /struct\.new \$hd\.providers/);
   assert.match(compilation.wat, /call \$hd\.provider_get/);
@@ -47,7 +47,7 @@ test("empty generic requirement rows lower to null provider packs", () => {
 test("generic row subtraction lowers a locally supplied provider", () => {
   const source = conformance("runtime/valid/row-subtraction-provider-restoration");
   const compilation = compile(source);
-  assert.deepEqual(compilation.hir.functions[0]?.requirements, ["Backup", "row:r\\Logger"]);
+  assert.deepEqual(compilation.hir.functions[0]?.requirements, ["Backup", "row:R\\Logger"]);
   assert.match(compilation.wat, /struct\.new \$hd\.providers/);
 });
 
@@ -370,7 +370,7 @@ test("owning a trait argument's outer constructor permits a foreign trait impl (
     [],
   );
   const nested = analyze(
-    "data Word:\n    text: string\n\nimpl Iterator[list[Word]] for string:\n    fn next(mut self) -> list[Word]?: .None\n",
+    "data Word:\n    text: string\n\nimpl Iterator[List[Word]] for string:\n    fn next(mut self) -> List[Word]?: .None\n",
   );
   assert.deepEqual(
     nested.diagnostics.map((diagnostic) => diagnostic.code),

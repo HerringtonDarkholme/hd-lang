@@ -47,34 +47,34 @@ impl R5 for P5:
 fn leaf(n: i32) -> i32 $ R1 + R2 + R3 + R4 + R5:
     n + $.use(R1).v() + $.use(R2).v() + $.use(R3).v() + $.use(R4).v() + $.use(R5).v()
 
-fn g10[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g10[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     cb(n)
 
-fn g9[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g9[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g10(cb, n)
 
-fn g8[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g8[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g9(cb, n)
 
-fn g7[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g7[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g8(cb, n)
 
-fn g6[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g6[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g7(cb, n)
 
-fn g5[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g5[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g6(cb, n)
 
-fn g4[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g4[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g5(cb, n)
 
-fn g3[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g3[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g4(cb, n)
 
-fn g2[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g2[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g3(cb, n)
 
-fn g1[r](cb: fn(i32) -> i32 $ r, n: i32) -> i32 $ r:
+fn g1[R](cb: fn(i32) -> i32 $ R, n: i32) -> i32 $ R:
     g2(cb, n)
 
 fn main() -> i32:

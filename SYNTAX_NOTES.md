@@ -229,10 +229,10 @@ suggestion: use i16(huge) if range checking is intended
 Generic types and functions use square brackets:
 
 ```text
-let names: list[string] = ["Ada", "Grace"]
-let scores: map[string, i32] = {"Ada": 10, "Grace": 12}
+let names: List[string] = ["Ada", "Grace"]
+let scores: Map[string, i32] = {"Ada": 10, "Grace": 12}
 
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     if items.len() == 0:
         .None
     else:
@@ -257,7 +257,7 @@ value := convert[_, User](input)
 ```
 
 An unresolved `_` is an ambiguity error. The placeholder is available only in
-named generic-function references; it is not a type and `list[_]` is invalid.
+named generic-function references; it is not a type and `List[_]` is invalid.
 
 Function generic parameters are erased at runtime by default:
 
@@ -304,7 +304,7 @@ The initial runtime-type operations requiring reification include:
 4. Runtime serialization or deserialization selected from `T`.
 5. Runtime type tests or casts involving `T`, if those operations are added.
 
-Concrete type expressions always have materializable descriptors, so `resolve[list[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve[list[T]]()` requires `T` to be reified.
+Concrete type expressions always have materializable descriptors, so `resolve[List[i32]]()` does not require the caller itself to be generic. A generic expression such as `resolve[List[T]]()` requires `T` to be reified.
 
 Reified functions do not require an `inline` modifier. The WebAssembly backend can use descriptor passing, specialization, or both. It may erase an unused descriptor or specialize a concrete call only when observable reflection behavior remains unchanged.
 
@@ -329,7 +329,7 @@ fn all![Ts...](tasks: mut Suspend[Ts]...) -> (Ts...):
 
 For `Ts... = User, i32, bool`, the parameter pattern expands to `mut Suspend[User], mut Suspend[i32], mut Suspend[bool]`, and the result type expands to `(User, i32, bool)`. The same rule applies to expression patterns in argument-list positions, such as `start(tasks)...`: the compiler repeats `start(task)` for each value in the `tasks` pack. Expansion is compile-time and does not turn the values into a runtime list.
 
-If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. `pack.map((tasks...), make_slot)` maps a heterogeneous tuple through a named generic function and returns another tuple, preserving each result type. `pack.map_list(slots, poll_slot, context)` uses the same per-element instantiation but collects a homogeneous `list[bool]` for readiness checks. Both are compiler-recognized expressions, not ordinary function calls or first-class generic function values; each mapped call executes left to right. Filtering, indexing, splitting, and pack arithmetic remain unsupported. The scheduling and cancellation semantics of `all!` belong to the concurrency library.
+If one repeated pattern references multiple packs, they expand positionally in lockstep and must have equal lengths. `pack.map((tasks...), make_slot)` maps a heterogeneous tuple through a named generic function and returns another tuple, preserving each result type. `pack.map_list(slots, poll_slot, context)` uses the same per-element instantiation but collects a homogeneous `List[bool]` for readiness checks. Both are compiler-recognized expressions, not ordinary function calls or first-class generic function values; each mapped call executes left to right. Filtering, indexing, splitting, and pack arithmetic remain unsupported. The scheduling and cancellation semantics of `all!` belong to the concurrency library.
 
 `all!` treats a child's `Err` as an ordinary completed value: it does not short-circuit or cancel siblings. It waits for every child to complete and returns their values, including any `Err` values. Runtime panics and cancellation are separate from this result-value rule.
 
@@ -518,9 +518,9 @@ pub fn main!() -> Result[void, AppError] $ Args + Console:
 
 `pub` only controls visibility between hd-lang modules. It does not export every public function through the Wasm component boundary. Tools, workflows, and library-facing functions require explicit registration, and that registration generates a typed host adapter. Their exact registration APIs are separate library/tooling designs.
 
-An exported signature is checked recursively for boundary-safe structural types. The initial allowed forms are primitive scalars, `string`, tuples, `list[T]`, `map[K, V]`, data types, enums, `T?`, and `Result[T, E]`; every nested type argument, field, variant payload, success value, and error value must itself be boundary-safe. A map key must also satisfy the ordinary map-key rules. Mutable types, trait values, closures, and live runtime handles are rejected anywhere in the boundary shape. `$` requirements are bound by the host adapter and are not serialized parameters.
+An exported signature is checked recursively for boundary-safe structural types. The initial allowed forms are primitive scalars, `string`, tuples, `List[T]`, `Map[K, V]`, data types, enums, `T?`, and `Result[T, E]`; every nested type argument, field, variant payload, success value, and error value must itself be boundary-safe. A map key must also satisfy the ordinary map-key rules. Mutable types, trait values, closures, and live runtime handles are rejected anywhere in the boundary shape. `$` requirements are bound by the host adapter and are not serialized parameters.
 
-`map[K, V]` is unordered by default. Insertion and iteration order are not part of map equality or boundary semantics, even if a particular host encoding represents entries as a sequence.
+`Map[K, V]` is unordered by default. Insertion and iteration order are not part of map equality or boundary semantics, even if a particular host encoding represents entries as a sequence.
 
 ## Primitive Types
 
@@ -755,8 +755,8 @@ The qualifier composes in stored and callable types:
 
 ```text
 friend: mut User
-users: list[mut User]
-users_by_id: map[string, mut User]
+users: List[mut User]
+users_by_id: Map[string, mut User]
 fn current_user() -> mut User
 fn apply(user: mut User, operation: fn(mut User) -> void) -> void
 ```
@@ -790,38 +790,38 @@ For lists, the root controls slot replacement and the generic element type
 controls mutation of a referenced element:
 
 ```text
-fn replace_users(users: mut list[User], replacement: User) -> void:
+fn replace_users(users: mut List[User], replacement: User) -> void:
     users[0] = replacement       # allowed: mutable list slot
     users[0].display_name = "x"  # error: const User edge
 
-fn edit_users(users: mut list[mut User]) -> void:
+fn edit_users(users: mut List[mut User]) -> void:
     users[0].display_name = "x"  # allowed: mutable root + mutable edge
 ```
 
 The container root and element edge are independent:
 
 ```text
-list[User]           # const container, const elements
-list[mut User]       # const container, mutable elements
-mut list[User]       # mutable container, const elements
-mut list[mut User]   # mutable container, mutable elements
+List[User]           # const container, const elements
+List[mut User]       # const container, mutable elements
+mut List[User]       # mutable container, const elements
+mut List[mut User]   # mutable container, mutable elements
 ```
 
-The built-in `list` type declares a covariant element parameter, conceptually `list[+T]`. Therefore a read-only list view may weaken element permission:
+The built-in `List` type declares a covariant element parameter, conceptually `List[+T]`. Therefore a read-only list view may weaken element permission:
 
 ```text
-let stored: list[mut User] = ...
-let visible: list[User] = stored            # allowed
+let stored: List[mut User] = ...
+let visible: List[User] = stored            # allowed
 
-let editable: mut list[mut User] = ...
-let invalid: mut list[User] = editable      # invalid: mutable containers are invariant
+let editable: mut List[mut User] = ...
+let invalid: mut List[User] = editable      # invalid: mutable containers are invariant
 ```
 
-The covariant conversion creates a read-only view, not an immutable snapshot. Changes made through another mutable alias remain observable. The `list` API must preserve its `+T` declaration; an operation that consumes an element through a read-only list view needs a separately type-safe signature rather than placing `T` directly in a negative position.
-Without such a conversion, indexing or iterating `list[mut User]` retains
+The covariant conversion creates a read-only view, not an immutable snapshot. Changes made through another mutable alias remain observable. The `List` API must preserve its `+T` declaration; an operation that consumes an element through a read-only list view needs a separately type-safe signature rather than placing `T` directly in a negative position.
+Without such a conversion, indexing or iterating `List[mut User]` retains
 `mut User` even when the list root is readonly; only slot replacement requires
-`mut list[mut User]`.
-Similarly, lookup and iteration on readonly `map[K, mut User]` preserve the
+`mut List[mut User]`.
+Similarly, lookup and iteration on readonly `Map[K, mut User]` preserve the
 mutable value type. Lookup yields `mut User?`, whose present-value extraction
 returns `mut User`; only entry replacement requires a mutable map root.
 Generic contents are not weakened by a readonly wrapper: `Result[mut User, E]`
@@ -851,7 +851,7 @@ fn reset_value[T < mut Reset](value: T) -> void:
     value.reset()
 ```
 
-The `mut` qualifier proves that `value` can call methods requiring `mut self`. `T` remains the complete inferred type, including its access permission. For example, `mut list[User]` satisfies `mut Any`, but `list[mut User]` does not because its root is const.
+The `mut` qualifier proves that `value` can call methods requiring `mut self`. `T` remains the complete inferred type, including its access permission. For example, `mut List[User]` satisfies `mut Any`, but `List[mut User]` does not because its root is const.
 
 Trait values follow the same rule. `mut Trait` is a mutable dynamic trait view, and `mut Any` is an erased mutable composite reference. The qualifier preserves permission but does not invent operations: `mut Any` can only use universal runtime operations until checked as a concrete mutable type or passed somewhere with a stronger trait requirement.
 
@@ -869,7 +869,7 @@ An earlier, simpler design treated `:=` and plain `let` as shallow const binding
 
 ```text
 user := User { ... }
-let users: mut list[User] = [user]
+let users: mut List[User] = [user]
 users[0].display_name = "new"  # allowed in the alternative
 ```
 
@@ -1105,18 +1105,18 @@ hd-lang should have built-in list and map collection types and literals, not onl
 Candidate collection types:
 
 ```text
-list[string]
-map[string, i32]
+List[string]
+Map[string, i32]
 ```
 
 Collection literals should infer their collection type when possible:
 
 ```text
-names := ["Ada", "Grace", "Linus"]       # list[string]
-scores := {"Ada": 10, "Grace": 12}       # map[string, i32]
+names := ["Ada", "Grace", "Linus"]       # List[string]
+scores := {"Ada": 10, "Grace": 12}       # Map[string, i32]
 ```
 
-List comprehensions produce `list[T]` values:
+List comprehensions produce `List[T]` values:
 
 ```text
 long_names := [for name in names if name.len() > 3 => name]
@@ -1136,7 +1136,7 @@ pair_filter := [for x in xs for y in ys if x.id == y.owner_id => (x, y)]
 
 The first form filters `x` before entering the inner `item` loop. The second form filters after both `x` and `y` exist. Later clauses are not visible to earlier clauses.
 
-Map comprehensions produce `map[K, V]` values:
+Map comprehensions produce `Map[K, V]` values:
 
 ```text
 scores_by_name := {for user in users => user.name: user.score}
@@ -1182,7 +1182,7 @@ This sketch records the two-role model, not final associated-type constraint syn
 Mutable collection access is written in the collection type:
 
 ```text
-let attempts: mut list[i32] = []
+let attempts: mut List[i32] = []
 
 attempts.append(1)
 attempts.append(2)
@@ -1332,7 +1332,7 @@ tagged_sum(tag="score", nums...)      # invalid: positional spread after named a
 Generic functions put generic arguments after the function name:
 
 ```text
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     if items.len() == 0:
         .None
     else:
@@ -1357,7 +1357,7 @@ make_id := fn() -> string: "id_123"
 Closure parameter and return types can be inferred when there is an expected function type:
 
 ```text
-fn map_names(names: list[string], f: fn(string) -> string) -> list[string]:
+fn map_names(names: List[string], f: fn(string) -> string) -> List[string]:
     ...
 
 lower_names := map_names(names, fn(name):
@@ -1938,19 +1938,19 @@ requirement-row parameters. A generic parameter used after `$` has the
 requirement-row kind:
 
 ```text
-fn map[T, U, r](items: list[T], f: fn(T) -> U $ r) -> list[U] $ r
+fn map[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R
 ```
 
 Union and removal transform rows explicitly. A provider scope may satisfy a
 removed requirement inside the function:
 
 ```text
-fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
+fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
     $.with(Logger=logger):
         callback("str")
 ```
 
-The compiler infers `r` from the callback's normalized requirement row and
+The compiler infers `R` from the callback's normalized requirement row and
 then normalizes the enclosing row after union and subtraction. Requirements do
 not propagate implicitly from function-typed parameters.
 
@@ -2120,7 +2120,7 @@ trait DataAnnotator < Annotation:
     ) -> Self::Info
 ```
 
-For a field of type `T`, `annotate Target` expects `list[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. A module-level function parameter of type `T` expects `list[ParamMetadata[T]]`; `FuncAnnotator` reads those values from its `ParamShape`. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
+For a field of type `T`, `annotate Target` expects `List[FieldMetadata[T]]`. Concrete values are coerced to that Go-style dynamic trait value type using ordinary trait conformance. `VariantMetadata` serves enum variants. A module-level function parameter of type `T` expects `List[ParamMetadata[T]]`; `FuncAnnotator` reads those values from its `ParamShape`. `DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain the aggregate derivation protocols and perform child mapping before `build`.
 
 The supported type set is open because new exact cases can be added without changing an existing annotator:
 
@@ -2137,7 +2137,7 @@ annotate Validation for string:
 Generic annotation families use ordinary generic binders and bounds:
 
 ```text
-annotate[T < Annotate[Validation]] Validation for list[T]:
+annotate[T < Annotate[Validation]] Validation for List[T]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(T))
 ```
@@ -2174,7 +2174,7 @@ annotate Entry:
     File = [variant_doc("A stored file")]
 ```
 
-For `User.email: string`, the first right-hand side is contextually typed as `list[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
+For `User.email: string`, the first right-hand side is contextually typed as `List[FieldMetadata[string]]`. `MaxLen` and `Contains` may be different concrete types while both satisfy that homogeneous dynamic trait type. The compiler verifies member names and metadata trait conformance, then stores each value on the corresponding `FieldShape` or `VariantShape`. The bracketed expression is an ordinary homogeneous list, not a special heterogeneous annotation bundle.
 
 Prefix `@Facet` on a data, enum, or function declaration expands to `annotate Facet for Target: pass`, which generates `impl Annotate[Facet] for Target`. The facet must implement `DataAnnotator`, `EnumAnnotator`, or `FuncAnnotator` for that target. Prefix `@value` on a named or embedded field, variant, or module-level function parameter expands to its member metadata in `annotate Target`, which becomes shape metadata. Embedded-field metadata is checked through `FieldMetadata[EmbeddedType]` and stays on the embedded field's own shape rather than propagating to promoted members. Parameter metadata is checked through `ParamMetadata[T]`. `@derive(PartialEq, Eq, Hash)` is the compiler-intrinsic exception: its arguments are trait names, and the compiler generates checked ordinary trait implementations from the data or enum shape. It does not invoke the annotation protocol.
 
@@ -2253,7 +2253,7 @@ For UI, every field maps to a `ReactComponent`:
 
 ```text
 impl Annotation for UI:
-    type Info = list[ReactComponent]
+    type Info = List[ReactComponent]
 
 impl DataAnnotator for UI:
     type FieldTarget = ReactComponent
@@ -2261,7 +2261,7 @@ impl DataAnnotator for UI:
     fn map_field(
         self,
         field: FieldShape,
-        type_metadata: AnnotationRef[list[ReactComponent]],
+        type_metadata: AnnotationRef[List[ReactComponent]],
     ) -> ReactComponent:
         if field.type == string:
             TextInput(field.name)
@@ -2270,7 +2270,7 @@ impl DataAnnotator for UI:
         else:
             DefaultInput(field.name)
 
-    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> List[ReactComponent]:
         [for field in target.field_list => fields[field.name]]
 ```
 
@@ -2280,7 +2280,7 @@ impl DataAnnotator for UI:
 annotate UI for User:
     userId = ReactUserId
 
-    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> list[ReactComponent]:
+    fn build(self, target: DataShape, fields: Dict[string, ReactComponent]) -> List[ReactComponent]:
         [
             fields["userId"],
             fields["displayName"],
@@ -2329,7 +2329,7 @@ enum DatabaseColumn:
 
 data TableSchema:
     name: string
-    columns: list[DatabaseColumn]
+    columns: List[DatabaseColumn]
 
 impl Annotation for DatabaseSchema:
     type Info = TableSchema
@@ -2403,7 +2403,7 @@ trait EnumAnnotator < Annotation:
     fn map_variant(
         self,
         variant: VariantShape,
-        fields: list[Self::FieldTarget],
+        fields: List[Self::FieldTarget],
     ) -> Self::VariantTarget
 
     fn build(
@@ -2445,7 +2445,7 @@ data ToolSpec:
     description: string
     params: Dict[string, ToolParam]
     result: JsonSchema
-    requirements: list[string]
+    requirements: List[string]
 
 impl Annotation for Tool:
     type Info = ToolSpec
@@ -2503,7 +2503,7 @@ Runtime use should be explicit. Applying an annotation facet can produce a runti
 
 ```text
 UserTable := DatabaseSchema::annotation(User)     # TableSchema
-UserForm := UI::annotation(User)                  # list[ReactComponent]
+UserForm := UI::annotation(User)                  # List[ReactComponent]
 ToolSpec := Tool::annotation(get_user)            # ToolSpec
 ErrorSchema := ErrorDoc::annotation(ToolError)    # ErrorSchema
 ```
@@ -2602,7 +2602,7 @@ data FieldValidator:
 data VariantValidator:
     name: string
     description: string?
-    fields: list[FieldValidator]
+    fields: List[FieldValidator]
 
 enum Validator:
     Bool
@@ -2719,7 +2719,7 @@ impl EnumAnnotator for Validation:
     fn map_variant(
         self,
         variant: VariantShape,
-        fields: list[FieldValidator],
+        fields: List[FieldValidator],
     ) -> VariantValidator:
         VariantValidator {
             name: variant.name,
@@ -2755,8 +2755,8 @@ resolve(Validation, target):
 resolve(Validation, string)
 # calls the exact `annotate Validation for string` build
 
-resolve(Validation, list[Entry])
-# calls the exact `annotate Validation for list[Entry]` build
+resolve(Validation, List[Entry])
+# calls the exact `annotate Validation for List[Entry]` build
 ```
 
 This resolver is conceptual compiler behavior, not a user-callable overloaded function.
@@ -2787,7 +2787,7 @@ data Folder:
     path: string
     note: string?
     owner: Email
-    entries: list[Entry]
+    entries: List[Entry]
 
 enum Entry:
     File(name: string, size: i32)
@@ -2803,7 +2803,7 @@ annotate Entry:
 annotate Validation for Folder: pass
 annotate Validation for Entry: pass
 
-annotate Validation for list[Entry]:
+annotate Validation for List[Entry]:
     fn build(self, target: TypeShape) -> Validator:
         Validator.List(Validation::annotation_ref(Entry))
 ```
@@ -2811,10 +2811,10 @@ annotate Validation for list[Entry]:
 This follows the same target-specific annotation model throughout:
 
 1. `annotate Validation for Folder: pass` derives `Annotate[Validation]` through `Validation < DataAnnotator`.
-2. `Folder.name` expects `list[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
+2. `Folder.name` expects `List[FieldMetadata[string]]`, so both `MinLen` and `MaxLen` must implement `FieldMetadata[string]`.
 3. `annotate Validation for Entry: pass` derives `Annotate[Validation]` through `Validation < EnumAnnotator`.
-4. `Entry.File` expects `list[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
-5. `annotate[T < Annotate[Validation]] Validation for list[T]` supplies reusable collection validation and resolves the concrete `Entry` validator for `Folder.entries`.
+4. `Entry.File` expects `List[VariantMetadata]`, so `VariantDoc` must implement `VariantMetadata`.
+5. `annotate[T < Annotate[Validation]] Validation for List[T]` supplies reusable collection validation and resolves the concrete `Entry` validator for `Folder.entries`.
 
 No `Validation` metadata is placed directly on `Folder.entries` or `Entry.Directory.folder`; the enclosing annotators derive those payloads from their declared types through `Validation::annotation_ref`. Putting `Validation` into a field metadata list is rejected because it does not implement `FieldMetadata[string]`:
 
@@ -2826,7 +2826,7 @@ annotate Invalid:
     value = [Validation]  # compile error: Validation does not implement FieldMetadata[string]
 ```
 
-When deriving `Validation::annotation(Folder)`, the resolver marks `(Validation, Folder)` active. It derives `string`, `Email`, and `list[Entry]`, then derives the `Entry` variants. At `Entry.Directory.folder`, resolving `Folder` re-enters the active key, so that field receives a deferred `AnnotationRef[Validator]`. All primitive, nominal, list, and non-recursive edges receive ready references. Once the outer `Folder` validator is built, the deferred reference resolves through the completed registry entry.
+When deriving `Validation::annotation(Folder)`, the resolver marks `(Validation, Folder)` active. It derives `string`, `Email`, and `List[Entry]`, then derives the `Entry` variants. At `Entry.Directory.folder`, resolving `Folder` re-enters the active key, so that field receives a deferred `AnnotationRef[Validator]`. All primitive, nominal, list, and non-recursive edges receive ready references. Once the outer `Folder` validator is built, the deferred reference resolves through the completed registry entry.
 
 The attached annotations register the derived targets, and runtime code retrieves ordinary validator values explicitly:
 
@@ -2878,13 +2878,13 @@ An optional `lazy` field-metadata value remains a candidate for explicit deferra
 
 ```text
 data Document:
-    related: list[Document]
+    related: List[Document]
 
 annotate Document:
     related = [lazy]
 ```
 
-`lazy` would be an ordinary `FieldMetadata[list[Document]]` value consumed only by annotations that support deferred references. It would not make the stored field lazy and would not change normal field access or type semantics. Automatic cycle detection remains the preferred default; the exact consumer scope remains unsettled.
+`lazy` would be an ordinary `FieldMetadata[List[Document]]` value consumed only by annotations that support deferred references. It would not make the stored field lazy and would not change normal field access or type semantics. Automatic cycle detection remains the preferred default; the exact consumer scope remains unsettled.
 
 Open concerns:
 
@@ -2916,7 +2916,7 @@ Annotation principles:
 
 1. Metadata does not alter behavior, declaration names, underlying types, or signatures.
 2. `annotate Target` can assign metadata only to existing fields or variants.
-3. A field of type `T` expects `list[FieldMetadata[T]]`; variants expect `list[VariantMetadata]`. Parameters have no local metadata assignment syntax.
+3. A field of type `T` expects `List[FieldMetadata[T]]`; variants expect `List[VariantMetadata]`. Parameters have no local metadata assignment syntax.
 4. These are homogeneous collections of Go-style dynamic trait values. Their concrete elements may have unrelated types.
 5. Metadata expressions create ordinary runtime values evaluated in a restricted metadata phase.
 6. Constructor calls, helper function calls, named values, and reusable lists are equivalent when their values implement the required metadata trait.
@@ -2952,7 +2952,7 @@ variant-field metadata -> variant metadata -> enum annotator -> Annotate informa
 For data types:
 
 1. Type-check the data and field shapes.
-2. Contextually type each field's assigned values as `list[FieldMetadata[T]]`.
+2. Contextually type each field's assigned values as `List[FieldMetadata[T]]`.
 3. Evaluate those values and store them on `FieldShape`.
 4. Run the selected `DataAnnotator`, which can inspect field metadata.
 5. Build the annotation's `Info` and expose `Annotate[A]` for the data.
@@ -3066,12 +3066,12 @@ data MaxLen:
     value: i32
 
 impl FieldMetadata[string] for MaxLen
-impl[T] FieldMetadata[list[T]] for MaxLen
+impl[T] FieldMetadata[List[T]] for MaxLen
 
 data User:
     id: UserId
     email: string
-    tags: list[string]
+    tags: List[string]
     age: i32
 
 annotate User:
@@ -3080,12 +3080,12 @@ annotate User:
     age = [max_len(12)]  # compile error: MaxLen does not implement FieldMetadata[i32]
 ```
 
-When metadata is assigned to a field of type `T`, the compiler expects `list[FieldMetadata[T]]`. This keeps metadata reusable and type-checked without letting it refine or change the field's underlying type.
+When metadata is assigned to a field of type `T`, the compiler expects `List[FieldMetadata[T]]`. This keeps metadata reusable and type-checked without letting it refine or change the field's underlying type.
 
 Reusable metadata groups are ordinary homogeneous lists of dynamic trait values:
 
 ```text
-let email_metadata: list[FieldMetadata[string]] = [
+let email_metadata: List[FieldMetadata[string]] = [
     max_len(320),
     min_len(3),
 ]

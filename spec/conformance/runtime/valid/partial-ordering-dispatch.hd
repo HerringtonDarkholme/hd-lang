@@ -19,7 +19,7 @@ impl PartialOrd for Score:
 fn lower[T < PartialOrd](left: T, right: T) -> bool:
     left < right
 
-fn lower_list[T < PartialOrd](left: list[T], right: list[T]) -> bool:
+fn lower_list[T < PartialOrd](left: List[T], right: List[T]) -> bool:
     left < right
 
 test "PartialOrd dispatches for concrete and bounded values":

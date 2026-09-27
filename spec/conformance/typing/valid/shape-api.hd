@@ -18,6 +18,6 @@ documentation := field_shape.doc
 field_count := user_shape.field_list.len()
 let generic_user: DataShape = user_shape
 let generic_status: EnumShape = status_shape
-let list_shape: TypeShape = shape[list[i32]]()
+let list_shape: TypeShape = shape[List[i32]]()
 optional_shape := shape_of(optional)
 parameter_count := optional_shape.params.len()

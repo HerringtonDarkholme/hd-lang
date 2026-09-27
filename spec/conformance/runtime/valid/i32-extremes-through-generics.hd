@@ -5,7 +5,7 @@ use std.testing.{assert, assert_equal}
 fn pass_through[T](value: T) -> T:
     value
 
-fn first[T](values: list[T]) -> T?:
+fn first[T](values: List[T]) -> T?:
     for value in values:
         return value
     .None

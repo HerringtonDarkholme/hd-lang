@@ -434,9 +434,9 @@ existing source. Each entry names the decision that made the change.
   `syntax-error`, is now accepted.
 - Option follow-up A2: `.None` no longer gets a least-common-type special
   case. `[1, .None]` or `if c: 1 else: .None` without an expected type,
-  previously typed `list[i32?]` or `i32?`, is now
+  previously typed `List[i32?]` or `i32?`, is now
   `missing-contextual-enum-type`, like any contextual variant; an expected
-  type such as `list[i32?]` supplies the type.
+  type such as `List[i32?]` supplies the type.
 - Option follow-up A3: optionals follow the ordinary enum rules. An optional
   value now erases to `Any`, which was previously a type error that required
   `Any?`. `is` now accepts optionals,
@@ -465,3 +465,10 @@ existing source. Each entry names the decision that made the change.
   did not say whether bounds were part of the exact signature; a method that
   adds, drops, reorders, or changes a bound is now `trait-method-signature`,
   reported at the implementation method.
+- Collection naming: the built-in collection types are `List[T]` and
+  `Map[K, V]`, capitalized like every other nominal type. Only primitive
+  types such as `i32`, `bool`, and `string` keep lowercase names. The former
+  prelude names `list` and `map` are now ordinary names, so `list[i32]` is an
+  `unknown-type` error unless a declaration in scope supplies `list`. Literals
+  are unchanged: `[1, 2]` has type `List[i32]` and `{"k": 1}` has type
+  `Map[string, i32]`.

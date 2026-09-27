@@ -4,6 +4,6 @@ data SaveError:
 fn save() -> Result[i32, SaveError]:
     Err(SaveError { message: "failed" })
 
-fn save_all(values: list[i32]) -> void:
+fn save_all(values: List[i32]) -> void:
     for value in values:
         save()  # diagnostic: discarded-must-use-value

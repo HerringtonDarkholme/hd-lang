@@ -2,7 +2,7 @@
 
 use std.testing.assert_equal
 
-fn first[T](items: list[T]) -> T:
+fn first[T](items: List[T]) -> T:
     items[0]
 
 fn main() -> i32:

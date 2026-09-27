@@ -1,4 +1,4 @@
-fn invoke[r](callback: fn() -> void $ r) -> void $ r:
+fn invoke[R](callback: fn() -> void $ R) -> void $ R:
     callback()
 
 fn report() -> void $ Console:

@@ -555,7 +555,7 @@ expected type.
 
 ## TQ-10: Dynamic safety of row, reified, pack, and suspending methods
     trait Runner:
-        fn run[r](self, job: fn() -> void $ r) -> void $ r
+        fn run[R](self, job: fn() -> void $ R) -> void $ R
 Options: (A) allow suspending, row (providers passed keyed), and `reified`
 methods, but reject packs; (B) reject everything except `Reference`-bounded
 types (the literal reading today).
@@ -697,7 +697,7 @@ string?` and `annotate Validation for i32?` overlap.
     impl Marker for Box[string]          # applied text: overlapping-impl
 The applied text reads TQ-1 literally (Swift's conform-once), so exact
 instantiations of one constructor cannot both implement a trait, and
-`annotate Validation for list[string]` excludes `list[i32]`. Confirm, or
+`annotate Validation for List[string]` excludes `List[i32]`. Confirm, or
 switch to "targets unify".
 
 ## TQ-29: A type that implements both `Iterable[T]` and `Iterator[T]`
@@ -803,5 +803,5 @@ beside the receiver's trait method stays `ambiguous-method` (A).
    neither is a prelude name?
 5. P6: uncalled `Type::name` is rejected by the parser, a called `x::name(...)`
    by the checker. Move both to the checker with a grammar production?
-6. TQ-4: should nested literals (such as `[1, 2]` against `list[i32]` versus
-   `list[i64]`) also get the literal-default preference?
+6. TQ-4: should nested literals (such as `[1, 2]` against `List[i32]` versus
+   `List[i64]`) also get the literal-default preference?

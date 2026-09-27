@@ -10,7 +10,7 @@ data FixedCounter:
 impl Counter for FixedCounter:
     fn value(self) -> i32: self.current
 
-let saved: mut list[Counter] = []
+let saved: mut List[Counter] = []
 
 fn stash() -> void $ Counter:
     saved.append($.use(Counter))

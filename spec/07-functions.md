@@ -62,7 +62,7 @@ capture enclosing local values under the same readonly capture rules as a
 plain closure. It cannot be marked `pub` or used from another module:
 
 ```text
-fn total_with_bonus(values: list[i32], bonus: i32) -> i32:
+fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
     fn add_bonus(value: i32) -> i32:
         value + bonus
 
@@ -146,7 +146,7 @@ fn sum(values: i32...) -> i32:
     ...
 ```
 
-Within the function, `values` is a `list[i32]`. A call may supply zero or more
+Within the function, `values` is a `List[i32]`. A call may supply zero or more
 positional elements or spread one compatible list:
 
 ```text
@@ -344,7 +344,7 @@ the block returns from the generated callback, not from the enclosing function.
 Generic parameters follow the function name:
 
 ```text
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     ...
 ```
 
@@ -379,7 +379,7 @@ The list still has exactly one slot per generic parameter. A placeholder is
 solved from call arguments, the expected result type, and the function's
 generic constraints. If those constraints do not determine one type, the call
 is rejected as ambiguous. `_` is a call-site inference instruction, not a type,
-and cannot appear in an ordinary type argument list such as `list[_]`.
+and cannot appear in an ordinary type argument list such as `List[_]`.
 
 The same explicit-list rules apply to generic methods:
 

@@ -24,7 +24,7 @@ fn inspect(user: User) -> string: user.name
 fn rename(user: mut User, name: string) -> void:
     user.name = name
 
-fn first[T](items: list[T]) -> T?:
+fn first[T](items: List[T]) -> T?:
     if items.len() == 0:
         .None
     else:
@@ -47,7 +47,7 @@ fn sum(values: i32...) -> i32:
 fn with_user(callback: fn() -> User) -> User:
     callback()
 
-fn example(users: list[User]) -> User? $ Console:
+fn example(users: List[User]) -> User? $ Console:
     _ := resize(640, height=480)
     value := first[User](users)
     total := sum(1, 2, 3)

@@ -12,5 +12,5 @@ fn same(left: User, right: User) -> bool:
 fn same_object(left: User, right: User) -> bool:
     left is right
 
-fn same_map(left: map[string, i32], right: map[string, i32]) -> bool:
+fn same_map(left: Map[string, i32], right: Map[string, i32]) -> bool:
     left == right

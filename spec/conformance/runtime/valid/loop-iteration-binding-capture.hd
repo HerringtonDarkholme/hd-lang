@@ -3,8 +3,8 @@
 # an iteration captures that iteration's binding rather than one shared loop variable."
 use std.testing.assert_equal
 
-fn make_readers(values: list[i32]) -> list[fn() -> i32]:
-    let readers: mut list[fn() -> i32] = []
+fn make_readers(values: List[i32]) -> List[fn() -> i32]:
+    let readers: mut List[fn() -> i32] = []
     for value in values:
         doubled := value * 2
         readers.append(fn() -> i32: value + doubled)

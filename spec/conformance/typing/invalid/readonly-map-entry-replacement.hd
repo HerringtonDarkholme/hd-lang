@@ -1,5 +1,5 @@
 data Child:
     name: string
 
-fn invalid(children: map[string, mut Child], replacement: mut Child) -> void:
+fn invalid(children: Map[string, mut Child], replacement: mut Child) -> void:
     children["id"] = replacement  # diagnostic: readonly-root

@@ -65,9 +65,9 @@ test("REPL values render structurally with their types", async () => {
   await session.evaluate("enum Shape:\n    Circle(radius: f64)\n    Dot");
   const cases: readonly (readonly [string, string, string])[] = [
     ['User { name: "Ada", age: 36 }', 'User { name: "Ada", age: 36 }', "User"],
-    ["[1, 2]", "[1, 2]", "list[i32]"],
+    ["[1, 2]", "[1, 2]", "List[i32]"],
     ['(1, "two")', '(1, "two")', "(i32, string)"],
-    ['{"k": 1}', '{"k": 1}', "map[string, i32]"],
+    ['{"k": 1}', '{"k": 1}', "Map[string, i32]"],
     ["Shape.Circle(radius=2.0)", "Shape.Circle(radius: 2.0)", "Shape"],
     ["Shape.Dot", "Shape.Dot", "Shape"],
     ["1.5", "1.5", "f64"],
@@ -100,17 +100,17 @@ test("REPL rejects invalid inputs without changing the session", async () => {
 
 test("REPL value types keep mut access", async () => {
   const session = new ReplSession();
-  await session.evaluate("let b: mut list[i32] = [1, 2]");
-  assert.equal((await session.evaluate("b")).type, "mut list[i32]");
-  assert.deepEqual(session.typeOf("b"), { type: "mut list[i32]", errors: [] });
+  await session.evaluate("let b: mut List[i32] = [1, 2]");
+  assert.equal((await session.evaluate("b")).type, "mut List[i32]");
+  assert.deepEqual(session.typeOf("b"), { type: "mut List[i32]", errors: [] });
   await session.evaluate("c := b");
-  assert.equal((await session.evaluate("c")).type, "list[i32]");
-  assert.equal((await session.evaluate("[1]")).type, "list[i32]");
+  assert.equal((await session.evaluate("c")).type, "List[i32]");
+  assert.equal((await session.evaluate("[1]")).type, "List[i32]");
 });
 
 test("REPL type queries do not run or keep the expression", () => {
   const session = new ReplSession();
-  assert.deepEqual(session.typeOf("[1, 2]"), { type: "list[i32]", errors: [] });
+  assert.deepEqual(session.typeOf("[1, 2]"), { type: "List[i32]", errors: [] });
   assert.equal(session.source().includes("[1, 2]"), false);
 });
 
@@ -176,6 +176,6 @@ test("colored REPL output highlights values and errors", async () => {
   const done = runRepl({ input, output, terminal: false, color: true });
   input.end('["a"]\nnope\n');
   await done;
-  assert.ok(text.includes(`[${ESC}[32m"a"${ESC}[0m]${ESC}[2m : list[string]${ESC}[0m`), text);
+  assert.ok(text.includes(`[${ESC}[32m"a"${ESC}[0m]${ESC}[2m : List[string]${ESC}[0m`), text);
   assert.ok(text.includes(`${ESC}[31m1:1: unknown-name: unknown name 'nope'${ESC}[0m`), text);
 });

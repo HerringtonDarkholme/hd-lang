@@ -417,7 +417,7 @@ fn stamp!() -> Timestamp $ Clock + Observability:
 still change across runtime versions, and those already invalidate histories.
 
 ```text
-fn pick!(ids: list[UserId]) -> UserId $ Net:
+fn pick!(ids: List[UserId]) -> UserId $ Net:
     first := ids[0]
     if hash_of(first) % 2 == 0:     # under (a) replay may take the other branch
         ping!(first)

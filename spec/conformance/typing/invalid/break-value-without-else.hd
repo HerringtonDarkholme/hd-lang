@@ -1,4 +1,4 @@
 
-fn invalid(values: list[i32]) -> void:
+fn invalid(values: List[i32]) -> void:
     for value in values:
         break value  # diagnostic: break-value-context

@@ -223,7 +223,7 @@ data SpanEnded:
 data LogRecord:
     level: LogLevel
     message: string
-    fields: map[string, ObservationValue]
+    fields: Map[string, ObservationValue]
     span: SpanContext?
     operation: OperationInfo
     timestamp: Timestamp
@@ -234,7 +234,7 @@ enum ObservationValue:
     Unsigned(value: u64)
     Float(value: f64)
     String(value: string)
-    List(values: list[ObservationValue])
+    List(values: List[ObservationValue])
 ```
 
 `ObservationValue` is a standard tagged scalar representation. Telemetry does not implicitly serialize arbitrary application objects.
@@ -256,7 +256,7 @@ Standard-library logging helpers use the same provider:
 ```text
 fn info(
     message: string,
-    fields: map[string, ObservationValue] = {},
+    fields: Map[string, ObservationValue] = {},
 ) -> void $ Observability
 
 fn process_user!(id: UserId) -> Result[void, ProcessError] $

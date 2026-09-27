@@ -2,9 +2,9 @@
 
 use std.testing.assert_equal
 
-fn load!() -> list[i32]: [1, 2, 3]
+fn load!() -> List[i32]: [1, 2, 3]
 
-fn first_or(values: list[i32]) -> i32:
+fn first_or(values: List[i32]) -> i32:
     for value in values:
         break value
     else:

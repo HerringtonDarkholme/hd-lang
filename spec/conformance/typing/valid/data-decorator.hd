@@ -30,7 +30,7 @@ impl DataAnnotator for Validation:
     fn build(
         self,
         target: DataShape,
-        fields: list[(string, FieldValidator)],
+        fields: List[(string, FieldValidator)],
     ) -> Validator:
         Validator {}
 

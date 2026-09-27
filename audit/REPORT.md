@@ -110,8 +110,8 @@ Evidence: [`05-object-model`](evidence/05-object-model/SUMMARY.md),
 | fieldless variant    | global singleton                                             | 0 allocations                                     |
 | `T?`, `Result`       | shared `{tag, anyref}` variant                               | `nil` allocates; a present `i32` costs 2 allocations |
 | tuple                | `anyref` array                                               | a box per scalar; a cast per read                  |
-| `list[T]`            | vector plus `anyref` array                                   | a box per element, even for concrete `list[i32]`  |
-| `map[K, V]`          | parallel arrays, no hashing                                  | O(n) `get` and insert; O(n²) build                |
+| `List[T]`            | vector plus `anyref` array                                   | a box per element, even for concrete `List[i32]`  |
+| `Map[K, V]`          | parallel arrays, no hashing                                  | O(n) `get` and insert; O(n²) build                |
 | string               | UTF-8 byte array                                             | `len` is O(n); interpolation concatenates pairwise |
 | closure              | `{funcref, env}`                                             | 2 allocations, even with no captures              |
 | dynamic trait value  | `{value, bounds, methods...}`                                | method table copied into each value               |
@@ -124,7 +124,7 @@ Measured costs:
   for 1, 5, and 10 requirements (F-550).
 - **Erasure:**
   - generic sum is 3 to 7 times slower than concrete sum;
-  - a generic list sum against the same sum over a concrete `list[i32]` is
+  - a generic list sum against the same sum over a concrete `List[i32]` is
     only 1.07 times, because concrete lists are boxed too;
   - dictionaries are rebuilt on every call: 2 allocations for a bounded call,
     3 through a supertrait, 8 through a blanket implementation (F-502);

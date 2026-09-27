@@ -133,7 +133,7 @@ prelude: prelude names are used directly and are not re-imported.
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `list`, `map`, `Any`, `Reference`, `Option`, `Result`, `Ok`, `Err`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `Reference`, `Option`, `Result`, `Ok`, `Err`, `panic` |
 | `std.format` | `Display` |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
@@ -141,6 +141,12 @@ prelude: prelude names are used directly and are not re-imported.
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 | `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
+
+The built-in collection types are `List` and `Map`. Like every nominal type
+outside the primitives, they are capitalized. The lowercase names `list` and
+`map` are not prelude names; they resolve like any other identifier, so a type
+written `list[i32]` is an `unknown-type` error unless a declaration in scope
+supplies `list`.
 
 The prelude functions have these signatures: `panic(message: string) ->
 never` and `println[T < Display](value: T) -> void $ Console`. `shape` and
@@ -171,15 +177,15 @@ The following built-in methods are normative. Lengths and scalar positions use
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> i32`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> list[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
-| `list[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]`; `map[U](self, transform: fn(T) -> U) -> list[U]` |
-| `mut list[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
-| `map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
-| `mut map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
-| `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
+| `string` | `len(self) -> i32`; `trim(self) -> string`; `lower(self) -> string`; `split(self, separator: string) -> List[string]`; `replace(self, old: string, replacement: string) -> string`; `starts_with(self, prefix: string) -> bool` |
+| `List[T]` | `len(self) -> i32`; `iter(self) -> mut Iterator[T]`; `Map[U](self, transform: fn(T) -> U) -> List[U]` |
+| `mut List[T]` | `append(mut self, value: T) -> void` plus the readonly methods |
+| `Map[K, V]` | `len(self) -> i32`; `get(self, key: K) -> V?` |
+| `mut Map[K, V]` | `remove(mut self, key: K) -> V?` plus the readonly methods |
+| `T?` | `Map[U](self, transform: fn(T) -> U) -> U?` |
 | `Display` | `to_string(self) -> string` |
 
-`list.map` and optional `map` are non-suspending and evaluate the transform in
+`List.map` and optional `map` are non-suspending and evaluate the transform in
 source order. No `set` type is part of the core prelude.
 
 Map lookup, insertion, and removal take expected amortized O(1) time. This
@@ -396,7 +402,7 @@ Registered boundaries initially allow recursively structural values:
 
 - primitive scalar types and `string`;
 - tuples;
-- `list[T]` and `map[K, V]` whose contents are boundary-safe;
+- `List[T]` and `Map[K, V]` whose contents are boundary-safe;
 - data types and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 

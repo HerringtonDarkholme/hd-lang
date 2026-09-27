@@ -3,8 +3,8 @@
 use std.testing.assert_equal
 
 fn main() -> i32:
-    let values: mut list[i32] = [1, 2]
-    let scores: mut map[string, i32] = {"x": 1}
+    let values: mut List[i32] = [1, 2]
+    let scores: mut Map[string, i32] = {"x": 1}
     values[0] = 40
     scores["x"] = 2
     score := match scores["x"]:

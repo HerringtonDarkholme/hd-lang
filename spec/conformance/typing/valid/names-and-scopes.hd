@@ -6,7 +6,7 @@ fn normalize_again() -> string:
     name := normalize(name)
     name
 
-fn example(input: string, items: list[string]) -> string $ Console:
+fn example(input: string, items: List[string]) -> string $ Console:
     outer := "fallback"
 
     if (trimmed := input.trim()) != "":

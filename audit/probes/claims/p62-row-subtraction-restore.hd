@@ -13,7 +13,7 @@ impl Counter for Fixed:
 
 fn read() -> i32 $ Counter: $.use(Counter).value()
 
-fn run[r](callback: fn() -> i32 $ r + Counter) -> i32 $ r:
+fn run[R](callback: fn() -> i32 $ R + Counter) -> i32 $ R:
     $.with(Counter=Fixed { current: 5 }):
         callback()
 

@@ -22,26 +22,26 @@ impl Measure for Point:
 impl Scored for Point:
     fn marker(self) -> i32: 0
 
-impl[Item: Score] Measure for list[Item]:
+impl[Item: Score] Measure for List[Item]:
     fn measure(self) -> i32: self[0].score()
 
-impl[Item: Score] Scored for list[Item]:
+impl[Item: Score] Scored for List[Item]:
     fn marker(self) -> i32: 0
 
-fn count[T](values: list[T]) -> i32:
+fn count[T](values: List[T]) -> i32:
     let total = 0
     for value in values:
         total = total + 1
     total
 
-fn first[T](values: list[T]) -> T: values[0]
+fn first[T](values: List[T]) -> T: values[0]
 
 fn read_score[T: Score](value: T) -> i32: value.score()
 
 fn read_parent[T: Scored](value: T) -> i32: value.measure()
 
-fn build(n: i32) -> list[i32]:
-    let values: mut list[i32] = []
+fn build(n: i32) -> List[i32]:
+    let values: mut List[i32] = []
     let i = 0
     while i < n:
         values.append(i)
@@ -57,7 +57,7 @@ fn loop_empty(n: i32) -> i32:
         i = i + 1
     total
 
-# concrete for-loop over list[i32]; n elements, called once
+# concrete for-loop over List[i32]; n elements, called once
 fn loop_for_concrete(n: i32) -> i32:
     values := build(n)
     let total = 0
@@ -65,7 +65,7 @@ fn loop_for_concrete(n: i32) -> i32:
         total = total + value
     total
 
-# generic for-loop over list[i32]
+# generic for-loop over List[i32]
 fn loop_for_generic(n: i32) -> i32:
     values := build(n)
     count(values)
@@ -132,9 +132,9 @@ fn loop_supertrait(n: i32) -> i32:
         i = i + 1
     total
 
-# blanket + supertrait dictionary: list[Point] satisfies Scored through impl[Item: Score]
+# blanket + supertrait dictionary: List[Point] satisfies Scored through impl[Item: Score]
 fn loop_blanket(n: i32) -> i32:
-    let points: list[Point] = [Point { value: 1 }]
+    let points: List[Point] = [Point { value: 1 }]
     let total = 0
     let i = 0
     while i < n:

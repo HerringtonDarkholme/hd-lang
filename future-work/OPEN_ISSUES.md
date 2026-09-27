@@ -64,7 +64,11 @@ traits as bound with `mut` access.
 
 **Recommendation.** Option 1 until a host trait needs `mut self` methods.
 
-**Unblocks.** Host capability traits whose methods take `mut self`.
+**Unblocks.** Host capability traits whose methods take `mut self`. The
+[standard-library draft](STDLIB.md#stateful-providers) already has them:
+`Clock.sleep!`, `Random`, and `FsWrite` take `mut self` so that their
+deterministic providers can change state, and a recording `BufferConsole`
+would need the same of `Console.write_line!`.
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
