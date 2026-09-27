@@ -228,6 +228,13 @@ else`, `break`, `break value`, and `continue`;
 - module-level single and grouped `use` syntax, with executable
   `std.task.block_on` support, a per-instance active-driver guard, and nested
   driver traps;
+- in-process package linking (`package.ts`, used by the browser playground,
+  not the CLI): `pkg`, `self`, and `super` uses between the modules of one
+  package resolve to public declarations and `pub use` re-exports, and the
+  modules reachable from the entry are joined into one program in
+  initialization order. Linked modules share one top-level namespace, and
+  namespace or renaming uses of package declarations are not supported
+  (`../playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
@@ -330,6 +337,7 @@ does not implement the canonical prelude trait.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.
+- `package.ts` links the modules of a multi-file package into one program.
 - `requirements.ts` computes transitive provider explanations.
 - `cli.ts` implements the current command-line interface.
 - `toolchain-gate.ts` proves the required Wasm GC operations independently of
