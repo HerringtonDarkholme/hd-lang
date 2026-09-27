@@ -1,0 +1,7 @@
+# test: a plain closure assigns captured let storage (spec 07 Captures; `mut fn` removed by FN_TYPE decision 2)
+# expect: parse
+fn make() -> fn() -> i32:
+    let count: i32 = 0
+    fn() -> i32:
+        count = count + 1
+        count

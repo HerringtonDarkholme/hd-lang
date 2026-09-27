@@ -1070,7 +1070,7 @@ local := connect("localhost", port=8080, tls=false)
 
 Default values can use pure expressions and pure function calls. They cannot
 require provider requirements or suspension, mutate parameters or captures,
-call a `mut fn` value, or pass non-fresh mutable access to any call:
+or pass non-fresh mutable access to any call:
 
 ```text
 fn default_port() -> i32:
@@ -1120,6 +1120,29 @@ Function types use `fn(...) -> ...`:
 fn apply(value: string, transform: fn(string) -> string) -> string:
     transform(value)
 ```
+
+Each function type is sugar for a standard constructor from `std.function`:
+`fn(string) -> string` is `Fn[(string,), string, $()]`, and
+`fn!(A) -> O $ R` is `SuspendFn[(A,), O, R]`. The spelled names are imported
+where they are written. Function types are ordinary implementation targets:
+
+```text
+use std.function.Fn
+
+trait Describe:
+    fn describe(self) -> string
+
+impl Describe for fn(string) -> string:
+    fn describe(self) -> string:
+        "string transform"
+
+impl Describe for Fn[(i32,), i32, $()]:
+    fn describe(self) -> string:
+        "integer step"
+```
+
+Function values have no `Eq`, and their identity is unspecified, so `==` and a
+direct `is` on them are errors.
 
 When a function's final parameter is a zero-argument callback, an indented trailing block can supply it without writing `fn()` or its return type:
 
@@ -1213,22 +1236,22 @@ label_user := fn(id: string) -> string:
 label := label_user("123")
 ```
 
-Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
+Closures may also assign captured locals and mutate captured mutable values. Such a closure has an ordinary function type, and calling it needs no mutable access:
 
 ```text
 let count: i32 = 0
 
-let next: mut fn() -> i32 = mut fn() -> i32:
+let next: fn() -> i32 = fn() -> i32:
     count = count + 1
     count
 
 next()
 ```
 
-Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
+A higher-order function therefore takes a plain `fn(...) -> T`, whether or not the callback mutates what it captured:
 
 ```text
-fn repeat(times: i32, f: mut fn() -> void) -> void:
+fn repeat(times: i32, f: fn() -> void) -> void:
     let i: i32 = 0
     while i < times:
         f()
@@ -1602,10 +1625,11 @@ Trait generic parameters are always invariant, so `trait Source[+T]` is
 `invalid-variance`.
 
 Variance conversions apply to readonly outer views. A `mut Producer[T]`, `mut Consumer[T]`, or other mutable generic view remains invariant because its fields can be replaced.
-They must also preserve representation. A function-valued field read through a
-converted container may reflect only the corresponding permission weakening
-(`mut U` to `U` in a positive position, or `U` to `mut U` in a negative one);
-this is not a general function-type variance conversion.
+They must also preserve representation. Function types declare variance too:
+they are contravariant in each parameter, covariant in the result, and
+invariant in the requirement row. Because only permission changes preserve
+representation, `fn() -> mut User` converts to `fn() -> User`, but
+`fn() -> i32` does not convert to `fn() -> Display`.
 
 Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, annotation lookup, serialization, or type-directed dependency injection:
 
@@ -1679,7 +1703,7 @@ fn preserve[T < Any](value: T) -> T:
     value
 ```
 
-`Any` has two sealed subtraits, and every value type implements exactly one. `AnyVal` covers the values without identity: primitives, `string`, and tuples. `AnyRef` covers the values with identity: data, enums, lists, maps, closures, and trait values. `is` on a type parameter needs `T < AnyRef`:
+`Any` has two sealed subtraits, and every value type implements exactly one. `AnyVal` covers the values without identity: primitives, `string`, and tuples. `AnyRef` covers the values with identity: data, enums, lists, maps, function values (whose identity is unspecified), and trait values. `is` on a type parameter needs `T < AnyRef`:
 
 ```text
 fn same[T < AnyRef](left: T, right: T) -> bool:

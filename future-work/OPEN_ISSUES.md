@@ -71,9 +71,12 @@ outputs.
 
 ### Serializable Closures And Incremental Computation
 
-**Problem.** Closures have per-evaluation identity but no
-stable code identity, serializable capture contract, cache invalidation rule,
-or graph-lifetime mechanism.
+**Problem.** Closures have unspecified identity
+([FN_TYPE decision 9](FN_TYPE.md#owner-decisions)) and no stable code
+identity, serializable capture contract, cache invalidation rule, or
+graph-lifetime mechanism. Since `mut fn` was removed, a function type also
+does not say whether a callback mutates its captures, so an incremental
+computation cannot demand a write-pure callback through its type.
 
 **Options.** (1) Use a content hash for code identity, require a `Durable`
 capture bound, and reject captured providers or mutable state. (2) Require

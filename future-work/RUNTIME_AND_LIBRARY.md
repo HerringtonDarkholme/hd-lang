@@ -428,11 +428,12 @@ distinct from both a persistent function cache and durable replay:
 - replay restores the recorded result belonging to one historical execution,
   even if current external data has changed.
 
-The computation callback is intended to be pure: a plain non-suspending `fn`,
-not `mut fn` or `fn!`, with no `$` requirements, mutable parameters, or mutable
-captures. hd-lang does not track purity in function types or prove
-referential transparency, so the library cannot rely on the compiler for this
-property through indirect calls.
+The computation callback is intended to be pure: a non-suspending `fn`, not
+`fn!`, with no `$` requirements, mutable parameters, or mutable captures.
+hd-lang does not track purity in function types or prove referential
+transparency, and since `mut fn` was removed a function type does not say
+whether a closure mutates its captures. The library cannot rely on the
+compiler for this property through indirect calls.
 Mutation of fresh, non-escaping local values remains permitted. A readonly
 reference is not a snapshot or stable value: another mutable alias can change
 what it observes between reads. Changing shared state must therefore enter

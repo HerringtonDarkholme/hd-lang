@@ -2175,7 +2175,7 @@ Erasure cannot hide non-escapability. A dynamic trait value must either retain t
 
 ### Closures
 
-Closure types need to record at least whether their environment may escape. This is related to, but distinct from, the existing `fn` versus `mut fn` distinction and from captured `$` requirements.
+Closure types need to record at least whether their environment may escape. This is related to, but distinct from, the former `fn` versus `mut fn` distinction (removed by FN_TYPE decision 2) and from captured `$` requirements.
 
 ### `Suspend[T]`
 

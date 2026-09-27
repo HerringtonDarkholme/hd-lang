@@ -34,10 +34,11 @@ language specification:
   retests the value-driven walk (M19) on 14 library cases, proposes a
   `Source` protocol for input-driven `build`, and ranks what still breaks.
   The owner answered round 3 with decisions M20 and M21.
-- [Nominal Function Types](FN_TYPE.md) records the owner's decisions 1-9
-  making function types standard generic constructors such as
-  `Fn[(Is...), O, R]`, so they can be implementation targets. Per-declaration
-  data for tool adapters (Q9, Q10) is parked with typed derivation.
+- [Nominal Function Types](FN_TYPE.md) makes function types standard
+  generic constructors such as `Fn[(Is...), O, R]`, so they can be
+  implementation targets; decisions 1 to 9 are applied to the
+  specification, and per-declaration data for tool adapters (decision 10)
+  stays parked with typed derivation.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and

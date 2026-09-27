@@ -1408,22 +1408,22 @@ return inference is not allowed.
 
 Shorthand argument closures such as `$0 + $1` are not supported; closures use named parameters.
 
-Closures capture values from lexical scope. Closures that mutate captured locals have a mutable function type, written `mut fn(...) -> ...`. Calling a mutable closure requires the closure value itself to be mutable:
+Closures capture values from lexical scope. A closure may assign captured locals and mutate captured mutable values; it still has an ordinary function type, and calling it needs no mutable access. There is no `mut fn` form:
 
 ```text
 let count: i32 = 0
 
-let next: mut fn() -> i32 = mut fn() -> i32:
+let next: fn() -> i32 = fn() -> i32:
     count = count + 1
     count
 
 next()
 ```
 
-Plain `fn(...) -> T` closures cannot mutate captured locals. Use `mut fn(...) -> T` when mutation is part of the callable's behavior:
+A higher-order function takes a plain `fn(...) -> T` whether or not the callback mutates its captures:
 
 ```text
-fn repeat(times: i32, f: mut fn() -> void) -> void:
+fn repeat(times: i32, f: fn() -> void) -> void:
     let i: i32 = 0
     while i < times:
         f()
@@ -3410,7 +3410,7 @@ The strongest prior-art direction combines Salsa/DICE-style dynamic query depend
 
 Incremental computation should initially be a native-feeling `std.incremental` library rather than a new language construct or `incremental` keyword. The library owns inputs, computation nodes, observation, update transactions, stabilization, equality policies, storage strategies, and graph queries. Runtime library support maintains the active dependency recorder, while existing function shapes and tooling expose code identity and source metadata.
 
-The computation callback uses ordinary hd-lang write-purity rules. It must be a plain, non-suspending `fn`, not a `mut fn` or `fn!`, and it must have no `$` requirements, mutable parameters, or mutable captures. Calls made by the callback must satisfy the same constraints transitively. This is normal function-type checking rather than an incremental-specific compiler rule. Local mutation of newly created, non-escaping values remains allowed because it has no externally observable effect.
+The computation callback uses ordinary hd-lang write-purity rules. It must be a non-suspending `fn`, not `fn!`, and it must have no `$` requirements, mutable parameters, or mutable captures. Calls made by the callback must satisfy the same constraints transitively. Function types no longer record whether a closure mutates its captures (`mut fn` was removed), so the mutable-capture constraint needs a mechanism of its own; that remains an open library question. Local mutation of newly created, non-escaping values remains allowed because it has no externally observable effect.
 
 Write purity alone does not make a callback referentially stable. A const reference may observe an object changed through an existing mutable alias between evaluations. Incremental computations must therefore read changing shared state through tracked inputs or require a separately defined stable/immutable input; that exact library constraint remains open.
 
@@ -3426,7 +3426,7 @@ total := incremental.compute(fn() -> i32:
 
 view := incremental.observe(total)
 
-incremental.update(mut fn() -> void:
+incremental.update(fn() -> void:
     price.set(120)
     quantity.set(3)
 )

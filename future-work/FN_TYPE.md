@@ -1,7 +1,16 @@
 # Nominal Function Types: Survey And Design Options
 
-Status: design exploration with owner decisions 1-10 (2026-09-27); nothing
-is applied to the specification yet. Remaining questions are at the end.
+Status: owner decisions 1-9 are applied to the specification (2026-09-27):
+[Function Type Constructors](../spec/07-functions.md#function-type-constructors),
+[Captures](../spec/07-functions.md#captures),
+[Passing Function Values](../spec/07-functions.md#passing-function-values),
+[Variance](../spec/04-type-system.md#variance),
+[Identity](../spec/05-expressions.md#identity),
+[Implementation Targets](../spec/09-traits.md#implementation-targets),
+[Inspectable Types](../spec/09-traits.md#inspectable-types), and
+[Standard Names Outside The Prelude](../spec/10-modules.md#standard-names-outside-the-prelude).
+Decision 10 stays parked. The design sections below describe the state
+before the decisions and are kept as the record of the exploration.
 
 The owner's sketch is to make function types an ordinary generic type
 constructor, `Fn[Is..., O, Rs...]`, so that the rules for nominal types
