@@ -26,6 +26,7 @@ import {
   usesStandardInspect,
   type InspectEnvironment,
 } from "./inspectable.ts";
+import { isPermissionWeakening } from "./assignability.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import {
   genericTypeName,
@@ -204,49 +205,12 @@ export const PRELUDE_NAMES = new Set([
   "shape_of",
 ]);
 
+export { isPermissionWeakening };
+
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
   if (type === "i32" || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
-}
-
-export function isPermissionWeakening(actual: ValueType, expected: ValueType): boolean {
-  const mutable = mutableInner(actual);
-  if (mutable !== undefined)
-    return mutable === expected || isPermissionWeakening(mutable, expected);
-  const actualNominal = nominalGenericParts(actual);
-  const expectedNominal = nominalGenericParts(expected);
-  const actualCallable = functionParts(actual);
-  const expectedCallable = functionParts(expected);
-  if (
-    actualCallable?.suspending &&
-    expectedCallable &&
-    !expectedCallable.suspending &&
-    actualCallable.variadic === expectedCallable.variadic &&
-    actualCallable.parameters.length === expectedCallable.parameters.length &&
-    actualCallable.parameters.every(
-      (parameter, index) => parameter === expectedCallable.parameters[index],
-    ) &&
-    actualCallable.requirements.length === expectedCallable.requirements.length &&
-    actualCallable.requirements.every(
-      (requirement, index) => requirement === expectedCallable.requirements[index],
-    )
-  ) {
-    const stored = storedSuspensionParts(expectedCallable.result);
-    return stored?.mutable === true && stored.result === actualCallable.result;
-  }
-  if (
-    actualNominal?.name === "List" &&
-    expectedNominal?.name === "List" &&
-    actualNominal.arguments.length === 1 &&
-    expectedNominal.arguments.length === 1
-  ) {
-    return (
-      actualNominal.arguments[0] === expectedNominal.arguments[0] ||
-      isPermissionWeakening(actualNominal.arguments[0]!, expectedNominal.arguments[0]!)
-    );
-  }
-  return false;
 }
 
 export function weakenBoundedGenericActual(

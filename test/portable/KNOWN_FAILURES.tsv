@@ -73,7 +73,6 @@ typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at li
 typing/valid/row-kinded-arguments.hd	check fails: syntax-error at line 7: expected '.', found '('	F-256
 typing/invalid/row-kind-mismatch.hd	MVP reports syntax-error at line 4 instead of generic-kind-mismatch: expected '.', found '('	F-256
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/least-type-weakening-variance.hd	MVP reports no-common-type at line 5 instead of no-least-common-type: list elements have no common type: mut:List[mut:User] and List[User]	F-258
 typing/valid/mutable-closure-capture.hd	check fails: expected-expression at line 2: expected an expression, found 'mut'	F-257
 typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
 typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253

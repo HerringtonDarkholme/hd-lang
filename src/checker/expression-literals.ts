@@ -1,4 +1,5 @@
 import type { Expression } from "../ast.ts";
+import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
 import {
   mutableInner,
@@ -9,6 +10,7 @@ import {
   tupleParts,
   tupleType,
 } from "../types.ts";
+import { leastCommonType } from "./assignability.ts";
 import { mapKeyKind } from "./context.ts";
 
 import { PatternChecker } from "./patterns.ts";
@@ -51,6 +53,27 @@ function listSpreadComprehension(expression: ListExpression): Expression {
 }
 
 export abstract class ExpressionLiteralChecker extends PatternChecker {
+  /**
+   * The least common type of the values checked so far
+   * (04-type-system.md#least-common-type); `what` names them in the message.
+   */
+  protected inferLeastCommonType(
+    types: readonly ValueType[],
+    what: string,
+    span: SourceSpan,
+  ): ValueType {
+    const least = leastCommonType(types);
+    if ("type" in least) return least.type;
+    const listed = [...new Set(types)].join(", ");
+    this.fail(
+      least.code,
+      least.code === "no-common-type"
+        ? `${what} have no common type: ${listed}`
+        : `${what} have no unique least common type: ${listed}; add an expected type`,
+      span,
+    );
+  }
+
   protected checkLiteralExpression(
     expression: Expression,
     expected?: ValueType,
@@ -126,8 +149,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.span,
           );
         }
-        let elementType = contextualElement;
-        const elements = expression.elements.map((element, index) => {
+        const partTypes: ValueType[] = [];
+        const checkedElements = expression.elements.map((element, index) => {
           const checked = this.checkExpression(element, contextualElement);
           if (
             spreadOperands?.[index] &&
@@ -139,23 +162,26 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
               element.span,
             );
           // Spread parts compare as readonly lists: `[0]` is a fresh mutable list.
-          const partType = spreadOperands ? readonlyType(checked.type) : checked.type;
-          if (!elementType) elementType = partType;
-          if (!contextualElement && partType !== elementType) {
-            this.fail(
-              "no-common-type",
-              `list elements have no common type: ${elementType} and ${checked.type}`,
-              element.span,
-            );
-          }
-          return this.requireCoercion(checked, elementType!, element.span);
+          partTypes.push(spreadOperands ? readonlyType(checked.type) : checked.type);
+          if (contextualElement)
+            return this.requireCoercion(checked, contextualElement, element.span);
+          this.inferLeastCommonType(partTypes, "list elements", element.span);
+          return checked;
         });
-        const readonlyList = nominalGenericType("List", [elementType!]);
+        const elementType =
+          contextualElement ??
+          this.inferLeastCommonType(partTypes, "list elements", expression.span);
+        const elements = contextualElement
+          ? checkedElements
+          : checkedElements.map((checked, index) =>
+              this.requireCoercion(checked, elementType, expression.elements[index]!.span),
+            );
+        const readonlyList = nominalGenericType("List", [elementType]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
             ? mutableType(readonlyList)
             : readonlyList;
-        return { kind: "list", elements, elementType: elementType!, type, span: expression.span };
+        return { kind: "list", elements, elementType, type, span: expression.span };
       }
       case "tuple": {
         const contextual = expected ? tupleParts(expected) : undefined;
@@ -199,30 +225,33 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.span,
           );
         }
-        let keyType = contextualKey;
-        let valueType = contextualValue;
-        const entries = expression.entries.map((entry) => {
-          const checkedKey = this.checkExpression(entry.key, keyType);
-          if (!keyType) keyType = checkedKey.type;
-          if (!contextualKey && checkedKey.type !== keyType)
-            this.fail(
-              "no-common-type",
-              `map keys have no common type: ${keyType} and ${checkedKey.type}`,
-              entry.key.span,
-            );
-          const key = this.requireCoercion(checkedKey, keyType!, entry.key.span);
-          const checkedValue = this.checkExpression(entry.value, valueType);
-          if (!valueType) valueType = checkedValue.type;
-          if (!contextualValue && checkedValue.type !== valueType)
-            this.fail(
-              "no-common-type",
-              `map values have no common type: ${valueType} and ${checkedValue.type}`,
-              entry.value.span,
-            );
-          const value = this.requireCoercion(checkedValue, valueType!, entry.value.span);
+        const keyTypes: ValueType[] = [];
+        const valueTypes: ValueType[] = [];
+        const checkedEntries = expression.entries.map((entry) => {
+          let key = this.checkExpression(entry.key, contextualKey);
+          keyTypes.push(key.type);
+          if (contextualKey) key = this.requireCoercion(key, contextualKey, entry.key.span);
+          else this.inferLeastCommonType(keyTypes, "map keys", entry.key.span);
+          let value = this.checkExpression(entry.value, contextualValue);
+          valueTypes.push(value.type);
+          if (contextualValue)
+            value = this.requireCoercion(value, contextualValue, entry.value.span);
+          else this.inferLeastCommonType(valueTypes, "map values", entry.value.span);
           return { key, value };
         });
-        const keyKind = mapKeyKind(keyType!);
+        const keyType =
+          contextualKey ?? this.inferLeastCommonType(keyTypes, "map keys", expression.span);
+        const valueType =
+          contextualValue ?? this.inferLeastCommonType(valueTypes, "map values", expression.span);
+        const entries = checkedEntries.map((entry, index) => ({
+          key: this.requireCoercion(entry.key, keyType, expression.entries[index]!.key.span),
+          value: this.requireCoercion(
+            entry.value,
+            valueType,
+            expression.entries[index]!.value.span,
+          ),
+        }));
+        const keyKind = mapKeyKind(keyType);
         if (keyKind === undefined) {
           this.fail(
             "invalid-map-key",
@@ -230,7 +259,7 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
             expression.span,
           );
         }
-        const readonlyMap = nominalGenericType("Map", [keyType!, valueType!]);
+        const readonlyMap = nominalGenericType("Map", [keyType, valueType]);
         const type =
           (expected && mutableInner(expected) !== undefined) || expected === undefined
             ? mutableType(readonlyMap)
@@ -238,8 +267,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return {
           kind: "map",
           entries,
-          keyType: keyType!,
-          valueType: valueType!,
+          keyType,
+          valueType,
           keyKind,
           type,
           span: expression.span,
