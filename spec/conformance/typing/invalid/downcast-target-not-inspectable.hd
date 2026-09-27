@@ -1,0 +1,8 @@
+# test: a downcast target that fails the Inspectable bound is rejected
+# Spec 09 Recovering A Concrete Type: Display does not extend Inspectable, so it fails the bound.
+use std.inspect.Inspectable
+
+fn shown(value: Inspectable) -> bool:
+    match value.downcast[Display]():  # diagnostic: unsatisfied-trait-bound
+        .Some(_) => true
+        .None => false

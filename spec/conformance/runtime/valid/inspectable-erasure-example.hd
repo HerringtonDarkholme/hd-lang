@@ -1,0 +1,29 @@
+# test: generic erasure records the instantiated type, which TypeId and downcast observe
+# Spec 09 Erasure To Inspectable: a value of T < Inspectable records the type T is
+# instantiated with; a Box[T] built from it records Box applied to that type.
+use std.inspect.{Inspectable, TypeId}
+use std.testing.{assert, assert_equal}
+
+data Box[T]:
+    value: T
+
+fn erase[T < Inspectable](value: T) -> Inspectable:
+    Box { value: value }
+
+fn is_int_box(value: Inspectable) -> bool:
+    value.runtime_type() == TypeId::of[Box[i32]]()
+
+fn read_box(value: Inspectable) -> i32:
+    match value.downcast[Box[i32]]():
+        .Some(found) => found.value
+        .None => 0
+
+test "an erased Box[i32] is recognized":
+    boxed := erase(1)
+    assert(is_int_box(boxed), reason="the recorded type is Box[i32]")
+    assert_equal(read_box(boxed), 1, reason="downcast recovers the Box[i32]")
+
+test "an erased Box[string] is not":
+    boxed := erase("one")
+    assert(!is_int_box(boxed), reason="Box[string] and Box[i32] differ")
+    assert_equal(read_box(boxed), 0, reason="downcast to Box[i32] fails")

@@ -1,0 +1,49 @@
+# test: an erased Error recovers its concrete domain error
+# Spec 09 Error Trait: Error extends Inspectable, so an Error value inherits downcast, which
+# recovers the concrete error; a trait value target never matches.
+use std.error.Error
+use std.testing.assert_equal
+
+enum FsError:
+    NotFound(path: string)
+
+impl Display for FsError:
+    fn to_string(self) -> string:
+        match self:
+            FsError.NotFound(path) => "not found: " + path
+
+impl Error for FsError
+
+enum HttpError:
+    Status(code: i32)
+
+impl Display for HttpError:
+    fn to_string(self) -> string:
+        match self:
+            HttpError.Status(code) => "status ${code}"
+
+impl Error for HttpError
+
+fn missing_path(error: Error) -> string:
+    match error.downcast[FsError]():
+        .Some(found) =>
+            match found:
+                FsError.NotFound(path) => path
+        .None => "other: " + error.to_string()
+
+fn is_error_target(error: Error) -> bool:
+    match error.downcast[Error]():
+        .Some(_) => true
+        .None => false
+
+test "an erased FsError is recovered":
+    let error: Error = FsError.NotFound("a.txt")
+    assert_equal(missing_path(error), "a.txt", reason="the concrete error type matches")
+
+test "another domain error is not":
+    let error: Error = HttpError.Status(503)
+    assert_equal(missing_path(error), "other: status 503", reason="HttpError is not FsError")
+
+test "a trait value target satisfies the bound and never matches":
+    let error: Error = FsError.NotFound("b.txt")
+    assert_equal(is_error_target(error), false, reason="a recorded type is never a trait value type")

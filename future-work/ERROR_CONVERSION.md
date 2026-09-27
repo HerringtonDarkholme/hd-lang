@@ -97,15 +97,18 @@ Applied 2026-09-26:
   and [Type System](../spec/04-type-system.md#unsupported-type-system-extensions).
 - **Decision 11:** [Prelude](../spec/10-modules.md#prelude) and the two
   trait sections name the modules.
+- **Recovery from an erased `Error`** (applied with runtime type identity,
+  2026-09-26): [Error Trait](../spec/09-traits.md#error-trait) declares
+  `Error < Display + Inspectable`, so the inherited default method
+  `error.downcast[FsError]()` recovers a concrete error
+  ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
+  `error.find[T]()`, `chain`, and `root_cause` are library API in
+  [STDLIB](STDLIB.md#stderror).
 
 ## Still To Do
 
 Not decided, and deliberately not specified:
 
-- **`downcast` and `find[T]` on error chains.** They are designed with
-  `Inspectable` in [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified).
-  Until then `Error` has no downcast, and the specification says only that
-  every `Error` member has a default.
 - **Derived `From`** (decision 10) waits for
   [typed derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
 - **`Console.write_line!` taking `mut self`,** raised by the recording
@@ -237,9 +240,10 @@ Related rules that any design must respect:
   dynamic `Error`. Durable histories reuse boundary-safe types
   ([Durable Replay decision 7](DURABLE_REPLAY.md)), so the same limit applies
   there.
-- **No trait-value downcasts yet.** [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified)
-  directs an `Inspectable` trait with a compiler-provided `downcast[T]()`
-  (TQ-22), and says the standard error trait extends `Inspectable`.
+- **No trait-value downcasts yet** (at the time of this survey).
+  [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity) now
+  specifies `Inspectable` with the default method `downcast[T]()`, and the
+  standard error trait extends `Inspectable`.
 - **Coherence.** An impl may be written by the owner of the trait, of the
   target's constructor, or of a trait argument's constructor (TQ-2). Overlap
   is decided from impl heads alone; bounds never prove two impls disjoint

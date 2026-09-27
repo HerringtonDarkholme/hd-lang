@@ -141,7 +141,12 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   // `Type::name` or `x::name` without a call is reserved for method values.
   // Associated type projections such as `I::Item` are capitalized by
   // convention, so only a lowercase member is checked.
-  if (/::[a-z_][\p{L}\p{N}_]*(?:\[[^\]]*\])?(?![\p{L}\p{N}_[(!])/u.test(clean))
+  // The type-argument list may nest brackets two deep, as in `::of[Box[List[i32]]]`.
+  if (
+    /::[a-z_][\p{L}\p{N}_]*(?:\[(?:[^[\]]|\[(?:[^[\]]|\[[^[\]]*\])*\])*\])?(?![\p{L}\p{N}_[(!])/u.test(
+      clean,
+    )
+  )
     diagnostics.push(diagnostic("deferred-method-value", line));
   if (/\[[^\]]*,\s*[^\],]+\s*:=/.test(clean))
     diagnostics.push(diagnostic("multi-binding-needs-parentheses", line));

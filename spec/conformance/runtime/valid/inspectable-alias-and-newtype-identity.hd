@@ -1,0 +1,40 @@
+# test: a transparent alias shares its target's identity and a newtype has its own
+# Spec 09 Inspectable And TypeId: aliases are expanded before comparison; a newtype, including
+# one over a function type, is its own inspectable declaration.
+use std.inspect.{Inspectable, TypeId, downcast_val}
+use std.testing.assert
+
+type Name = string
+
+type Mile(i32)
+
+type Action(fn() -> i32)
+
+fn is_name(value: Inspectable) -> bool:
+    match downcast_val[Name](value):
+        .Some(_) => true
+        .None => false
+
+fn is_i32(value: Inspectable) -> bool:
+    match downcast_val[i32](value):
+        .Some(_) => true
+        .None => false
+
+fn is_action(value: Inspectable) -> bool:
+    match downcast_val[Action](value):
+        .Some(_) => true
+        .None => false
+
+test "an alias has its target's identity":
+    let text: string = "ada"
+    assert(is_name(text), reason="Name is an alias of string")
+    assert(TypeId::of[Name]() == TypeId::of[string](), reason="TypeId agrees")
+
+test "a newtype is distinct from its base":
+    let distance: Mile = Mile(5)
+    assert(!is_i32(distance), reason="Mile is not i32")
+    assert(TypeId::of[Mile]() != TypeId::of[i32](), reason="TypeId agrees")
+
+test "a newtype over a function type is inspectable":
+    action := Action(fn() -> i32: 1)
+    assert(is_action(action), reason="Action matches Action")

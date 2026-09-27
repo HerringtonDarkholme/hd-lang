@@ -25,8 +25,9 @@ language specification:
   questions for the owner.
 - [Error Conversion](ERROR_CONVERSION.md) surveys error composition in other
   languages and compares designs for using `?` across domain error types.
-- [Runtime Type Identity](INSPECTABLE.md) drafts the `Inspectable` trait, the
-  `RuntimeType` object, and `downcast`, with questions for the owner.
+- [Runtime Type Identity](INSPECTABLE.md) records the design of the
+  `Inspectable` trait, `TypeId`, and `downcast`, and the owner decisions now
+  in the specification.
 - [Enum Semantics: Value Category And Identity](ENUM_SEMANTICS.md) asks
   whether enums, `Option`, and `Result` belong with values (`AnyVal`) or
   references (`AnyRef`), surveys other languages, and recommends making

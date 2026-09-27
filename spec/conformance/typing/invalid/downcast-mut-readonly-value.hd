@@ -1,0 +1,11 @@
+# test: downcast_mut needs a mutable receiver, which a readonly view cannot provide
+# Spec 09 Recovering A Concrete Type: downcast_mut through a readonly view is mutable-receiver-required.
+use std.inspect.Inspectable
+
+data Counter:
+    count: i32
+
+fn bump(value: Inspectable) -> void:
+    match value.downcast_mut[Counter]():  # diagnostic: mutable-receiver-required
+        .Some(counter) => counter.count = counter.count + 1
+        .None => pass

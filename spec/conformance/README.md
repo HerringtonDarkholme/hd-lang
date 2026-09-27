@@ -46,7 +46,7 @@ A fixture may rely only on:
 - primitive types and prelude names
   ([Modules](../10-modules.md#prelude));
 - standard modules that a numbered chapter specifies, such as `std.testing`,
-  `std.task`, `std.resource`, `std.convert`, and `std.error`;
+  `std.task`, `std.resource`, `std.convert`, `std.error`, and `std.inspect`;
 - its own declarations;
 - the environment its fixture directives name (see
   [Fixture Environments](#fixture-environments)), including the package

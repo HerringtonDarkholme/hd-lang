@@ -1,0 +1,39 @@
+# test: data with function fields and trait value type arguments are inspectable
+# Spec 09 Inspectable Types: identity is the declaration, whatever its fields hold, and a trait
+# value type counts as inspectable as a type argument, matched exactly.
+use std.inspect.Inspectable
+use std.testing.assert_equal
+
+data Handler:
+    run: fn() -> i32
+
+data Label:
+    text: string
+
+impl Display for Label:
+    fn to_string(self) -> string: self.text
+
+fn run_handler(value: Inspectable) -> i32:
+    match value.downcast[Handler]():
+        .Some(handler) => (handler.run)()
+        .None => 0
+
+fn joined(value: Inspectable) -> string:
+    match value.downcast[List[Display]]():
+        .Some(parts) =>
+            let text: string = ""
+            for part in parts:
+                text = text + part.to_string()
+            text
+        .None => "no match"
+
+test "a recovered handler is callable":
+    run := fn() -> i32: 7
+    handler := Handler { run: run }
+    assert_equal(run_handler(handler), 7, reason="the function field is called after recovery")
+
+test "a trait value type argument matches exactly":
+    let shown: List[Display] = [Label { text: "a" }, Label { text: "b" }]
+    assert_equal(joined(shown), "ab", reason="List[Display] matches List[Display]")
+    let labels: List[Label] = [Label { text: "c" }]
+    assert_equal(joined(labels), "no match", reason="List[Label] is not List[Display]")

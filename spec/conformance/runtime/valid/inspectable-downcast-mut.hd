@@ -1,0 +1,24 @@
+# test: downcast_mut recovers mutable access from a mutable erased view
+# Spec 09 Recovering A Concrete Type: downcast_mut has a mut self receiver, which only a
+# mutable view provides, and returns mut T?; the recovered value is the same object.
+use std.inspect.Inspectable
+use std.testing.assert_equal
+
+data Counter:
+    count: i32
+
+fn bump(value: mut Inspectable) -> bool:
+    match value.downcast_mut[Counter]():
+        .Some(counter) =>
+            counter.count = counter.count + 1
+            true
+        .None => false
+
+test "a mutable erased counter is bumped in place":
+    let counter: mut Counter = Counter { count: 1 }
+    assert_equal(bump(counter), true, reason="the exact type matches")
+    assert_equal(counter.count, 2, reason="the write reaches the original object")
+
+test "another type is left alone":
+    let other: mut List[i32] = [1]
+    assert_equal(bump(other), false, reason="List[i32] is not a Counter")

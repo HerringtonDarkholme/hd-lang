@@ -146,7 +146,11 @@ Standard traits outside this table are imported. The conversion trait
 `std.convert.From` ([Conversion Trait](09-traits.md#conversion-trait)) and
 the error trait `std.error.Error` ([Error Trait](09-traits.md#error-trait))
 are not prelude names, so a module may declare its own `From` or `Error`.
-Postfix `?` still finds the standard `From` without an import.
+Postfix `?` still finds the standard `From` without an import. Likewise
+`std.inspect` declares `Inspectable`, `TypeId`, and `downcast_val`
+([Runtime Type Identity](09-traits.md#runtime-type-identity)), which code
+imports, as in `use std.inspect.{Inspectable, TypeId}`.
+`std.error.Error` extends `Inspectable` without its users importing it.
 
 The built-in collection types are `List` and `Map`. Like every nominal type
 outside the primitives, they are capitalized. The lowercase names `list` and
@@ -179,7 +183,7 @@ values (optionals included), lists, maps, dynamic trait values, `Any`, closures,
 runtime handles that have identity, and payload-free enum values with canonical
 variant identity. It is not implemented by primitives or tuples.
 `AnyVal` is implemented by exactly the primitives and tuples.
-User code cannot implement either.
+User code cannot implement either ([Sealed Traits](09-traits.md#sealed-traits)).
 
 The following built-in methods are normative. Lengths and scalar positions use
 `i32`.
@@ -427,7 +431,8 @@ Registered boundaries initially allow recursively structural values:
 - data types and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
-Mutable types, dynamic trait values, closures, and live runtime handles are not
+Mutable types, dynamic trait values (including `Inspectable` values),
+`std.inspect.TypeId`, closures, and live runtime handles are not
 boundary-safe. Requirement-row entries are host bindings and are not serialized
 parameters. In particular, the erased error `std.error.Error`
 ([Error Trait](09-traits.md#error-trait)) never crosses a registered boundary:

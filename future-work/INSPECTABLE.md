@@ -1,10 +1,19 @@
 # Runtime Type Identity: `Inspectable`, `RuntimeType`, And `downcast`
 
-Status: design draft for
-[Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified)
-([Roadmap area 2](ROADMAP.md#2-type-checking-rules)). Nothing here is
-accepted. It changes no specification text; accepted parts move into
-chapters 04, 09, and 14 and into [Standard Library Design](STDLIB.md).
+Status: design record. Owner decisions 1 to 15 are applied to the
+specification (2026-09-26): [Sealed Traits](../spec/09-traits.md#sealed-traits),
+[Runtime Type Identity](../spec/09-traits.md#runtime-type-identity), the
+[Error Trait](../spec/09-traits.md#error-trait), assignability rule 6 in
+chapter 04, and `inspectable-requirement` in
+[Requirement Rows](../spec/11-requirements-and-suspension.md#requirement-rows);
+the error-chain helpers are in [Standard Library Design](STDLIB.md#stderror).
+The proposal below predates decisions 2, 3, 13, 14, and 15: where it says
+`RuntimeType`, read `TypeId`; `value.downcast[T]()` is now a default method
+of `Inspectable` bounded by `T < Reference + Inspectable`, with no `reified`
+(value types use `std.inspect.downcast_val[T](value)`); and where it lets
+inner `mut` into identity, decision 2 removes it. What is still open is
+tracked in
+[Runtime Type Identity And `reified`](OPEN_ISSUES.md#runtime-type-identity-and-reified).
 
 This document turns the decided direction into a concrete proposal: the
 trait declaration, the runtime type object, which types are inspectable,
@@ -94,6 +103,10 @@ Decided 2026-09-26:
     `std.inspect.downcast_val[T < Inspectable](value: Inspectable) -> T?`,
     which is never `mut`. `std.error.Error` inherits the methods, and `find[T]`
     can be a default method of `Error` bounded the same way.
+
+The specification pass recorded one consequence of decision 2 as open: a
+value erased as `List[User]` downcasts to `List[mut User]`
+([Open Issues, Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified)).
 
 ## Contents
 
@@ -823,6 +836,9 @@ Proposed codes; existing codes are reused where they fit.
 - `NonEscapable` design (parked); only its exclusion is recorded.
 
 ## Reference-Parser Finding
+
+Fixed during the specification pass: the check now allows type arguments
+nested two brackets deep. The original finding follows.
 
 While parsing the examples, `RuntimeType::of[Box[i32]]()` was rejected with
 `deferred-method-value`. Chapter 02 allows method-level type arguments after

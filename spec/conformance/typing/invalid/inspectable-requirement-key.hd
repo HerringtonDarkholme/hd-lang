@@ -1,0 +1,9 @@
+# test: a trait that extends Inspectable cannot be a requirement key
+# Spec 11 Requirement Rows: an Inspectable trait or subtrait as a key is inspectable-requirement.
+use std.inspect.Inspectable
+
+trait Storage < Inspectable:
+    fn get(self, key: string) -> string?
+
+fn load() -> void $ Storage:  # diagnostic: inspectable-requirement
+    pass

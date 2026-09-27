@@ -1,0 +1,34 @@
+# test: TypeId equality follows runtime identity and prints the canonical name
+# Spec 09 Inspectable And TypeId: mut does not change identity, type arguments do,
+# and Display spells prelude names as written with T? and tuple sugar.
+use std.inspect.{Inspectable, TypeId}
+use std.testing.{assert, assert_equal}
+
+data User:
+    name: string
+
+data Box[T]:
+    value: T
+
+fn of_value(value: Inspectable) -> TypeId:
+    value.runtime_type()
+
+test "TypeId::of agrees with runtime_type":
+    user := User { name: "Ada" }
+    assert(of_value(user) == TypeId::of[User](), reason="a User records User")
+    assert(of_value(7) == TypeId::of[i32](), reason="an i32 records i32")
+    assert(of_value(7) != TypeId::of[string](), reason="i32 is not string")
+
+test "mut is not part of identity":
+    assert(TypeId::of[List[mut User]]() == TypeId::of[List[User]](), reason="mut is ignored at every level")
+
+test "type arguments are part of identity":
+    assert(TypeId::of[Box[i32]]() != TypeId::of[Box[string]](), reason="Box[i32] and Box[string] differ")
+    assert(TypeId::of[i32?]() != TypeId::of[i32](), reason="i32? and i32 differ")
+
+test "printable names of prelude types":
+    assert_equal(TypeId::of[i32]().to_string(), "i32", reason="a primitive prints as written")
+    assert_equal(TypeId::of[List[string]]().to_string(), "List[string]", reason="List prints unqualified")
+    assert_equal(TypeId::of[Map[string, i32]]().to_string(), "Map[string, i32]", reason="Map prints unqualified")
+    assert_equal(TypeId::of[i32?]().to_string(), "i32?", reason="Option prints as T?")
+    assert_equal(TypeId::of[(i32, string)]().to_string(), "(i32, string)", reason="a tuple prints as (A, B)")

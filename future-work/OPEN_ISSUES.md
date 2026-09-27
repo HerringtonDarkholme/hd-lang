@@ -273,94 +273,46 @@ debugging, and safer dependency upgrades.
 
 ### Runtime Type Identity And `reified`
 
-**Problem.** `Any` and dynamic trait values erase the concrete type, and the
-only runtime type test is the sealed `ShapeMetadata.metadata[reified M]()`.
-Error-chain inspection, plugin registries, and typed extension maps all need
-to recover a concrete type from an erased value.
+**Status.** The direction is specified in
+[Runtime Type Identity](../spec/09-traits.md#runtime-type-identity): the
+sealed `std.inspect.Inspectable` with `runtime_type() -> TypeId` and the
+default methods `downcast` and `downcast_mut` (bounded by
+`T < AnyRef + Inspectable`, no `reified`), `TypeId::of[T]()`,
+`downcast_val` for value types, exact matching with `mut` ignored at every
+level, generic erasure through `T < Inspectable`,
+`inspectable-requirement`, and `std.error.Error < Display + Inspectable`.
+[INSPECTABLE.md](INSPECTABLE.md) keeps the design record and owner decisions
+1 to 15. What remains open:
 
-**Direction.**
-
-1. The target of a type test needs a runtime descriptor, and that descriptor
-   comes from `reified`.
-2. Runtime identity comes from a new trait, `Inspectable`, whose method
-   returns the value's runtime type object. Most types implement it
-   automatically, and the compiler supplies the implementation as an
-   intrinsic, as Rust does for `TypeId`. User code cannot write or override
-   it, so a value cannot claim another type's identity.
-3. Opting in happens at the use site. Erasing a value to `Any` stays one-way;
-   a value that should be recoverable is erased to `Inspectable`, or to a
-   trait that extends it. The separate trait makes runtime inspection a
-   visible, deliberate choice and discourages casual use.
-4. A generic type's runtime type object contains its type arguments, so
-   `Box[User]` and `Box[Post]` are distinguishable.
-5. A type test is the generic free function
-   `std.inspect.downcast[T](value) -> T?` (owner decision, superseding the
-   earlier method spelling `value.downcast[T]()`), with `T` reified. It works
-   on a dynamic `Inspectable` value and on a parameter bounded by
-   `T: Inspectable`. `downcast` is not a trait method: like Rust's
-   `downcast_ref` on `dyn Any`, it is defined outside `Inspectable` on top of
-   the trait's non-generic runtime-type method. The dynamic-safety rule is
-   unchanged, and trait methods on trait values still take no generic
-   parameters.
-6. An erased, unbounded type parameter never supports a type test, so a bare
-   `fn f[T](x: T)` cannot branch on `T`.
-7. Go-style trait-to-trait assertions are ruled out. Testing whether a value
-   also implements another trait could recover authority that an attenuated
-   provider view deliberately hides, such as `FileWrite` behind a `FileRead`
-   view.
-8. A downcast preserves permission (`mut` to `mut`, never readonly to `mut`),
-   and its target type must be nameable at the call site, so a private type
-   cannot be recovered outside its module.
-
-9. Closures, function values, and suspension frames do not implement
-   `Inspectable`, because they may carry requirements, and a recovered
-   callable could not be called soundly. Local declarations and
-   `NonEscapable` values do not implement it either.
-10. The runtime type object supports equality and a printable name. It never
-    answers whether a type implements a trait, which would reintroduce the
-    ruled-out assertions.
-11. Erasing a value to `Inspectable` needs its full type, including generic
-    arguments, at the erasure site. Erasing an erased parameter `x: T`
-    therefore needs the descriptor from a `T: Inspectable` dictionary or from
-    `reified T`. Whether generic objects also store their arguments per object
-    is an implementation choice.
-12. The standard error trait extends `Inspectable`, so error chains are
-    inspectable. The specification already declares `std.error.Error` with
-    every member defaulted ([Error Trait](../spec/09-traits.md#error-trait)),
-    so adding the compiler-provided `Inspectable` supertrait breaks no
-    implementation. `downcast` and a chain search (`find[T]`) on errors wait
-    on this issue ([Error Conversion, Still To Do](ERROR_CONVERSION.md#still-to-do));
-    conversion at `?` is specified in
-    [Propagation](../spec/05-expressions.md#propagation).
-
-**Open questions.**
-
-1. Where `downcast` is declared. Decided: a generic free function in
-   `std.inspect` (see [INSPECTABLE.md](INSPECTABLE.md) decision 13).
-2. Calling static (receiverless) functions. Under a bound, `T::create()` with
-   `T: Factory` could be served by the bound's dictionary, but the
-   specification only shows concrete `Type::function(...)` calls. Through a
-   runtime type object, calling a trait's static function first requires
-   knowing the type implements that trait, which conflicts with the
-   no-conformance-query rule.
-3. The matching `TypeShape` case, shared with
+1. **Inner `mut` in a recovered type.** Runtime identity ignores `mut` at
+   every level (decision 2), and `downcast` yields exactly `T`. A value
+   erased as `List[User]` therefore downcasts to `List[mut User]`, whose
+   readonly outer view still gives `mut User` elements: mutable access the
+   code that erased it never had. Options: (a) reject a target type
+   argument that is written with an inner `mut`, and treat a generic
+   target instantiated with one as never matching; (b) make inner `mut`
+   part of runtime identity again, keeping only the outer `mut` out;
+   (c) accept the upgrade as part of permission being a static discipline.
+   The specification states decision 2 as decided and adds no rule.
+2. **Calling static (receiverless) functions.** Under a bound, `T::create()`
+   with `T < Factory` could be served by the bound's dictionary, but the
+   specification only shows concrete `Type::function(...)` calls. A
+   `TypeId` never offers such calls.
+3. **The matching `TypeShape` case,** shared with
    [Complete Runtime Shape Coverage](#complete-runtime-shape-coverage), and
    the checked-downcast option in
    [Typed Derivation](#typed-derivation-tool-adapters-and-secrets).
 
-**Design draft.** [Runtime Type Identity](INSPECTABLE.md) proposes the
-trait, the runtime type object, and `downcast` semantics, and lists the
-remaining questions.
-
-**Unblocks.** Error-chain inspection, plugin registries, typed extension maps,
-and a reviewable parametricity guarantee for erased generics.
+**Unblocks.** A sound recovery of inner permissions (item 1) and
+factory-style generic code (item 2).
 
 ### Confirmed Deferred Type Features
 
 **Problem.** Two surfaces remain intentionally unsupported and must be
 diagnosed: first-class bound methods, and direct permission weakening combined
-with generic variance. General runtime type tests have their own issue,
-[Runtime Type Identity And `reified`](#runtime-type-identity-and-reified).
+with generic variance. Runtime type tests beyond exact-type recovery from
+`Inspectable` values stay unsupported
+([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
 
 **Direction.** Keep bound methods and weakening with variance deferred, and
 design each only with a motivating requirement. Bound methods must settle

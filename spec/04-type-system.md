@@ -339,8 +339,10 @@ one of these rules applies:
 4. `S` is `mut T` and the target requests the readonly view `T`.
 5. A declared generic variance conversion permits the readonly outer type to
    change its type arguments.
-6. `S` explicitly implements trait `T`, allowing construction of a dynamic
-   trait value.
+6. `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is
+   an inspectable type
+   ([Inspectable Types](09-traits.md#inspectable-types)), allowing
+   construction of a dynamic trait value.
 7. `S` is a dynamic child-trait value whose trait has `T` as a direct or
    transitive supertrait.
 8. A value of `T` is injected into `T?`. The injection adds one layer only,
@@ -590,6 +592,12 @@ A parameter marked `reified` carries runtime type metadata and may be used by op
 such as `shape[T]()` or passed to another reified operation. An erased parameter
 must not be used where runtime type identity is required.
 
+Runtime type identity for `Inspectable` comes from a bound instead: the
+evidence for `T < Inspectable` carries the runtime identity of `T`. Erasing
+a value of a type parameter to `Inspectable`, `TypeId::of[T]()`, and the
+`downcast` target need that bound, and `reified` alone permits none of them
+([Runtime Type Identity](09-traits.md#runtime-type-identity)).
+
 Identity comparison `is` on a type parameter is permitted only with the sealed
 `T < AnyRef` bound. An unconstrained type parameter may be primitive after
 substitution and therefore cannot be used with `is`.
@@ -702,7 +710,9 @@ remain valid for static generic bounds and explicit implementations.
 A dynamic child-trait value exposes methods declared by the child and all of
 its transitive supertraits. It may be widened implicitly to a dynamic
 supertrait value; that conversion discards access to child-only methods and
-cannot be reversed without an unsupported downcast. This direct widening may
+cannot be reversed by a conversion; only `Inspectable` values recover a
+concrete type
+([Runtime Type Identity](09-traits.md#runtime-type-identity)). This direct widening may
 rewrap dispatch metadata and is therefore not representation-preserving for a
 variance conversion.
 
@@ -731,6 +741,11 @@ Access permission does not change the category, so `mut User` implements
 `AnyRef`. A type parameter implements `AnyVal` or `AnyRef` only through its
 bound. `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts
 only `AnyRef` types.
+
+`Any` erasure is one-way. A value erased to the sealed trait
+`std.inspect.Inspectable` instead keeps a runtime record of its concrete type,
+which `downcast` compares exactly
+([Runtime Type Identity](09-traits.md#runtime-type-identity)).
 
 ## Map Key Types
 
@@ -901,7 +916,10 @@ to reference types, which all share the reference shape.
 - A closure is a function reference plus an environment record. A closure
   without captures needs no environment.
 - A dynamic trait value is the underlying reference plus a shared method
-  table for the implementation.
+  table for the implementation. For `Inspectable` and the traits that
+  extend it, the table also holds one interned descriptor of the recorded
+  type, so a `downcast` is a descriptor comparison followed by a cast or an
+  unboxing, and a `T < Inspectable` dictionary is that descriptor.
 
 ### Suspension Frames
 
@@ -933,7 +951,10 @@ injection do not, which is why [Variance](#variance) excludes them.
 
 ## Unsupported Type-System Extensions
 
-The language has no runtime type tests or downcasts involving trait values.
+The only runtime type test is exact-type recovery from an `Inspectable`
+value ([Runtime Type Identity](09-traits.md#runtime-type-identity)). There
+are no trait-to-trait assertions, no tests on `Any` or on trait values whose
+trait does not extend `Inspectable`, and no type patterns in `match`.
 It has no anonymous union types, including error unions such as
 `FsError | HttpError`: an error type is a nominal type or a dynamic trait
 value such as `std.error.Error`
