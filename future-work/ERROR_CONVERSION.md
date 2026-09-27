@@ -77,9 +77,15 @@ Decided 2026-09-26:
       as `Invalid(reason: string)` never yield `From[string]`, because
       `string` does not implement `Error`. Common enum fields of a promoted
       variant must have defaults, otherwise the error names the missing one.
-      A type-parameter payload is promoted with a generated `E < Error`
-      bound (`Inner(error: E)` in `enum AppError[E]` gives
-      `impl[E < Error] From[E] for AppError[E]`).
+      A payload whose type is a bare type parameter is never promoted
+      (review R6): `impl[E] From[E] for AppError[E]` would overlap every
+      concrete `From[FsError] for AppError[E]` under 09 Overlap, the same
+      conflict Rust reports as E0119 for thiserror's `#[from]` on a generic
+      field. Such a variant is still a cause (with a generated `E < Error`
+      bound); `@from` on it is an error. A variant whose enum has a common
+      field without a default gets no automatic `From` (a lint note says
+      why), since `From` has only the payload to build it from (review
+      R12).
     - **Automatic cause:** a variant's cause is its member whose type
       implements `Error`, or is `E?` with `E < Error` (an absent optional
       cause gives `.None`); a data-type error's cause is such a field. When a
@@ -91,11 +97,15 @@ Decided 2026-09-26:
     hd interpolated string (`$name`, `${expression}`) with the variant's
     payload members and the enum's common fields in scope, so placeholder
     checking is ordinary type checking (an unknown name is `unknown-name`;
-    an interpolated member must implement `Display`); (E2) `Display` is
+    an interpolated member must implement `Display`; `$self` in a message is
+    a compile error, because it would recurse into the generated `Display`,
+    review R7); (E2) `Display` is
     always generated, so a hand-written `Display` cannot be combined with
     `@derive(Error)`; (E3) a `@transparent` variant's `cause()` returns the
     inner error's cause, as thiserror does, so `chain` does not repeat the
-    inner message; (E4) `@source` is written on a payload parameter or data
+    inner message; consequently `find[Inner]()` does not see the
+    transparent inner error itself, exactly as in Rust (confirmed in
+    review R10: follow thiserror); (E4) `@source` is written on a payload parameter or data
     field (`Parse(path: string, line: i64, @source error: SyntaxError)`,
     decision 12); common enum fields cannot be the cause.
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
