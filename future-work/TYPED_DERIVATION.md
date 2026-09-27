@@ -104,6 +104,21 @@ Decided 2026-09-26:
     lazily once per (trait, type) per program instance, with `Ref[T]`
     deferred references and cycle detection replacing `AnnotationRef`.
     Function targets are decided with the function-item question.
+11. **One block per concern; derivations are never merged in one place.**
+    A derivation is requested with a block `derive X for T:` whose field
+    and container options are metadata scoped to that derivation only
+    (other derivations never see them). A block names one trait or one
+    library-declared group, never traits from different libraries. Inline
+    `@derive(X)` is only shorthand for an option-less block. General facts
+    every concern may read (docs, shared metadata) stay on the declaration.
+    Blocks live in the type's module; a foreign type may be targeted under
+    the ownership rule plus the root-application orphan exception, seeing
+    only public fields.
+12. **Library-declared groups.** A library declares which of its traits are
+    derived together and share one option vocabulary (for example
+    `json.Codec` for `Encode`, `Decode`, and `Schema`); users write
+    `derive json.Codec for User:`. Still to design: the group declaration
+    form, and whether one member of a group may be derived alone.
 
 ## Contents
 
