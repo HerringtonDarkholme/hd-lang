@@ -7,7 +7,14 @@ import { parseArgs } from "node:util";
 import { renderLayout } from "./src/layout.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
-import { createMarkdown, escapeHtml, type Heading, type RenderEnv } from "./src/markdown.ts";
+import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
+import {
+  createMarkdown,
+  escapeHtml,
+  fencedBlocks,
+  type Heading,
+  type RenderEnv,
+} from "./src/markdown.ts";
 import {
   pageBySource,
   PAGES,
@@ -34,7 +41,12 @@ export interface BuildOptions {
 export interface BuildResult {
   readonly pages: number;
   readonly playground: boolean;
+  /** The ```ebnf rule index the pages were rendered with. */
+  readonly grammar: GrammarIndex;
 }
+
+/** The chapter whose rule definitions are canonical when a rule is restated elsewhere. */
+const GRAMMAR_CHAPTER = "spec/02-grammar.md";
 
 function normalizeBase(base: string): string {
   const trimmed = base.replace(/^\/+|\/+$/g, "");
@@ -154,14 +166,28 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     written.push(output);
   };
 
-  for (const entry of PAGES) {
-    const markdown = await readFile(join(REPO_DIR, entry.source), "utf8");
+  const sources = await Promise.all(
+    PAGES.map(async (entry) => ({
+      entry,
+      markdown: await readFile(join(REPO_DIR, entry.source), "utf8"),
+    })),
+  );
+  const grammar = buildGrammarIndex(
+    sources.map(({ entry, markdown }) => ({
+      source: entry.source,
+      blocks: fencedBlocks(md, markdown).filter((block) => block.info === "ebnf"),
+    })),
+    GRAMMAR_CHAPTER,
+  );
+
+  for (const { entry, markdown } of sources) {
     const env: RenderEnv = {
       source: entry.source,
       resolveLink,
       playgroundUrl: playgroundUrl(base),
       headings: [],
       slugCounts: new Map(),
+      grammar,
     };
     let body = md.render(markdown, env);
     if (entry.output === "index.html") body += homeCards(base);
@@ -214,7 +240,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
   const broken = await checkLinks(outDir, base, written);
   if (broken.length > 0) throw new Error(`broken site links:\n${broken.join("\n")}`);
-  return { pages: written.length, playground };
+  return { pages: written.length, playground, grammar };
 }
 
 async function main(): Promise<void> {
@@ -227,6 +253,18 @@ async function main(): Promise<void> {
   const result = await buildSite({ base: values.base, outDir: values.out });
   const playground = result.playground ? "with the playground" : "without a playground build";
   console.log(`website: ${result.pages} pages, base ${normalizeBase(values.base)}, ${playground}`);
+  const { grammar } = result;
+  console.log(
+    `grammar: ${grammar.definitions.size} rules (${grammar.definitionCount} definitions), ` +
+      `${grammar.linkedCount} of ${grammar.referenceCount} references linked`,
+  );
+  if (grammar.unresolved.length > 0)
+    console.warn(
+      `warning: ${grammar.unresolved.length} grammar references name no rule:\n` +
+        grammar.unresolved
+          .map(({ name, source, line }) => `  ${source}:${line}: ${name}`)
+          .join("\n"),
+    );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
