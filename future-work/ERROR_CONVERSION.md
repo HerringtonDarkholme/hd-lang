@@ -53,8 +53,23 @@ Decided 2026-09-26:
    is cross-referenced there.
 8. **Question 9: no mapping clause on `?`;** `From` and `map_err` cover it.
 9. **Question 10: no anonymous error unions.**
-10. **Question 11: derived `From` implementations wait for typed
-    derivation.**
+10. **Question 11: derived `From` is a compiler intrinsic, `@from` on a
+    variant of an error enum** (revised 2026-09-27; originally "derived
+    `From` implementations wait for typed derivation"). Typed derivation
+    deliberately does not cover impl families (one impl per variant, each a
+    different trait instantiation); `From` per variant is the only real
+    case, so it stays intrinsic rather than growing a proc-macro-like
+    mechanism. Rules: `@from` is allowed only on a variant of an enum that
+    implements `std.error.Error`; the variant has exactly one payload
+    member, of type `P`; it generates `impl From[P] for E` whose `from` is
+    the variant constructor (pure, as 09 requires); common enum fields must
+    have defaults, otherwise the error names the missing one; two marked
+    variants with the same payload type are an error naming both; generic
+    payloads work (`@from Inner(error: E)` in `enum AppError[E]` gives
+    `impl[E] From[E] for AppError[E]`); the result is an ordinary impl, so a
+    hand-written duplicate is `overlapping-impl`. Unmarked variants get no
+    `From`, so `Invalid(reason: string)` never yields `From[string]`. Not
+    yet applied to the spec.
 11. **Location: `From[T]` is declared in `std.convert` and the erased error
     trait in `std.error`.** Neither is a prelude name (consistent with
     [STDLIB decision 7](STDLIB.md#owner-decisions)); code imports them with
