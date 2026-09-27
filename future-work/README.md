@@ -20,6 +20,8 @@ language specification:
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and
   drafts hd's module tree, effect traits with deterministic providers, and
   questions for the owner.
+- [Error Conversion](ERROR_CONVERSION.md) surveys error composition in other
+  languages and compares designs for using `?` across domain error types.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
