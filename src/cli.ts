@@ -15,7 +15,7 @@ import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
-import { runRepl } from "./repl.ts";
+import { runRepl } from "./repl-terminal.ts";
 import { resultParts } from "./types.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";

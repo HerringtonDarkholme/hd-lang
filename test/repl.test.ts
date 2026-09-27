@@ -5,7 +5,15 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import { classify, highlight } from "../src/highlight.ts";
-import { classifyInput, needsMoreInput, ReplSession, runRepl } from "../src/repl.ts";
+import {
+  classifyInput,
+  needsMoreInput,
+  parseReplMessage,
+  ReplSession,
+  respond,
+  splitInputs,
+} from "../src/repl.ts";
+import { runRepl } from "../src/repl-terminal.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const ESC = String.fromCharCode(27);
@@ -37,6 +45,107 @@ test("REPL blocks continue until an empty line and brackets until closed", () =>
   assert.equal(needsMoreInput(["[1,"]), true);
   assert.equal(needsMoreInput(["[1,", "2]"]), false);
   assert.equal(needsMoreInput(['"a:"']), false);
+});
+
+test("files and snippets split into the inputs a REPL would read", () => {
+  const source = [
+    "# a comment before anything",
+    "x := 1",
+    "",
+    "@derive(Debug)",
+    "data User:",
+    "    name: string",
+    "",
+    "    age: i32",
+    "# between inputs",
+    "if x > 0:",
+    "    pass",
+    "else:",
+    "    pass",
+    "items := [",
+    "    1,",
+    "]",
+    "x + 1  # trailing comment",
+    "",
+  ].join("\n");
+  assert.deepEqual(splitInputs(source), [
+    { text: "x := 1", line: 2 },
+    { text: "@derive(Debug)\ndata User:\n    name: string\n\n    age: i32", line: 4 },
+    { text: "if x > 0:\n    pass\nelse:\n    pass", line: 10 },
+    { text: "items := [\n    1,\n]", line: 14 },
+    { text: "x + 1  # trailing comment", line: 17 },
+  ]);
+  assert.deepEqual(splitInputs("\n# only a comment\n"), []);
+});
+
+test("respond answers inputs and commands for every front end", async () => {
+  const session = new ReplSession();
+  assert.deepEqual(await respond(session, "x := 21"), { entries: [], kept: true });
+  assert.deepEqual(await respond(session, "x * 2"), {
+    entries: [{ kind: "value", text: "42", type: "i32" }],
+    kept: true,
+  });
+  assert.deepEqual(await respond(session, "missing"), {
+    entries: [{ kind: "error", text: "1:1: unknown-name: unknown name 'missing'" }],
+    kept: false,
+  });
+  assert.deepEqual(await respond(session, ":type [x]"), {
+    entries: [{ kind: "code", text: "List[i32]" }],
+    kept: false,
+  });
+  assert.match((await respond(session, ":help")).entries[0]!.text, /:type EXPR/);
+  assert.deepEqual(await respond(session, ":nope"), {
+    entries: [{ kind: "info", text: "unknown command :nope; type :help" }],
+    kept: false,
+  });
+  assert.deepEqual(await respond(session, ":reset"), {
+    entries: [{ kind: "info", text: "session reset" }],
+    kept: false,
+    command: "reset",
+  });
+  assert.equal((await respond(session, "x")).kept, false);
+  assert.equal((await respond(session, ":quit")).command, "quit");
+});
+
+test("REPL messages parse back into positions and codes", async () => {
+  assert.deepEqual(parseReplMessage("1:6: unknown-name: unknown name 'missing'"), {
+    line: 1,
+    column: 6,
+    severity: "error",
+    code: "unknown-name",
+    message: "unknown name 'missing'",
+  });
+  assert.deepEqual(parseReplMessage("session:3:1: warning: unused-import: unused"), {
+    sessionLine: 3,
+    severity: "warning",
+    code: "unused-import",
+    message: "unused",
+  });
+  assert.deepEqual(parseReplMessage("panic: integer-division-by-zero"), {
+    severity: "error",
+    code: "runtime-panic",
+    message: "integer-division-by-zero",
+  });
+  const session = new ReplSession();
+  for (const error of (await session.evaluate('fn bad() -> i32: "no"')).errors)
+    assert.equal(parseReplMessage(error).line, 1);
+});
+
+test("REPL inputs can be checked without running them", async () => {
+  const session = new ReplSession();
+  assert.deepEqual(await session.evaluate('println("not printed")', { run: false }), {
+    output: [],
+    errors: [],
+    warnings: [],
+    accepted: true,
+  });
+  const checked = await session.evaluate("1 / 0", { run: false });
+  assert.deepEqual([checked.accepted, checked.value, checked.type], [true, undefined, "i32"]);
+  assert.equal((await session.evaluate("y := nope", { run: false })).accepted, false);
+  // `declare` takes declarations whatever their first line is.
+  const fresh = new ReplSession();
+  assert.equal((await fresh.declare("# a leading comment\nfn one() -> i32: 1")).accepted, true);
+  assert.equal((await fresh.evaluate("one()")).value, "1");
 });
 
 test("REPL sessions keep declarations and bindings across inputs", async () => {

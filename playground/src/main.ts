@@ -18,6 +18,7 @@ const STORAGE_KEY = "hd-playground-project";
 const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const runButton = byId<HTMLButtonElement>("run");
 const checkButton = byId<HTMLButtonElement>("check");
+const testButton = byId<HTMLButtonElement>("test");
 const stopButton = byId<HTMLButtonElement>("stop");
 const shareButton = byId<HTMLButtonElement>("share");
 const examplesSelect = byId<HTMLSelectElement>("examples");
@@ -37,7 +38,7 @@ const extensions = editorExtensions({
 });
 const view = new EditorView({ parent: byId("editor") });
 const output = new OutputPanel(byId("output"), jumpTo);
-const compiler = new CompilerClient(() => setStatus("Compiler ready"));
+const compiler = new CompilerClient({ onReady: () => setStatus("Compiler ready") });
 
 function setStatus(text: string): void {
   status.textContent = text;
@@ -257,26 +258,33 @@ function showDiagnostics(diagnostics: readonly RunDiagnostic[]): void {
   }
 }
 
+const MODE_LABELS: Record<RunMode, readonly [busy: string, done: string]> = {
+  run: ["Running", "Run finished"],
+  check: ["Checking", "Check finished"],
+  test: ["Testing", "Tests finished"],
+};
+
 async function execute(mode: RunMode): Promise<void> {
   const snapshot = project();
+  const [busy, done] = MODE_LABELS[mode];
   runButton.disabled = true;
   checkButton.disabled = true;
+  testButton.disabled = true;
   stopButton.hidden = false;
-  output.begin(mode === "run" ? "Running…" : "Checking…");
-  setStatus(mode === "run" ? "Running" : "Checking");
+  output.begin(`${busy}…`);
+  setStatus(busy);
   try {
     const outcome = await compiler.run(mode, snapshot, (line) => output.line(line));
     output.finish(outcome, mode);
     showDiagnostics(typeof outcome === "string" ? [] : outcome.diagnostics);
-    setStatus(
-      typeof outcome === "string" ? "Stopped" : `${mode === "run" ? "Run" : "Check"} finished`,
-    );
+    setStatus(typeof outcome === "string" ? "Stopped" : done);
   } catch (error) {
     output.message(`The compiler could not start: ${String(error)}`, "error");
     setStatus("Compiler unavailable");
   } finally {
     runButton.disabled = false;
     checkButton.disabled = false;
+    testButton.disabled = false;
     stopButton.hidden = true;
   }
 }
@@ -323,6 +331,7 @@ examplesSelect.addEventListener("change", () => {
 
 runButton.addEventListener("click", () => void execute("run"));
 checkButton.addEventListener("click", () => void execute("check"));
+testButton.addEventListener("click", () => void execute("test"));
 stopButton.addEventListener("click", () => compiler.stop());
 shareButton.addEventListener("click", () => void share());
 byId("clear").addEventListener("click", () => output.clear());

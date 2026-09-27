@@ -17,6 +17,9 @@
   --hl-interpolation: #16591a;
   --hl-comment: #6e7781;
   --hl-operator: #4b535c;
+  --repl-error: #c62828;
+  --repl-warning: #9a6700;
+  --repl-height: min(45vh, 420px);
   --topbar-height: 56px;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -43,6 +46,8 @@
     --hl-interpolation: #b8f0a8;
     --hl-comment: #7d8590;
     --hl-operator: #b3bac4;
+    --repl-error: #ff7b72;
+    --repl-warning: #d29922;
   }
 }
 
@@ -717,6 +722,233 @@ pre.ebnf .eb-definition:target {
 }
 
 /* Responsive */
+
+/* REPL panel (website/client/repl.ts) */
+
+.try-repl {
+  display: none;
+  cursor: pointer;
+}
+
+.repl-ready .try-repl {
+  display: inline-block;
+}
+
+.try-link.try-playground {
+  font-size: 11px;
+}
+
+.repl-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font: 600 13px/1.4 var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  cursor: pointer;
+}
+
+.repl-toggle:hover,
+.repl-toggle[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.repl-toggle-mark {
+  font-family: var(--font-mono);
+}
+
+body.repl-open {
+  padding-bottom: var(--repl-height);
+}
+
+body.repl-open .repl-toggle {
+  display: none;
+}
+
+.repl-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  height: var(--repl-height);
+  background: var(--bg-code);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 0.14);
+}
+
+.repl-panel[hidden] {
+  display: none;
+}
+
+.repl-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+  font-size: 13px;
+}
+
+.repl-title {
+  font-family: var(--font-mono);
+}
+
+.repl-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repl-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.repl-actions button {
+  padding: 2px 10px;
+  font: 12px/1.5 var(--font-body);
+  color: var(--text-soft);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.repl-actions button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.repl-log,
+.repl-input-row {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.5;
+  tab-size: 4;
+}
+
+.repl-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px 0;
+}
+
+.repl-log pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.repl-echo {
+  margin-top: 6px !important;
+}
+
+.repl-echo-prompt,
+.repl-prompt,
+.repl-type,
+.repl-info {
+  color: var(--text-soft);
+}
+
+.repl-error {
+  color: var(--repl-error);
+}
+
+.repl-warning {
+  color: var(--repl-warning);
+}
+
+.repl-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px 12px;
+}
+
+.repl-prompt {
+  margin: 0;
+  font: inherit;
+  user-select: none;
+}
+
+.repl-editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.repl-highlight,
+.repl-input {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 0;
+}
+
+.repl-highlight {
+  pointer-events: none;
+  color: var(--text);
+}
+
+.repl-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  resize: none;
+  color: transparent;
+  caret-color: var(--text);
+  background: transparent;
+  outline: none;
+}
+
+.repl-input::placeholder {
+  color: var(--text-soft);
+  opacity: 0.6;
+}
+
+.repl-input::selection {
+  color: transparent;
+  background: var(--accent-soft);
+}
+
+@media (max-width: 520px) {
+  .repl-toggle {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .repl-header {
+    padding-left: 12px;
+  }
+
+  .repl-log,
+  .repl-input-row {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
 
 @media (max-width: 1200px) {
   .layout {

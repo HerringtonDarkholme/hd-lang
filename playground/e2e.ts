@@ -8,16 +8,15 @@
 // E2E_SCREENSHOTS to a directory to save screenshots there.
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { homedir } from "node:os";
 import { extname, join, normalize } from "node:path";
 
 import { chromium, type Page } from "playwright-core";
 
 import { classify } from "../src/highlight.ts";
 import { DIST } from "./build.ts";
+import { browserPath } from "./test/chrome.ts";
 import { encodeBase64Url } from "./src/share.ts";
 
 const BASE = "/hd-lang/playground/";
@@ -29,24 +28,6 @@ const TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
 };
-
-function browserPath(): string {
-  const candidates = [
-    process.env.CHROME_PATH,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    join(
-      homedir(),
-      "Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-    ),
-  ];
-  const found = candidates.find((candidate) => candidate && existsSync(candidate));
-  if (!found) throw new Error("no Chromium found; set CHROME_PATH");
-  return found;
-}
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://localhost");
@@ -186,6 +167,44 @@ try {
     await reopened.click("#run");
     await reopened.locator(".outcome.passed").waitFor();
     await reopened.context().close();
+    await page.context().close();
+  });
+
+  await step("without main, Run prints top-level expression values", async () => {
+    const source = 'x := 21\nprintln("start")\nx * 2\n[x, x + 1]\n';
+    const page = await openPage(code(source));
+    await page.click("#run");
+    await page.locator(".outcome.passed").waitFor();
+    assert.equal(
+      await page.locator(".stdout").textContent(),
+      "start\n42 : i32\n[21, 22] : List[i32]\n",
+    );
+    assert.match((await outcome(page).textContent()) ?? "", /ran 4 top-level inputs/);
+    await page.context().close();
+  });
+
+  await step("an error without main points at its line; Test runs test blocks", async () => {
+    const page = await openPage(code("x := 1\ny := missing\n"));
+    await page.click("#run");
+    await page.locator(".outcome.failed").waitFor();
+    assert.equal(
+      await page.locator(".diagnostic .location").first().textContent(),
+      "src/main.hd:2:6",
+    );
+    const tests = [
+      "use std.testing.assert_equal",
+      "",
+      "pub fn main() -> void $ Console:",
+      '    println("main")',
+      "",
+      'test "adds":',
+      '    assert_equal(1 + 1, 2, reason="sum")',
+    ].join("\n");
+    await page.evaluate((hash) => (location.hash = hash), code(tests));
+    await page.getByText("Loaded the shared project").waitFor();
+    await page.click("#test");
+    await page.locator(".outcome.passed").waitFor();
+    assert.match((await outcome(page).textContent()) ?? "", /1 test passed/);
     await page.context().close();
   });
 

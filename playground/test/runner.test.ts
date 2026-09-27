@@ -165,6 +165,93 @@ test("test blocks run when there is no entry point", async () => {
   assert.equal(result.summary, 'assertion-failed: runtime panic in test "fails"');
 });
 
+test("without main, Run evaluates top-level inputs with REPL semantics", async () => {
+  const source = [
+    "# no main: each top-level input runs in order",
+    "x := 21",
+    "",
+    "fn double(n: i32) -> i32: n * 2",
+    'println("hi")',
+    "double(x)",
+    "if x > 1:",
+    '    println("big")',
+    "else:",
+    '    println("small")',
+    '[1, 2].len() == 2 && "a" != "b"',
+  ].join("\n");
+  const streamed: string[] = [];
+  const result = await runner.runProject(single(source), "run", (line) => streamed.push(line));
+  assert.equal(result.status, "ok", result.summary);
+  assert.deepEqual(result.stdout, ["hi", "42 : i32", "big", "true : bool"]);
+  assert.deepEqual(streamed, result.stdout);
+  assert.equal(result.summary, "ran 6 top-level inputs");
+
+  const checked = await runner.runProject(single(source), "check");
+  assert.equal(checked.status, "ok", checked.summary);
+  assert.deepEqual(checked.stdout, []);
+});
+
+test("without main, errors and panics point at the file's lines", async () => {
+  const unknown = await runner.runProject(single('x := 1\nprintln("ok")\ny := missing\n'), "run");
+  assert.equal(unknown.status, "compile-error");
+  assert.deepEqual(unknown.stdout, ["ok"]);
+  assert.deepEqual(located(unknown), ["src/main.hd:3:6:unknown-name"]);
+  const checked = await runner.runProject(single("x := 1\ny := x + true\n"), "check");
+  assert.deepEqual(located(checked).length, 1);
+  assert.match(located(checked)[0]!, /^src\/main\.hd:2:/);
+
+  const panic = await runner.runProject(single('println("before")\n\n1 / 0\n'), "run");
+  assert.equal(panic.status, "panic");
+  assert.deepEqual(panic.stdout, ["before"]);
+  assert.equal(panic.summary, "integer-division-by-zero: runtime panic at src/main.hd:3");
+});
+
+test("without main, a multi-file project evaluates the entry module", async () => {
+  const project = {
+    files: {
+      "src/main.hd": [
+        "use pkg.models.user.{User, describe}",
+        "",
+        'ada := User { name: "Ada", age: 36 }',
+        "describe(ada)",
+      ].join("\n"),
+      "src/models/user.hd": [
+        "pub data User:",
+        "    pub name: string",
+        "    pub age: i32",
+        "",
+        "pub fn describe(user: User) -> string:",
+        '    "${user.name} (${user.age})"',
+      ].join("\n"),
+    },
+    main: "src/main.hd",
+  };
+  const result = await runner.runProject(project, "run");
+  assert.equal(result.status, "ok", result.summary);
+  assert.deepEqual(result.stdout, ['"Ada (36)" : string']);
+});
+
+test("Test runs the test blocks, with or without main", async () => {
+  const source = [
+    "use std.testing.assert_equal",
+    "",
+    "pub fn main() -> void $ Console:",
+    '    println("main runs only for Run")',
+    "",
+    'test "adds":',
+    '    assert_equal(1 + 1, 2, reason="sum")',
+  ].join("\n");
+  const tested = await runner.runProject(single(source), "test");
+  assert.equal(tested.status, "ok", tested.summary);
+  assert.equal(tested.summary, "1 test passed");
+  assert.deepEqual(tested.stdout, []);
+  const ran = await runner.runProject(single(source), "run");
+  assert.deepEqual(ran.stdout, ["main runs only for Run"]);
+  const none = await runner.runProject(single("pub fn main() -> void: pass\n"), "test");
+  assert.equal(none.status, "failure");
+  assert.equal(none.summary, "nothing to test: declare a `test` block");
+});
+
 test("the bundled examples run", async () => {
   const { EXAMPLES } = (await import(pathToFileURL(await bundleExamples()).href)) as {
     EXAMPLES: readonly Example[];
@@ -174,6 +261,16 @@ test("the bundled examples run", async () => {
     const result = await runner.runProject(example.project, "run");
     assert.equal(result.status, expected[example.id] ?? "ok", `${example.id}: ${result.summary}`);
   }
+  const topLevel = EXAMPLES.find(({ id }) => id === "top-level")!;
+  assert.deepEqual((await runner.runProject(topLevel.project, "run")).stdout, [
+    "7 : i32",
+    "Point { x: 3, y: 4 } : Point",
+    "[3, 4] : List[i32]",
+    "added 1",
+    "added 2",
+    "added 3",
+    "60 : i32",
+  ]);
 });
 
 async function bundleExamples(): Promise<string> {

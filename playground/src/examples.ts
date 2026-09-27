@@ -2,6 +2,7 @@
 // text, so the menu always shows programs the conformance suite runs.
 
 import panic from "../examples/panic.hd";
+import topLevel from "../examples/top-level.hd";
 import packageMain from "../examples/package/src/main.hd";
 import packageModels from "../examples/package/src/models/mod.hd";
 import packageUser from "../examples/package/src/models/user.hd";
@@ -28,6 +29,7 @@ const single = (id: string, title: string, source: string): Example => ({
 
 export const EXAMPLES: readonly Example[] = [
   single("hello", "Hello, world", hello),
+  single("top-level", "Top-level code without main", topLevel),
   single("core", "Data, loops, and functions", core),
   single("providers", "Requirements and providers (tests)", providers),
   single("provider-scope", "Provider scope around a suspending call", scopes),

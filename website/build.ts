@@ -4,7 +4,10 @@ import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { renderLayout } from "./src/layout.ts";
+import * as esbuild from "esbuild";
+
+import { buildOptions } from "../playground/build.ts";
+import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
 import { buildGrammarIndex, type GrammarIndex } from "./src/ebnf.ts";
@@ -40,6 +43,7 @@ export interface BuildOptions {
 
 export interface BuildResult {
   readonly pages: number;
+  /** Whether the playground build was found; it also enables the REPL panel. */
   readonly playground: boolean;
   /** The ```ebnf rule index the pages were rendered with. */
   readonly grammar: GrammarIndex;
@@ -80,6 +84,22 @@ function linkResolver(base: string, errors: string[]): RenderEnv["resolveLink"] 
 function playgroundUrl(base: string): (code: string) => string {
   return (code) =>
     `${siteLink(base, PLAYGROUND_PAGE)}#code=${Buffer.from(code, "utf8").toString("base64url")}`;
+}
+
+/**
+ * Bundles the REPL panel, website/client/repl.ts, into the site's assets.
+ * The panel is small; the compiler worker it starts comes from the playground
+ * build and loads only when the panel first opens.
+ */
+async function bundleRepl(outfile: string): Promise<void> {
+  await esbuild.build(
+    buildOptions({
+      entryPoints: [join(WEBSITE_DIR, "client", "repl.ts")],
+      outdir: undefined,
+      outfile,
+      logLevel: "warning",
+    }),
+  );
 }
 
 function firstParagraph(markdown: string): string {
@@ -155,6 +175,10 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   await mkdir(outDir, { recursive: true });
   await cp(join(WEBSITE_DIR, "assets"), join(outDir, "assets"), { recursive: true });
 
+  const playgroundDist = options.playgroundDist ?? join(REPO_DIR, "playground", "dist");
+  const playground = existsSync(join(playgroundDist, "index.html"));
+  if (playground) await bundleRepl(join(outDir, REPL_SCRIPT));
+
   const md = createMarkdown();
   const linkErrors: string[] = [];
   const resolveLink = linkResolver(base, linkErrors);
@@ -203,13 +227,12 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
         body,
         headings: env.headings,
         source: entry.source,
+        repl: playground,
       }),
     );
   }
   if (linkErrors.length > 0) throw new Error(`broken source links:\n${linkErrors.join("\n")}`);
 
-  const playgroundDist = options.playgroundDist ?? join(REPO_DIR, "playground", "dist");
-  const playground = existsSync(join(playgroundDist, "index.html"));
   if (playground) await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
   await write(
     PLAYGROUND_PAGE,
@@ -221,6 +244,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       body: playgroundBody(base, playground),
       headings: [],
       width: "wide",
+      repl: playground,
     }),
   );
   search.push({ title: "Playground", page: "Playground", url: siteLink(base, PLAYGROUND_PAGE) });

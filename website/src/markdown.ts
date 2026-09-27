@@ -159,6 +159,24 @@ function assignHeadingIds(tokens: Token[], env: RenderEnv): void {
   }
 }
 
+/** Whether `code` declares `main`, which makes it a whole program rather than REPL input. */
+export function isWholeProgram(code: string): boolean {
+  return /^(?:pub\s+)?fn\s+main!?\s*\(/m.test(code);
+}
+
+/**
+ * The action on a code block that parses. A snippet gets a "Try in REPL"
+ * button, which the REPL panel script reveals and handles; it evaluates the
+ * snippet as REPL input. A whole program cannot be REPL input, because the
+ * REPL supplies its own `main`, so it links to the playground instead.
+ */
+function tryAction(code: string, env: RenderEnv): string {
+  if (!parsesAsHd(code)) return "";
+  if (isWholeProgram(code))
+    return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
+  return '<button type="button" class="try-link try-repl" title="Evaluate this code in the REPL panel">Try in REPL</button>';
+}
+
 // markdown-it types the render environment loosely; every render here passes a RenderEnv.
 const asRenderEnv = (env: unknown): RenderEnv => env as RenderEnv;
 
@@ -195,10 +213,7 @@ export function createMarkdown(): MarkdownIt {
       const language = info === "" ? "" : ` class="language-${escapeHtml(info)}"`;
       return `<pre class="code"><code${language}>${escapeHtml(code)}</code></pre>\n`;
     }
-    const tryLink = parsesAsHd(code)
-      ? `<a class="try-link" href="${escapeHtml(asRenderEnv(env).playgroundUrl(code))}">Try in playground</a>`
-      : "";
-    return `<div class="code-block"><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryLink}</div>\n`;
+    return `<div class="code-block"><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryAction(code, asRenderEnv(env))}</div>\n`;
   };
   return md;
 }

@@ -1,5 +1,12 @@
 import { escapeHtml, type Heading } from "./markdown.ts";
-import { navSections, PAGES, PLAYGROUND_PAGE, REPOSITORY_URL, type PageSource } from "./pages.ts";
+import {
+  navSections,
+  PAGES,
+  PLAYGROUND_APP_DIR,
+  PLAYGROUND_PAGE,
+  REPOSITORY_URL,
+  type PageSource,
+} from "./pages.ts";
 
 export interface LayoutInput {
   /** Site base path, beginning and ending with `/`. */
@@ -16,7 +23,15 @@ export interface LayoutInput {
   readonly source?: string;
   /** `wide` pages fill the content area instead of using the reading width. */
   readonly width?: "prose" | "wide";
+  /**
+   * Adds the bottom REPL panel. It needs the playground build, whose compiler
+   * worker it loads when the panel first opens.
+   */
+  readonly repl?: boolean;
 }
+
+/** The site asset that runs the REPL panel; website/build.ts bundles it. */
+export const REPL_SCRIPT = "assets/repl.js";
 
 const GITHUB_ICON =
   '<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
@@ -81,9 +96,15 @@ export function renderLayout(input: LayoutInput): string {
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="${base}assets/style.css">
 <link rel="icon" href="${base}assets/favicon.svg" type="image/svg+xml">
-<script src="${base}assets/site.js" defer></script>
+<script src="${base}assets/site.js" defer></script>${
+    input.repl ? `\n<script type="module" src="${base}${REPL_SCRIPT}"></script>` : ""
+  }
 </head>
-<body data-base="${escapeHtml(base)}">
+<body data-base="${escapeHtml(base)}"${
+    input.repl
+      ? ` data-repl-worker="${escapeHtml(`${base}${PLAYGROUND_APP_DIR}/assets/worker.js`)}"`
+      : ""
+  }>
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="topbar">
   <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Toggle navigation">

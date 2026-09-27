@@ -54,6 +54,9 @@ describe("website build", () => {
     const playground = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(playground, /playground is not part of this build/);
     assert.ok(!existsSync(join(outDir, "playground")));
+    // Without the playground's worker there is no REPL panel.
+    assert.doesNotMatch(types, /repl\.js|data-repl-worker/);
+    assert.ok(!existsSync(join(outDir, "assets/repl.js")));
   });
 
   test("serves a playground build at playground/ when one exists", async () => {
@@ -68,17 +71,36 @@ describe("website build", () => {
     assert.ok(existsSync(join(outDir, "playground/assets/app.js")));
     const page = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(page, /<iframe id="playground-frame" src="\/playground\/"/);
+    // Every page gets the REPL panel, which loads the playground's worker.
+    const chapter = await readFile(join(outDir, "spec/04-type-system.html"), "utf8");
+    assert.match(chapter, /<script type="module" src="\/assets\/repl\.js"><\/script>/);
+    assert.match(
+      chapter,
+      /<body data-base="\/" data-repl-worker="\/playground\/assets\/worker\.js">/,
+    );
+    const panel = await readFile(join(outDir, "assets/repl.js"), "utf8");
+    assert.ok(panel.length < 100_000, `the panel bundle stays small (${panel.length} bytes)`);
+    assert.doesNotMatch(panel, /binaryen/i, "the compiler stays in the worker");
   });
 
-  test("links code blocks to the playground with base64url source", async () => {
+  test("gives snippets Try in REPL and whole programs a playground link", async () => {
     const outDir = join(scratch, "pages");
     const learn = await readFile(join(outDir, "guide/learn-in-10-minutes.html"), "utf8");
-    const match = /href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)"/.exec(learn);
-    assert.ok(match, "a Try in playground link exists");
+    const hello = /<code class="language-hd">([^]*?)<\/code><\/pre>(.*?)<\/div>/.exec(learn);
+    assert.ok(hello, "the first hd block renders");
+    assert.match(hello[1]!, /hello, hd-lang/);
     assert.equal(
-      Buffer.from(match[1]!, "base64url").toString("utf8"),
-      '# hello.hd\nprintln("hello, hd-lang")',
+      hello[2],
+      '<button type="button" class="try-link try-repl" title="Evaluate this code in the REPL panel">Try in REPL</button>',
     );
+    const links = [
+      ...learn.matchAll(
+        /class="try-link try-playground" href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)"/g,
+      ),
+    ];
+    assert.equal(links.length, 1, "one whole program on the page");
+    assert.match(Buffer.from(links[0]![1]!, "base64url").toString("utf8"), /^pub fn main!\(\)/m);
+    assert.doesNotMatch(learn, /Try in playground/);
   });
 });
 
