@@ -31,6 +31,9 @@ npm run hd -- trace examples/suspension.hd
 npm run hd -- record examples/suspension.hd
 npm run hd -- replay examples/suspension.hd
 npm run hd -- repl
+npm run hd -- check --format json examples/core.hd
+npm run hd -- explain unknown-data-field
+npm run hd -- doc main examples/core.hd
 npm run check
 ```
 
@@ -52,6 +55,166 @@ In a terminal the REPL colors the line being typed, printed values, and
 
 The package also exposes `bin/hd.js` as the `hd` executable when installed or
 linked through npm.
+
+## Agent Queries
+
+hd is written mostly by coding agents, so the CLI answers questions about a
+program by name and in JSON, not by file position
+([roadmap area 8](../future-work/ROADMAP.md#8-tooling-for-agents)).
+Every command below also has the default `--format text`, which is the only
+format a person needs.
+
+### Machine-Readable Diagnostics
+
+`--format json` is accepted by every command that compiles a file: `parse`,
+`check`, `test`, `run`, `trace`, `record`, `replay`, `build`, `dump-hir`, and
+`explain-requirements`. It changes only the diagnostic stream: each
+diagnostic the text format would print goes to stderr as one JSON object per
+line (JSON Lines), in the same order. Stdout keeps what the command prints,
+such as the `ok` line or program output, and exit codes do not change.
+
+```sh
+hd check --format json app.hd 2> diagnostics.jsonl
+```
+
+```json
+{
+  "kind": "diagnostic",
+  "code": "old-struct-declaration",
+  "severity": "error",
+  "message": "'struct' was replaced by 'data'",
+  "file": "app.hd",
+  "span": {
+    "start": { "line": 1, "column": 1, "offset": 0 },
+    "end": { "line": 1, "column": 7, "offset": 6 }
+  },
+  "notes": [],
+  "related": [],
+  "fix": {
+    "message": "replace 'struct' with 'data'",
+    "edits": [
+      {
+        "span": {
+          "start": { "line": 1, "column": 1, "offset": 0 },
+          "end": { "line": 1, "column": 7, "offset": 6 }
+        },
+        "replacement": "data"
+      }
+    ]
+  },
+  "rule": "data.decl.no-struct",
+  "rules": [
+    { "id": "data.decl.no-struct", "anchor": "spec/08-data-and-enums.md#r-data.decl.no-struct" }
+  ]
+}
+```
+
+(Each record is printed on one line; it is spread out here to read.)
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | `diagnostic` for compiler diagnostics, `runtime-panic` for a panic while running, `entry-error` when a `Result`-returning `main` returns `Err`. |
+| `code` | The stable code from [spec/README.md](../spec/README.md#diagnostics) or the panic category; `null` only for `entry-error`. |
+| `severity` | `error` or `warning`. |
+| `message`, `notes` | The prose the text format prints. |
+| `file` | The path as given on the command line. |
+| `span` | Primary location. Lines and columns are 1-based, columns count UTF-16 code units, `offset` is the 0-based UTF-16 offset, and `end` is exclusive. `null` for runtime records. |
+| `related` | Secondary locations as `{message, file, span}`. |
+| `fix` | `{message, edits}` when the prototype knows the one correct edit, else `null`. An edit replaces its `span` with `replacement`; an empty span inserts and an empty replacement deletes. |
+| `rule` | The rule ID naming this code, when exactly one rule does; else `null`. |
+| `rules` | Every rule whose text names this code, as `{id, anchor}`. |
+
+Fixes are suggested only where the diagnostic's own message names the
+replacement: `old-struct-declaration`, `old-import-declaration`,
+`old-export-declaration`, `unexpected-bom`, and `missing-let`
+(`diagnostic-report.ts`). A producer may also attach a `fix` or `related`
+spans to a `Diagnostic` directly.
+
+Rule IDs are not kept in a table. `spec-index.ts` reads the specification
+each time a command needs it and finds each rule ID marker (`r[data.field.unique]`
+opening a list item, paragraph, quote, or table cell, as the specification
+style defines it). A rule names a code
+with "Error: `code`." or "Warning: `code`." or "is a `code` error". So as more
+chapters gain rule IDs, `rule` and `rules` fill in without code changes.
+`HD_SPEC_DIR` points the index at another specification directory; the
+tests use it.
+
+### `hd explain CODE`
+
+`hd explain` prints what the specification says about a diagnostic code or
+runtime panic category: its severity row, its normative meaning when the
+[general-code table](../spec/README.md#diagnostics) has one, the rules that
+name it, the chapter sections that mention it, and the conformance fixtures
+that exercise it. It exits 1 for a code the specification never names.
+
+```text
+$ hd explain unknown-data-field
+unknown-data-field: error (general)
+  A data literal, pattern, or field access names a field the data type does not declare, ...
+  (spec/README.md#diagnostics)
+
+mentioned in:
+  spec/03-names-and-scopes.md#member-resolution  line 457
+  ...
+
+fixtures:
+  spec/conformance/typing/invalid/data-literal-unknown-field.hd  type reject:unknown-data-field
+  ...
+```
+
+`--format json` prints one object with `code`, `known`, `category`,
+`meaning`, `meaningSource`, `rules` (`id`, `anchor`, `file`, `line`, `text`),
+`mentions` (`anchor`, `heading`, `file`, `line`, `rule`), and `fixtures`
+(`path`, `phase`, `expectation`, `specification`).
+
+### `hd def NAME [PATH]` And `hd doc NAME [PATH]`
+
+These resolve a symbol by name in a project. `PATH` is one `.hd` file or a
+package directory with a `src/` tree, as in
+[the package linker](../playground/README.md#packages-and-modules); it
+defaults to the current directory.
+
+- In a package, `pkg.user.User` names `User` in `src/user.hd` or
+  `src/user/mod.hd`, and `pkg.User` names an item of `src/mod.hd`, including
+  one it re-exports with `pub use`. The `pkg.` root may be left out; a name
+  with no module path is searched in every module. In a single file the name
+  is just the item path.
+- After the item come member segments: `User.email` (field), `User.greet`
+  (method from any `impl`), `Show.show` (trait method), `Show.Output`
+  (associated type), `Status.Banned` (variant), and `Status.Banned.reason`
+  (payload field). `Type::function` is accepted for `Type.function`.
+
+`hd def` prints each match's location, kind, qualified name, and signature.
+`hd doc` adds the doc comment, the fields, variants, associated types, and
+methods (with the trait each method implements), and the traits a type
+implements or the implementations of a trait. For a single file that
+type-checks, results, requirement rows, and binding types the source omits
+are filled in from the checker and marked inferred.
+
+```text
+$ hd def pkg.user.User project
+project/src/user/mod.hd:2:1: data pkg.user.User
+  pub data User
+```
+
+Lookups read parsed modules only, so they answer while a program still has
+type errors. A module that does not parse reports its diagnostics (in the
+chosen format) and is skipped. When nothing matches, the command exits 1 and
+lists the qualified names that end in the query's last segment.
+
+`--format json` prints `{"query", "symbols", "suggestions"}`. Each symbol has
+`name`, `kind` (`function`, `data`, `enum`, `trait`, `binding`, `field`,
+`variant`, `method`, `associated-function`, or `associated-type`), `module`,
+`file`, `span`, `public`, `signature`, and `doc`, plus as they apply `owner`,
+`trait`, `type`, `embedded`, `parameters` (`name`, `type`, `variadic`,
+`default`), `result`, `requirements`, `suspending`, `omitted`, `hasDefault`,
+`members`, `implementations` (`trait`, `target`, `file`, `span`),
+`supertraits`, and `via` (the re-exported name the query matched).
+Promoted members of embedded fields and blanket implementations are not
+listed yet.
+
+`hd explain-requirements --format json` prints the same facts as its text
+form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}`.
 
 ## Implemented Surface
 
@@ -343,10 +506,18 @@ does not implement the canonical prelude trait.
 - `compiler.ts` exposes the in-process compiler API.
 - `package.ts` links the modules of a multi-file package into one program.
 - `requirements.ts` computes transitive provider explanations.
-- `cli.ts` implements the current command-line interface.
+- `cli.ts` implements the current command-line interface; `cli-queries.ts`
+  implements `explain`, `def`, and `doc`.
+- `diagnostic-report.ts` writes diagnostics as text or JSON Lines and derives
+  suggested fixes.
+- `spec-index.ts` indexes rule IDs, diagnostic codes, and fixtures from the
+  specification sources.
+- `symbols.ts` resolves name-addressed symbol lookups over parsed modules.
 - `toolchain-gate.ts` proves the required Wasm GC operations independently of
   the language frontend.
 - `../test/portable/cases.tsv` selects portable `.hd` conformance fixtures;
   `../test/run-portable.ts` runs them through `hd parse`, `hd check`, and
   `hd test` without importing compiler internals.
-- `../test/cli.test.ts` exercises the packaged CLI surface end to end.
+- `../test/cli.test.ts` exercises the packaged CLI surface end to end, and
+  `../test/agent-tooling.test.ts` the JSON diagnostics, `explain`, `def`, and
+  `doc`.
