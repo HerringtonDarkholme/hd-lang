@@ -1,6 +1,6 @@
 # Enum Semantics: Value Category And Identity
 
-Status: research and design review, 2026-09-26. Nothing here is normative;
+Status: decided 2026-09-27 (see Owner Decisions); not yet applied. Research from 2026-09-26 below; nothing here is normative;
 the [specification](../spec/README.md) is unchanged.
 
 The specification has two sealed auto traits under `Any`
@@ -32,6 +32,26 @@ rules and each option would do with it.
 (question 1) and whether shared constructor data becomes read-only
 (question 2) are postponed; until then the specification keeps enums on
 `AnyRef` as it is today.
+
+## Owner Decisions
+
+Decided 2026-09-27:
+
+1. **Question 1: keep option (a).** Every enum, `Option` and `Result`
+   included, stays `AnyRef`; each construction of a variant with payloads
+   has its own identity, and a payload-free variant has one canonical
+   identity. `downcast`, `find`, and `AnyRef`-bounded dynamic methods keep
+   working for enums. Implementation note (no rule change): because a
+   payload-free variant's identity is canonical, an implementation may
+   represent a payload-free enum as an integer (`i32` in locals, fields,
+   and `match`; `i31ref` in reference-shaped positions) without changing
+   what `is` observes.
+2. **Question 2: shared constructor data is read-only.** An enum's own
+   slots never change once built; this is shallow, since a payload may be a
+   mutable reference.
+
+The remaining questions (3-8) assumed option (b) and are closed by
+decision 1.
 
 ## Contents
 

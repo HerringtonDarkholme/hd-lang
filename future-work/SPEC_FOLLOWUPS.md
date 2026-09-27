@@ -51,8 +51,9 @@ are applied later in one `spec-update` pass, not per chapter.
   shared constructor field, so an enum's own slots (tag, payload, shared
   fields) never change once built. This is shallow: a payload may be a
   mutable reference (`Loaded(user: mut User)`), and that object can still
-  change, as with a tuple holding references. The
-  value-category question (question 1) is still open.
+  change, as with a tuple holding references. Enums stay `AnyRef` with
+  today's identity rule (ENUM_SEMANTICS decision 1); add the
+  implementation note that payload-free enums may be integers.
 
 ## Logged, not scheduled (owner: do not spend on it now)
 
@@ -69,11 +70,26 @@ example, as the 08 pilot did.
 | 10 | `direct-variant-use`, `top-level-read-before-initialization`, `private-type-leak`, `missing-requirement`, `missing-partial-eq`, `syntax-error`, `duplicate-module-name` |
 | 12 | `multiple-positional-value-packs`, `pack-length-mismatch`, `pack-map-mapper-mismatch` |
 | 13 | `impossible-gadt-pattern` |
+| 02 | `generic-kind-mismatch`, `comparison-chaining`, `multi-binding-needs-parentheses`, `argument-order`, `trailing-block-position`, `pattern-order`, `trait-method-visibility` |
+| 11 | `missing-requirement` (general rule), `bang-call-outside-suspension`, `nonhost-entry-requirement` |
 | 01 | `unexpected-bom`, `tab-whitespace`, `invalid-dedent`, `invalid-escape`, `reserved-semicolon`, `unknown-name` |
 | 06 | `break-value-context`, `break-outside-loop`, `nonexhaustive-match`, `duplicate-data-pattern-field`, `return-outside-function`, `readonly-root`, `unknown-data-field`, `iterator-invalidated` |
 | 07 | `missing-return-value`, `non-reassignable-parameter-binding`, `nonfinal-positional-spread`, `trailing-block-position`, `partial-generic-arguments`, `unresolved-generic-placeholder`, `recursive-closure-needs-result-type`, `readonly-root`, `argument-count`, `type-mismatch`, `no-common-type`, `mutable-capture-requires-mut-fn` |
 
 ## Open, for the owner
+
+From the 02, 11 restyles (12c7501, 14ec05e):
+- 11 repeats grammar that disagrees with 02 (`function_decl`,
+  `closure_expression` use `[ "->", type ]` vs 02's `result_type` and
+  `closure_header`; 11's `suspension_call_suffix` lacks
+  `[ function_type_arguments ]`), so the website sees duplicate
+  definitions. Proposal: 02 is the only grammar authority; 11 refers to it.
+- 11 `req.schedule.all-order`: does `all!` re-poll completed children after
+  a wake?
+- 11 `req.model.no-reinterpretation`: "not generally reinterpreted" leaves
+  the exceptions unstated.
+- 02: some rules say "a syntax error" in plain words, others name
+  `syntax-error`.
 
 From the 01, 06, 07 restyles (7380905, 8fb85c1, 7c73971):
 - 01: raw tab inside a string: `string_character` admits it, the tab rule
