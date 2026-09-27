@@ -19,6 +19,26 @@ names, following the owner's naming update. Every block parses with the
 block that parses is not necessarily type-correct today; the text says which
 rules it needs.
 
+
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Question 1: "accepts" means single-step assignability.** `?` propagates
+   an error whose type is assignable in one step to the enclosing function's
+   error type.
+2. **Question 2: a general `From[T]` trait, not a narrow `FromError`.** When
+   assignability fails, `?` converts the error through the target error
+   type's `From[E]` implementation. `From` is an ordinary conversion trait
+   that other code may also call. Still to settle: whether a `From`
+   implementation may have a requirement row or suspend, and whether `?`
+   ever chains conversions (the single-step rule of TQ-14 suggests not).
+3. **Questions 3 and 4: the erased application error is the dynamic trait
+   value `Error`,** and `std` ships `.context("...")`, `Context`, and cause
+   `chain`.
+4. **Question 5: a dynamic trait value satisfies bounds on its own trait
+   and its supertraits.**
+
 ## Contents
 
 1. [The Problem](#the-problem)
