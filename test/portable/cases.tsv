@@ -962,3 +962,10 @@ typing/invalid/duplicate-binding-in-one-pattern.hd	type
 typing/invalid/variant-result-owner.hd	type
 runtime/valid/replace-empty-old.hd	runtime
 runtime/valid/generic-function-value-instantiation.hd	runtime
+runtime/valid/boxed-primitive-identity.hd	runtime
+runtime/valid/composite-identity-and-views.hd	runtime
+runtime/valid/variant-identity-through-any.hd	runtime
+typing/invalid/any-exposes-no-methods.hd	type
+runtime/valid/any-accepts-non-optional-values.hd	runtime
+typing/invalid/none-to-any.hd	type
+runtime/valid/optional-erased-to-any.hd	runtime

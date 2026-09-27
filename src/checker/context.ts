@@ -682,7 +682,7 @@ export abstract class CheckerContext {
         };
       }
       const builtin =
-        mutableTrait && !inspectTarget
+        mutableTrait && !inspectTarget && trait.name !== "Any"
           ? undefined
           : this.builtinTraitDictionaryPlan(
               trait.index,
@@ -978,7 +978,6 @@ export abstract class CheckerContext {
   ): HirTraitDictionaryPlan | undefined {
     if (traitArguments.length > 0) return undefined;
     const type = readonlyType(targetType);
-    if (genericTypeName(type)) return undefined;
     const traitName = [...this.traitTypes.values()].find(
       (candidate) => candidate.index === traitIndex,
     )?.name;
@@ -986,6 +985,10 @@ export abstract class CheckerContext {
       builtin: HirBuiltinTraitImplementation,
       bounds: readonly HirExpression[] = [],
     ): HirTraitDictionaryPlan => ({ bounds, implementationIndex: -1, supertraits: [], builtin });
+    // Every value type implements `Any` (04-type-system.md#trait-values-and-any).
+    if (traitName === "Any" && type !== "void" && type !== "never")
+      return plan({ kind: "marker", traitIndex, targetType: type });
+    if (genericTypeName(type)) return undefined;
     const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
     if (trait && this.isStandardInspectable(trait)) {
       const parts = inspectKey(type, this.inspectEnvironment());

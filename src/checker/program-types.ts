@@ -212,6 +212,17 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
+  // `Any`, the built-in universal empty trait: every value type implements it
+  // (04-type-system.md#trait-values-and-any).
+  traitTypes.set("Any", {
+    name: "Any",
+    index: program.traits.length + 5,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [],
+    span: program.span,
+  });
   let nextEnumIndex = program.enums.length;
   enumTypes.set("Ordering", {
     name: "Ordering",

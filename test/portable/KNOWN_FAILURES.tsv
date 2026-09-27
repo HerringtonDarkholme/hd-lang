@@ -3,14 +3,9 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
-runtime/valid/boxed-primitive-identity.hd	check fails: unknown-type Any	F-255
-runtime/valid/composite-identity-and-views.hd	check fails: unknown-type Any	F-255
-runtime/valid/variant-identity-through-any.hd	check fails: unknown-type Any	F-255
 runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-257
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (syntax-error)	F-705
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
-typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
-runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
 parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254
 typing/valid/local-types.hd	check fails: expected-expression at line 2: expected an expression, found 'type'	F-254
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
@@ -25,7 +20,6 @@ typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 in
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
 typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
-typing/invalid/none-to-any.hd	MVP reports unknown-type at line 1 instead of missing-contextual-enum-type: unknown or unsupported type 'Any'	F-255
 typing/invalid/local-impl-nonlocal-pair.hd	MVP reports expected-expression at line 9 instead of local-impl-nonlocal-pair: expected an expression, found 'impl'	F-254
 typing/invalid/variance-position.hd	MVP reports syntax-error at line 2 instead of invalid-variance: expected a generic data parameter	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
@@ -117,7 +111,6 @@ typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage te
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (sized numeric types unimplemented); value embedding itself is implemented, and the case passes with i32 fields	F-253
 typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse (F-705), so the invariance of embedded fields cannot be checked	VE
-runtime/valid/optional-erased-to-any.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
 runtime/valid/inspectable-alias-and-newtype-identity.hd	check fails: expected-expression at line 7: expected an expression, found 'type'	F-254

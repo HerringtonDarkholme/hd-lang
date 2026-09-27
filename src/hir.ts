@@ -134,6 +134,12 @@ export type HirBuiltinTraitImplementation =
       readonly strategy: HirOrderingStrategy;
     }
   | {
+      // The compiler-supplied `Any`: a dictionary with no methods.
+      readonly kind: "marker";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+    }
+  | {
       // The compiler-supplied `Inspectable` (spec/09-traits.md#sealed-traits).
       // `runtime_type` builds a `TypeId` from the key: literal parts, and
       // `bound` parts naming a bound-pack dictionary whose key is spliced in.

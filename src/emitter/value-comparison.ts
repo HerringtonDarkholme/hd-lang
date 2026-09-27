@@ -47,6 +47,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     value: string,
   ): string {
     const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+    if (builtin.kind === "marker")
+      return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list))`;
     const boundTraits = boundExpressions.map((bound) =>
       bound.kind === "trait-bound-dictionary" ? bound.traitIndex : -1,
     );
@@ -146,6 +148,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           : `(struct.new $d${typeId} ${key})`;
       } else if (builtin.kind === "equality") {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
+      } else if (builtin.kind === "marker") {
+        throw new Error("a marker dictionary has no adapter");
       } else {
         const compared = this.emitValueOrdering(
           self,
