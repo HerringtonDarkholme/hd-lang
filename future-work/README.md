@@ -25,6 +25,8 @@ language specification:
   questions for the owner.
 - [Error Conversion](ERROR_CONVERSION.md) surveys error composition in other
   languages and compares designs for using `?` across domain error types.
+- [Runtime Type Identity](INSPECTABLE.md) drafts the `Inspectable` trait, the
+  `RuntimeType` object, and `downcast`, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
