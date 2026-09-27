@@ -1110,9 +1110,9 @@ typing/invalid/inherent-member-unifying-targets.hd	type	reject:duplicate-inheren
 runtime/valid/inherent-members-disjoint-targets.hd	runtime	accept	09-traits.md#r-trait.inherent.unique-unifying.disjoint
 runtime/valid/associated-function-calls.hd	runtime	accept	09-traits.md#associated-function-calls
 typing/invalid/associated-function-ambiguous-traits.hd	type	reject:ambiguous-method	09-traits.md#r-trait.assoc-call.type.ambiguous
-typing/invalid/dynamic-safety-row-parameter.hd	type	reject:trait-not-dynamically-safe	09-traits.md#r-trait.dyn.safe.method-params
-typing/invalid/dynamic-safety-reified-parameter.hd	type	reject:trait-not-dynamically-safe	09-traits.md#r-trait.dyn.safe.method-params
-typing/invalid/dynamic-safety-pack-parameter.hd	type	reject:trait-not-dynamically-safe	09-traits.md#r-trait.dyn.safe.method-params
+typing/valid/dynamic-safety-row-parameter.hd	type	accept	09-traits.md#r-trait.dyn.safe.row-parameter
+typing/invalid/dynamic-safety-reified-parameter.hd	type	reject:trait-not-dynamically-safe	09-traits.md#r-trait.dyn.safe.reified-or-pack
+typing/invalid/dynamic-safety-pack-parameter.hd	type	reject:trait-not-dynamically-safe	09-traits.md#r-trait.dyn.safe.reified-or-pack
 typing/invalid/least-common-type-supertrait-widening.hd	type	reject:no-common-type	04-type-system.md#r-types.lct.no-supertrait-widening
 typing/invalid/trait-resolution-depth.hd	type	reject:trait-resolution-depth	09-traits.md#r-trait.bound.depth.limit
 typing/valid/trait-resolution-depth-limit.hd	type	accept	09-traits.md#r-trait.bound.depth.limit

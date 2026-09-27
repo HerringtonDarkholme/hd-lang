@@ -345,3 +345,15 @@ style lint rejects a chapter that reuses one.
   `types.map-key.builtin-types`.
 - `types.map-key.user-impl`: retired 2026-09-27. Enum semantics decision 3
   covers every user enum. Replaced by `types.map-key.user-enums`.
+- `trait.dyn.safe.method-params`: retired 2026-09-27. The owner revised
+  TQ-10 to allow row parameters on dynamically safe traits. Replaced by
+  `trait.dyn.safe.reified-or-pack` and `trait.dyn.safe.row-parameter`.
+- `types.trait.safe.no-specialized-params`: retired 2026-09-27. The owner
+  revised TQ-10 to allow row parameters. Replaced by
+  `types.trait.safe.no-reified-or-pack`.
+- `trait.dyn.safe.anyref`: retired 2026-09-27. The owner's TQ-10 revision
+  exempts row parameters from the `AnyRef` bound. Replaced by
+  `trait.dyn.safe.anyref-type-param`.
+- `types.trait.safe.method-generic`: retired 2026-09-27. The owner's TQ-10
+  revision exempts row parameters from the `AnyRef` bound. Replaced by
+  `types.trait.safe.method-type-param`.

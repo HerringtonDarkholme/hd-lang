@@ -973,28 +973,44 @@ fn print_display(value: Display) -> void $ Console:
 
 ### Dynamic Safety
 
-1. r[trait.dyn.safe] The trait of a dynamic trait value must be dynamically safe, as the rules below define.
-2. r[trait.dyn.safe.no-assoc] Neither the trait nor a supertrait may declare an associated type or associated function.
-3. r[trait.dyn.safe.anyref] Every method-level generic parameter must be bounded by `AnyRef`. Further bounds on such a parameter are allowed.
-4. r[trait.dyn.safe.self] `Self` may occur only as a method receiver.
-5. r[trait.dyn.safe.method-params] No method of the trait or of a supertrait may declare a row parameter, a `reified` parameter, or a type or value pack.
-6. r[trait.dyn.safe.error] Using a trait that breaks one of these rules as a value type is an error. Error: `trait-not-dynamically-safe`.
-7. r[trait.dyn.safe.suspending] A dynamically safe trait's methods may be suspending, as the prelude `Console`'s `write_line!` is.
-8. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
-9. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+1. r[trait.dyn.safe] The trait of a dynamic trait value must be dynamically safe.
+2. r[trait.dyn.safe.one-copy] A trait is dynamically safe when every method of it and of its supertraits compiles to one copy: one body shared by every implementation's callers, with no per-call specialization.
+3. r[trait.dyn.safe.error] Using a trait that is not dynamically safe as a value type is an error. Error: `trait-not-dynamically-safe`.
+
+The one-copy rule has these consequences:
+
+| Rule | Form | Dynamically safe |
+| --- | --- | --- |
+| r[trait.dyn.safe.no-assoc] Associated items | an associated type or associated function in the trait or a supertrait | no |
+| r[trait.dyn.safe.anyref-type-param] Method type parameters | a method-level type parameter bounded by `AnyRef`, with any further bounds | yes; any other method-level type parameter is not |
+| r[trait.dyn.safe.self] `Self` | `Self` as a method receiver | yes; `Self` anywhere else is not |
+| r[trait.dyn.safe.reified-or-pack] Specialized parameters | a `reified` parameter, or a type or value pack | no |
+| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | yes |
+| r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter, which needs no `AnyRef` bound | yes |
+
+4. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
+5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
 
 ```text
 trait Runner:
     fn run[R](self, job: fn() -> void $ R) -> void $ R
 
-fn invalid(runner: Runner) -> void:  # error: trait-not-dynamically-safe
+trait Logger:
+    fn log[Ts... < AnyRef](self, values: Ts...) -> void
+
+fn valid(runner: Runner) -> void:
+    pass
+
+fn invalid(logger: Logger) -> void:  # error: trait-not-dynamically-safe
     pass
 ```
 
-> **Why.** A method called through a trait value has exactly one body, so
-> nothing in its signature may need a per-call specialization. A suspending
-> method still has one body, because its suspension frame is a
-> reference-shaped heap value.
+> **Why.** A method called through a trait value has exactly one body at run
+> time. An `AnyRef`-bounded parameter shares the reference shape, a
+> suspending method's frame is a reference-shaped heap value, and a row
+> parameter's providers arrive as one bundle, so each keeps one body. A
+> `reified` parameter and a pack are specialized per call, and an associated
+> function has no receiver to dispatch on.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 

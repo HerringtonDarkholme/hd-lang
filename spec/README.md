@@ -720,7 +720,11 @@ existing source. Each entry names the decision that made the change.
   payload-free variants and one GC struct subtype per payload variant.
   Chapter 13's GADT example `IntBox(n: i64) -> Box[i64](n)`, which built
   shared data from the payload, is now written with constants.
-- Suspending methods on trait values (owner decision TQ-10, suspending part,
-  2026-09-27): a dynamically safe trait's methods may be suspending, as
-  `Console.write_line!` already was in practice; chapter 09 now says so
-  (`trait.dyn.safe.suspending`). No source changes meaning.
+- Dynamic safety revised (owner decision TQ-10, revised 2026-09-27): a
+  dynamically safe trait's methods may be suspending, as `Console`'s
+  `write_line!` already was, and may declare row parameters, whose providers
+  pass as one bundle. A trait value type whose trait has a row-parameter
+  method, `trait-not-dynamically-safe` since the TQ-10 entry above, is valid
+  again. Only `reified` parameters and packs remain excluded. Chapter 09
+  now states the defining one-copy rule (`trait.dyn.safe.one-copy`), and
+  the other dynamic-safety rules are its consequences.

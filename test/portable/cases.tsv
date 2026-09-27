@@ -1012,7 +1012,7 @@ typing/invalid/inherent-member-unifying-targets.hd	type
 runtime/valid/inherent-members-disjoint-targets.hd	runtime
 runtime/valid/associated-function-calls.hd	runtime
 typing/invalid/associated-function-ambiguous-traits.hd	type
-typing/invalid/dynamic-safety-row-parameter.hd	type
+typing/valid/dynamic-safety-row-parameter.hd	type
 typing/invalid/dynamic-safety-reified-parameter.hd	type
 typing/invalid/least-common-type-supertrait-widening.hd	type
 typing/invalid/trait-resolution-depth.hd	type

@@ -808,13 +808,14 @@ gives the rule.
 ### Dynamic Safety
 
 1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type.
-2. r[types.trait.safe.members] A dynamically safe trait and every supertrait must have no associated types or associated functions, and `Self` may appear only as the receiver type.
-3. r[types.trait.safe.method-generic] A method-level generic parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef + Display` are allowed.
-4. r[types.trait.safe.no-specialized-params] A method must not declare a row parameter, a `reified` parameter, or a type or value pack.
-5. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
-6. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
-7. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
-8. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
+2. r[types.trait.safe.one-copy] Dynamic safety is defined by the one-copy rule, [`trait.dyn.safe.one-copy`](09-traits.md#r-trait.dyn.safe.one-copy); the rules below restate its consequences.
+3. r[types.trait.safe.members] A dynamically safe trait and every supertrait must have no associated types or associated functions, and `Self` may appear only as the receiver type.
+4. r[types.trait.safe.method-type-param] A method-level type parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef + Display` are allowed.
+5. r[types.trait.safe.no-reified-or-pack] A method must not declare a `reified` parameter or a type or value pack. Row parameters and suspending methods are allowed.
+6. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
+7. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
+8. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
+9. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
 > **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch.
@@ -1033,10 +1034,13 @@ example is polymorphic recursion such as `f[T]` calling `f[(T, T)]`. This is
 unobservable, because values without identity cannot be distinguished by
 storage.
 
-A method called through a trait value has exactly one body at run time. The
-dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
-therefore limits method-level generic parameters of dynamically safe traits
-to reference types, which all share the reference shape.
+A method called through a trait value has exactly one body at run time, as
+the one-copy rule of [Dynamic Safety](09-traits.md#dynamic-safety) requires.
+The dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
+therefore limits method-level type parameters of dynamically safe traits to
+reference types, which all share the reference shape, and excludes `reified`
+parameters and packs. A row parameter passes its providers as one bundle, so
+it keeps one body.
 
 See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).
 

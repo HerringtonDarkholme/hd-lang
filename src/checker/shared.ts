@@ -971,6 +971,15 @@ export function typeName(
   return resolved;
 }
 
+// A row parameter keeps one body: its providers pass as one bundle
+// (09-traits.md#r-trait.dyn.safe.row-parameter).
+function isMethodRowParameter(method: HirTrait["methods"][number], parameter: string): boolean {
+  if (method.requirements.includes(parameter)) return true;
+  if (method.requirements.includes(symbolicRequirement(parameter))) return true;
+  const inRow = new RegExp(`\\$\\(?[^)]*\\b${parameter}\\b`);
+  return method.parameters.some((type) => inRow.test(type)) || inRow.test(method.result);
+}
+
 function traitIsDynamicallySafe(
   trait: HirTrait,
   traitTypes: ReadonlyMap<string, HirTrait>,
@@ -984,7 +993,9 @@ function traitIsDynamicallySafe(
         method.associated ||
         (method.reifiedParameters ?? []).length > 0 ||
         method.genericParameters.some(
-          (parameter) => !(method.referenceParameters ?? []).includes(parameter),
+          (parameter) =>
+            !(method.referenceParameters ?? []).includes(parameter) &&
+            !isMethodRowParameter(method, parameter),
         ) ||
         method.parameters.some((parameter) => parameter.includes("generic:Self")) ||
         method.result.includes("generic:Self"),

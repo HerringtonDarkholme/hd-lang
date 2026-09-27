@@ -94,10 +94,11 @@ been removed; the spec's Revision Notes in
 
 ## R8. Dynamic Trait Values
 
-- R8.1 **[TQ-10]** Applied in 09 Dynamic Safety: a method with a row,
-  `reified`, or pack parameter makes a trait not dynamically safe, and a
-  suspending method does not (`trait.dyn.safe.suspending`, decided
-  2026-09-27).
+- R8.1 **[TQ-10]** Applied in 09 Dynamic Safety: a method with a
+  `reified` parameter or a pack makes a trait not dynamically safe; a
+  suspending method and a row parameter do not
+  (`trait.dyn.safe.suspending`, `trait.dyn.safe.row-parameter`; the owner
+  revised the row part on 2026-09-27, replacing the earlier exclusion).
 - R8.2 A dynamic `Tr` value satisfies `Tr` and its supertraits, and exposes
   exactly their methods.
 - R8.3 Construction: `S` to `Tr` when `S < Tr`, and `mut S` to `mut Tr`.

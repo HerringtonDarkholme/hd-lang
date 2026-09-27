@@ -1,7 +1,0 @@
-# test: a method with a row parameter makes a trait not dynamically safe
-
-trait Runner:
-    fn run[R](self, job: fn() -> void $ R) -> void $ R
-
-fn invalid(runner: Runner) -> void:  # diagnostic: trait-not-dynamically-safe
-    pass

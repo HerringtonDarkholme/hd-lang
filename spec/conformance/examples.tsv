@@ -258,7 +258,7 @@ specification	block	classification	fixture
 09-traits.md	36	accept	typing/valid/associated-type-bindings.hd
 09-traits.md	37	mixed	typing/invalid/unknown-associated-type.hd|typing/invalid/duplicate-associated-binding.hd
 09-traits.md	38	accept	typing/valid/prelude-surface.hd
-09-traits.md	39	mixed	typing/invalid/dynamic-safety-row-parameter.hd
+09-traits.md	39	mixed	typing/valid/dynamic-safety-row-parameter.hd|typing/invalid/dynamic-safety-pack-parameter.hd
 09-traits.md	40	accept	runtime/valid/dynamic-trait-value-satisfies-own-bound.hd
 09-traits.md	41	mixed	typing/invalid/none-to-any.hd
 09-traits.md	42	mixed	typing/invalid/inspectable-user-implementation.hd|typing/invalid/user-anyref-implementation.hd

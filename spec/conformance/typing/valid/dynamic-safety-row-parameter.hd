@@ -1,0 +1,7 @@
+# test: a method with a row parameter keeps a trait dynamically safe
+
+trait Runner:
+    fn run[R](self, job: fn() -> void $ R) -> void $ R
+
+fn valid(runner: Runner) -> void:
+    pass

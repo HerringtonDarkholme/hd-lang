@@ -48,7 +48,7 @@ applied and recorded in the spec's Revision Notes.
 | Swift | Any protocol usable as `any P` (SE-0309); members referencing `Self` in non-covariant positions are unavailable on the existential. |
 | MoonBit | `&Trait` objects; `Self` must be the first parameter and occur once. |
 | Kotlin | Every interface is a type. |
-| hd today | No associated types/functions, `Self` only as receiver, method generics bounded by `AnyRef`. Row, pack, and `reified` method parameters excluded and suspending methods allowed (TQ-10); requirement keys not required to be safe (TY-15). |
+| hd today | No associated types/functions, `Self` only as receiver, method generics bounded by `AnyRef`. Pack and `reified` method parameters excluded; row parameters and suspending methods allowed (TQ-10); requirement keys not required to be safe (TY-15). |
 
 hd's `AnyRef` rule is more permissive than Rust (generic methods allowed
 when they share one representation). Rust's per-method exclusion

@@ -771,8 +771,9 @@ fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
 7. r[req.poly.least.example] Passing a callback with row `$(Logger, Clock)` infers `R` as `$(Clock)`, so the call requires only `Clock`.
 8. r[req.poly.absent] Passing a callback whose row lacks `Logger` is an error. Error: `type-mismatch`.
 9. r[req.poly.body] Inside the body, calling `callback` requires `R` and `Logger`; the declared row supplies `R`, and the `$.with` scope supplies `Logger`.
-10. r[req.poly.no-subtraction] Rows have no subtraction operator.
-11. r[req.poly.rows-only] This mechanism does not quantify over arbitrary type-level expressions; it is specific to requirement rows.
+10. r[req.poly.one-body] A row parameter's providers are passed as one bundle, so a row-polymorphic body is compiled once and never specialized per row.
+11. r[req.poly.no-subtraction] Rows have no subtraction operator.
+12. r[req.poly.rows-only] This mechanism does not quantify over arbitrary type-level expressions; it is specific to requirement rows.
 
 ```text
 trait Logger:

@@ -5,8 +5,10 @@ in `spec/README.md` are their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
 TQ-9, TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-23, TQ-27 to TQ-31,
 TQ-36, TY-13, EQ-1, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S, Cut 2,
 trait delegation, the embedding limits, the single view, A2, A3, C1 to C3,
-TUP-1 except its `@message` part, and TQ-10, whose suspending-method part
-was decided on 2026-09-27 as allowing suspending methods). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
+TUP-1 except its `@message` part, and TQ-10 as revised on 2026-09-27:
+suspending methods and row parameters are allowed on dynamically safe
+traits, replacing the earlier answer that excluded them, and only `reified`
+parameters and packs stay excluded). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
 and so is TQ-22: its impl-target half is applied, and the Inspectable
 decisions, also applied, replaced its `downcast` half.
 TQ-21 is answered by K2: a bound may bind associated types, as in
