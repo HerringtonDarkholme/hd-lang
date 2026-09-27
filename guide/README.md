@@ -2,6 +2,8 @@
 
 These documents introduce hd-lang from complementary perspectives:
 
+- For a quick start, read [Learn hd-lang in 10 Minutes](LEARN_IN_10_MINUTES.md),
+  a short tour of the syntax with examples that parse.
 - Start with the [Language Overview](OVERVIEW.md) for the language's purpose,
   priorities, and core conceptual model.
 - Continue with the [Language Tour](LANGUAGE_TOUR.md) for a guided introduction
