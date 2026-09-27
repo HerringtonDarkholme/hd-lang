@@ -434,6 +434,14 @@ own derivation, like any nested type (M7). Related 08 rule, decided the same
 day: an embedded field must name a data type (`embedded-non-data`
 otherwise).
 
+(M17, decided 2026-09-27 while reviewing the parked design; closes
+stress-test round 2 R1 and round 1 P17) A handle's `get` follows the
+field-read rule: `h.get(s)` is viewpoint-adapted exactly like `s.field`
+(04 Mutable Paths), so for `hits: mut Cell` a readonly `s` gives `Cell`
+and a `mut s` gives `mut Cell`; `Source::member[F](h) -> F` produces the
+member's declared type. `build` returns `mut Self`, because a built value
+is fresh like a data literal; callers weaken it by ordinary assignability.
+
 ### Current Design: Full Example (M1-M14)
 
 This is the reference example for the design as decided on 2026-09-27. When
