@@ -75,7 +75,8 @@ Other facts the library must respect:
 - `$.use(K)` returns a readonly value of the trait type. `$.use(mut K)`
   returns `mut K` when the provider was installed with `$.with(mut K=value)`
   ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
-  Runtime profiles bind host providers readonly.
+  A runtime profile binds a host provider with `mut` access for a trait it
+  marks mutable, and readonly otherwise (decision 14).
 
 ## Survey
 
@@ -628,10 +629,11 @@ with `$.use(mut K)`; a test installs a mutable value with
 afterwards
 ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
 
-Runtime profiles bind host providers readonly, and an entry-point row with
-`mut K` is a `mutable-upgrade` error. A host provider for a trait whose
-methods take `mut self` (`Clock.sleep!`, `Random`, `FsWrite` below) therefore
-needs a profile that can bind it with `mut` access. That choice is open in
+A host provider for a trait whose methods take `mut self` (`Clock.sleep!`,
+`Random`, `FsWrite` below) is bound by a runtime profile that marks the trait
+mutable (decision 14). An entry point then requires it as `$ mut K`; a
+`mut K` entry for a trait the profile does not mark mutable is a
+`mutable-upgrade` error. Which traits each toolchain profile marks is open in
 [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
 
 ### `std.time`
@@ -823,9 +825,10 @@ A test installs the buffer with `$.with(mut Console=console)` and reads
 `console.output()` through its own `mut` alias. The fixed
 `Console.write_line!` takes `self`, so the buffer cannot append through it
 yet. Recording needs `write_line!` to take `mut self`, a change to the
-[prelude trait](../spec/10-modules.md#prelude) that waits on
-[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), because the
-host console is bound readonly.
+[prelude trait](../spec/10-modules.md#prelude). A profile may now bind the
+host console with `mut` access (decision 14), so the host binding no longer
+blocks it. Whether the change is worth `mut Console` in every printing row is
+open in [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
 
 ### `std.fs`
 
@@ -991,8 +994,8 @@ These take the draft in
 `Observability` with `sample` and `emit`, the `Observation` enum, and
 `log.info`, `log.warn`, `log.error` helpers with a `$ Observability` row.
 `RecordingObservability` is the deterministic provider. It records through
-`mut self` methods like the other stateful providers, with the same host
-binding question.
+`mut self` methods like the other stateful providers, and its host provider
+needs a profile that marks `Observability` mutable (decision 14).
 
 ## Task Layer
 
@@ -1298,7 +1301,7 @@ Stateful testing and replay artifacts wait for area 3's event log.
 
 | Module | Depends on | Open item |
 | --- | --- | --- |
-| host providers for `Clock.sleep!`, `Random`, `FsWrite`, a recording `Console` | binding a host provider with `mut` access | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
+| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | which traits each profile marks mutable; `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2) | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule | [Implementation Targets](../spec/09-traits.md#implementation-targets) |
 | `std.num` (`parse[T]`), `std.json`, `std.testing` strategies | static calls through a bound | [Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
@@ -1367,6 +1370,11 @@ Decided 2026-09-26:
     `mut` for traits the profile marks mutable (`Clock`, `Random`,
     `FsWrite`, `Console`); an entry row may then contain `$ mut K`. Tests
     keep installing deterministic providers with `$.with(mut K=...)`.
+    Applied 2026-09-26: the rules are in
+    [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
+    and [Wasm Boundary](../spec/10-modules.md#wasm-boundary). Which traits
+    each toolchain profile marks mutable stays open in
+    [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
 
 ## Questions For The Owner
 
@@ -1391,8 +1399,7 @@ examples follow the decided design.
 **Decided: B** (decision 1). `$.use(mut K)` returns `mut K` for a provider
 installed with `$.with(mut K=value)`; there is no `std.cell`. The rules are in
 [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
-Binding a host provider with `mut` access remains open in
-[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
+Binding a host provider with `mut` access is decision 14.
 
 ```text
 use std.time.{Clock, Duration, ManualClock, Timestamp}

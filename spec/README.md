@@ -472,3 +472,11 @@ existing source. Each entry names the decision that made the change.
   `unknown-type` error unless a declaration in scope supplies `list`. Literals
   are unchanged: `[1, 2]` has type `List[i32]` and `{"k": 1}` has type
   `Map[string, i32]`.
+- Standard-library decision 14: a runtime profile may bind a host provider
+  with `mut` access for a trait it marks mutable. An entry-point row may then
+  contain `mut K` for that trait, as in `pub fn main() -> void $ mut Console`
+  under a profile that marks `Console` mutable; such a row was previously a
+  `mutable-upgrade` error under every profile. A `mut K` entry for a trait
+  the profile does not mark mutable remains `mutable-upgrade`, and a
+  registered boundary's row follows the access its registration contract
+  binds.

@@ -140,7 +140,8 @@ The result order matches the requested key order. A missing provider is a
 compile-time error at every call site below an entry point. Entry-point rows
 may contain only host capability traits declared by the selected runtime
 profile. For a registered boundary, the registration contract's explicit
-bindable-trait set is that boundary's profile. Failure to configure one of
+bindable-trait set, with the access it binds for each trait, is that
+boundary's profile. Failure to configure one of
 those host providers is a pre-execution host configuration error. `$.use` is
 non-suspending and performs no dynamic handler search that can fail at runtime
 below that boundary.
@@ -301,9 +302,15 @@ read accordingly: `R` is entailed by `(R - K) + S` exactly when `S` contains
 `mut K=expression` in `$.context` contributes `mut K` to the created context's
 row, and spreading that context installs `K` with mutable access.
 
-**Entry points.** Runtime profiles bind host providers with readonly access. An
-entry-point row or a registered boundary's row that contains `mut K` is a
-`mutable-upgrade` error.
+**Entry points.** A runtime profile binds each host provider with readonly
+access unless the profile marks the provider's trait mutable
+([Wasm Boundary](10-modules.md#wasm-boundary)); a provider for a trait the
+profile marks mutable is bound with mutable access. An entry-point row may
+contain `mut K` when the selected runtime profile marks `K` mutable, and a
+registered boundary's row may contain `mut K` when its registration contract
+binds `K` with mutable access. Any other `mut K` entry in such a row is a
+`mutable-upgrade` error. An entry `K` without `mut` accepts either binding and
+gives the body readonly access.
 
 A cold suspension captures each provider with the access its body requires, so
 [Construction-Time Requirement Binding](#construction-time-requirement-binding)

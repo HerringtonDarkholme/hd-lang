@@ -81,7 +81,7 @@ pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     Ok()
 ```
 
-The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
+The compiler derives and verifies that provider set from the entry point and everything it calls. Package and deployment manifests do not repeat a separate provider-binding list. Host configuration binds concrete providers and their scopes to the derived requirement keys. The official hd runtime implements every standard capability, but injects only the providers granted to a particular invocation. An alternate host may implement a subset. Running or deploying an entry point fails before execution when the selected host cannot bind every required provider. A runtime profile binds each host provider readonly unless it marks the provider's trait mutable, as a profile may for stateful services such as `Clock`, `Random`, `FsWrite`, and `Console`; an entry row may then require `$ mut K` for that trait ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)). Because provider values are ordinary values, this list is not a complete audit of authority that has escaped through value flow.
 
 Every host-backed standard-library service is exposed as a trait requirement rather than a global API. `$`, `$.use`, `$.with`, and `$.Context[...]` are therefore the single mechanism for standard filesystem, network, clock, randomness, observability, workflow, and similar runtime services. Pure operations such as collection transforms, arithmetic, and in-memory parsing remain ordinary functions and require no context.
 
@@ -89,7 +89,7 @@ This design deliberately gives capabilities no special language semantics. Sandb
 
 Open questions from this section:
 
-1. Which standard capability traits ship.
+1. Which standard capability traits ship, and which of them each toolchain profile marks mutable.
 2. Which WASI version and component ABI the initial runtime uses.
 3. The configuration syntax for granting and binding host providers to derived entry-point requirements.
 4. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
