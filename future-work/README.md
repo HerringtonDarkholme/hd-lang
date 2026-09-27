@@ -18,6 +18,10 @@ language specification:
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and proposes how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
+- [Nominal Function Types](FN_TYPE.md) proposes making function types
+  standard generic constructors such as `Fn[(Is...), O, R]`, so they can be
+  implementation targets, and compares per-declaration data for tool
+  adapters, with questions for the owner.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and
