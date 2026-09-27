@@ -114,9 +114,9 @@ specification	block	classification	fixture
 08-data-and-enums.md	28	accept	typing/valid/enums.hd
 08-data-and-enums.md	29	accept	typing/valid/enums.hd
 08-data-and-enums.md	30	accept	typing/valid/enums.hd
-08-data-and-enums.md	31	pattern-fragment	-
+08-data-and-enums.md	31	accept	typing/valid/contextual-variants.hd
 08-data-and-enums.md	32	mixed	typing/invalid/contextual-variant-binding-without-type.hd
-08-data-and-enums.md	33	accept	typing/valid/gadts.hd
+08-data-and-enums.md	33	pattern-fragment	-
 09-traits.md	1	accept	typing/valid/traits.hd
 09-traits.md	2	accept	typing/valid/trait-features.hd
 09-traits.md	3	accept	typing/valid/trait-features.hd

@@ -160,7 +160,7 @@ that rule. A valid line may sit beside it with an ordinary comment:
 
 ```text
 data User:
-    mut name: string    # error
+    mut name: string    # error: mutable-field-modifier
     mut Base            # error: mutable-embedded-field
     friend: mut User    # valid: the type grants mutable access
 ```
@@ -248,15 +248,15 @@ a Why callout:
 ~~~markdown
 ### Fields
 
-1. r[data.field.unique] Field names must be unique within the data type.
+1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`.
 2. r[data.field.typed] Every field has an explicit type.
-3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is invalid.
+3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
 4. r[data.field.mut-type] `friend: mut User` declares a field whose type grants mutable access through that reference.
 5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-embedded-field`.
 
 ```text
 data User:
-    mut name: string    # error
+    mut name: string    # error: mutable-field-modifier
     mut Base            # error: mutable-embedded-field
     friend: mut User    # valid: the type grants mutable access
 ```
@@ -266,6 +266,12 @@ data User:
 
 ## Retired Rule IDs
 
-No rule ID has been retired. Each retired ID is listed here as a bullet that
-starts with the ID in backticks, followed by the date, the reason, and any
-replacement ID. The style lint rejects a chapter that reuses one.
+Each retired ID is listed here as a bullet that starts with the ID in
+backticks, followed by the date, the reason, and any replacement ID. The
+style lint rejects a chapter that reuses one.
+
+- `data.unsupported.field-blocks`: retired 2026-09-27. It restated
+  `data.enum.payload.no-field-blocks`, which replaces it.
+- `data.edge.upgrade`: retired 2026-09-27. The owner ruled that a store of a
+  readonly copy is an error only where its target requires a mutable part.
+  Replaced by `data.edge.upgrade-literal` and `data.edge.upgrade-store`.

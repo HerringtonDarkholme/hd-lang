@@ -26,15 +26,15 @@ data User:
 
 ### Fields
 
-1. r[data.field.unique] Field names must be unique within the data type.
+1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`.
 2. r[data.field.typed] Every field has an explicit type.
-3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is invalid.
+3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
 4. r[data.field.mut-type] `friend: mut User` declares a field whose type grants mutable access through that reference.
 5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-embedded-field`.
 
 ```text
 data User:
-    mut name: string    # error
+    mut name: string    # error: mutable-field-modifier
     mut Base            # error: mutable-embedded-field
     friend: mut User    # valid: the type grants mutable access
 ```
@@ -58,7 +58,7 @@ See also: [Default Values](07-functions.md#default-values).
 1. r[data.vis.private] Named fields are module-private unless individually marked `pub`.
 2. r[data.vis.type-not-fields] A public data type does not make its unmarked fields public.
 3. r[data.vis.embedded-public] An embedded field takes no marker and is always public: it is visible wherever its outer type is.
-4. r[data.vis.promotion] Only `pub` fields and inherent methods of an embedded type are promoted.
+4. r[data.vis.promotion] Only `pub` fields and `pub` inherent methods of an embedded type are promoted.
 5. r[data.vis.private-embed] Embedding a module-private data type in a public data type is an error. Error: `private-type-leak`.
 6. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public.
 7. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal.
@@ -142,18 +142,18 @@ user := User {
 ### Data Literals
 
 1. r[data.literal.form] Data values use typed brace literals.
-2. r[data.literal.required] Each field without a default must be initialized exactly once.
+2. r[data.literal.required] Each field without a default must be initialized exactly once. Omitting one is an error. Error: `missing-required-field`.
 3. r[data.literal.defaulted] A field with a default may be omitted or supplied explicitly.
 4. r[data.literal.unknown] An unknown field is a compile-time error. Error: `unknown-data-field`.
-5. r[data.literal.duplicate] A duplicate field is a compile-time error.
+5. r[data.literal.duplicate] A duplicate field is a compile-time error. Error: `duplicate-field`.
 6. r[data.literal.any-order] Fields may appear in any order.
 7. r[data.literal.eval-explicit] Explicit field expressions are evaluated in source order.
 8. r[data.literal.eval-defaults] Then defaults for omitted fields are evaluated in field declaration order.
 
 ```text
-missing := User { id: "user_123" }                       # error
+missing := User { id: "user_123" }                       # error: missing-required-field
 unknown := User { id: "u", email: "e", nickname: "Ada" } # error: unknown-data-field
-twice := User { id: "u", id: "v", email: "e" }           # error
+twice := User { id: "u", id: "v", email: "e" }           # error: duplicate-field
 ```
 
 See also: [Data Expressions](05-expressions.md#data-expressions).
@@ -405,8 +405,9 @@ This section defines when a copy of a readonly value has mutable access.
 2. r[data.edge.definition] A data type has **mutable edges** when it declares a direct `field: mut U`, or embeds a type that has mutable edges.
 3. r[data.edge.copy-type] The copy of `e` has type `mut E` when `e` has type `mut E`, or when `E` has no mutable edges; otherwise it has readonly type `E`.
 4. r[data.edge.readonly-literal] A literal with a readonly copy is readonly, and so is the stored value.
-5. r[data.edge.upgrade] Where `mut Post` is required, such a literal is an error, and so is a store of such a copy. Error: `mutable-upgrade`.
-6. r[data.edge.generic] A copy's generic fields keep their substituted types, as generic fields always do.
+5. r[data.edge.upgrade-literal] Where `mut Post` is required, such a literal is an error. Error: `mutable-upgrade`.
+6. r[data.edge.upgrade-store] Storing a readonly copy is an error only where the store's target requires a mutable part: a `mut` field, parameter, or binding. Error: `mutable-upgrade`.
+7. r[data.edge.generic] A copy's generic fields keep their substituted types, as generic fields always do.
 
 ```text
 data Stamp:
@@ -419,6 +420,7 @@ data Post:
 
 fn invalid(stamp: Stamp) -> void:
     let post: mut Post = Post { Stamp: ...stamp, id: "p" }  # error: mutable-upgrade
+    kept := Post { Stamp: ...stamp, id: "q" }               # valid: the binding is readonly
 ```
 
 > **Why.** The copy reads each direct `mut U` field of the readonly `e` as
@@ -451,7 +453,7 @@ See also: [Variance](04-type-system.md#variance).
 ### Member Promotion
 
 1. r[data.promote.members] Embedding promotes the embedded type's `pub` fields and `pub` inherent methods for convenient access.
-2. r[data.promote.depth] The `pub` fields and inherent methods of every part, at any depth, are promoted.
+2. r[data.promote.depth] The `pub` fields and `pub` inherent methods of every part, at any depth, are promoted.
 3. r[data.promote.shallowest] For each name the shallowest member hides deeper ones, so the receiver's `pub` own members come first and each embedded type decides its own names.
 4. r[data.promote.private] A private member of a part is never promoted, even in the module that declares it. It is reached through the explicit path, as in `post.Timestamps.secret`.
 5. r[data.promote.same-depth] Two members with one name at the same smallest depth are an error. An example is the embedded field name of a type embedded twice at one depth. Error: `ambiguous-promoted-member`.
@@ -702,10 +704,10 @@ fn label(status: JobStatus) -> string:
 1. r[data.match.exhaustive] Enum values are inspected with exhaustive `match`.
 2. r[data.match.variant-patterns] Variant patterns may be qualified, or use `.Variant` when the matched value fixes their enum.
 3. r[data.match.shorthand] The shorthand also works for payload construction and nested variant patterns when their expected enum type is fixed.
-4. r[data.match.no-inference] The shorthand is not a way to infer an enum from the variant spelling alone: `status := .Queued` has no contextual enum type and is rejected.
+4. r[data.match.no-inference] The shorthand is not a way to infer an enum from the variant spelling alone: `status := .Queued` has no contextual enum type and is an error. Error: `missing-contextual-enum-type`.
 
 ```text
-status := .Queued  # error
+status := .Queued  # error: missing-contextual-enum-type
 ```
 
 ### Payload Patterns
@@ -769,6 +771,8 @@ See also: [Generalized Algebraic Data Types](13-gadts.md).
 
 ## Unsupported Aggregate Extensions
 
-1. r[data.unsupported.field-blocks] hd-lang has no variant field blocks.
-2. r[data.unsupported.mut-embedded] hd-lang has no `mut` embedded-field shorthand, because access to an embedded part already follows its container.
-3. r[data.unsupported.layout] Stable object layout and component-model representation are ABI concerns and are not observable core-language semantics.
+1. r[data.unsupported.mut-embedded] hd-lang has no `mut` embedded-field shorthand, because access to an embedded part already follows its container.
+2. r[data.unsupported.layout] Stable object layout and component-model representation are ABI concerns and are not observable core-language semantics.
+
+See also: [Variant Payloads](#variant-payloads), where
+`data.enum.payload.no-field-blocks` rules out variant field blocks.

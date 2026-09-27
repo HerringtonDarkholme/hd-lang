@@ -596,3 +596,14 @@ existing source. Each entry names the decision that made the change.
   inner `mut`. An erased `List[User]` downcast to `List[mut User]`,
   previously `.Some`, is now `.None`. `TypeId::of[mut User]()` still equals
   `TypeId::of[User]()`.
+- Promotion wording (owner decision, 2026-09-27): chapter 08 now says in
+  every place that only `pub` fields and `pub` inherent methods of an
+  embedded part are promoted. This restates the "Single view of a type's
+  members" entry, so no source changes meaning.
+- Readonly copy stores (owner decision, 2026-09-27): a store of a readonly
+  copy is `mutable-upgrade` only where the store's target requires a mutable
+  part: a `mut` field, parameter, or binding. A store into a readonly target
+  is valid, and the stored value is readonly.
+- Duplicate field declarations (owner decision, 2026-09-27): two fields with
+  one name in one data type are `duplicate-field`, the code a data literal
+  uses for a repeated field. The rule previously named no code.
