@@ -6,21 +6,17 @@ runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f3
 runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-257
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (syntax-error)	F-705
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
-parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254
-typing/valid/local-types.hd	check fails: expected-expression at line 2: expected an expression, found 'type'	F-254
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
-typing/valid/newtypes-and-widening.hd	check fails: expected-expression at line 1: expected an expression, found 'type'	F-254
+typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 and i64 (sized numeric types unimplemented); the newtype and its unwrap are implemented	F-253
 typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
 typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i64'	F-253
 typing/invalid/integer-literal-range.hd	MVP reports unknown-type at line 2 instead of integer-literal-range: unknown or unsupported type 'u8'	F-253
-typing/invalid/nominal-map-key.hd	MVP reports expected-expression at line 2 instead of invalid-map-key: expected an expression, found 'type'	F-254
 typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Eq'	F-255
 typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
 typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
-typing/invalid/local-impl-nonlocal-pair.hd	MVP reports expected-expression at line 9 instead of local-impl-nonlocal-pair: expected an expression, found 'impl'	F-254
 typing/invalid/variance-position.hd	MVP reports syntax-error at line 2 instead of invalid-variance: expected a generic data parameter	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
@@ -113,8 +109,6 @@ runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (
 typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse (F-705), so the invariance of embedded fields cannot be checked	VE
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
-runtime/valid/inspectable-alias-and-newtype-identity.hd	check fails: expected-expression at line 7: expected an expression, found 'type'	F-254
-typing/invalid/error-implementation-local-type.hd	MVP reports expected-expression at line 6 instead of missing-supertrait-implementation: expected an expression, found 'enum'	F-254
 typing/invalid/embedded-non-data.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
 typing/invalid/embedded-collection-type.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
 typing/invalid/embedded-type-parameter.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA

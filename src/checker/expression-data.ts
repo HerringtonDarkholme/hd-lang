@@ -209,7 +209,13 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             value,
             contextualField && !containsGenericType(contextualField) ? contextualField : undefined,
           );
-          const conflict = inferGenericType(field.type, checked.type, substitutions);
+          // A readonly composite field such as `List[T]` infers from the readonly
+          // view of a fresh mutable value like a list literal.
+          const actual =
+            mutableInner(field.type) === undefined && !genericTypeName(field.type)
+              ? readonlyType(checked.type)
+              : checked.type;
+          const conflict = inferGenericType(field.type, actual, substitutions);
           if (conflict) {
             if (mutableInner(inferredField) === checked.type) {
               this.fail(

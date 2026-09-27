@@ -31,6 +31,8 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       index,
       genericParameters: declaration.genericParameters,
       fields: [],
+      ...(declaration.newtype ? { newtype: true as const } : {}),
+      ...(declaration.local ? { local: true as const } : {}),
       span: declaration.span,
     });
   });
@@ -58,6 +60,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       sharedFields: [],
       variants: [],
       fields: [],
+      ...(declaration.local ? { local: true as const } : {}),
       span: declaration.span,
     });
   });

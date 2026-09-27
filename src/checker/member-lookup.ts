@@ -1,9 +1,10 @@
-import type { FunctionDecl } from "../ast.ts";
+import type { Expression, FunctionDecl, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import { mutableInner, mutableType, nominalGenericParts, readonlyType } from "../types.ts";
 import { genericTypeName, matchGenericTypePattern, substituteGenericType } from "./shared.ts";
+import { NEWTYPE_FIELD } from "./type-declarations.ts";
 
 import { ExpressionOperatorChecker } from "./expression-operators.ts";
 
@@ -49,6 +50,73 @@ const MAX_EMBEDDING_DEPTH = 64;
 export const traitDefaultDeclarations = new WeakSet<FunctionDecl>();
 
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
+  /**
+   * `Name(value)` constructs the newtype `Name`, and `Base(value)` unwraps a
+   * newtype over `Base` (04-type-system.md#transparent-aliases-and-newtypes).
+   * Returns undefined for any other call.
+   */
+  protected checkNewtypeCall(
+    expression: Extract<Expression, { kind: "call" }> & {
+      readonly callee: { readonly name: string };
+    },
+    expected?: ValueType,
+  ): HirExpression | undefined {
+    const name = expression.callee.name;
+    const newtype = this.dataTypes.get(name);
+    const constructorOf = (type: ValueType): string =>
+      nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
+    // Only a program with a newtype over `name` reads `name(value)` as an unwrap.
+    const unwraps = [...this.dataTypes.values()].some(
+      (declaration) =>
+        declaration.newtype && constructorOf(declaration.fields[0]?.type ?? "") === name,
+    );
+    if (!newtype?.newtype && !unwraps) return undefined;
+    const single =
+      expression.arguments.length === 1 &&
+      !expression.argumentNames?.some(Boolean) &&
+      !expression.argumentSpreads?.some(Boolean);
+    if (newtype?.newtype) {
+      if (!single)
+        this.fail(
+          "argument-count",
+          `newtype '${name}' is constructed from exactly one positional value`,
+          expression.span,
+        );
+      const typeArguments = (expression.callee as { readonly typeArguments?: readonly TypeRef[] })
+        .typeArguments;
+      return this.checkExpression(
+        {
+          kind: "data",
+          name,
+          ...(typeArguments ? { typeArguments } : {}),
+          fields: [{ name: NEWTYPE_FIELD, value: expression.arguments[0]!, span: expression.span }],
+          span: expression.span,
+        },
+        expected,
+      );
+    }
+    if (!single) return undefined;
+    const value = this.checkExpression(expression.arguments[0]!);
+    const view = readonlyType(value.type);
+    const declaration = this.dataTypes.get(nominalGenericParts(view)?.name ?? view);
+    const field = declaration?.newtype ? declaration.fields[0] : undefined;
+    if (!declaration || !field)
+      this.fail(
+        "type-mismatch",
+        `'${name}(...)' unwraps a newtype over '${name}', found '${value.type}'`,
+        expression.span,
+      );
+    const substitutions = this.dataSubstitutions(declaration, value.type);
+    const base = substituteGenericType(field.type, substitutions);
+    if (constructorOf(base) !== name)
+      this.fail(
+        "type-mismatch",
+        `'${name}(...)' cannot unwrap '${value.type}', a newtype over '${base}'`,
+        expression.span,
+      );
+    return this.dataMember(value, declaration, field, substitutions, expression.span);
+  }
+
   protected dataSubstitutions(
     declaration: HirData,
     type: ValueType,

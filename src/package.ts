@@ -82,6 +82,7 @@ function topLevelNames(program: Program): Map<string, SourceSpan> {
     ...program.data,
     ...program.enums,
     ...program.traits,
+    ...(program.types ?? []),
   ])
     if (!names.has(declaration.name)) names.set(declaration.name, declaration.span);
   for (const statement of program.statements)
@@ -91,9 +92,13 @@ function topLevelNames(program: Program): Map<string, SourceSpan> {
 }
 
 function isPublic(program: Program, name: string): boolean {
-  return [...program.functions, ...program.data, ...program.enums, ...program.traits].some(
-    (declaration) => declaration.name === name && declaration.public === true,
-  );
+  return [
+    ...program.functions,
+    ...program.data,
+    ...program.enums,
+    ...program.traits,
+    ...(program.types ?? []),
+  ].some((declaration) => declaration.name === name && declaration.public === true);
 }
 
 /** The directory module a relative use starts from (10-modules.md#use-roots). */

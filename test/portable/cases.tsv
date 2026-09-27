@@ -969,3 +969,9 @@ typing/invalid/any-exposes-no-methods.hd	type
 runtime/valid/any-accepts-non-optional-values.hd	runtime
 typing/invalid/none-to-any.hd	type
 runtime/valid/optional-erased-to-any.hd	runtime
+parse/valid/declarations.hd	parse
+typing/valid/local-types.hd	type
+typing/invalid/nominal-map-key.hd	type
+typing/invalid/local-impl-nonlocal-pair.hd	type
+runtime/valid/inspectable-alias-and-newtype-identity.hd	runtime
+typing/invalid/error-implementation-local-type.hd	type

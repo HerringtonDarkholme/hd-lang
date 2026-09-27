@@ -957,7 +957,11 @@ export abstract class CheckerContext {
   protected inspectEnvironment(): InspectEnvironment {
     const inspectable = this.traitTypes.get(INSPECTABLE);
     return {
-      nominal: (name) => this.dataTypes.has(name) || this.enumTypes.has(name),
+      // A type declared in a block suite is not inspectable (09-traits.md#inspectable-types).
+      nominal: (name) =>
+        [this.dataTypes.get(name), this.enumTypes.get(name)].some(
+          (declaration) => declaration !== undefined && !declaration.local,
+        ),
       inspectableParameter: (name) =>
         this.signature.genericBounds.some(
           (bound) => bound.parameter === name && bound.traitIndex === inspectable?.index,

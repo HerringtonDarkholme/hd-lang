@@ -13,6 +13,7 @@ import type {
   Statement,
   TestDecl,
   TraitDecl,
+  TypeDecl,
   TypeRef,
   UseDecl,
   UseName,
@@ -47,7 +48,9 @@ class Parser extends ExpressionParser {
     const traits: TraitDecl[] = [];
     const implementations: ImplDecl[] = [];
     const tests: TestDecl[] = [];
+    const types: TypeDecl[] = [];
     const statements: Statement[] = [];
+    this.localDeclarations = false;
     const start = this.current().span.start;
     try {
       while (!this.atKind("eof")) {
@@ -86,6 +89,8 @@ class Parser extends ExpressionParser {
         else if (this.atText("data")) data.push(this.parseData(doc, public_));
         else if (this.atText("enum")) enums.push(this.parseEnum(doc, public_));
         else if (this.atText("trait")) traits.push(this.parseTrait(doc, public_));
+        else if (this.atText("type") && this.peek(1).kind === "identifier")
+          types.push(this.parseTypeDecl(doc, public_));
         else if (this.atText("impl")) implementations.push(this.parseImpl(doc));
         else if (this.atText("test") && this.peek(1).kind === "string")
           tests.push(this.parseTest(doc));
@@ -113,6 +118,8 @@ class Parser extends ExpressionParser {
     return {
       program: {
         uses,
+        ...(types.length > 0 ? { types } : {}),
+        ...(this.localDeclarations ? { localDeclarations: true } : {}),
         data,
         enums,
         traits,
@@ -810,6 +817,35 @@ class Parser extends ExpressionParser {
     return `${name.text}[${arguments_.map((argument) => argument.name).join(",")}]`;
   }
 
+  // `type Name[T] = type` or `type Name[T](type)` (02-grammar.md#type-declarations).
+  protected parseTypeDecl(doc?: string, public_ = false): TypeDecl {
+    const start = this.expectText("type").span.start;
+    const name = this.expectKind("identifier", "expected a type name");
+    const { parameters: genericParameters } = this.parseGenericParameters();
+    const enclosingGenericParameters = this.activeGenericParameters;
+    this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
+    let alias: TypeRef | undefined;
+    let base: TypeRef | undefined;
+    if (this.matchText("=")) alias = this.parseType();
+    else {
+      this.expectText("(");
+      base = this.parseType();
+      this.expectText(")");
+    }
+    this.activeGenericParameters = enclosingGenericParameters;
+    const end = this.finishSimpleStatement(false);
+    return {
+      kind: "type",
+      ...(public_ ? { public: true } : {}),
+      name: name.text,
+      genericParameters,
+      ...(alias ? { alias } : {}),
+      ...(base ? { base } : {}),
+      doc,
+      span: { start, end },
+    };
+  }
+
   protected parseData(doc?: string, public_ = false): DataDecl {
     const start = this.expectText("data").span.start;
     const name = this.expectKind("identifier", "expected a data type name");
@@ -1177,8 +1213,31 @@ class Parser extends ExpressionParser {
     return statements;
   }
 
+  private localDeclarations = false;
+
+  // `data`, `enum`, `trait`, `type`, and `impl` may be declared in a block
+  // suite (03-names-and-scopes.md#module-scope).
+  private parseLocalDeclaration(): Statement | undefined {
+    const declaration = this.atText("data")
+      ? this.parseData()
+      : this.atText("enum")
+        ? this.parseEnum()
+        : this.atText("trait")
+          ? this.parseTrait()
+          : this.atText("impl")
+            ? this.parseImpl()
+            : this.atText("type") && this.peek(1).kind === "identifier"
+              ? this.parseTypeDecl()
+              : undefined;
+    if (!declaration) return undefined;
+    this.localDeclarations = true;
+    return { kind: "local-declaration", declaration, span: declaration.span };
+  }
+
   protected parseStatement(topOrInline: boolean): Statement {
     const start = this.current().span.start;
+    const local = this.parseLocalDeclaration();
+    if (local) return local;
     if (this.atText("@"))
       this.fail(
         "decorator-not-top-level",

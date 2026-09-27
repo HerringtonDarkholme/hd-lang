@@ -15,16 +15,20 @@ import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import { withStandardTraits } from "./standard-traits.ts";
+import { hoistLocalDeclarations } from "./local-declarations.ts";
+import { withTypeDeclarations } from "./type-declarations.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
 }
 
 export function check(source: Program, options: CheckOptions = {}): CheckResult {
-  const program = withStandardTraits(source);
+  const hoisted = hoistLocalDeclarations(withStandardTraits(source));
+  const declared = withTypeDeclarations(hoisted.program);
+  const program = declared.program;
   const context: ProgramCheckContext = {
     program,
-    diagnostics: [],
+    diagnostics: [...hoisted.diagnostics, ...declared.diagnostics],
     imports: new Map(),
     dataTypes: new Map(),
     enumTypes: new Map(),

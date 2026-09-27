@@ -789,7 +789,10 @@ function validateSupertraitImplementations(context: ProgramCheckContext): void {
         supertrait.traitName === INSPECTABLE &&
         usesStandardInspect(context.imports) &&
         inspectKey(implementation.targetType, {
-          nominal: (name) => context.dataTypes.has(name) || context.enumTypes.has(name),
+          nominal: (name) =>
+            [context.dataTypes.get(name), context.enumTypes.get(name)].some(
+              (declaration) => declaration !== undefined && !declaration.local,
+            ),
           inspectableParameter: () => true,
         })
       )

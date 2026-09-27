@@ -126,7 +126,9 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       return this.checkFunctionValueCall(expression);
     }
     const namedExpression = expression as NamedCallExpression;
-    const intrinsic = this.checkNamedIntrinsicCall(namedExpression, expected);
+    const intrinsic =
+      this.checkNamedIntrinsicCall(namedExpression, expected) ??
+      (expression.kind === "call" ? this.checkNewtypeCall(namedExpression, expected) : undefined);
     if (intrinsic) return intrinsic;
     return this.checkDeclaredCall(namedExpression, expected);
   }

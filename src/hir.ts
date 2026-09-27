@@ -18,6 +18,10 @@ export interface HirData {
   readonly index: number;
   readonly genericParameters: readonly string[];
   readonly fields: readonly HirDataField[];
+  /** A newtype (`type Name(Base)`): its one field holds the base value. */
+  readonly newtype?: true;
+  /** Declared in a block suite, so not inspectable. */
+  readonly local?: true;
   readonly span: SourceSpan;
 }
 
@@ -32,6 +36,8 @@ export interface HirEnumVariant {
 export interface HirEnum {
   readonly name: string;
   readonly index: number;
+  /** Declared in a block suite, so not inspectable. */
+  readonly local?: true;
   readonly genericParameters: readonly string[];
   readonly sharedFields: readonly HirDataField[];
   readonly variants: readonly HirEnumVariant[];

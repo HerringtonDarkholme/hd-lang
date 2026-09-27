@@ -123,6 +123,22 @@ export interface DataDecl {
   readonly genericParameters: readonly string[];
   readonly fields: readonly DataField[];
   readonly doc?: string;
+  /** Lowered from `type Name(Base)`: its one field is the base value. */
+  readonly newtype?: boolean;
+  /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
+  readonly local?: boolean;
+  readonly span: SourceSpan;
+}
+
+/** `type Name = T` (a transparent alias) or `type Name(T)` (a newtype). */
+export interface TypeDecl {
+  readonly kind: "type";
+  readonly public?: boolean;
+  readonly name: string;
+  readonly genericParameters: readonly string[];
+  readonly alias?: TypeRef;
+  readonly base?: TypeRef;
+  readonly doc?: string;
   readonly span: SourceSpan;
 }
 
@@ -142,6 +158,8 @@ export interface EnumDecl {
   readonly sharedFields: readonly DataField[];
   readonly variants: readonly EnumVariant[];
   readonly doc?: string;
+  /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
+  readonly local?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -263,6 +281,10 @@ export type ProviderContextEntry =
 
 export interface Program {
   readonly uses: readonly UseDecl[];
+  /** Present when the module declares a `type`. */
+  readonly types?: readonly TypeDecl[];
+  /** Set when a block suite declares a type or implementation. */
+  readonly localDeclarations?: boolean;
   readonly data: readonly DataDecl[];
   readonly enums: readonly EnumDecl[];
   readonly traits: readonly TraitDecl[];
@@ -320,7 +342,13 @@ export type Statement =
   | { readonly kind: "break"; readonly value?: Expression; readonly span: SourceSpan }
   | { readonly kind: "continue"; readonly span: SourceSpan }
   | { readonly kind: "expression"; readonly expression: Expression; readonly span: SourceSpan }
-  | { readonly kind: "pass"; readonly span: SourceSpan };
+  | { readonly kind: "pass"; readonly span: SourceSpan }
+  | {
+      /** A `data`, `enum`, `trait`, `type`, or `impl` declared in a block suite. */
+      readonly kind: "local-declaration";
+      readonly declaration: DataDecl | EnumDecl | TraitDecl | TypeDecl | ImplDecl;
+      readonly span: SourceSpan;
+    };
 
 export type Expression =
   | { readonly kind: "integer"; readonly value: bigint; readonly span: SourceSpan }
