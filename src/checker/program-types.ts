@@ -1,3 +1,5 @@
+import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
+import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
@@ -619,11 +621,22 @@ function diagnoseSupertraitMemberNames(context: ProgramCheckContext): void {
     }
     return names;
   };
+  const sealed = usesStandardInspect(context.imports);
   for (const declaration of context.program.traits) {
     const trait = context.traitTypes.get(declaration.name);
     if (!trait || trait.supertraits.length === 0) continue;
     const inherited = inheritedNames(trait);
+    const inspectable = sealed && extendsInspectable(context.traitTypes, trait.name);
     for (const member of [...declaration.associatedTypes, ...declaration.methods]) {
+      // 09 Sealed Traits: redeclaring a member of the sealed Inspectable.
+      if (inspectable && INSPECTABLE_MEMBERS.has(member.name)) {
+        context.diagnostics.push({
+          code: "sealed-trait-implementation",
+          message: `trait '${trait.name}' redeclares '${member.name}', a member of the sealed Inspectable`,
+          span: member.span,
+        });
+        continue;
+      }
       const owner = inherited.get(member.name);
       if (owner)
         context.diagnostics.push({

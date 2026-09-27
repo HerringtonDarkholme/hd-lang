@@ -671,6 +671,13 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "trait-dictionary": {
         return this.emitTraitDictionaryPlan(expression.dictionary, "(ref.null any)");
       }
+      case "inspect-type-id":
+      case "inspect-downcast":
+        return this.emitInspectExpression(
+          expression,
+          this.emitExpression(expression.dictionary),
+          expression.kind === "inspect-downcast" ? this.emitExpression(expression.value) : "",
+        );
       case "trait-bound-dictionary":
         return `(local.get $bound${expression.boundIndex})`;
       case "trait-bound": {

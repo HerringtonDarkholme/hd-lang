@@ -12,7 +12,7 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-312 | 48 |
 | [F-252](../findings/F-252-parser-rejects-core-grammar.md) | major | correctness | The parser rejects core grammar forms | F-309, F-315 | 5 |
 | [F-253](../findings/F-253-sized-numeric-types-unsupported.md) | minor | coverage | Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred |  | 14 |
-| [F-254](../findings/F-254-type-and-local-declarations-unsupported.md) | minor | coverage | `type` declarations and local type/impl declarations are rejected as syntax errors |  | 5 |
+| [F-254](../findings/F-254-type-and-local-declarations-unsupported.md) | minor | coverage | `type` declarations and local type/impl declarations are rejected as syntax errors |  | 7 |
 | [F-255](../findings/F-255-prelude-surface-gaps.md) | minor | coverage | Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown |  | 9 |
 | [F-256](../findings/F-256-row-kinded-arguments-unparsed.md) | minor | coverage | Row-kinded generic data arguments such as `Job[$()]` fail to parse |  | 2 |
 | [F-257](../findings/F-257-mut-fn-closures-unsupported.md) | minor | coverage | `mut fn` closure literals do not parse | F-352 | 3 |

@@ -26,7 +26,9 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { MemberLookupChecker } from "./member-lookup.ts";
+import { InspectChecker } from "./expression-inspect.ts";
+import { isDowncastValImport } from "./inspectable.ts";
+import { TYPE_ID } from "./standard-traits.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
@@ -46,7 +48,7 @@ interface ResolvedTraitMethod {
   readonly trait: HirTrait;
 }
 
-export abstract class ExpressionCallChecker extends MemberLookupChecker {
+export abstract class ExpressionCallChecker extends InspectChecker {
   private findTraitMethods(
     trait: HirTrait,
     name: string,
@@ -151,6 +153,8 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       }
     }
     const receiver = this.checkExpression(expression.callee.receiver);
+    const inspection = this.checkInspectMemberCall(expression, receiver, expected);
+    if (inspection) return inspection;
     const builtin = this.checkBuiltInMemberCall(expression, receiver);
     if (builtin) return builtin;
     const dynamic = this.checkDynamicMemberCall(expression, receiver);
@@ -885,6 +889,10 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     expression: NamedCallExpression,
     expected?: ValueType,
   ): HirExpression | undefined {
+    if (isDowncastValImport(this.imports, expression.callee.name)) {
+      const inspection = this.checkInspectFunctionCall(expression, "downcast_val", expected);
+      if (inspection) return inspection;
+    }
     if (this.imports.get(expression.callee.name) === "std.task.block_on") {
       if (this.deferDepth > 0 || this.moduleBody) {
         this.fail(
@@ -1243,6 +1251,10 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
     expected?: ValueType,
   ): HirExpression {
     const owner = expression.callee.owner;
+    if (owner === TYPE_ID && expression.callee.name === "of") {
+      const inspection = this.checkInspectFunctionCall(expression, "of", expected);
+      if (inspection) return inspection;
+    }
     if (
       !this.traitTypes.has(owner) &&
       (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))

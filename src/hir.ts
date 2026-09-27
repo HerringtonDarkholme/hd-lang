@@ -132,6 +132,15 @@ export type HirBuiltinTraitImplementation =
       readonly traitIndex: number;
       readonly targetType: ValueType;
       readonly strategy: HirOrderingStrategy;
+    }
+  | {
+      // The compiler-supplied `Inspectable` (spec/09-traits.md#sealed-traits).
+      // `runtime_type` builds a `TypeId` from the key: literal parts, and
+      // `bound` parts naming a bound-pack dictionary whose key is spliced in.
+      readonly kind: "inspectable";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+      readonly key: readonly (string | { readonly bound: number })[];
     };
 
 export interface HirPatternPathStep {
@@ -659,6 +668,22 @@ export type HirExpression =
       readonly value: HirExpression;
       readonly traitIndex: number;
       readonly dictionary: HirTraitDictionaryPlan;
+    })
+  | (HirExpressionBase & {
+      // `TypeId::of[T]()`: `runtime_type` through the Inspectable dictionary
+      // of T, which never reads its receiver.
+      readonly kind: "inspect-type-id";
+      readonly traitIndex: number;
+      readonly dictionary: HirExpression;
+    })
+  | (HirExpressionBase & {
+      // `downcast`, `downcast_mut`, and `downcast_val`: compares the erased
+      // value's TypeId with the target dictionary's, then yields the stored
+      // payload as `.Some`, or `.None`.
+      readonly kind: "inspect-downcast";
+      readonly traitIndex: number;
+      readonly value: HirExpression;
+      readonly dictionary: HirExpression;
     })
   | (HirExpressionBase & {
       readonly kind: "trait-upcast";

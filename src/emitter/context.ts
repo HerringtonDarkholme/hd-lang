@@ -179,7 +179,7 @@ export class EmitterContext {
     if (type === "string") return "(ref null $hd.bytes)";
     if (type.startsWith("provider-row:")) return "(ref null $hd.providers)";
     if (type.startsWith("provider:")) return "externref";
-    if (type.startsWith("trait:"))
+    if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index})`;
     if (contextKeys(type)) return `(ref null $context${this.contextNames.get(type)})`;
     if (tupleParts(type) !== undefined) return `(ref null $hd.list)`;
@@ -300,7 +300,7 @@ export class EmitterContext {
     if (type === "f64")
       return `(struct.get $hd.box-f64 $hd.box-f64-value (ref.cast (ref $hd.box-f64) ${payload}))`;
     if (type === "string") return `(ref.cast (ref null $hd.bytes) ${payload})`;
-    if (type.startsWith("trait:"))
+    if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.cast (ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index}) ${payload})`;
     if (type.startsWith("provider-row:")) return `(ref.cast (ref null $hd.providers) ${payload})`;
     if (contextKeys(type))
@@ -341,7 +341,7 @@ export class EmitterContext {
     if (type === "i32" || type === "bool" || type === "char") return `(i32.const 0)`;
     if (type === "f64") return `(f64.const 0)`;
     if (type === "string") return `(ref.null $hd.bytes)`;
-    if (type.startsWith("trait:"))
+    if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.null $trait${this.traitsByName.get(traitTypeBase(type))?.index})`;
     if (type.startsWith("provider-row:")) return `(ref.null $hd.providers)`;
     if (type.startsWith("provider:")) return `(ref.null extern)`;

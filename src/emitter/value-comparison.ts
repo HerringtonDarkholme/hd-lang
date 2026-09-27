@@ -59,6 +59,51 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `(struct.new $trait${trait.index} ${value} ${boundPack} (ref.func $tbuiltin${adapter.index}))`;
   }
 
+  protected emitStringLiteral(text: string): string {
+    const bytes = [...new TextEncoder().encode(text)];
+    return bytes.length === 0
+      ? `(array.new_default $hd.bytes (i32.const 0))`
+      : `(array.new_fixed $hd.bytes ${bytes.length} ${bytes.map((byte) => `(i32.const ${byte})`).join(" ")})`;
+  }
+
+  /** The key string of `runtime_type()` read through an Inspectable dictionary or trait value. */
+  protected emitTypeIdKey(
+    dictionary: string,
+    traitIndex: number,
+    receiver = "(ref.null any)",
+  ): string {
+    const typeId = this.dataByName.get("TypeId")!.index;
+    const call = `(call_ref $tsig${traitIndex}_0 ${receiver} ${dictionary} (struct.get $trait${traitIndex} $trait${traitIndex}m0 ${dictionary}))`;
+    return `(struct.get $d${typeId} $d${typeId}f0 (ref.as_non_null ${call}))`;
+  }
+
+  /** `TypeId::of[T]()` and the downcasts (spec/09-traits.md#recovering-a-concrete-type). */
+  protected emitInspectExpression(
+    expression: Extract<HirExpression, { kind: "inspect-type-id" | "inspect-downcast" }>,
+    dictionaryValue: string,
+    valueCode: string,
+  ): string {
+    const dictionary = this.allocateTemporary(expression.dictionary.type);
+    const trait = expression.traitIndex;
+    const result = this.watType(expression.type);
+    if (expression.kind === "inspect-type-id")
+      return `(block (result ${result})
+  (local.set ${dictionary} ${dictionaryValue})
+  (call_ref $tsig${trait}_0 (ref.null any) (local.get ${dictionary}) (struct.get $trait${trait} $trait${trait}m0 (local.get ${dictionary})))
+)`;
+    const value = this.allocateTemporary(expression.value.type);
+    const payload = `(struct.get $trait${trait} $trait${trait}value (local.get ${value}))`;
+    const recorded = this.emitTypeIdKey(`(local.get ${value})`, trait, payload);
+    const target = this.emitTypeIdKey(`(local.get ${dictionary})`, trait);
+    return `(block (result ${result})
+  (local.set ${value} ${valueCode})
+  (local.set ${dictionary} ${dictionaryValue})
+  (if (result ${result}) (i32.eqz (call $hd.string_compare ${recorded} ${target}))
+    (then (struct.new $hd.variant (i32.const 1) ${payload}))
+    (else (struct.new $hd.variant (i32.const 0) (ref.null any))))
+)`;
+  }
+
   get builtinTraitAdapterNames(): readonly string[] {
     return [...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`);
   }
@@ -77,6 +122,16 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       let body: string;
       if (builtin.kind === "display") {
         body = this.emitPrimitiveDisplay(self, builtin.targetType);
+      } else if (builtin.kind === "inspectable") {
+        const key = builtin.key
+          .map((part) =>
+            typeof part === "string"
+              ? this.emitStringLiteral(part)
+              : this.emitTypeIdKey(`(local.get $bound${part.bound})`, builtin.traitIndex),
+          )
+          .reduce((left, right) => `(call $hd.string_concat ${left} ${right})`);
+        const typeId = this.dataByName.get("TypeId")!.index;
+        body = `(struct.new $d${typeId} ${key})`;
       } else if (builtin.kind === "equality") {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
       } else {

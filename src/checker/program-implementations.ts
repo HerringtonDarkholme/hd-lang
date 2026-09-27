@@ -1,3 +1,5 @@
+import { extendsInspectable, inspectKey, usesStandardInspect } from "./inspectable.ts";
+import { INSPECTABLE, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 import type {
   Expression,
@@ -391,6 +393,15 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     }
     const traitApplication = nominalGenericParts(implementation.traitName);
     const traitName = traitApplication?.name ?? implementation.traitName;
+    if (traitName === INSPECTABLE && usesStandardInspect(context.imports)) {
+      diagnostics.push({
+        code: "sealed-trait-implementation",
+        message:
+          "Inspectable is sealed: the compiler supplies its implementation for every inspectable type",
+        span: implementation.span,
+      });
+      continue;
+    }
     if (traitName === "Suspend") {
       diagnostics.push({
         code: "sealed-trait-implementation",
@@ -475,7 +486,19 @@ export function prepareImplementations(context: ProgramCheckContext): void {
     // forwards to the delegated part.
     for (const method of delegation?.methods ?? [])
       if (!supplied.has(method.name)) supplied.set(method.name, method);
+    const sealedMembers =
+      usesStandardInspect(context.imports) && extendsInspectable(context.traitTypes, trait.name)
+        ? INSPECTABLE_MEMBERS
+        : new Set<string>();
     for (const method of implementation.methods) {
+      if (sealedMembers.has(method.name)) {
+        diagnostics.push({
+          code: "sealed-trait-implementation",
+          message: `'${method.name}' belongs to the sealed Inspectable, whose implementation the compiler supplies`,
+          span: method.span,
+        });
+        continue;
+      }
       if (!trait.methods.some((required) => required.name === method.name)) {
         diagnostics.push({
           code: "extra-trait-method",
@@ -762,6 +785,15 @@ function validateSupertraitImplementations(context: ProgramCheckContext): void {
       const expectedArguments = supertrait.traitArguments.map((argument) =>
         substituteGenericType(argument, traitSubstitutions),
       );
+      if (
+        supertrait.traitName === INSPECTABLE &&
+        usesStandardInspect(context.imports) &&
+        inspectKey(implementation.targetType, {
+          nominal: (name) => context.dataTypes.has(name) || context.enumTypes.has(name),
+          inspectableParameter: () => true,
+        })
+      )
+        continue;
       const found = context.implementationPreparations.some((candidate) => {
         return Boolean(
           matchTraitImplementation(
