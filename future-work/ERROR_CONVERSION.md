@@ -64,10 +64,8 @@ Decided 2026-09-26:
     `@derive(Error)`, the compiler generates `impl Display`, `impl Error`
     (with `cause()`), and one `impl From[P] for E` per `@from` variant.
     Markers, recognized only under `@derive(Error)`:
-    - `@message("... {member} ...")` on a variant, or on a data type: the
-      `Display` text. Every placeholder must name a payload member or a
-      common enum field whose type implements `Display`, checked at compile
-      time. A variant without `@message` displays as its variant name.
+    - `@message("... $member ...")` on a variant, or on a data type: the
+      `Display` text (see E1 below). A variant without `@message` displays as its variant name.
     - `@from` on a one-payload variant: generates `impl From[P] for E`
       (pure, as 09 requires) and makes the payload the cause. Two `@from`
       variants with the same payload type are an error naming both. Common
@@ -80,6 +78,15 @@ Decided 2026-09-26:
       type with a `@from` variant).
     - `@transparent` on a one-payload variant: `Display` and `cause()`
       forward to the payload; it may combine with `@from`.
+    Refinements decided 2026-09-27: (E1) a `@message` text is an ordinary
+    hd interpolated string (`$name`, `${expression}`) with the variant's
+    payload members and the enum's common fields in scope, so placeholder
+    checking is ordinary type checking (an unknown name is `unknown-name`;
+    an interpolated member must implement `Display`); (E2) `Display` is
+    always generated, so a hand-written `Display` cannot be combined with
+    `@derive(Error)`; (E3) a `@transparent` variant's `cause()` returns the
+    inner error's cause, as thiserror does, so `chain` does not repeat the
+    inner message.
     Generated impls are ordinary impls: a hand-written duplicate is
     `overlapping-impl`. Unmarked variants get no `From`, so
     `Invalid(reason: string)` never yields `From[string]`. This adds `Error`
