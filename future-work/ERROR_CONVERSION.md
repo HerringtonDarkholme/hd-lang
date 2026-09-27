@@ -122,6 +122,22 @@ Decided 2026-09-26:
     spelling matches tuple access, which becomes `pair._0` (audit TUP-1,
     same day). `@source` on an unnamed parameter needs no name
     (`Io(@source FsError)`, decision 12).
+    (Gap 4, decided 2026-09-27) Opaque public errors: `@error(transparent)`
+    and `@from` are allowed on a one-field data type, so a stable public
+    type can hide an internal error enum (thiserror's
+    `#[error(transparent)] pub struct PublicError(#[from] ErrorRepr)`).
+    (Spelling, decided 2026-09-27; supersedes the spellings above) The
+    intrinsic is the annotation `@error`, not `@derive(Error)`: `@error` on
+    an enum makes it a derived error; `@error("...")` on a variant is its
+    message (formerly `@message`); `@error("...")` on a data type is both
+    the trigger and the message; `@error(transparent)` on a variant or a
+    one-field data type replaces `@transparent`; `@from` and `@source` stay,
+    written on the payload parameter or field (`Yaml(@from error:
+    YamlError)`, decision 12). `@error` is a compiler intrinsic like
+    `@derive`, so an imported `error` cannot shadow it; inside an `@error`
+    item, `transparent`, `from`, and `source` are markers, not names (gap
+    2). `@derive` stays the closed list of comparison and hash intrinsics;
+    `Error` is not added to it.
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
     `@from`, `@source`, `@transparent`) and no more. It has no error codes:
     inside a program the typed variant is the code (`find[T]()` then
@@ -208,45 +224,45 @@ Applied 2026-09-26:
 The whole error design as decided on 2026-09-27, in one place. When a
 decision changes it, update this section in the same change. The example
 parses with the [reference parser](../spec/reference-parser/index.ts)
-except the two lines marked hypothetical, which need decision 12's grammar
+except the lines marked hypothetical, which need decision 12's grammar
 extension (annotations on enum payload parameters).
 
 ```text
 use std.error.Error
 
-@derive(Error)
+@error
 pub enum FsError:
-    @message("not found: $path")
+    @error("not found: $path")
     NotFound(path: string)
-    @message("permission denied: $path")
+    @error("permission denied: $path")
     Denied(path: string)
 
-@derive(Error)
+@error
 pub enum RuleCoreError:
-    @message("Fail to parse yaml as RuleConfig")
-    @from
-    Yaml(error: YamlError)
-    @message("`utils` is not configured correctly.")
-    @source
-    Utils(error: RuleSerializeError)          # same payload type as Rule: cause only
-    @message("`rule` is not configured correctly.")
-    @from
-    Rule(error: RuleSerializeError)
-    @message("Undefined meta var `$var` used in `$context`.")
+    @error("Fail to parse yaml as RuleConfig")
+    Yaml(@from error: YamlError)                        # hypothetical syntax: decision 12
+    @error("`utils` is not configured correctly.")
+    Utils(@source error: RuleSerializeError)            # hypothetical syntax: decision 12
+    @error("`rule` is not configured correctly.")
+    Rule(@from error: RuleSerializeError)               # hypothetical syntax: decision 12
+    @error("Undefined meta var `$var` used in `$context`.")
     UndefinedMetaVar(var: string, context: string)
 
-@derive(Error)
+@error
 pub enum LoadError:
-    @message("$path:$line: invalid rule")
+    @error("$path:$line: invalid rule")
     Parse(path: string, line: i64, @source error: SyntaxError)   # hypothetical syntax: decision 12
-    @message("cannot read $path")
+    @error("cannot read $path")
     Read(path: string, @source error: FsError?)                  # hypothetical syntax: decision 12
-    @transparent
-    @from
-    Rules(error: RuleCoreError)
+    @error(transparent)
+    Rules(@from error: RuleCoreError)                            # hypothetical syntax: decision 12
 
-@derive(Error)
-@message("config $name is missing")
+@error(transparent)
+pub data PublicError:
+    @from
+    repr: LoadError
+
+@error("config $name is missing")
 pub data MissingConfig:
     name: string
 
@@ -265,16 +281,17 @@ fn run(path: string) -> Result[void, Error]:
 1. **Domain errors** are one enum per domain in `std` (`FsError`,
    `HttpError`), each implementing `Error`
    ([STDLIB decision 6](STDLIB.md#owner-decisions)).
-2. **`@derive(Error)`** (decision 10, E1-E4) is a compiler intrinsic, Rust's
-   `thiserror` moved into hd, on an enum or a data type. It generates
-   `impl Display` (always; a variant without `@message` displays as its
-   name), `impl Error` with `cause()`, and `From` conversions. `@message`
-   is an ordinary hd interpolated string with the payload members and
-   common fields in scope. `@from` on a one-payload variant generates
-   `From` and makes the payload the cause; `@source` marks a cause without
-   `From`; there is no automatic `From` or cause.
-   `@transparent` forwards message and `cause()` (to the inner error's
-   cause). No error codes.
+2. **`@error`** (decision 10) is a compiler intrinsic, Rust's `thiserror`
+   moved into hd, on an enum or a data type. It generates `impl Display`
+   (always; a variant without a message displays as its name),
+   `impl Error` with `cause()`, and `From` conversions. `@error("...")` on a
+   variant (or a data type) is the message: an ordinary hd interpolated
+   string with the payload members (unnamed ones as `_0`, `_1`) and common
+   fields in scope. `@from` on the payload of a one-payload variant (or the
+   field of a one-field data type) generates `From` and makes it the cause;
+   `@source` marks a cause without `From`. `@error(transparent)` forwards
+   message and `cause()` (to the inner error's cause). Generated bounds are
+   inferred per use. No error codes.
 3. **`?`** ([05 Propagation](../spec/05-expressions.md#propagation)):
    assignability by one rule (including construction of the erased
    `Error`), otherwise one call of the target's `From[E]`; never both, never
