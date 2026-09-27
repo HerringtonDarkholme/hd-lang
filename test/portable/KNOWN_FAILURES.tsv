@@ -79,7 +79,6 @@ typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 1
 typing/valid/shape-api.hd	check fails: unknown-type at line 10 for TypeShape; the shape and shape_of intrinsics are unimplemented	K1
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
 typing/invalid/contravariant-representation-change.hd	MVP reports syntax-error at line 1 instead of variance-representation-change: expected a generic data parameter	F-250
-typing/invalid/variant-result-owner.hd	MVP reports syntax-error at line 2 instead of variant-result-owner: expected ':', found ')'	F-252
 typing/invalid/unrepresentable-type-shape.hd	MVP reports unknown-name at line 7 instead of unrepresentable-type-shape: the shape intrinsic is unimplemented	K1
 typing/invalid/shape-of-local-binding.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
 typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1

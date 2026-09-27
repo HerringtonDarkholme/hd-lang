@@ -1,4 +1,5 @@
 import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
+import type { Diagnostic } from "../diagnostics.ts";
 import { nominalGenericType } from "../types.ts";
 
 import type { ProgramCheckContext } from "./program-context.ts";
@@ -34,6 +35,58 @@ function laterNamesContext(
       .slice(index + 1)
       .flatMap((later) => (/^\d/.test(later.name) ? [] : [later.name])),
   };
+}
+
+/** The outer named type of a variant result such as `Expr[i32]` or `Status(404)`. */
+function variantResultOwner(result: Expression): string | undefined {
+  if (result.kind === "name") return result.name;
+  if (result.kind === "call") return variantResultOwner(result.callee);
+  if (result.kind === "index") return variantResultOwner(result.receiver);
+  return undefined;
+}
+
+type EnumDeclaration = ProgramCheckContext["program"]["enums"][number];
+
+/**
+ * Why a variant's explicit result cannot initialize its enum, if it cannot:
+ * the result must construct the enclosing enum (13-gadts.md), a variant of
+ * an enum with shared data must initialize it, and GADT refinement is outside
+ * the prototype.
+ */
+function variantResultProblem(
+  declaration: EnumDeclaration,
+  variant: EnumDeclaration["variants"][number],
+): Diagnostic | undefined {
+  const result = variant.result;
+  if (result && variantResultOwner(result) !== declaration.name)
+    return {
+      code: "variant-result-owner",
+      message: `variant '${variant.name}' must construct ${declaration.name}`,
+      span: result.span,
+    };
+  if (!result)
+    return declaration.sharedFields.length === 0
+      ? undefined
+      : {
+          code: "missing-variant-result",
+          message: `variant '${variant.name}' must initialize shared enum data`,
+          span: variant.span,
+        };
+  if (declaration.sharedFields.length === 0)
+    return {
+      code: "unsupported-gadt-result",
+      message:
+        "explicit variant results without shared enum data are outside the current MVP slice",
+      span: result.span,
+    };
+  if (result.kind !== "call" || result.callee.kind !== "name")
+    return {
+      code: "unsupported-gadt-result",
+      message:
+        "a variant result that refines the enum's type arguments is outside the current MVP slice",
+      span: result.span,
+    };
+  return undefined;
 }
 
 export function createProgramDeclarations(
@@ -134,36 +187,9 @@ export function createProgramDeclarations(
   const enumVariantDeclarations: FunctionDecl[] = [];
   for (const declaration of program.enums) {
     for (const variant of declaration.variants) {
-      if (declaration.sharedFields.length === 0) {
-        if (variant.result)
-          diagnostics.push({
-            code: "unsupported-gadt-result",
-            message:
-              "explicit variant results without shared enum data are outside the current MVP slice",
-            span: variant.result.span,
-          });
-        continue;
-      }
-      if (!variant.result) {
-        diagnostics.push({
-          code: "missing-variant-result",
-          message: `variant '${variant.name}' must initialize shared enum data`,
-          span: variant.span,
-        });
-        continue;
-      }
-      if (
-        variant.result.kind !== "call" ||
-        variant.result.callee.kind !== "name" ||
-        variant.result.callee.name !== declaration.name
-      ) {
-        diagnostics.push({
-          code: "variant-result-owner",
-          message: `variant '${variant.name}' must construct ${declaration.name}`,
-          span: variant.result.span,
-        });
-        continue;
-      }
+      const problem = variantResultProblem(declaration, variant);
+      if (problem) diagnostics.push(problem);
+      if (problem || variant.result?.kind !== "call") continue;
       const argumentNames =
         variant.result.argumentNames ?? variant.result.arguments.map(() => undefined);
       let nextPositional = 0;

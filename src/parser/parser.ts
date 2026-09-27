@@ -545,13 +545,9 @@ class Parser extends ExpressionParser {
     const delegate = delegateName
       ? { delegate: { name: delegateName.text, span: delegateName.span } }
       : {};
+    // `impl_decl` may end at its header line, for an inherent implementation
+    // too (02-grammar.md#traits-and-implementations).
     if (!this.matchText(":")) {
-      if (!trait)
-        this.fail(
-          "missing-impl-body",
-          `inherent implementation for '${target.name}' requires a body`,
-          target.span,
-        );
       const end = this.expectKind("newline", "expected a line ending after an implementation").span
         .end;
       this.activeGenericParameters = enclosingGenericParameters;
@@ -559,7 +555,7 @@ class Parser extends ExpressionParser {
         kind: "impl",
         genericParameters,
         genericBounds,
-        traitName: trait.name,
+        ...(trait ? { traitName: trait.name } : {}),
         targetName: target.name,
         ...delegate,
         associatedTypes: [],
@@ -977,14 +973,20 @@ class Parser extends ExpressionParser {
         if (!this.atText(")")) {
           do {
             const fieldDoc = this.parseDocComments();
-            const fieldName = this.expectKind("identifier", "expected a variant field name");
-            this.expectText(":");
+            const fieldStart = this.current().span.start;
+            // An unnamed positional payload field is named by its position
+            // (08-data-and-enums.md#variant-payloads).
+            const fieldName =
+              this.current().kind === "identifier" && this.peek(1).text === ":"
+                ? this.advance().text
+                : undefined;
+            if (fieldName !== undefined) this.expectText(":");
             const type = this.parseType();
             fields.push({
-              name: fieldName.text,
+              name: fieldName ?? String(fields.length),
               type,
               doc: fieldDoc,
-              span: { start: fieldName.span.start, end: type.span.end },
+              span: { start: fieldStart, end: type.span.end },
             });
           } while (this.matchText(",") && !this.atText(")"));
         }
