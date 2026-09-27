@@ -22,6 +22,14 @@ are applied later in one `spec-update` pass, not per chapter.
   "must not"; STYLE.md adopts "Panic: `code`." for panic codes at the end of
   a rule; the agents' literal readings of unclear referents stand.
 
+- **04, decided 2026-09-27:** `types.string.host-utf8` stays normative;
+  package interfaces carry the generic and pack function bodies needed
+  downstream (fix the Implementation Model note to say per-shape bodies are
+  compiled in the defining package but carried bodies may be used for
+  specialization, and packages ship sources); a named function's generic
+  parameters and bounds are always written in its declaration, never
+  inferred from the body (clarifies Type Inference Boundaries).
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -40,13 +48,6 @@ example, as the 08 pilot did.
 
 ## Open, for the owner
 
-- 04: the UTF-8 host-boundary sentence was inside a `Note:` paragraph; the
-  restyle made it a rule (`types.string.host-utf8`). Confirm it is
-  normative.
-- 04: rules say package interfaces carry generic and pack function bodies
-  needed downstream, while the non-normative Implementation Model says a
-  downstream package needs only a generic function's signature.
 - 04 `never`: whether "unconditional" covers `break` and `continue`, and
-  whether the list of abrupt expressions is complete.
-- 04 Type Inference Boundaries: "named function type parameters and bounds
-  where applicable" is unclear.
+  whether the list of abrupt expressions is complete (examples given to the
+  owner 2026-09-27).
