@@ -8,6 +8,8 @@ language specification:
   agent tooling areas.
 - [Durable Replay: Core Or Library](DURABLE_REPLAY.md) decides which parts of
   durable replay the compiler and runtime provide and which a library builds.
+- [Spec Follow-Ups](SPEC_FOLLOWUPS.md) logs decided editorial fixes, the
+  glossary pass, unnamed diagnostic codes, and open restyle questions.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package managers
