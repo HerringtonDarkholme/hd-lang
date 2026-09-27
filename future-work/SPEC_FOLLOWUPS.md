@@ -63,6 +63,14 @@ are applied later in one `spec-update` pass, not per chapter.
   identifiers are warnings, as README lists them; (06) `break value` in a
   loop without `else` is an error, `break-value-context`.
 
+- **Decided 2026-09-27:** (07) a `pub` inherent method must declare its
+  result type; result-type and row inference apply only to non-public
+  functions, methods, and local `fn`s. Editorial, literal readings: a raw
+  tab inside a string is an error (only `\t`); a lone `"` inside
+  `"""..."""` is allowed; 06's list of discarded suites is complete as
+  written; state the vararg `List[T]` rule in words; name `syntax-error`
+  consistently in 02.
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -86,21 +94,7 @@ example, as the 08 pilot did.
 
 ## Open, for the owner
 
-From the 02, 11 restyles (12c7501, 14ec05e):
 - 11 `req.schedule.all-order`: does `all!` re-poll completed children after
   a wake?
 - 11 `req.model.no-reinterpretation`: "not generally reinterpreted" leaves
   the exceptions unstated.
-- 02: some rules say "a syntax error" in plain words, others name
-  `syntax-error`.
-
-From the 01, 06, 07 restyles (7380905, 8fb85c1, 7c73971):
-- 01: raw tab inside a string: `string_character` admits it, the tab rule
-  says tabs occur only as `\t`.
-- 01: a lone `"` inside `"""..."""` looks invalid by
-  `multiline_string_character`, though the literal ends only at `"""`.
-- 06: is the list of suites whose value is discarded
-  (`flow.must-use.suite-final`) complete?
-- 07: may a `pub` inherent method omit its result type?
-- 07: `fn.vararg.list` states its rule only through the example.
-
