@@ -22,6 +22,24 @@ parses still needs the rules proposed here to type-check; none of it
 type-checks under today's specification, because `Inspectable` does not
 exist yet.
 
+
+## Owner Decisions
+
+Decided 2026-09-26:
+
+1. **Question 11: a trait that extends `Inspectable` may not be a
+   requirement key** (`inspectable-requirement`), so a provider view can
+   never be downcast to recover more authority.
+2. **Question 3: the downcast target spells `mut`** (`e.downcast[mut C]()`),
+   checked statically against the receiver's access (`mutable-upgrade` on a
+   readonly receiver). The runtime does not track mutability: a type's
+   runtime identity ignores `mut` at every level, so `List[mut User]` and
+   `List[User]` have the same identity. hd's permission system is a static
+   discipline, not a runtime one.
+3. **Questions 1 and 2: `Inspectable` and the runtime type object live in
+   `std.inspect`, and the type object is named `TypeId`** (`runtime_type`
+   becomes the method returning a `TypeId`; rename consistently).
+
 ## Contents
 
 - [Goals](#goals)
