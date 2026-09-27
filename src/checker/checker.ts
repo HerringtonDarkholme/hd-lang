@@ -5,6 +5,8 @@ import {
   contextType,
   functionType,
   functionParts,
+  mutableInner,
+  mutableType,
   nominalGenericParts,
   optionalInner,
   readonlyType,
@@ -228,9 +230,16 @@ export class FunctionChecker extends ExpressionControlChecker {
         // An optional function type checks the closure against its payload;
         // the caller's coercion then injects it into the optional.
         const optionalCallable = expected ? optionalInner(expected) : undefined;
-        if (optionalCallable && functionParts(optionalCallable))
+        if (optionalCallable && functionParts(readonlyType(optionalCallable)))
           return this.checkClosureExpression(expression, optionalCallable);
-        const expectedCallable = expected ? functionParts(expected) : undefined;
+        const mutableClosure = expression.mutable === true;
+        if (expected && mutableInner(expected) !== undefined && !mutableClosure)
+          this.fail(
+            "type-mismatch",
+            `expected ${expected}, found a plain fn closure; write 'mut fn' for a closure that mutates captured state`,
+            expression.span,
+          );
+        const expectedCallable = expected ? functionParts(readonlyType(expected)) : undefined;
         const suspending = expression.suspending === true;
         if (expectedCallable && expectedCallable.suspending !== suspending) {
           this.fail(
@@ -286,6 +295,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           result: provisionalResultRef,
           requirements: expression.requirements ?? [],
           body: expression.body,
+          ...(mutableClosure ? { mutableClosure } : {}),
           span: expression.span,
         };
         let requirements = expression.requirements;
@@ -392,8 +402,14 @@ export class FunctionChecker extends ExpressionControlChecker {
         const captures = checked.function.captures.map((capture) =>
           this.captureValue(capture.source, expression.span),
         );
-        const type = functionType(parameterTypes, result, requirements, false, suspending);
-        if (expected && expected !== type && !functionTypeMatchesRowPattern(expected, type)) {
+        const callableType = functionType(parameterTypes, result, requirements, false, suspending);
+        const type = mutableClosure ? mutableType(callableType) : callableType;
+        const expectedCallableType = expected && readonlyType(expected);
+        if (
+          expectedCallableType &&
+          expectedCallableType !== callableType &&
+          !functionTypeMatchesRowPattern(expectedCallableType, callableType)
+        ) {
           this.fail("type-mismatch", `expected ${expected}, found ${type}`, expression.span);
         }
         return { kind: "closure", closureIndex, captures, type, span: expression.span };

@@ -1,3 +1,4 @@
+import { cellInner } from "../checker/captured-cells.ts";
 import type {
   HirExpression,
   HirDefaultArgument,
@@ -15,6 +16,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   optionalInner,
+  readonlyType,
   substituteTypeParameters,
   suspensionParts,
   traitSuspensionParts,
@@ -379,6 +381,10 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "capture": {
         return `(struct.get $env${expression.closureIndex} $env${expression.closureIndex}f${expression.fieldIndex} (ref.cast (ref $env${expression.closureIndex}) (local.get $env)))`;
       }
+      case "cell-new":
+      case "cell-get":
+      case "cell-set":
+        return this.emitCellExpression(expression);
       case "unary": {
         const operand = this.emitExpression(expression.operand);
         if (expression.operator === "+") return operand;
@@ -634,11 +640,11 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "function-value":
         return `(struct.new $closure${this.functionSignatures.get(expression.type)} (ref.func $fv${expression.functionIndex}) (ref.null any))`;
       case "closure-self":
-        return `(struct.new $closure${this.functionSignatures.get(expression.type)} (ref.func $c${expression.closureIndex}) (local.get $env))`;
+        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (local.get $env))`;
       case "closure":
-        return `(struct.new $closure${this.functionSignatures.get(expression.type)} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${expression.captures.length ? " " : ""}${expression.captures.map((capture) => this.emitExpression(capture)).join(" ")}))`;
+        return `(struct.new $closure${this.functionSignatures.get(readonlyType(expression.type))} (ref.func $c${expression.closureIndex}) (struct.new $env${expression.closureIndex}${expression.captures.length ? " " : ""}${expression.captures.map((capture) => this.emitExpression(capture)).join(" ")}))`;
       case "closure-call": {
-        const signature = this.functionSignatures.get(expression.callee.type);
+        const signature = this.functionSignatures.get(readonlyType(expression.callee.type));
         const temporary = this.allocateTemporary(expression.callee.type);
         return [
           `(block${expression.type === "void" ? "" : ` (result ${this.watType(expression.type)})`}`,
@@ -1303,6 +1309,18 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
     return trait
       ? `(ref.cast (ref null $trait${trait.index}) ${value})`
       : `(struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) ${value}))`;
+  }
+
+  /** A captured `let` local's shared storage (07-functions.md#captures). */
+  private emitCellExpression(
+    expression: Extract<HirExpression, { kind: "cell-new" | "cell-get" | "cell-set" }>,
+  ): string {
+    if (expression.kind === "cell-new")
+      return `(struct.new $hd.cell ${this.boxWatValue(this.emitExpression(expression.value), cellInner(expression.type)!)})`;
+    const cell = `(ref.as_non_null ${this.emitExpression(expression.cell)})`;
+    if (expression.kind === "cell-get")
+      return this.unboxValue(`(struct.get $hd.cell $hd.cell-value ${cell})`, expression.type);
+    return `(struct.set $hd.cell $hd.cell-value ${cell} ${this.boxWatValue(this.emitExpression(expression.value), cellInner(expression.cell.type)!)})`;
   }
 
   protected emitMatchArms(

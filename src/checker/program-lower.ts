@@ -1,3 +1,4 @@
+import { shareCapturedLocals } from "./captured-cells.ts";
 import type { FunctionDecl } from "../ast.ts";
 import type { HirFunction, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
@@ -168,8 +169,7 @@ export function lowerCheckedProgram(
           traits: [...traitTypes.values()],
           implementations,
           globals: [...globals.values()],
-          functions,
-          closures,
+          ...shareCapturedLocals(functions, closures),
           hostCapabilities: [...hostCapabilities],
           initializer: moduleDeclaration
             ? signatures.get(moduleDeclaration.name)!.index

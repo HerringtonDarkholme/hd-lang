@@ -975,3 +975,7 @@ typing/invalid/nominal-map-key.hd	type
 typing/invalid/local-impl-nonlocal-pair.hd	type
 runtime/valid/inspectable-alias-and-newtype-identity.hd	runtime
 typing/invalid/error-implementation-local-type.hd	type
+runtime/valid/closure-captured-let-shared.hd	runtime
+runtime/valid/mut-closure-capture-runtime.hd	runtime
+typing/valid/mutable-closure-capture.hd	type
+typing/invalid/plain-closure-mutable-capture-argument.hd	type

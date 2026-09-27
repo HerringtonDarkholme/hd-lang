@@ -391,6 +391,16 @@ class SuspensionPlanBuilder {
     switch (expression.kind) {
       case "string-build":
         return lowerValues(expression.segments, (segments) => ({ ...expression, segments }));
+      case "cell-new":
+        return lowerValues([expression.value], ([value]) => ({ ...expression, value: value! }));
+      case "cell-get":
+        return lowerValues([expression.cell], ([cell]) => ({ ...expression, cell: cell! }));
+      case "cell-set":
+        return lowerValues([expression.cell, expression.value], ([cell, value]) => ({
+          ...expression,
+          cell: cell!,
+          value: value!,
+        }));
       case "string-replace":
         return lowerValues(
           [expression.receiver, expression.old, expression.replacement],

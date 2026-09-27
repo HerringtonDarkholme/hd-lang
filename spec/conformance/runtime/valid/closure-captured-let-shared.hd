@@ -1,0 +1,33 @@
+# test: captured let storage is shared with its defining scope and with every closure that captures it
+# Spec 07 Captures: "Captured `let` storage is shared with its defining scope and other closures that
+# capture the same binding."
+# expect: test
+use std.testing.assert_equal
+
+fn counter() -> mut fn() -> i32:
+    let count: i32 = 0
+    mut fn() -> i32:
+        count = count + 1
+        count
+
+test "a plain closure reads a later assignment to a captured let":
+    let value: i32 = 1
+    read := fn() -> i32: value
+    value = 2
+    assert_equal(read(), 2, reason="the closure reads the shared binding, not a copy")
+
+test "two closures share one captured let":
+    let total: i32 = 0
+    let add: mut fn(i32) -> void = mut fn(amount: i32) -> void:
+        total = total + amount
+    read := fn() -> i32: total
+    add(5)
+    add(1)
+    assert_equal(read(), 6, reason="the reader sees the writer's updates")
+
+test "captured storage outlives its defining call":
+    let next = counter()
+    _ := next()
+    assert_equal(next(), 2, reason="each call of the closure updates the same storage")
+    let other = counter()
+    assert_equal(other(), 1, reason="each call of counter creates new storage")

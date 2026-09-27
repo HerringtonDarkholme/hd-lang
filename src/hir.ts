@@ -584,6 +584,15 @@ export type HirExpression =
       readonly closureIndex: number;
       readonly fieldIndex: number;
     })
+  // A captured `let` local's shared storage (07-functions.md#captures); the
+  // cell has type `cell:T`.
+  | (HirExpressionBase & { readonly kind: "cell-new"; readonly value: HirExpression })
+  | (HirExpressionBase & { readonly kind: "cell-get"; readonly cell: HirExpression })
+  | (HirExpressionBase & {
+      readonly kind: "cell-set";
+      readonly cell: HirExpression;
+      readonly value: HirExpression;
+    })
   | (HirExpressionBase & {
       readonly kind: "unary";
       readonly operator: string;

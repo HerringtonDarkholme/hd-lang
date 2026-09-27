@@ -3,7 +3,6 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
-runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal (expected-expression)	F-257
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (syntax-error)	F-705
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
@@ -59,7 +58,6 @@ typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at li
 typing/valid/row-kinded-arguments.hd	check fails: syntax-error at line 7: expected '.', found '('	F-256
 typing/invalid/row-kind-mismatch.hd	MVP reports syntax-error at line 4 instead of generic-kind-mismatch: expected '.', found '('	F-256
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
-typing/valid/mutable-closure-capture.hd	check fails: expected-expression at line 2: expected an expression, found 'mut'	F-257
 typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
 typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253
 typing/invalid/data-annotator-map-build.hd	MVP reports unknown-trait at line 5 instead of annotation-build-signature: unknown trait 'Annotation'	F-250
@@ -74,7 +72,6 @@ typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of
 typing/invalid/unknown-shape-variant.hd	MVP reports unknown-name at line 5 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist; the fixture also exposes the private trait Files from pub main (private-type-leak, F-150)	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
 typing/invalid/iterator-for-iterable-bound.hd	check reports unknown-trait: the prototype has no Iterable trait	TQ-1
 runtime/valid/user-iterable-for-loop.hd	check reports unknown-trait: the prototype has no Iterable trait, so a user impl cannot drive a for loop	TQ-1
 typing/valid/trait-argument-owner-impl.hd	check reports unknown-trait: the prototype has no Iterable trait (the trait-argument ownership check itself is implemented)	TQ-2

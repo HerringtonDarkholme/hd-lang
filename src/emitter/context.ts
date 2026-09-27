@@ -1,3 +1,4 @@
+import { cellInner } from "../checker/captured-cells.ts";
 import type {
   HirBuiltinTraitImplementation,
   HirData,
@@ -171,6 +172,7 @@ export class EmitterContext {
   }
 
   watType(type: ValueType): string {
+    if (cellInner(type) !== undefined) return "(ref null $hd.cell)";
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.watType(mutable);
     if (isGenericValueType(type)) return "anyref";
@@ -292,6 +294,7 @@ export class EmitterContext {
   }
 
   protected unboxValue(payload: string, type: ValueType): string {
+    if (cellInner(type) !== undefined) return `(ref.cast (ref null $hd.cell) ${payload})`;
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.unboxValue(payload, mutable);
     if (isGenericValueType(type)) return payload;
@@ -335,6 +338,7 @@ export class EmitterContext {
   }
 
   defaultValue(type: ValueType): string {
+    if (cellInner(type) !== undefined) return "(ref.null $hd.cell)";
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.defaultValue(mutable);
     if (isGenericValueType(type)) return `(ref.null any)`;

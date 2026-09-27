@@ -1,3 +1,4 @@
+import { cellType } from "./captured-cells.ts";
 import type { Statement } from "../ast.ts";
 import type { HirExpression, HirGlobal, HirLocal, HirStatement, ValueType } from "../hir.ts";
 import {
@@ -70,6 +71,27 @@ export abstract class StatementChecker extends CheckerContext {
           );
         }
         const captured = !local && !global ? this.availableCaptures.get(statement.name) : undefined;
+        // A `mut fn` closure assigns captured `let` storage through its shared
+        // cell (07-functions.md#captures).
+        if (captured?.mutable && this.declaration.mutableClosure) {
+          const value = this.requireCoercion(
+            this.checkExpression(statement.value, captured.type),
+            captured.type,
+            statement.value.span,
+          );
+          const cell: HirExpression = {
+            kind: "capture",
+            closureIndex: this.closureIndex,
+            fieldIndex: this.captureField(statement.name, captured),
+            type: cellType(captured.type),
+            span: statement.span,
+          };
+          return {
+            kind: "expression",
+            expression: { kind: "cell-set", cell, value, type: "void", span: statement.span },
+            span: statement.span,
+          };
+        }
         if (captured)
           this.fail(
             captured.mutable ? "mutable-capture-requires-mut-fn" : "non-reassignable-binding",

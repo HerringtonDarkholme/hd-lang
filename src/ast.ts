@@ -53,6 +53,8 @@ export interface FunctionDecl {
   // (07-functions.md#default-values); `laterNames` are the parameters declared
   // after the defaulted one, which are not yet visible.
   readonly defaultContext?: { readonly laterNames: readonly string[] };
+  /** The body of a `mut fn` closure, which may mutate captured state. */
+  readonly mutableClosure?: boolean;
 }
 
 export interface MethodDecl {
@@ -472,6 +474,8 @@ export type Expression =
   | { readonly kind: "propagate"; readonly operand: Expression; readonly span: SourceSpan }
   | {
       readonly kind: "closure";
+      /** `mut fn`: the closure may mutate captured state (07-functions.md#captures). */
+      readonly mutable?: boolean;
       readonly suspending?: boolean;
       readonly parameters: readonly ClosureParameter[];
       readonly result?: TypeRef;

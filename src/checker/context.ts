@@ -1387,22 +1387,31 @@ export abstract class CheckerContext {
     return { kind: "local", local, type: local.type, span };
   }
 
-  // A read of a captured binding inside a closure. Every MVP closure is a plain
-  // `fn` closure, so captured `mut T` access is viewed as readonly `T`.
+  // A read of a captured binding inside a closure. A plain `fn` closure views
+  // captured `mut T` access as readonly `T`; a `mut fn` closure keeps it
+  // (07-functions.md#captures).
   protected captureReference(name: string, source: HirLocal, span: SourceSpan): HirExpression {
+    const fieldIndex = this.captureField(name, source);
+    const mutableClosure = this.declaration.mutableClosure === true;
+    if (mutableInner(source.type) !== undefined && !mutableClosure)
+      this.weakenedCaptureOffsets.add(span.start.offset);
+    return {
+      kind: "capture",
+      closureIndex: this.closureIndex,
+      fieldIndex,
+      type: mutableClosure ? source.type : readonlyType(source.type),
+      span,
+    };
+  }
+
+  /** The environment field of a captured binding, registering it on first use. */
+  protected captureField(name: string, source: HirLocal): number {
     let capture = this.captures.get(name);
     if (!capture) {
       capture = { source, fieldIndex: this.captures.size };
       this.captures.set(name, capture);
     }
-    if (mutableInner(source.type) !== undefined) this.weakenedCaptureOffsets.add(span.start.offset);
-    return {
-      kind: "capture",
-      closureIndex: this.closureIndex,
-      fieldIndex: capture.fieldIndex,
-      type: readonlyType(source.type),
-      span,
-    };
+    return capture.fieldIndex;
   }
 
   protected captureValue(source: HirLocal, span: SourceSpan): HirExpression {

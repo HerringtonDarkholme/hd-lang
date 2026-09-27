@@ -909,7 +909,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       );
     }
     const callee = this.checkExpression(expression.callee);
-    const callable = functionParts(callee.type);
+    const callable = functionParts(readonlyType(callee.type));
     if (!callable)
       this.fail("not-callable", `type '${callee.type}' is not callable`, expression.callee.span);
     const parameterNames = callable.parameters.map((_, index) => `$${index}`);

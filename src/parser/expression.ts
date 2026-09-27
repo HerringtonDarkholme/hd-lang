@@ -308,6 +308,11 @@ export abstract class ExpressionParser extends ParserBase {
     if (this.matchText("while")) return this.parseWhile(token);
     if (this.matchText("match")) return this.parseMatch(token);
     if (this.matchText("fn")) return this.parseClosure(token);
+    if (this.atText("mut") && this.peek(1).text === "fn") {
+      this.advance();
+      this.advance();
+      return { ...this.parseClosure(token), mutable: true } as Expression;
+    }
     if (this.matchText("$")) return this.parseProviderExpression(token);
     if (this.matchText(".")) {
       const variant = this.expectKind("identifier", "expected an enum variant name after '.'");
