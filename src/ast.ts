@@ -179,6 +179,7 @@ export type Pattern =
   | { readonly kind: "string"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "character"; readonly value: string; readonly span: SourceSpan }
   | { readonly kind: "binding"; readonly name: string; readonly span: SourceSpan }
+  | { readonly kind: "tuple"; readonly elements: readonly Pattern[]; readonly span: SourceSpan }
   | {
       readonly kind: "data";
       readonly typeName: string;

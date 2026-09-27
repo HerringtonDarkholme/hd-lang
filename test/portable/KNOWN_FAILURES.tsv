@@ -10,7 +10,6 @@ runtime/valid/mut-closure-capture-runtime.hd	parse fails: mut fn closure literal
 runtime/valid/covariant-readonly-weakening.hd	parse fails: declared variance data Producer[+T] (syntax-error)	F-705
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (unresolved-generic-placeholder)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
-typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with syntax-error instead of reporting duplicate-binding	F-252
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
 runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
 parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254

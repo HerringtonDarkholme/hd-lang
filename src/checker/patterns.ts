@@ -24,6 +24,7 @@ import {
   storedSuspensionParts,
   suspensionParts,
   traitSuspensionParts,
+  tupleParts,
 } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
@@ -441,6 +442,8 @@ export abstract class PatternChecker extends CallChecker {
         );
       return false;
     }
+    if (pattern.kind === "tuple")
+      return this.checkTuplePattern(pattern, type, bindings, tests, accessPath);
     const nominal = nominalGenericParts(type);
     if (pattern.kind === "data") {
       const declaration = this.dataTypes.get(nominal?.name ?? type);
@@ -599,6 +602,36 @@ export abstract class PatternChecker extends CallChecker {
       `pattern '${pattern.kind}' is not supported for nested type '${type}'`,
       pattern.span,
     );
+  }
+
+  /** A tuple pattern; irrefutable when every element pattern is. */
+  protected checkTuplePattern(
+    pattern: Extract<Pattern, { kind: "tuple" }>,
+    type: ValueType,
+    bindings: Array<HirMatchArm["bindings"][number]>,
+    tests: Array<NonNullable<HirMatchArm["tests"]>[number]>,
+    accessPath: readonly HirPatternAccessStep[] = [],
+  ): boolean {
+    const elements = tupleParts(readonlyType(type));
+    if (!elements)
+      this.fail("pattern-type-mismatch", `a tuple pattern does not match '${type}'`, pattern.span);
+    if (elements.length !== pattern.elements.length)
+      this.fail(
+        "pattern-arity",
+        `a ${pattern.elements.length}-element tuple pattern does not match '${type}'`,
+        pattern.span,
+      );
+    let irrefutable = true;
+    pattern.elements.forEach((element, index) => {
+      const elementType = elements[index]!;
+      const nextPath: HirPatternAccessStep[] = [
+        ...accessPath,
+        { kind: "tuple", typeIndex: -1, fieldIndex: index, valueType: elementType },
+      ];
+      irrefutable =
+        this.checkNestedPattern(element, elementType, nextPath, bindings, tests) && irrefutable;
+    });
+    return irrefutable;
   }
 
   protected checkDataPattern(

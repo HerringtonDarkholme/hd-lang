@@ -4,7 +4,6 @@ import type {
   HirFunction,
   HirLocal,
   HirMatchArm,
-  HirPatternAccessStep,
   HirPatternPathStep,
   HirProviderContextEntry,
   HirStatement,
@@ -1435,22 +1434,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       );
     }
     return this.emitDataPatternAccess(subject, test.path!);
-  }
-
-  protected emitPatternAccess(subject: string, path: readonly HirPatternAccessStep[]): string {
-    return path.reduce((value, step) => {
-      if (step.kind === "erased-variant") {
-        return this.unboxValue(
-          `(struct.get $hd.variant $hd.variant-payload ${value})`,
-          step.valueType,
-        );
-      }
-      const prefix = step.kind === "data" ? `$d${step.typeIndex}` : `$e${step.typeIndex}`;
-      const raw = `(struct.get ${prefix} ${prefix}f${step.fieldIndex} ${value})`;
-      return step.erasedFieldType && isGenericValueType(step.erasedFieldType)
-        ? this.unboxValue(raw, step.valueType)
-        : raw;
-    }, `(local.get ${subject})`);
   }
 
   protected emitEnumPayloadAccess(

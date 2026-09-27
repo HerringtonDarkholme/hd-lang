@@ -958,3 +958,4 @@ parse/valid/closure-body-ends-at-comma-line.hd	parse
 parse/valid/closing-delimiter-ends-nested-suite.hd	parse
 parse/valid/bracketed-suite-header-line.hd	parse
 parse/valid/same-line-loop-else.hd	parse
+typing/invalid/duplicate-binding-in-one-pattern.hd	type

@@ -1,4 +1,4 @@
-import type { HirExpression } from "../hir.ts";
+import type { HirExpression, HirPatternAccessStep } from "../hir.ts";
 import { mutableInner, nominalGenericParts, readonlyType } from "../types.ts";
 import { isGenericValueType } from "./shared.ts";
 
@@ -110,5 +110,27 @@ export abstract class DataEmitter extends IteratorEmitter {
       `  (struct.new $d${expression.dataIndex} ${storedFields.join(" ")})`,
       `)`,
     ].join("\n");
+  }
+
+  /** The value a match pattern reads: each step selects a field, payload, or tuple element. */
+  protected emitPatternAccess(subject: string, path: readonly HirPatternAccessStep[]): string {
+    return path.reduce((value, step) => {
+      if (step.kind === "tuple")
+        return this.unboxValue(
+          `(array.get $hd.list (ref.as_non_null ${value}) (i32.const ${step.fieldIndex}))`,
+          step.valueType,
+        );
+      if (step.kind === "erased-variant") {
+        return this.unboxValue(
+          `(struct.get $hd.variant $hd.variant-payload ${value})`,
+          step.valueType,
+        );
+      }
+      const prefix = step.kind === "data" ? `$d${step.typeIndex}` : `$e${step.typeIndex}`;
+      const raw = `(struct.get ${prefix} ${prefix}f${step.fieldIndex} ${value})`;
+      return step.erasedFieldType && isGenericValueType(step.erasedFieldType)
+        ? this.unboxValue(raw, step.valueType)
+        : raw;
+    }, `(local.get ${subject})`);
   }
 }

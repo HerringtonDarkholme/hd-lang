@@ -1081,6 +1081,17 @@ export abstract class ExpressionParser extends ParserBase {
       this.advance();
       return { kind: "character", value: literal.value as string, span: literal.span };
     }
+    if (this.matchText("(")) {
+      // `tuple_pattern` needs a comma: `(p,)` or `(p, q)` (02-grammar.md#patterns).
+      const elements = [this.parsePattern()];
+      this.expectText(",");
+      while (!this.atText(")")) {
+        elements.push(this.parsePattern());
+        if (!this.matchText(",")) break;
+      }
+      const close = this.expectText(")");
+      return { kind: "tuple", elements, span: { start, end: close.span.end } };
+    }
     if (this.matchText(".")) {
       const variant = this.expectKind("identifier", "expected a variant name after '.'");
       const { bindings, names, patterns } = this.parsePatternBindings();

@@ -188,7 +188,7 @@ export interface HirMatchArm {
 }
 
 export interface HirPatternAccessStep {
-  readonly kind: "data" | "enum" | "erased-variant";
+  readonly kind: "data" | "enum" | "erased-variant" | "tuple";
   readonly typeIndex: number;
   readonly fieldIndex: number;
   readonly erasedFieldType?: ValueType;

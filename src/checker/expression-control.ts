@@ -27,6 +27,7 @@ import {
   substituteGenericType,
 } from "./shared.ts";
 
+import { patternsExhaustive } from "./exhaustiveness.ts";
 import { ExpressionComprehensionChecker } from "./expression-comprehensions.ts";
 type MatchExpression = Extract<Expression, { kind: "match" }>;
 type MatchSourceArm = MatchExpression["arms"][number];
@@ -40,6 +41,7 @@ interface MatchContext {
   readonly dataDeclaration?: HirData;
   readonly optional?: ValueType;
   readonly result?: ResultParts;
+  readonly tuple: boolean;
   readonly boolean: boolean;
   readonly scalar: boolean;
   readonly expected?: ValueType;
@@ -237,9 +239,17 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const dataDeclaration = this.dataTypes.get(subject.type);
     const optional = optionalInner(subject.type);
     const result = resultParts(subject.type);
+    const tuple = tupleParts(subject.type) !== undefined;
     const boolean = subject.type === "bool";
     const scalar = new Set<ValueType>(["bool", "i32", "f64", "char", "string"]).has(subject.type);
-    if (!declaration && !dataDeclaration && optional === undefined && !result && !scalar) {
+    if (
+      !declaration &&
+      !dataDeclaration &&
+      optional === undefined &&
+      !result &&
+      !scalar &&
+      !tuple
+    ) {
       this.fail(
         "unsupported-match-subject",
         `matching '${subject.type}' is not implemented in this MVP slice`,
@@ -253,6 +263,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       dataDeclaration,
       optional,
       result,
+      tuple,
       boolean,
       scalar,
       expected,
@@ -269,7 +280,15 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       context.optional !== undefined
         ? [0, 1].filter((tag) => context.covered.has(tag)).length
         : context.covered.size;
-    if (!context.catchAll && (!finiteCoverage || coveredCases !== requiredCases)) {
+    if (
+      !context.catchAll &&
+      (!finiteCoverage || coveredCases !== requiredCases) &&
+      !patternsExhaustive(
+        expression.arms.filter((arm) => !arm.guard).map((arm) => arm.pattern),
+        subject.type,
+        { enums: this.enumTypes, data: this.dataTypes },
+      )
+    ) {
       const missing = context.declaration
         ? context.declaration.variants
             .filter((variant) => !context.covered.has(variant.tag))
@@ -295,7 +314,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
       subject: context.subject,
       representation: context.declaration
         ? "enum"
-        : context.dataDeclaration
+        : context.dataDeclaration || context.tuple
           ? "data"
           : context.scalar
             ? "scalar"
@@ -397,6 +416,18 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     return tag;
   }
 
+  /** An arm whose tuple pattern is irrefutable covers the rest of a tuple subject. */
+  private checkTupleArm(
+    pattern: Extract<MatchSourceArm["pattern"], { kind: "tuple" }>,
+    context: MatchContext,
+    guarded: boolean,
+    bindings: MatchBinding[],
+    tests: MatchTest[],
+  ): void {
+    const irrefutable = this.checkTuplePattern(pattern, context.subject.type, bindings, tests);
+    if (irrefutable && !guarded) context.catchAll = true;
+  }
+
   private checkMatchArm(arm: MatchSourceArm, context: MatchContext): void {
     if (context.catchAll)
       this.fail("unreachable-match-arm", "a match arm follows an unguarded catch-all", arm.span);
@@ -417,6 +448,8 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
           tests,
         );
         if (irrefutable && !guarded) context.catchAll = true;
+      } else if (context.tuple && arm.pattern.kind === "tuple") {
+        this.checkTupleArm(arm.pattern, context, guarded, bindings, tests);
       } else if (
         context.scalar &&
         ["boolean", "integer", "float", "string", "character"].includes(arm.pattern.kind)
