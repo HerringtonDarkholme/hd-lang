@@ -38,6 +38,19 @@ Decided 2026-09-26:
    `chain`.
 4. **Question 5: a dynamic trait value satisfies bounds on its own trait
    and its supertraits.**
+5. **`From` is pure and `?` converts at most once.** A `From`
+   implementation has an empty requirement row and does not suspend; `?`
+   never chains conversions.
+6. **Question 6: an erased `Error` never crosses a registered boundary;**
+   code converts it explicitly to a domain enum or an `ErrorReport` value.
+7. **Question 8: a variant constructor with exactly one payload field is a
+   function value** (`SyncError.Fs` has type `fn(FsError) -> SyncError`), so
+   `map_err(SyncError.Fs)` works. This belongs with method values (P6) and
+   is cross-referenced there.
+8. **Question 9: no mapping clause on `?`;** `From` and `map_err` cover it.
+9. **Question 10: no anonymous error unions.**
+10. **Question 11: derived `From` implementations wait for typed
+    derivation.**
 
 ## Contents
 
