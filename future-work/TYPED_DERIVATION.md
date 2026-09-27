@@ -312,7 +312,20 @@ exactly one trait. Cost: a type that can only be encoded must still write a
 `decode` (for example, one that returns an error); derivation never
 supported encode-only.
 
-### Current Design: Full Example (M1-M10)
+(M11, decided 2026-09-27; supersedes M10's single `Json` trait, keeps
+M10's locality rule) Rust avoids duplicated configuration because serde's
+attributes sit on the struct, shared by the `Serialize` and `Deserialize`
+derives. hd's tier 1 is that place: an annotation and the declaration facts
+are shared by every trait the annotation derives. Tier 2 is for control, which
+is often per direction (serde itself has `skip_serializing`,
+`skip_deserializing`, and `rename(serialize = ..., deserialize = ...)`), so
+tier 2 deliberately splits the traits: json keeps separate `Encode` and
+`Decode` traits, each with its own template and a default `visitor()`; a
+tier-2 block is written per trait, and repeating member lines across them is
+accepted. A type may be encode-only (a hand-written `Encode` without
+`Decode`).
+
+### Current Design: Full Example (M1-M11)
 
 This is the reference example for the design as decided on 2026-09-27. When
 a later decision changes the design, update this example in the same change.
@@ -362,31 +375,38 @@ pub data Rename:                         # a fact is a plain value
 pub fn rename(name: string) -> Rename:
     Rename(name: name)
 
-# json's one trait: both directions, plus the visitor hook.
-pub trait Json:
-    fn visitor() -> Style:               # ordinary default method
+# Two traits, one per direction. Each has the visitor hook as an ordinary
+# default method.
+pub trait Encode:
+    fn visitor() -> Style:
         Style()
     fn encode(self, out: mut Writer) -> Result[(), EncodeError]
+
+pub trait Decode:
+    fn visitor() -> Style:
+        Style()
     fn decode(p: mut Parser) -> Result[Self, DecodeError]
 
-# (hand-written impls of Json for i64, string, bool, List[T], Map[K, V], T?)
+# (hand-written Encode and Decode impls for i64, string, bool, List[T],
+# Map[K, V], T?)
 
-# The one template. It never applies by itself; only the trait's module may
-# declare it.
-impl[T] Json for T by Structure:
+# Templates. They never apply by themselves; only the trait's module may
+# declare them.
+impl[T] Encode for T by Structure:
     fn encode(self, out: mut Writer) -> Result[(), EncodeError]:
         out.begin_object()
         self.visit(mut Encoder(out: out, style: Self::visitor()))?
         out.end_object()
         .Ok(())
 
+impl[T] Decode for T by Structure:
     fn decode(p: mut Parser) -> Result[Self, DecodeError]:
         p.begin_object()?
         value := Self::build(mut FieldSource(parser: p, style: Self::visitor()))?
         p.end_object()?
         .Ok(value)
 
-# The visitor and the source: the only place json's member bound appears.
+# The visitor and the source: the only place json's member bounds appear.
 data Encoder:
     out: mut Writer
     style: Style
@@ -394,7 +414,7 @@ data Encoder:
 impl Visitor for Encoder:
     type Error = EncodeError
 
-    fn member[F < Json](mut self, m: Member, value: F) -> Result[(), EncodeError]:
+    fn member[F < Encode](mut self, m: Member, value: F) -> Result[(), EncodeError]:
         self.out.key(key_for(self.style, m))
         value.encode(mut self.out)       # F's own impl: nesting follows M7
 
@@ -410,7 +430,7 @@ data FieldSource:
 impl Source for FieldSource:
     type Error = DecodeError
 
-    fn member[F < Json](mut self, m: Member) -> Result[F, DecodeError]:
+    fn member[F < Decode](mut self, m: Member) -> Result[F, DecodeError]:
         self.parser.seek_key(key_for(self.style, m))?
         F::decode(mut self.parser)       # type → impl, through F's dictionary
 
@@ -427,12 +447,12 @@ fn key_for(style: Style, m: Member) -> string:
             .Some(f) => f(m)
             .None => apply_case(style.case, m.name)
 
-pub fn to_json[T < Json](value: T) -> Result[string, EncodeError]:
+pub fn to_json[T < Encode](value: T) -> Result[string, EncodeError]:
     w := Writer()
     value.encode(mut w)?
     .Ok(w.finish())
 
-pub fn from_json[T < Json](text: string) -> Result[T, DecodeError]:
+pub fn from_json[T < Decode](text: string) -> Result[T, DecodeError]:
     T::decode(mut Parser(text: text))
 
 
@@ -445,7 +465,7 @@ use std.structure.{Member}
 data Secret:
     value: string
 
-# ── Tier 1: one annotation per concern ──
+# ── Tier 1: one annotation per concern, shared by both directions ──
 @json(case: .Snake)
 pub data Address:
     pub streetLine: string               # "street_line"
@@ -459,17 +479,20 @@ pub data User:
     pub email: string
     pub address: Address                 # Address's own derivation: snake_case (M7)
 
-# @json(case: .Camel) is exactly this tier-2 block:
-#   impl json.Json for User by Structure:
+# @json(case: .Camel) is exactly these two tier-2 blocks:
+#   impl json.Encode for User by Structure:
 #       fn visitor() -> json.Style:
 #           json.Style(case: .Camel)     # the annotation's value, a constant
+#   impl json.Decode for User by Structure:
+#       fn visitor() -> json.Style:
+#           json.Style(case: .Camel)
 
 @json(tag: "kind")
 pub enum Event:
     Login(user: i64)
     Logout(user: i64, reason: string)
 
-# ── Tier 2: one explicit block per concern ──
+# ── Tier 2: one block per trait; lines are local to their block ──
 fn legacy_key(m: Member) -> string:
     "x_" + m.name
 
@@ -479,25 +502,28 @@ pub data Order:
     pub id: i64
     pub items: List[string]
     pub total_cents: i64
-    pub cache: Cache = Cache.empty()     # Cache has no Json impl
+    pub cache: Cache = Cache.empty()     # Cache has no json impls
 
-impl json.Json for Order by Structure:
+impl json.Encode for Order by Structure:
     fn visitor() -> json.Style:          # override only to customize
         json.json(key: .Some(legacy_key))
-    total_cents = [json.rename("total")] # affects this impl's visit/build only
-    cache = pass                         # not visited; decode uses Cache.empty()
+    total_cents = [json.rename("total")] # affects this impl's visit only
+    cache = pass                         # not visited
+
+impl json.Decode for Order by Structure:
+    fn visitor() -> json.Style:
+        json.json(key: .Some(legacy_key))
+    total_cents = [json.rename("total", "total_cents")]   # e.g. accept both on input
+    cache = pass                         # decode uses Cache.empty()
 
 # ── Tier 3: hand-written, no Structure ──
 pub data Money:
     cents: i64
 
-impl json.Json for Money:                # visitor() keeps its unused default
+impl json.Encode for Money:              # encode-only: no Decode impl
     fn encode(self, out: mut json.Writer) -> Result[(), json.EncodeError]:
         out.raw(format_decimal(self.cents, places: 2))
         .Ok(())
-
-    fn decode(p: mut json.Parser) -> Result[Money, json.DecodeError]:
-        .Ok(Money(cents: parse_cents(p.number()?)?))
 
 # ── Use ──
 pub fn main() $ Console:
@@ -514,33 +540,36 @@ pub fn main() $ Console:
     # {"x_id":1,"x_items":["tea"],"total":1250}
 ```
 
+(`json.rename("total", "total_cents")` with aliases is illustrative; the
+fact vocabulary is json's own.)
+
 What the compiler generates (ordinary hd; tooling can print it):
 
 ```text
-# User.visit, inside User's Json impl, for json's Encoder
+# User.visit, inside User's Encode impl, for json's Encoder
 fn visit(self, v: mut Encoder) -> Result[(), EncodeError]:
-    v.member[i64](m_id, self.id)?                  # needs i64 < Json ✓
+    v.member[i64](m_id, self.id)?                  # needs i64 < Encode ✓
     v.member[string](m_full_name, self.full_name)?
     v.member[string](m_email, self.email)?         # m_email.facts = [Rename("mail")]
-    v.member[Address](m_address, self.address)?    # needs Address < Json ✓ (its own @json)
+    v.member[Address](m_address, self.address)?    # needs Address < Encode ✓ (its own @json)
     .Ok(())
 
-# Event.build, inside Event's Json impl, for json's FieldSource
+# Event.build, inside Event's Decode impl, for json's FieldSource
 fn build(s: mut FieldSource) -> Result[Event, DecodeError]:
     match s.variant([v_login, v_logout])?.index:
         0 => .Ok(.Login(user: s.member[i64](m_user)?))
         1 => .Ok(.Logout(user: s.member[i64](m_user)?, reason: s.member[string](m_reason)?))
 
-# Order.build inside Order's Json impl: its lines apply; `cache = pass` means
-# no member call and the declared default
+# Order.build inside Order's Decode impl: only that block's lines apply;
+# `cache = pass` means no member call and the declared default
     .Ok(Order(id: s.member[i64](m_id)?, items: s.member[List[string]](m_items)?,
               total_cents: s.member[i64](m_total_cents)?, cache: Cache.empty()))
-    # m_total_cents.facts = [Rename("total")] here; db.Row's build for Order
+    # The Encode block's lines do not reach here, and db.Row's build for Order
     # sees the declaration facts only, and visits cache.
 ```
 
 At run time each `member[i64]` call runs the `i64`-shaped body with `i64`'s
-`Json` dictionary, a constant; there is no per-member allocation.
+dictionary, a constant; there is no per-member allocation.
 
 What the compiler rejects:
 
@@ -548,14 +577,14 @@ What the compiler rejects:
 @json
 pub data Bad:
     handle: FileHandle
-# error at @json: member `handle`: FileHandle does not implement json.Json
+# error at @json: member `handle`: FileHandle does not implement json.Encode
 #   use `handle = pass` in a tier-2 block, or change the member's type
 
 @json
 pub data Twice:
     x: i64
-impl json.Json for Twice by Structure
-# error: overlapping-impl: json.Json for Twice is already implemented by @json
+impl json.Encode for Twice by Structure
+# error: overlapping-impl: json.Encode for Twice is already implemented by @json
 #   (ordinary 09 Overlap; tier 1 is sugar for this impl, as in Rust's E0119)
 
 fn dump[X < Structure](x: X)
@@ -570,7 +599,7 @@ fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
 #   generated code
 ```
 
-### Current Rules (M1-M10)
+### Current Rules (M1-M11)
 
 1. `Structure` is sealed (`impl Structure for T` is
    `sealed-trait-implementation`). It exists only inside `by Structure`
@@ -579,18 +608,20 @@ fn sneak[S < Source](s: mut S, m: Member) -> Result[Cache, S::Error]:
    module may declare it, so there is at most one per trait. It never
    applies by itself, so it cannot overlap a hand-written impl (hd otherwise
    has no blanket impls: 09 `bare-parameter-impl-target`).
-3. `impl Trait for X by Structure:` (tier 2) applies the template to `X`.
-   Its body overrides template methods like default methods and carries M3
-   member lines: `f += [facts]`, `f = [facts]`, `f = pass`.
+3. `impl Trait for X by Structure:` (tier 2) applies one trait's template to
+   `X`. Its body overrides template methods like default methods and carries
+   M3 member lines: `f += [facts]`, `f = [facts]`, `f = pass`.
 4. Member lines are local to their impl (M10). Declaration facts are
-   visible to every impl.
+   visible to every impl. Tier-2 blocks for related traits (such as `Encode`
+   and `Decode`) are written separately and may repeat lines (M11).
 5. Tier 1: an annotation function runs at compile time and returns a value
-   of type `V`. `@f(...)` on `X` is exactly the tier-2 block for the trait
+   of type `V`. `@f(...)` on `X` is exactly one tier-2 block for each trait
    whose template lives in `V`'s package and that declares a parameterless
    associated function returning `V`, with that function overridden to
-   return the annotation's value. (Proposed with M10; not yet confirmed.)
-6. There is no separate duplicate rule: tier 1 is sugar for the tier-2 impl,
-   so both on one type is an ordinary `overlapping-impl` (09 Overlap).
+   return the annotation's value. (Proposed; not yet confirmed.)
+6. There is no separate duplicate rule: tier 1 is sugar for tier-2 impls, so
+   both on one type for one trait is an ordinary `overlapping-impl`
+   (09 Overlap).
 7. Visitors and sources: an impl of the sealed `Visitor` or `Source` may
    strengthen `member[F]`'s bound; only generated `visit`/`build` may call
    `member` through a generic visitor or source; templates pass a concrete
