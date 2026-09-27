@@ -1,0 +1,5 @@
+# test: a function-type conversion must be representation-preserving; i32 to Display is not
+fn count() -> i32: 1
+
+fn erase() -> fn() -> Display:
+    count  # diagnostic: variance-representation-change

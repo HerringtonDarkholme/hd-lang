@@ -89,10 +89,10 @@ function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
                 [ "->", type ], [ header_requirement_clause ], ":",
                 suite_body ;
 
-function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
 
-closure_expression = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
+closure_expression = "fn", [ "!" ], closure_parameter_clause,
                      [ "->", type ], [ header_requirement_clause ],
                      ":", suite_body ;
 

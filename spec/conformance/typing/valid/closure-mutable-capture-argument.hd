@@ -1,4 +1,4 @@
-# test: plain closures view mutable captures as readonly; mut fn closures may mutate
+# test: a closure may pass a captured mut binding to a mut parameter and return mutable access from a capture
 data User:
     name: string
 
@@ -7,11 +7,10 @@ fn rename(user: mut User) -> void:
 
 fn plain_closure(user: mut User) -> fn() -> void:
     fn() -> void:
-        rename(user)  # diagnostic: mutable-capture-requires-mut-fn
-
-fn mutable_closure(user: mut User) -> mut fn() -> void:
-    mut fn() -> void:
         rename(user)
+
+fn keeper(user: mut User) -> fn() -> mut User:
+    fn() -> mut User: user
 
 fn plain_reader(user: mut User) -> fn() -> string:
     fn() -> string: user.name

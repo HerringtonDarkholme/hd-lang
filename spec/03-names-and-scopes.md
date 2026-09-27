@@ -306,7 +306,7 @@ fn describe(name: string) -> string:
 2. r[names.self.mut] `mut self` is shorthand for `self: mut Self`; it does not create a different lookup category.
 3. r[names.capture.resolve] A closure or local named function resolves otherwise-unbound local names in lexically enclosing scopes.
 4. r[names.capture.definition] Those resolved names are its captures.
-5. r[names.capture.mutation] Whether a capture permits mutation is determined by the function type and the captured value's access type, as specified in [Functions](07-functions.md).
+5. r[names.capture.mutation-access] Whether a capture permits mutation is determined by the captured binding and its access type alone, as specified in [Functions](07-functions.md#captures).
 6. r[names.return.closure] `return` in a closure or trailing block targets that closure, not the enclosing named function.
 
 ## Control-Flow Binding Scopes

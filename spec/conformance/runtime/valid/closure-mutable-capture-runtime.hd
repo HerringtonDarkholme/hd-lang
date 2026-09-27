@@ -1,4 +1,4 @@
-# test: mut fn closures share captured storage; plain closures observe later writes
+# test: closures mutate captured storage and captured mutable objects; readers observe later writes
 # expect: test
 use std.testing.assert_equal
 
@@ -8,9 +8,9 @@ data User:
 fn rename(user: mut User) -> void:
     user.name = "renamed"
 
-test "a mut fn closure updates captured let storage shared with its scope":
+test "a closure updates captured let storage shared with its scope":
     let count: i32 = 0
-    let next: mut fn() -> i32 = mut fn() -> i32:
+    let next: fn() -> i32 = fn() -> i32:
         count = count + 1
         count
     _ := next()
@@ -18,14 +18,14 @@ test "a mut fn closure updates captured let storage shared with its scope":
     assert_equal(second, 2, reason="closure state persists between calls")
     assert_equal(count, 2, reason="the defining scope sees the captured writes")
 
-test "a plain closure reads through a readonly view and sees later writes":
+test "a closure reads through a readonly view and sees later writes":
     let user: mut User = User { name: "Ada" }
     read := fn() -> string: user.name
     user.name = "Grace"
     assert_equal(read(), "Grace", reason="readonly view is not a snapshot")
 
-test "a mut fn closure mutates a captured mutable object":
+test "a closure mutates a captured mutable object":
     let user: mut User = User { name: "Ada" }
-    let rename_it: mut fn() -> void = mut fn() -> void: rename(user)
+    rename_it := fn() -> void: rename(user)
     rename_it()
     assert_equal(user.name, "renamed", reason="mutation through the capture is visible")

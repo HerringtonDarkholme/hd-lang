@@ -1,0 +1,7 @@
+# test: an implementation over Fn[(Is...), O, R] overlaps one for a concrete function type
+use std.function.Fn
+
+trait Marker
+
+impl[Is..., O, R] Marker for Fn[(Is...), O, R]
+impl Marker for fn(i32) -> i32  # diagnostic: overlapping-impl

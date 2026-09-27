@@ -1,0 +1,4 @@
+# test: the standard library owns Fn, so a standard trait for a function type is an orphan implementation
+impl Display for fn() -> i32:  # diagnostic: orphan-impl
+    fn to_string(self) -> string:
+        "function"

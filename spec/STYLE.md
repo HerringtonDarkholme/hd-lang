@@ -380,3 +380,61 @@ style lint rejects a chapter that reuses one.
   decision 8 lets `std` declare such implementations in any of its modules.
   Replaced by `trait.own.module.inherent-target` and
   `trait.own.module.inherent.std`.
+- `types.forms`: retired 2026-09-27. FN_TYPE owner decision 2 removed the
+  mutable function type form. Replaced by `types.forms.set`.
+- `types.fn.structural`: retired 2026-09-27. FN_TYPE owner decisions 1 and
+  2 made function types constructor applications without mutability.
+  Replaced by `types.fn.constructor` and `types.fn.same`.
+- `types.fn.invariant`: retired 2026-09-27. FN_TYPE owner decision 5
+  declares function variance. Replaced by `types.fn.declared-variance` and
+  `types.variance.function`.
+- `types.fn.no-variance`: retired 2026-09-27. FN_TYPE owner decision 5
+  allows standalone function-type variance conversions. Replaced by
+  `types.variance.function`.
+- `types.fn.container`: retired 2026-09-27. FN_TYPE owner decision 5 made
+  the container-view special case an ordinary variance conversion. Replaced
+  by `types.variance.function`.
+- `types.fn.container.change`: retired 2026-09-27. FN_TYPE owner decision 5.
+  Replaced by `types.variance.function` and `fn.type.variance-repr`.
+- `types.fn.container.access`: retired 2026-09-27. FN_TYPE owner decision 5.
+  Replaced by `types.variance.function`.
+- `names.capture.mutation`: retired 2026-09-27. FN_TYPE owner decision 2
+  removed the function type's part in capture mutation. Replaced by
+  `names.capture.mutation-access`.
+- `expr.is.closure`: retired 2026-09-27. FN_TYPE owner decision 9 made
+  function identity unspecified. Replaced by `expr.is.function-unspecified`
+  and `expr.is.function-sharing`.
+- `fn.local.capture`: retired 2026-09-27. FN_TYPE owner decision 2 removed
+  readonly capture. Replaced by `fn.local.capture-rules`.
+- `fn.type.parts`: retired 2026-09-27. FN_TYPE owner decision 2 removed
+  function mutability. Replaced by `fn.type.signature-parts`.
+- `fn.type.invariant`: retired 2026-09-27. FN_TYPE owner decision 5
+  declares function variance. Replaced by `fn.type.declared-variance`.
+- `fn.type.exact`: retired 2026-09-27. FN_TYPE owner decision 5 allows
+  permission changes. Replaced by `fn.type.variance-repr`.
+- `fn.type.no-coercion`: retired 2026-09-27. FN_TYPE owner decision 5.
+  Replaced by `fn.type.variance-repr.excluded`.
+- `fn.capture.plain.read-only`: retired 2026-09-27. FN_TYPE owner decision
+  2 lets closures mutate captures. Replaced by `fn.capture.access` and
+  `fn.capture.mutate`.
+- `fn.capture.plain.view`: retired 2026-09-27. FN_TYPE owner decision 2.
+  Replaced by `fn.capture.access`.
+- `fn.capture.mut-fn-required`: retired 2026-09-27. FN_TYPE owner decision
+  2 removed `mut fn`. Replaced by `fn.capture.mutate`.
+- `fn.capture.mut-fn-required.method`: retired 2026-09-27. FN_TYPE owner
+  decision 2. Replaced by `fn.capture.mutate.forms`.
+- `fn.capture.plain.error`: retired 2026-09-27. FN_TYPE owner decision 2
+  removed `mutable-capture-requires-mut-fn`. No replacement.
+- `fn.capture.plain.error.argument`: retired 2026-09-27. FN_TYPE owner
+  decision 2. Replaced by `fn.capture.mutate.forms`.
+- `fn.capture.return-mut`: retired 2026-09-27. FN_TYPE owner decision 2.
+  Replaced by `fn.capture.mutate.forms`.
+- `fn.capture.call-needs-mut`: retired 2026-09-27. FN_TYPE owner decision 2
+  removed mutable function access. Replaced by `fn.type.no-permission`.
+- `fn.capture.mut-fn.type`: retired 2026-09-27. FN_TYPE owner decision 2
+  removed `mut fn`. Replaced by `fn.capture.no-mut-form`.
+- `fn.capture.mut-fn.call`: retired 2026-09-27. FN_TYPE owner decision 2.
+  Replaced by `fn.type.no-permission`.
+- `trait.target.function`: retired 2026-09-27. FN_TYPE owner decision 6
+  made function types implementation targets. Replaced by
+  `trait.target.function-type` and `trait.target.function-type.valid`.

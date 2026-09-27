@@ -1,0 +1,9 @@
+# test: generic code over T < AnyRef may compare function values; the result is unspecified
+fn same[T < AnyRef](left: T, right: T) -> bool:
+    left is right
+
+fn inc(value: i32) -> i32: value + 1
+
+fn compare() -> bool:
+    callback := fn() -> i32: 1
+    same(inc, inc) || same(callback, callback)

@@ -184,8 +184,11 @@ fn main() -> i32:
 4. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
 5. r[module.prelude.inspect] Likewise `std.inspect` declares `Inspectable`, `TypeId`, and `downcast_val`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
 6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
+7. r[module.prelude.function] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the vararg marker `Rest`, which code imports where it writes them, as in `use std.function.{Fn, SuspendFn}`.
+8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
+[Function Type Constructors](07-functions.md#function-type-constructors),
 [Error Trait](09-traits.md#error-trait),
 [Runtime Type Identity](09-traits.md#runtime-type-identity).
 

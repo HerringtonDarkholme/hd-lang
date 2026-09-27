@@ -4,13 +4,13 @@
 # expect: test
 use std.testing.assert_equal
 
-fn counter() -> mut fn() -> i32:
+fn counter() -> fn() -> i32:
     let count: i32 = 0
-    mut fn() -> i32:
+    fn() -> i32:
         count = count + 1
         count
 
-test "a plain closure reads a later assignment to a captured let":
+test "a closure reads a later assignment to a captured let":
     let value: i32 = 1
     read := fn() -> i32: value
     value = 2
@@ -18,7 +18,7 @@ test "a plain closure reads a later assignment to a captured let":
 
 test "two closures share one captured let":
     let total: i32 = 0
-    let add: mut fn(i32) -> void = mut fn(amount: i32) -> void:
+    let add: fn(i32) -> void = fn(amount: i32) -> void:
         total = total + amount
     read := fn() -> i32: total
     add(5)

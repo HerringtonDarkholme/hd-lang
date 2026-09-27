@@ -1,4 +1,0 @@
-fn aliases() -> bool:
-    callback := fn() -> i32: 1
-    alias := callback
-    callback is alias

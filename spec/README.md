@@ -76,7 +76,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `ambiguous-method`, `ambiguous-promoted-member`, `annotation-build-signature`, `annotation-resolution-reentry`, `annotation-top-level-read`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-annotation-impl`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `entry-error-not-display`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `function-impl-target`, `generic-kind-mismatch`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-field-metadata`, `invalid-map-key`, `invalid-parameter-metadata`, `invalid-result-propagation`, `invalid-variance`, `local-impl-nonlocal-pair`, `missing-child-annotation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-capture-requires-mut-fn`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `orphan-annotation-in-library`, `orphan-impl`, `overlapping-annotation-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
+| Error | `ambiguous-method`, `ambiguous-promoted-member`, `annotation-build-signature`, `annotation-resolution-reentry`, `annotation-top-level-read`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-annotation-impl`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `entry-error-not-display`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `generic-kind-mismatch`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-field-metadata`, `invalid-map-key`, `invalid-parameter-metadata`, `invalid-result-propagation`, `invalid-variance`, `local-impl-nonlocal-pair`, `missing-child-annotation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `orphan-annotation-in-library`, `orphan-impl`, `overlapping-annotation-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `mixed-script-identifier`, `unreachable-code`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -748,3 +748,57 @@ existing source. Each entry names the decision that made the change.
   constructors, and `Option`, in any of its modules. Their `pub` methods
   need no `use`. User code is unaffected: an inherent implementation for a
   type another package owns stays invalid.
+- Function type constructors (FN_TYPE owner decision 1, 2026-09-27): every
+  function type is an application of `Fn[(Is...), O, R]` or
+  `SuspendFn[(Is...), O, R]`, whose arguments are the inputs as one tuple,
+  the output, and the requirement row (`$()` when there is none). Existing
+  function types keep their meaning. A spelled form whose inputs are not a
+  tuple, such as `Fn[i32, i32, $()]`, is `generic-kind-mismatch`.
+- `mut fn` removed (FN_TYPE owner decision 2, 2026-09-27): a closure may
+  assign captured `let` storage and obtain mutable access from a captured
+  `mut T` binding. Such a plain closure, previously
+  `mutable-capture-requires-mut-fn`, is valid, and that code was removed.
+  `mut fn` types and `mut fn` closure literals are now `syntax-error`, `mut`
+  on a grouped or spelled function type is invalid, and calling a function
+  value never needs mutable access.
+- Exact function type sugar (FN_TYPE owner decision 3, 2026-09-27):
+  `fn(A) -> O $ R` is the same type as `Fn[(A,), O, R]`, and
+  `fn!(A) -> O $ R` as `SuspendFn[(A,), O, R]`. Either spelling is valid
+  anywhere, diagnostics print the sugar, and only the spelled names need an
+  import.
+- Vararg marker (FN_TYPE owner decision 4, 2026-09-27): a vararg element is
+  `Rest[T]` in constructor form, so `fn(string, i32...) -> i32` is
+  `Fn[(string, Rest[i32]), i32, $()]`. `Rest[T]` is valid only as the final
+  element of a function type's inputs; a non-final one is
+  `nonfinal-vararg`, as a non-final `T...` already was.
+- Declared function variance (FN_TYPE owner decision 5, 2026-09-27):
+  function types are contravariant in each input element, covariant in the
+  output, and invariant in the row. `fn() -> mut User` where
+  `fn() -> User` is expected, and `fn(User) -> T` where `fn(mut User) -> T`
+  is expected, previously `type-mismatch`, are now accepted. A conversion
+  that is not representation-preserving, such as `fn() -> i32` to
+  `fn() -> Display`, is `variance-representation-change`, previously
+  `type-mismatch`. Chapter 04's function-invariance and container-view
+  rules were withdrawn.
+- Function types as implementation targets (FN_TYPE owner decision 6,
+  2026-09-27): `impl Marker for fn(i32) -> i32`, previously
+  `function-impl-target`, is valid in the package that declares `Marker`,
+  and that code was removed. The standard library owns `Fn` and
+  `SuspendFn`, so implementing a standard trait for a function type is
+  `orphan-impl`. A row argument in an implementation head is a row
+  parameter or a concrete row. This supersedes the function-type sentence
+  of TQ-27 (partial) above.
+- Function values stay out of `Inspectable` (FN_TYPE owner decision 7,
+  2026-09-27): no behavior changes. The exclusion list now names `Fn` and
+  `SuspendFn` too, since they are standard-library declarations.
+- `std.function` (FN_TYPE owner decision 8, 2026-09-27): `Fn`, `SuspendFn`,
+  and `Rest` are declared in the specified standard module
+  `std.function`, which a conformance fixture may use. They are not prelude
+  names, so a user declaration named `Fn` stays valid.
+- Function identity (FN_TYPE owner decision 9, 2026-09-27): function values
+  are `AnyRef`, but the identity of each one is unspecified, so an
+  implementation may share or allocate them. `expr.is.closure`, which gave
+  each closure evaluation one identity, was withdrawn. A direct `is` on a
+  function-typed operand, previously valid, is the new code
+  `unsupported-function-identity`. Generic code over `T < AnyRef` still
+  compiles, with an unspecified result.

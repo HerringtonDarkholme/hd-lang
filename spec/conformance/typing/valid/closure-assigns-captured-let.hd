@@ -1,0 +1,6 @@
+# test: a closure may assign captured let storage
+fn counter() -> fn() -> i32:
+    let count: i32 = 0
+    fn() -> i32:
+        count = count + 1
+        count

@@ -1,0 +1,19 @@
+# test: the spelled constructors Fn and SuspendFn name the same types as the fn sugar
+use std.function.{Fn, SuspendFn}
+
+trait Database
+
+fn check(id: i32, name: string) -> bool: id > 0
+fn load!(id: i32) -> string $ Database: "user"
+
+fn spelled() -> Fn[(i32, string), bool, $()]:
+    check
+
+fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
+    callback
+
+fn suspending() -> SuspendFn[(i32,), string, Database]:
+    load
+
+fn back(callback: fn!(i32) -> string $ Database) -> SuspendFn[(i32,), string, $(Database)]:
+    callback

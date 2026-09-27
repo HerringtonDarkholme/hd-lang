@@ -1,0 +1,11 @@
+# test: a spelled function type is not inspectable, as a value or as a type argument
+use std.function.Fn
+use std.inspect.Inspectable
+
+data Box[T]:
+    value: T
+
+fn one() -> i32: 1
+
+fn erase(box: Box[Fn[(), i32, $()]]) -> Inspectable:
+    box  # diagnostic: type-mismatch

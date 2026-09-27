@@ -1,0 +1,4 @@
+# test: Rest[T] before the final element of a function type's inputs is a non-final vararg
+use std.function.{Fn, Rest}
+
+fn apply(callback: Fn[(Rest[i32], string), i32, $()]) -> i32: 0  # diagnostic: nonfinal-vararg

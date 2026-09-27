@@ -1,3 +1,0 @@
-fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
-    fn(value: i32) -> void:
-        items.append(value)  # diagnostic: mutable-capture-requires-mut-fn

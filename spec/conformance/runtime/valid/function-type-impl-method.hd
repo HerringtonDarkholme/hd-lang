@@ -1,0 +1,18 @@
+# test: a trait implemented for a function type is called on a function value
+# expect: test
+use std.testing.assert_equal
+
+trait Describe:
+    fn describe(self) -> string
+
+impl Describe for fn(i32) -> i32:
+    fn describe(self) -> string:
+        "i32 to i32"
+
+fn inc(value: i32) -> i32: value + 1
+
+test "a function value uses its function type's implementation":
+    callback := inc
+    assert_equal(callback.describe(), "i32 to i32", reason="the target is the function type")
+    closure := fn(value: i32) -> i32: value * 2
+    assert_equal(closure.describe(), "i32 to i32", reason="closures share the implementation")

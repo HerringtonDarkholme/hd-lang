@@ -1,0 +1,5 @@
+# test: a direct `is` on a closure value is an error, because function identity is unspecified
+fn aliases() -> bool:
+    callback := fn() -> i32: 1
+    alias := callback
+    callback is alias  # diagnostic: unsupported-function-identity

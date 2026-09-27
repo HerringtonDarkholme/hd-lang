@@ -487,6 +487,7 @@ constructor.
 | r[trait.target.declaration] Declared | a data, enum, or newtype declaration | `User`, `Box` |
 | r[trait.target.builtin] Built-in | a built-in type constructor | `i32`, `string`, `List`, `Map` |
 | r[trait.target.tuple] Tuple | a tuple constructor, one per arity | `(A, B)`, the two-element tuple constructor applied to `A` and `B` |
+| r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[(Is...), O, R]` |
 
 1. r[trait.target.constructor] The target of every implementation, trait or inherent, starts with a type constructor from the table above.
 2. r[trait.target.tuple.valid] `impl Display for (i32, string)` is a valid target.
@@ -495,16 +496,18 @@ constructor.
 5. r[trait.target.arguments] The constructor's arguments may be any types, including implementation parameters, as in `impl[T < Display] Printable for Box[T]`.
 6. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
 7. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
-8. r[trait.target.function] A function type is never an implementation target, whatever its parameter, result, or requirement types. `impl Marker for fn(i32) -> i32` is an error. Error: `function-impl-target`.
-9. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
-10. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
-11. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
-12. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
-13. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
-14. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
-15. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
-16. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
-17. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
+8. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
+9. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
+10. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $(R, Log)]`, is invalid in an implementation head.
+11. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
+12. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
+13. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[Display]`.
+14. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
+15. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
+16. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
+17. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
+18. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
+19. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
 
 ```text
 trait Describe:
@@ -519,9 +522,21 @@ impl[T] Describe for T:  # error: bare-parameter-impl-target
     fn describe(self) -> string:
         "value"
 
-impl Marker for fn(i32) -> i32  # error: function-impl-target
-impl Marker for Display         # error: trait-value-impl-target
-impl Marker for mut Counter     # error: mutable-impl-target
+impl Marker for Display      # error: trait-value-impl-target
+impl Marker for mut Counter  # error: mutable-impl-target
+```
+
+A function type is a target like any other:
+
+```text
+use std.function.Fn
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[Is..., O, R] Describe for Fn[(Is...), O, R]:
+    fn describe(self) -> string:
+        "function"
 ```
 
 > **Note.** A later revision may add blanket implementations as a compatible
@@ -545,16 +560,21 @@ one of these declarations:
 5. r[trait.own.aliases] Transparent aliases do not create ownership; nominal newtypes do.
 6. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enum `Option`.
 7. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `annotate Validation for string?` in the package that owns `Validation`.
-8. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
-9. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
-10. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enum `Option`.
-11. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
-12. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
+8. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
+9. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
+10. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
+11. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enum `Option`.
+12. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
+13. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
 impl Display for i32:  # error: orphan-impl
     fn to_string(self) -> string:
         "$self"
+
+impl Display for fn() -> i32:  # error: orphan-impl
+    fn to_string(self) -> string:
+        "function"
 ```
 
 > **Why.** These ownership rules prevent downstream packages from creating
@@ -606,6 +626,8 @@ impl[T < Display] Printable for Box[T]:
 | `impl[T] Marker for Box[T]` | `impl Marker for Box[i32]` | yes |
 | `impl Marker for Box[i32]` | `impl Marker for Box[string]` | no |
 | `impl Add[i32] for Money` | `impl Add[Money] for Money` | no |
+| `impl[Is..., O, R] Marker for Fn[(Is...), O, R]` | `impl Marker for fn(i32) -> i32` | yes |
+| `impl Marker for fn(i32) -> i32` | `impl Marker for fn(string) -> i32` | no |
 
 ```text
 data Box[T]:
@@ -621,7 +643,9 @@ impl Marker for Box[Plain]  # error: overlapping-impl
 ```
 
 > **Note.** Because bounds are ignored, an implementation added later in a
-> dependency cannot make two existing implementations overlap.
+> dependency cannot make two existing implementations overlap. A pack
+> parameter is substituted by a sequence of types, so `(Is...)` unifies with
+> every tuple type, and a row parameter unifies with every row.
 
 ## Inherent Implementations
 
@@ -1239,7 +1263,7 @@ These types are not inspectable, as values or as type arguments:
 
 | Rule | Not inspectable |
 | --- | --- |
-| r[trait.inspectable.not.function] Function | function types, closures, and function values |
+| r[trait.inspectable.not.function] Function | function types, spelled or as the constructors `Fn` and `SuspendFn` from `std.function`, closures, and function values |
 | r[trait.inspectable.not.suspend] Suspension | `Suspend[T]` and suspension frames |
 | r[trait.inspectable.not.local] Local declaration | data, enum, newtype, and trait declarations local to a block suite |
 | r[trait.inspectable.not.never] Never | `never` |

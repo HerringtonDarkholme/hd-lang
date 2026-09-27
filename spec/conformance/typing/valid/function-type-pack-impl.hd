@@ -1,0 +1,9 @@
+# test: one implementation over Fn[(Is...), O, R] covers every plain function type
+use std.function.Fn
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[Is..., O, R] Describe for Fn[(Is...), O, R]:
+    fn describe(self) -> string:
+        "function"

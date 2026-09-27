@@ -501,14 +501,14 @@ type_element = type, [ "..." ] ;
 
 grouped_type = "(", type, ")" ;
 
-function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
 type_list = type_element, { ",", type_element }, [ "," ] ;
 
 result_type = reference_access_type, { "?" }
             | result_function_type
             ;
-result_function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
+result_function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                        "->", result_type ;
 
 associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
@@ -581,11 +581,12 @@ fn invalid(value: Box[$()]) -> void: pass  # error
 
 1. r[grammar.type.mut] `mut` is a type modifier.
 2. r[grammar.type.mut.semantic] Semantic rules reject meaningless or nested forms, including direct `mut mut T`.
-3. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
-4. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
-5. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
-6. r[grammar.type.row-owner] Inside a type, such as a parameter type, a field type, or a type argument, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type.
-7. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+3. r[grammar.type.mut.no-function] `mut` never directly precedes `fn`: `mut fn() -> i32` as a type, or `mut fn() -> i32:` as a closure header, is an error. Error: `syntax-error`.
+4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
+5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
+6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
+7. r[grammar.type.row-owner] Inside a type, such as a parameter type, a field type, or a type argument, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type.
+8. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
 
 ### Header Requirement Clauses
 
@@ -1027,7 +1028,7 @@ values := [run:  # error
 ```ebnf
 closure_expression = closure_header, suite_body ;
 inline_closure_expression = closure_header, inline_suite_body ;
-closure_header = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
+closure_header = "fn", [ "!" ], closure_parameter_clause,
                  [ "->", result_type ], [ header_requirement_clause ], ":" ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;

@@ -23,16 +23,13 @@ fn main() -> i32:
     box := Box { value: 1 }
     alias := box
     other := Box { value: 1 }
-    callback := fn() -> i32: 1
-    callback_alias := callback
-    other_callback := fn() -> i32: 1
     values := [1]
     values_alias := values
     first_trait := as_value(box)
     second_trait := as_value(box)
     suspension := pending()
     suspension_alias := suspension
-    if same(box, alias) && !(box is other) && callback is callback_alias && !(callback is other_callback) && values is values_alias && first_trait is second_trait && suspension is suspension_alias && Status.Ready is Status.Ready && !(Status.Code(1) is Status.Code(1)):
+    if same(box, alias) && !(box is other) && values is values_alias && first_trait is second_trait && suspension is suspension_alias && Status.Ready is Status.Ready && !(Status.Code(1) is Status.Code(1)):
         42
     else:
         0

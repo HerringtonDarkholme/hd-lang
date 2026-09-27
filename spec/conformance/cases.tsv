@@ -250,8 +250,6 @@ typing/valid/row-kinded-arguments.hd	type	accept	02-grammar.md#types
 typing/invalid/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	02-grammar.md#types
 typing/invalid/multiple-positional-value-packs.hd	type	reject:multiple-positional-value-packs	12-variadic-generics.md#pattern-expansion
 typing/invalid/least-type-weakening-variance.hd	type	reject:no-least-common-type	04-type-system.md#least-common-type
-typing/invalid/plain-closure-mutable-capture.hd	type	reject:mutable-capture-requires-mut-fn	07-functions.md#captures
-typing/invalid/plain-closure-assigns-captured-let.hd	type	reject:mutable-capture-requires-mut-fn	07-functions.md#captures
 typing/valid/mutable-closure-capture.hd	type	accept	07-functions.md#captures
 typing/warnings/variant-binding-name-mismatch.hd	type	warn:variant-binding-name-mismatch	06-control-flow.md#match-expressions
 typing/valid/named-variant-bindings.hd	type	accept	06-control-flow.md#match-expressions
@@ -268,7 +266,6 @@ runtime/valid/map-insertion-order.hd	runtime	accept	05-expressions.md#list-and-m
 typing/invalid/unbounded-generic-identity.hd	type	reject:identity-needs-reference-bound	04-type-system.md#generics
 typing/valid/reference-generic-identity.hd	type	accept	04-type-system.md#generics
 typing/invalid/tuple-identity.hd	type	reject:identity-requires-references	05-expressions.md#unary-and-binary-operators
-typing/valid/closure-identity.hd	type	accept	05-expressions.md#unary-and-binary-operators
 typing/invalid/annotation-top-level-read.hd	type	reject:annotation-top-level-read	14-annotations.md#runtime-materialization
 typing/valid/lazy-annotation-build.hd	type	accept	14-annotations.md#runtime-materialization
 typing/invalid/private-requirement-row.hd	type	reject:private-type-leak	10-modules.md#public-uses-and-visibility
@@ -731,11 +728,10 @@ runtime/valid/payload-free-variant-canonical.hd	runtime	accept	05-expressions.md
 runtime/valid/variant-identity-through-any.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/optional-identity.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 typing/invalid/string-identity.hd	type	reject:identity-requires-references	05-expressions.md#unary-and-binary-operators
-runtime/valid/closure-identity-per-evaluation.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/generic-mut-argument-preserved.hd	runtime	accept	04-type-system.md#mutable-paths
 typing/invalid/short-binding-readonly-root.hd	type	reject:readonly-root	04-type-system.md#bindings-and-fresh-values
 typing/invalid/readonly-parent-mut-field-argument.hd	type	reject:readonly-argument-to-mutable-parameter	04-type-system.md#mutable-paths
-runtime/valid/mut-closure-capture-runtime.hd	runtime	accept	07-functions.md#captures
+runtime/valid/closure-mutable-capture-runtime.hd	runtime	accept	07-functions.md#captures
 runtime/valid/covariant-readonly-weakening.hd	runtime	accept	04-type-system.md#variance
 runtime/panic/for-map-insert-invalidates.hd	runtime	panic:iterator-invalidated	06-control-flow.md#for-loops
 runtime/panic/for-map-remove-invalidates.hd	runtime	panic:iterator-invalidated	06-control-flow.md#for-loops
@@ -768,7 +764,6 @@ runtime/valid/private-main-is-ordinary-function.hd	runtime	accept	10-modules.md#
 runtime/valid/multiple-inline-closures.hd	runtime	accept	07-functions.md#multiple-inline-closures
 runtime/valid/generic-function-value-instantiation.hd	runtime	accept	07-functions.md#function-types-and-values
 typing/invalid/function-value-no-default-arguments.hd	type	reject:argument-count	07-functions.md#function-types-and-values
-typing/invalid/function-type-invariant-result.hd	type	reject:type-mismatch	07-functions.md#function-types-and-values
 runtime/valid/trailing-block-return-targets-callback.hd	runtime	accept	07-functions.md#trailing-callback-blocks
 runtime/valid/loop-iteration-binding-capture.hd	runtime	accept	03-names-and-scopes.md#loops
 typing/invalid/for-binding-not-visible-in-else.hd	type	reject:unknown-name	03-names-and-scopes.md#loops
@@ -783,7 +778,6 @@ parse/invalid/pub-top-level-binding.hd	parse	reject:syntax-error	10-modules.md#n
 runtime/valid/default-method-conflict-inherent-resolves.hd	runtime	accept	09-traits.md#default-method-conflicts
 typing/invalid/any-exposes-no-methods.hd	type	reject:unknown-method	09-traits.md#any
 runtime/valid/any-accepts-non-optional-values.hd	runtime	accept	09-traits.md#any
-typing/invalid/function-type-invariant-view-result.hd	type	reject:type-mismatch	07-functions.md#function-types-and-values
 typing/invalid/public-function-missing-result-type.hd	type	reject:missing-result-type	07-functions.md#declarations
 typing/invalid/trait-impl-method-missing-result-type.hd	type	reject:missing-result-type	07-functions.md#declarations
 typing/invalid/mutual-recursion-omitted-results.hd	type	reject:recursive-function-needs-result-type	07-functions.md#declarations
@@ -811,7 +805,6 @@ runtime/valid/generic-associated-function-qualified-call.hd	runtime	accept	07-fu
 runtime/valid/generic-trait-method-qualified-call.hd	runtime	accept	09-traits.md#method-resolution
 runtime/valid/generic-suspending-associated-function-qualified-call.hd	runtime	accept	07-functions.md#generic-functions
 runtime/valid/readonly-root-generic-mutable-path.hd	runtime	accept	04-type-system.md#mutable-paths
-typing/invalid/plain-closure-mutable-capture-argument.hd	type	reject:mutable-capture-requires-mut-fn	07-functions.md#captures
 typing/invalid/empty-list-without-context.hd	type	reject:unresolved-generic-placeholder	05-expressions.md#list-and-map-expressions
 typing/invalid/empty-map-without-context.hd	type	reject:unresolved-generic-placeholder	05-expressions.md#list-and-map-expressions
 typing/invalid/reference-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	09-traits.md#generic-bounds-and-static-dispatch
@@ -907,7 +900,6 @@ typing/invalid/generic-trait-instantiation-no-fit.hd	type	reject:type-mismatch	0
 runtime/valid/impl-distinct-target-arguments.hd	runtime	accept	09-traits.md#overlap
 runtime/valid/tuple-impl-target.hd	runtime	accept	09-traits.md#implementation-targets
 typing/invalid/overlapping-tuple-impl.hd	type	reject:overlapping-impl	09-traits.md#overlap
-typing/invalid/function-impl-target.hd	type	reject:function-impl-target	09-traits.md#implementation-targets
 runtime/valid/iterable-and-iterator-for-loop.hd	runtime	accept	06-control-flow.md#for-loops
 parse/valid/nested-suite-body-deeper-than-statement.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/invalid/nested-suite-body-level-with-statement.hd	parse	reject:unexpected-indentation	01-lexical-structure.md#physical-and-logical-lines
@@ -1128,3 +1120,25 @@ runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	08-data-and-enums.m
 typing/valid/dynamic-trait-suspending-method.hd	type	accept	09-traits.md#r-trait.dyn.safe.suspending
 typing/valid/newtype-value-category.hd	type	accept	04-type-system.md#r-types.sealed.newtype
 typing/invalid/newtype-value-category.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#r-types.sealed.newtype
+typing/valid/closure-assigns-captured-let.hd	type	accept	07-functions.md#r-fn.capture.mutate
+typing/valid/closure-mutable-capture.hd	type	accept	07-functions.md#r-fn.capture.mutate.forms
+typing/valid/closure-mutable-capture-argument.hd	type	accept	07-functions.md#r-fn.capture.mutate.forms
+runtime/valid/closure-captures-per-iteration.hd	runtime	accept	07-functions.md#captures
+parse/invalid/mut-function-type.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.type.mut.no-function
+parse/invalid/mut-closure-literal.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.type.mut.no-function
+typing/valid/function-type-constructors.hd	type	accept	07-functions.md#function-type-constructors
+runtime/valid/spelled-function-type-values.hd	runtime	accept	07-functions.md#r-fn.type.ctor.sugar
+typing/invalid/function-type-non-tuple-inputs.hd	type	reject:generic-kind-mismatch	07-functions.md#r-fn.type.ctor.kind-mismatch
+typing/invalid/function-type-rest-nonfinal.hd	type	reject:nonfinal-vararg	07-functions.md#r-fn.type.rest.nonfinal
+typing/valid/function-type-variance.hd	type	accept	07-functions.md#r-fn.type.declared-variance
+typing/invalid/function-result-representation-change.hd	type	reject:variance-representation-change	07-functions.md#r-fn.type.variance-repr.excluded
+typing/invalid/closure-identity.hd	type	reject:unsupported-function-identity	05-expressions.md#r-expr.is.function
+typing/invalid/named-function-identity.hd	type	reject:unsupported-function-identity	05-expressions.md#r-expr.is.function
+typing/invalid/function-identity-against-any.hd	type	reject:unsupported-function-identity	05-expressions.md#r-expr.is.function
+typing/valid/generic-function-identity.hd	type	accept	05-expressions.md#r-expr.is.function.generic
+typing/valid/function-type-impl-target.hd	type	accept	09-traits.md#r-trait.target.function-type.valid
+typing/valid/function-type-pack-impl.hd	type	accept	09-traits.md#implementation-targets
+typing/invalid/function-type-overlapping-impl.hd	type	reject:overlapping-impl	09-traits.md#overlap
+typing/invalid/function-type-orphan-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.std.function
+runtime/valid/function-type-impl-method.hd	runtime	accept	09-traits.md#r-trait.target.function-type.valid
+typing/invalid/spelled-function-type-not-inspectable.hd	type	reject:type-mismatch	09-traits.md#r-trait.inspectable.not.function

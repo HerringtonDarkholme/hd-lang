@@ -1,0 +1,15 @@
+# test: a function type is an ordinary implementation target in the trait's package
+trait Marker
+
+trait Describe:
+    fn describe(self) -> string
+
+impl Marker for fn(i32) -> i32
+
+impl Describe for fn(i32) -> i32:
+    fn describe(self) -> string:
+        "i32 to i32"
+
+impl Describe for fn(string) -> i32:
+    fn describe(self) -> string:
+        "string to i32"

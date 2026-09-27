@@ -13,7 +13,7 @@ See also: [Type Inference Boundaries](#type-inference-boundaries).
 
 ## Type Forms
 
-r[types.forms] The type forms are:
+r[types.forms.set] The type forms are:
 
 | Form | Spelling |
 | --- | --- |
@@ -22,9 +22,8 @@ r[types.forms] The type forms are:
 | Tuples | |
 | Lists and maps | `List[T]`, `Map[K, V]` |
 | Optional types | `T?` |
-| Function types | `fn(...) -> T` |
-| Mutable function types | `mut fn(...) -> T` |
-| Suspending function types | `fn!(...) -> T` |
+| Function types | `fn(...) -> T`, sugar for `Fn[(...), T, $()]` |
+| Suspending function types | `fn!(...) -> T`, sugar for `SuspendFn[(...), T, $()]` |
 | Requirement-bearing function types | ending in `$ Row` |
 | Generic instantiations | |
 | Associated type projections | such as `T::Item` |
@@ -163,14 +162,12 @@ data PostId:
 
 ### Function Type Identity
 
-1. r[types.fn.structural] Function types are structural when their parameter types, result type, mutability, suspension marker, and normalized requirement row match.
-2. r[types.fn.invariant] Function types are invariant in every parameter and the result.
-3. r[types.fn.no-variance] There are no standalone implicit function-type variance conversions.
-4. r[types.fn.container] A function value read through a representation-preserving variance conversion of its containing value is viewed at the converted field type.
-5. r[types.fn.container.change] The only component change this can introduce is `mut U -> U` in a positive position or `U -> mut U` in a negative position.
-6. r[types.fn.container.access] This is field access through the converted container, not a general conversion between function values.
+1. r[types.fn.constructor] A function type is an application of the standard constructor `Fn` or `SuspendFn`, and the `fn(...) -> T` spelling is exact sugar for it.
+2. r[types.fn.same] Two function types are the same type when they apply the same constructor to the same inputs, the same output, and the same normalized requirement row.
+3. r[types.fn.declared-variance] Function types convert only by the declared variance of their constructor, as [Readonly Outer Views](#readonly-outer-views) states.
 
-See also: [Variance](#variance).
+See also: [Function Type Constructors](07-functions.md#function-type-constructors),
+[Variance](#variance).
 
 ## Transparent Aliases And Newtypes
 
@@ -767,9 +764,12 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 2. r[types.variance.mut-invariant] Every `mut G[T]` view is invariant in all generic arguments.
 3. r[types.variance.list] The built-in `List` declares a covariant element parameter for its readonly view.
 4. r[types.variance.map] Readonly `Map[K, V]` is invariant in `K` and covariant in `V`.
+5. r[types.variance.function] The function type constructors `Fn` and `SuspendFn` are contravariant in each input element, covariant in the output, and invariant in the requirement row.
 
 > **Why.** The mutable view may replace stored values. Map keys are both
-> accepted for lookup and exposed during traversal.
+> accepted for lookup and exposed during traversal. Converting a function's
+> row would change which providers the call passes, so the row stays
+> invariant.
 
 ### Representation-Preserving Variance
 
@@ -1068,7 +1068,9 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
 - A list is a growable array of its element shape. A map is expected to use
   hashing, with insertion order kept separately.
 - A closure is a function reference plus an environment record. A closure
-  without captures needs no environment.
+  without captures needs no environment. Because function identity is
+  unspecified, an implementation may share one value for a named function or
+  allocate one at each use.
 - A dynamic trait value is the underlying reference plus a shared method
   table for the implementation. For `Inspectable` and the traits that
   extend it, the table also holds one interned descriptor of the recorded

@@ -1,0 +1,7 @@
+# test: a closure literal cannot start with mut fn
+fn counter() -> i32:
+    let count: i32 = 0
+    next := mut fn() -> i32:  # diagnostic: syntax-error
+        count = count + 1
+        count
+    next()

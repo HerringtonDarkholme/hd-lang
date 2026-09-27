@@ -1,0 +1,14 @@
+# test: function types are contravariant in inputs and covariant in the output, by permission weakening
+data User:
+    name: string
+
+fn fresh() -> mut User: User { name: "Ada" }
+
+fn readonly_maker() -> fn() -> User:
+    fresh
+
+fn widen(callback: fn(User) -> mut User) -> fn(mut User) -> User:
+    callback
+
+fn in_list(makers: List[fn() -> mut User]) -> List[fn() -> User]:
+    makers

@@ -1,10 +1,17 @@
-fn make_appender(items: mut List[i32]) -> mut fn(i32) -> void:
-    mut fn(value: i32) -> void:
+# test: a closure that mutates captured state has an ordinary function type
+let count: i32 = 0
+
+let next: fn() -> i32 = fn() -> i32:
+    count = count + 1
+    count
+
+fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
+    fn(value: i32) -> void:
         items.append(value)
 
-fn counter() -> mut fn() -> i32:
-    let count: i32 = 0
-    let next: mut fn() -> i32 = mut fn() -> i32:
-        count = count + 1
-        count
-    next
+fn counter() -> fn() -> i32:
+    let total: i32 = 0
+    let step: fn() -> i32 = fn() -> i32:
+        total = total + 1
+        total
+    step

@@ -1,0 +1,3 @@
+# test: mut never directly precedes fn in a type
+fn counter() -> mut fn() -> i32:  # diagnostic: syntax-error
+    fn() -> i32: 1

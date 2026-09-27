@@ -100,7 +100,7 @@ fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
 
 1. r[fn.local.declare] A named function may be declared inside an executable block suite.
 2. r[fn.local.scope] Its name is visible from that declaration onward and within its own body.
-3. r[fn.local.capture] It can capture enclosing local values under the same readonly capture rules as a plain closure.
+3. r[fn.local.capture-rules] It can capture enclosing local values under the same capture rules as a closure.
 4. r[fn.local.private] It cannot be marked `pub` or used from another module.
 
 See also: [Captures](#captures).
@@ -248,18 +248,110 @@ fn!(UserId) -> Result[User, DbError] $ Database
 2. r[fn.type.form] A plain function type lists parameter types and a result.
 3. r[fn.type.no-names] Parameter names and default values are not part of a function value type.
 4. r[fn.type.positional] Calling through a function value therefore uses positional arguments only and does not inherit declaration defaults.
-5. r[fn.type.parts] Vararg calling convention, function mutability, suspension, and requirement rows are part of the type.
+5. r[fn.type.signature-parts] Vararg calling convention, suspension, and requirement rows are part of the type.
 6. r[fn.type.vararg] A vararg function type writes an ellipsis after its final element type, such as `fn(string, i32...) -> i32`.
+
+### Function Type Constructors
+
+Every function type is exact sugar for one of two standard constructors that
+`std.function` declares:
+
+| Sugar | Constructor form |
+| --- | --- |
+| `fn(A, B) -> O $ R` | `Fn[(A, B), O, R]` |
+| `fn!(A, B) -> O $ R` | `SuspendFn[(A, B), O, R]` |
+| `fn(A) -> O` | `Fn[(A,), O, $()]` |
+| `fn() -> O $(Db, Cache)` | `Fn[(), O, $(Db, Cache)]` |
+| `fn(string, i32...) -> i32` | `Fn[(string, Rest[i32]), i32, $()]` |
+
+```text
+use std.function.{Fn, SuspendFn}
+
+trait Database
+
+fn check(id: i32, name: string) -> bool: id > 0
+fn load!(id: i32) -> string $ Database: "user"
+
+fn spelled() -> Fn[(i32, string), bool, $()]:
+    check
+
+fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
+    callback
+
+fn suspending() -> SuspendFn[(i32,), string, Database]:
+    load
+```
+
+1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
+2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, `(A, B)`, or `(Is...)`.
+3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, R]` takes one pair, and `Fn[(A, B), O, R]` takes two values.
+4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys form a comma list, as in `$(Db, Cache)`.
+5. r[fn.type.ctor.input-kind] A type parameter used as the inputs argument is tuple-kinded: it may be instantiated only with a tuple type.
+6. r[fn.type.ctor.kind-mismatch] An inputs argument that is neither a tuple type nor a tuple-kinded parameter, as in `Fn[i32, i32, $()]`, is an error. Error: `generic-kind-mismatch`.
+7. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
+8. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
+9. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
+10. r[fn.type.ctor.import] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Rest` are imported where they are written, as in `use std.function.Fn`.
+11. r[fn.type.ctor.opaque] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, and instantiated generic functions.
+
+```text
+use std.function.Fn
+
+fn invalid(callback: Fn[i32, i32, $()]) -> void: pass  # error: generic-kind-mismatch
+```
+
+#### Vararg Inputs
+
+1. r[fn.type.rest] `Rest[T]`, which `std.function` also declares, marks a vararg element: `fn(string, i32...) -> i32` is `Fn[(string, Rest[i32]), i32, $()]`.
+2. r[fn.type.rest.final] `Rest[T]` is valid only as the final element of a function type's inputs tuple.
+3. r[fn.type.rest.nonfinal] A `Rest[T]` element before the final element of those inputs is a non-final vararg. Error: `nonfinal-vararg`.
+4. r[fn.type.rest.elsewhere] `Rest[T]` in any other position, such as `List[Rest[i32]]` or a parameter type, is invalid.
+
+#### No Access Permission
+
+1. r[fn.type.no-permission] A function value carries no access permission, and calling one never needs mutable access to it.
+2. r[fn.type.no-mut] `mut` applied to a function type, as in `mut (fn() -> i32)` or `mut Fn[(), i32, $()]`, is invalid.
+3. r[fn.type.no-mut.syntax] `mut` written directly before `fn`, in a type or a closure header, is an error. Error: `syntax-error`.
+
+```text
+fn counter() -> mut fn() -> i32:  # error: syntax-error
+    fn() -> i32: 1
+```
+
+> **Why.** A function value has no fields to take a permission on. A closure
+> may mutate its captures freely, so the type needs no mutation capability.
 
 ### Passing Function Values
 
 1. r[fn.type.named-value] A named function value may be passed anywhere its function type is expected.
 2. r[fn.type.variant-value] So may a variant constructor with exactly one payload field, such as `SyncError.Fs` of type `fn(FsError) -> SyncError`.
-3. r[fn.type.invariant] Function types are invariant in parameter and result types.
-4. r[fn.type.exact] Parameter and result types must therefore match after transparent alias expansion.
-5. r[fn.type.no-coercion] Ordinary numeric or reference-view coercions do not create a different function value type.
+3. r[fn.type.declared-variance] Function types follow the declared variance of `Fn` and `SuspendFn`: contravariant in each input element, covariant in the output, and invariant in the row.
+4. r[fn.type.variance-repr] Like every variance conversion, a function-type conversion must be representation-preserving, so it changes only access permissions.
+5. r[fn.type.variance-repr.excluded] Numeric widening, trait-value construction, and optional injection therefore never convert a parameter or result of a function type. Error: `variance-representation-change`.
 
-See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
+```text
+data User:
+    name: string
+
+fn fresh() -> mut User: User { name: "Ada" }
+fn count() -> i32: 1
+
+fn readonly_maker() -> fn() -> User:
+    fresh
+
+fn widen(callback: fn(User) -> mut User) -> fn(mut User) -> User:
+    callback
+
+fn erase() -> fn() -> Display:
+    count  # error: variance-representation-change
+```
+
+> **Why.** The polarity rules of [Variance](04-type-system.md#variance)
+> already treat parameters as negative and results as positive. Declaring
+> that variance on the constructors removes a special case.
+
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
+[Representation-Preserving Variance](04-type-system.md#representation-preserving-variance).
 
 ### Generic Function Values
 
@@ -275,6 +367,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 2. r[fn.type.suspend.bang] It may be bang-called inside a suspending body.
 3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> mut Suspend[T] $ R`.
 4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
+5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, R]` to `Fn[I, mut Suspend[O], R]`.
 
 ## Closures
 
@@ -342,15 +435,8 @@ This section defines what a closure captures and how it may use its captures.
 
 #### Plain Closures
 
-1. r[fn.capture.plain.read-only] A plain `fn(...) -> T` closure may read captures but must not mutate through them.
-2. r[fn.capture.plain.view] Within a plain closure, captured mutable access `mut T` is viewed as readonly `T`.
-3. r[fn.capture.mut-fn-required] A closure must be `mut fn` when it assigns captured `let` storage or obtains mutable access from a capture.
-4. r[fn.capture.mut-fn-required.method] Calling a `mut self` method on a captured list or on a captured mutable child is one way to obtain mutable access from a capture.
-5. r[fn.capture.plain.error] A plain closure that obtains mutable access from a capture is an error. Error: `mutable-capture-requires-mut-fn`.
-6. r[fn.capture.plain.error.argument] This includes passing a captured `mut T` binding to a `mut T` parameter.
-7. r[fn.capture.return-mut] Returning mutable access obtained from a capture therefore also requires a `mut fn` closure.
-8. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
-9. r[fn.capture.call-needs-mut] Calling a `mut fn` closure still requires mutable access to the closure itself.
+Every closure is a plain `fn` closure, and it may mutate through its
+captures:
 
 ```text
 data User:
@@ -361,30 +447,49 @@ fn rename(user: mut User) -> void:
 
 fn plain_closure(user: mut User) -> fn() -> void:
     fn() -> void:
-        rename(user)  # error: mutable-capture-requires-mut-fn
+        rename(user)
 
 fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
-        items.append(value)  # error: mutable-capture-requires-mut-fn
+        items.append(value)
+```
+
+1. r[fn.capture.access] A closure uses each capture with the access that the captured binding has in the enclosing scope.
+2. r[fn.capture.mutate] A closure may assign captured `let` storage and may obtain mutable access from a captured `mut T` binding.
+3. r[fn.capture.mutate.forms] Calling a `mut self` method on a captured list or mutable child, passing a captured `mut T` binding to a `mut T` parameter, and returning that access are such uses.
+4. r[fn.capture.readonly] A readonly capture stays readonly. Assigning a field through a captured readonly root is an error. Error: `readonly-root`.
+5. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
+
+```text
+data User:
+    name: string
+
+fn rename(user: User) -> void:
+    change := fn() -> void:
+        user.name = "Grace"  # error: readonly-root
+    change()
 ```
 
 #### Mutable Closures
 
-A closure that mutates captured state has type `mut fn(...) -> T` and uses
-the same marker in its literal:
+A closure that mutates captured state is an ordinary closure with an ordinary
+function type:
 
 ```text
 let count: i32 = 0
 
-let next: mut fn() -> i32 = mut fn() -> i32:
+let next: fn() -> i32 = fn() -> i32:
     count = count + 1
     count
 ```
 
-1. r[fn.capture.mut-fn.type] A closure that mutates captured state has type `mut fn(...) -> T` and uses the same marker in its literal.
-2. r[fn.capture.mut-fn.call] Calling a mutable closure requires a value with mutable function access.
-3. r[fn.capture.storage.shared] Captured `let` storage is shared with its defining scope and other closures that capture the same binding.
-4. r[fn.capture.storage.lifetime] If a closure outlives the original stack activation, the runtime preserves its captured storage through garbage collection.
+1. r[fn.capture.no-mut-form] There is no mutable closure type or literal. A closure that mutates captured state has an ordinary `fn(...) -> T` type.
+2. r[fn.capture.storage.shared] Captured `let` storage is shared with its defining scope and other closures that capture the same binding.
+3. r[fn.capture.storage.lifetime] If a closure outlives the original stack activation, the runtime preserves its captured storage through garbage collection.
+
+> **Why.** hd has no unique borrows, so a mutation capability on function
+> types would protect nothing. Swift, Kotlin, and Go closures also mutate
+> their captures freely.
 
 #### Scope Of This Section
 
