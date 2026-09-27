@@ -1,6 +1,6 @@
 # Nominal Function Types: Survey And Design Options
 
-Status: design exploration with owner decisions 1-8 (2026-09-27); nothing
+Status: design exploration with owner decisions 1-10 (2026-09-27); nothing
 is applied to the specification yet. Remaining questions are at the end.
 
 The owner's sketch is to make function types an ordinary generic type
@@ -54,9 +54,18 @@ Decided 2026-09-27:
 
 Requirement rows (raised the same day) are comma lists with no `+` or `-`,
 so a row type argument is written `$(Db, Cache)` (see the row sweep in
-spec 02 and 11). Open: question 11 (identity of named function values) and
-questions 9-10 (per-declaration data for tools; option B depends on typed
-derivation, which is deferred). Question 6 disappeared with decision 2.
+spec 02 and 11). Question 6 disappeared with decision 2.
+
+9. **Q11: canonical identity for non-generic named function values.** A
+   non-generic function declaration, and a one-payload variant
+   constructor, used as a value has one canonical identity, so
+   `get_user is get_user` is `true` (one immutable global each). The
+   identity of an instantiation of a generic function used as a value is
+   unspecified (keeping it would need a runtime intern table in generic
+   code). Each closure evaluation keeps its own identity.
+10. **Q9 and Q10 (per-declaration data for tools, item types) are parked
+    with [typed derivation](TYPED_DERIVATION.md),** which the owner
+    deferred; tools register functions by hand for now.
 
 ## Contents
 
