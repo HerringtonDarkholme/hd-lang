@@ -11,7 +11,10 @@ The code `mutable-capture-requires-mut-fn` is listed in `spec/README.md`
 but appears nowhere in `src/`.
 
 Evidence in this directory: `run.log`, `runner.diff`, `probes.log`,
-`variants.log`, `refparser.log`, `results.tsv`.
+`variants.log`, `refparser.log`, `results.tsv`. The 2026-09-26 cleanup
+removed the triage probes of fixed findings (F-160, F-350, F-351, F-353,
+F-361) and the reference-parser probes (F-358 to F-360); the probes for
+F-257, F-354, and F-355 and the variants remain.
 
 ## Headline
 

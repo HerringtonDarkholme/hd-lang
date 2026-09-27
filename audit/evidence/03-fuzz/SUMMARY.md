@@ -129,8 +129,10 @@ the reference lexer treats `fn` there as a suite header.
 ## Findings
 
 All were confirmed by replay. Fixtures for the findings still open (F-306, F-310,
-F-311, F-312, F-315, F-316) are in [`findings/`](findings/); the others were fixed or
-settled by the spec, and their fixtures were removed.
+F-312, F-315) are in [`findings/`](findings/); the others were fixed or
+settled by the spec, and their fixtures were removed. On 2026-09-26 F-311 and
+F-316 were fixed, F-306 is part of F-265, F-312 of F-250, and F-315 of F-252
+and F-254.
 
 | ID    | Severity       | Title                                                                              | Duplicate of |
 | ----- | -------------- | ---------------------------------------------------------------------------------- | ------------ |

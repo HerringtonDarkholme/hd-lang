@@ -54,23 +54,27 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
 - Two namespaces, chosen by syntax (M2): `x.name` is field lookup,
   `x.name(args)` is method lookup, and a function-typed field is called as
   `(x.callback)(args)`. A field and a method may share a name.
-- Embedding is a tree. Own members are at depth 0, and the `pub` fields and
-  `pub` inherent methods of every part are promoted at the part's depth. For
-  each name the shallowest member hides deeper ones, so every embedded type
-  decides its own names (Cut 2). Two members with one name at the same
-  smallest depth are `ambiguous-promoted-member` at the outer type's
-  declaration, never at a use; a type embedded twice at one depth always
-  conflicts in its embedded field name, and at different depths the
-  shallower copy wins. A dependency gaining a shallower member still
-  switches a use silently (P3).
+- Embedding is a tree of at most three levels, and a data type declares at
+  most three embedded fields (`embedding-too-deep`,
+  `too-many-embedded-fields`). Own members are at depth 0, and the `pub`
+  fields and `pub` inherent methods of every part are promoted at the part's
+  depth. For each name the shallowest member hides deeper ones, so every
+  embedded type decides its own names (Cut 2). Two members with one name at
+  the same smallest depth are `ambiguous-promoted-member` at the outer
+  type's declaration, on the later of the two embedded fields involved,
+  never at a use; a type embedded twice at one depth always conflicts in its
+  embedded field name, and at different depths the shallower copy wins. A
+  dependency gaining a shallower member still switches a use silently (P3).
 - Method lookup selects a visible own inherent method first, whatever its
   signature (E1, E2). Otherwise the candidates are the shallowest promoted
-  inherent method and the receiver's trait methods whose trait is in scope
+  inherent method and the receiver's trait methods whose trait is available
   at the call, wherever the impl is declared, as in Rust. More than one
   candidate is `ambiguous-method`, so neither a trait method nor a promoted
-  method silently wins (Rust-style trait lookup, TQ-36). A forwarding impl
-  is called as `Trait::m(x)`.
-- A trait method whose trait is not in scope is invisible, so a promoted
+  method silently wins (Rust-style trait lookup, TQ-36). When the only
+  candidates are instantiations of one generic trait, the argument and
+  expected types choose among them (TQ-4). A forwarding impl is called as
+  `Trait::m(x)`.
+- A trait method whose trait is not available is invisible, so a promoted
   method of that name is selected, and a call that finds nothing is
   `unknown-method` with a message suggesting the import.
   `trait-not-in-scope` is gone.
@@ -96,10 +100,13 @@ impl Deref for Page { type Target = Base; fn deref(&self) -> &Base { &self.base 
   `impl Trait for C by E` forwards every trait method to the embedded field
   `E` (trait delegation).
 - No overriding: inside `Base`, `self.m()` is always `Base`'s `m`.
-- Embedding is value embedding (VE1 to VE4): filling an embedded field
-  copies the value, and access through an embedded field follows its
+- Embedding is value embedding (VE1 to VE4, VE-S): filling an embedded
+  field copies the value and is written with `...` (`Label: ...value`,
+  `x.Label ...= value`), and access through an embedded field follows its
   container, so a promoted `mut self` method works on a `mut` receiver.
-  Rule 7 below (readonly edge) no longer holds.
+  Through a readonly receiver such a method is still selected and then
+  rejected with `mutable-receiver-required`; lookup never skips it. Rule 7
+  below (readonly edge) no longer holds.
 
 ## Comparison
 

@@ -1,23 +1,22 @@
 id	count	title
 F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-253	12	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
+F-253	14	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-255	9	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	8	`$.use(mut K)` and other `mut` requirement keys are not implemented
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
+F-252	5	The parser rejects core grammar forms
 F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
-VE	2	Value embedding is not implemented: the parser rejects the copy marker `...` and `...=`, embedded fields are still readonly edges, parts are shared instead of copied, and embedded fields are not invariant for variance
-F-252	3	The parser rejects core grammar forms
 F-257	3	`mut fn` closure literals do not parse
-F-150	2	Two entry-point reject cases also report `private-type-leak`
+F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
 F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 F-704	2	`string.replace` is not implemented
 F-707	2	A comma at depth zero does not end a same-line suite
-TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
+GQ2	2	A closure body nested in brackets may hold only one statement, so indented multi-statement closure bodies inside brackets fail to parse
 GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly after `annotate` fail
-TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
+TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
 F-258	1	Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 F-355	1	`string.trim()` removes U+FEFF and keeps U+0085
@@ -27,6 +26,8 @@ F-702	1	`pub` on a path-only `use` is accepted
 F-703	1	`pub` on a top-level binding is accepted
 F-705	1	Declared variance is deferred, so covariant data cannot be written
 F-706	1	A backslash before a quote in a raw string is a lexer error
-GQ2	1	A closure body nested in brackets may hold only one statement, so an indented multi-statement body ending at a comma line fails to parse
+F-710	1	A generic bound written with `:` is accepted
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
+TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
+VE	1	Value embedding is implemented except the variance rule: variance markers do not parse (F-705), so embedded fields cannot be checked as invariant positions

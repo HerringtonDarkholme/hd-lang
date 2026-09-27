@@ -6,7 +6,8 @@ report files; the coordinator wrote this file from the worker's final report.
 Scripts are in `audit/scripts/runtime/` (`roundtrip`, `edits`,
 `host-values`, `provider-config`, `panics`, `poisoned-instance`,
 `diagnostics`) and pass `npx oxlint`. Probes and replay sidecars are in
-`audit/probes/runtime/`.
+`audit/probes/runtime/`. The `diagnostics` script and its probes backed no
+open finding and were removed in the 2026-09-26 cleanup.
 
 ## Headline
 
