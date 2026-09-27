@@ -213,13 +213,20 @@ export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
   return undefined;
 }
 
+/**
+ * The argument type a bounded parameter is inferred from: an argument passed
+ * directly as a bounded `T` supplies its readonly view, while a `mut` inside a
+ * type argument, as in `List[mut User]` for `List[T]`, stays part of `T`
+ * (09-traits.md#erasure-to-inspectable).
+ */
 export function weakenBoundedGenericActual(
   formal: ValueType,
   actual: ValueType,
   bounded: ReadonlySet<string>,
+  nested = false,
 ): ValueType {
   const generic = genericTypeName(formal);
-  if (generic && bounded.has(generic)) return readonlyType(actual);
+  if (generic && bounded.has(generic)) return nested ? actual : readonlyType(actual);
   const formalNominal = nominalGenericParts(formal);
   const actualNominal = nominalGenericParts(readonlyType(actual));
   if (
@@ -231,7 +238,7 @@ export function weakenBoundedGenericActual(
     return nominalGenericType(
       actualNominal.name,
       actualNominal.arguments.map((argument, index) =>
-        weakenBoundedGenericActual(formalNominal.arguments[index]!, argument, bounded),
+        weakenBoundedGenericActual(formalNominal.arguments[index]!, argument, bounded, true),
       ),
     );
   }
@@ -1003,7 +1010,16 @@ export abstract class CheckerContext {
         }
         return { bound: position };
       });
-      return plan({ kind: "inspectable", traitIndex, targetType: type, key }, bounds);
+      return plan(
+        {
+          kind: "inspectable",
+          traitIndex,
+          targetType: type,
+          key,
+          ...(mutableInner(targetType) !== undefined ? { outerMut: true as const } : {}),
+        },
+        bounds,
+      );
     }
     if (traitName === "Display") {
       return ["i32", "f64", "bool", "char", "string"].includes(type)

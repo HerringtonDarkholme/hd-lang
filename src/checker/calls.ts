@@ -13,6 +13,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  readonlyType,
   storedSuspensionParts,
   suspensionType,
 } from "../types.ts";
@@ -883,8 +884,13 @@ export abstract class CallChecker extends StatementChecker {
           span,
         };
       }
+      // A parameter instantiated with `mut U` uses the implementation for
+      // `U`; only the Inspectable evidence records the inner `mut`.
+      const implementationType = readonlyType(actual);
       const implementation = this.implementations.find((candidate) =>
-        Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
+        Boolean(
+          matchTraitImplementation(candidate, bound.traitIndex, implementationType, traitArguments),
+        ),
       );
       if (!implementation) {
         const builtin = this.builtinTraitDictionaryPlan(
@@ -910,7 +916,12 @@ export abstract class CallChecker extends StatementChecker {
       return {
         kind: "trait-dictionary",
         traitIndex: bound.traitIndex,
-        dictionary: this.traitDictionaryPlan(implementation, actual, traitArguments, span),
+        dictionary: this.traitDictionaryPlan(
+          implementation,
+          implementationType,
+          traitArguments,
+          span,
+        ),
         type: `trait:${traitKey}`,
         span,
       };

@@ -952,3 +952,4 @@ runtime/valid/multibyte-scalar-strings.hd	runtime
 runtime/valid/trim-unicode-white-space.hd	runtime
 runtime/valid/replace-non-overlapping.hd	runtime
 typing/invalid/least-type-weakening-variance.hd	type
+runtime/valid/inspectable-generic-inner-mut-argument.hd	runtime

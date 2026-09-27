@@ -16,6 +16,9 @@ import {
 import { EmitterContext } from "./context.ts";
 import { functionName } from "./shared.ts";
 
+/** The receiver of a nested `runtime_type` read that composes a type argument's key. */
+const NESTED_TYPE_ID_RECEIVER = "(ref.i31 (i32.const 0))";
+
 export abstract class ValueComparisonEmitter extends EmitterContext {
   protected allocateTemporary(type: ValueType): string {
     const index = this.temporaryTypes.length;
@@ -124,15 +127,23 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       if (builtin.kind === "display") {
         body = this.emitPrimitiveDisplay(self, builtin.targetType);
       } else if (builtin.kind === "inspectable") {
+        // A nested read passes an i31 receiver, which no erased value is, so
+        // an `outerMut` dictionary can tell it apart from `runtime_type`.
         const key = builtin.key
           .map((part) =>
             typeof part === "string"
               ? this.emitStringLiteral(part)
-              : this.emitTypeIdKey(`(local.get $bound${part.bound})`, builtin.traitIndex),
+              : this.emitTypeIdKey(
+                  `(local.get $bound${part.bound})`,
+                  builtin.traitIndex,
+                  NESTED_TYPE_ID_RECEIVER,
+                ),
           )
           .reduce((left, right) => `(call $hd.string_concat ${left} ${right})`);
         const typeId = this.dataByName.get("TypeId")!.index;
-        body = `(struct.new $d${typeId} ${key})`;
+        body = builtin.outerMut
+          ? `(struct.new $d${typeId} (if (result (ref null $hd.bytes)) (ref.test (ref i31) (local.get $self)) (then (call $hd.string_concat ${this.emitStringLiteral("mut ")} ${key})) (else ${key})))`
+          : `(struct.new $d${typeId} ${key})`;
       } else if (builtin.kind === "equality") {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
       } else {

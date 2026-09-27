@@ -141,6 +141,12 @@ export type HirBuiltinTraitImplementation =
       readonly traitIndex: number;
       readonly targetType: ValueType;
       readonly key: readonly (string | { readonly bound: number })[];
+      // The dictionary is the bound evidence for a type parameter
+      // instantiated with `mut targetType`: the recorded type drops that outer
+      // `mut`, but a composite built from the parameter keeps it, so a nested
+      // key read (a `bound` part) is prefixed with `mut ` (Inspectable
+      // decision 16).
+      readonly outerMut?: true;
     };
 
 export interface HirPatternPathStep {
