@@ -52,6 +52,21 @@ Decided 2026-09-26:
    schema_structure)`); only the trait's package can declare it.
 5. **Generated `visit`, `build`, and `describe` include private fields;**
    writing `@derive` in the owning module is the opt-in.
+6. **Derived bounds are inferred from the fields.** For each method the
+   trait maps through `@derivable`, every visited (not skipped) field
+   contributes the obligation `F < B`, where `B` is the bound its visitor or
+   source puts on `field[F]`. Each obligation is traced to type-parameter
+   bounds through the unique impl per trait and type constructor (no blanket
+   impls, no overlap): a parameter gives a bound, a concrete type is checked
+   directly, a constructor is replaced by its impl header's requirements, a
+   trait value satisfies its own trait's bounds, and the type being derived
+   is assumed to hold (coinductive recursion). Phantom and method-only
+   parameters get no bound. An obligation on a function type, a missing
+   impl, or an associated projection is an error naming the field. Tooling
+   shows the inferred header; a hand-written header whose body calls the
+   structural function is the escape hatch. The rule is the same for every
+   derivation (codecs, comparison and hash traits rebuilt on `Structure`,
+   generators, `From`).
 
 ## Contents
 
