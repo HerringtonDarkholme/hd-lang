@@ -157,12 +157,113 @@ Applied 2026-09-26:
   `error.find[T]()`, `chain`, and `root_cause` are library API in
   [STDLIB](STDLIB.md#stderror).
 
+## Current Design
+
+The whole error design as decided on 2026-09-27, in one place. When a
+decision changes it, update this section in the same change. The example
+parses with the [reference parser](../spec/reference-parser/index.ts).
+
+```text
+use std.error.Error
+
+@derive(Error)
+pub enum FsError:
+    @message("not found: $path")
+    NotFound(path: string)
+    @message("permission denied: $path")
+    Denied(path: string)
+
+@derive(Error)
+pub enum RuleCoreError:
+    @message("Fail to parse yaml as RuleConfig")
+    @from
+    Yaml(error: YamlError)
+    @message("`utils` is not configured correctly.")
+    @source
+    Utils(error: RuleSerializeError)
+    @message("`rule` is not configured correctly.")
+    @from
+    Rule(error: RuleSerializeError)
+    @message("Undefined meta var `$var` used in `$context`.")
+    UndefinedMetaVar(var: string, context: string)
+
+@derive(Error)
+pub enum LoadError:
+    @message("$path:$line: invalid rule")
+    @source(error)
+    Parse(path: string, line: i64, error: SyntaxError)
+    @message("cannot read $path")
+    @source(error)
+    Read(path: string, error: FsError?)
+    @transparent
+    @from
+    Rules(error: RuleCoreError)
+
+@derive(Error)
+@message("config $name is missing")
+pub data MissingConfig:
+    name: string
+
+fn read_rules(path: string) -> Result[string, RuleCoreError]:
+    .Err(RuleCoreError.UndefinedMetaVar(var="A", context="rule"))
+
+fn load(path: string) -> Result[string, LoadError]:
+    text := read_rules(path)?
+    .Ok(text)
+
+fn run(path: string) -> Result[void, Error]:
+    text := load(path)?
+    .Ok()
+```
+
+1. **Domain errors** are one enum per domain in `std` (`FsError`,
+   `HttpError`), each implementing `Error`
+   ([STDLIB decision 6](STDLIB.md#owner-decisions)).
+2. **`@derive(Error)`** (decision 10, E1-E4) is a compiler intrinsic, Rust's
+   `thiserror` moved into hd, on an enum or a data type. It generates
+   `impl Display` (always; a variant without `@message` displays as its
+   name), `impl Error` with `cause()`, and one `impl From[P] for E` per
+   `@from` variant. Markers: `@message("...")` (an ordinary hd interpolated
+   string with the payload members and common fields in scope),
+   `@from` (one-payload variant: `From` plus cause; two with one payload
+   type are an error), `@source` (the cause without `From`; for a
+   multi-member variant written `@source(member)` on the variant, for a
+   data type on the field; its type is `E < Error` or `E?`),
+   `@transparent` (message and `cause()` forward to the payload; `cause()`
+   returns the inner error's cause). At most one `@source`/`@from` member
+   per variant. No error codes.
+3. **`?`** ([05 Propagation](../spec/05-expressions.md#propagation)):
+   assignability by one rule (including construction of the erased
+   `Error`), otherwise one call of the target's `From[E]`; never both, never
+   chained; otherwise `invalid-result-propagation`. Only `?` converts;
+   `return .Err(e)` uses assignability.
+4. **`From[T]`** (`std.convert`) is pure (empty row, not suspending) and may
+   panic ([09 Conversion Trait](../spec/09-traits.md#conversion-trait)).
+5. **The erased error** is the dynamic trait value `Error`
+   (`Error < Display + Inspectable`); `Result[T, Error]` holds any error.
+   Recovery: `error.downcast[T]()`, `error.find[T]()` over the chain;
+   `chain`, `root_cause`, `Context` and `.context(...)` are `std.error` API
+   ([09 Error Trait](../spec/09-traits.md#error-trait),
+   [STDLIB](STDLIB.md#stderror)).
+6. **Mapping by hand:** a one-payload variant constructor is a function
+   value, so `result.map_err(LoadError.Rules)` works (decision 7).
+7. **Boundaries:** an erased `Error` never crosses a registered boundary or
+   enters a durable history; code converts it to a domain enum or a report
+   value first (decision 6).
+8. **Entry point:** `pub fn main() -> Result[void, E]` with `E < Display`
+   renders the error with `Display.to_string` and exits with status 1
+   ([10 Executable Entry Point](../spec/10-modules.md#executable-entry-point)).
+9. **Not in hd, deliberately:** anonymous error unions (decision 9), a
+   mapping clause on `?` (decision 8), chained conversions (decision 5),
+   impl-family derivation outside `@derive(Error)`.
+
 ## Still To Do
 
 Not decided, and deliberately not specified:
 
-- **Derived `From`** (decision 10) waits for
-  [typed derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets).
+- **`@derive(Error)`** (decision 10) is decided but not yet in the
+  specification (09 Error Trait and Comparison Traits' `@derive` list, 08
+  for variant annotations).
 - **`Console.write_line!` taking `mut self`,** raised by the recording
   `BufferConsole` in [STDLIB](STDLIB.md#stdconsole), is tracked with
   [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), not here.
