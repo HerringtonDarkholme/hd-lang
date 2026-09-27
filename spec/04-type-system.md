@@ -2,41 +2,54 @@
 
 Status: language specification draft.
 
-hd-lang is statically typed. Every expression has a compile-time type, and a
-program with a type error must not execute. Local inference removes redundant
-annotations; public and aggregate boundaries remain explicit.
+This chapter defines types, assignability, access permission, generics, and
+variance.
+
+1. r[types.static] hd-lang is statically typed: every expression has a compile-time type.
+2. r[types.no-execute] A program with a type error must not execute.
+3. r[types.local-inference] Local inference removes redundant annotations; public and aggregate boundaries remain explicit.
+
+See also: [Type Inference Boundaries](#type-inference-boundaries).
 
 ## Type Forms
 
-The type forms are:
+r[types.forms] The type forms are:
 
-- primitive types;
-- nominal data types and enums;
-- tuples;
-- `List[T]` and `Map[K, V]`;
-- optional types `T?`;
-- function types `fn(...) -> T` and mutable function types
-  `mut fn(...) -> T`;
-- suspending function types `fn!(...) -> T`;
-- requirement-bearing function types ending in `$ Row`;
-- generic instantiations;
-- associated type projections such as `T::Item`;
-- variadic type packs and pack expansions;
-- trait value types;
-- transparent aliases and nominal newtypes;
-- mutable-access types `mut T`.
+| Form | Spelling |
+| --- | --- |
+| Primitive types | |
+| Nominal data types and enums | |
+| Tuples | |
+| Lists and maps | `List[T]`, `Map[K, V]` |
+| Optional types | `T?` |
+| Function types | `fn(...) -> T` |
+| Mutable function types | `mut fn(...) -> T` |
+| Suspending function types | `fn!(...) -> T` |
+| Requirement-bearing function types | ending in `$ Row` |
+| Generic instantiations | |
+| Associated type projections | such as `T::Item` |
+| Variadic type packs and pack expansions | |
+| Trait value types | |
+| Transparent aliases and nominal newtypes | |
+| Mutable-access types | `mut T` |
 
-`never` is the uninhabited bottom type. It is assignable to every type and no
-ordinary value is assignable to it. Expressions that complete abruptly—an
-unconditional `return`, `break`, `continue`, propagation that exits the current
-body, and a call to `panic`—have type `never` on that control-flow path.
+1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
+2. r[types.gadt-equalities] GADT refinements are arm-local type equalities rather than additional runtime type forms.
 
-`Suspend[T]` is the dynamic one-shot computation protocol. GADT refinements are
-arm-local type equalities rather than additional runtime type forms.
+See also: [Requirements and Suspension](11-requirements-and-suspension.md),
+[Variadic Generics](12-variadic-generics.md),
+[Generalized Algebraic Data Types](13-gadts.md).
+
+### The `never` Type
+
+1. r[types.never] `never` is the uninhabited bottom type.
+2. r[types.never.assignable] `never` is assignable to every type, and no ordinary value is assignable to it.
+3. r[types.never.abrupt] An expression that completes abruptly has type `never` on that control-flow path.
+4. r[types.never.abrupt-forms] These expressions complete abruptly: an unconditional `return`, `break`, or `continue`, propagation that exits the current body, and a call to `panic`.
 
 ## Primitive Types
 
-The primitive types are:
+r[types.prim.set] The primitive types are:
 
 | Category | Types |
 | --- | --- |
@@ -46,78 +59,87 @@ The primitive types are:
 | Floating point | `f32`, `f64` |
 | Text | `char`, `string` |
 
-There are no core aliases named `int`, `uint`, or `float`. `decimal` may be a
-standard-library type but is not primitive. hd-lang has no primitive `byte` or
-`bytes` type and no byte literal syntax.
+1. r[types.prim.no-aliases] There are no core aliases named `int`, `uint`, or `float`.
+2. r[types.prim.decimal] `decimal` may be a standard-library type but is not primitive.
+3. r[types.prim.no-byte] hd-lang has no primitive `byte` or `bytes` type and no byte literal syntax.
+4. r[types.prim.by-value] Primitive values are passed and returned by value.
+5. r[types.prim.no-mut] Primitive types do not accept the `mut` modifier.
 
-Primitive values are passed and returned by value. Primitive types do not
-accept the `mut` modifier because they do not expose mutable reference state.
+> **Why.** Primitive types do not expose mutable reference state.
 
-`void` is the return type of a function that produces no useful value. The
-empty tuple value is `()`. Both carry no information, but they serve different
-source-level roles: `void` describes the absence of a useful function or
-statement result, while `()` is a tuple value and tuple type. They are distinct
-types and there is no implicit conversion between them.
+### `void` And The Empty Tuple
+
+1. r[types.void] `void` is the return type of a function that produces no useful value.
+2. r[types.unit] The empty tuple value is `()`.
+3. r[types.void.role] `void` describes the absence of a useful function or statement result.
+4. r[types.unit.role] `()` is a tuple value and tuple type.
+5. r[types.void.distinct] `void` and `()` are distinct types, and there is no implicit conversion between them.
+
+> **Note.** Both carry no information, but they serve different source-level
+> roles.
 
 ### Strings
 
-A `string` is a sequence of Unicode scalar values whose contents cannot be
-mutated. Source text and
-runtime operations do not perform Unicode normalization. Equality and ordering
-compare scalar values in sequence; canonically equivalent but differently
-encoded scalar sequences are distinct. `string.len()` counts scalar values.
-The core type has no integer-indexing or slicing operation with an O(1)
-guarantee; libraries may provide explicit scalar, byte, or grapheme traversal.
+1. r[types.string.scalars] A `string` is a sequence of Unicode scalar values whose contents cannot be mutated.
+2. r[types.string.no-normalization] Source text and runtime operations do not perform Unicode normalization.
+3. r[types.string.compare] Equality and ordering compare scalar values in sequence.
+4. r[types.string.encodings] Canonically equivalent but differently encoded scalar sequences are distinct.
+5. r[types.string.len] `string.len()` counts scalar values.
+6. r[types.string.no-indexing] The core type has no integer-indexing or slicing operation with an O(1) guarantee.
+7. r[types.string.traversal] Libraries may provide explicit scalar, byte, or grapheme traversal.
+8. r[types.string.host-utf8] At every Wasm host boundary, strings are encoded as UTF-8, including embedded U+0000 scalar values.
 
-Note: because `string.len()` counts scalar values, not bytes or code units,
-the specification states no constant-time bound for it. It takes time
-linear in the string's length unless the representation stores the scalar
-count.
-At every Wasm host boundary, strings are encoded as UTF-8, including embedded
-U+0000 scalar values.
+> **Note.** Because `string.len()` counts scalar values, not bytes or code
+> units, the specification states no constant-time bound for it. It takes time
+> linear in the string's length unless the representation stores the scalar
+> count.
 
 ## Literal Types
 
-An integer literal in any supported radix with no expected type has type `i32`
-in every value range. It does not automatically choose a wider type:
+An integer literal with no expected type has type `i32`:
 
 ```text
 x := 1  # i32
 ```
 
-When an integer literal has an expected integer type, the compiler checks the
-literal against that type's range:
+### Integer Literals
+
+1. r[types.literal.int-default] An integer literal in any supported radix with no expected type has type `i32` in every value range.
+2. r[types.literal.int-no-widen] An integer literal does not automatically choose a wider type.
+3. r[types.literal.int-range] When an integer literal has an expected integer type, the compiler checks the literal against that type's range.
 
 ```text
 let small: i8 = 1    # valid
 let bad: u8 = 300    # error
 ```
 
-The diagnostic must identify the literal, the target range, and an appropriate
-wider type when one exists.
+4. r[types.literal.int-diagnostic] The diagnostic must identify the literal, the target range, and an appropriate wider type when one exists.
+5. r[types.literal.unary-plus] An expected numeric type passes through unary `+` to a numeric literal, so `let positive: u8 = +1` checks the literal against the `u8` range.
 
-An expected numeric type passes through unary `+` to a numeric literal, so
-`let positive: u8 = +1` checks the literal against the `u8` range.
+### Negated Integer Literals
 
-When unary `-` is applied directly to an integer literal under an expected
-signed integer type, range checking considers the negated mathematical value as
-a unit. This makes `let minimum: i8 = -128` valid even though positive `128`
-does not fit in `i8`. A negated literal is invalid for an unsigned expected
-type, and values below the signed minimum remain errors.
+1. r[types.literal.negation] Under an expected signed integer type, unary `-` applied directly to an integer literal is range-checked as a unit. The check considers the negated mathematical value.
+2. r[types.literal.negation.minimum] This makes `let minimum: i8 = -128` valid even though positive `128` does not fit in `i8`.
+3. r[types.literal.negation.unsigned] A negated literal is invalid for an unsigned expected type.
+4. r[types.literal.negation.below-minimum] Values below the signed minimum remain errors.
 
-A floating-point literal with no expected type has type `f64` and must be
-representable as a finite `f64` value. When an expected `f32` or `f64` type is
-available, the literal is converted directly to that type and must be
-representable as a finite value under its IEEE 754 rounding rules.
+### Floating-Point Literals
 
-`true` and `false` have type `bool`. A string literal has type `string`, and a
-character literal has type `char`. There is no literal for an absent optional;
-it is the enum variant `.None` ([Optional Types](#optional-types)).
+1. r[types.literal.float-default] A floating-point literal with no expected type has type `f64` and must be representable as a finite `f64` value.
+2. r[types.literal.float-expected] When an expected `f32` or `f64` type is available, the literal is converted directly to that type.
+3. r[types.literal.float-finite] The converted literal must be representable as a finite value under that type's IEEE 754 rounding rules.
+
+### Other Literals
+
+1. r[types.literal.bool] `true` and `false` have type `bool`.
+2. r[types.literal.string] A string literal has type `string`, and a character literal has type `char`.
+3. r[types.literal.no-absent] There is no literal for an absent optional; it is the enum variant `.None`.
+
+See also: [Optional Types](#optional-types).
 
 ## Nominal And Structural Types
 
-Each `data` and `enum` declaration introduces a distinct nominal type.
-Matching fields or variants do not make two nominal types interchangeable:
+Each `data` and `enum` declaration introduces a distinct nominal type:
 
 ```text
 data UserId:
@@ -129,19 +151,26 @@ data PostId:
 
 `UserId` and `PostId` are distinct even though their field shapes match.
 
-Tuple types are structural. Two tuples have the same type when they have the
-same arity and pairwise-equal element types. One-element tuples require a
-trailing comma; `()` is the empty tuple.
+1. r[types.nominal.distinct] Each `data` and `enum` declaration introduces a distinct nominal type.
+2. r[types.nominal.shape] Matching fields or variants do not make two nominal types interchangeable.
 
-Function types are structural when their parameter types, result type,
-mutability, suspension marker, and normalized requirement row match. Function
-types are invariant in every parameter and the result; there are no standalone
-implicit function-type variance conversions. A function value read through a
-representation-preserving variance conversion of its containing value is
-viewed at the converted field type. The only component change this can
-introduce is `mut U -> U` in a positive position or `U -> mut U` in a negative
-position. This is field access through the converted container, not a general
-conversion between function values.
+### Tuple Types
+
+1. r[types.tuple.structural] Tuple types are structural.
+2. r[types.tuple.same] Two tuples have the same type when they have the same arity and pairwise-equal element types.
+3. r[types.tuple.one-element] One-element tuples require a trailing comma.
+4. r[types.tuple.empty] `()` is the empty tuple.
+
+### Function Type Identity
+
+1. r[types.fn.structural] Function types are structural when their parameter types, result type, mutability, suspension marker, and normalized requirement row match.
+2. r[types.fn.invariant] Function types are invariant in every parameter and the result.
+3. r[types.fn.no-variance] There are no standalone implicit function-type variance conversions.
+4. r[types.fn.container] A function value read through a representation-preserving variance conversion of its containing value is viewed at the converted field type.
+5. r[types.fn.container.change] The only component change this can introduce is `mut U -> U` in a positive position or `U -> mut U` in a negative position.
+6. r[types.fn.container.access] This is field access through the converted container, not a general conversion between function values.
+
+See also: [Variance](#variance).
 
 ## Transparent Aliases And Newtypes
 
@@ -151,8 +180,10 @@ A transparent alias introduces another name for the same type:
 type UserName = string
 ```
 
-`UserName` and `string` are identical for assignability, method lookup, trait
-conformance, and runtime representation.
+1. r[types.alias.same] A transparent alias introduces another name for the same type.
+2. r[types.alias.identical] `UserName` and `string` are identical for assignability, method lookup, trait conformance, and runtime representation.
+
+### Newtypes
 
 A parenthesized type declaration creates a nominal single-field newtype:
 
@@ -160,19 +191,20 @@ A parenthesized type declaration creates a nominal single-field newtype:
 type Mile(i32)
 ```
 
-`Mile` is distinct from `i32`. Constructor syntax creates it, and the base type
-constructor unwraps it:
+1. r[types.newtype.decl] A parenthesized type declaration creates a nominal single-field newtype.
+2. r[types.newtype.distinct] `Mile` is distinct from `i32`.
+3. r[types.newtype.construct] Constructor syntax creates the newtype, and the base type constructor unwraps it:
 
 ```text
 m := Mile(10)
 n := i32(m)
 ```
 
-No implicit conversion exists in either direction.
+4. r[types.newtype.no-implicit] No implicit conversion exists in either direction.
+5. r[types.newtype.no-inherit] A newtype does not inherit trait implementations from its underlying type.
+6. r[types.newtype.map-key] In particular, a newtype is not a valid map key until it explicitly implements or derives both `Eq` and `Hash`.
 
-A newtype does not inherit trait implementations from its underlying type. In
-particular, it is not a valid map key until it explicitly implements or derives
-both `Eq` and `Hash`.
+See also: [Map Key Types](#map-key-types).
 
 ## Optional Types
 
@@ -184,113 +216,122 @@ enum Option[T]:
     None
 ```
 
-`T?` is exact sugar for `Option[T]`: the two spellings denote the same type
-everywhere a type may appear, including implementation targets. `T` and `T?`
-are different types; a non-optional type never contains an absent value.
-`Option` is the only prelude name this adds; `Some` and `None` are variants,
-not prelude names. A bare `None` or `Some(value)` expression therefore
-resolves like any other identifier and is an `unknown-name` error unless a
-declaration in scope supplies that name.
+1. r[types.option.decl] The prelude declares the ordinary generic enum `Option`.
+2. r[types.option.sugar] `T?` is exact sugar for `Option[T]`: the two spellings denote the same type everywhere a type may appear, including implementation targets.
+3. r[types.option.distinct] `T` and `T?` are different types; a non-optional type never contains an absent value.
+4. r[types.option.prelude-name] `Option` is the only prelude name this adds; `Some` and `None` are variants, not prelude names.
+5. r[types.option.bare-variant] A bare `None` or `Some(value)` expression therefore resolves like any other identifier. It is an error unless a declaration in scope supplies that name. Error: `unknown-name`.
 
-The absent value is written `.None` where an optional type is expected, or
-`Option.None`. A present value is written `.Some(value)` or
-`Option.Some(value)`. These follow the ordinary enum construction rules
-([Enum Declarations](08-data-and-enums.md#enum-declarations)); in
-particular `.None` without an expected optional type is a
-`missing-contextual-enum-type` error.
+### Optional Values
 
-A value of `T` is also implicitly accepted where `T?` is expected,
-constructing `.Some(value)`. This applies to assignments, arguments, and return
-values; the source expression is evaluated once. The implicit wrap adds one
-layer only. Optionality may nest: `T??` is `Option[Option[T]]`, preserving the
-distinction between an absent outer value and a present outer value
-containing an absent inner value. A `T?` value is accepted where `T??` is
-expected, but a plain `T` is not; the inner layer needs an explicit
-`.Some(...)`, as in `let nested: i32?? = .Some(1)`. `.None` with an expected
-`T??` is the outer absent value, and `.Some(.None)` is a present outer value
-holding an absent inner value.
+1. r[types.option.none] The absent value is written `.None` where an optional type is expected, or `Option.None`.
+2. r[types.option.some] A present value is written `.Some(value)` or `Option.Some(value)`.
+3. r[types.option.construction] These spellings follow the ordinary enum construction rules.
+4. r[types.option.none-context] In particular, `.None` without an expected optional type is an error. Error: `missing-contextual-enum-type`.
+5. r[types.option.patterns] Optionals are matched with ordinary enum patterns, `.Some(pattern)`, `.None`, and their `Option.`-qualified forms.
 
-Optionals are matched with ordinary enum patterns, `.Some(pattern)`,
-`.None`, and their `Option.`-qualified forms
-([Match Expressions](06-control-flow.md#match-expressions)).
+```text
+let value: i32? = None  # error: unknown-name
+missing := .None        # error: missing-contextual-enum-type
+```
 
-The representation of `Option[T]` is an implementation detail; for example, an
-implementation may represent `.None` as a null reference. Postfix `?` on an
-optional expression either produces its contained value or returns `.None`
-from the nearest function. That function must itself return a compatible
-optional type. Postfix `?` removes and propagates one optional layer at a
-time. A present value keeps the optional's declared contained type `T`,
-including `mut U` when `T = mut U`; unwrapping does not weaken that generic
-argument.
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
+[Match Expressions](06-control-flow.md#match-expressions).
 
-Optionals follow the ordinary enum rules in every other respect. An optional
-value may be erased to `Any` like any other enum value, and `is` compares
-optionals as it compares other enum values: `.None` is payload-free and has
-one canonical identity, and each construction of `.Some(value)`, including an
-implicit wrap, has its own identity
-([Unary And Binary Operators](05-expressions.md#unary-and-binary-operators)).
+### Implicit Wrapping And Nesting
 
-Optional is covariant in its contained type for a readonly outer value.
-`Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer
-value. As with every generic composite, a mutable outer view is invariant.
+1. r[types.option.wrap] A value of `T` is also implicitly accepted where `T?` is expected, constructing `.Some(value)`.
+2. r[types.option.wrap.sites] The implicit wrap applies to assignments, arguments, and return values.
+3. r[types.option.wrap.once] The source expression is evaluated once.
+4. r[types.option.wrap.one-layer] The implicit wrap adds one layer only.
+5. r[types.option.nest] Optionality may nest: `T??` is `Option[Option[T]]`. It preserves the distinction between an absent outer value and a present outer value containing an absent inner value.
+6. r[types.option.nest.accept] A `T?` value is accepted where `T??` is expected, but a plain `T` is not.
+7. r[types.option.nest.explicit] The inner layer needs an explicit `.Some(...)`, as in `let nested: i32?? = .Some(1)`.
+8. r[types.option.nest.none] `.None` with an expected `T??` is the outer absent value, and `.Some(.None)` is a present outer value holding an absent inner value.
+
+### Representation And Propagation
+
+1. r[types.option.repr] The representation of `Option[T]` is an implementation detail; for example, an implementation may represent `.None` as a null reference.
+2. r[types.option.propagate] Postfix `?` on an optional expression either produces its contained value or returns `.None` from the nearest function.
+3. r[types.option.propagate.result] That function must itself return a compatible optional type.
+4. r[types.option.propagate.one-layer] Postfix `?` removes and propagates one optional layer at a time.
+5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `mut U` when `T = mut U`; unwrapping does not weaken that generic argument.
+
+### Optional Identity And Variance
+
+1. r[types.option.ordinary] Optionals follow the ordinary enum rules in every other respect.
+2. r[types.option.any] An optional value may be erased to `Any` like any other enum value.
+3. r[types.option.identity] `is` compares optionals as it compares other enum values.
+4. r[types.option.identity.none] `.None` is payload-free and has one canonical identity.
+5. r[types.option.identity.some] Each construction of `.Some(value)`, including an implicit wrap, has its own identity.
+6. r[types.option.variance] Optional is covariant in its contained type for a readonly outer value.
+7. r[types.option.variance.result] `Result[T, E]` is likewise covariant in both `T` and `E` for a readonly outer value.
+8. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
+
+See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators),
+[Variance](#variance).
 
 ## Result Types
 
-Recoverable errors use the prelude enum
-`enum Result[T, E]: Ok(value: T); Err(error: E)`.
-`Result` is a prelude name; `Ok` and `Err` are its variants, not prelude
-names. Values follow the ordinary enum construction rules
-([Enum Declarations](08-data-and-enums.md#enum-declarations)): `.Ok(value)`
-and `.Err(error)` where a `Result` type is expected, or `Result.Ok(value)` and
-`Result.Err(error)`. In particular `.Ok(value)` without an expected `Result`
-type is a `missing-contextual-enum-type` error. A bare `Ok(value)` or
-`Err(error)` expression resolves like any other identifier and is an
-`unknown-name` error unless a declaration in scope supplies that name.
-Results are matched with the patterns `.Ok(pattern)`, `.Err(pattern)`, and
-their `Result.`-qualified forms
-([Match Expressions](06-control-flow.md#match-expressions)).
+Recoverable errors use the prelude enum `Result`.
 
-When `T` is `void`, the success constructor is written `.Ok()` or
-`Result.Ok()` and has type `Result[void, E]` under an expected result type.
-`.Ok(pass)` is not the source spelling for this case.
+1. r[types.result.decl] Recoverable errors use the prelude enum `enum Result[T, E]: Ok(value: T); Err(error: E)`.
+2. r[types.result.prelude-name] `Result` is a prelude name; `Ok` and `Err` are its variants, not prelude names.
+3. r[types.result.construction] Values follow the ordinary enum construction rules: `.Ok(value)` and `.Err(error)` where a `Result` type is expected, or `Result.Ok(value)` and `Result.Err(error)`.
+4. r[types.result.ok-context] In particular, `.Ok(value)` without an expected `Result` type is an error. Error: `missing-contextual-enum-type`.
+5. r[types.result.bare-variant] A bare `Ok(value)` or `Err(error)` expression resolves like any other identifier. It is an error unless a declaration in scope supplies that name. Error: `unknown-name`.
+6. r[types.result.patterns] Results are matched with the patterns `.Ok(pattern)`, `.Err(pattern)`, and their `Result.`-qualified forms.
 
-Postfix `?` on `Result[T, E]` either produces the success value or immediately
-returns the error from the nearest function. The enclosing function must return
-a `Result[U, F]`. The error reaches `F` in one step: by one rule of
-[Assignability And Coercion](#assignability-and-coercion), or otherwise by one
-call of `F`'s `From[E]` implementation
-([Conversion Trait](09-traits.md#conversion-trait)). It is never both, and
-conversions are never chained. [Propagation](05-expressions.md#propagation)
-defines the rule and its diagnostic. Returning an
-`.Err` value without `?` does not itself alter control flow, and it never
-calls a conversion. The success value
-retains its declared generic type `T`, including `mut U` when `T = mut U`,
-regardless of whether the `Result` value itself is readonly.
+```text
+fn parse() -> Result[i32, string]:
+    Ok(1)  # error: unknown-name
+```
 
-The core language does not use effect syntax for recoverable errors.
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
+[Match Expressions](06-control-flow.md#match-expressions).
+
+### Void Results
+
+1. r[types.result.void-ok] When `T` is `void`, the success constructor is written `.Ok()` or `Result.Ok()` and has type `Result[void, E]` under an expected result type.
+2. r[types.result.no-ok-pass] `.Ok(pass)` is not the source spelling for this case.
+
+### Result Propagation
+
+1. r[types.result.propagate] Postfix `?` on `Result[T, E]` either produces the success value or immediately returns the error from the nearest function.
+2. r[types.result.propagate.enclosing] The enclosing function must return a `Result[U, F]`.
+3. r[types.result.propagate.one-step] The error reaches `F` in one step: by one rule of [Assignability And Coercion](#assignability-and-coercion), or otherwise by one call of `F`'s `From[E]` implementation.
+4. r[types.result.propagate.not-both] The step is never both, and conversions are never chained.
+5. r[types.result.err-value] Returning an `.Err` value without `?` does not itself alter control flow, and it never calls a conversion.
+6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `mut U` when `T = mut U`, regardless of whether the `Result` value itself is readonly.
+7. r[types.result.no-effects] The core language does not use effect syntax for recoverable errors.
+
+See also: [Propagation](05-expressions.md#propagation), which defines the rule
+and its diagnostic, and [Conversion Trait](09-traits.md#conversion-trait).
 
 ## Numeric Conversions
 
-Implicit integer conversion is limited to widening conversions that preserve
-every value of the source type. The signed and unsigned widening chains are:
+Implicit integer conversion widens along these chains:
 
 ```text
 i8 -> i16 -> i32 -> i64
 u8 -> u16 -> u32 -> u64
 ```
 
-There is no implicit conversion between signed and unsigned integers, and no
-implicit integer-to-floating or floating-to-integer conversion in the current
-core. `f32` widens implicitly to `f64`; `f64` to `f32` requires an explicit
-cast.
+1. r[types.num.widen] Implicit integer conversion is limited to widening conversions that preserve every value of the source type.
+2. r[types.num.chains] The signed and unsigned widening chains are the two chains above.
+3. r[types.num.no-sign-change] There is no implicit conversion between signed and unsigned integers.
+4. r[types.num.no-int-float] There is no implicit integer-to-floating or floating-to-integer conversion in the current core.
+5. r[types.num.f32-f64] `f32` widens implicitly to `f64`; `f64` to `f32` requires an explicit cast.
 
-For a binary numeric operator, an untyped literal first adopts the compatible
-type expected from the other operand. Otherwise, operands within one integer
-signedness family widen to the wider operand type, and the result has that
-type. `f32 op f32` produces `f32`; when one operand is `f64`, an `f32` operand
-widens and the result is `f64`. Signed and unsigned integers do
-not mix implicitly, and integers do not mix implicitly with floating-point
-values. The user must cast one operand explicitly in those cases.
+### Binary Numeric Operators
+
+1. r[types.num.binary.literal] For a binary numeric operator, an untyped literal first adopts the compatible type expected from the other operand.
+2. r[types.num.binary.widen] Otherwise, operands within one integer signedness family widen to the wider operand type, and the result has that type.
+3. r[types.num.binary.float] `f32 op f32` produces `f32`; when one operand is `f64`, an `f32` operand widens and the result is `f64`.
+4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values.
+5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
+
+### Numeric Casts
 
 Explicit numeric conversion uses constructor-style casts:
 
@@ -299,112 +340,119 @@ let wide: i64 = 9000
 narrow := i16(wide)
 ```
 
-A narrowing integer cast must range-check at runtime when the compiler cannot
-prove it safe. An out-of-range cast causes a checked runtime failure; the exact
-panic reporting ABI is deferred to runtime design. Libraries may
-provide separate fallible conversion functions returning `Result`.
+1. r[types.cast.syntax] Explicit numeric conversion uses constructor-style casts.
+2. r[types.cast.range-check] A narrowing integer cast must range-check at runtime when the compiler cannot prove it safe.
+3. r[types.cast.out-of-range] An out-of-range cast causes a checked runtime failure; the exact panic reporting ABI is deferred to runtime design.
+4. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
 
 The core numeric cast rules are:
 
-- integer to integer checks the target integer range;
-- integer to floating point rounds to the nearest representable IEEE 754 value
-  using ties-to-even;
-- `f32` to `f64` is exact, while `f64` to `f32` uses IEEE 754 ties-to-even
-  rounding;
-- floating point to integer first truncates toward zero, then checks that the
-  original value was finite and the truncated value is in the target range.
+| Cast | Behavior |
+| --- | --- |
+| r[types.cast.int-int] Integer to integer | checks the target integer range |
+| r[types.cast.int-float] Integer to floating point | rounds to the nearest representable IEEE 754 value using ties-to-even |
+| r[types.cast.f32-f64] `f32` to `f64` | is exact |
+| r[types.cast.f64-f32] `f64` to `f32` | uses IEEE 754 ties-to-even rounding |
+| r[types.cast.float-int] Floating point to integer | first truncates toward zero, then checks that the original value was finite and the truncated value is in the target range |
 
-A failed integer range check or a non-finite floating-to-integer conversion
-panics. An explicit numeric cast may lose precision according to these rules;
-libraries may expose exact or fallible conversions when loss must be rejected.
-Constructor-style calls involving nonnumeric types are not numeric casts: they
-must resolve to a nominal newtype constructor, enum constructor, or ordinary
-function.
+1. r[types.cast.panic] A failed integer range check or a non-finite floating-to-integer conversion panics.
+2. r[types.cast.precision] An explicit numeric cast may lose precision according to these rules.
+3. r[types.cast.exact] Libraries may expose exact or fallible conversions when loss must be rejected.
+4. r[types.cast.nonnumeric] Constructor-style calls involving nonnumeric types are not numeric casts: they must resolve to a nominal newtype constructor, enum constructor, or ordinary function.
 
-Integer arithmetic is checked. Overflow, invalid shifts, and division errors
-cause checked runtime failure unless an explicit
-wrapping or fallible library operation is used. Integer division truncates
-toward zero, and integer remainder has the sign of the dividend. A shift count
-must be non-negative and smaller than the bit width of the shifted value.
-Right shift of a signed integer is arithmetic and sign-extending. For every
-signed width, `MIN / -1` panics with `integer-overflow`, while `MIN % -1`
-produces zero.
+### Integer Arithmetic
 
-`Display` formats integers in base ten and floating values with the shortest
-round-trip decimal digits. The digits round-trip at the value's own width, so
-an `f32` displays its `f32` digits even when formatted through generic code. Finite floats use fixed notation when the normalized
-decimal exponent is in `[-6, 21)` and lowercase scientific notation otherwise;
-scientific exponents always include `+` or `-` and no leading zeroes. Fixed
-notation always contains a decimal point and at least one fractional digit, so
-`1.0` remains visibly floating. Negative zero is `-0.0`; infinities are `inf`
-and `-inf`; every NaN is `NaN`. Before hashing, boundary serialization, or
-`Display`, every NaN is replaced with the one canonical quiet-NaN value for its
-width; NaN comparison continues to follow IEEE 754.
+1. r[types.arith.checked] Integer arithmetic is checked.
+2. r[types.arith.failure] Overflow, invalid shifts, and division errors cause checked runtime failure unless an explicit wrapping or fallible library operation is used.
+3. r[types.arith.division] Integer division truncates toward zero.
+4. r[types.arith.remainder] Integer remainder has the sign of the dividend.
+5. r[types.arith.shift-count] A shift count must be non-negative and smaller than the bit width of the shifted value.
+6. r[types.arith.shift-right] Right shift of a signed integer is arithmetic and sign-extending.
+7. r[types.arith.min-division] For every signed width, `MIN / -1` panics with `integer-overflow`.
+8. r[types.arith.min-remainder] For every signed width, `MIN % -1` produces zero.
+
+See also: [Runtime Panics](06-control-flow.md#runtime-panics).
+
+### Numeric Display
+
+1. r[types.display.int] `Display` formats integers in base ten.
+2. r[types.display.float] `Display` formats floating values with the shortest round-trip decimal digits.
+3. r[types.display.width] The digits round-trip at the value's own width, so an `f32` displays its `f32` digits even when formatted through generic code.
+4. r[types.display.notation] Finite floats use fixed notation when the normalized decimal exponent is in `[-6, 21)` and lowercase scientific notation otherwise.
+5. r[types.display.exponent] Scientific exponents always include `+` or `-` and no leading zeroes.
+6. r[types.display.fixed] Fixed notation always contains a decimal point and at least one fractional digit, so `1.0` remains visibly floating.
+7. r[types.display.special] Negative zero is `-0.0`; infinities are `inf` and `-inf`; every NaN is `NaN`.
+8. r[types.display.nan-canonical] Before hashing, boundary serialization, or `Display`, every NaN is replaced with the one canonical quiet-NaN value for its width.
+9. r[types.display.nan-compare] NaN comparison continues to follow IEEE 754.
 
 ## Assignability And Coercion
 
-An expression of type `S` is assignable to a location of type `T` when at least
-one of these rules applies:
+r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:
 
-1. `S` and `T` are identical after expanding transparent aliases.
-2. `S` is an integer type with a value-preserving widening conversion to `T`.
-3. `S` is `f32` and `T` is `f64`.
-4. `S` is `mut T` and the target requests the readonly view `T`.
-5. A declared generic variance conversion permits the readonly outer type to
-   change its type arguments.
-6. `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is
-   an inspectable type
-   ([Inspectable Types](09-traits.md#inspectable-types)), allowing
-   construction of a dynamic trait value.
-7. `S` is a dynamic child-trait value whose trait has `T` as a direct or
-   transitive supertrait.
-8. A value of `T` is injected into `T?`. The injection adds one layer only,
-   so a `T` is not injected into `T??`.
-9. `S` is a specialized shape type returned by `shape[D]()` and `T` is its
-   generic shape type, `DataShape` or `EnumShape`; see
-   [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
+2. r[types.assign.int-widen] `S` is an integer type with a value-preserving widening conversion to `T`.
+3. r[types.assign.float-widen] `S` is `f32` and `T` is `f64`.
+4. r[types.assign.weaken] `S` is `mut T` and the target requests the readonly view `T`.
+5. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
+6. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
+7. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
+8. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
+9. r[types.assign.shape] `S` is a specialized shape type returned by `shape[D]()` and `T` is its generic shape type, `DataShape` or `EnumShape`.
 
-No inheritance or structural record subtyping exists. Assignment never changes
-the declared or inferred type of a binding. In particular, later assignment to
-a `let` binding must remain assignable to the type established at its
-declaration.
+See also: [Inspectable Types](09-traits.md#inspectable-types),
+[Shape Intrinsics](14-annotations.md#shape-intrinsics).
+
+### Assignment And Binding Types
+
+1. r[types.assign.no-subtyping] No inheritance or structural record subtyping exists.
+2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
+3. r[types.assign.let] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration.
 
 ## Composite Values And Access Permission
 
-Data types, enums with storage, tuples, lists, maps, trait values, and closures are
-composite values. Composite parameters and results use shared references at the
-language level. hd-lang does not require exclusive ownership and may have
-multiple aliases to one composite value.
+Composite values are shared by reference, and `mut` grants mutable access to
+one.
+
+1. r[types.composite.kinds] Data types, enums with storage, tuples, lists, maps, trait values, and closures are composite values.
+2. r[types.composite.shared] Composite parameters and results use shared references at the language level.
+3. r[types.composite.aliases] hd-lang does not require exclusive ownership and may have multiple aliases to one composite value.
+
+### Views
 
 For a composite type `T`:
 
-- `T` is a readonly reference view. It permits observation but not mutation
-  through that reference.
-- `mut T` is a mutable reference view. It permits operations that mutate the
-  referenced value.
+1. r[types.view.readonly] `T` is a readonly reference view. It permits observation but not mutation through that reference.
+2. r[types.view.mutable] `mut T` is a mutable reference view. It permits operations that mutate the referenced value.
+3. r[types.view.term] Throughout the specification, **readonly view** is the single term for `T` access to a composite value; it does not imply deep immutability.
+4. r[types.view.non-reassignable] A binding is described separately as **non-reassignable** when its name cannot be rebound.
 
-Throughout the specification, **readonly view** is the single term for `T`
-access to a composite value; it does not imply deep immutability. A binding is
-described separately as **non-reassignable** when its name cannot be rebound.
+### Access Permission
 
-`mut` expresses access permission, not ownership, uniqueness, or a deep freeze
-of the object. A readonly `T` reference cannot reassign its fields. A direct
-data field declared `field: mut U` is read as `U` through readonly `T`, and an
-embedded field follows its container's access, while a
-generic data field declared `field: P` retains its substituted type even when
-`P` is instantiated as `mut U`. Other extraction forms state their own
-permission rules below. A `mut T` may be viewed as `T`; a `T` must never be
-upgraded to `mut T`. An upgrade is a `mutable-upgrade` error, including one
-that generic inference would produce: binding `keep(readonly_value)` to a
-`mut T` declaration, where `keep[T](value: T) -> T`, is rejected rather than
-inferring `T` as a mutable type.
+1. r[types.mut.permission] `mut` expresses access permission, not ownership, uniqueness, or a deep freeze of the object.
+2. r[types.mut.no-field-reassign] A readonly `T` reference cannot reassign its fields.
+3. r[types.mut.mut-field] A direct data field declared `field: mut U` is read as `U` through readonly `T`.
+4. r[types.mut.embedded] An embedded field follows its container's access.
+5. r[types.mut.generic-field] A generic data field declared `field: P` retains its substituted type even when `P` is instantiated as `mut U`.
+6. r[types.mut.other-forms] Other extraction forms state their own permission rules below.
+7. r[types.mut.weaken] A `mut T` may be viewed as `T`.
+8. r[types.mut.no-upgrade] A `T` must never be upgraded to `mut T`. An upgrade is an error. Error: `mutable-upgrade`.
+9. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(readonly_value)` to a `mut T` declaration is rejected rather than inferring `T` as a mutable type.
 
-A readonly view blocks reassignment of its fields and removes the `mut` of its
-direct `mut U` fields and embedded fields ([Mutable Paths](#mutable-paths)). It is not a deep
-authority boundary: a `mut U` supplied as an optional, tuple, collection, or
-other generic argument keeps its permission when that nested value is
-extracted. APIs that require a deep no-mutation guarantee
-must not expose mutable references through such nested field types.
+```text
+fn keep[T](value: T) -> T:
+    value
+
+fn invalid(user: User) -> void:
+    let mutable: mut User = user     # error: mutable-upgrade
+    let kept: mut User = keep(user)  # error: mutable-upgrade
+```
+
+### Readonly Views Are Shallow
+
+1. r[types.readonly.blocks] A readonly view blocks reassignment of its fields and removes the `mut` of its direct `mut U` fields and embedded fields.
+2. r[types.readonly.not-deep] A readonly view is not a deep authority boundary.
+3. r[types.readonly.nested] A `mut U` supplied as an optional, tuple, collection, or other generic argument keeps its permission when that nested value is extracted.
+4. r[types.readonly.deep-api] APIs that require a deep no-mutation guarantee must not expose mutable references through such nested field types.
 
 ```text
 let user: mut User = User { name: "Ada" }
@@ -413,97 +461,98 @@ user.name = "Grace"
 println(readonly.name)  # observes "Grace"
 ```
 
-The readonly alias prevents mutation through `readonly`; it does not freeze the
-underlying object against other mutable aliases. Readonly access does not
-guarantee that repeated reads return the same values, that the object is a
-stable cache input, or that independently held mutable aliases cannot change
-its reachable state. A readonly view restricts structural access through that
-view; it does not prohibit a called function from returning a separately held
-mutable reference according to its declared result type.
+5. r[types.readonly.alias] The readonly alias prevents mutation through `readonly`; it does not freeze the underlying object against other mutable aliases.
+6. r[types.readonly.no-guarantee] Readonly access does not guarantee any of the following:
+   - that repeated reads return the same values;
+   - that the object is a stable cache input;
+   - that independently held mutable aliases cannot change its reachable state.
+7. r[types.readonly.structural] A readonly view restricts structural access through that view.
+8. r[types.readonly.results] A readonly view does not prohibit a called function from returning a separately held mutable reference according to its declared result type.
+
+See also: [Mutable Paths](#mutable-paths).
 
 ### Bindings And Fresh Values
 
-A fresh data or copy-update expression, stored enum construction, tuple
-expression, list expression, or map expression produces mutable access to its
-new outer object. This permission may be weakened immediately by an expected
-readonly type. Freshness does not recursively upgrade composite values stored in
-the new object; each field or element keeps the permission of the supplied
-expression and declared edge.
+1. r[types.fresh.mutable] A fresh data or copy-update expression, stored enum construction, tuple expression, list expression, or map expression produces mutable access to its new outer object.
+2. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
+3. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
+4. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
 
-A data literal with a direct `field: mut U` may produce readonly `T` when that
-field is supplied only `U`. Each embedded field receives a copy, which has
-readonly access when it is made from a readonly value whose type has mutable
-edges ([Data Embedding](08-data-and-enums.md#data-embedding)). A literal
-produces `mut T` only when every direct mutable field is supplied mutable
-access and every embedded copy has mutable access; a value copied from a
-spread counts as supplied through the spread source's view. An expected
-readonly `T`, including a `:=` binding, permits the weaker field value; an
-expected `mut T` rejects it with `mutable-upgrade`. The expected type is
-`mut T` wherever the literal is used as `mut T`: an annotated `mut T`
-binding, a `mut T` argument or result, or a store into a `mut T` field or
-element. An unannotated `let` infers readonly `T` when any such field or copy
-is readonly. A generic field declared `field: P` still requires its substituted
-type, including `mut U` when `P = mut U`.
+#### Fresh Literals With Readonly Parts
 
-`:=` always exposes a readonly composite view, even when its initializer creates a
-fresh value:
+1. r[types.fresh.readonly-field] A data literal with a direct `field: mut U` may produce readonly `T` when that field is supplied only `U`.
+2. r[types.fresh.embedded-copy] Each embedded field receives a copy, which has readonly access when it is made from a readonly value whose type has mutable edges.
+3. r[types.fresh.mut-literal] A literal produces `mut T` only when every direct mutable field is supplied mutable access and every embedded copy has mutable access.
+4. r[types.fresh.spread] A value copied from a spread counts as supplied through the spread source's view.
+5. r[types.fresh.expected-readonly] An expected readonly `T`, including a `:=` binding, permits the weaker field value.
+6. r[types.fresh.expected-mut] An expected `mut T` rejects the weaker field value. Error: `mutable-upgrade`.
+7. r[types.fresh.expected-mut.sites] The expected type is `mut T` wherever the literal is used as `mut T`:
+   - an annotated `mut T` binding;
+   - a `mut T` argument or result;
+   - a store into a `mut T` field or element.
+8. r[types.fresh.let] An unannotated `let` infers readonly `T` when any such field or copy is readonly.
+9. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
+
+See also: [Data Embedding](08-data-and-enums.md#data-embedding).
+
+#### Binding Forms
+
+1. r[types.bind.short] `:=` always exposes a readonly composite view, even when its initializer creates a fresh value:
 
 ```text
 user := User { name: "Ada" }  # User
 ```
 
-`let` may state mutable access explicitly:
+2. r[types.bind.let-mut] `let` may state mutable access explicitly:
 
 ```text
 let user: mut User = User { name: "Ada" }
 ```
 
-An unannotated `let` infers the initializer's access type. A fresh composite
-construction may infer `mut T`; an existing `T` remains `T`, and inference
-never upgrades readonly access. Passing through a function also follows the
-declared result type rather than recovering freshness. Consequently, a fresh
-literal may be passed directly to a `mut T` parameter, but a call declared to
-return `T` cannot, even when its implementation constructs a fresh value.
+3. r[types.bind.let-infer] An unannotated `let` infers the initializer's access type.
+4. r[types.bind.fresh-infer] A fresh composite construction may infer `mut T`; an existing `T` remains `T`, and inference never upgrades readonly access.
+5. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
+6. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
 
 ### Mutable Paths
 
-Every expression in an access path has an access type, computed one step at a
-time from the expression it extends:
+This section defines the access type of each expression in an access path,
+and the mutations that access type permits.
 
-- A binding, parameter, or `self` has its declared or inferred type. A call has
-  its callable's declared result type, whatever value the call was reached
-  through.
-- A field read `e.field` depends on the kind of field, and on whether `e` has
-  type `mut T` or readonly type `T`:
-  - a **mutable edge**, declared `field: mut U`, yields `mut U` through
-    `mut T` and `U` through readonly `T`: the `mut` written directly in the
-    declaration is removed by a readonly container;
-  - a **readonly edge**, declared `field: U` with a composite `U`, yields `U`
-    through either;
-  - an **embedded field** `E` yields the container's access: `mut E` through
-    `mut T` and `E` through readonly `T`
-    ([Data Embedding](08-data-and-enums.md#data-embedding)). It is never a
-    readonly edge;
-  - a **generic field**, declared with a generic parameter `field: P`, yields
-    the substituted type unchanged through either, so reading `value: P` from
-    readonly `Box[mut User]` yields `mut User`.
+1. r[types.path.access-type] Every expression in an access path has an access type, computed one step at a time from the expression it extends.
+2. r[types.path.root] A binding, parameter, or `self` has its declared or inferred type.
+3. r[types.path.call] A call has its callable's declared result type, whatever value the call was reached through.
+4. r[types.path.field] A field read `e.field` depends on the kind of field, and on whether `e` has type `mut T` or readonly type `T`, as this table shows.
 
-  Every type is read after substitution of the container's type arguments.
-  A promoted field or method is reached through its embedded fields step by
-  step ([Member Resolution](03-names-and-scopes.md#member-resolution)).
-- Indexing, iteration, and lookup on a built-in collection yield its declared
-  element or value type, whatever the collection's own permission: indexing
-  readonly `List[mut User]` yields `mut User`, and a successful lookup in a
-  readonly `Map[K, mut User]` yields `mut User` after unwrapping. Optional and
-  `Result` unwrapping, tuple element extraction, and generic enum payloads
-  likewise yield their declared contents. A non-generic enum payload declared
-  `mut U` follows the field rule above.
+| Field kind | Declared | Through `mut T` | Through readonly `T` |
+| --- | --- | --- | --- |
+| r[types.path.field.mutable-edge] **mutable edge** | `field: mut U` | `mut U` | `U` |
+| r[types.path.field.readonly-edge] **readonly edge** | `field: U` with a composite `U` | `U` | `U` |
+| r[types.path.field.embedded] **embedded field** | `E` | `mut E` | `E` |
+| r[types.path.field.generic] **generic field** | `field: P`, with a generic parameter `P` | the substituted type, unchanged | the substituted type, unchanged |
 
-A mutation needs mutable access on exactly one expression: the one it acts on.
-Reassigning `e.field`, replacing an element with `e[i] = value`, calling a
-container-mutating method on `e`, or calling a `mut self` method on `e`
-requires `e` to have type `mut T`. Nothing else in the path is checked: the
-access type of `e` already records every permission removed on the way to it.
+5. r[types.path.field.mutable-edge.removed] The `mut` written directly in a mutable edge's declaration is removed by a readonly container.
+6. r[types.path.field.embedded.not-readonly-edge] An embedded field yields the container's access and is never a readonly edge.
+7. r[types.path.field.generic.example] Reading `value: P` from readonly `Box[mut User]` therefore yields `mut User`.
+8. r[types.path.field.substituted] Every type is read after substitution of the container's type arguments.
+9. r[types.path.promoted] A promoted field or method is reached through its embedded fields step by step.
+10. r[types.path.collection] Indexing, iteration, and lookup on a built-in collection yield its declared element or value type, whatever the collection's own permission.
+11. r[types.path.collection.example] Indexing readonly `List[mut User]` yields `mut User`, and a successful lookup in a readonly `Map[K, mut User]` yields `mut User` after unwrapping.
+12. r[types.path.contents] Optional and `Result` unwrapping, tuple element extraction, and generic enum payloads likewise yield their declared contents.
+13. r[types.path.enum-payload] A non-generic enum payload declared `mut U` follows the field rule above.
+
+See also: [Data Embedding](08-data-and-enums.md#data-embedding),
+[Member Resolution](03-names-and-scopes.md#member-resolution).
+
+#### Mutation Checks
+
+1. r[types.path.mutation] A mutation needs mutable access on exactly one expression: the one it acts on.
+2. r[types.path.mutation.forms] Each of these requires `e` to have type `mut T`:
+   - reassigning `e.field`;
+   - replacing an element with `e[i] = value`;
+   - calling a container-mutating method on `e`;
+   - calling a `mut self` method on `e`.
+3. r[types.path.mutation.only] Nothing else in the path is checked: the access type of `e` already records every permission removed on the way to it.
 
 ```text
 data Account:
@@ -515,24 +564,38 @@ account.profile.display_name = "Ada"   # account.profile has type mut Profile
 
 When `e` is readonly, the diagnostic names why:
 
-- `readonly-edge` when `e` is a field read through a readonly edge,
-  `field: U`;
-- `readonly-root` otherwise: `e` is a readonly binding, parameter, `self`,
-  call result, element, or unwrapped value; a mutable edge or embedded field
-  read through a readonly value; or a generic field whose type argument is
-  readonly.
+4. r[types.path.readonly-edge] A mutation through an `e` that is a field read through a readonly edge, `field: U`, is an error. Error: `readonly-edge`.
+5. r[types.path.readonly-root] A mutation through any other readonly `e` is an error. Error: `readonly-root`.
+6. r[types.path.readonly-root.cases] The `readonly-root` cases are these:
+   - a readonly binding, parameter, `self`, call result, element, or unwrapped value;
+   - a mutable edge or embedded field read through a readonly value;
+   - a generic field whose type argument is readonly.
 
-A `mut T` value may reassign every field with a value assignable to the
-field's declared type, whether the field is `field: U` or `field: mut U`.
-Replacing a field does not mutate the old referenced value. Storing into a
-direct `field: mut U` of a mutable value requires `mut U`; a readonly value
-may store `U` there and cannot later be upgraded to `mut T`. Storing into an
-embedded field, written `e.E ...= value`, stores a copy, which must have
-mutable access
-([Data Embedding](08-data-and-enums.md#data-embedding)); otherwise the store is
-a `mutable-upgrade` error.
+```text
+data Child:
+    name: string
 
-Container mutation and element mutation are independent:
+data Parent:
+    child: Child
+
+fn invalid(parent: mut Parent, child: Child) -> void:
+    parent.child.name = "new"  # error: readonly-edge
+    child.name = "new"         # error: readonly-root
+```
+
+#### Field Stores
+
+1. r[types.path.reassign] A `mut T` value may reassign every field with a value assignable to the field's declared type, whether the field is `field: U` or `field: mut U`.
+2. r[types.path.reassign.old-value] Replacing a field does not mutate the old referenced value.
+3. r[types.path.store-mut-edge] Storing into a direct `field: mut U` of a mutable value requires `mut U`.
+4. r[types.path.store-readonly] A readonly value may store `U` there and cannot later be upgraded to `mut T`.
+5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores a copy, which must have mutable access. Otherwise the store is an error. Error: `mutable-upgrade`.
+
+See also: [Data Embedding](08-data-and-enums.md#data-embedding).
+
+#### Containers And Elements
+
+r[types.path.container-element] Container mutation and element mutation are independent:
 
 | Type | Replace elements | Mutate referenced elements |
 | --- | --- | --- |
@@ -541,96 +604,108 @@ Container mutation and element mutation are independent:
 | `mut List[User]` | yes | no |
 | `mut List[mut User]` | yes | yes |
 
-Generic type arguments are never weakened because their enclosing value is
-readonly; only a mutable edge or an embedded field loses `mut` through a
-readonly container.
-Data patterns and copy-update use the same access types as field reads on the
-subject.
+1. r[types.path.generic-args] Generic type arguments are never weakened because their enclosing value is readonly.
+2. r[types.path.loses-mut] Only a mutable edge or an embedded field loses `mut` through a readonly container.
+3. r[types.path.patterns] Data patterns and copy-update use the same access types as field reads on the subject.
 
 ### Parameters And Results
 
-`value: T` accepts readonly composite access. `value: mut T` requires mutable
-access. `mut self` is shorthand for `self: mut Self`.
-
-A function that returns mutable access must declare `-> mut T`. A declared
-result of `T` exposes only readonly access, even when the function creates a fresh
-object internally:
+A function that returns mutable access declares `-> mut T`:
 
 ```text
 fn new_user() -> User: User { name: "Ada" }
 fn new_mutable_user() -> mut User: User { name: "Ada" }
 ```
 
+1. r[types.param.readonly] `value: T` accepts readonly composite access.
+2. r[types.param.mut] `value: mut T` requires mutable access.
+3. r[types.param.mut-self] `mut self` is shorthand for `self: mut Self`.
+4. r[types.return.mut] A function that returns mutable access must declare `-> mut T`.
+5. r[types.return.readonly] A declared result of `T` exposes only readonly access, even when the function creates a fresh object internally.
+
 ## Generics
 
-Generic type and function parameters denote complete types. A type parameter
-`T` may therefore be instantiated with either `User` or `mut User`.
+This section defines generic parameters, bounds, arguments, and reification.
 
-By convention, generic parameters, including row parameters, use uppercase
-names such as `T`, `U`, `K`, `V`, and `R`. The convention is style only: a
-parameter's kind comes from its declaration and use, never from the case of
-its name.
+1. r[types.generic.complete] Generic type and function parameters denote complete types.
+2. r[types.generic.mut-argument] A type parameter `T` may therefore be instantiated with either `User` or `mut User`.
+3. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
+4. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
 
-An unconstrained generic declaration stores or passes `T` directly. It must not
-write `mut T`, because substitution with `T = mut User` would create the
-meaningless form `mut mut User`. Mutable generic requirements use a bound:
+### Mutable Bounds
+
+Mutable generic requirements use a bound:
 
 ```text
 fn clear_value[T < mut Clear](value: T) -> void:
     value.clear()
 ```
 
-`T < mut Any` accepts any mutable-root type. `T < mut Trait` additionally
-requires the underlying type to implement `Trait`. A plain `T < Trait` requires
-trait conformance without mutable-root authority.
+1. r[types.generic.direct] An unconstrained generic declaration stores or passes `T` directly.
+2. r[types.generic.no-mut-t] An unconstrained generic declaration must not write `mut T`.
+3. r[types.generic.mut-bound] Mutable generic requirements use a bound.
+4. r[types.generic.mut-any] `T < mut Any` accepts any mutable-root type.
+5. r[types.generic.mut-trait] `T < mut Trait` additionally requires the underlying type to implement `Trait`.
+6. r[types.generic.trait-bound] A plain `T < Trait` requires trait conformance without mutable-root authority.
 
-Generic arguments are inferred at call sites when unambiguous. Callers may
-supply the complete generic argument list explicitly. Partial explicit lists
-are not permitted. In a named generic-function reference, `_` may occupy a
-slot in the complete list and requests inference for that argument; it is not
-itself a type and is invalid in ordinary type applications.
+> **Why.** Substitution with `T = mut User` would turn `mut T` into the
+> meaningless form `mut mut User`.
 
-The runtime representation of generic code is not observable. A program
-cannot distinguish an implementation that shares one body among
-instantiations from one that specializes each instantiation, except through
-the rules this chapter states: an erased generic parameter has no runtime
-type identity, `is` on a type parameter requires `T < AnyRef`, and variance
-conversions must be representation-preserving. Pack functions and calls with
-`reified` parameters are specialized. Package interfaces therefore carry the
-bodies of generic and pack functions needed by downstream compilation. The
-[Implementation Model](#implementation-model-non-normative) describes the
-reference strategy.
+### Generic Arguments
 
-A parameter marked `reified` carries runtime type metadata and may be used by operations
-such as `shape[T]()` or passed to another reified operation. An erased parameter
-must not be used where runtime type identity is required.
+1. r[types.generic.infer] Generic arguments are inferred at call sites when unambiguous.
+2. r[types.generic.explicit] Callers may supply the complete generic argument list explicitly.
+3. r[types.generic.no-partial] Partial explicit lists are invalid.
+4. r[types.generic.placeholder] In a named generic-function reference, `_` may occupy a slot in the complete list and requests inference for that argument.
+5. r[types.generic.placeholder.not-type] `_` is not itself a type and is invalid in ordinary type applications.
 
-Runtime type identity for `Inspectable` comes from a bound instead: the
-evidence for `T < Inspectable` carries the runtime identity of `T`. Erasing
-a value of a type parameter to `Inspectable`, `TypeId::of[T]()`, and the
-`downcast` target need that bound, and `reified` alone permits none of them
-([Runtime Type Identity](09-traits.md#runtime-type-identity)).
+### Generic Representation
 
-Identity comparison `is` on a type parameter is permitted only with the sealed
-`T < AnyRef` bound. An unconstrained type parameter may be primitive after
-substitution and therefore cannot be used with `is`.
+1. r[types.generic.unobservable] The runtime representation of generic code is not observable.
+2. r[types.generic.sharing] A program cannot distinguish an implementation that shares one body among instantiations from one that specializes each instantiation, except through these rules of this chapter:
+   - an erased generic parameter has no runtime type identity;
+   - `is` on a type parameter requires `T < AnyRef`;
+   - variance conversions must be representation-preserving.
+3. r[types.generic.specialized] Pack functions and calls with `reified` parameters are specialized.
+4. r[types.generic.interfaces] Package interfaces therefore carry the bodies of generic and pack functions needed by downstream compilation.
 
-Reification is part of the function's public type and ABI, but its descriptor
-is not a source-level value argument. A backend may specialize a reified call
-only when doing so preserves observable reflection behavior.
+See also: [Implementation Model](#implementation-model-non-normative), which
+describes the reference strategy.
 
-The prelude intrinsic `shape[T]()` consumes this descriptor. For a data type or
-enum it returns the corresponding specialized shape type; for any other type,
-including a reified type parameter, it returns `TypeShape`. An erased generic
-parameter cannot be passed as its type argument. Field and variant shapes are
-selected from the specialized result, and `shape_of(f)` reflects a function
-declaration; see [Shape Intrinsics](14-annotations.md#shape-intrinsics).
-Annotation lookup for a generic target has the same reification requirement.
+### Reified Parameters
 
-An identifier followed by `...` in a generic parameter list declares a type
-pack. Packs have a compile-time length and ordered element types; they are not
-runtime collection values. Expansion and inference are specified in
-[Variadic Generics](12-variadic-generics.md).
+1. r[types.reified.metadata] A parameter marked `reified` carries runtime type metadata. It may be used by operations such as `shape[T]()` or passed to another reified operation.
+2. r[types.reified.erased] An erased parameter must not be used where runtime type identity is required.
+3. r[types.reified.inspectable] Runtime type identity for `Inspectable` comes from a bound instead: the evidence for `T < Inspectable` carries the runtime identity of `T`.
+4. r[types.reified.inspectable.uses] Erasing a value of a type parameter to `Inspectable`, `TypeId::of[T]()`, and the `downcast` target need that bound, and `reified` alone permits none of them.
+5. r[types.reified.abi] Reification is part of the function's public type and ABI, but its descriptor is not a source-level value argument.
+6. r[types.reified.specialize] A backend may specialize a reified call only when doing so preserves observable reflection behavior.
+
+See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
+
+### Shape Descriptors
+
+1. r[types.shape.consumes] The prelude intrinsic `shape[T]()` consumes the reification descriptor.
+2. r[types.shape.result] For a data type or enum, `shape[T]()` returns the corresponding specialized shape type.
+3. r[types.shape.other] For any other type, including a reified type parameter, `shape[T]()` returns `TypeShape`.
+4. r[types.shape.erased] An erased generic parameter cannot be passed as its type argument.
+5. r[types.shape.members] Field and variant shapes are selected from the specialized result, and `shape_of(f)` reflects a function declaration.
+6. r[types.shape.annotations] Annotation lookup for a generic target has the same reification requirement.
+
+See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+
+### Identity On Type Parameters
+
+1. r[types.generic.identity] Identity comparison `is` on a type parameter is permitted only with the sealed `T < AnyRef` bound.
+2. r[types.generic.identity.primitive] An unconstrained type parameter may be primitive after substitution and therefore cannot be used with `is`.
+
+### Type Packs
+
+1. r[types.pack.declare] An identifier followed by `...` in a generic parameter list declares a type pack.
+2. r[types.pack.compile-time] Packs have a compile-time length and ordered element types; they are not runtime collection values.
+
+See also: [Variadic Generics](12-variadic-generics.md), which specifies
+expansion and inference.
 
 ## Variance
 
@@ -648,206 +723,246 @@ data Cell[T]:
     value: T
 ```
 
-The compiler verifies each declared parameter against its use on the type's
-readonly public surface. That surface includes data fields, enum shared data
-and variant payloads, trait method signatures, and every inherent method
-available with the nominal type. A separate trait implementation does not alter
-the nominal type declaration's variance; its own instantiated signatures must
-still type-check.
+1. r[types.variance.markers] Generic type declarations mark covariance with `+T`, contravariance with `-T`, and invariance by leaving `T` unmarked.
+2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly public surface.
+3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, trait method signatures, and every inherent method available with the nominal type.
+4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
 
-Each declaration parameter whose argument position in an explicit GADT variant
-result is not exactly that parameter is invariant. For example,
-`IsMutUser -> Witness[mut User]` makes `T` invariant in `Witness[T]`; declaring
-that `Witness[+T]` is rejected. This prevents a variance conversion from making
-an arm-local GADT equality upgrade a readonly value or reinterpret a value's
-runtime representation.
+### GADT Results
 
-Polarity is computed as follows:
+1. r[types.variance.gadt] Each declaration parameter whose argument position in an explicit GADT variant result is not exactly that parameter is invariant.
+2. r[types.variance.gadt.example] For example, `IsMutUser -> Witness[mut User]` makes `T` invariant in `Witness[T]`, so declaring `Witness[+T]` is rejected.
 
-- a returned value and an ordinary readonly field are positive positions;
-- a function or method parameter is a negative position;
-- entering a function parameter reverses polarity, while entering a function
-  result preserves it;
-- applying a covariant generic argument preserves polarity, a contravariant
-  argument reverses it, and an invariant argument makes the occurrence
-  invariant;
-- occurrence beneath `mut` is invariant because the referenced storage can be
-  both read and written;
-- occurrence in an embedded field's type is invariant, because access through
-  an embedded field follows its container
-  ([Data Embedding](08-data-and-enums.md#data-embedding));
-- a parameter used in both positive and negative positions must be invariant.
+> **Why.** This prevents a variance conversion from making an arm-local GADT
+> equality upgrade a readonly value or reinterpret a value's runtime
+> representation.
 
-A declared `+T` is rejected if any occurrence is negative or invariant. A
-declared `-T` is rejected if any occurrence is positive or invariant. An
-unmarked invariant parameter may occur in any position.
+See also: [Generalized Algebraic Data Types](13-gadts.md).
 
-Variance conversion applies only to a readonly outer view. Every `mut G[T]`
-view is invariant in all generic arguments because the mutable view may replace
-stored values. The built-in `List` declares a covariant element parameter for
-its readonly view. Readonly `Map[K, V]` is invariant in `K`, because keys are
-both accepted for lookup and exposed during traversal, and covariant in `V`.
+### Polarity
 
-A variance conversion `G[S] -> G[T]` requires a representation-preserving
-`S -> T` conversion for each covariant argument and a
-representation-preserving `T -> S` conversion for each contravariant argument.
-Permission weakening `mut U -> U` is representation-preserving. Numeric
-widening such as `i8 -> i64`, construction of a trait value such as
-`i32 -> Display` or `User -> Display`, child-dynamic-trait to supertrait
-widening, and optional injection `U -> U?` are not. Variance never inserts
-element wrappers, metadata rewrapping, boxing, copies, or per-access
-conversions.
+r[types.polarity] Polarity is computed as follows:
+
+1. r[types.polarity.positive] A returned value and an ordinary readonly field are positive positions.
+2. r[types.polarity.negative] A function or method parameter is a negative position.
+3. r[types.polarity.function] Entering a function parameter reverses polarity, while entering a function result preserves it.
+4. r[types.polarity.generic] Applying a covariant generic argument preserves polarity, a contravariant argument reverses it, and an invariant argument makes the occurrence invariant.
+5. r[types.polarity.mut] Occurrence beneath `mut` is invariant.
+6. r[types.polarity.embedded] Occurrence in an embedded field's type is invariant.
+7. r[types.polarity.both] A parameter used in both positive and negative positions must be invariant.
+
+> **Why.** The referenced storage beneath `mut` can be both read and
+> written. Access through an embedded field follows its container.
+
+1. r[types.variance.covariant-check] A declared `+T` is rejected if any occurrence is negative or invariant.
+2. r[types.variance.contravariant-check] A declared `-T` is rejected if any occurrence is positive or invariant.
+3. r[types.variance.unmarked] An unmarked invariant parameter may occur in any position.
+
+See also: [Data Embedding](08-data-and-enums.md#data-embedding).
+
+### Readonly Outer Views
+
+1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer view.
+2. r[types.variance.mut-invariant] Every `mut G[T]` view is invariant in all generic arguments.
+3. r[types.variance.list] The built-in `List` declares a covariant element parameter for its readonly view.
+4. r[types.variance.map] Readonly `Map[K, V]` is invariant in `K` and covariant in `V`.
+
+> **Why.** The mutable view may replace stored values. Map keys are both
+> accepted for lookup and exposed during traversal.
+
+### Representation-Preserving Variance
+
+1. r[types.variance.repr.covariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `S -> T` conversion for each covariant argument.
+2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
+3. r[types.variance.repr.weakening] Permission weakening `mut U -> U` is representation-preserving.
+4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
+   - numeric widening such as `i8 -> i64`;
+   - construction of a trait value such as `i32 -> Display` or `User -> Display`;
+   - child-dynamic-trait to supertrait widening;
+   - optional injection `U -> U?`.
+5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions.
+
+See also: [Representation-Preserving Conversions](#representation-preserving-conversions).
 
 ## Trait Values And `Any`
 
-Trait conformance is explicit. Matching method shape alone does not make a type
-implement a trait. A generic bound such as `T < Display` uses static dispatch and
-preserves the concrete type.
+This section defines trait conformance, dynamic trait values, and the `Any`
+trait family.
 
-Using a trait name as a value type creates a Go-style dynamic trait value. It
-contains a concrete value and dispatch metadata for that trait. Source syntax
-does not use a `dyn` marker.
+1. r[types.trait.explicit] Trait conformance is explicit.
+2. r[types.trait.no-shape] Matching method shape alone does not make a type implement a trait.
+3. r[types.trait.static] A generic bound such as `T < Display` uses static dispatch and preserves the concrete type.
 
-Only a dynamically safe trait may be used as a value type. A dynamically safe
-trait and every supertrait must have no associated types or associated
-functions, and `Self` may appear only as the receiver type. A method-level
-generic parameter is permitted only when it is bounded by `AnyRef`; further
-bounds such as `T < AnyRef + Display` are allowed. Every argument for such a
-parameter is a reference, so one method body serves every instantiation, and
-the further bounds are supplied with each call. A caller converts a primitive,
-tuple, or optional value explicitly before passing it. Trait declaration
-generic parameters are permitted because one concrete trait instantiation,
-such as `Repository[User]`, fixes them before dispatch. Traits that fail these rules
-remain valid for static generic bounds and explicit implementations.
+### Trait Value Types
 
-A dynamic child-trait value exposes methods declared by the child and all of
-its transitive supertraits. It may be widened implicitly to a dynamic
-supertrait value; that conversion discards access to child-only methods and
-cannot be reversed by a conversion; only `Inspectable` values recover a
-concrete type
-([Runtime Type Identity](09-traits.md#runtime-type-identity)). This direct widening may
-rewrap dispatch metadata and is therefore not representation-preserving for a
-variance conversion.
+1. r[types.trait.value] Using a trait name as a value type creates a Go-style dynamic trait value.
+2. r[types.trait.value.contents] A dynamic trait value contains a concrete value and dispatch metadata for that trait.
+3. r[types.trait.value.no-dyn] Source syntax does not use a `dyn` marker.
+4. r[types.trait.value.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `Display` value is a valid argument for `T < Display`.
+5. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
 
-A dynamic trait value type satisfies a generic bound on its own trait and on
-each of that trait's supertraits, so a `Display` value is a valid argument
-for `T < Display`. It is still not an implementation target;
-[Dynamic Trait Values](09-traits.md#dynamic-trait-values) gives the rule.
+See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values), which
+gives the rule.
 
-`Any` is the built-in universal empty trait. Every value type, including an
-optional type, satisfies it automatically. As a value type, `Any` erases the concrete type.
-`mut Trait` and `mut Any` preserve mutable access to an erased composite root.
+### Dynamic Safety
 
-`AnyVal` and `AnyRef` are the two sealed subtraits of `Any`, declared as
-`trait AnyVal < Any` and `trait AnyRef < Any`. Both are empty marker traits
-that the compiler implements; an explicit implementation of either is
-`sealed-trait-implementation`. Every value type implements exactly one of
-them:
+1. r[types.trait.safe] Only a dynamically safe trait may be used as a value type.
+2. r[types.trait.safe.members] A dynamically safe trait and every supertrait must have no associated types or associated functions, and `Self` may appear only as the receiver type.
+3. r[types.trait.safe.method-generic] A method-level generic parameter is permitted only when it is bounded by `AnyRef`; further bounds such as `T < AnyRef + Display` are allowed.
+4. r[types.trait.safe.one-body] Every argument for such a parameter is a reference, so one method body serves every instantiation, and the further bounds are supplied with each call.
+5. r[types.trait.safe.convert] A caller converts a primitive, tuple, or optional value explicitly before passing it.
+6. r[types.trait.safe.trait-generic] Trait declaration generic parameters are permitted.
+7. r[types.trait.safe.static] Traits that fail these rules remain valid for static generic bounds and explicit implementations.
 
-- `AnyVal`: `bool`, `char`, the integer types, `f32`, `f64`, `string`, and
-  tuples. These values have no identity.
-- `AnyRef`: data types, enums (including optionals and `Result`), `List`,
-  `Map`, function types, dynamic trait value types, `Any`, suspensions, and
-  runtime handles. These values have identity.
+> **Why.** One concrete trait instantiation, such as `Repository[User]`, fixes
+> the trait declaration's generic parameters before dispatch.
 
-Access permission does not change the category, so `mut User` implements
-`AnyRef`. A type parameter implements `AnyVal` or `AnyRef` only through its
-bound. `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts
-only `AnyRef` types.
+### Supertrait Widening
 
-`Any` erasure is one-way. A value erased to the sealed trait
-`std.inspect.Inspectable` instead keeps a runtime record of its concrete type,
-which `downcast` compares exactly
-([Runtime Type Identity](09-traits.md#runtime-type-identity)).
+1. r[types.trait.child] A dynamic child-trait value exposes methods declared by the child and all of its transitive supertraits.
+2. r[types.trait.child.widen] A dynamic child-trait value may be widened implicitly to a dynamic supertrait value.
+3. r[types.trait.child.one-way] That conversion discards access to child-only methods and cannot be reversed by a conversion; only `Inspectable` values recover a concrete type.
+4. r[types.trait.child.repr] This direct widening may rewrap dispatch metadata and is therefore not representation-preserving for a variance conversion.
+
+See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
+
+### `Any`
+
+1. r[types.any] `Any` is the built-in universal empty trait.
+2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
+3. r[types.any.erase] As a value type, `Any` erases the concrete type.
+4. r[types.any.mut] `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
+5. r[types.any.one-way] `Any` erasure is one-way.
+6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+
+See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
+
+### `AnyVal` And `AnyRef`
+
+1. r[types.sealed.decl] `AnyVal` and `AnyRef` are the two sealed subtraits of `Any`, declared as `trait AnyVal < Any` and `trait AnyRef < Any`.
+2. r[types.sealed.markers] Both are empty marker traits that the compiler implements.
+3. r[types.sealed.no-impl] An explicit implementation of either is an error. Error: `sealed-trait-implementation`.
+4. r[types.sealed.exactly-one] Every value type implements exactly one of them:
+
+| Trait | Types | Identity |
+| --- | --- | --- |
+| r[types.sealed.anyval] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, and tuples | These values have no identity. |
+| r[types.sealed.anyref] `AnyRef` | data types, enums (including optionals and `Result`), `List`, `Map`, function types, dynamic trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+
+5. r[types.sealed.permission] Access permission does not change the category, so `mut User` implements `AnyRef`.
+6. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
+7. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
+
+```text
+data Handle: pass
+
+impl AnyRef for Handle  # error: sealed-trait-implementation
+impl AnyVal for Handle  # error: sealed-trait-implementation
+```
 
 ## Map Key Types
 
-`Map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
-`Hash` is a standard-library trait in `std.hash`; user-defined data and enum
-types can become keys by explicitly implementing or deriving both traits. Standard-library
-implementations cover eligible built-in scalar types and their supported
-compositions: `bool`, integers, `char`, `string`, payload-free enums, tuples of
-hashable elements, and optionals of hashable elements. Lists, maps,
-floating-point values, functions, suspensions, dynamic trait values, and `Any`
-do not have built-in `Hash`; user data and stored enums require an explicit or
-derived implementation. Floating-point types do not implement `Eq` because of
-NaN. Consequently maps have no built-in hash and impose no order-independent
-map-hash obligation.
+This section defines which types may be map keys, and how keys behave.
 
-Map lookup and duplicate-key replacement use `Eq` for key comparison and
-`Hash` for indexing. The language does not check or impose a law connecting
-these two implementations. If an implementation hashes values differently
-that `Eq` considers equal, lookup and duplicate-key behavior are not
-guaranteed. Map iteration follows insertion order. Replacing the value for an
-existing key does not move that entry; removing and later reinserting a key
-places it at the end. Hash values remain outside map value semantics, and map
-equality remains independent of insertion order.
+1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
+2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
+3. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
+4. r[types.map-key.builtin] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, payload-free enums, tuples of hashable elements, and optionals of hashable elements.
+5. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
+6. r[types.map-key.user-impl] User data and stored enums require an explicit or derived implementation.
+7. r[types.map-key.float-eq] Floating-point types do not implement `Eq`.
+8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
 
-A readonly key view does not freeze the object. If another mutable alias
-changes a stored key's equality or hash after insertion, the map does not
-automatically reindex it. The entry can remain visible during iteration yet
-be unreachable by lookup or removal with the mutated key: a ghost entry.
-Such mutation does not trigger a compile-time error or an automatic repair.
+> **Why.** Floating-point types do not implement `Eq` because of NaN.
+
+### Lookup And Order
+
+1. r[types.map.eq-hash] Map lookup and duplicate-key replacement use `Eq` for key comparison and `Hash` for indexing.
+2. r[types.map.no-law] The language does not check or impose a law connecting these two implementations.
+3. r[types.map.inconsistent] If an implementation hashes values differently that `Eq` considers equal, lookup and duplicate-key behavior are not guaranteed.
+4. r[types.map.order] Map iteration follows insertion order.
+5. r[types.map.replace] Replacing the value for an existing key does not move that entry; removing and later reinserting a key places it at the end.
+6. r[types.map.semantics] Hash values remain outside map value semantics, and map equality remains independent of insertion order.
+
+### Mutated Keys
+
+1. r[types.map.key-view] A readonly key view does not freeze the object.
+2. r[types.map.no-reindex] If another mutable alias changes a stored key's equality or hash after insertion, the map does not automatically reindex it.
+3. r[types.map.ghost] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a ghost entry.
+4. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
 
 ## Least Common Type
 
-Several constructs infer one type from several values when no expected type is
-available:
+r[types.lct.sites] Several constructs infer one type from several values when no expected type is available:
 
-- the elements of a list literal, and the keys and the values of a map literal
-  ([Expressions](05-expressions.md#list-and-map-expressions));
-- the branches of a value-producing `if`
-  ([Control Flow](06-control-flow.md#conditional-expressions));
-- the arm results of a value-producing `match`
-  ([Control Flow](06-control-flow.md#match-expressions));
-- the final value and `return` operands of a closure whose result type is
-  inferred ([Functions](07-functions.md#closures)), and of a non-public
-  function whose result type is omitted
-  ([Functions](07-functions.md#declarations)).
+| Construct | Values | Defined in |
+| --- | --- | --- |
+| List literal | the elements | [Expressions](05-expressions.md#list-and-map-expressions) |
+| Map literal | the keys, and the values | [Expressions](05-expressions.md#list-and-map-expressions) |
+| Value-producing `if` | the branches | [Control Flow](06-control-flow.md#conditional-expressions) |
+| Value-producing `match` | the arm results | [Control Flow](06-control-flow.md#match-expressions) |
+| Closure whose result type is inferred | the final value and `return` operands | [Functions](07-functions.md#closures) |
+| Non-public function whose result type is omitted | the final value and `return` operands | [Functions](07-functions.md#declarations) |
 
-Each of these uses the least common type defined here. The compiler computes a
-unique least common type of the values' types using only the implicit
-conversions in [Assignability And Coercion](#assignability-and-coercion).
-Numeric widening, permission weakening, and declared readonly variance may
-contribute, but least-common-type inference never combines permission
-weakening with a variance step for the same candidate conversion.
+1. r[types.lct.uses] Each of these uses the least common type defined here.
+2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the implicit conversions in [Assignability And Coercion](#assignability-and-coercion).
+3. r[types.lct.contributors] Numeric widening, permission weakening, and declared readonly variance may contribute.
+4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
 
-The compiler never falls back to `Any` merely to make heterogeneous values
-type-check. Unconstrained inference also does not introduce a dynamic
-trait-value conversion, because a concrete type may satisfy multiple unrelated
-traits; an expected type such as `List[Display]` or `Map[K, Display]` may
-request that conversion explicitly. A contextual variant, `.None` included,
-takes its type only from an expected type, never from the other values: `[1,
-.None]` or `if c: 1 else: .None` without an expected type is a
-`missing-contextual-enum-type` error, and `let values: List[i32?] = [1,
-.None]` supplies the type.
+### No Implicit Erasure
 
-If no unique least type exists, inference fails and the user must add an
-expected type. When the values have no common type, the failure is a
-`no-common-type` error. When they have common types but these rules admit no
-unique least one, the failure is a `no-least-common-type` error.
+1. r[types.lct.no-any] The compiler never falls back to `Any` merely to make heterogeneous values type-check.
+2. r[types.lct.no-trait-value] Unconstrained inference also does not introduce a dynamic trait-value conversion.
+3. r[types.lct.expected-trait] An expected type such as `List[Display]` or `Map[K, Display]` may request that conversion explicitly.
+4. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
+5. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
+6. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
+
+```text
+fn pick(flag: bool) -> void:
+    values := [1, .None]             # error: missing-contextual-enum-type
+    value := if flag: 1 else: .None  # error: missing-contextual-enum-type
+```
+
+> **Why.** Unconstrained inference introduces no trait-value conversion because
+> a concrete type may satisfy multiple unrelated traits.
+
+### Inference Failure
+
+1. r[types.lct.fail] If no unique least type exists, inference fails and the user must add an expected type.
+2. r[types.lct.no-common] When the values have no common type, the failure is an error. Error: `no-common-type`.
+3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
+
+```text
+fn combine(small: mut List[mut User], wide: List[User]) -> void:
+    both := [small, wide]  # error: no-least-common-type
+```
 
 ## Type Inference Boundaries
 
-The compiler infers local binding types, closure parameter or result types when
-an expected function type supplies them, and generic call arguments when the
-solution is unambiguous.
+r[types.infer.sites] The compiler infers the following:
 
-The following declarations require explicit types:
+- local binding types;
+- closure parameter or result types when an expected function type supplies them;
+- generic call arguments when the solution is unambiguous.
 
-- named function parameters;
-- the results of public functions, trait methods, methods of trait
-  implementations, and recursive functions (a non-public, nonrecursive
-  function may infer its result from its body);
-- public and private data fields;
-- enum payload fields and constructor data;
-- trait method parameters and results;
-- named function type parameters and bounds where applicable.
+r[types.infer.explicit] The following declarations require explicit types:
 
-Inference must not select among overloaded functions because hd-lang has no
-function overloading. If inference has multiple valid solutions, compilation
-fails and the diagnostic must identify an annotation site that disambiguates
-the program.
+1. r[types.infer.explicit.parameters] Named function parameters.
+2. r[types.infer.explicit.results] The results of public functions, trait methods, methods of trait implementations, and recursive functions.
+3. r[types.infer.explicit.fields] Public and private data fields.
+4. r[types.infer.explicit.enum] Enum payload fields and constructor data.
+5. r[types.infer.explicit.trait-methods] Trait method parameters and results.
+6. r[types.infer.explicit.fn-type] Named function type parameters and bounds where applicable.
+
+r[types.infer.body-result] A non-public, nonrecursive function may infer its result from its body.
+
+### Ambiguous Inference
+
+1. r[types.infer.no-overload] Inference must not select among overloaded functions.
+2. r[types.infer.ambiguous] If inference has multiple valid solutions, compilation fails and the diagnostic must identify an annotation site that disambiguates the program.
+
+> **Why.** hd-lang has no function overloading.
 
 ## Implementation Model (Non-Normative)
 
@@ -867,16 +982,18 @@ Runtime values fall into three categories:
 | Reference values | data values, stored enum values (including `Result` and optionals), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
-trait, and the scalar values and identity-free composites are exactly the
-implementers of the sealed `AnyVal` trait
-([Trait Values And `Any`](#trait-values-and-any)).
+trait. The scalar values and identity-free composites are exactly the
+implementers of the sealed `AnyVal` trait.
 
 Values without identity are immutable, so storing one by copy or by
 reference cannot be observed. A payload-free enum value and a fieldless data
-value store no data and have one canonical identity each. Converting a value
-without identity to a trait value or `Any` allocates a box with its own
-identity, as [Expressions](05-expressions.md#unary-and-binary-operators)
-specifies.
+value store no data and have one canonical identity each.
+
+Converting a value without identity to a trait value or `Any` allocates a box
+with its own identity, as
+[Expressions](05-expressions.md#unary-and-binary-operators) specifies.
+
+See also: [Trait Values And `Any`](#trait-values-and-any).
 
 ### Shapes and Generic Code
 
@@ -892,18 +1009,18 @@ The reference strategy uses five shapes:
 | reference | every other type, including strings, tuples, optionals, data, enums, collections, closures, and trait values |
 
 A generic function is compiled in its defining package once for each shape,
-at most five bodies, so a downstream package needs only its signature (see
-[Name Resolution Across Packages](10-modules.md#name-resolution-across-packages)).
-All reference-shaped instantiations share one body. Scalar-shaped instantiations
+at most five bodies, so a downstream package needs only its signature. All
+reference-shaped instantiations share one body. Scalar-shaped instantiations
 get a specialized body, so a generic function over `List[i32]` reads and
-writes unboxed `i32` elements. Trait bounds are passed as dictionaries of the
-selected operations; associated types are represented through those
-dictionaries. A dictionary for a statically known implementation is a
-constant, not a per-call allocation.
+writes unboxed `i32` elements.
 
-When the set of shapes reachable from one generic function is unbounded, for
-example through polymorphic recursion such as `f[T]` calling `f[(T, T)]`, the
-implementation falls back to the reference shape with boxed scalars. This is
+Trait bounds are passed as dictionaries of the selected operations;
+associated types are represented through those dictionaries. A dictionary for
+a statically known implementation is a constant, not a per-call allocation.
+
+When the set of shapes reachable from one generic function is unbounded, the
+implementation falls back to the reference shape with boxed scalars. An
+example is polymorphic recursion such as `f[T]` calling `f[(T, T)]`. This is
 unobservable, because values without identity cannot be distinguished by
 storage.
 
@@ -911,6 +1028,8 @@ A method called through a trait value has exactly one body at run time. The
 dynamic-safety rule in [Trait Values And `Any`](#trait-values-and-any)
 therefore limits method-level generic parameters of dynamically safe traits
 to reference types, which all share the reference shape.
+
+See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across-packages).
 
 ### Composite Representation
 
@@ -920,8 +1039,8 @@ to reference types, which all share the reference shape.
 - A tuple is an immutable record typed by its element shapes. In locals,
   parameters, and results, it may be split into its elements.
 - `T?` is an enum like any other: `.None` is a canonical constant, which a
-  null reference may represent, and `.Some(value)` is a tagged record holding
-  the value (unboxed for a scalar `T`). Because each `.Some` construction has
+  null reference may represent. `.Some(value)` is a tagged record holding
+  the value, unboxed for a scalar `T`. Because each `.Some` construction has
   its own identity, a present value cannot be represented by the payload
   itself.
 - A list is a growable array of its element shape. A map is expected to use
@@ -931,7 +1050,7 @@ to reference types, which all share the reference shape.
 - A dynamic trait value is the underlying reference plus a shared method
   table for the implementation. For `Inspectable` and the traits that
   extend it, the table also holds one interned descriptor of the recorded
-  type, so a `downcast` is a descriptor comparison followed by a cast or an
+  type. A `downcast` is then a descriptor comparison followed by a cast or an
   unboxing, and a `T < Inspectable` dictionary is that descriptor.
 
 ### Suspension Frames
@@ -956,22 +1075,23 @@ the row's keys, instead of through a keyed lookup.
 ### Representation-Preserving Conversions
 
 A conversion is representation-preserving when the value after conversion is
-the same runtime value as before: the same identity and the same stored
-content, with no wrapper, copy, box, or re-encoding. Permission weakening
-`mut U -> U` preserves representation. Numeric widening, conversion to a
-trait value or `Any`, supertrait widening of a dynamic value, and optional
-injection do not, which is why [Variance](#variance) excludes them.
+the same runtime value as before. It keeps the same identity and the same
+stored content, with no wrapper, copy, box, or re-encoding.
+
+Permission weakening `mut U -> U` preserves representation. Numeric widening,
+conversion to a trait value or `Any`, supertrait widening of a dynamic value,
+and optional injection do not, which is why [Variance](#variance) excludes
+them.
 
 ## Unsupported Type-System Extensions
 
-The only runtime type test is exact-type recovery from an `Inspectable`
-value ([Runtime Type Identity](09-traits.md#runtime-type-identity)). There
-are no trait-to-trait assertions, no tests on `Any` or on trait values whose
-trait does not extend `Inspectable`, and no type patterns in `match`.
-It has no anonymous union types, including error unions such as
-`FsError | HttpError`: an error type is a nominal type or a dynamic trait
-value such as `std.error.Error`
-([Error Trait](09-traits.md#error-trait)). The exact
-host representation of a checked runtime panic is an ABI concern; its
-language-level control-flow semantics are defined in
-[Control Flow](06-control-flow.md#runtime-panics).
+This section lists type-system features that hd-lang does not have.
+
+1. r[types.unsupported.type-test] The only runtime type test is exact-type recovery from an `Inspectable` value.
+2. r[types.unsupported.no-assertions] There are no trait-to-trait assertions, no tests on `Any` or on trait values whose trait does not extend `Inspectable`, and no type patterns in `match`.
+3. r[types.unsupported.no-unions] hd-lang has no anonymous union types, including error unions such as `FsError | HttpError`.
+4. r[types.unsupported.error-type] An error type is a nominal type or a dynamic trait value such as `std.error.Error`.
+5. r[types.unsupported.panic-abi] The exact host representation of a checked runtime panic is an ABI concern; its language-level control-flow semantics are defined in [Control Flow](06-control-flow.md#runtime-panics).
+
+See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
+[Error Trait](09-traits.md#error-trait).
