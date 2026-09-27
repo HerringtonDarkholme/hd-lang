@@ -397,13 +397,18 @@ members; `has_default()` does not). Prior art: GHC.Generics, Scala 3
 scope, how `= pass` members appear in `walk` and `build`, and the exact
 handle API.
 
-(M15, decided 2026-09-27; closes stress-test P12) Typed derivation
+(M15, decided 2026-09-27; closes stress-test P12 and P14) Typed derivation
 deliberately does not cover impl families: one impl per variant or member,
 each a different trait instantiation keyed by the member's type. A template
-gives one trait instantiation per opt-in. The one real case, derived `From`
-for error conversion, is the compiler intrinsic `@from` on individual
-variants of an enum that implements `std.error.Error`, recorded as
-[Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions).
+gives one trait instantiation per opt-in. Error derivation, the one case that
+needs a family (`From` per variant) together with `Display` and
+`Error::cause` from the same per-variant markers, is the compiler intrinsic
+`@derive(Error)`, hd's `thiserror`, with the variant markers `@message`,
+`@from`, `@source`, and `@transparent`; see
+[Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions). For
+other libraries' facts, the fact check hook is accepted (P14): a fact type
+may define a compile-time `check` against the member or variant it is
+attached to, run at the opt-in site. Its exact form is not yet designed.
 
 ### Current Design: Full Example (M1-M14)
 
@@ -426,8 +431,8 @@ in place of M9's value-passing `visit`. Every traversal below is library code
 over those handles: json encodes with `walk` plus `h.get(value)`, decodes
 with `build` and falls back to `h.default()`, and describes a type with a
 `walk` that holds no value; `std.cmp` compares two values in one walk, and
-`Clone` builds a new value from an old one. Error-enum `From` conversions are
-not derived here: they are the `@from` intrinsic (M15).
+`Clone` builds a new value from an old one. Error enums are not derived
+here: `@derive(Error)` is a compiler intrinsic (M15).
 
 ```text
 # ══ std.structure ═════════════════════════════════════════════════
@@ -915,7 +920,7 @@ impl[T, P] From[P] for T by Structure:
     fn from(value: P) -> Self:
         pass
 # rejected by design (M15): templates give one trait instantiation per
-#   opt-in, never an impl family; per-variant From is the @from intrinsic
+#   opt-in, never an impl family; per-variant From comes from @derive(Error)
 ```
 
 Not rejected: a walker whose `variant` answers `true` for a variant that its
@@ -995,9 +1000,12 @@ variant's handles, and `h.get` then panics at run time (M14).
     exception). `PartialOrd` and `Ord` stay, so floats are
     `Eq + PartialOrd` but not `Ord`. Not yet applied to 09.
 14. Impl families are out of scope (M15). A template gives one trait
-    instantiation per opt-in. Derived `From` for error enums is the compiler
-    intrinsic `@from` on individual variants
+    instantiation per opt-in. Error enums use the compiler intrinsic
+    `@derive(Error)`, which generates `Display`, `Error` with `cause()`, and
+    one `From[P]` per `@from` variant
     ([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
+    A fact type may define a compile-time `check` against its member or
+    variant, run at the opt-in site (M15, P14); its form is open.
 15. Cost: handles are constants, and generated code passes a constant
     dictionary per member, so there is no per-member allocation. `default()`
     allocates `.Some`; `has_default()` does not (M14).
