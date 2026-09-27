@@ -48,7 +48,10 @@ are applied later in one `spec-update` pass, not per chapter.
 
 - **Enum shared constructor data is read-only** (ENUM_SEMANTICS question 2,
   decided 2026-09-27): a `mut` enum view can no longer reassign a named
-  shared constructor field, so enum values are immutable once built. The
+  shared constructor field, so an enum's own slots (tag, payload, shared
+  fields) never change once built. This is shallow: a payload may be a
+  mutable reference (`Loaded(user: mut User)`), and that object can still
+  change, as with a tuple holding references. The
   value-category question (question 1) is still open.
 
 ## Logged, not scheduled (owner: do not spend on it now)
