@@ -11,11 +11,14 @@ import {
   type HostSuspensionOutcome,
   type ReplayEvent,
 } from "./compiler.ts";
-import { DiagnosticError, formatDiagnostic } from "./diagnostics.ts";
+import { explainCommand, lookupCommand } from "./cli-queries.ts";
+import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
+import { DiagnosticError } from "./diagnostics.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
+import { loadSpecIndex } from "./spec-index.ts";
 import { resultParts } from "./types.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
@@ -116,9 +119,19 @@ function runRuntimeScenario(
 
 function usage(): never {
   console.error(
-    "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE\n       hd repl",
+    [
+      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE",
+      "       hd explain [--format text|json] CODE",
+      "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
+      "       hd repl",
+    ].join("\n"),
   );
   process.exit(2);
+}
+
+function outputFormat(value: string | undefined): OutputFormat {
+  if (value === "text" || value === "json") return value;
+  return usage();
 }
 
 export async function main(args = process.argv.slice(2)): Promise<number> {
@@ -133,9 +146,13 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   let scenario: RuntimeScenario | undefined;
   let pendingFunctionName: string | undefined;
   let profileName: RuntimeProfileName | undefined;
+  let format: OutputFormat = "text";
+  let runOptions = false;
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
-    if (option === "--wat") wat = true;
+    if (option !== "--format") runOptions = true;
+    if (option === "--format") format = outputFormat(args.shift());
+    else if (option === "--wat") wat = true;
     else if (option === "--entry") {
       entryName = args.shift() ?? usage();
       explicitEntry = true;
@@ -143,6 +160,17 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
     else if (option === "--profile") profileName = runtimeProfile(args.shift());
     else usage();
+  }
+  if (command === "explain") {
+    const code = args.shift();
+    if (!code || args.length > 0 || runOptions) usage();
+    return explainCommand(code, format);
+  }
+  if (command === "def" || command === "doc") {
+    const name = args.shift();
+    const target = args.shift() ?? ".";
+    if (!name || args.length > 0 || runOptions) usage();
+    return lookupCommand(command, name, target, format);
   }
   const file = args.shift();
   if (!command || !file || args.length > 0) usage();
@@ -153,6 +181,12 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   const source = await readFile(path, "utf8");
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
   const compileOptions: CompileOptions = { hostCapabilities: profile?.hostCapabilities };
+  const reporter = new DiagnosticReporter(
+    format,
+    file,
+    source,
+    format === "json" ? await loadSpecIndex() : undefined,
+  );
   try {
     if (command === "parse") {
       const result = parse(source);
@@ -163,8 +197,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     if (command === "check") {
       const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
-      for (const diagnostic of result.diagnostics)
-        console.error(formatDiagnostic(file, diagnostic));
+      for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
       console.log(`${file}: ok`);
       return 0;
     }
@@ -177,6 +210,10 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     if (command === "explain-requirements") {
       const result = analyze(source, compileOptions);
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
+      if (format === "json") {
+        console.log(JSON.stringify({ functions: explainRequirements(result.hir) }, null, 2));
+        return 0;
+      }
       for (const explanation of explainRequirements(result.hir)) {
         console.log(
           `${explanation.functionName}: ${explanation.declared.length > 0 ? "$ " + explanation.declared.join(" + ") : "$()"}`,
@@ -304,7 +341,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
         if (declaration.entry && resultParts(declaration.result)?.ok === "void") {
           if (result !== 0) {
-            console.error(`${file}: main returned Err`);
+            reporter.entryError();
             return 1;
           }
           result = undefined;
@@ -322,11 +359,11 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     usage();
   } catch (error) {
     if (error instanceof DiagnosticError) {
-      for (const diagnostic of error.diagnostics) console.error(formatDiagnostic(file, diagnostic));
+      for (const diagnostic of error.diagnostics) reporter.diagnostic(diagnostic);
       return 1;
     }
     if (error instanceof RuntimePanicError) {
-      console.error(`${error.code}: runtime panic`);
+      reporter.runtimePanic(error.code);
       return 1;
     }
     throw error;
