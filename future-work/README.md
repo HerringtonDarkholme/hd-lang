@@ -35,6 +35,11 @@ language specification:
   questions for the owner.
 - [Error Conversion](ERROR_CONVERSION.md) surveys error composition in other
   languages and compares designs for using `?` across domain error types.
+- [Error Design Stress Test (V1, V2a, V2b)](ERROR_STRESS_TEST.md) translates
+  real crates' error types (ripgrep, cargo, serde_json, reqwest,
+  `std::io::Error`, ast-grep, naga, globset) into the recorded
+  `@derive(Error)` design and two message-free variants, compares them,
+  and ranks the problems found, with questions for the owner.
 - [Runtime Type Identity](INSPECTABLE.md) records the design of the
   `Inspectable` trait, `TypeId`, and `downcast`, and the owner decisions now
   in the specification.
