@@ -400,7 +400,7 @@ Operators are ordered from highest to lowest precedence:
 | Shift | `<<`, `>>` | left |
 | Bitwise AND | `&` | left |
 | Bitwise XOR | `^` | left |
-| Bitwise OR | `|` | left |
+| Bitwise OR | `\|` | left |
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | non-associative |
 | Logical AND | `&&` | left, short-circuiting |
 | Logical OR | `\|\|` | left, short-circuiting |

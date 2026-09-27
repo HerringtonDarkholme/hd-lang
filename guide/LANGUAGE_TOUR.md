@@ -245,7 +245,7 @@ Operator precedence follows a Python-like shape, from highest to lowest:
 | `<<`, `>>` | shifts |
 | `&` | bitwise and |
 | `^` | bitwise xor |
-| `|` | bitwise or |
+| `\|` | bitwise or |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `is` | comparisons; no chaining |
 | `&&` | logical and |
 | `\|\|` | logical or |
