@@ -76,3 +76,6 @@ parsetab.py
 tmp/
 temp/
 .cache/
+
+# Claude Code agent worktrees (the rest of .claude/ may be tracked)
+.claude/worktrees/
