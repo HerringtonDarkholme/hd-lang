@@ -92,6 +92,12 @@ Decided 2026-09-26:
     variant has at most one `@source` or `@from` member; the member's type
     is `E < Error` or `E?` (an absent optional cause gives `.None`);
     `@from` stays one-payload; common enum fields cannot be `@source`.
+    Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
+    `from`, `source`, `transparent`) and no more. It has no error codes:
+    inside a program the typed variant is the code (`find[T]()` then
+    `match`), and codes for logs and APIs belong to the boundary-safe
+    report type of decision 6 (miette keeps codes on a separate
+    `Diagnostic` trait for the same reason).
     Generated impls are ordinary impls: a hand-written duplicate is
     `overlapping-impl`. Unmarked variants get no `From`, so
     `Invalid(reason: string)` never yields `From[string]`. This adds `Error`
