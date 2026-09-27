@@ -41,11 +41,16 @@ Decided 2026-09-27:
    included, stays `AnyRef`; each construction of a variant with payloads
    has its own identity, and a payload-free variant has one canonical
    identity. `downcast`, `find`, and `AnyRef`-bounded dynamic methods keep
-   working for enums. Implementation note (no rule change): because a
-   payload-free variant's identity is canonical, an implementation may
-   represent a payload-free enum as an integer (`i32` in locals, fields,
-   and `match`; `i31ref` in reference-shaped positions) without changing
-   what `is` observes.
+   working for enums. Implementation note (no rule change; decided
+   2026-09-27): every enum uses the reference shape, with one
+   representation. A payload-free variant, in any enum, is an `i31ref`
+   holding its tag (no allocation, and `ref.eq` on it is the canonical
+   identity); a variant with a payload is a GC struct, one struct subtype
+   per variant of the enum's base type; an enum-typed slot is `eqref`, and
+   `match` tests for `i31` first, then reads the struct's tag. No `i32`
+   form: one representation keeps implementations simple, at the cost of an
+   `i31.get` per tag read and pointer-sized storage. `.None` may be the
+   `i31ref` tag or a null reference.
 2. **Question 2: shared constructor data is read-only.** An enum's own
    slots never change once built; this is shallow, since a payload may be a
    mutable reference.
