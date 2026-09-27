@@ -5,14 +5,14 @@ use std.testing.assert
 fn to_display(value: i32) -> Display:
     value
 
-fn same_ref[T < Reference](left: T, right: T) -> bool:
+fn same_ref[T < AnyRef](left: T, right: T) -> bool:
     left is right
 
 test "aliases of one converted primitive share identity":
     let first: Display = 5
     alias := first
     assert(first is alias, reason="an alias shares the box")
-    assert(same_ref(first, alias), reason="Reference-bounded generic agrees")
+    assert(same_ref(first, alias), reason="AnyRef-bounded generic agrees")
 
 test "repeated conversions of equal primitives are distinct":
     let first: Display = 5

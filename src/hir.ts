@@ -44,12 +44,15 @@ export interface HirTraitMethod {
   readonly index: number;
   readonly associated: boolean;
   readonly genericParameters: readonly string[];
-  // Method-level bounds other than Reference and Any. Each is passed as a
+  // Method-level bounds other than AnyVal, AnyRef, and Any. Each is passed as a
   // dictionary argument after the ordinary parameters, also through a
   // dynamic trait value (04-type-system.md#trait-values-and-any).
   readonly genericBounds?: readonly HirGenericBound[];
-  // Method-level generic parameters bounded by Reference.
+  // Method-level generic parameters bounded by AnyRef.
   readonly referenceParameters?: readonly string[];
+  // Method-level generic parameters bounded by AnyVal. They keep the method
+  // out of dynamic dispatch (04-type-system.md#trait-values-and-any).
+  readonly valueParameters?: readonly string[];
   readonly suspending: boolean;
   readonly receiverMutable: boolean;
   readonly parameters: readonly ValueType[];

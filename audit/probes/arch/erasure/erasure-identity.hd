@@ -13,7 +13,7 @@ impl Show for P:
 
 fn relay(value: Show) -> Show: value
 
-fn same_ref[T: Reference](left: T, right: T) -> bool: left is right
+fn same_ref[T: AnyRef](left: T, right: T) -> bool: left is right
 
 # spec: aliases of a converted primitive share the box identity -> true
 fn prim_alias() -> bool:
@@ -39,7 +39,7 @@ fn data_twice() -> bool:
     let b: Show = p
     a is b
 
-# spec: generic Reference-bounded identity on trait values -> true for aliases
+# spec: generic AnyRef-bounded identity on trait values -> true for aliases
 fn generic_alias() -> bool:
     let a: Show = 5
     same_ref(a, a)

@@ -6,7 +6,7 @@ use std.testing.assert_equal
 data User:
     name: string
 
-fn same[T < Reference](left: T, right: T) -> bool:
+fn same[T < AnyRef](left: T, right: T) -> bool:
     left is right
 
 test "optional identity follows the enum rules":
@@ -23,4 +23,4 @@ test "optional identity follows the enum rules":
     let count: i32? = 1
     let other_count: i32? = 1
     assert_equal(count is other_count, false, reason="scalar payloads are wrapped per construction")
-    assert_equal(same(first, alias), true, reason="an optional satisfies Reference")
+    assert_equal(same(first, alias), true, reason="an optional satisfies AnyRef")

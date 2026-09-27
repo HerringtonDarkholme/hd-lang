@@ -96,11 +96,11 @@ a duplicate field name, the smallest construct is that token's own element.
 Conformance fixtures place their marker on that line.
 
 Note (normative): `unsatisfied-trait-bound` covers several trait
-requirements: a generic bound (including `T < Reference` and `T < mut Trait`
-given readonly access), `Display` for string interpolation, and `Iterable` or
-`Iterator` for a `for` loop. Because one code covers these origins, its
-message must name the type, the missing trait, and where the requirement comes
-from (the bound, the interpolation, or the loop).
+requirements: a generic bound (including `T < AnyVal`, `T < AnyRef`, and
+`T < mut Trait` given readonly access), `Display` for string interpolation,
+and `Iterable` or `Iterator` for a `for` loop. Because one code covers these
+origins, its message must name the type, the missing trait, and where the
+requirement comes from (the bound, the interpolation, or the loop).
 
 Identifier-security warnings use Unicode confusable skeletons and a
 moderately-restrictive mixed-script profile. They do not change identifier
@@ -507,3 +507,13 @@ existing source. Each entry names the decision that made the change.
   `unsaturated-enum-constructor`, is valid. A constructor with two or more
   payload fields stays `unsaturated-enum-constructor`. Postfix `?` has no
   mapping clause, and there are no anonymous error unions.
+- Value-category traits (owner decision): the sealed prelude trait
+  `Reference` is renamed `AnyRef`, and a new sealed prelude trait `AnyVal`
+  is added. Both are compiler-implemented subtraits of `Any`, and every
+  value type implements exactly one of them: `AnyVal` for primitives and
+  tuples, `AnyRef` for the reference values. `T < Reference` is now
+  `unknown-trait`; write `T < AnyRef`. `T < AnyVal` accepts only primitives
+  and tuples. `AnyRef` replaces an existing prelude name. `AnyVal` is a
+  prelude addition and a deliberate exception to Standard-library decision 7
+  (the prelude does not grow), so a module that declares its own `AnyVal` or
+  `AnyRef` is now `prelude-name-shadow`.

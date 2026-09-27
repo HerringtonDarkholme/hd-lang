@@ -908,3 +908,9 @@ typing/invalid/from-implementation-with-requirement.hd	type
 typing/invalid/from-implementation-suspending.hd	type
 runtime/valid/single-payload-variant-function-value.hd	runtime
 typing/invalid/two-payload-variant-as-function-value.hd	type
+typing/valid/anyval-bound-accepts-values.hd	type
+typing/invalid/anyval-bound-rejects-data.hd	type
+typing/valid/anyref-bound-accepts-references.hd	type
+typing/invalid/user-anyref-implementation.hd	type
+typing/invalid/user-anyval-implementation.hd	type
+typing/invalid/reference-trait-name-unknown.hd	type

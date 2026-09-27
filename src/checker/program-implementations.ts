@@ -399,6 +399,14 @@ export function prepareImplementations(context: ProgramCheckContext): void {
       });
       continue;
     }
+    if (traitName === "AnyVal" || traitName === "AnyRef") {
+      diagnostics.push({
+        code: "sealed-trait-implementation",
+        message: `${traitName} is a sealed value-category trait and cannot be implemented by user code`,
+        span: implementation.span,
+      });
+      continue;
+    }
     const trait = traitTypes.get(traitName);
     if (!trait) {
       diagnostics.push({

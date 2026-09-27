@@ -133,7 +133,7 @@ prelude: prelude names are used directly and are not re-imported.
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `Reference`, `Option`, `Result`, `Ok`, `Err`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `Ok`, `Err`, `panic` |
 | `std.format` | `Display` |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
@@ -172,11 +172,14 @@ is convenient to name but not a global
 host API: each call must be covered by a `Console` requirement row or a
 lexical provider scope.
 
-`Reference` is a sealed marker trait implemented by data values, stored enum
+`AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`
+([Trait Values And `Any`](04-type-system.md#trait-values-and-any)).
+`AnyRef` is implemented by data values, stored enum
 values (optionals included), lists, maps, dynamic trait values, `Any`, closures, suspensions, and
 runtime handles that have identity, and payload-free enum values with canonical
 variant identity. It is not implemented by primitives or tuples.
-User code cannot implement it.
+`AnyVal` is implemented by exactly the primitives and tuples.
+User code cannot implement either.
 
 The following built-in methods are normative. Lengths and scalar positions use
 `i32`.

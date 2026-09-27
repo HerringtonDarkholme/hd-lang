@@ -1,0 +1,3 @@
+# test: the former sealed trait name Reference is not a prelude name
+
+fn same[T < Reference](left: T, right: T) -> bool: left is right  # diagnostic: unknown-trait

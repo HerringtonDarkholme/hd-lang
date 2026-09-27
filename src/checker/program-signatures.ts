@@ -74,7 +74,7 @@ export function createProgramSignatures(
     const typeParameters = declaration.genericParameters.filter(
       (parameter) => !rowParameterSet.has(parameter),
     );
-    const referenceParameters = new Set<string>();
+    const categoryParameters = { AnyRef: new Set<string>(), AnyVal: new Set<string>() };
     const boundProjections = new Set<string>();
     const genericBounds = declaration.genericBounds.flatMap((bound) => {
       if (rowParameterSet.has(bound.parameter)) {
@@ -101,8 +101,8 @@ export function createProgramSignatures(
         // (09-traits.md#generic-bounds-and-static-dispatch).
         if (seen.has(traitKey)) return [];
         seen.add(traitKey);
-        if (traitName === "Reference") {
-          referenceParameters.add(bound.parameter);
+        if (traitName === "AnyRef" || traitName === "AnyVal") {
+          categoryParameters[traitName].add(bound.parameter);
           return [];
         }
         if (traitName === "Any") return [];
@@ -303,7 +303,8 @@ export function createProgramSignatures(
       suspending: declaration.suspending,
       genericParameters: typeParameters,
       genericBounds,
-      referenceParameters: [...referenceParameters],
+      referenceParameters: [...categoryParameters.AnyRef],
+      valueParameters: [...categoryParameters.AnyVal],
       rowParameters,
       parameters: normalizedParameters,
       parameterNames: declaration.parameters.map((parameter) => parameter.name),

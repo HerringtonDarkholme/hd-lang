@@ -82,10 +82,10 @@ Decided 2026-09-26:
     specific to `downcast`.
 15. **`downcast` and `downcast_mut` are default methods of `Inspectable`**
     (supersedes decision 13's free functions and the matching parts of 14):
-    `fn downcast[T < Reference + Inspectable](self) -> T?` and
-    `fn downcast_mut[T < Reference + Inspectable](mut self) -> mut T?`. They
+    `fn downcast[T < AnyRef + Inspectable](self) -> T?` and
+    `fn downcast_mut[T < AnyRef + Inspectable](mut self) -> mut T?`. They
     are dynamically safe under the existing rule that a method-level generic
-    bounded by `Reference` is allowed (one body serves every instantiation).
+    bounded by `AnyRef` is allowed (one body serves every instantiation).
     `T`'s `Inspectable` dictionary carries its `TypeId`, so no `reified` is
     needed (this settles the earlier open question; `TypeId::of[T]()` likewise
     needs only `T < Inspectable`). `mut` comes from the receiver: a readonly
@@ -163,7 +163,7 @@ The proposal must satisfy all of them.
 | C15 | Assignability is single-step; least-common-type inference never constructs trait values or widens to a supertrait. | TQ-14, TQ-15 |
 | C16 | No impl may target a trait value type or `Any`. | TQ-22, 09 Implementation Targets |
 | C17 | A dynamic trait value satisfies bounds on its own trait and its supertraits. | Error Conversion decision 4 |
-| C18 | Dynamic safety stays literal: only `Reference`-bounded method generics. | TQ-10 |
+| C18 | Dynamic safety stays literal: only `AnyRef`-bounded method generics. | TQ-10 |
 | C19 | An erased `Error` never crosses a registered boundary. | Error Conversion decision 6 |
 
 ## Survey
@@ -214,7 +214,7 @@ pub trait Inspectable:
     fn runtime_type(self) -> RuntimeType
 ```
 
-- **Sealed.** Like `Reference`, `ShapeMetadata`, and `Suspend`, user code
+- **Sealed.** Like `AnyVal`, `AnyRef`, `ShapeMetadata`, and `Suspend`, user code
   cannot implement it. An explicit `impl Inspectable for User` is
   `sealed-trait-implementation`. The compiler supplies the implementation
   for every inspectable type ([Which types are inspectable](#which-types-are-inspectable)).
@@ -837,7 +837,7 @@ This is a reference-parser false positive, not a design issue.
 
 ### 1. Where do `Inspectable` and `RuntimeType` live?
 
-- **A.** Prelude names (`std.core`), next to `Any` and `Reference`.
+- **A.** Prelude names (`std.core`), next to `Any`, `AnyVal`, and `AnyRef`.
 - **B.** A `std` module outside the prelude, for example
   `std.inspect.{Inspectable, RuntimeType}`, the way `Suspend` lives in
   `std.task`. `downcast` needs no import either way.

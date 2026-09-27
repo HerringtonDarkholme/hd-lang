@@ -1048,3 +1048,9 @@ typing/invalid/from-implementation-suspending.hd	type	reject:trait-method-signat
 runtime/valid/single-payload-variant-function-value.hd	runtime	accept	08-data-and-enums.md#enum-declarations
 typing/invalid/two-payload-variant-as-function-value.hd	type	reject:unsaturated-enum-constructor	08-data-and-enums.md#enum-declarations
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	runtime	accept	09-traits.md#dynamic-trait-values
+typing/valid/anyval-bound-accepts-values.hd	type	accept	04-type-system.md#trait-values-and-any
+typing/invalid/anyval-bound-rejects-data.hd	type	reject:unsatisfied-trait-bound	04-type-system.md#trait-values-and-any
+typing/valid/anyref-bound-accepts-references.hd	type	accept	04-type-system.md#trait-values-and-any
+typing/invalid/user-anyref-implementation.hd	type	reject:sealed-trait-implementation	04-type-system.md#trait-values-and-any
+typing/invalid/user-anyval-implementation.hd	type	reject:sealed-trait-implementation	04-type-system.md#trait-values-and-any
+typing/invalid/reference-trait-name-unknown.hd	type	reject:unknown-trait	10-modules.md#prelude

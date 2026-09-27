@@ -59,9 +59,9 @@ accepts some global failure; ignoring bounds removes the rest.
 | Swift | Any protocol usable as `any P` (SE-0309); members referencing `Self` in non-covariant positions are unavailable on the existential. |
 | MoonBit | `&Trait` objects; `Self` must be the first parameter and occur once. |
 | Kotlin | Every interface is a type. |
-| hd today | No associated types/functions, `Self` only as receiver, method generics bounded by `Reference`. Row/pack/`reified`/suspending methods unstated; requirement keys not required to be safe (TY-14, TY-15). |
+| hd today | No associated types/functions, `Self` only as receiver, method generics bounded by `AnyRef`. Row/pack/`reified`/suspending methods unstated; requirement keys not required to be safe (TY-14, TY-15). |
 
-hd's `Reference` rule is more permissive than Rust (generic methods allowed
+hd's `AnyRef` rule is more permissive than Rust (generic methods allowed
 when they share one representation). Rust's per-method exclusion
 (`where Self: Sized`) is an option hd lacks; nothing here recommends adding it.
 
@@ -100,7 +100,7 @@ explicit opt-in per interface, local overrides win. It supports hd keeping
 | Rust | Auto traits (Send, Sync, Unpin, ...) implemented structurally: aggregates if all fields, closures if all captures; explicit generic impls replace the automatic one; negative impls std-only. |
 | Swift | Sendable inferred for non-public (or frozen public) structs/enums whose stored members are Sendable; public non-frozen types never inferred "for API resilience"; no inferred conditional conformances. |
 | MoonBit | Empty traits implemented automatically (flagged). |
-| hd today | `Any` universal, `Reference` sealed and closed; `Inspectable` and `NonEscapable` are proposed. |
+| hd today | `Any` universal, `AnyRef` sealed and closed; `Inspectable` and `NonEscapable` are proposed. |
 
 Swift's resilience argument applies to hd's public-signature rule: a
 structurally inferred property of a public type changes when a private field

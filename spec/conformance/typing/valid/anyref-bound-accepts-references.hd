@@ -1,0 +1,13 @@
+# test: data values, enum values, and lists satisfy an AnyRef bound
+
+data User:
+    name: string
+
+enum Color:
+    Red
+    Green
+
+fn keep[T < AnyRef](value: T) -> T: value
+
+fn check() -> (User, Color, List[string]):
+    (keep(User { name: "Ada" }), keep(Color.Red), keep(["Ada"]))

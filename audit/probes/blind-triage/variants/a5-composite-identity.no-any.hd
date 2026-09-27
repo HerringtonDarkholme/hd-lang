@@ -9,7 +9,7 @@ impl Display for User:
     fn to_string(self) -> string:
         self.name
 
-fn same_ref[T: Reference](left: T, right: T) -> bool:
+fn same_ref[T: AnyRef](left: T, right: T) -> bool:
     left is right
 
 test "mut and readonly views of one object are identical":
@@ -18,7 +18,7 @@ test "mut and readonly views of one object are identical":
     twin := User { name: "Ada" }
     assert(mutable is readonly, reason="permission does not change identity")
     assert(not (readonly is twin), reason="equal fields are different allocations")
-    assert(same_ref(readonly, mutable), reason="Reference-bounded generic agrees")
+    assert(same_ref(readonly, mutable), reason="AnyRef-bounded generic agrees")
 
 test "trait and Any conversions of a composite preserve its identity":
     user := User { name: "Ada" }

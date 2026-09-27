@@ -1662,6 +1662,13 @@ fn preserve[T < Any](value: T) -> T:
     value
 ```
 
+`Any` has two sealed subtraits, and every value type implements exactly one. `AnyVal` covers the values without identity: primitives, `string`, and tuples. `AnyRef` covers the values with identity: data, enums, lists, maps, closures, and trait values. `is` on a type parameter needs `T < AnyRef`:
+
+```text
+fn same[T < AnyRef](left: T, right: T) -> bool:
+    left is right
+```
+
 Mutable bounds combine access permission with trait conformance:
 
 ```text

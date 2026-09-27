@@ -1,0 +1,3 @@
+data Handle: pass
+
+impl AnyRef for Handle  # diagnostic: sealed-trait-implementation

@@ -43,7 +43,7 @@ Unicode scalar boundaries. The same display surface powers
 `println`, which statically resolves a lexical `Console` provider and streams
 UTF-8 bytes from its Wasm GC string to a narrow host callback,
 numeric access to unnamed shared enum fields, and reference identity through
-Wasm GC `ref.eq`, including sealed `Reference` generic bounds and canonical
+Wasm GC `ref.eq`, including sealed `AnyRef` generic bounds and canonical
 fieldless enum variants. Mutable data access retains `mut T` in typed HIR,
 weakens it only toward `T`, checks readonly roots and stored edges, applies the
 direct-versus-generic field rule during construction and access, and lowers

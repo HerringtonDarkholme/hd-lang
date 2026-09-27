@@ -71,7 +71,7 @@ High. Anchor: 13 Type-Checking Requirements, Runtime Representation.
 13 says an existential "may be used through its declared bounds"; at the match
 `U` is unknown, so its `Display` operations must travel with the value. 13 also
 says runtime values carry only "tag and payload". `U` may be `i32`, so boxing
-through `Reference` does not cover it.
+through `AnyRef` does not cover it.
 Fix: construction captures the evidence for bounded existential parameters as
 part of the value's representation (R4.9). Not a choice: the only way the
 existing arm rule can run.
@@ -155,7 +155,7 @@ Medium. Anchor: 09 Dynamic Trait Values; 04 Trait Values And Any.
     trait Lookup:
         fn metadata[reified M](self) -> M?
 
-"Every method-level generic parameter must be bounded by Reference": row
+"Every method-level generic parameter must be bounded by AnyRef": row
 parameters cannot carry bounds; pack bounds are element-wise; `reified` not
 mentioned; suspending methods not mentioned though `Console` needs them.
 Fix: TQ-10 (R8.1).
@@ -331,7 +331,7 @@ signatures" sentence is ambiguous.
 Fix: TQ-16 (R8.8).
 
 ## TY-31: Sealed And Any
-Low. `Reference`, `Suspend`, `ShapeMetadata` are each called sealed in a
+Low. `AnyRef`, `Suspend`, `ShapeMetadata` are each called sealed in a
 different chapter; no definition. `Any` coverage of `void`, `never`, function
 types, `mut T`, and `impl Any for X` unstated.
 Fix: R13.
