@@ -1,0 +1,7 @@
+# test: '+' between requirement keys is the removed row union spelling
+
+trait Clock
+
+trait Logger
+
+fn both() -> void $ Clock + Logger: pass  # diagnostic: old-row-operator

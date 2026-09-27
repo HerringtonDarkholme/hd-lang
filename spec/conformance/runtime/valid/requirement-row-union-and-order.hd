@@ -25,22 +25,22 @@ impl Clock for FixedClock:
     fn now(self) -> i32:
         self.value
 
-fn both() -> string $ Tag + Clock:
+fn both() -> string $ Tag, Clock:
     tag, clock := $.use(Tag, Clock)
     tag.name() + "@" + "${clock.now()}"
 
-fn reordered() -> string $ Clock + Tag:
+fn reordered() -> string $ Clock, Tag:
     both()
 
-fn provide_clock[R](callback: fn() -> string $ R) -> string $ (R - Clock):
+fn provide_clock[R](callback: fn() -> string $(R, Clock)) -> string $ R:
     $.with(Clock=FixedClock { value: 7 }):
         callback()
 
-fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[R](callback: fn() -> string $(R, Tag)) -> string $ R:
     $.with(Tag=FixedTag { value: "local" }):
         callback()
 
-fn relay[R](callback: fn() -> string $ R) -> string $ (R - Tag) + Tag:
+fn relay[R](callback: fn() -> string $(R, Tag)) -> string $ R, Tag:
     callback()
 
 test "union row satisfied by an outer and a local provider":
@@ -54,6 +54,6 @@ test "row order does not matter":
 test "least solution for R + Tag is the empty row":
     assert_equal(with_tag(current), "local", reason="R is inferred empty")
 
-test "subtracting then re-adding a key entails the original row":
+test "removing a key by extension and re-adding it entails the callback row":
     $.with(Tag=FixedTag { value: "outer" }):
-        assert_equal(relay(current), "outer", reason="(R - Tag) + Tag entails R")
+        assert_equal(relay(current), "outer", reason="R, Tag entails the pattern R, Tag")

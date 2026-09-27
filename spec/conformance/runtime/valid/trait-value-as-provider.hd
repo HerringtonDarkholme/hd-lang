@@ -14,7 +14,7 @@ impl Logger for OffsetLogger:
 fn read() -> i32 $ Logger:
     $.use(Logger).adjust(40)
 
-fn provide_logger[R](callback: fn() -> i32 $ R, logger: Logger) -> i32 $ (R - Logger):
+fn provide_logger[R](callback: fn() -> i32 $(R, Logger), logger: Logger) -> i32 $ R:
     $.with(Logger=logger):
         callback()
 

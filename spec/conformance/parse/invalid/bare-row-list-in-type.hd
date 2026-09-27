@@ -1,0 +1,7 @@
+# test: several keys inside a type must be parenthesized; a bare comma separates parameters
+
+trait Clock
+
+trait Logger
+
+fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # diagnostic: syntax-error

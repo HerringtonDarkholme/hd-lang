@@ -236,7 +236,7 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	13	illustrative-pseudocode	-
 11-requirements-and-suspension.md	14	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	15	accept	typing/valid/requirements-and-suspension.hd
-11-requirements-and-suspension.md	16	accept	typing/valid/row-subtraction-entailment.hd
+11-requirements-and-suspension.md	16	accept	typing/valid/row-extension-entailment.hd
 12-variadic-generics.md	1	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	2	accept	typing/valid/variadic-generics.hd
 12-variadic-generics.md	3	mixed	typing/invalid/multiple-positional-value-packs.hd|typing/invalid/nonfinal-positional-value-pack.hd

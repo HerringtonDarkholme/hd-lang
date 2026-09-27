@@ -218,9 +218,8 @@ runtime/valid/module-initialization-before-main.hd	runtime	accept	10-modules.md#
 runtime/valid/cancellation-unwinds-nested-frames.hd	runtime	accept	11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime	accept	11-requirements-and-suspension.md#cancellation
 typing/valid/provider-capturing-closure.hd	type	accept	07-functions.md#captures
-typing/invalid/row-subtraction-unsound.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
-typing/valid/row-subtraction-entailment.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
-typing/warnings/requirement-subtract-absent.hd	type	warn:requirement-subtract-absent	11-requirements-and-suspension.md#requirement-rows
+typing/invalid/row-extension-unsound.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
+typing/valid/row-extension-entailment.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
 typing/invalid/mutable-impl-target.hd	type	reject:mutable-impl-target	09-traits.md#implementation-targets
 typing/invalid/mutable-inherent-impl-target.hd	type	reject:mutable-impl-target	09-traits.md#implementation-targets
 typing/valid/impl-serves-mutable-view.hd	type	accept	09-traits.md#implementation-targets
@@ -425,8 +424,8 @@ typing/valid/generic-provider-keys-distinct.hd	type	accept	11-requirements-and-s
 typing/valid/generic-provider-keys-occurs-check.hd	type	accept	11-requirements-and-suspension.md#requirement-polymorphism
 typing/invalid/generic-provider-key-collision-spread.hd	type	reject:generic-requirement-key-collision	11-requirements-and-suspension.md#requirement-polymorphism
 typing/invalid/call-missing-requirement.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
-typing/valid/requirement-row-grouped-subtraction.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
-typing/valid/requirement-row-ungrouped-subtraction.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
+typing/valid/requirement-row-parenthesized-list.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
+typing/valid/requirement-row-duplicate-keys.hd	type	accept	11-requirements-and-suspension.md#requirement-rows
 typing/invalid/use-without-provider.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#provider-access
 typing/invalid/provider-value-type-mismatch.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#provider-access
 runtime/valid/nested-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
@@ -436,9 +435,8 @@ runtime/valid/row-inference-empty-row.hd	runtime	accept	11-requirements-and-susp
 typing/invalid/row-inference-unavailable-provider.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/row-polymorphic-union-forwarding.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/row-variable-binds-union.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
-typing/warnings/row-subtraction-absent-key.hd	type	warn:requirement-subtract-absent	11-requirements-and-suspension.md#requirement-polymorphism
-typing/invalid/row-subtraction-without-provider.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-polymorphism
-runtime/valid/row-subtraction-provider-restoration.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
+typing/invalid/row-extension-without-provider.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-polymorphism
+runtime/valid/row-extension-provider-restoration.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/row-variable-plus-key.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/trait-default-method-inherited.hd	runtime	accept	09-traits.md#trait-implementations
 runtime/valid/trait-default-method-overridden.hd	runtime	accept	09-traits.md#trait-implementations
@@ -692,7 +690,7 @@ runtime/valid/callee-and-operand-evaluation-order.hd	runtime	accept	05-expressio
 runtime/panic/block-on-completed-suspension.hd	runtime	panic:suspension-invalid-state	11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/block-on-cancelled-suspension.hd	runtime	panic:suspension-invalid-state	11-requirements-and-suspension.md#suspendt-protocol
 typing/invalid/row-parameter-propagates-callback-requirement.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-polymorphism
-typing/invalid/row-subtraction-keeps-other-keys.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
+typing/invalid/row-extension-keeps-other-keys.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#requirement-rows
 runtime/valid/f64-nan-ordering.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/f64-ordering-operators.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
 runtime/valid/tuple-ordering-nan-unordered.hd	runtime	accept	05-expressions.md#unary-and-binary-operators
@@ -715,7 +713,7 @@ runtime/panic/defer-cancels-active-ancestor.hd	runtime	panic:suspension-reentran
 typing/invalid/defer-transitive-block-on-plain-twin.hd	type	reject:suspension-forbidden-context	06-control-flow.md#deferred-cleanup
 typing/invalid/defer-bang-call-cold-twin.hd	type	reject:suspending-defer	06-control-flow.md#deferred-cleanup
 runtime/valid/nested-provider-restoration.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
-runtime/valid/row-subtraction-restores-provider.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
+runtime/valid/row-extension-restores-provider.hd	runtime	accept	11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/requirement-row-union-and-order.hd	runtime	accept	11-requirements-and-suspension.md#requirement-rows
 typing/invalid/missing-requirement-cold-construction.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#construction-time-requirement-binding
 runtime/valid/provider-capture-timing.hd	runtime	accept	07-functions.md#captures
@@ -1089,3 +1087,10 @@ typing/invalid/embedded-non-data.hd	type	reject:embedded-non-data	08-data-and-en
 typing/invalid/embedded-collection-type.hd	type	reject:embedded-non-data	08-data-and-enums.md#r-data.embed.data-only
 typing/invalid/embedded-type-parameter.hd	type	reject:embedded-non-data	08-data-and-enums.md#r-data.embed.data-only
 runtime/valid/closure-captured-let-shared.hd	runtime	accept	07-functions.md#captures
+parse/valid/requirement-row-lists.hd	parse	accept	02-grammar.md#types
+parse/invalid/old-row-operator-union.hd	parse	reject:old-row-operator	02-grammar.md#types
+parse/invalid/old-row-operator-subtraction.hd	parse	reject:old-row-operator	02-grammar.md#types
+parse/invalid/old-row-operator-in-type.hd	parse	reject:old-row-operator	02-grammar.md#types
+parse/invalid/old-row-operator-in-context.hd	parse	reject:old-row-operator	02-grammar.md#types
+parse/invalid/bare-row-list-in-type.hd	parse	reject:syntax-error	02-grammar.md#types
+typing/invalid/row-extension-absent-key.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#requirement-polymorphism

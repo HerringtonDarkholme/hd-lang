@@ -1,22 +1,22 @@
-# test: requirements / row subtraction / provider restoration
+# test: requirements / row extension / provider restoration
 
 use std.testing.assert_equal
 
-fn provide_logger[R](callback: fn() -> i32 $ R) -> i32 $ (R - Logger) + Backup:
+fn provide_logger[R](callback: fn() -> i32 $(R, Logger)) -> i32 $ R, Backup:
     $.with(Logger=$.use(Backup)):
         callback()
 
-fn read() -> i32 $ Clock + Logger:
+fn read() -> i32 $ Clock, Logger:
     _ := $.use(Clock)
     _ := $.use(Logger)
     42
 
-fn run() -> i32 $ Clock + Backup:
+fn run() -> i32 $ Clock, Backup:
     provide_logger(read)
 
 test "run returns 42 with its providers":
     $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
-        assert_equal(run(), 42, reason="requirements / row subtraction / provider restoration")
+        assert_equal(run(), 42, reason="requirements / row extension / provider restoration")
 
 trait Clock
 

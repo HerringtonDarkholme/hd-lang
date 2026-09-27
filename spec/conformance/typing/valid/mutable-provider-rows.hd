@@ -1,4 +1,4 @@
-# test: requirements / mutable providers / rows, contexts, and subtraction
+# test: requirements / mutable providers / rows, contexts, and removal by extension
 
 fn bump_it() -> void $ mut Counter:
     $.use(mut Counter).bump()
@@ -6,7 +6,7 @@ fn bump_it() -> void $ mut Counter:
 fn read_it() -> i32 $ Counter:
     $.use(Counter).count()
 
-fn both() -> i32 $ mut Counter + Counter:
+fn both() -> i32 $ mut Counter, Counter:
     bump_it()
     read_it()
 
@@ -20,12 +20,12 @@ fn counters() -> $.Context[mut Counter]:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
     $.context(mut Counter=counter)
 
-fn provide_mut[R](callback: fn() -> void $ R) -> void $ (R - mut Counter):
+fn provide_mut[R](callback: fn() -> void $(R, mut Counter)) -> void $ R:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
     $.with(mut Counter=counter):
         callback()
 
-fn provide_readonly[R](callback: fn() -> void $ R) -> void $ (R - Counter):
+fn provide_readonly[R](callback: fn() -> void $(R, Counter)) -> void $ R:
     $.with(Counter=MemoryCounter { value: 0 }):
         callback()
 

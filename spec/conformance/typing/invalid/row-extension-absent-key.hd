@@ -1,0 +1,20 @@
+# test: a callback whose row lacks the removed key has no least solution for the extension pattern
+
+trait Logger:
+    fn write(self, message: string) -> void
+
+trait Clock
+
+data SilentLogger: pass
+
+impl Logger for SilentLogger:
+    fn write(self, message: string) -> void: pass
+
+fn provide_logger[R](callback: fn() -> void $(R, Logger)) -> void $ R:
+    $.with(Logger=SilentLogger {}):
+        callback()
+
+fn tick() -> void $ Clock: pass
+
+fn run() -> void $ Clock:
+    provide_logger(tick)  # diagnostic: type-mismatch

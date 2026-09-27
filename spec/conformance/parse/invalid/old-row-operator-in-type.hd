@@ -1,0 +1,7 @@
+# test: '+' between requirement keys is rejected inside a type as well
+
+trait Clock
+
+trait Logger
+
+fn run(callback: fn() -> void $ Clock + Logger) -> void $(Clock, Logger): callback()  # diagnostic: old-row-operator

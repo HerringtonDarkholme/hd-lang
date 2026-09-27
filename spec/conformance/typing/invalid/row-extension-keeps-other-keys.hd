@@ -1,4 +1,4 @@
-# test: (R - Logger) removes only Logger; the remaining Clock key still reaches the caller (a public function without a clause has the empty row)
+# test: the pattern R, Logger removes only Logger; the remaining Clock key still reaches the caller (a public function without a clause has the empty row)
 trait Logger:
     fn write(self, message: string) -> void
 
@@ -9,11 +9,11 @@ data SilentLogger: pass
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass
 
-fn quiet[R](callback: fn() -> void $ R) -> void $ (R - Logger):
+fn quiet[R](callback: fn() -> void $(R, Logger)) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 
-fn both() -> void $ Logger + Clock:
+fn both() -> void $ Logger, Clock:
     $.use(Logger).write("hi")
 
 pub fn caller() -> void:

@@ -1,17 +1,17 @@
 trait Logger:
     fn write(self, message: string) -> void
-trait Clock
 
 data SilentLogger: pass
 
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass
 
-fn redundant[R](callback: fn() -> void $ R) -> void $ (R - Logger):
+fn provide_logger[R](callback: fn() -> void $(R, Logger)) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 
-fn tick() -> void $ Clock: pass
+fn log() -> void $ Logger:
+    $.use(Logger).write("hello")
 
-fn run() -> void $ Clock:
-    redundant(tick)  # warning: requirement-subtract-absent
+fn run() -> void:
+    provide_logger(log)

@@ -212,7 +212,7 @@ not independently named module members.
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                [ "->", result_type ], [ requirement_clause ], ":",
+                [ "->", result_type ], [ header_requirement_clause ], ":",
                 suite_body ;
 
 callable_name = identifier, [ "!" ] ;
@@ -317,7 +317,7 @@ supertrait_bounds = trait_type, { "+", trait_type } ;
 
 trait_member = associated_type_decl
              | "fn", callable_name, [ generic_params ], parameter_clause,
-               "->", result_type, [ requirement_clause ],
+               "->", result_type, [ header_requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -332,7 +332,7 @@ impl_member = associated_type_decl | method_decl ;
 
 method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
               parameter_clause, [ "->", result_type ],
-              [ requirement_clause ], ":", suite_body ;
+              [ header_requirement_clause ], ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 ```
@@ -432,7 +432,7 @@ type_arguments = "[", type_argument,
 type_argument = type, [ "..." ]
               | row_type_argument
               ;
-row_type_argument = requirement_expression | "$", "(", ")" ;
+row_type_argument = "$", "(", [ requirement_list ], ")" ;
 
 tuple_type = "(", ")"
            | "(", type_element, ",",
@@ -457,24 +457,44 @@ associated_type_projection = ( qualified_name | "Self" ), "::", identifier ;
 
 qualified_name = identifier, { ".", identifier } ;
 
-requirement_clause = "$", requirement_expression
-                   | "$", "(", ")"
-                   ;
-requirement_expression = requirement_union,
-                         { "-", requirement_key } ;
-requirement_union = requirement_term, { "+", requirement_term } ;
-requirement_term = requirement_key
-                 | "(", requirement_expression, ")"
-                 ;
+requirement_clause = "$", requirement_row ;
+header_requirement_clause = requirement_clause
+                          | "$", requirement_key, ",", requirement_key,
+                            { ",", requirement_key }
+                          ;
+requirement_row = requirement_key
+                | "(", [ requirement_list ], ")"
+                ;
+requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
 requirement_key = [ "mut" ], trait_type ;
 ```
 
+A requirement row lists separate requirement keys, so several keys form a
+comma list. A single key may be bare, as in `$ Console`. Several keys are
+parenthesized, as in `fn(UserId) -> User $(Db, Cache)`, and `$()` is the
+empty row. Only a `header_requirement_clause` may list several keys bare.
+It ends a declaration or closure header, or a bodyless trait method, as in
+`fn load(id: UserId) -> User $ Db, Cache:`. A `mut` key keeps its prefix
+inside a list: `$(R, mut Logger)`.
+
+Every row inside a type uses the parenthesized form for several keys. This
+covers parameter and field types, type arguments, tuple types, a result
+with its own row, and `$.Context[...]`. A bare comma after a key inside a
+type separates the enclosing list instead, so
+`fn f(cb: fn() -> i32 $ A, B) -> i32:` is a `syntax-error`.
+
+A row contains no operators. `+` keeps only its bound meaning, several bounds
+on one type as in `T < A + B`. A `+` or `-` between requirement keys, as in
+the former `$ A + B` or `$ (R - K)`, is an error. Error: `old-row-operator`.
+Removing a key from a callback row is written by extension instead, as
+[Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism)
+specifies.
+
 When the corresponding generic parameter is row-kinded, a type argument may
-be a requirement expression such as `Logger + Clock`. The explicit empty row
-is `$()`, both as a row type argument and as a requirement clause. A single
-requirement key is syntactically also a type; the parameter kind selects its
-interpretation, and using a row argument for a type-kinded parameter (or
-conversely) is an error.
+be a parenthesized row such as `$(Logger, Clock)`, or `$()` for the empty
+row. A single requirement key is syntactically also a type; the parameter
+kind selects its interpretation, and using a row argument for a type-kinded
+parameter (or conversely) is an error.
 
 `mut` is a type modifier. Semantic rules reject meaningless or nested forms,
 including direct `mut mut T`. Optionality applies to the complete reference
@@ -493,14 +513,14 @@ carry no requirement clause, so the clause cannot attach to the result. A
 function-typed result with its own row is parenthesized:
 
 ```text
-fn make() -> fn() -> i32 $ Console:          # make requires Console
-    _ := $.use(Console)
+fn make() -> fn() -> i32 $ Console, Log:          # make requires both keys
+    _ := $.use(Console, Log)
     fn() -> i32: 1
 
-fn wrap() -> (fn() -> i32 $ Log) $ Console:  # the result requires Log
+fn wrap() -> (fn() -> i32 $(Log, Trace)) $ Console:  # the result requires both
     _ := $.use(Console)
-    fn() -> i32 $ Log:
-        _ := $.use(Log)
+    fn() -> i32 $ Log, Trace:
+        _ := $.use(Log, Trace)
         2
 ```
 
@@ -856,7 +876,7 @@ an `if`, `while`, `for`, or `match` header or inside brackets.
 closure_expression = closure_header, suite_body ;
 inline_closure_expression = closure_header, inline_suite_body ;
 closure_header = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
-                 [ "->", result_type ], [ requirement_clause ], ":" ;
+                 [ "->", result_type ], [ header_requirement_clause ], ":" ;
 
 closure_parameter_clause = "(", [ closure_parameter_list ], ")" ;
 closure_parameter_list = closure_parameter,
@@ -1032,7 +1052,8 @@ context_use = "$", ".", "use", "(", requirement_key,
               { ",", requirement_key }, [ "," ], ")" ;
 
 context_create = "$", ".", "context", "(", context_entries, ")" ;
-context_type = "$", ".", "Context", "[", requirement_expression, "]" ;
+context_type = "$", ".", "Context", "[",
+               ( requirement_key | row_type_argument ), "]" ;
 context_scope = "$", ".", "with", "(", context_entries, ")",
                 ":", suite_body ;
 inline_context_scope = "$", ".", "with", "(", context_entries, ")",
@@ -1044,9 +1065,9 @@ context_entry = requirement_key, "=", expression
               ;
 ```
 
-Requirement expressions denote unordered rows after name resolution. A generic
-identifier used as a complete requirement term is a row parameter;
-subtraction removes one concrete key from such a row.
+Requirement rows denote unordered sets of keys after name resolution. A
+generic identifier used as a complete requirement key is a row parameter,
+and listing it beside other keys extends that row with them.
 
 ## Annotations
 

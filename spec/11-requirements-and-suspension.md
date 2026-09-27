@@ -35,43 +35,52 @@ callable signature. A **row parameter** is a generic parameter whose values are
 requirement rows. These are the only terms used below for the concrete and
 generic forms.
 
-A function signature may end with `$` and an unordered row expression of
-requirement traits:
+A function signature may end with `$` and an unordered list of requirement
+traits. Each key names a separate injected value, so several keys form a
+comma list:
 
 ```text
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
+fn load_user!(id: UserId) -> Result[User?, DbError] $ Database, Cache:
     ...
 ```
 
 ```ebnf
-requirement_clause = "$", requirement_expression
-                   | "$", "(", ")"
-                   ;
-requirement_expression = requirement_union,
-                         { "-", requirement_key } ;
-requirement_union = requirement_term, { "+", requirement_term } ;
-requirement_term = requirement_key
-                 | "(", requirement_expression, ")"
-                 ;
+requirement_clause = "$", requirement_row ;
+header_requirement_clause = requirement_clause
+                          | "$", requirement_key, ",", requirement_key,
+                            { ",", requirement_key }
+                          ;
+requirement_row = requirement_key
+                | "(", [ requirement_list ], ")"
+                ;
+requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
 requirement_key = [ "mut" ], trait_type ;
 ```
 
-The clause `$()` writes the empty row explicitly. A key written `mut K`
-requires mutable access to the provider for `K`; see
-[Mutable Providers](#mutable-providers).
+A single key may be bare, as in `$ Console`. A declaration or closure header
+may list several keys bare, because its clause ends at the header's `:`.
+Inside a type, several keys are parenthesized, as in
+`fn(UserId) -> User $(Database, Cache)` or
+`Map[string, fn() -> i32 $(Clock, Log)]`. The clause `$()` writes the empty
+row explicitly. A key written `mut K` requires mutable access to the
+provider for `K`, as in `$(R, mut Logger)`; see
+[Mutable Providers](#mutable-providers). A row has no operators; a `+` or
+`-` between keys is an `old-row-operator` error
+([Types](02-grammar.md#types)).
 
 Function declarations, closure expressions, and function types use the same
 requirement clause:
 
 ```ebnf
 function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
-                [ "->", type ], [ requirement_clause ], ":", suite_body ;
+                [ "->", type ], [ header_requirement_clause ], ":",
+                suite_body ;
 
 function_type = [ "mut" ], "fn", [ "!" ], "(", [ type_list ], ")",
                 "->", type, [ requirement_clause ] ;
 
 closure_expression = [ "mut" ], "fn", [ "!" ], closure_parameter_clause,
-                     [ "->", type ], [ requirement_clause ],
+                     [ "->", type ], [ header_requirement_clause ],
                      ":", suite_body ;
 
 callable_name = identifier, [ "!" ] ;
@@ -97,27 +106,31 @@ an empty row merely because the expected row is generic. A written `$` clause
 is explicit and must entail the same body requirements.
 
 Rows are sets: order does not affect type identity, and a key occurs at most
-once after normalization. `+` forms set union. `R - Logger` removes `Logger`
-from a row parameter `R`; removing an absent key is allowed and leaves the row
-unchanged. Parentheses group row expressions. A function may call another
-required function only when its own row includes those requirements or a
-lexical provider scope satisfies them.
+once after normalization. The row denoted by a list is the union of its
+keys, and a row parameter listed beside other keys contributes every key of
+its row. `$(Logger, Clock, Logger)` is the row `$(Clock, Logger)`. A
+function may call another required function only when its own row includes
+those requirements or a lexical provider scope satisfies them.
 
 Requirement checking uses set entailment after alias expansion. For a body,
-`available = declared_row + lexical_keys`, and every required key must be a
-member of `available`. For an unknown row parameter `R`:
+`available` is the union of the declared row and the lexical keys, and every
+required key must be a member of `available`. Rows contain only unions, so
+entailment reduces to membership:
 
-- `R` is entailed by `(R - K) + S` exactly when `K` is in `S`;
-- `R` is not entailed by `R - K`;
-- `K1 - K2` removes a generic key only when the two keys are identical after
-  alias expansion; and
-- inference for a parameter pattern `R + K` chooses the least row solution,
-  so matching it against `{K}` infers the empty row for `R`.
+- a concrete key `K` is entailed by a row exactly when the row lists `K`;
+  an unknown row parameter listed in the row never entails `K`;
+- an unknown row parameter `R` is entailed by a row exactly when that row
+  lists `R` itself; no set of concrete keys entails `R`; and
+- a generic key such as `Repo[T]` is entailed only by a key that is
+  identical to it after alias expansion.
 
-Subtraction is legal on row parameters in parameter and result positions. The
-compiler warns with `requirement-subtract-absent` when it can prove that the
-subtracted key can never occur in the input row; the normalized row is still
-unchanged.
+Inference for a parameter pattern that lists a row parameter beside concrete
+keys chooses the least row solution. Matching `$(R, K)` against the row
+`$(K)` infers the empty row for `R`, and matching it against `$(K, Clock)`
+infers `$(Clock)`. When the matched row lacks `K`, the pattern has no
+solution, and the argument is a `type-mismatch`. This least-solution rule is
+also how a callee removes a key from a callback row; see
+[Requirement Polymorphism](#requirement-polymorphism).
 
 A generic parameter used in requirement position is inferred to be a row
 parameter. One parameter cannot be used as both an ordinary type and a
@@ -197,15 +210,16 @@ such as `Repo[User]` and `Repo[Post]` remain valid.
 Reusable provider maps use `$.Context[Row]`:
 
 ```text
-fn prod_context() -> $.Context[Metrics + Cache]:
+fn prod_context() -> $.Context[$(Metrics, Cache)]:
     $.context(Metrics=metrics, Cache=cache)
 
 $.with(Database=db, Logger=logger, prod_context()...):
     ...
 ```
 
-`$.Context[A + B]` is indexed by one unordered, duplicate-free requirement row;
-it is not a variadic generic. `$.context` creates a context value. An entry
+`$.Context[$(A, B)]` is indexed by one unordered, duplicate-free requirement
+row; it is not a variadic generic. A context with a single key may write it
+bare, as in `$.Context[Clock]`, and `$.Context[$()]` is the empty context. `$.context` creates a context value. An entry
 `ctx...` spreads the providers of the context value `ctx`; like every spread,
 it is written with a suffix `...`, and a prefix `...ctx` is a syntax error,
 because a prefix `...` means copy
@@ -219,7 +233,8 @@ context_use = "$", ".", "use", "(", requirement_key,
               { ",", requirement_key }, [ "," ], ")" ;
 
 context_create = "$", ".", "context", "(", context_entries, ")" ;
-context_type = "$", ".", "Context", "[", requirement_expression, "]" ;
+context_type = "$", ".", "Context", "[",
+               ( requirement_key | row_type_argument ), "]" ;
 context_scope = "$", ".", "with", "(", context_entries, ")",
                 ":", suite_body ;
 
@@ -299,12 +314,11 @@ error is `mutable-upgrade`; when `K` is not available at all it is
 trait method's row is part of the normalized row that its implementations must
 match.
 
-Subtraction follows the same access: `R - K` removes a readonly `K` entry from
-`R` and leaves a `mut K` entry in place, while `R - mut K` removes `K` with
-either access. The entailment rules of [Requirement Rows](#requirement-rows)
-read accordingly: `R` is entailed by `(R - K) + S` exactly when `S` contains
-`K` with either access, and by `(R - mut K) + S` exactly when `S` contains
-`mut K`.
+Removal by extension compares access after normalization. A pattern
+`$(R, mut K)` removes a `mut K` entry, and the callee must supply `K` with
+mutable access. A pattern `$(R, K)` removes a readonly `K` entry. Against a
+row containing `mut K`, its least solution keeps `mut K` in `R`, because
+`K` and `mut K` together normalize to `mut K`. That key is then not removed.
 
 **Contexts.** A `$.Context[Row]` row may contain `mut` entries. The binding
 `mut K=expression` in `$.context` contributes `mut K` to the created context's
@@ -600,10 +614,12 @@ fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     ...
 ```
 
-A local provider may remove one key from a callback row:
+A local provider removes one key from a callback row by extension. The
+parameter row lists the row parameter beside the removed key, and the
+callee's own row is the plain row parameter:
 
 ```text
-fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
+fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
     $.with(Logger=logger):
         callback("message")
 ```
@@ -611,10 +627,19 @@ fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
 The compiler infers `R` as a row parameter from its use after `$`, not from
 the case of its name; row parameters follow the ordinary uppercase convention
 for generic parameters.
-At a call, it infers the callback's requirement row for `R`. The
-callee's own row is then normalized after union and subtraction. This mechanism
-does not quantify over arbitrary type-level expressions; it is specific to
-requirement rows.
+At a call, it infers `R` as the least row solution of the callback pattern
+([Requirement Rows](#requirement-rows)). Passing a callback with row
+`$(Logger, Clock)` infers `R` as `$(Clock)`, so the call requires only
+`Clock`. Passing a callback whose row lacks `Logger` is a `type-mismatch`.
+Inside the body, calling `callback` requires `R` and `Logger`; the declared
+row supplies `R`, and the `$.with` scope supplies `Logger`. Rows have no
+subtraction operator. This mechanism does not quantify over arbitrary
+type-level expressions; it is specific to requirement rows.
+
+> **Note:** Extension in the input and the plain row variable in the output
+> is the established form for handling one effect. Koka writes
+> `<console, exn | e>`, Unison writes `{g, Exception}`, and Effekt writes
+> `/ { Console, Exc }`.
 
 ## Runtime Boundary
 
