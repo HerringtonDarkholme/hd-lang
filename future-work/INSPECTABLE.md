@@ -81,6 +81,11 @@ Decided 2026-09-26:
     rejected by the bound. Both edge cases are left to a lint; no rules are
     specific to `downcast`.
 
+Open for the specification pass: whether the `T < Inspectable` dictionary
+carries the type's `TypeId`, so `downcast[T]` and `TypeId::of[T]()` need only
+the bound and not `reified` (a generic target is then written
+`fn get[T < Inspectable](...)` instead of `fn get[reified T < Inspectable](...)`).
+
 ## Contents
 
 - [Goals](#goals)
