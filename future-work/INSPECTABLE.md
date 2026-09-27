@@ -47,6 +47,13 @@ Decided 2026-09-26:
    downcast to `List[Error]` (different exact type and representation).
 6. **Question 5: data types with function-typed fields, and newtypes over
    function types, are inspectable.**
+7. **Question 7: `downcast` on a concrete receiver is rejected**
+   (`downcast-receiver`).
+8. **Question 8: an impossible target is a compile error when written
+   concretely and `.None` when it only arises through a generic parameter.**
+9. **Question 9: `TypeId::of[T]()` exists.**
+10. **Question 12: no type-pattern sugar in `match` for now.**
+11. **Question 13: `std.error` ships `root_cause`.**
 
 ## Contents
 
