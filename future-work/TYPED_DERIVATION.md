@@ -94,7 +94,8 @@ Decided 2026-09-26:
    the root-application orphan exception. A derive written outside the
    type's package sees only public fields; a private field that would be
    visited is an error.
-   Still open: function targets (tools), previously `FuncAnnotator`.
+   Still open: function targets (tools), previously `FuncAnnotator`; see
+   [Nominal Function Types](FN_TYPE.md#per-declaration-data-for-tools).
 10. **`Annotation` and `Annotate` are removed.** A facet is an ordinary
     derivable trait with an associated function (for example
     `trait Validate: fn validator() -> Validator`, derived through
