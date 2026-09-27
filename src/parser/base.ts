@@ -376,6 +376,45 @@ export abstract class ParserBase {
     return token;
   }
 
+  // The prototype parses no decorators, but the grammar lets derive lines
+  // precede only data, enum, and newtype declarations
+  // (02-grammar.md#r-grammar.annot.newtype-derive.error). Looking past
+  // `@derive(...)` lines, this returns the span of a transparent alias's
+  // `type` keyword, which is then a syntax error.
+  protected aliasAfterDeriveLines(): SourceSpan | undefined {
+    let offset = 0;
+    while (this.peek(offset).text === "@" && this.peek(offset + 1).text === "derive") {
+      if (this.peek(offset + 2).text !== "(") return undefined;
+      offset += 3;
+      let depth = 1;
+      while (depth > 0) {
+        const token = this.peek(offset);
+        if (token.kind === "eof" || token.kind === "newline") return undefined;
+        if (token.text === "(") depth += 1;
+        else if (token.text === ")") depth -= 1;
+        offset += 1;
+      }
+      if (this.peek(offset).kind !== "newline") return undefined;
+      offset += 1;
+    }
+    if (offset === 0) return undefined;
+    if (this.peek(offset).text === "pub") offset += 1;
+    const keyword = this.peek(offset);
+    if (keyword.text !== "type" || this.peek(offset + 1).kind !== "identifier") return undefined;
+    offset += 2;
+    if (this.peek(offset).text === "[") {
+      let depth = 0;
+      do {
+        const token = this.peek(offset);
+        if (token.kind === "eof" || token.kind === "newline") return undefined;
+        if (token.text === "[") depth += 1;
+        else if (token.text === "]") depth -= 1;
+        offset += 1;
+      } while (depth > 0);
+    }
+    return this.peek(offset).text === "=" ? keyword.span : undefined;
+  }
+
   protected fail(code: string, message: string, span: SourceSpan): never {
     this.diagnostics.push({ code, message, span });
     throw new ParseFailure(message);

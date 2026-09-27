@@ -41,7 +41,7 @@ const INSPECT_SOURCE = `trait ${INSPECTABLE}:
 data ${TYPE_ID}:
     key: string
 
-impl PartialEq for ${TYPE_ID}:
+impl Eq for ${TYPE_ID}:
     fn eq(self, other: ${TYPE_ID}) -> bool: self.key == other.key
 
 impl Display for ${TYPE_ID}:

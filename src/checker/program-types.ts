@@ -133,54 +133,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     ],
     span: program.span,
   });
-  traitTypes.set("PartialEq", {
-    name: "PartialEq",
-    index: program.traits.length + 1,
-    genericParameters: [],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "eq",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: false,
-        parameters: ["generic:Self"],
-        parameterNames: ["other"],
-        variadic: false,
-        result: "bool",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
-  traitTypes.set("PartialOrd", {
-    name: "PartialOrd",
-    index: program.traits.length + 2,
-    genericParameters: [],
-    supertraits: [],
-    associatedTypes: [],
-    methods: [
-      {
-        name: "partial_cmp",
-        index: 0,
-        associated: false,
-        genericParameters: [],
-        suspending: false,
-        receiverMutable: false,
-        parameters: ["generic:Self"],
-        parameterNames: ["other"],
-        variadic: false,
-        result: "Ordering?",
-        requirements: [],
-        span: program.span,
-      },
-    ],
-    span: program.span,
-  });
+  declareComparisonTraits(context);
   traitTypes.set("Waker", {
     name: "Waker",
     index: program.traits.length + 3,
@@ -309,6 +262,52 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
       span,
     });
   }
+}
+
+// `Eq`, `PartialOrd < Eq`, and `Ord < PartialOrd`, each with one comparison
+// method taking `other: Self` (09-traits.md#comparison-traits).
+function declareComparisonTraits(context: ProgramCheckContext): void {
+  const { program, traitTypes } = context;
+  const traits = [
+    { name: "Eq", offset: 1, method: "eq", result: "bool" },
+    { name: "PartialOrd", offset: 2, method: "partial_cmp", result: "Ordering?" },
+    { name: "Ord", offset: 7, method: "cmp", result: "Ordering" },
+  ];
+  traits.forEach((trait, position) => {
+    const parent = traits[position - 1];
+    traitTypes.set(trait.name, {
+      name: trait.name,
+      index: program.traits.length + trait.offset,
+      genericParameters: [],
+      supertraits: parent
+        ? [
+            {
+              traitIndex: program.traits.length + parent.offset,
+              traitName: parent.name,
+              traitArguments: [],
+            },
+          ]
+        : [],
+      associatedTypes: [],
+      methods: [
+        {
+          name: trait.method,
+          index: 0,
+          associated: false,
+          genericParameters: [],
+          suspending: false,
+          receiverMutable: false,
+          parameters: ["generic:Self"],
+          parameterNames: ["other"],
+          variadic: false,
+          result: trait.result,
+          requirements: [],
+          span: program.span,
+        },
+      ],
+      span: program.span,
+    });
+  });
 }
 
 export function defineProgramData(context: ProgramCheckContext): void {
@@ -645,6 +644,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         genericBounds,
         referenceParameters,
         valueParameters,
+        ...(method.reifiedParameters ? { reifiedParameters: method.reifiedParameters } : {}),
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

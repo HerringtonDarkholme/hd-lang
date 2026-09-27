@@ -1,6 +1,6 @@
 import { shareCapturedLocals } from "./captured-cells.ts";
 import type { FunctionDecl } from "../ast.ts";
-import type { HirFunction, HirGlobal, HirTraitImplementation } from "../hir.ts";
+import type { HirFunction, HirGenericBound, HirGlobal, HirTraitImplementation } from "../hir.ts";
 import { FunctionChecker } from "./checker.ts";
 import { type CheckResult, type Signature } from "./context.ts";
 import { checkModuleInitialization } from "./module-initialization.ts";
@@ -35,6 +35,31 @@ function supertraitImplementationIndices(
   });
 }
 
+// An implementation with no methods has no signature to carry its bounds, so
+// its plain trait bounds are read from the declaration; the proof of a bound
+// still needs them (09-traits.md#generic-bounds-and-static-dispatch).
+function markerImplementationBounds(
+  implementation: ImplementationPreparation,
+  traitTypes: ProgramCheckContext["traitTypes"],
+): HirGenericBound[] {
+  return implementation.declaration.genericBounds.flatMap((bound) =>
+    bound.traits.flatMap((traitName) => {
+      const trait = traitTypes.get(traitName);
+      return trait && trait.genericParameters.length === 0
+        ? [
+            {
+              parameter: bound.parameter,
+              traitName: trait.name,
+              traitIndex: trait.index,
+              traitArguments: [],
+              mutable: false,
+            },
+          ]
+        : [];
+    }),
+  );
+}
+
 export function lowerCheckedProgram(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
@@ -62,7 +87,7 @@ export function lowerCheckedProgram(
       genericParameters: implementation.declaration.genericParameters,
       genericBounds:
         implementation.methods.length === 0
-          ? []
+          ? markerImplementationBounds(implementation, traitTypes)
           : declaredSignatures
               .get(implementation.methods[0]!.declaration.name)!
               .genericBounds.filter((bound) =>
@@ -166,7 +191,7 @@ export function lowerCheckedProgram(
         program: {
           data: [...dataTypes.values()],
           enums: [...enumTypes.values()],
-          traits: [...traitTypes.values()],
+          traits: [...traitTypes.values()].sort((left, right) => left.index - right.index),
           implementations,
           globals: [...globals.values()],
           ...shareCapturedLocals(functions, closures),

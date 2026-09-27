@@ -302,7 +302,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           ) {
             this.fail(
               "missing-partial-eq",
-              `type '${left.type}' does not implement PartialEq`,
+              `type '${left.type}' does not implement Eq`,
               expression.span,
             );
           }

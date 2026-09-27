@@ -42,6 +42,8 @@ import {
   resolveTraitType,
   substituteGenericType,
   traitTypeName,
+  builtinTotallyOrdered,
+  MAX_BOUND_DEPTH,
 } from "./shared.ts";
 import {
   contextKeys,
@@ -85,6 +87,8 @@ export interface Signature {
 
 export interface InherentMethod {
   readonly targetType: ValueType;
+  /** The implementation's generic parameters, which `targetType` may name. */
+  readonly targetGenericParameters?: readonly string[];
   readonly name: string;
   /** `pub fn`: only a public inherent method of a part is promoted (spec 03). */
   readonly public: boolean;
@@ -170,7 +174,6 @@ export const PRELUDE_NAMES = new Set([
   "Result",
   "panic",
   "Display",
-  "PartialEq",
   "Eq",
   "PartialOrd",
   "Ord",
@@ -780,6 +783,13 @@ export abstract class CheckerContext {
         `constructing the trait dictionary for '${targetType}' requires itself`,
         span,
       );
+    // This plan proves a bound of depth `seen.size + 1` (09-traits.md#r-trait.bound.depth).
+    if (seen.size >= MAX_BOUND_DEPTH)
+      this.fail(
+        "trait-resolution-depth",
+        `proving the bound for '${targetType}' needs a bound deeper than ${MAX_BOUND_DEPTH}`,
+        span,
+      );
     const substitutions = matchTraitImplementation(
       implementation,
       implementation.traitIndex,
@@ -956,7 +966,7 @@ export abstract class CheckerContext {
   }
 
   // The standard library implements Display for the printable primitives and
-  // string, PartialEq for primitives and equality-comparable built-in
+  // string, Eq for primitives and equality-comparable built-in
   // composites, and PartialOrd for ordered ones (05-expressions.md). These
   // have no source `impl`, so the dictionary is built from the same
   // strategies the operators use.
@@ -1020,31 +1030,34 @@ export abstract class CheckerContext {
         ? plan({ kind: "display", traitIndex, targetType: type })
         : undefined;
     }
-    if (traitName === "PartialEq" || traitName === "PartialOrd") {
+    if (traitName === "Eq" || traitName === "PartialOrd" || traitName === "Ord") {
+      if (traitName === "Ord" && !builtinTotallyOrdered(type)) return undefined;
       const strategy =
-        traitName === "PartialEq" ? this.equalityStrategy(type) : this.orderingStrategy(type);
+        traitName === "Eq" ? this.equalityStrategy(type) : this.orderingStrategy(type);
       if (!strategy || strategy.kind === "dispatch") return undefined;
+      // It carries its supertrait's dictionary (09-traits.md#comparison-traits).
+      const parent =
+        traitName === "Eq"
+          ? undefined
+          : this.builtinTraitDictionaryPlan(
+              this.traitTypes.get(traitName === "Ord" ? "PartialOrd" : "Eq")!.index,
+              targetType,
+              [],
+              span,
+            );
+      if (traitName !== "Eq" && !parent) return undefined;
       const bounds: HirExpression[] = [];
       const renumbered = this.renumberBoundDispatches(strategy, bounds, new Map(), span);
-      return traitName === "PartialEq"
-        ? plan(
-            {
-              kind: "equality",
-              traitIndex,
-              targetType: type,
-              strategy: renumbered as HirEqualityStrategy,
-            },
-            bounds,
-          )
-        : plan(
-            {
-              kind: "ordering",
-              traitIndex,
-              targetType: type,
-              strategy: renumbered as HirOrderingStrategy,
-            },
-            bounds,
-          );
+      const kind =
+        traitName === "Eq" ? "equality" : traitName === "Ord" ? "total-ordering" : "ordering";
+      // The strategy kind matches `kind`: equality for Eq, ordering otherwise.
+      const builtin = {
+        kind,
+        traitIndex,
+        targetType: type,
+        strategy: renumbered,
+      } as HirBuiltinTraitImplementation;
+      return { ...plan(builtin, bounds), supertraits: parent ? [parent] : [] };
     }
     return undefined;
   }
@@ -1159,7 +1172,7 @@ export abstract class CheckerContext {
   }
 
   protected equalityDispatch(type: ValueType): HirEqualityDispatch | undefined {
-    return this.traitMethodDispatch(type, "PartialEq");
+    return this.traitMethodDispatch(type, "Eq");
   }
 
   protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {

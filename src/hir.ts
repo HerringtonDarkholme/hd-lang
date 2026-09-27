@@ -65,6 +65,9 @@ export interface HirTraitMethod {
   // Method-level generic parameters bounded by AnyVal. They keep the method
   // out of dynamic dispatch (04-type-system.md#trait-values-and-any).
   readonly valueParameters?: readonly string[];
+  // Method-level generic parameters written `reified`. They keep the method
+  // out of dynamic dispatch (09-traits.md#dynamic-safety).
+  readonly reifiedParameters?: readonly string[];
   readonly suspending: boolean;
   readonly receiverMutable: boolean;
   readonly parameters: readonly ValueType[];
@@ -121,7 +124,7 @@ export interface HirTraitDictionaryPlan {
   readonly implementationIndex: number;
   readonly supertraits: readonly HirTraitDictionaryPlan[];
   // Set for a standard-library implementation that has no source `impl`
-  // (Display, PartialEq, PartialOrd on primitives and built-in composites).
+  // (Display, Eq, PartialOrd on primitives and built-in composites).
   // `implementationIndex` is then -1, and `bounds` holds the dictionaries the
   // strategy's bound dispatches read, renumbered from zero.
   readonly builtin?: HirBuiltinTraitImplementation;
@@ -140,7 +143,8 @@ export type HirBuiltinTraitImplementation =
       readonly strategy: HirEqualityStrategy;
     }
   | {
-      readonly kind: "ordering";
+      // `partial_cmp` for PartialOrd, or `cmp` for Ord (no `.None` result).
+      readonly kind: "ordering" | "total-ordering";
       readonly traitIndex: number;
       readonly targetType: ValueType;
       readonly strategy: HirOrderingStrategy;

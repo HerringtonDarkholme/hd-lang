@@ -382,3 +382,96 @@ test("owning a trait argument's outer constructor permits a foreign trait impl (
     ["orphan-impl"],
   );
 });
+
+test("built-in comparison dictionaries carry their supertrait dictionaries (EQ-1)", async () => {
+  const source = [
+    "fn rank(value: Ordering) -> i32:",
+    "    match value:",
+    "        .Less => 1",
+    "        .Equal => 2",
+    "        .Greater => 3",
+    "",
+    "fn order[T < Ord](left: T, right: T) -> i32: rank(left.cmp(right))",
+    "",
+    "fn less[T < PartialOrd](left: T, right: T) -> bool: left < right",
+    "",
+    "fn main() -> i32:",
+    '    order(1, 2) * 100 + order(["b"], ["a"]) * 10 + (if less(1.5, 2.5): 1 else: 0)',
+    "",
+  ].join("\n");
+  const compilation = compile(source);
+  const trait = (name: string) => compilation.hir.traits.find((item) => item.name === name)!;
+  assert.deepEqual(
+    trait("Ord").supertraits.map((parent) => parent.traitName),
+    ["PartialOrd"],
+  );
+  assert.deepEqual(
+    trait("PartialOrd").supertraits.map((parent) => parent.traitName),
+    ["Eq"],
+  );
+  const { instance } = await instantiate(source);
+  assert.equal((instance.exports.main as CallableFunction)(), 131);
+  assert.deepEqual(
+    analyze(
+      "fn smallest[T < Ord](value: T) -> T: value\n\nfn main() -> f64: smallest(1.5)\n",
+    ).diagnostics.map((diagnostic) => diagnostic.code),
+    ["unsatisfied-trait-bound"],
+  );
+});
+
+test("a type parameter calls an associated function through its bound (TQ-9)", () => {
+  const compilation = compile(conformance("runtime/valid/associated-function-calls"));
+  const make = compilation.hir.functions.find((item) => item.name === "make");
+  const call = make?.body[0];
+  assert.equal(call?.kind, "expression");
+  if (call?.kind === "expression") {
+    assert.equal(call.expression.kind, "trait-call");
+    if (call.expression.kind === "trait-call")
+      assert.equal(call.expression.receiver.kind, "trait-bound-dictionary");
+  }
+});
+
+test("a generic inherent implementation lowers to a generic function (TQ-19)", async () => {
+  const source = [
+    "data Box[T]:",
+    "    value: T",
+    "",
+    "impl[T] Box[T]:",
+    "    fn get(self) -> T: self.value",
+    "",
+    "fn through[T](box: Box[T]) -> T: box.get()",
+    "",
+    "fn main() -> i32: through(Box { value: 40 }) + Box { value: 3 }.get()",
+    "",
+  ].join("\n");
+  const compilation = compile(source);
+  const get = compilation.hir.functions.find((item) => item.name.endsWith(".get"));
+  assert.deepEqual(get?.genericParameters, ["T"]);
+  const { instance } = await instantiate(source);
+  assert.equal((instance.exports.main as CallableFunction)(), 43);
+});
+
+test("a marker implementation's bounds are proven (TQ-20)", () => {
+  const source = [
+    "trait Marker",
+    "",
+    "data Box[T]:",
+    "    value: T",
+    "",
+    "impl Marker for i32",
+    "",
+    "impl[T < Marker] Marker for Box[T]",
+    "",
+    "fn need[T < Marker](value: T) -> void:",
+    "    pass",
+    "",
+    "fn good(value: Box[i32]) -> void: need(value)",
+    "",
+    "fn bad(value: Box[string]) -> void: need(value)",
+    "",
+  ].join("\n");
+  assert.deepEqual(
+    analyze(source).diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.span.start.line]),
+    [["unsatisfied-trait-bound", 15]],
+  );
+});

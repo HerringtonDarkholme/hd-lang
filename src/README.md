@@ -355,9 +355,13 @@ else`, `break`, `break value`, and `continue`;
 - inherent `impl Type:` methods lowered to direct typed functions, including
   erased method-level generics with bounds, explicit or inferred type
   arguments, named arguments, mutable receivers, suspending calls, and
-  duplicate-member diagnostics;
+  duplicate-member diagnostics; `impl[T] Box[T]:` and `impl Box[i32]:` targets
+  lower to erased generic functions whose target parameters come from the
+  receiver, and one name clashes only when two targets unify;
 - receiverless associated functions called through `Type::function`, including
-  `Self` substitution, method-level generics, and suspending calls;
+  `Self` substitution, method-level generics, and suspending calls, inherent
+  first and then the implemented traits (`ambiguous-method` for two);
+  `T::function()` on a type parameter calls through the bound's dictionary;
 - blanket trait implementations over generic targets, with unified target and
   trait-argument inference; their adapters materialize static, dynamic, and
   bound dictionaries for ordinary and suspending methods; bounded blanket
@@ -374,7 +378,11 @@ else`, `break`, `break value`, and `continue`;
   needed); trait conformance through a part is explicit delegation,
   `impl Trait for C by E`;
 - default trait methods with target-specific lowering, dynamic method-table
-  entries, and explicit override precedence;
+  entries, and explicit override precedence; a default body calls through
+  `self` only methods of its trait and supertraits (`unknown-method`);
+- bound proofs deeper than 64 nested implementation bounds are
+  `trait-resolution-depth`, including bounds of method-less marker
+  implementations;
 - generic supertraits substitute parent arguments through inherited calls and
   checked trait-value widening; child dictionaries retain blanket or concrete
   parent implementations;
@@ -384,13 +392,16 @@ else`, `break`, `break value`, and `continue`;
   trait bounds, dictionary forwarding, method dispatch on values produced
   inside generic bodies, and concrete call-site recovery for returned `T`
   values;
-- concrete and bounded generic `PartialEq` and `PartialOrd` dispatch, with
+- concrete and bounded generic `Eq` and `PartialOrd` dispatch, with
   structural equality for tuples, lists, optionals, `Result`, and maps and
   lexicographic tuple/list plus `.None`-first optional ordering, recursively using
   explicit implementations and erased bound dictionaries for nested values;
-  primitives and those built-in composites also satisfy `PartialEq` and
-  `PartialOrd` bounds, and primitives satisfy `Display` bounds and become
-  `Display` trait values, through generated standard-library dictionaries;
+  primitives and those built-in composites also satisfy `Eq` and
+  `PartialOrd` bounds (floats included, with IEEE equality), and the ones
+  without floats satisfy `Ord`; `PartialOrd < Eq` and `Ord < PartialOrd`, so
+  each generated dictionary carries its supertrait's; primitives satisfy
+  `Display` bounds and become `Display` trait values, through generated
+  standard-library dictionaries;
 - generic data declarations with inferred or complete explicit construction
   arguments, precise instantiated member types, and uniform `anyref` field
   erasure in one Wasm GC layout per declaration;
@@ -449,7 +460,7 @@ else`, `break`, `break value`, and `continue`;
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
-  `PartialEq` implementations, with mandatory reasons and
+  `Eq` implementations, with mandatory reasons and
   `missing-partial-eq` at unsupported types;
 - suspension CFG lowering for bang calls nested in expressions, call
   arguments, short-circuiting, branches, loops, match guards, propagation, and

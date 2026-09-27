@@ -29,6 +29,7 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
+  matchGenericTypePattern,
   matchTraitImplementation,
   normalizeBoundProjections,
   requirementKeysMayCollide,
@@ -330,13 +331,21 @@ export abstract class CallChecker extends StatementChecker {
         expression.callee.span,
       );
     }
-    const receiverParameterType = method.receiverMutable
-      ? mutableType(method.targetType)
-      : method.targetType;
+    // A generic target such as `Box[T]` fixes the implementation's
+    // parameters from the receiver (09-traits.md#inherent-member-names).
+    const targetSubstitutions = new Map<string, ValueType>();
+    if (method.targetGenericParameters)
+      matchGenericTypePattern(method.targetType, readonlyType(receiver.type), targetSubstitutions);
+    const targetType = substituteGenericType(method.targetType, targetSubstitutions);
+    const receiverParameterType = method.receiverMutable ? mutableType(targetType) : targetType;
     const methodReceiver = this.requireCoercion(receiver, receiverParameterType, receiver.span);
     const signature = this.signatures.get(method.functionName)!;
     const callSignature: Signature = {
       ...signature,
+      // Explicit type arguments name the method's own parameters.
+      genericParameters: signature.genericParameters.filter(
+        (parameter) => !targetSubstitutions.has(parameter),
+      ),
       parameters: signature.parameters.slice(1),
       parameterNames: signature.parameterNames.slice(1),
       defaultFunctionNames: signature.defaultFunctionNames.slice(1),
@@ -346,6 +355,7 @@ export abstract class CallChecker extends StatementChecker {
       callSignature,
       expected,
       `method '${method.name}'`,
+      targetSubstitutions,
     );
     const { rowSubstitutions } = checkedArguments;
     const substitutions = this.resolveAssociatedTypeSubstitutions(

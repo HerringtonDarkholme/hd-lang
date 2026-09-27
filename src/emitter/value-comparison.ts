@@ -45,6 +45,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     boundExpressions: readonly HirExpression[],
     bounds: readonly string[],
     value: string,
+    parents: readonly string[] = [],
   ): string {
     const trait = this.traitsByIndex.get(builtin.traitIndex)!;
     if (builtin.kind === "marker")
@@ -63,7 +64,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       bounds.length > 0
         ? `(array.new_fixed $hd.list ${bounds.length} ${bounds.join(" ")})`
         : `(ref.null $hd.list)`;
-    return `(struct.new $trait${trait.index} ${value} ${boundPack} (ref.func $tbuiltin${adapter.index}))`;
+    return `(struct.new $trait${trait.index} ${value} ${boundPack} (ref.func $tbuiltin${adapter.index})${parents.map((parent) => ` ${parent}`).join("")})`;
   }
 
   protected emitStringLiteral(text: string): string {
@@ -252,7 +253,10 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         const variant = (tag: number) => `(global.get $e${orderingIndex}v${tag})`;
         const ordering = `(if (result ${orderingType}) (i32.lt_s (local.get ${code}) (i32.const 0)) (then ${variant(0)}) (else (if (result ${orderingType}) (i32.eqz (local.get ${code})) (then ${variant(1)}) (else ${variant(2)}))))`;
         const resultType = this.watType(method.result);
-        body = `(block (result ${resultType}) (local.set ${code} ${compared}) (if (result ${resultType}) (i32.eq (local.get ${code}) (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering}))))`;
+        body =
+          builtin.kind === "total-ordering"
+            ? `(block (result ${resultType}) (local.set ${code} ${compared}) ${ordering})`
+            : `(block (result ${resultType}) (local.set ${code} ${compared}) (if (result ${resultType}) (i32.eq (local.get ${code}) (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering}))))`;
       }
       const parameters = method.parameters.map(
         (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
@@ -346,7 +350,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         nominal.arguments[1]!,
         strategy?.kind === "map" ? strategy.value : undefined,
       );
-    throw new Error(`cannot emit PartialEq for '${type}'`);
+    throw new Error(`cannot emit Eq for '${type}'`);
   }
 
   protected emitValueOrdering(

@@ -38,6 +38,8 @@ interface FunctionTypeParameter {
 interface ParsedGenericParameters {
   readonly parameters: readonly string[];
   readonly bounds: readonly GenericBound[];
+  /** Parameters written `reified`; the prototype erases them all. */
+  readonly reified?: readonly string[];
 }
 
 class Parser extends ExpressionParser {
@@ -251,6 +253,7 @@ class Parser extends ExpressionParser {
   protected parseGenericParameters(): ParsedGenericParameters {
     const parameters: string[] = [];
     const bounds: GenericBound[] = [];
+    const reified: string[] = [];
     if (!this.matchText("[")) return { parameters, bounds };
     if (!this.atText("]")) {
       do {
@@ -266,6 +269,7 @@ class Parser extends ExpressionParser {
               this.current().span,
             );
           this.advance();
+          reified.push(this.current().text);
         }
         const parameter = this.expectKind("identifier", "expected a generic parameter name");
         if (parameters.includes(parameter.text))
@@ -300,7 +304,7 @@ class Parser extends ExpressionParser {
       } while (this.matchText(",") && !this.atText("]"));
     }
     this.expectText("]");
-    return { parameters, bounds };
+    return { parameters, bounds, ...(reified.length > 0 ? { reified } : {}) };
   }
 
   protected parseTraitBoundNames(bindings: AssociatedTypeBinding[] = []): string[] {
@@ -452,6 +456,14 @@ class Parser extends ExpressionParser {
     if (this.matchText("[")) {
       if (!this.atText("]")) {
         do {
+          // Trait parameters are invariant (09-traits.md#generic-traits).
+          const marker = this.current();
+          if (this.parseVarianceMarker())
+            this.fail(
+              "invalid-variance",
+              "a trait's generic parameters take no variance marker",
+              marker.span,
+            );
           const parameter = this.expectKind("identifier", "expected a generic trait parameter");
           if (genericParameters.includes(parameter.text))
             this.fail(
@@ -635,6 +647,7 @@ class Parser extends ExpressionParser {
     const parsedGenerics = this.parseGenericParameters();
     const genericParameters = [...parsedGenerics.parameters];
     const genericBounds = [...parsedGenerics.bounds];
+    const reified = parsedGenerics.reified ? { reifiedParameters: parsedGenerics.reified } : {};
     const enclosingGenericParameters = this.activeGenericParameters;
     this.activeGenericParameters = new Set([...enclosingGenericParameters, ...genericParameters]);
     this.expectText("(");
@@ -698,6 +711,7 @@ class Parser extends ExpressionParser {
         suspending,
         genericParameters,
         genericBounds,
+        ...reified,
         parameters,
         result,
         requirements,
@@ -713,6 +727,7 @@ class Parser extends ExpressionParser {
       suspending,
       genericParameters,
       genericBounds,
+      ...reified,
       parameters,
       result,
       requirements,
@@ -1200,12 +1215,20 @@ class Parser extends ExpressionParser {
     const start = this.current().span.start;
     const local = this.parseLocalDeclaration();
     if (local) return local;
-    if (this.atText("@"))
+    if (this.atText("@")) {
+      const alias = this.aliasAfterDeriveLines();
+      if (alias)
+        this.fail(
+          "syntax-error",
+          "a transparent alias takes no derive decorator; derive on a data, enum, or newtype declaration",
+          alias,
+        );
       this.fail(
         "decorator-not-top-level",
         "decorators are only valid on top-level declarations",
         this.current().span,
       );
+    }
     if (this.atKind("doc-comment")) {
       this.fail(
         "doc-comment-without-target",

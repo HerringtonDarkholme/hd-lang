@@ -1176,6 +1176,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         plan.bounds,
         plan.bounds.map((bound) => this.emitExpression(bound)),
         value,
+        plan.supertraits.map((parent) => this.emitTraitDictionaryPlan(parent, value)),
       );
     const implementation = this.implementationsByIndex.get(plan.implementationIndex)!;
     return this.emitTraitDictionary(

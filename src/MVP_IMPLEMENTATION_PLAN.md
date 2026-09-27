@@ -148,7 +148,7 @@ The imported standard testing intrinsics execute inside named test blocks:
 `assert_equal` executes structural equality for the MVP scalar, string, tuple,
 list, optional, `Result`, and map surface, including order-independent map
 comparison. It dispatches explicit nominal implementations and generic
-`T: PartialEq` dictionaries through the canonical prelude trait. Both require
+`T < Eq` dictionaries through the canonical prelude trait. Both require
 the specified reason argument.
 
 Supported checked runtime failures now cross the host boundary with their
@@ -224,7 +224,7 @@ lower direct calls without allocating a built-in cursor wrapper.
 with insertion-ordered erased arrays,
 growable insertion, duplicate replacement, optional indexed or `get()` lookup,
 mutable `remove()`, and built-in scalar or string keys.
-The comparison slice now lowers `==` and `!=` through explicit `PartialEq`
+The comparison slice now lowers `==` and `!=` through explicit `Eq`
 implementations for nominal values and through erased dictionaries for bounded
 generic values. Built-in composite equality covers tuples, lists, optionals,
 `Result`, and maps with comparable contents. Types without that implementation

@@ -9,7 +9,7 @@ typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 and i64 (siz
 typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
 typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i64'	F-253
 typing/invalid/integer-literal-range.hd	MVP reports unknown-type at line 2 instead of integer-literal-range: unknown or unsupported type 'u8'	F-253
-typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Eq'	F-255
+typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Hash'	F-255
 typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
@@ -59,7 +59,6 @@ typing/invalid/annotation-top-level-read.hd	MVP reports expected-expression at l
 typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 10: expected an expression, found 'annotate'	F-250
 typing/valid/shape-api.hd	check fails: unknown-type at line 10 for TypeShape; the shape and shape_of intrinsics are unimplemented	K1
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
-typing/invalid/unrepresentable-type-shape.hd	MVP reports unknown-name at line 7 instead of unrepresentable-type-shape: the shape intrinsic is unimplemented	K1
 typing/invalid/shape-of-local-binding.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
 typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
 typing/invalid/unknown-shape-variant.hd	MVP reports unknown-name at line 5 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
@@ -93,3 +92,9 @@ typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage te
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (sized numeric types unimplemented); value embedding itself is implemented, and the case passes with i32 fields	F-253
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
+typing/invalid/mixed-derived-law.hd	MVP reports decorator-not-top-level at line 3 instead of mixed-derived-law: decorators are only valid on top-level declarations (the TQ-12 law-partner check needs @derive)	F-250
+typing/invalid/derived-hash-without-eq.hd	MVP reports decorator-not-top-level at line 3 instead of mixed-derived-law: decorators are only valid on top-level declarations (the TQ-12 law-partner check needs @derive)	F-250
+typing/invalid/hand-written-hash-beside-derived-eq.hd	MVP reports decorator-not-top-level at line 3 instead of mixed-derived-law: decorators are only valid on top-level declarations (the TQ-12 law-partner check needs @derive; Hash is also missing, F-255)	F-250
+runtime/valid/derived-newtype.hd	check fails: decorator-not-top-level at line 5: decorators are only valid on top-level declarations (TQ-11 newtype derivation needs @derive)	F-250
+typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-parameter at line 4 instead of trait-not-dynamically-safe: packs and defaults are outside the current erased-generic slice (the TQ-10 row and reified exclusions are implemented)	F-250
+typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: the shape intrinsic is unimplemented (TQ-23 TypeShape.Mut)	K1

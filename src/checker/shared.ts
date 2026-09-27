@@ -982,6 +982,7 @@ function traitIsDynamicallySafe(
     trait.methods.some(
       (method) =>
         method.associated ||
+        (method.reifiedParameters ?? []).length > 0 ||
         method.genericParameters.some(
           (parameter) => !(method.referenceParameters ?? []).includes(parameter),
         ) ||
@@ -1046,4 +1047,27 @@ export function normalizeBoundProjections(
     for (const binding of bound.associatedBindings ?? [])
       substitutions.set(`${bound.parameter}::${binding.name}`, binding.type);
   return substitutions.size === 0 ? type : substituteGenericType(type, substitutions);
+}
+
+/** The deepest bound a proof may need (09-traits.md#r-trait.bound.depth.limit). */
+export const MAX_BOUND_DEPTH = 64;
+
+/**
+ * Whether the standard library's `Ord` covers `type`: the ordered primitives
+ * other than floats, and tuples, optionals, and lists of such types
+ * (09-traits.md#comparison-traits).
+ */
+export function builtinTotallyOrdered(type: ValueType): boolean {
+  const compared = readonlyType(type);
+  if (["i32", "char", "string"].includes(compared)) return true;
+  const tuple = tupleParts(compared);
+  if (tuple !== undefined) return tuple.every(builtinTotallyOrdered);
+  const optional = optionalInner(compared);
+  if (optional !== undefined) return builtinTotallyOrdered(optional);
+  const nominal = nominalGenericParts(compared);
+  return (
+    nominal?.name === "List" &&
+    nominal.arguments.length === 1 &&
+    builtinTotallyOrdered(nominal.arguments[0]!)
+  );
 }

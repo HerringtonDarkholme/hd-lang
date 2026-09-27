@@ -174,16 +174,23 @@ function substituteSelfParameter(parameter: Parameter, targetName: string): Para
   };
 }
 
+interface RegisteredInherentMember {
+  readonly name: string;
+  readonly targetType: ValueType;
+  readonly genericParameters: readonly string[];
+}
+
 function prepareInherentImplementation(
   implementation: ImplDecl,
   implementationIndex: number,
-  methodKeys: Set<string>,
+  members: RegisteredInherentMember[],
   context: ProgramCheckContext,
 ): void {
   const { diagnostics, dataTypes, enumTypes, traitTypes, inherentMethods, inherentDeclarations } =
     context;
-  const target =
-    dataTypes.get(implementation.targetName) ?? enumTypes.get(implementation.targetName);
+  const targetBase =
+    nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName;
+  const target = dataTypes.get(targetBase) ?? enumTypes.get(targetBase);
   if (!target) {
     diagnostics.push({
       code: "unknown-type",
@@ -192,7 +199,7 @@ function prepareInherentImplementation(
     });
     return;
   }
-  if (target.genericParameters.length > 0) {
+  if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
     diagnostics.push({
       code: "unsupported-generic-impl",
       message: `inherent implementation of generic type '${implementation.targetName}' requires explicit generic parameters`,
@@ -200,20 +207,45 @@ function prepareInherentImplementation(
     });
     return;
   }
+  const targetType =
+    targetBase === implementation.targetName
+      ? targetBase
+      : typeName(
+          { name: implementation.targetName, span: implementation.span },
+          dataTypes,
+          enumTypes,
+          traitTypes,
+          diagnostics,
+          new Set(implementation.genericParameters),
+        );
+  if (targetType === undefined) return;
   for (const method of implementation.methods) {
-    const key = `${implementation.targetName}.${method.name}`;
-    if (methodKeys.has(key)) {
+    // 09 Inherent Member Names: two members with one name clash only when
+    // their targets unify.
+    const clash = members.some(
+      (member) =>
+        member.name === method.name &&
+        implementationHeadsMayUnify([targetType], [member.targetType], member.genericParameters),
+    );
+    if (clash) {
       diagnostics.push({
         code: "duplicate-inherent-member",
-        message: `inherent method '${key}' is declared more than once`,
+        message: `inherent method '${implementation.targetName}.${method.name}' is declared more than once for unifying targets`,
         span: method.span,
       });
       continue;
     }
-    methodKeys.add(key);
+    members.push({
+      name: method.name,
+      targetType,
+      genericParameters: implementation.genericParameters,
+    });
     const associated = method.parameters[0]?.name !== "self";
     const sourceParameters = associated ? method.parameters : method.parameters.slice(1);
-    const genericParameters = new Set(method.genericParameters);
+    const genericParameters = new Set([
+      ...implementation.genericParameters,
+      ...method.genericParameters,
+    ]);
     sourceParameters.forEach((parameter, parameterIndex) => {
       if (parameter.variadic && parameterIndex !== sourceParameters.length - 1) {
         diagnostics.push({
@@ -246,7 +278,10 @@ function prepareInherentImplementation(
       ) ?? "void";
     const functionName = `$inherent${implementationIndex}.${method.name}`;
     inherentMethods.push({
-      targetType: implementation.targetName,
+      targetType,
+      ...(implementation.genericParameters.length > 0
+        ? { targetGenericParameters: implementation.genericParameters }
+        : {}),
       name: method.name,
       public: method.public === true,
       associated,
@@ -264,8 +299,8 @@ function prepareInherentImplementation(
       kind: "function",
       name: functionName,
       suspending: method.suspending,
-      genericParameters: method.genericParameters,
-      genericBounds: method.genericBounds,
+      genericParameters: [...implementation.genericParameters, ...method.genericParameters],
+      genericBounds: [...implementation.genericBounds, ...method.genericBounds],
       parameters: method.parameters.map((parameter) =>
         substituteSelfParameter(parameter, implementation.targetName),
       ),
@@ -373,7 +408,7 @@ function prepareAssociatedTypes(
 export function prepareImplementations(context: ProgramCheckContext): void {
   const { program, diagnostics, dataTypes, enumTypes, traitTypes, implementationPreparations } =
     context;
-  const inherentMethodKeys = new Set<string>();
+  const inherentMembers: RegisteredInherentMember[] = [];
   const implementationTargets: RegisteredImplementationTarget[] = [];
   const delegations: Delegation[] = [];
   const orderedImplementationEntries = [...program.implementations.entries()].sort(
@@ -383,12 +418,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
   for (const [implementationIndex, implementation] of orderedImplementationEntries) {
     if (!checkImplementationTarget(implementation, diagnostics)) continue;
     if (implementation.traitName === undefined) {
-      prepareInherentImplementation(
-        implementation,
-        implementationIndex,
-        inherentMethodKeys,
-        context,
-      );
+      prepareInherentImplementation(implementation, implementationIndex, inherentMembers, context);
       continue;
     }
     const traitApplication = nominalGenericParts(implementation.traitName);
@@ -607,7 +637,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         body: method.body ?? [],
         span: method.span,
       };
-      if (!suppliedMethod) traitDefaultDeclarations.add(declaration);
+      if (!suppliedMethod) traitDefaultDeclarations.set(declaration, trait.index);
       methods.push({ methodIndex: required.index, declaration });
     }
     implementationPreparations.push({

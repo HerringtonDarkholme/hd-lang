@@ -64,6 +64,8 @@ export interface MethodDecl {
   readonly suspending: boolean;
   readonly genericParameters: readonly string[];
   readonly genericBounds: readonly GenericBound[];
+  /** Generic parameters written `reified`. */
+  readonly reifiedParameters?: readonly string[];
   readonly parameters: readonly Parameter[];
   readonly result: TypeRef;
   readonly requirements: readonly string[];

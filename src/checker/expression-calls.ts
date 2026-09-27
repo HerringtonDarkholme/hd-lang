@@ -1,5 +1,5 @@
 import type { Expression } from "../ast.ts";
-import type { HirExpression, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
+import type { HirExpression, ValueType } from "../hir.ts";
 import { CheckFailure, type Signature } from "./context.ts";
 import {
   functionParts,
@@ -27,7 +27,7 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { InspectChecker } from "./expression-inspect.ts";
+import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
 import { isDowncastValImport } from "./inspectable.ts";
 import { TYPE_ID } from "./standard-traits.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
@@ -39,37 +39,7 @@ interface NamedCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "name" }>;
 }
 
-interface QualifiedCallExpression extends CallExpression {
-  readonly callee: Extract<Expression, { kind: "qualified-name" }>;
-}
-
-interface ResolvedTraitMethod {
-  readonly method: HirTraitMethod;
-  readonly path: readonly number[];
-  readonly trait: HirTrait;
-}
-
-export abstract class ExpressionCallChecker extends InspectChecker {
-  private findTraitMethods(
-    trait: HirTrait,
-    name: string,
-    path: readonly number[] = [],
-    seen: ReadonlySet<number> = new Set(),
-  ): ResolvedTraitMethod[] {
-    if (seen.has(trait.index)) return [];
-    const nextSeen = new Set([...seen, trait.index]);
-    const direct = trait.methods
-      .filter((method) => !method.associated && method.name === name)
-      .map((method) => ({ method, path, trait }));
-    const inherited = trait.supertraits.flatMap((supertrait, fieldIndex) => {
-      const parent = [...this.traitTypes.values()].find(
-        (candidate) => candidate.index === supertrait.traitIndex,
-      );
-      return parent ? this.findTraitMethods(parent, name, [...path, fieldIndex], nextSeen) : [];
-    });
-    return [...direct, ...inherited];
-  }
-
+export abstract class ExpressionCallChecker extends TraitCallChecker {
   protected checkCallExpression(
     expression: Expression,
     expected?: ValueType,
@@ -1014,11 +984,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       const actual = this.checkExpression(expression.arguments[actualIndex]!);
       const strategy = this.equalityStrategy(actual.type);
       if (!strategy) {
-        this.fail(
-          "missing-partial-eq",
-          `type '${actual.type}' does not implement PartialEq`,
-          actual.span,
-        );
+        this.fail("missing-partial-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
       const checkedByParameter = [
         actual,
@@ -1256,6 +1222,8 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         traitArguments,
       );
     }
+    if (this.signature.genericParameters.includes(owner))
+      return this.checkBoundAssociatedCall(expression, owner);
     const member = this.inherentMethods.find(
       (method) =>
         method.associated && method.targetType === owner && method.name === expression.callee.name,
@@ -1341,7 +1309,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
     }
     if (associatedCandidates.length > 1)
       this.fail(
-        "ambiguous-associated-function",
+        "ambiguous-method",
         `associated function '${expression.callee.name}' is supplied by multiple traits for '${ownerType}'`,
         expression.callee.span,
       );

@@ -62,7 +62,7 @@ type MemberCall = Extract<Expression, { kind: "call" }> & {
  * them with a concrete `Self`; inside them a trait method named like a field of
  * `Self` is taken as the trait method (the body was written against the trait).
  */
-export const traitDefaultDeclarations = new WeakSet<FunctionDecl>();
+export const traitDefaultDeclarations = new WeakMap<FunctionDecl, number>();
 
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   /** The prelude `string` methods (10-modules.md#prelude). */
@@ -296,7 +296,12 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
 
   private findInherentMethod(type: ValueType, name: string): InherentMethod | undefined {
     return this.inherentMethods.find(
-      (method) => !method.associated && method.targetType === type && method.name === name,
+      (method) =>
+        !method.associated &&
+        method.name === name &&
+        (method.targetType === type ||
+          (method.targetGenericParameters !== undefined &&
+            matchGenericTypePattern(method.targetType, type, new Map()))),
     );
   }
 
@@ -416,8 +421,21 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (method) {
       const inherent = this.findInherentMethod(type, name);
       traitCandidate = this.traitWithMember(type, name);
-      if (traitCandidate && traitDefaultDeclarations.has(this.declaration))
-        return { kind: "trait" };
+      const defaultTrait = traitDefaultDeclarations.get(this.declaration);
+      if (defaultTrait !== undefined && this.declaration.parameters[0]?.name === "self") {
+        // A default body sees, through `self`, only the members of its trait
+        // and supertraits (09-traits.md#default-method-bodies).
+        const selfType = readonlyType(this.signature.parameters[0]!);
+        if (type === selfType) {
+          if (this.traitDeclaresMethod(defaultTrait, name)) return { kind: "trait" };
+          this.fail(
+            "unknown-method",
+            `a default method body sees only the members of its trait and supertraits, which declare no method '${name}'`,
+            span,
+          );
+        }
+      }
+      if (traitCandidate && defaultTrait !== undefined) return { kind: "trait" };
       if (inherent && this.memberVisible(inherent))
         return { kind: "inherent", steps: [], method: inherent };
       if (inherent) ownInvisible = true;
@@ -455,6 +473,22 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         span,
       );
     return { kind: "none" };
+  }
+
+  /** Whether trait `traitIndex` or one of its transitive supertraits declares method `name`. */
+  private traitDeclaresMethod(
+    traitIndex: number,
+    name: string,
+    seen: Set<number> = new Set(),
+  ): boolean {
+    if (seen.has(traitIndex)) return false;
+    seen.add(traitIndex);
+    const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
+    if (!trait) return false;
+    return (
+      trait.methods.some((method) => !method.associated && method.name === name) ||
+      trait.supertraits.some((parent) => this.traitDeclaresMethod(parent.traitIndex, name, seen))
+    );
   }
 
   /** The promoted (`pub`) members named `name` at the smallest depth that has one. */
