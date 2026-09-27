@@ -333,9 +333,12 @@ members); when a member needs more (a `Set[T]` member needs `T < Hash`), the
 error suggests a tier-2 block with an explicit header. P4: there are no
 marker templates: a template must have a body that visits or builds, so a
 bodiless `by Structure` template is an error. The owner considers today's
-marker `Eq` wrong: `Eq` should carry a method like `PartialEq` does, so it
-is derivable and never needs an empty hand-written impl (redesign under
-discussion). Still under discussion: P1-P3 (the core walk), P5 (where
+marker `Eq` wrong: `Eq` should carry a method, so it is derivable and
+never needs an empty hand-written impl. Decided (Swift model): one `Eq` with
+`fn eq(self, other: Self) -> bool`; `PartialEq` is dropped; floats implement
+`Eq` with IEEE semantics (`NaN != NaN`, a documented law exception);
+`PartialOrd` and `Ord` stay, so floats are `Eq + PartialOrd` but not `Ord`.
+Not yet applied to 09 (recorded in audit/types/QUESTIONS.md). Still under discussion: P1-P3 (the core walk), P5 (where
 configuration lives), and the rest of the stress test's problems.
 
 ### Current Design: Full Example (M1-M11)
