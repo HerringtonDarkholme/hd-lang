@@ -47,6 +47,11 @@ Decided 2026-09-26:
    This is checked statically, applies only in explicit `@derive` output and
    in annotators rebuilt on `describe`, and affects only the named visitor's
    library. Other libraries' visitors still see the field.
+4. **`@derivable` maps each trait method to a generic function over
+   `T < Structure`** (`@derivable(encode = encode_structure, schema =
+   schema_structure)`); only the trait's package can declare it.
+5. **Generated `visit`, `build`, and `describe` include private fields;**
+   writing `@derive` in the owning module is the opt-in.
 
 ## Contents
 

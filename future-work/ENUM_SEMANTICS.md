@@ -27,6 +27,12 @@ the [reference parser](../spec/reference-parser/index.ts), checked
 2026-09-26. Parsing is not type checking: each example states what today's
 rules and each option would do with it.
 
+
+**Status: deferred by the owner (2026-09-26).** The enum value category
+(question 1) and whether shared constructor data becomes read-only
+(question 2) are postponed; until then the specification keeps enums on
+`AnyRef` as it is today.
+
 ## Contents
 
 - [Summary](#summary)
