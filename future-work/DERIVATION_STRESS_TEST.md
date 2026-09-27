@@ -6,8 +6,8 @@ the prototype. Every design choice below is a question for the owner.
 
 The design under test is the one recorded in
 [Typed Derivation](TYPED_DERIVATION.md): the
-[Current Design: Full Example](TYPED_DERIVATION.md#current-design-full-example-m1-m13) as it stood at M11
-and the [Current Rules](TYPED_DERIVATION.md#current-rules-m1-m13) as they stood at M11.
+[Current Design: Full Example](TYPED_DERIVATION.md#current-design-full-example-m1-m14) as it stood at M11
+and the [Current Rules](TYPED_DERIVATION.md#current-rules-m1-m14) as they stood at M11.
 Decisions 1-12 (Design G and its refinements) are treated as superseded
 wherever they conflict, so features that only they provided (the value-free
 `describe[D < Describer]`, inferred bounds, `@derivable`, the standalone
