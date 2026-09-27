@@ -12,4 +12,3 @@ GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly af
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
-ENUM	1	A shared-data fixture still expects the old per-construction identity for a payload-free variant

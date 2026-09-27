@@ -52,8 +52,8 @@ GADT refinement composes with enum-level constructor data:
 
 ```text
 enum Box[T](contents: T):
-    IntBox(n: i64) -> Box[i64](n)
-    BoolBox(b: bool) -> Box[bool](b)
+    IntBox(n: i64) -> Box[i64](0)
+    BoolBox(b: bool) -> Box[bool](false)
 ```
 
 In this example, the result type refines `T`, while the call argument

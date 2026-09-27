@@ -719,3 +719,5 @@ existing source. Each entry names the decision that made the change.
   `@derive(Eq, Hash)` to be a map key. The non-normative Implementation
   Model now describes one enum representation: `i31ref` tags for
   payload-free variants and one GC struct subtype per payload variant.
+  Chapter 13's GADT example `IntBox(n: i64) -> Box[i64](n)`, which built
+  shared data from the payload, is now written with constants.

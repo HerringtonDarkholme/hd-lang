@@ -9,8 +9,8 @@ this report: the verdict, the scorecard, the claim ledger, the coverage and
 blind-fixture runs, and the fuzzing rounds. The repository history keeps
 them. What remains is the architecture review, which still describes the
 prototype, and the findings that are still open. On 2026-09-27 the prototype
-passes 1,026 of the 1,126 conformance cases; [`README.md`](README.md) says
-where the other 100 are listed.
+passes 1,027 of the 1,126 conformance cases; [`README.md`](README.md) says
+where the other 99 are listed.
 
 The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing

@@ -1025,3 +1025,4 @@ typing/invalid/enum-shared-field-assignment.hd	type
 typing/invalid/enum-shared-constructor-payload.hd	type
 typing/invalid/payload-free-enum-equality.hd	type
 runtime/valid/enum-shared-data-per-variant.hd	runtime
+runtime/valid/variant-identity-through-any.hd	runtime

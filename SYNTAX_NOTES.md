@@ -1041,8 +1041,8 @@ A GADT-style variant can also refine the enum type while passing data to an enum
 
 ```text
 enum Box[T](contents: T):
-    IntBox(n: i64) -> Box[i64](n)
-    BoolBox(b: bool) -> Box[bool](b)
+    IntBox(n: i64) -> Box[i64](0)
+    BoolBox(b: bool) -> Box[bool](false)
 ```
 
 Pattern matching on a GADT-style variant refines the enum type parameter inside that arm:
