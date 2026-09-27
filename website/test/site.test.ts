@@ -10,6 +10,7 @@ import { buildSite, PAGES_BASE } from "../build.ts";
 import type { GrammarIndex } from "../src/ebnf.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "../src/learn-check.ts";
 import { checkLinks } from "../src/links.ts";
+import { createMarkdown, type RenderEnv } from "../src/markdown.ts";
 import { PAGES, PLAYGROUND_PAGE } from "../src/pages.ts";
 
 const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -85,6 +86,42 @@ describe("website build", () => {
     assert.match(style, /language-markdown">1\. r\[data\.field\.unique\] Field names/);
     const readme = await readFile(join(scratch, "pages", "spec/index.html"), "utf8");
     assert.match(readme, /<code>r\[data\.field\.unique\]<\/code>/);
+  });
+
+  test("renders footnotes as small references and a notes section at the page end", async () => {
+    const data = await readFile(join(scratch, "pages", "spec/08-data-and-enums.html"), "utf8");
+    assert.doesNotMatch(data, /\[\^miku\]/, "no footnote syntax is left as text");
+    // The reference sits inside the Note callout that cites it.
+    assert.match(
+      data,
+      /<blockquote class="callout callout-note">(?:(?!<\/blockquote>)[\s\S])*<sup class="footnote-ref"><a href="#fn-miku" id="fnref-miku" aria-label="Footnote 1">1<\/a><\/sup>/,
+    );
+    const notes = data.indexOf('<section class="footnotes" aria-label="Footnotes">');
+    assert.ok(notes > data.lastIndexOf("r-data.unsupported"), "the notes follow the last rule");
+    assert.match(
+      data.slice(notes),
+      /^<section class="footnotes" aria-label="Footnotes">\s*<ol class="footnotes-list">\s*<li id="fn-miku" class="footnote-item"><p>39 reads as .*<a href="#fnref-miku" class="footnote-backref" aria-label="Back to the reference">/,
+    );
+
+    const md = createMarkdown();
+    const env: RenderEnv = {
+      source: "spec/example.md",
+      resolveLink: (href) => href,
+      playgroundUrl: () => "",
+      headings: [],
+      slugCounts: new Map(),
+    };
+    const html = md.render(
+      "- One.[^a]\n- Two.[^a] Three.[^2]\n\n[^a]: Note a.\n[^2]: Note b.\n",
+      env,
+    );
+    assert.match(html, /<li>One\.<sup class="footnote-ref"><a href="#fn-a" id="fnref-a"/);
+    assert.match(html, /<li>Two\.<sup class="footnote-ref"><a href="#fn-a" id="fnref-a-2"/);
+    assert.match(html, /<a href="#fn-2" id="fnref-2" aria-label="Footnote 2">2<\/a>/);
+    assert.match(
+      html,
+      /href="#fnref-a" class="footnote-backref".*href="#fnref-a-2" class="footnote-backref"/,
+    );
   });
 
   test("serves a playground build at playground/ when one exists", async () => {

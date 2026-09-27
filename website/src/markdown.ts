@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 
 import markdownIt, { type MarkdownIt, type Token } from "markdown-it";
+import footnote from "markdown-it-footnote";
 
 import { parseSource } from "../../spec/reference-parser/parser.ts";
 import { isErrorExample, RULE_ID, ruleIdAnchor } from "../../spec/tools/spec-prose.ts";
@@ -261,8 +262,56 @@ function tryAction(code: string, env: RenderEnv): string {
 // markdown-it types the render environment loosely; every render here passes a RenderEnv.
 const asRenderEnv = (env: unknown): RenderEnv => env as RenderEnv;
 
+/**
+ * The anchor suffix of a footnote: its label when the label is a plain word,
+ * as in `[^miku]`, else its number. A second reference to the same footnote
+ * adds its index, so each reference has its own back-link target.
+ */
+function footnoteName(token: Token, withSubId: boolean): string {
+  const { id, label, subId } = token.meta as { id: number; label?: string; subId?: number };
+  const name = label !== undefined && /^[A-Za-z0-9_-]+$/.test(label) ? label : String(id + 1);
+  return withSubId && subId ? `${name}-${subId + 1}` : name;
+}
+
+/**
+ * Renders footnotes quietly: a small superscript number links to the note,
+ * and the notes gather in a footnotes section at the end of the page, each
+ * with a back-link to where it is referenced.
+ */
+function renderFootnotes(md: MarkdownIt): void {
+  md.use(footnote);
+  const rules = md.renderer.rules;
+  /** Claims anchor `id` on the page, failing when a heading slug or rule anchor holds it. */
+  const claim = (env: unknown, id: string): string => {
+    const renderEnv = asRenderEnv(env);
+    if (renderEnv.slugCounts.has(id))
+      throw new Error(`${renderEnv.source}: footnote anchor ${id} collides with another anchor`);
+    renderEnv.slugCounts.set(id, 1);
+    return escapeHtml(id);
+  };
+  rules.footnote_ref = (tokens, index, _options, env) => {
+    const token = tokens[index]!;
+    const note = escapeHtml(`fn-${footnoteName(token, false)}`);
+    const ref = claim(env, `fnref-${footnoteName(token, true)}`);
+    const number = Number((token.meta as { id: number }).id) + 1;
+    return `<sup class="footnote-ref"><a href="#${note}" id="${ref}" aria-label="Footnote ${number}">${number}</a></sup>`;
+  };
+  rules.footnote_block_open = () =>
+    '<section class="footnotes" aria-label="Footnotes">\n<ol class="footnotes-list">\n';
+  rules.footnote_block_close = () => "</ol>\n</section>\n";
+  rules.footnote_open = (tokens, index, _options, env) =>
+    `<li id="${claim(env, `fn-${footnoteName(tokens[index]!, false)}`)}" class="footnote-item">`;
+  rules.footnote_close = () => "</li>\n";
+  rules.footnote_anchor = (tokens, index) => {
+    const ref = escapeHtml(footnoteName(tokens[index]!, true));
+    // U+FE0E keeps the arrow from rendering as an emoji on iOS.
+    return ` <a href="#fnref-${ref}" class="footnote-backref" aria-label="Back to the reference">\u21a9\ufe0e</a>`;
+  };
+}
+
 export function createMarkdown(): MarkdownIt {
   const md = markdownIt({ html: false, linkify: false, typographer: false });
+  renderFootnotes(md);
   md.core.ruler.push("heading_ids", (state) => {
     assignHeadingIds(state.tokens, asRenderEnv(state.env));
   });

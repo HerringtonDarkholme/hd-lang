@@ -315,6 +315,26 @@ try {
         await page.evaluate(() => window.scrollBy(0, -70));
         await page.screenshot({ path: join(SCREENSHOTS, `${name}-fields.png`) });
       }
+      // A footnote reference is small, and the notes at the page end are muted.
+      const ref = page.locator(".callout-note sup.footnote-ref a").first();
+      const [refSize, textSize] = await ref.evaluate((node) => [
+        Number.parseFloat(getComputedStyle(node).fontSize),
+        Number.parseFloat(getComputedStyle(node.closest("p")!).fontSize),
+      ]);
+      assert.ok(refSize < textSize, `${view}: the footnote reference is smaller than its text`);
+      const [noteColor, bodyColor] = await page
+        .locator("section.footnotes")
+        .evaluate((node) => [getComputedStyle(node).color, getComputedStyle(document.body).color]);
+      assert.notEqual(noteColor, bodyColor, `${view}: the footnotes are muted`);
+      await ref.click();
+      const note = page.locator("#fn-miku");
+      assert.ok(await note.evaluate((node) => node.matches(":target")), `${view}: note target`);
+      if (SCREENSHOTS)
+        await page.screenshot({
+          path: join(SCREENSHOTS, `spec-rules-${colorScheme}-${width}-footnotes.png`),
+        });
+      await note.locator(".footnote-backref").click();
+      assert.ok(await ref.evaluate((node) => node.matches(":target")), `${view}: back-link target`);
       await page.context().close();
     }
   });

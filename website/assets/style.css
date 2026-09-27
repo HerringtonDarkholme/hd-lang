@@ -519,6 +519,72 @@ h4:hover .heading-anchor,
   border-left-color: var(--text-soft);
 }
 
+/* Footnotes: a small muted reference number, and the notes at the page's end. */
+
+.prose sup.footnote-ref {
+  font-size: 0.7em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.prose sup.footnote-ref a {
+  padding: 0 0.15em;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  border-radius: 3px;
+}
+
+.prose sup.footnote-ref a:hover,
+.prose sup.footnote-ref a:focus,
+.prose .footnote-backref:hover,
+.prose .footnote-backref:focus {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.prose sup.footnote-ref a:target {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.prose section.footnotes {
+  margin-top: 3em;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+
+.prose section.footnotes::before {
+  content: "";
+  display: block;
+  width: 4rem;
+  margin-bottom: 0.9em;
+  border-top: 1px solid var(--border);
+}
+
+.prose .footnotes-list {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.prose .footnote-item::marker {
+  font-variant-numeric: tabular-nums;
+}
+
+.prose .footnote-item > p {
+  margin: 0;
+}
+
+.prose .footnote-item:target {
+  color: var(--text);
+  background: var(--bg-soft);
+  border-radius: 4px;
+}
+
+.prose .footnote-backref {
+  color: var(--text-soft);
+}
+
 @media (max-width: 600px) {
   .rule-id {
     float: none;
