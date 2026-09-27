@@ -29,10 +29,8 @@ import {
   containsGenericType,
   genericTypeName,
   inferGenericType,
-  instantiateRowRequirement,
   matchTraitImplementation,
   normalizeBoundProjections,
-  requirementExclusions,
   requirementKeysMayCollide,
   resolveGenericType,
   rowParameterName,
@@ -80,41 +78,6 @@ export abstract class CallChecker extends StatementChecker {
           : this.providerValueType(key),
         span,
       };
-    const requestedRow = rowParameterName(key);
-    if (requestedRow) {
-      const availableIndex = this.signature.requirements.findIndex(
-        (requirement) => rowParameterName(requirement) === requestedRow,
-      );
-      if (availableIndex >= 0) {
-        const available = this.signature.requirements[availableIndex]!;
-        const requestedExcluded = new Set(requirementExclusions(key));
-        const restoredKeys = requirementExclusions(available).filter(
-          (excluded) => !requestedExcluded.has(excluded),
-        );
-        const restoredProviders = restoredKeys.map((restored) =>
-          this.resolveProvider(restored, span),
-        );
-        if (restoredProviders.every((provider) => provider !== undefined)) {
-          const base: HirExpression = {
-            kind: "provider-use",
-            providerIndex: availableIndex,
-            key: available,
-            type: `provider-row:${requestedRow}`,
-            span,
-          };
-          return restoredKeys.length === 0
-            ? base
-            : {
-                kind: "provider-pack",
-                keys: restoredKeys,
-                providers: restoredProviders as HirExpression[],
-                bases: [base],
-                type: `provider-row:${requestedRow}`,
-                span,
-              };
-        }
-      }
-    }
     if (!this.inferRequirements) return undefined;
     let inferredIndex = this.inferredRequirements.indexOf(key);
     if (inferredIndex < 0) {
@@ -152,7 +115,7 @@ export abstract class CallChecker extends StatementChecker {
       const substitution = rowSubstitutions.get(row);
       const keys =
         substitution &&
-        instantiateRowRequirement(requirement, substitution).map((key) =>
+        substitution.map((key) =>
           rowParameterName(key) ? key : substituteGenericType(key, substitutions, rowSubstitutions),
         );
       if (!keys) {
@@ -187,29 +150,6 @@ export abstract class CallChecker extends StatementChecker {
       });
     }
     return { providers, missing };
-  }
-
-  protected warnAbsentRowSubtractions(
-    requirements: readonly string[],
-    rowSubstitutions: ReadonlyMap<string, readonly string[]>,
-    span: SourceSpan,
-  ): void {
-    for (const requirement of requirements) {
-      const row = rowParameterName(requirement);
-      if (!row) continue;
-      const substitution = rowSubstitutions.get(row);
-      if (!substitution || substitution.some((entry) => rowParameterName(entry))) continue;
-      for (const excluded of requirementExclusions(requirement)) {
-        if (!substitution.includes(excluded)) {
-          this.diagnostics.push({
-            code: "requirement-subtract-absent",
-            message: `requirement '${excluded}' is absent from inferred row ${row}`,
-            span,
-            severity: "warning",
-          });
-        }
-      }
-    }
   }
 
   protected requireDrivableSuspension(expression: Expression): void {
@@ -431,7 +371,6 @@ export abstract class CallChecker extends StatementChecker {
         `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
         expression.span,
       );
-    this.warnAbsentRowSubtractions(signature.requirements, rowSubstitutions, expression.span);
     const { providers, missing } = this.resolveCallProviders(
       signature.requirements,
       substitutions,
@@ -441,7 +380,7 @@ export abstract class CallChecker extends StatementChecker {
     if (missing.length > 0)
       this.fail(
         "missing-requirement",
-        `method '${method.name}' requires ${missing.join(" + ")}`,
+        `method '${method.name}' requires ${missing.join(", ")}`,
         expression.span,
       );
     const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);

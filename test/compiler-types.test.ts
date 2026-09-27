@@ -44,10 +44,10 @@ test("empty generic requirement rows lower to null provider packs", () => {
   assert.match(compilation.wat, /ref\.null \$hd\.providers/);
 });
 
-test("generic row subtraction lowers a locally supplied provider", () => {
-  const source = conformance("runtime/valid/row-subtraction-provider-restoration");
+test("row extension lowers a locally supplied provider for the removed key", () => {
+  const source = conformance("runtime/valid/row-extension-provider-restoration");
   const compilation = compile(source);
-  assert.deepEqual(compilation.hir.functions[0]?.requirements, ["Backup", "row:R\\Logger"]);
+  assert.deepEqual(compilation.hir.functions[0]?.requirements, ["Backup", "row:R"]);
   assert.match(compilation.wat, /struct\.new \$hd\.providers/);
 });
 
@@ -152,11 +152,16 @@ test("default suspending trait methods lower for each implementation", () => {
   assert.match(compilation.wat, /func \$tadapt0_1/);
 });
 
-test("trait providers lower through generic row subtraction", () => {
+test("trait providers lower through generic row extension", () => {
   const source = conformance("runtime/valid/trait-value-as-provider");
   const compilation = compile(source);
   assert.match(compilation.wat, /field \$hd\.provider-value anyref/);
-  assert.match(compilation.wat, /ref\.cast \(ref null \$trait0\)/);
+  // The callback adapter takes the removed key as a typed trait provider
+  // beside the provider pack for R.
+  assert.match(
+    compilation.wat,
+    /param \$p0 \(ref null \$trait0\)\) \(param \$p1 \(ref null \$hd\.providers\)\)/,
+  );
 });
 
 test("erased generic trait bounds lower dictionary dispatch", () => {
@@ -320,7 +325,7 @@ fn main() -> i32 $ Clock: middle() + 1
 });
 
 test("provider scopes lower hidden provider locals", () => {
-  const source = `fn main() -> i32 $ Clock + Backup:
+  const source = `fn main() -> i32 $ Clock, Backup:
     _ := $.use(Clock)
     $.with(Clock=$.use(Backup)):
         _ := $.use(Clock)
@@ -330,14 +335,14 @@ test("provider scopes lower hidden provider locals", () => {
   assert.match(compilation.wat, /local\.set \$l0 \(local\.get \$provider0\)/);
 });
 
-test("concrete requirement rows normalize union and subtraction as sets", () => {
-  const result = analyze(conformance("typing/valid/requirement-row-ungrouped-subtraction"));
+test("concrete requirement rows normalize comma lists as sets", () => {
+  const result = analyze(conformance("typing/valid/requirement-row-duplicate-keys"));
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(result.hir?.functions[0]?.requirements, ["Clock"]);
+  assert.deepEqual(result.hir?.functions[0]?.requirements, ["Clock", "Logger"]);
 
-  const grouped = analyze(conformance("typing/valid/requirement-row-grouped-subtraction"));
+  const grouped = analyze(conformance("typing/valid/requirement-row-parenthesized-list"));
   assert.deepEqual(grouped.diagnostics, []);
-  assert.deepEqual(grouped.hir?.functions[0]?.requirements, ["Clock"]);
+  assert.deepEqual(grouped.hir?.functions[0]?.requirements, ["Clock", "Logger"]);
 
   const empty = analyze(conformance("typing/valid/explicit-empty-row"));
   assert.deepEqual(empty.diagnostics, []);

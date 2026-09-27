@@ -549,7 +549,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       if (missing.length > 0)
         this.fail(
           "missing-requirement",
-          `method '${method.name}' requires ${missing.join(" + ")}`,
+          `method '${method.name}' requires ${missing.join(", ")}`,
           expression.span,
         );
       return method.suspending
@@ -700,7 +700,6 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         rowSubstitutions,
       );
       const methodReceiver = this.requireCoercion(receiver, receiverParameter, receiver.span);
-      this.warnAbsentRowSubtractions(signature.requirements, rowSubstitutions, expression.span);
       const { providers, missing } = this.resolveCallProviders(
         signature.requirements,
         substitutions,
@@ -710,7 +709,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
       if (missing.length > 0)
         this.fail(
           "missing-requirement",
-          `method '${candidate.method.name}' requires ${missing.join(" + ")}`,
+          `method '${candidate.method.name}' requires ${missing.join(", ")}`,
           expression.span,
         );
       const resultType = substituteGenericType(signature.result, substitutions, rowSubstitutions);
@@ -852,7 +851,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
     if (missing.length > 0) {
       this.fail(
         "missing-requirement",
-        `closure call requires ${missing.join(" + ")}`,
+        `closure call requires ${missing.join(", ")}`,
         expression.span,
       );
     }
@@ -1125,7 +1124,6 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
         expression.span,
       );
-    this.warnAbsentRowSubtractions(signature.requirements, rowSubstitutions, expression.span);
     const { providers, missing } = this.resolveCallProviders(
       signature.requirements,
       substitutions,
@@ -1135,7 +1133,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
     if (missing.length > 0) {
       this.fail(
         "missing-requirement",
-        `call to '${signature.name}' requires ${missing.join(" + ")}`,
+        `call to '${signature.name}' requires ${missing.join(", ")}`,
         expression.span,
       );
     }

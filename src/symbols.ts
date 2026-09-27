@@ -602,7 +602,7 @@ export function formatDocumentation(symbol: SymbolInfo): string {
   if (symbol.omitted?.includes("result")) facts.push(`result: ${inferred(symbol.result)}`);
   if (symbol.omitted?.includes("requirements"))
     facts.push(
-      `requirements: ${inferred(symbol.requirements?.length === 0 ? "$()" : symbol.requirements && `$ ${symbol.requirements.join(" + ")}`)}`,
+      `requirements: ${inferred(symbol.requirements?.length === 0 ? "$()" : symbol.requirements && `$ ${symbol.requirements.join(", ")}`)}`,
     );
   if (symbol.omitted?.includes("type")) facts.push(`type: ${inferred(symbol.type)}`);
   if (facts.length > 0) lines.push("", ...facts);

@@ -127,7 +127,6 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
               `could not infer requirement-row parameter${unresolvedRows.length === 1 ? "" : "s"} ${unresolvedRows.join(", ")}`,
               expression.span,
             );
-          this.warnAbsentRowSubtractions(signature.requirements, rowSubstitutions, expression.span);
           const { providers, missing } = this.resolveCallProviders(
             signature.requirements,
             substitutions,
@@ -137,7 +136,7 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
           if (missing.length > 0)
             this.fail(
               "missing-requirement",
-              `call to '${signature.name}' requires ${missing.join(" + ")}`,
+              `call to '${signature.name}' requires ${missing.join(", ")}`,
               expression.span,
             );
           const resultType = substituteGenericType(

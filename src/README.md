@@ -325,19 +325,21 @@ else`, `break`, `break value`, and `continue`;
   implementations and bounds drive `for` loops and comprehensions, and
   collections satisfy `Iterable` bounds); declared `+T`/`-T` variance with
   readonly variance conversions; row-kinded data parameters such as
-  `Job[Logger + Clock]`; a dynamic trait value satisfying bounds on its own
+  `Job[$(Logger, Clock)]`; a dynamic trait value satisfying bounds on its own
   trait and supertraits through forwarding dictionaries;
 - concrete requirement rows with hidden `externref` provider threading and
   transitive call paths from `hd explain-requirements`;
-- normalized concrete row union/subtraction plus statically resolved `$.use`
+- comma-list requirement rows (`$ A, B` at a header end, `$(A, B)` inside a
+  type) normalized as sets, with `old-row-operator` for the removed `+` and
+  `-` spellings, plus statically resolved `$.use`
   (including ordered multi-provider tuple lookup) and lexical `$.with`
   provider overrides;
 - requirement-bearing closure types with invocation-time provider threading and
   least-row inference for requirements not satisfied by lexical providers;
 - generic requirement-row parameters with least-row inference, symbolic and
-  concrete row union, repeated-row consistency, symbolic subtraction, keyed
-  Wasm GC provider packs, lexical restoration of removed providers, and
-  absent-subtraction warnings;
+  concrete row union, repeated-row consistency, removal of a key by row
+  extension (`$(R, K)` in the callback row, `$ R` on the callee), keyed Wasm
+  GC provider packs, and lexical restoration of removed providers;
 - erased generic marker traits as provider keys, with call-site substitution
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for
@@ -396,7 +398,7 @@ else`, `break`, `break value`, and `continue`;
   instantiations, precise pattern bindings, and uniform `anyref` payload
   erasure in one Wasm GC layout per declaration;
 - trait values as lexical providers, including dispatch after generic
-  requirement-row packing and subtraction;
+  requirement-row packing and removal by extension;
 - reusable `$.Context[...]` values backed by GC structs, `$.context` creation,
   and left-to-right context spreading into contexts and lexical scopes;
 - stackless suspension frames with `fn!`, construction-time provider capture,

@@ -90,10 +90,10 @@ provider-aware nested calls, lexical provider
 capture by escaping closures, requirement-bearing closure types with concrete
 least-row inference, grouped and empty concrete rows, and transitive
 requirement-path explanations. S2 now also has generic row inference, least-row
-union, symbolic subtraction, keyed GC provider packs, lexical restoration of a
-subtracted key, composition of multiple symbolic rows with concrete keys,
-repeated-row mismatch checking, and the non-fatal
-`requirement-subtract-absent` warning. Erased generic marker traits now provide
+union, removal of a key by row extension, keyed GC provider packs, lexical
+restoration of a removed key, composition of multiple symbolic rows with
+concrete keys, and repeated-row mismatch checking. Rows are comma lists; the
+former `+` and `-` row operators report `old-row-operator`. Erased generic marker traits now provide
 canonical instantiated keys, substitute through generic calls, accept distinct
 concrete keys, and reject key expressions that can collide under substitution.
 Trait-backed provider examples with methods remain coupled to S4. The current surface and commands are tracked in
@@ -361,14 +361,14 @@ depend on later slices.
 
 Lower each concrete requirement row to hidden provider inputs. Implement
 `$.use`, `$.with`, `$.context`, concrete row normalization, row variables,
-union, and subtraction. Initially, providers may be host-supplied `externref`
+and union. Initially, providers may be host-supplied `externref`
 values; general user-defined dynamic trait values are deferred.
 
 Add an explanation view that prints the transitive requirements and their call
 paths.
 
 Done when the chapter-11 provider examples run and the selected missing-row,
-subtraction, and key-collision cases produce their specified diagnostics.
+row-extension, and key-collision cases produce their specified diagnostics.
 
 ### S3: Suspension
 
@@ -399,12 +399,12 @@ Instrument suspending provider calls with an event identity, provider key,
 operation, encoded arguments and result, and provider-configuration identity.
 Support record and replay in the Node runner.
 
-Temporary flags such as `--sem row-subtraction=<variant>` may compare unresolved
+Temporary flags such as `--sem row-extension=<variant>` may compare unresolved
 rules. Each flag must correspond to explicit fixtures. After a decision, remove
 the alternatives, update the owning specification and `OPEN_ISSUES.md`, and
 retain accepted and rejected conformance cases.
 
-Prioritize experiments for row subtraction, suspension abandonment,
+Prioritize experiments for row extension, suspension abandonment,
 cancellation, replay site identity, and provider compatibility during replay.
 
 ### S6: Annotations

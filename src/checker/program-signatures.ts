@@ -63,8 +63,7 @@ export function createProgramSignatures(
     }
     const rowParameterSet = new Set<string>();
     for (const requirement of declaration.requirements) {
-      const base = requirement.split("\\")[0]!;
-      if (declaredGenerics.has(base)) rowParameterSet.add(base);
+      if (declaredGenerics.has(requirement)) rowParameterSet.add(requirement);
     }
     declaration.parameters.forEach((parameter) =>
       collectRowParameterReferences(parameter.type.name, declaredGenerics, rowParameterSet),
@@ -257,7 +256,7 @@ export function createProgramSignatures(
           .find((candidate) => candidate !== undefined) ??
         firstPrivateSignatureType(declaration.result.name, program);
       const privateRequirement = declaration.requirements
-        .map((requirement) => firstPrivateSignatureType(requirement.split("\\")[0]!, program))
+        .map((requirement) => firstPrivateSignatureType(requirement, program))
         .find((candidate) => candidate !== undefined);
       if (privateType || privateRequirement) {
         const leaked = privateType ?? privateRequirement!;

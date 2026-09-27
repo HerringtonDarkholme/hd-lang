@@ -40,7 +40,7 @@ export abstract class ParserBase {
 
   protected abstract parseSuite(closureBody?: boolean): readonly Statement[];
   protected abstract parseStatement(topOrInline: boolean): Statement;
-  protected abstract parseRequirements(): readonly string[];
+  protected abstract parseRequirements(header?: boolean): readonly string[];
   protected abstract parseRequirementKey(): string;
   protected abstract parseExpressionSource(source: string): ExpressionParseResult;
 
@@ -264,21 +264,31 @@ export abstract class ParserBase {
     return topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text));
   }
 
-  // A type argument may be a row, `$()` or `A + B`, for a row-kinded
-  // parameter (02-grammar.md#types).
+  // A type argument may be a row, `$()` or `$(A, B)`, for a row-kinded
+  // parameter (02-grammar.md#types); a single key reads as a type.
   protected parseTypeArgument(): TypeRef {
     const start = this.current().span.start;
-    if (this.atText("$") && this.peek(1).text === "(" && this.peek(2).text === ")") {
+    if (this.atText("$") && this.peek(1).text === "(") {
       this.advance();
-      this.advance();
-      const close = this.advance();
-      return { name: "$()", span: { start, end: close.span.end } };
+      const keys = this.parseRequirements(false);
+      return { name: rowArgumentType(keys), span: { start, end: this.peek(-1).span.end } };
     }
-    const first = this.parseType();
-    if (!this.atText("+")) return first;
-    const keys = [first.name];
-    while (this.matchText("+")) keys.push(this.parseRequirementKey());
-    return { name: rowArgumentType(keys), span: { start, end: this.peek(-1).span.end } };
+    const argument = this.parseType();
+    this.rejectOldRowOperator();
+    return argument;
+  }
+
+  // `$ A + B` and `$ (R - K)` are the removed row union and subtraction.
+  protected rejectOldRowOperator(): void {
+    const operator = this.current();
+    if (operator.text !== "+" && operator.text !== "-") return;
+    this.fail(
+      "old-row-operator",
+      operator.text === "+"
+        ? "requirement rows are comma lists: write '$ A, B' before a header's ':' or '$(A, B)' inside a type"
+        : "row subtraction was removed: take the callback as 'fn(...) -> T $(R, K)' and declare '$ R' to remove K",
+      operator.span,
+    );
   }
 
   /** True when the current token starts on the line where the previous token ends. */

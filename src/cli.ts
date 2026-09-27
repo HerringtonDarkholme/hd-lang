@@ -216,7 +216,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       }
       for (const explanation of explainRequirements(result.hir)) {
         console.log(
-          `${explanation.functionName}: ${explanation.declared.length > 0 ? "$ " + explanation.declared.join(" + ") : "$()"}`,
+          `${explanation.functionName}: ${explanation.declared.length > 0 ? "$ " + explanation.declared.join(", ") : "$()"}`,
         );
         for (const requirement of explanation.paths)
           console.log(`  ${requirement.key}: ${requirement.path.join(" -> ")}`);

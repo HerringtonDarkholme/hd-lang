@@ -365,10 +365,7 @@ export function substituteGenericType(
       callable.requirements.flatMap((requirement) => {
         const row = rowParameterName(requirement);
         return row
-          ? instantiateRowRequirement(
-              requirement,
-              rowSubstitutions.get(row) ?? rowArgumentKeys(substitutions.get(row)) ?? [requirement],
-            )
+          ? (rowSubstitutions.get(row) ?? rowArgumentKeys(substitutions.get(row)) ?? [requirement])
           : [requirement];
       }),
       callable.variadic,
@@ -650,30 +647,11 @@ export function matchTraitImplementation(
 }
 
 export function rowParameterName(requirement: string): string | undefined {
-  return requirement.startsWith("row:")
-    ? requirement.slice("row:".length).split("\\")[0]
-    : undefined;
+  return requirement.startsWith("row:") ? requirement.slice("row:".length) : undefined;
 }
 
-export function requirementExclusions(requirement: string): readonly string[] {
-  return requirement.split("\\").slice(1);
-}
-
-export function symbolicRequirement(name: string, exclusions: readonly string[] = []): string {
-  return [`row:${name}`, ...normalizedRequirements(exclusions)].join("\\");
-}
-
-export function instantiateRowRequirement(
-  requirement: string,
-  substitution: readonly string[],
-): readonly string[] {
-  const exclusions = new Set(requirementExclusions(requirement));
-  return substitution.flatMap((entry) => {
-    const nested = rowParameterName(entry);
-    if (nested)
-      return [symbolicRequirement(nested, [...requirementExclusions(entry), ...exclusions])];
-    return exclusions.has(entry) ? [] : [entry];
-  });
+export function symbolicRequirement(name: string): string {
+  return `row:${name}`;
 }
 
 export function normalizedRequirements(requirements: readonly string[]): readonly string[] {
@@ -702,13 +680,11 @@ export function inferRequirementRows(
   const actualSet = new Set(actual);
   const missingConcrete = concrete.filter((requirement) => !actualSet.has(requirement));
   if (missingConcrete.length > 0) {
-    return `callable requirement row is missing ${missingConcrete.join(" + ")}`;
+    return `callable requirement row is missing ${missingConcrete.join(", ")}`;
   }
   const boundRequirements = formal.flatMap((requirement) => {
     const name = rowParameterName(requirement);
-    return name && substitutions.has(name)
-      ? instantiateRowRequirement(requirement, substitutions.get(name)!)
-      : [];
+    return name ? (substitutions.get(name) ?? []) : [];
   });
   const unbound = rowNames.filter((name) => !substitutions.has(name));
   if (unbound.length > 1) return undefined;
@@ -723,12 +699,12 @@ export function inferRequirementRows(
     ...concrete,
     ...formal.flatMap((requirement) => {
       const name = rowParameterName(requirement);
-      return name ? instantiateRowRequirement(requirement, substitutions.get(name) ?? []) : [];
+      return name ? (substitutions.get(name) ?? []) : [];
     }),
   ]);
   if (!sameRequirements(instantiated, actual)) {
     const names = rowNames.map((name) => `'${name}'`).join(" and ");
-    return `requirement-row parameter${rowNames.length === 1 ? "" : "s"} ${names} cannot match both ${instantiated.join(" + ") || "$()"} and ${normalizedRequirements(actual).join(" + ") || "$()"}`;
+    return `requirement-row parameter${rowNames.length === 1 ? "" : "s"} ${names} cannot match both $(${instantiated.join(", ")}) and $(${normalizedRequirements(actual).join(", ")})`;
   }
   return undefined;
 }
@@ -820,8 +796,7 @@ export function collectRowParameterReferences(
   const callable = functionParts(type);
   if (callable) {
     for (const requirement of callable.requirements) {
-      const base = requirement.split("\\")[0]!;
-      if (genericParameters.has(base)) output.add(base);
+      if (genericParameters.has(requirement)) output.add(requirement);
     }
     callable.parameters.forEach((parameter) =>
       collectRowParameterReferences(parameter, genericParameters, output),
@@ -842,9 +817,7 @@ export function resolveGenericRequirement(
   requirement: string,
   rowParameters: ReadonlySet<string>,
 ): readonly string[] {
-  const [base, ...excluded] = requirement.split("\\");
-  if (rowParameters.has(base!)) return [symbolicRequirement(base!, excluded)];
-  return excluded.includes(base!) ? [] : [base!];
+  return rowParameters.has(requirement) ? [symbolicRequirement(requirement)] : [requirement];
 }
 
 export function firstPrivateSignatureType(type: ValueType, program: Program): string | undefined {

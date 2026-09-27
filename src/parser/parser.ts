@@ -724,80 +724,29 @@ class Parser extends ExpressionParser {
     };
   }
 
-  protected parseRequirements(): readonly string[] {
-    if (this.atText("(") && this.peek(1).text === ")") {
-      this.advance();
-      this.advance();
-      return [];
-    }
-    return [...this.parseRequirementExpression()].sort();
-  }
-
-  protected parseRequirementExpression(): Set<string> {
-    const requirements = this.parseRequirementUnion();
-    while (this.matchText("-")) {
-      const removed = this.parseRequirementKey();
-      for (const requirement of Array.from(requirements)) {
-        const [base, ...excluded] = requirement.split("\\");
-        if (this.activeGenericParameters.has(base!)) {
-          requirements.delete(requirement);
-          requirements.add([base, ...new Set([...excluded, removed])].join("\\"));
-        } else if (base === removed) {
-          requirements.delete(requirement);
-        }
-      }
-    }
-    return requirements;
-  }
-
-  protected parseRequirementUnion(): Set<string> {
-    const requirements = this.parseRequirementTerm();
-    while (this.matchText("+")) {
-      for (const requirement of this.parseRequirementTerm())
-        this.unionRequirement(requirements, requirement);
-    }
-    return requirements;
-  }
-
-  protected unionRequirement(requirements: Set<string>, added: string): void {
-    const [addedBase, ...addedExcluded] = added.split("\\");
-    if (this.activeGenericParameters.has(addedBase!)) {
-      const concrete = new Set(
-        [...requirements].filter(
-          (requirement) =>
-            !requirement.includes("\\") && !this.activeGenericParameters.has(requirement),
-        ),
-      );
-      const effectiveExcluded = addedExcluded.filter((key) => !concrete.has(key));
-      const existing = [...requirements].find(
-        (requirement) => requirement.split("\\")[0] === addedBase,
-      );
-      if (existing) {
-        requirements.delete(existing);
-        const existingExcluded = new Set(existing.split("\\").slice(1));
-        const intersection = effectiveExcluded.filter((key) => existingExcluded.has(key));
-        requirements.add([addedBase, ...intersection].join("\\"));
-      } else {
-        requirements.add([addedBase, ...effectiveExcluded].join("\\"));
-      }
-      return;
-    }
-    for (const requirement of Array.from(requirements)) {
-      const [base, ...excluded] = requirement.split("\\");
-      if (!this.activeGenericParameters.has(base!) || !excluded.includes(addedBase!)) continue;
-      requirements.delete(requirement);
-      requirements.add([base, ...excluded.filter((key) => key !== addedBase)].join("\\"));
-    }
-    requirements.add(added);
-  }
-
-  protected parseRequirementTerm(): Set<string> {
+  // A requirement row is a comma list of keys (02-grammar.md#types). A single
+  // key may be bare; several keys are parenthesized, except that a declaration
+  // or closure header may list them bare because its clause ends at `:`.
+  protected parseRequirements(header = true): readonly string[] {
+    const keys: string[] = [];
     if (this.matchText("(")) {
-      const requirements = this.parseRequirementExpression();
+      if (!this.atText(")")) {
+        do keys.push(this.parseRowKey());
+        while (this.matchText(",") && !this.atText(")"));
+      }
       this.expectText(")");
-      return requirements;
+    } else {
+      keys.push(this.parseRowKey());
+      while (header && this.matchText(",")) keys.push(this.parseRowKey());
     }
-    return new Set([this.parseRequirementKey()]);
+    this.rejectOldRowOperator();
+    return [...new Set(keys)].sort();
+  }
+
+  protected parseRowKey(): string {
+    const key = this.parseRequirementKey();
+    this.rejectOldRowOperator();
+    return key;
   }
 
   protected parseRequirementKey(): string {
@@ -1116,7 +1065,12 @@ class Parser extends ExpressionParser {
       if (context.text !== "Context")
         this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
-      const requirements = this.parseRequirements();
+      // `$.Context[Key]` or `$.Context[$(A, B)]`; `$()` is the empty context.
+      let requirements: readonly string[];
+      if (this.matchText("$")) {
+        if (!this.atText("(")) this.expectText("(");
+        requirements = this.parseRequirements(false);
+      } else requirements = [this.parseRowKey()];
       const close = this.expectText("]");
       return { name: `context:${requirements.join("+")}`, span: { start, end: close.span.end } };
     }
@@ -1144,7 +1098,7 @@ class Parser extends ExpressionParser {
       this.rowlessResult = rowless;
       const result = this.parseType();
       const hasRequirements = !rowless && this.matchText("$");
-      const requirements = hasRequirements ? this.parseRequirements() : [];
+      const requirements = hasRequirements ? this.parseRequirements(false) : [];
       const end = hasRequirements ? this.peek(-1).span.end : result.span.end;
       const row = requirements.length ? `$${requirements.join("+")}` : "";
       return {
