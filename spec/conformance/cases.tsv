@@ -1085,3 +1085,6 @@ typing/invalid/bare-ok-call-pattern.hd	type	reject:bare-variant-pattern	06-contr
 runtime/valid/result-enum-spellings.hd	runtime	accept	04-type-system.md#result-types
 typing/valid/ok-err-are-not-prelude-names.hd	type	accept	10-modules.md#prelude
 runtime/valid/replace-empty-old.hd	runtime	accept	10-modules.md#prelude
+typing/invalid/embedded-non-data.hd	type	reject:embedded-non-data	08-data-and-enums.md#r-data.embed.data-only
+typing/invalid/embedded-collection-type.hd	type	reject:embedded-non-data	08-data-and-enums.md#r-data.embed.data-only
+typing/invalid/embedded-type-parameter.hd	type	reject:embedded-non-data	08-data-and-enums.md#r-data.embed.data-only

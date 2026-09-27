@@ -123,3 +123,6 @@ runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric 
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
 runtime/valid/inspectable-alias-and-newtype-identity.hd	check fails: expected-expression at line 7: expected an expression, found 'type'	F-254
 typing/invalid/error-implementation-local-type.hd	MVP reports expected-expression at line 6 instead of missing-supertrait-implementation: expected an expression, found 'enum'	F-254
+typing/invalid/embedded-non-data.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
+typing/invalid/embedded-collection-type.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA
+typing/invalid/embedded-type-parameter.hd	MVP accepts the program: embedded fields are not checked to name a data type	EMB-NON-DATA

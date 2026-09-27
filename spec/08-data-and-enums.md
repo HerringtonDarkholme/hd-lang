@@ -245,13 +245,22 @@ post := Post {
 2. r[data.embed.name] The embedded field's name is the embedded type name.
 3. r[data.embed.key] Construction uses that name as its key, followed by `...`, because the field receives a copy of the value.
 4. r[data.embed.named-type] Embedded shorthand accepts a named data type, including one with generic arguments.
-5. r[data.embed.generic-name] For `Box[T]`, the embedded field's name and construction key are `Box`; type arguments are not part of the key.
-6. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
+5. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
+6. r[data.embed.non-data] Such other types include enums, newtypes, trait value types, `Any`, builtin and collection types, function types, and type parameters.
+7. r[data.embed.generic-name] For `Box[T]`, the embedded field's name and construction key are `Box`; type arguments are not part of the key.
+8. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
 data Storage:
     Box[i32]
     Box[string]  # error: duplicate-embedded-field
+```
+
+```text
+data Holder[T]:
+    JobStatus  # error: embedded-non-data
+    List[i32]  # error: embedded-non-data
+    T          # error: embedded-non-data
 ```
 
 ### Embedding Limits

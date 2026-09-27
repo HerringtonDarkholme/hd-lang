@@ -1,0 +1,9 @@
+# test: embedding an enum is rejected; an embedded field must name a data type
+
+enum JobStatus:
+    Queued
+    Running
+
+data Job:
+    JobStatus  # diagnostic: embedded-non-data
+    id: string
