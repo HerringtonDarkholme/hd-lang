@@ -341,6 +341,22 @@ never needs an empty hand-written impl. Decided (Swift model): one `Eq` with
 Not yet applied to 09 (recorded in audit/types/QUESTIONS.md). Still under discussion: P1-P3 (the core walk), P5 (where
 configuration lives), and the rest of the stress test's problems.
 
+(M13, decided 2026-09-27; P5 of the stress test; supersedes the
+`visitor()` hook of M10 and M11) Derivation configuration is a type-level
+fact, not a trait member. A type-level annotation produces a fact on the
+type, exactly as a member annotation produces a fact on a member
+(`@json(case=.Camel)` on `data User`). A tier-2 block edits the type-level
+facts with an ordinary member line named `Self` (`Self = [facts]`,
+`Self += [facts]`), local to that block like every member line. A template
+reads the facts through `Structure` (for example
+`T::describe().facts.find[Style]()`) and falls back to its own default when
+none is present. No hook, no parameter, no empty impl; derived traits stay
+dynamically safe; nothing collides; configuration may differ per direction.
+Accepted cost: a missing or foreign fact silently means the default, not a
+compile error. Still open: how a tier-1 type-level annotation selects the
+templates it opts in to (stress test P13), now that no hook returns its
+type.
+
 ### Current Design: Full Example (M1-M11)
 
 This is the reference example for the design as decided on 2026-09-27. When
