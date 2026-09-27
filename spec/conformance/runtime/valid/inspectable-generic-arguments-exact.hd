@@ -1,0 +1,46 @@
+# test: runtime identity includes type arguments and matches them exactly
+# Spec 09 Inspectable And TypeId: identity is the declaration applied to its type arguments,
+# and no optional unwrapping takes place.
+use std.inspect.Inspectable
+use std.testing.assert
+
+data Box[T]:
+    value: T
+
+data User:
+    name: string
+
+fn is_int_box(value: Inspectable) -> bool:
+    match value.downcast[Box[i32]]():
+        .Some(_) => true
+        .None => false
+
+fn is_string_list(value: Inspectable) -> bool:
+    match value.downcast[List[string]]():
+        .Some(_) => true
+        .None => false
+
+fn is_user(value: Inspectable) -> bool:
+    match value.downcast[User]():
+        .Some(_) => true
+        .None => false
+
+fn is_optional_user(value: Inspectable) -> bool:
+    match value.downcast[User?]():
+        .Some(_) => true
+        .None => false
+
+test "generic arguments must match":
+    let ints: Box[i32] = Box { value: 1 }
+    let texts: Box[string] = Box { value: "one" }
+    assert(is_int_box(ints), reason="Box[i32] matches Box[i32]")
+    assert(!is_int_box(texts), reason="Box[string] does not match Box[i32]")
+    let words: List[string] = ["a"]
+    let numbers: List[i32] = [1]
+    assert(is_string_list(words), reason="List[string] matches")
+    assert(!is_string_list(numbers), reason="List[i32] does not match List[string]")
+
+test "an optional is not unwrapped":
+    let maybe: User? = User { name: "Ada" }
+    assert(!is_user(maybe), reason="User? is not User")
+    assert(is_optional_user(maybe), reason="User? matches User?")

@@ -21,6 +21,13 @@ import type {
   ValueType,
 } from "../hir.ts";
 import {
+  compactKey,
+  inspectKey,
+  usesStandardInspect,
+  type InspectEnvironment,
+} from "./inspectable.ts";
+import { INSPECTABLE } from "./standard-traits.ts";
+import {
   genericTypeName,
   matchTraitImplementation,
   normalizeBoundProjections,
@@ -620,7 +627,16 @@ export abstract class CheckerContext {
     const trait = traitName && this.traitTypes.get(traitName);
     if (trait) {
       const mutableTrait = mutableInner(expected) !== undefined;
-      if (mutableTrait && mutableInner(value.type) === undefined) return value;
+      const inspectTarget = this.isStandardInspectable(trait);
+      if (mutableTrait && mutableInner(value.type) === undefined) {
+        if (inspectTarget && inspectKey(value.type, this.inspectEnvironment()))
+          this.fail(
+            "mutable-upgrade",
+            `readonly type '${value.type}' cannot be erased to mut Inspectable`,
+            span,
+          );
+        return value;
+      }
       const expectedTraitKey = readonlyType(expected).slice("trait:".length);
       const expectedTraitArguments = nominalGenericParts(expectedTraitKey)?.arguments ?? [];
       const sourceTraitName = traitTypeName(value.type);
@@ -651,6 +667,23 @@ export abstract class CheckerContext {
         };
       }
       const implementationType = readonlyType(value.type);
+      const erasedParameter = inspectTarget ? genericTypeName(implementationType) : undefined;
+      if (erasedParameter) {
+        // Erasing `x: T` needs `T < Inspectable`; the bound's dictionary
+        // records the instantiated type (spec/09-traits.md#erasure-to-inspectable).
+        const boundIndex = this.signature.genericBounds.findIndex(
+          (bound) => bound.parameter === erasedParameter && bound.traitIndex === trait.index,
+        );
+        if (boundIndex >= 0)
+          return {
+            kind: "trait-bound",
+            value,
+            traitIndex: trait.index,
+            boundIndex,
+            type: expected,
+            span,
+          };
+      }
       const implementation = this.implementations.find((candidate) => {
         return Boolean(
           matchTraitImplementation(
@@ -679,14 +712,15 @@ export abstract class CheckerContext {
           span,
         };
       }
-      const builtin = mutableTrait
-        ? undefined
-        : this.builtinTraitDictionaryPlan(
-            trait.index,
-            implementationType,
-            expectedTraitArguments,
-            span,
-          );
+      const builtin =
+        mutableTrait && !inspectTarget
+          ? undefined
+          : this.builtinTraitDictionaryPlan(
+              trait.index,
+              implementationType,
+              expectedTraitArguments,
+              span,
+            );
       if (builtin) {
         return {
           kind: "trait-wrap",
@@ -814,10 +848,21 @@ export abstract class CheckerContext {
       ),
     );
     const supertraits = implementation.supertraitImplementations.map((parentIndex, index) => {
-      const parent = this.implementations[parentIndex]!;
       const parentArguments = trait.supertraits[index]!.traitArguments.map((argument) =>
         substituteGenericType(argument, traitSubstitutions),
       );
+      if (parentIndex < 0) {
+        // A compiler-supplied supertrait such as Inspectable has no source impl.
+        const builtin = this.builtinTraitDictionaryPlan(
+          trait.supertraits[index]!.traitIndex,
+          targetType,
+          parentArguments,
+          span,
+        );
+        if (builtin) return builtin;
+        throw new Error(`no implementation of supertrait ${index} for ${targetType}`);
+      }
+      const parent = this.implementations[parentIndex]!;
       return this.traitDictionaryPlan(parent, targetType, parentArguments, span, next);
     });
     return { bounds, implementationIndex: implementation.index, supertraits };
@@ -935,6 +980,22 @@ export abstract class CheckerContext {
     };
   }
 
+  /** The standard `Inspectable`, declared by a `std.inspect` or `std.error` import. */
+  protected isStandardInspectable(trait: HirTrait): boolean {
+    return trait.name === INSPECTABLE && usesStandardInspect(this.imports);
+  }
+
+  protected inspectEnvironment(): InspectEnvironment {
+    const inspectable = this.traitTypes.get(INSPECTABLE);
+    return {
+      nominal: (name) => this.dataTypes.has(name) || this.enumTypes.has(name),
+      inspectableParameter: (name) =>
+        this.signature.genericBounds.some(
+          (bound) => bound.parameter === name && bound.traitIndex === inspectable?.index,
+        ),
+    };
+  }
+
   // The standard library implements Display for the printable primitives and
   // string, PartialEq for primitives and equality-comparable built-in
   // composites, and PartialOrd for ordered ones (05-expressions.md). These
@@ -956,6 +1017,32 @@ export abstract class CheckerContext {
       builtin: HirBuiltinTraitImplementation,
       bounds: readonly HirExpression[] = [],
     ): HirTraitDictionaryPlan => ({ bounds, implementationIndex: -1, supertraits: [], builtin });
+    const trait = [...this.traitTypes.values()].find((candidate) => candidate.index === traitIndex);
+    if (trait && this.isStandardInspectable(trait)) {
+      const parts = inspectKey(type, this.inspectEnvironment());
+      if (!parts) return undefined;
+      const bounds: HirExpression[] = [];
+      const positions = new Map<string, number>();
+      const key = compactKey(parts).map((part) => {
+        if (typeof part === "string") return part;
+        let position = positions.get(part.generic);
+        if (position === undefined) {
+          position = bounds.length;
+          positions.set(part.generic, position);
+          bounds.push({
+            kind: "trait-bound-dictionary",
+            traitIndex,
+            boundIndex: this.signature.genericBounds.findIndex(
+              (bound) => bound.parameter === part.generic && bound.traitIndex === traitIndex,
+            ),
+            type: `trait:${INSPECTABLE}`,
+            span,
+          });
+        }
+        return { bound: position };
+      });
+      return plan({ kind: "inspectable", traitIndex, targetType: type, key }, bounds);
+    }
     if (traitName === "Display") {
       return ["i32", "f64", "bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })

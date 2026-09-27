@@ -1,0 +1,13 @@
+# test: a type declared in a block suite cannot implement Error, whose Inspectable supertrait it lacks
+# Spec 09 Error Trait: an impl Error whose target is not inspectable is missing-supertrait-implementation.
+use std.error.Error
+
+fn local() -> void:
+    enum LocalError:
+        Failed
+
+    impl Display for LocalError:
+        fn to_string(self) -> string: "failed"
+
+    impl Error for LocalError  # diagnostic: missing-supertrait-implementation
+    pass

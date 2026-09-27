@@ -3,9 +3,9 @@ F-250	48	Deferred features are rejected with generic or wrong diagnostics, not s
 F-253	14	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 F-255	9	Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown
 R-MUT	9	`$.use(mut K)` and other `mut` requirement keys are not implemented
+F-254	7	`type` declarations and local type/impl declarations are rejected as syntax errors
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 F-252	5	The parser rejects core grammar forms
-F-254	5	`type` declarations and local type/impl declarations are rejected as syntax errors
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks

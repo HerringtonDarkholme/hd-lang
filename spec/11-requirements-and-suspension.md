@@ -127,6 +127,14 @@ Requirement keys are traits, including interfaces such as `Database` and
 host capabilities such as `Clock` or `Network`. The language does not introduce
 a separate effect-declaration syntax.
 
+A trait that is `std.inspect.Inspectable` or has it as a direct or transitive
+supertrait is never a requirement key. Writing one as a key, in a
+requirement clause, a provider scope, or any other place a key is named, is
+an `inspectable-requirement` error reported on the key. Such a trait remains
+valid as a bound and as a value type. The rule keeps provider views
+attenuated: a provider reached through a key can never be tested for its
+concrete type ([Runtime Type Identity](09-traits.md#runtime-type-identity)).
+
 ## Provider Access
 
 `$.use` retrieves providers from the statically known current context:
@@ -622,7 +630,8 @@ and the ordered sequence of host-call results and waker and cancellation
 deliveries it receives. Code between host calls has no other source of
 nondeterminism; a runtime may therefore reproduce an instance by supplying the
 same inputs in the same order. Two things are outside this guarantee: hash
-values, which are not guaranteed stable across processes
+values other than those of a `TypeId`, which are not guaranteed stable across
+processes
 ([Comparison Traits](09-traits.md#comparison-traits)), and failures caused by
 host stack or memory limits.
 

@@ -350,7 +350,7 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
 
 One `parse_*` function per type stands in for a generic
 `parse[T < FromText](text)`: calling `T::parse` through a bound is still an
-open question ([Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-identity-and-reified)).
+open question ([Runtime Type Identity, item 2](OPEN_ISSUES.md#runtime-type-identity-and-reified)).
 
 ### `std.text`
 
@@ -483,21 +483,55 @@ it is the recommended final form.
 ### `std.error`
 
 ```text
-pub trait Error < Display:
+use std.inspect.Inspectable
+
+pub trait Error < Display + Inspectable:
     fn cause(self) -> Error?:
         .None
+
+    fn find[T < AnyRef + Inspectable](self) -> T?:
+        for part in chain(self):
+            match part.downcast[T]():
+                .Some(found) => return .Some(found)
+                .None => pass
+        .None
+
+pub fn chain(error: Error) -> List[Error]:
+    let found: mut List[Error] = [error]
+    let current: Error? = error.cause()
+    while true:
+        match current:
+            .Some(next) =>
+                found.append(next)
+                current = next.cause()
+            .None => break
+    found
+
+pub fn root_cause(error: Error) -> Error:
+    let current: Error = error
+    while true:
+        match current.cause():
+            .Some(next) => current = next
+            .None => break
+    current
 ```
 
-[Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified)
-already directs that the standard error trait extends `Inspectable`, so a
-chain can be searched for a concrete type with `downcast`. Until that issue
-lands, `Error` has only `Display` and `cause`. Domain errors (`FsError`,
-`HttpError`) are enums that implement `Error`.
+`Error` extends the sealed `Inspectable`
+([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)), so it
+inherits `downcast` and `downcast_mut`, and a chain can be searched for a
+concrete type. `error.find[T]()` is Go's `errors.As`: a default method,
+bounded like `downcast` ([Inspectable decisions 11 and 15](INSPECTABLE.md#owner-decisions)),
+that walks `chain` and returns the first part whose recorded type is exactly
+`T`. A value-type error payload is found with `chain` and
+`std.inspect.downcast_val`. `root_cause` returns the last part. Domain errors
+(`FsError`, `HttpError`) are enums that implement `Error`; their
+`Inspectable` part is supplied by the compiler.
 
-The specification fixes the trait's module, its `Display` supertrait, the
-rule that every member has a default, and that an erased `Error` never
-crosses a registered boundary ([Error Trait](../spec/09-traits.md#error-trait)).
-`cause`, `Context`, `.context(...)`, and `chain` are library API. How `?`
+The specification fixes the trait's module, its `Display` and `Inspectable`
+supertraits, the rule that every member has a default, and that an erased
+`Error` never crosses a registered boundary
+([Error Trait](../spec/09-traits.md#error-trait)). `cause`, `Context`,
+`.context(...)`, `chain`, `find`, and `root_cause` are library API. How `?`
 combines errors from several domains is specified in
 [Propagation](../spec/05-expressions.md#propagation), with the conversion
 trait `std.convert.From` in
@@ -1183,7 +1217,7 @@ language:
    so the result is typed rather than `Any`.
 4. **Static calls through a bound.** A generic `decode[T < Decode](json)` must
    call `T::decode`; see
-   [Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-identity-and-reified).
+   [Runtime Type Identity, item 2](OPEN_ISSUES.md#runtime-type-identity-and-reified).
 5. **Complete shape coverage** for every legal field type, or a clear rejection
    ([Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage)).
 6. **Field metadata** for renames, defaults, and skipping; annotations already
@@ -1314,8 +1348,7 @@ Stateful testing and replay artifacts wait for area 3's event log.
 | host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | which traits each profile marks mutable; `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2) | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule | [Implementation Targets](../spec/09-traits.md#implementation-targets) |
-| `std.num` (`parse[T]`), `std.json`, `std.testing` strategies | static calls through a bound | [Runtime Type Identity, question 2](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
-| `std.error` | `Inspectable` and `downcast` | [Runtime Type Identity](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
+| `std.num` (`parse[T]`), `std.json`, `std.testing` strategies | static calls through a bound | [Runtime Type Identity, item 2](OPEN_ISSUES.md#runtime-type-identity-and-reified) |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
 | schema output, tool adapters | shape cases for `mut`, trait values, `Any` | [Complete Runtime Shape Coverage](OPEN_ISSUES.md#complete-runtime-shape-coverage) |
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |

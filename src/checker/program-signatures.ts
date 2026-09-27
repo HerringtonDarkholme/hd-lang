@@ -1,3 +1,5 @@
+import type { SourceSpan } from "../diagnostics.ts";
+import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import type { FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType, resultParts } from "../types.ts";
@@ -318,4 +320,31 @@ export function createProgramSignatures(
     });
   });
   return signatures;
+}
+
+// 11 Requirement Rows: an Inspectable trait is never a requirement key.
+export function checkInspectableRequirements(
+  context: ProgramCheckContext,
+  declarations: readonly FunctionDecl[],
+): void {
+  for (const declaration of declarations)
+    for (const requirement of declaration.requirements)
+      inspectableRequirement(context, requirement.replace(/^mut\s+/, ""), declaration.span);
+}
+
+function inspectableRequirement(
+  context: ProgramCheckContext,
+  requirement: string,
+  span: SourceSpan,
+): boolean {
+  const keyTrait =
+    nominalGenericParts(requirement)?.name ?? mutableInner(requirement) ?? requirement;
+  if (!usesStandardInspect(context.imports) || !extendsInspectable(context.traitTypes, keyTrait))
+    return false;
+  context.diagnostics.push({
+    code: "inspectable-requirement",
+    message: `'${keyTrait}' extends Inspectable, so it cannot be a requirement key`,
+    span,
+  });
+  return true;
 }

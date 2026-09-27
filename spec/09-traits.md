@@ -217,12 +217,18 @@ the call is a `type-mismatch` error.
 ### Error Trait
 
 The standard library declares the standard error trait `Error` in
-`std.error`. `Error` is dynamically safe and has `Display` as a supertrait.
+`std.error`. `Error` is dynamically safe and has `Display` and the sealed
+`Inspectable` as supertraits, as in `trait Error < Display + Inspectable`.
 Every member it declares has a default, so an implementation needs no body:
-`impl Error for FsError` is complete when `FsError` implements `Display`.
-Those members, and error-chain helpers built on them, are standard-library
-API. `Error` is not a prelude name; code imports it with
-`use std.error.Error`.
+`impl Error for FsError` is complete when `FsError` implements `Display`,
+because the compiler supplies `Inspectable` for every inspectable type
+([Sealed Traits](#sealed-traits)). An `impl Error` whose target is not
+inspectable, such as a type declared in a block suite, is a
+`missing-supertrait-implementation` error. Those members, and error-chain
+helpers built on them, such as `cause`, `chain`, `find[T]`, and `root_cause`,
+are standard-library API. `Error` is not a prelude name; code imports it with
+`use std.error.Error`, and implementing it needs no import of
+`std.inspect`.
 
 The dynamic trait value `Error` is the erased application error. A
 `Result[T, Error]` holds any error that implements `Error`, and `?` reaches
@@ -234,7 +240,10 @@ point's `E < Display` requirement, so `pub fn main() -> Result[void, Error]`
 is a valid entry point. Like every dynamic trait value, an erased `Error` is
 not boundary-safe and never crosses a registered boundary
 ([Wasm Boundary](10-modules.md#wasm-boundary)); code converts it explicitly
-to a boundary-safe error type first.
+to a boundary-safe error type first. Because `Error` extends `Inspectable`,
+an erased `Error` inherits the `downcast` methods, so
+`error.downcast[FsError]()` recovers the concrete error
+([Runtime Type Identity](#runtime-type-identity)).
 
 ```text
 use std.error.Error
@@ -632,7 +641,10 @@ the value type names one complete instantiation.
 
 A child-trait bound or dynamic value exposes the methods of its transitive
 supertraits. A dynamic child-trait value widens implicitly to a supertrait
-value, losing access to child-only methods; there is no reverse downcast.
+value, losing access to child-only methods. No conversion reverses the
+widening; only a value of `Inspectable` or of a trait that extends it can
+recover its concrete type, through
+[Runtime Type Identity](#runtime-type-identity).
 
 A dynamic trait value type satisfies a generic bound on its own trait and on
 each direct or transitive supertrait of that trait. For a generic trait, the
@@ -664,7 +676,10 @@ implementation. The concrete type can be composite or primitive. Mutable
 dynamic access uses `mut Trait` and cannot be recovered from a readonly `Trait`
 value.
 
-Dynamic trait-value type tests and downcasts are not supported.
+A dynamic trait value supports a type test only when its trait is
+`Inspectable` or extends it, and the test recovers an exact concrete type
+([Runtime Type Identity](#runtime-type-identity)). No test asks whether a
+value implements another trait.
 
 ## `Any`
 
@@ -676,6 +691,266 @@ An optional value erases to `Any` like any other enum value. A bare `.None`
 still needs an expected optional type, so `let value: Any = .None` is a
 `missing-contextual-enum-type` error while `let value: Any? = .None` is valid.
 `mut Any` preserves mutable access to an erased composite value.
+
+## Sealed Traits
+
+A **sealed trait** is a standard trait whose implementations only the
+compiler and the standard library supply. User code may name a sealed trait
+in a bound, as a supertrait, and, where the trait is dynamically safe, as a
+value type, but it cannot implement one. The sealed traits are:
+
+| Trait | Implemented for |
+| --- | --- |
+| `Any` | every value type ([`Any`](#any)) |
+| `AnyVal` | the primitive types, `string`, and tuples ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| `AnyRef` | the reference values ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
+| `ShapeMetadata` | the concrete shape types ([Common Shape Representation](14-annotations.md#common-shape-representation)) |
+| `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
+
+An `impl` of a sealed trait outside the standard library is a
+`sealed-trait-implementation` error, reported on the `impl` line, whatever
+its target.
+
+The compiler supplies the implementations listed for each sealed trait. A
+compiler-supplied implementation behaves like an explicit one: it satisfies
+bounds, constructs dynamic trait values, and counts for supertrait checks. It
+cannot be replaced or overridden. A trait that has a sealed trait as a direct
+or transitive supertrait must not declare a member with the name of one of
+that sealed trait's members, and an implementation of such a trait must not
+write one. Either is a `sealed-trait-implementation` error, reported on the
+member, in place of `duplicate-trait-member`. An inherent method with the
+same name is allowed. Ordinary method lookup finds it on the concrete type,
+and it changes nothing that the compiler-supplied implementation reports.
+
+A trait that extends a sealed trait is declared and implemented normally.
+Its implementation writes only the child's members; the sealed supertrait's
+implementation comes from the compiler. When the target is not a type the
+compiler supplies the sealed trait for, the implementation is a
+`missing-supertrait-implementation` error, as for any missing supertrait.
+
+## Runtime Type Identity
+
+The standard module `std.inspect` lets a program erase a value so that its
+concrete type can be recovered later. Its names are not prelude names; code
+imports them, as in `use std.inspect.{Inspectable, TypeId, downcast_val}`.
+
+```text
+trait Inspectable:
+    fn runtime_type(self) -> TypeId
+    fn downcast[T < AnyRef + Inspectable](self) -> T?
+    fn downcast_mut[T < AnyRef + Inspectable](mut self) -> mut T?
+
+impl TypeId:
+    pub fn of[T < Inspectable]() -> TypeId
+
+pub fn downcast_val[T < Inspectable](value: Inspectable) -> T?
+```
+
+The block lists the public surface. `downcast` and `downcast_mut` are
+default methods whose bodies, like the other bodies, are standard-library
+code.
+
+### `Inspectable` And `TypeId`
+
+`Inspectable` is a sealed trait. It is dynamically safe: the method-level
+parameter of `downcast` and `downcast_mut` is bounded by `AnyRef`, which
+the dynamic-safety rule permits
+([Trait Values And `Any`](04-type-system.md#trait-values-and-any)). The
+compiler supplies its implementation for every
+[inspectable type](#inspectable-types); the implementation provides
+`runtime_type` and keeps the two default methods. `value.runtime_type()` returns the
+`TypeId` of the value's recorded type. For a value whose static type is
+concrete, that is its static type. For a dynamic value of `Inspectable`, or
+of a trait that has `Inspectable` as a supertrait, it is the concrete type
+recorded when the value was erased, never the trait.
+
+`TypeId` is an opaque data type. User code cannot construct one or read its
+fields. It implements `PartialEq`, `Eq`, `Hash`, and `Display`, and has the
+associated function `TypeId::of[T]()`, which returns the `TypeId` of `T`.
+Equality holds exactly when two `TypeId` values denote the same runtime
+identity, as defined below. `TypeId` has no other operations: it exposes no
+type arguments, fields, or shape, it cannot answer whether a type implements
+a trait, and nothing can be constructed or called through it.
+
+Two types have the same **runtime identity** when they are the same
+declaration applied to type arguments that have the same runtime identity,
+after transparent aliases are expanded and every `mut` is removed, at every
+level. For this rule the primitive types, `string`, `void`, `List`, `Map`,
+each tuple arity, and `Any` count as declarations, and a trait value type is
+its trait declaration applied to its arguments. Therefore:
+
+- a transparent alias and its target have the same identity, and a newtype
+  and its base type do not
+  ([Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes));
+- `Box[User]` and `Box[Post]` differ;
+- `User` and `mut User` are the same, and so are `List[User]` and
+  `List[mut User]`. The runtime does not track permission; permission is a
+  static discipline, carried by the signatures of `downcast` and
+  `downcast_mut`;
+- `i32` and `i64`, `User` and `User?`, and `List[FsError]` and `List[Error]`
+  differ. No numeric widening, optional injection, or variance applies;
+- two declarations named `User` in different modules differ.
+
+A `TypeId` depends only on the program's code identity
+([Runtime Boundary](11-requirements-and-suspension.md#runtime-boundary)). Its
+equality, hash, and printable name are therefore the same in every program
+instance, process, and run of one build. They carry no promise across builds,
+and a `TypeId` is not boundary-safe
+([Wasm Boundary](10-modules.md#wasm-boundary)); a tag that must persist is an
+explicit value with its own versioning.
+
+The printable name, produced by `Display`, spells the type canonically. A
+prelude name is written as it is, as in `i32`, `string`, `List[string]`, or
+`Map[string, i32]`. Every other nominal declaration, including the trait of
+a trait value type, is written by its absolute qualified name, as in
+`std.error.Error`. `Option[T]` is written `T?` and a tuple `(A, B)`, with
+`, ` between elements and type arguments. No `mut` appears. The name is for
+people and logs; nothing parses it back into a type.
+
+### Inspectable Types
+
+The compiler supplies `Inspectable` for exactly these types, the
+**inspectable types**:
+
+1. the primitive types and `string`;
+2. a data, enum, or newtype declared at module level, public or private,
+   applied to inspectable type arguments. This includes `Option` and
+   `Result`, so `T?` is inspectable when `T` is. What the fields hold does
+   not matter: a data type with a function-typed field, and a newtype over a
+   function type, are inspectable, because identity is the declaration;
+3. `List[T]` and `Map[K, V]` with inspectable type arguments, and tuples of
+   inspectable elements;
+4. a dynamic value of `Inspectable` or of a trait with `Inspectable` as a
+   supertrait, which satisfies the trait by
+   [Dynamic Trait Values](#dynamic-trait-values);
+5. a type parameter bounded by `Inspectable` or by a trait that has it as a
+   supertrait.
+
+As a type argument only, `void`, any trait value type, and `Any` also count
+as inspectable, and they match exactly. `List[Display]`,
+`Result[void, FsError]`, and `Map[string, Any]` are inspectable.
+
+These are not inspectable, as values or as type arguments:
+
+- function types, closures, and function values;
+- `Suspend[T]` and suspension frames;
+- data, enum, newtype, and trait declarations local to a block suite;
+- `never`;
+- a type applied to a non-inspectable argument, such as `Box[fn() -> i32]`;
+- a type parameter without an `Inspectable` bound, whether or not it is
+  `reified`.
+
+A dynamic trait value whose trait does not have `Inspectable` as a
+supertrait, and `Any`, are not inspectable as values. Erasing to them stays
+one-way.
+
+### Erasure To `Inspectable`
+
+A value is erased to `Inspectable` by an expected type, like any other
+dynamic trait value: assignability rule 6 constructs an `Inspectable` value
+from an inspectable type
+([Assignability And Coercion](04-type-system.md#assignability-and-coercion)).
+There is no cast operator. A trait that extends `Inspectable` still needs its
+own explicit implementation; only its `Inspectable` part is supplied.
+
+- The recorded type is the static type of the value at the erasure site. For
+  a value of a type parameter `T < Inspectable`, it is the type `T` is
+  instantiated with, which the bound supplies at run time; a value built from
+  `T`, such as a `Box[T]`, records `Box` applied to that type.
+- Erasing a value of a type parameter requires an `Inspectable` bound on it.
+  `reified T` alone does not allow the erasure, and a value of a type
+  parameter without the bound is not assignable to `Inspectable`, which is a
+  `type-mismatch` error.
+- Widening a dynamic value of a trait that extends `Inspectable` to
+  `Inspectable` is ordinary supertrait widening (rule 7). The value keeps its
+  recorded concrete type; nothing is wrapped twice, including when a type
+  parameter is instantiated with such a trait value type.
+- `mut Inspectable` keeps mutable access to an erased composite root.
+  Erasing to it requires mutable access to the source; erasing a readonly
+  value to `mut Inspectable` is a `mutable-upgrade` error.
+
+```text
+use std.inspect.{Inspectable, TypeId}
+
+data Box[T]:
+    value: T
+
+fn erase[T < Inspectable](value: T) -> Inspectable:
+    Box { value: value }
+
+fn is_int_box(value: Inspectable) -> bool:
+    value.runtime_type() == TypeId::of[Box[i32]]()
+
+fn read_box(value: Inspectable) -> i32:
+    match value.downcast[Box[i32]]():
+        .Some(found) => found.value
+        .None => 0
+```
+
+`erase(1)` records `Box[i32]`, so `is_int_box` returns `true` for it and
+`read_box` returns `1`. `erase("one")` records `Box[string]`, and both
+functions take their other branch.
+
+### Recovering A Concrete Type
+
+`value.downcast[T]()` returns `.Some` of the value exactly when the value's
+recorded type has the same runtime identity as `T`, and `.None` otherwise.
+`value.downcast_mut[T]()` does the same through a mutable receiver and
+returns `mut T?`. `downcast_val[T](value)` does the same for any inspectable
+`T`, including the value types that `AnyRef` excludes, such as scalars,
+`string`, and tuples; its result is readonly. Type arguments must match
+exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased
+`List[FsError]` is not a `List[Error]`. No variance, numeric widening,
+optional unwrapping, newtype unwrapping, or supertrait search takes place,
+so an erased `User?` downcasts to `User?`, giving a `User??`, and never to
+`User`. A recovered reference value is the same reference that was erased,
+so `is` holds between them; a value without identity is unboxed.
+
+`downcast` and `downcast_mut` are ordinary default methods, inherited by
+every trait that extends `Inspectable`, such as `std.error.Error`.
+`downcast_val` is an ordinary generic function. No rule is specific to
+them; the ordinary rules give these results:
+
+- The `Inspectable` evidence for `T`, passed with each call like the evidence
+  for any bound, carries the runtime identity of `T`, so no `reified` marker
+  is needed. A generic function passes a target on through its own bound,
+  as in `fn get[T < AnyRef + Inspectable](value: Inspectable) -> T?`.
+- `downcast` yields a readonly `T`. `downcast_mut` has a `mut self`
+  receiver, so calling it through a readonly view is a
+  `mutable-receiver-required` error.
+- The target `T` is written, or inferred from the expected type, at the call.
+  It must be nameable there under ordinary visibility, so a private type of
+  another module cannot be recovered outside it.
+- A target that fails a bound is an `unsatisfied-trait-bound` error. `Any`,
+  `Display`, and function types fail `Inspectable` everywhere; `i32`,
+  `string`, and tuples fail `AnyRef`, so they are recovered with
+  `downcast_val`.
+
+Note: a concrete receiver uses its own compiler-supplied implementation, so
+`user.downcast[User]()` with `user: User` is valid and always returns
+`.Some`. A trait value target such as `error.downcast[Error]()` satisfies
+the bounds and always returns `.None`, because a recorded type is never a
+trait value type. Tools may warn about both.
+
+### Limits Of Runtime Identity
+
+- **No trait tests.** A test compares two runtime identities. Nothing asks
+  whether a value implements a trait, and a dynamic value of one trait is
+  never converted to an unrelated trait.
+- **No inspectable requirement keys.** A trait that is `Inspectable` or has
+  it as a supertrait is never a requirement key, so a provider view cannot be
+  tested to recover a concrete provider
+  ([Requirement Rows](11-requirements-and-suspension.md#requirement-rows)).
+- **Visible in signatures.** Only a value of an inspectable type can be
+  erased to `Inspectable`. A value of an unbounded type parameter, of `Any`,
+  or of a trait value type whose trait does not extend `Inspectable` cannot,
+  so a function can branch on a value's type only when a parameter type
+  names `Inspectable`, a trait extending it, or a parameter bounded by one of
+  them.
+- **Deterministic.** `runtime_type`, the `TypeId` operations, and
+  `downcast` are pure functions of the build and the value, and call no
+  provider.
 
 ## Embedding And Trait Satisfaction
 
@@ -793,6 +1068,8 @@ to provide its ordinary dot-call behavior, or the caller may use
 ## Unsupported Trait Extensions
 
 The language has no specialization, negative implementations, implicit
-structural conformance, or trait-value downcasting. Dynamic trait-value
+structural conformance, trait-to-trait assertions, or type tests other than
+exact-type recovery from `Inspectable` values
+([Runtime Type Identity](#runtime-type-identity)). Dynamic trait-value
 representation is an ABI detail and must preserve the dispatch semantics in
 this chapter.

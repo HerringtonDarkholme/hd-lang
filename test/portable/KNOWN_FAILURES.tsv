@@ -139,3 +139,5 @@ parse/valid/bracketed-suite-header-line.hd	parse fails: expected-comprehension-c
 parse/valid/same-line-loop-else.hd	parse fails: expected-expression at line 6: else does not close a same-line for or while suite	F-252
 parse/invalid/colon-generic-bound.hd	MVP parse accepts a generic bound written with ':'	F-710
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
+runtime/valid/inspectable-alias-and-newtype-identity.hd	check fails: expected-expression at line 7: expected an expression, found 'type'	F-254
+typing/invalid/error-implementation-local-type.hd	MVP reports expected-expression at line 6 instead of missing-supertrait-implementation: expected an expression, found 'enum'	F-254

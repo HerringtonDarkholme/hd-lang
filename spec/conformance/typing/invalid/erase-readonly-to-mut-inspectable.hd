@@ -1,0 +1,12 @@
+# test: erasing a readonly value to mut Inspectable is a mutable upgrade
+# Spec 09 Erasure To Inspectable: erasing to mut Inspectable requires mutable access to the source.
+use std.inspect.Inspectable
+
+data Counter:
+    count: i32
+
+fn keep(value: mut Inspectable) -> void:
+    pass
+
+fn erase(counter: Counter) -> void:
+    keep(counter)  # diagnostic: mutable-upgrade

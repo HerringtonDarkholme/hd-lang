@@ -120,7 +120,9 @@ specification	block	classification	fixture
 09-traits.md	17	accept	typing/valid/associated-type-bindings.hd
 09-traits.md	18	accept	typing/valid/prelude-surface.hd
 09-traits.md	19	accept	runtime/valid/dynamic-trait-value-satisfies-own-bound.hd
-09-traits.md	20	accept	typing/valid/trait-delegation.hd
+09-traits.md	20	illustrative-pseudocode	-
+09-traits.md	21	accept	runtime/valid/inspectable-erasure-example.hd
+09-traits.md	22	accept	typing/valid/trait-delegation.hd
 10-modules.md	1	filesystem-layout	-
 10-modules.md	2	filesystem-layout	-
 10-modules.md	3	accept	parse/valid/uses.hd

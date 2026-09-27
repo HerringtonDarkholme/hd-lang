@@ -237,6 +237,22 @@ else`, `break`, `break value`, and `continue`;
   instantiation by argument type, and a single-payload variant constructor
   is a function value (a dynamic trait value does not yet satisfy a bound on
   its own trait);
+- runtime type identity: importing a `std.inspect` name or `std.error.Error`
+  declares the sealed `Inspectable` (`std.error.Error` extends it) and
+  `TypeId`, a data type holding the canonical printable name; every
+  inspectable type erases to `Inspectable` or `mut Inspectable` through a
+  generated dictionary whose `runtime_type` builds that name, splicing in the
+  names carried by `T < Inspectable` dictionaries; `downcast`, `downcast_mut`,
+  `downcast_val`, and `TypeId::of` are checker intrinsics that compare names
+  and unwrap the stored payload; `impl Inspectable`, a redeclared or
+  implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
+  requirement key in a function's requirement clause are rejected. Not
+  covered: `Hash` for `TypeId`
+  (no `Hash` trait, F-255), `Any` as a type argument (F-255), a type
+  parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
+  closure types and provider scopes, qualified printable names (the
+  prototype has one module), and opaqueness (`TypeId { key: ... }` is
+  constructible);
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic

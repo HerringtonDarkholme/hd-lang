@@ -18,8 +18,8 @@ removed from this folder. What remains:
   prototype's fix list, grouped by ID.
 - [`bench/`](bench/): the small benchmark set kept for future direction.
 
-On 2026-09-26 the prototype passes 909 of the 1,049 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 140 are listed in
+On 2026-09-26 the prototype passes 932 of the 1,074 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 142 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below.
 
@@ -38,7 +38,10 @@ Every other applied decision is implemented in the prototype; the spec's
 Revision Notes in `spec/README.md` are the record. Three implemented
 decisions keep cases in the known failures under a finding: L2's
 `unsigned-exponent.hd` and TQ-4's literal-default cases need sized numeric
-types (F-253), and A3's optional-to-`Any` case needs `Any` (F-255).
+types (F-253), and A3's optional-to-`Any` case needs `Any` (F-255). Runtime type identity
+(Inspectable decisions 1 to 15) is implemented; its alias-and-newtype case
+and its local-type `impl Error` case need `type` and local declarations
+(F-254).
 
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 

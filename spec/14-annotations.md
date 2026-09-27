@@ -187,7 +187,9 @@ Every concrete shape type implements sealed `ShapeMetadata`; user code cannot
 add implementations. `metadata[M]()` performs the one narrow runtime type
 lookup supported for heterogeneous annotation metadata and preserves the
 attached value's declared permission. It does not add a general `Any`
-downcast. `TypeShape.is_optional() -> bool` is also a compiler-provided readonly
+downcast; recovering the concrete type of an erased value is the separate
+facility in [Runtime Type Identity](09-traits.md#runtime-type-identity), and
+a `TypeId` exposes no shape. `TypeShape.is_optional() -> bool` is also a compiler-provided readonly
 method and is true exactly for `TypeShape.Optional`.
 
 `TypeShape` does not yet encode mutable access, a dynamic trait value, `Any`, or

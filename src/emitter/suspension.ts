@@ -474,6 +474,7 @@ class SuspensionPlanBuilder {
       case "closure-self":
       case "trait-dictionary":
       case "trait-bound-dictionary":
+      case "inspect-type-id":
       case "provider-use":
         return continuation(expression);
       case "propagate":
@@ -572,9 +573,11 @@ class SuspensionPlanBuilder {
           context,
         );
       case "trait-bound":
+      case "trait-upcast":
+      case "inspect-downcast":
         return this.lowerExpression(
           expression.value,
-          (value) => continuation({ ...expression, value: value! }),
+          (value) => continuation({ ...expression, value: value! } as HirExpression),
           context,
         );
       case "trait-call":

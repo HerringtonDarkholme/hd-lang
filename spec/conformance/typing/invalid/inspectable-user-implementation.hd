@@ -1,0 +1,9 @@
+# test: user code cannot implement the sealed Inspectable trait
+# Spec 09 Sealed Traits: an impl of a sealed trait outside the standard library is rejected.
+use std.inspect.{Inspectable, TypeId}
+
+data User:
+    name: string
+
+impl Inspectable for User:  # diagnostic: sealed-trait-implementation
+    fn runtime_type(self) -> TypeId: TypeId::of[string]()
