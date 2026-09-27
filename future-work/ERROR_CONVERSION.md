@@ -109,6 +109,19 @@ Decided 2026-09-26:
     gets `P < Error` for each type parameter that is the type of a
     `@source`/`@from` member; a parameter that is only carried gets no
     bound. Tooling (`hd doc`) shows the inferred bounds.
+    (Gap 2, decided 2026-09-27) `@message`, `@from`, `@source`, and
+    `@transparent` are derive helper markers, as in Rust's derive helper
+    attributes: they exist only inside an item that says `@derive(Error)`,
+    are not names, cannot be imported, and cannot be shadowed by imports;
+    outside such an item they have no special meaning.
+    (Gap 3, decided 2026-09-27) Inside a variant's `@message`, unnamed
+    payload parameters are in scope as `_0`, `_1`, ... (zero-based, in
+    declaration order; unnamed parameters come first), so
+    `@message("not found: $_0")` on `NotFound(string)` works with ordinary
+    `$identifier` interpolation. Named members are in scope by name. The
+    spelling differs from tuple access (`pair.0`) because interpolation
+    takes an identifier. `@source` on an unnamed parameter needs no name
+    (`Io(@source FsError)`, decision 12).
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
     `@from`, `@source`, `@transparent`) and no more. It has no error codes:
     inside a program the typed variant is the code (`find[T]()` then
