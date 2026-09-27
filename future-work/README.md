@@ -18,6 +18,8 @@ language specification:
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and proposes how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
+- [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)
+  tests the current derivation design against 21 use cases and ranks the problems found, with questions for the owner.
 - [Nominal Function Types](FN_TYPE.md) proposes making function types
   standard generic constructors such as `Fn[(Is...), O, R]`, so they can be
   implementation targets, and compares per-declaration data for tool
