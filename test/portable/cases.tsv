@@ -994,3 +994,4 @@ typing/invalid/contravariant-representation-change.hd	type
 typing/invalid/covariant-embedded-field.hd	type
 typing/valid/row-kinded-arguments.hd	type
 typing/invalid/row-kind-mismatch.hd	type
+runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	runtime

@@ -1315,7 +1315,11 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     )
     .join("\n\n");
   const adapters = emitter.emitCallableAdapters();
-  const traitAdapters = [emitter.emitTraitAdapters(), emitter.emitBuiltinTraitAdapters()]
+  const traitAdapters = [
+    emitter.emitTraitAdapters(),
+    emitter.emitBuiltinTraitAdapters(),
+    emitter.emitForwardingAdapters(),
+  ]
     .filter(Boolean)
     .join("\n\n");
   const traitSuspensionHelpers = emitter.emitTraitSuspensionHelpers();

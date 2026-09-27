@@ -1,4 +1,4 @@
-import type { HirTraitDictionaryPlan, ValueType } from "../hir.ts";
+import type { HirTrait, HirTraitDictionaryPlan, ValueType } from "../hir.ts";
 import { genericTypeName } from "./shared.ts";
 import {
   functionParts,
@@ -169,4 +169,52 @@ export function weakenBoundedGenericActual(
     );
   }
   return actual;
+}
+
+/**
+ * A dynamic trait value type satisfies a bound on its own trait and on each
+ * supertrait (09-traits.md#dynamic-trait-values): the dictionary forwards to
+ * the value's own table, found along the supertrait path.
+ */
+export function forwardingPlan(
+  traits: ReadonlyMap<string, HirTrait>,
+  type: ValueType,
+  traitIndex: number,
+  traitArguments: readonly ValueType[],
+): HirTraitDictionaryPlan | undefined {
+  if (!type.startsWith("trait:")) return undefined;
+  const byIndex = new Map([...traits.values()].map((trait) => [trait.index, trait] as const));
+  const key = type.slice("trait:".length);
+  const source = traits.get(nominalGenericParts(key)?.name ?? key);
+  if (!source || traitArguments.length > 0) return undefined;
+  const search = (
+    trait: HirTrait,
+    path: readonly { readonly traitIndex: number; readonly fieldIndex: number }[],
+  ): typeof path | undefined => {
+    if (trait.index === traitIndex) return path;
+    for (const [fieldIndex, parent] of trait.supertraits.entries()) {
+      const next = byIndex.get(parent.traitIndex);
+      const found =
+        next && parent.traitArguments.length === 0
+          ? search(next, [...path, { traitIndex: trait.index, fieldIndex }])
+          : undefined;
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const path = search(source, []);
+  return path
+    ? {
+        bounds: [],
+        implementationIndex: -1,
+        supertraits: [],
+        builtin: {
+          kind: "forward",
+          traitIndex,
+          targetType: type,
+          sourceTraitIndex: source.index,
+          path,
+        },
+      }
+    : undefined;
 }

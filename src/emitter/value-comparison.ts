@@ -14,7 +14,7 @@ import {
   tupleParts,
 } from "../types.ts";
 import { EmitterContext } from "./context.ts";
-import { functionName } from "./shared.ts";
+import { functionName, methodBoundParameters, traitSuspensionName } from "./shared.ts";
 
 /** The receiver of a nested `runtime_type` read that composes a type argument's key. */
 const NESTED_TYPE_ID_RECEIVER = "(ref.i31 (i32.const 0))";
@@ -49,6 +49,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const trait = this.traitsByIndex.get(builtin.traitIndex)!;
     if (builtin.kind === "marker")
       return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list))`;
+    if (builtin.kind === "forward") return this.emitForwardingDictionary(builtin, value);
     const boundTraits = boundExpressions.map((bound) =>
       bound.kind === "trait-bound-dictionary" ? bound.traitIndex : -1,
     );
@@ -111,7 +112,87 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
   }
 
   get builtinTraitAdapterNames(): readonly string[] {
-    return [...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`);
+    return [
+      ...[...this.builtinTraitAdapters.values()].map((adapter) => `$tbuiltin${adapter.index}`),
+      ...[...this.forwardingAdapters.values()].flatMap((adapter) =>
+        this.traitsByIndex
+          .get(adapter.builtin.traitIndex)!
+          .methods.map((method) => `$tforward${adapter.index}_${method.index}`),
+      ),
+    ];
+  }
+
+  private readonly forwardingAdapters = new Map<
+    string,
+    {
+      readonly index: number;
+      readonly builtin: Extract<HirBuiltinTraitImplementation, { kind: "forward" }>;
+    }
+  >();
+
+  /** A dictionary for trait `builtin.traitIndex` whose methods forward to a dynamic value. */
+  private emitForwardingDictionary(
+    builtin: Extract<HirBuiltinTraitImplementation, { kind: "forward" }>,
+    value: string,
+  ): string {
+    const key = JSON.stringify(builtin);
+    let adapter = this.forwardingAdapters.get(key);
+    if (!adapter) {
+      adapter = { index: this.forwardingAdapters.size, builtin };
+      this.forwardingAdapters.set(key, adapter);
+    }
+    const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+    const methods = trait.methods.map(
+      (method) => `(ref.func $tforward${adapter.index}_${method.index})`,
+    );
+    const parents = trait.supertraits.map((parent, fieldIndex) =>
+      this.emitForwardingDictionary(
+        {
+          ...builtin,
+          traitIndex: parent.traitIndex,
+          path: [...builtin.path, { traitIndex: trait.index, fieldIndex }],
+        },
+        "(ref.null any)",
+      ),
+    );
+    return `(struct.new $trait${trait.index} ${value} (ref.null $hd.list)${[...methods, ...parents].map((part) => ` ${part}`).join("")})`;
+  }
+
+  /** The functions behind forwarding dictionaries, one per trait method. */
+  emitForwardingAdapters(): string {
+    return [...this.forwardingAdapters.values()]
+      .flatMap(({ index, builtin }) => {
+        const trait = this.traitsByIndex.get(builtin.traitIndex)!;
+        const source = `(ref.cast (ref $trait${builtin.sourceTraitIndex}) (local.get $self))`;
+        const dictionary = builtin.path.reduce(
+          (current, step) =>
+            `(struct.get $trait${step.traitIndex} $trait${step.traitIndex}s${step.fieldIndex} ${current})`,
+          source,
+        );
+        return trait.methods.map((method) => {
+          const parameters = method.parameters.map(
+            (parameter, parameterIndex) => `(param $a${parameterIndex} ${this.watType(parameter)})`,
+          );
+          const bounds = methodBoundParameters(method, "b");
+          const providers = method.requirements.map(
+            (requirement, providerIndex) =>
+              `(param $p${providerIndex} ${this.providerType(requirement)})`,
+          );
+          const result = method.suspending
+            ? ` (result (ref null ${traitSuspensionName(trait.index, method.index)}))`
+            : method.result === "void"
+              ? ""
+              : ` (result ${this.watType(method.result)})`;
+          const forwarded = [
+            ...method.parameters.map((_, parameterIndex) => `(local.get $a${parameterIndex})`),
+            ...bounds.map((_, boundIndex) => `(local.get $b${boundIndex})`),
+            ...method.requirements.map((_, providerIndex) => `(local.get $p${providerIndex})`),
+          ];
+          const call = `(call_ref $tsig${trait.index}_${method.index} (struct.get $trait${builtin.sourceTraitIndex} $trait${builtin.sourceTraitIndex}value ${source}) ${dictionary}${forwarded.map((part) => ` ${part}`).join("")} (struct.get $trait${trait.index} $trait${trait.index}m${method.index} ${dictionary}))`;
+          return `(func $tforward${index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...bounds, ...providers].join(" ")}${result}\n  ${call}\n)`;
+        });
+      })
+      .join("\n\n");
   }
 
   // Dictionary methods for standard-library implementations without a source
@@ -148,8 +229,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
           : `(struct.new $d${typeId} ${key})`;
       } else if (builtin.kind === "equality") {
         body = this.emitValueEquality(self, other(), builtin.targetType, builtin.strategy);
-      } else if (builtin.kind === "marker") {
-        throw new Error("a marker dictionary has no adapter");
+      } else if (builtin.kind === "marker" || builtin.kind === "forward") {
+        throw new Error(`a ${builtin.kind} dictionary has no builtin adapter`);
       } else if (builtin.kind === "iterable") {
         const map = nominalGenericParts(builtin.targetType)?.name === "Map";
         const collection = map

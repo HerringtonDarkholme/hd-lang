@@ -152,6 +152,16 @@ export type HirBuiltinTraitImplementation =
       readonly targetType: ValueType;
     }
   | {
+      // A dynamic value of trait `sourceTraitIndex` used where its own trait or
+      // a supertrait is bound: each method forwards through the value's own
+      // table, reached by the supertrait `path` (09-traits.md#dynamic-trait-values).
+      readonly kind: "forward";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+      readonly sourceTraitIndex: number;
+      readonly path: readonly { readonly traitIndex: number; readonly fieldIndex: number }[];
+    }
+  | {
       // The compiler-supplied `Any`: a dictionary with no methods.
       readonly kind: "marker";
       readonly traitIndex: number;
