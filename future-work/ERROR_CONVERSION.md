@@ -86,7 +86,12 @@ Decided 2026-09-26:
     always generated, so a hand-written `Display` cannot be combined with
     `@derive(Error)`; (E3) a `@transparent` variant's `cause()` returns the
     inner error's cause, as thiserror does, so `chain` does not repeat the
-    inner message.
+    inner message; (E4) `@source` may mark one member of a multi-member
+    variant or one field of a data-type error
+    (`Parse(path: string, line: i64, @source error: SyntaxError)`); a
+    variant has at most one `@source` or `@from` member; the member's type
+    is `E < Error` or `E?` (an absent optional cause gives `.None`);
+    `@from` stays one-payload; common enum fields cannot be `@source`.
     Generated impls are ordinary impls: a hand-written duplicate is
     `overlapping-impl`. Unmarked variants get no `From`, so
     `Invalid(reason: string)` never yields `From[string]`. This adds `Error`
