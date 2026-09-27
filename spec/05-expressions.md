@@ -33,6 +33,7 @@ The core place expressions are locals, fields, and index operations:
 4. r[expr.place.receiver] The receiver of a field or index place may be any expression of mutable composite type, including a call that returns mutable access.
 5. r[expr.place.not-places] `:=` bindings, literals, calls, arithmetic, and temporary values are not places.
 6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
+7. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
 
 ### Assignment
 
@@ -611,7 +612,7 @@ fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
 7. r[expr.is.no-wrapper] A direct conversion of a heap composite continues to preserve the composite's underlying identity and does not allocate an identity wrapper.
 8. r[expr.is.canonical] A payload-free enum value is canonical for its variant, and a fieldless data value is canonical for its data type.
 9. r[expr.is.canonical.same] Two occurrences of the same such value have the same identity, and constructing one allocates nothing.
-10. r[expr.is.shared-data] An enum variant that carries shared constructor data stores that data, so each construction has its own allocation identity even when the variant has no payload of its own.
+10. r[expr.is.shared-data-canonical] Shared constructor data is not stored in enum values, so a variant without a payload is canonical even when its enum declares shared data.
 11. r[expr.is.none] Optionals follow the same enum rules: `.None` is payload-free and canonical, so every `.None` of one optional type is the same value.
 12. r[expr.is.some] Each construction of `.Some(value)`, including the implicit wrap of a `T` where `T?` is expected, has its own identity, distinct from its payload's.
 

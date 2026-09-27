@@ -5,10 +5,10 @@ use std.testing.assert_equal
 enum Status(code: i32, doubled: i32 = code * 2):
     Unknown -> Status(21)
 
-enum Tagged[T](tag: T):
-    Value(value: T) -> Tagged(value)
+enum Tagged(tag: i32):
+    Value(value: i32) -> Tagged(21)
 
-fn read_tagged(value: Tagged[i32]) -> i32:
+fn read_tagged(value: Tagged) -> i32:
     match value:
         Tagged.Value(payload) => value.tag + payload
 

@@ -1,0 +1,8 @@
+# test: a payload-free enum has no automatic Eq
+
+enum Color:
+    Red
+    Green
+
+fn same(left: Color, right: Color) -> bool:
+    left == right  # diagnostic: missing-partial-eq

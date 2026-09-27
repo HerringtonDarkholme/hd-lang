@@ -1,0 +1,7 @@
+# test: shared enum data is read-only, even through a mutable enum root
+
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+
+fn rename(status: mut HttpStatus) -> void:
+    status.phrase = "Fine"  # diagnostic: invalid-assignment-target

@@ -216,7 +216,7 @@ trait Hash:
 
 1. r[trait.hash.module] The standard library defines `Hash` and `Hasher` in `std.hash`.
 2. r[trait.hash.map-key] A map key must implement both `Eq` and `Hash`.
-3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined data or enums.
+3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined data or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
 
 > **Note.** A readonly key can still change through another mutable alias,

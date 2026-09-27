@@ -8,12 +8,11 @@ enum Color:
     Red
     Green
 
-test "each construction of a shared-data variant has its own identity":
+test "a payload-free variant with shared data is canonical":
     first := Status.Ok
     second := Status.Ok
-    alias := first
-    assert(!(first is second), reason="two constructions of a shared-data variant are distinct")
-    assert(first is alias, reason="an alias shares the construction's identity")
+    assert(first is second, reason="shared data is not stored in the value")
+    assert(!(first is Status.Missing), reason="different variants are distinct")
 
 test "a variant that stores no data is canonical":
     first := Color.Red

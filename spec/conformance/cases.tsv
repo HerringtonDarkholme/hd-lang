@@ -1121,3 +1121,7 @@ typing/invalid/float-ord-bound.hd	type	reject:unsatisfied-trait-bound	09-traits.
 typing/invalid/partial-ord-requires-eq.hd	type	reject:missing-supertrait-implementation	09-traits.md#r-trait.cmp.partial-ordering
 runtime/valid/float-eq-bound.hd	runtime	accept	09-traits.md#r-trait.cmp.float-eq
 typing/valid/type-shape-mutable-field.hd	type	accept	14-annotations.md#common-shape-representation
+typing/invalid/enum-shared-field-assignment.hd	type	reject:invalid-assignment-target	08-data-and-enums.md#r-data.shared.read-only
+typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	08-data-and-enums.md#r-data.shared.no-payload
+typing/invalid/payload-free-enum-equality.hd	type	reject:missing-partial-eq	09-traits.md#r-trait.hash.not-inferred
+runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	08-data-and-enums.md#r-data.shared.per-variant

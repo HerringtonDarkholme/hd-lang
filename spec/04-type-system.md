@@ -869,9 +869,9 @@ This section defines which types may be map keys, and how keys behave.
 1. r[types.map-key.bound] `Map[K, V]` requires `K < Eq + Hash` and rejects a `mut T` key type.
 2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
 3. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
-4. r[types.map-key.builtin] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, payload-free enums, tuples of hashable elements, and optionals of hashable elements.
+4. r[types.map-key.builtin-types] Standard-library implementations cover eligible built-in scalar types and their supported compositions: `bool`, integers, `char`, `string`, tuples of hashable elements, and optionals of hashable elements.
 5. r[types.map-key.no-hash] Lists, maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
-6. r[types.map-key.user-impl] User data and stored enums require an explicit or derived implementation.
+6. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
 7. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
 8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
 
@@ -1043,13 +1043,20 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
 ### Composite Representation
 
 - A data type is a record of its fields. Scalar fields are stored unboxed.
-- An enum is a tagged representation. Payload-free variants are canonical
-  constants.
+- Every enum uses the reference shape, with one representation. A
+  payload-free variant, in any enum, is an `i31ref` holding its tag: it
+  allocates nothing, and `ref.eq` on it is its canonical identity. A variant
+  with a payload is a GC struct, one struct subtype per variant of the
+  enum's base type. An enum-typed slot is an `eqref`, and `match` tests for
+  `i31` first, then reads the struct's tag. There is no separate `i32` form.
+- Shared constructor data is a per-variant constant, stored once in a table
+  indexed by the tag and never in an enum value. A payload-free variant
+  therefore stays an `i31ref` tag even when its enum declares shared data.
 - A tuple is an immutable record typed by its element shapes. In locals,
   parameters, and results, it may be split into its elements.
-- `T?` is an enum like any other: `.None` is a canonical constant, which a
-  null reference may represent. `.Some(value)` is a tagged record holding
-  the value, unboxed for a scalar `T`. Because each `.Some` construction has
+- `T?` is an enum like any other: `.None` is a canonical constant, which
+  the `i31ref` tag or a null reference may represent. `.Some(value)` is a
+  tagged record holding the value, unboxed for a scalar `T`. Because each `.Some` construction has
   its own identity, a present value cannot be represented by the payload
   itself.
 - A list is a growable array of its element shape. A map is expected to use

@@ -214,11 +214,12 @@ specification	block	classification	fixture
 08-data-and-enums.md	27	accept	typing/valid/enums.hd
 08-data-and-enums.md	28	mixed	typing/invalid/shared-enum-default-order.hd
 08-data-and-enums.md	29	accept	typing/valid/enums.hd
-08-data-and-enums.md	30	accept	typing/valid/enums.hd
+08-data-and-enums.md	30	mixed	typing/invalid/enum-shared-constructor-payload.hd|typing/invalid/enum-shared-field-assignment.hd
 08-data-and-enums.md	31	accept	typing/valid/enums.hd
-08-data-and-enums.md	32	accept	typing/valid/contextual-variants.hd
-08-data-and-enums.md	33	mixed	typing/invalid/contextual-variant-binding-without-type.hd
-08-data-and-enums.md	34	pattern-fragment	-
+08-data-and-enums.md	32	accept	typing/valid/enums.hd
+08-data-and-enums.md	33	accept	typing/valid/contextual-variants.hd
+08-data-and-enums.md	34	mixed	typing/invalid/contextual-variant-binding-without-type.hd
+08-data-and-enums.md	35	pattern-fragment	-
 09-traits.md	1	accept	typing/valid/traits.hd
 09-traits.md	2	accept	typing/valid/trait-features.hd
 09-traits.md	3	mixed	typing/invalid/duplicate-trait-member.hd

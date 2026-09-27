@@ -329,3 +329,19 @@ style lint rejects a chapter that reuses one.
   `PartialEq`. Replaced by `expr.eq.calls-eq`.
 - `module.testing.partial-eq`: retired 2026-09-27. Owner decision EQ-1
   removed `PartialEq`. Replaced by `module.testing.uses-eq`.
+- `data.shared.value`: retired 2026-09-27. Enum semantics decision 4 stores
+  shared data per variant, not in each value. Replaced by
+  `data.shared.value-read` and `data.shared.not-stored`.
+- `data.shared.assignment`: retired 2026-09-27. Enum semantics decision 2
+  made shared data read-only. Replaced by `data.shared.read-only`.
+- `data.shared.default.eval`: retired 2026-09-27. Enum semantics decision 4
+  evaluates shared data once per variant at compile time. Replaced by
+  `data.shared.default.eval-once` and `data.shared.compile-time`.
+- `expr.is.shared-data`: retired 2026-09-27. Enum semantics decision 4
+  keeps shared data out of enum values, so it gives no identity. Replaced
+  by `expr.is.shared-data-canonical`.
+- `types.map-key.builtin`: retired 2026-09-27. Enum semantics decision 3
+  gives payload-free enums no automatic `Hash`. Replaced by
+  `types.map-key.builtin-types`.
+- `types.map-key.user-impl`: retired 2026-09-27. Enum semantics decision 3
+  covers every user enum. Replaced by `types.map-key.user-enums`.

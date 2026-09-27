@@ -1,0 +1,16 @@
+# test: every value of one variant has the same shared data, and identity compares variants
+
+use std.testing.assert_equal
+
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+    Moved(target: string) -> HttpStatus(301, phrase="Moved")
+
+test "values of one variant share their data":
+    first := HttpStatus.Moved(target="/a")
+    second := HttpStatus.Moved(target="/b")
+    assert_equal(first.code, second.code, reason="per-variant code")
+    assert_equal(first.phrase, "Moved", reason="per-variant phrase")
+
+test "a payload-free variant is canonical and needs no derive for identity":
+    assert_equal(HttpStatus.Ok is HttpStatus.Ok, true, reason="canonical identity")

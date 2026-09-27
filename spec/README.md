@@ -704,3 +704,18 @@ existing source. Each entry names the decision that made the change.
   `Newtype(base)` became `Newtype(decl, base)`. A shape of a type that uses
   mutable access, a trait value, `Any`, or `Suspend[T]`, previously
   `unrepresentable-type-shape`, is valid, and that code was removed.
+- Enum semantics (owner decisions 1 to 4, 2026-09-27): enums stay `AnyRef`
+  with today's identity rule, and an enum value never changes once built.
+  Shared constructor data is now a per-variant constant: each variant's
+  `->` expression and omitted defaults are evaluated once at compile time,
+  stored once per variant, and never in an enum value. Assigning a shared
+  field, previously valid through a `mut` enum root, is now
+  `invalid-assignment-target`. A `->` expression that names a payload
+  parameter is now `unknown-name`. Two constructions of a payload-free
+  variant whose enum declares shared data, previously distinct under `is`,
+  are now the same canonical value. Payload-free enums get no automatic
+  `Eq` or `Hash`: the chapter 04 statement that the standard library
+  implements `Hash` for them was withdrawn, so such an enum needs
+  `@derive(Eq, Hash)` to be a map key. The non-normative Implementation
+  Model now describes one enum representation: `i31ref` tags for
+  payload-free variants and one GC struct subtype per payload variant.

@@ -552,6 +552,8 @@ enum ToolError:
 3. r[data.enum.payload.typed] Each payload type is explicit.
 4. r[data.enum.payload.large] Large payloads should use a separate data type rather than a nested field block.
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
+6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
+7. r[data.enum.immutable.shallow] The rule is shallow. A payload declared `mut U` still refers to a mutable object, which may change through that reference.
 
 ### Variant Construction
 
@@ -634,13 +636,21 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 2. r[data.shared.parameters] Constructor parameters may be unnamed or named.
 3. r[data.shared.constructor] Each variant with shared enum data must provide its enum constructor expression after `->`.
 4. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default.
+5. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
+6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, by the evaluator that annotation values use, and it must be requirement-free.
+7. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
+8. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size or identity.
+
+> **Why.** Shared data describes a variant, like a Java or Kotlin enum
+> constant's constructor arguments. Data that differs from value to value
+> belongs in each variant's payload or in a wrapper data type.
 
 ### Shared Parameter Defaults
 
 1. r[data.shared.default] A shared parameter may declare a default expression.
 2. r[data.shared.default.order] After the first defaulted parameter, every following shared parameter must also have a default, as with function parameters. A later parameter without one is an error. Error: `default-order`.
 3. r[data.shared.default.requirement-free] The default must satisfy the same requirement-free rule as a function-parameter or data-field default.
-4. r[data.shared.default.eval] The default is evaluated for each construction when omitted.
+4. r[data.shared.default.eval-once] When omitted, the default is evaluated once for the variant, with the variant's constructor expression.
 5. r[data.shared.default.eval-order] Explicit argument expressions are evaluated first, then omitted defaults in parameter declaration order.
 6. r[data.shared.default.scope] A default may refer to earlier named shared parameters but not later ones.
 
@@ -658,15 +668,24 @@ code := StatusCode.NotFound._0
 phrase := HttpStatus.NotFound.phrase
 ```
 
-1. r[data.shared.value] Shared constructor data is part of every enum value.
+1. r[data.shared.value-read] Every enum value exposes its variant's shared data as fields.
 2. r[data.shared.named-field] A named constructor parameter is available as a field on the enum value.
 3. r[data.shared.underscore-field] An unnamed parameter uses zero-based tuple-style access, spelled `_0`, `_1`, and so on, as in `StatusCode.NotFound._0`.
 4. r[data.shared.permissions] Shared fields follow ordinary composite access permissions.
 5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
-6. r[data.shared.assignment] Assignment requires a mutable enum root and the required mutable edges.
+6. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a mutable enum root. Error: `invalid-assignment-target`.
 7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant.
 8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter.
 9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults.
+
+```text
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+    Moved(target: string) -> HttpStatus(301, phrase=target)  # error: unknown-name
+
+fn rename(status: mut HttpStatus) -> void:
+    status.phrase = "Fine"  # error: invalid-assignment-target
+```
 
 ## Generic And Recursive Enums
 
