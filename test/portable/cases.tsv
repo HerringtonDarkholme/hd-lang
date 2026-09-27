@@ -948,3 +948,6 @@ parse/invalid/same-line-let-comma.hd	parse
 parse/valid/raw-string-escaped-quote.hd	parse
 parse/invalid/colon-generic-bound.hd	parse
 runtime/valid/propagation-in-closure-targets-closure.hd	runtime
+runtime/valid/multibyte-scalar-strings.hd	runtime
+runtime/valid/trim-unicode-white-space.hd	runtime
+runtime/valid/replace-non-overlapping.hd	runtime

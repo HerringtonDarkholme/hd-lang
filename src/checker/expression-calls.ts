@@ -367,6 +367,7 @@ export abstract class ExpressionCallChecker extends InspectChecker {
         span: expression.span,
       };
     }
+    if (method === "replace") return this.checkStringReplace(expression, receiver);
     if (method !== "split" && method !== "starts_with") return undefined;
     if (expression.arguments.length !== 1)
       this.fail("argument-count", `string.${method} expects one argument`, expression.span);
@@ -404,6 +405,53 @@ export abstract class ExpressionCallChecker extends InspectChecker {
           type: "bool",
           span: expression.span,
         };
+  }
+
+  // `replace(self, old: string, replacement: string) -> string` (10 Prelude).
+  private checkStringReplace(
+    expression: MemberCallExpression,
+    receiver: HirExpression,
+  ): HirExpression {
+    const parameters = ["old", "replacement"];
+    if (expression.arguments.length !== parameters.length)
+      this.fail("argument-count", "string.replace expects two arguments", expression.span);
+    if (expression.argumentSpreads?.some(Boolean))
+      this.fail(
+        "positional-spread-needs-vararg",
+        "string.replace has no variadic parameter",
+        expression.span,
+      );
+    const slots: (HirExpression | undefined)[] = [undefined, undefined];
+    let positional = 0;
+    expression.arguments.forEach((argument, index) => {
+      const argumentName = expression.argumentNames?.[index];
+      const slot = argumentName === undefined ? positional++ : parameters.indexOf(argumentName);
+      if (slot < 0)
+        this.fail(
+          "unknown-named-argument",
+          `string.replace has no parameter named '${argumentName}'`,
+          argument.span,
+        );
+      if (slots[slot])
+        this.fail(
+          "duplicate-argument",
+          `string.replace received '${parameters[slot]}' more than once`,
+          argument.span,
+        );
+      slots[slot] = this.requireCoercion(
+        this.checkExpression(argument, "string"),
+        "string",
+        argument.span,
+      );
+    });
+    return {
+      kind: "string-replace",
+      receiver,
+      old: slots[0]!,
+      replacement: slots[1]!,
+      type: "string",
+      span: expression.span,
+    };
   }
 
   private checkDynamicMemberCall(

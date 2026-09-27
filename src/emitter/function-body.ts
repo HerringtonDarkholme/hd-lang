@@ -870,6 +870,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       case "string-split":
         this.stringSplit = true;
         return `(call $hd.string_split ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.separator)})`;
+      case "string-replace":
+        this.stringSplit = true;
+        return `(call $hd.string_replace ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.old)} ${this.emitExpression(expression.replacement)})`;
       case "string-starts-with":
         return `(call $hd.string_starts_with ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.prefix)})`;
       case "list-length":

@@ -391,6 +391,16 @@ class SuspensionPlanBuilder {
     switch (expression.kind) {
       case "string-build":
         return lowerValues(expression.segments, (segments) => ({ ...expression, segments }));
+      case "string-replace":
+        return lowerValues(
+          [expression.receiver, expression.old, expression.replacement],
+          ([receiver, old, replacement]) => ({
+            ...expression,
+            receiver: receiver!,
+            old: old!,
+            replacement: replacement!,
+          }),
+        );
       case "display":
       case "permission-weaken":
         return this.lowerExpression(

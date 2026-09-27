@@ -172,11 +172,19 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
   return { bits: view.getBigUint64(0, false).toString(16).padStart(16, "0"), kind: "f64" };
 }
 
+// `trim` removes exactly the Unicode White_Space property at both ends
+// (10 Prelude); JavaScript `trim` also removes U+FEFF and keeps U+0085.
+function trimWhiteSpace(value: string): string {
+  return value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+}
+
 function decodeHostValue(type: ValueType, encoded: EncodedHostValue): HostSuspensionValue {
   if (encoded.kind !== type)
     throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
   if (encoded.kind === "string")
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytesFromHex(encoded.utf8));
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytesFromHex(encoded.utf8),
+    );
   if (encoded.kind !== "f64") return canonicalHostValue(type, encoded.value);
   if (!/^[0-9a-f]{16}$/.test(encoded.bits))
     throw new Error(`replay f64 bits '${encoded.bits}' are invalid`);
@@ -230,13 +238,17 @@ export async function instantiate(
   const configurationId = options.providerConfigurationId ?? "default";
   const consoleBytes: number[] = [];
   const textEncoder = new TextEncoder();
-  const textDecoder = new TextDecoder("utf-8", { fatal: true });
+  // Strings are UTF-8 at every host boundary, so a leading U+FEFF is text, not
+  // a byte order mark to drop.
+  const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   const consoleByte = (provider: unknown, byte: number): void => {
     if (byte !== -1) {
       consoleBytes.push(byte);
       return;
     }
-    const text = new TextDecoder().decode(Uint8Array.from(consoleBytes));
+    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(
+      Uint8Array.from(consoleBytes),
+    );
     consoleBytes.length = 0;
     options.console?.(text, provider);
   };
@@ -466,7 +478,7 @@ export async function instantiate(
           const input = textDecoder.decode(Uint8Array.from(stringTransformInput));
           const transformed =
             stringTransformOperation === 0
-              ? input.trim()
+              ? trimWhiteSpace(input)
               : stringTransformOperation === 1
                 ? input.toLowerCase()
                 : undefined;

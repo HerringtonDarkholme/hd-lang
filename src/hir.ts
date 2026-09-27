@@ -467,6 +467,12 @@ export type HirExpression =
       readonly value: HirExpression;
     })
   | (HirExpressionBase & {
+      readonly kind: "string-replace";
+      readonly receiver: HirExpression;
+      readonly old: HirExpression;
+      readonly replacement: HirExpression;
+    })
+  | (HirExpressionBase & {
       readonly kind: "assert-equal";
       readonly arguments: readonly HirExpression[];
       readonly argumentParameterIndices?: readonly number[];

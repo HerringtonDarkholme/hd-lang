@@ -161,3 +161,133 @@
       (call $hd.string_slice
         (local.get $value) (local.get $start) (local.get $value-length)))
     (local.get $result))
+
+  ;; Copies `source` into `target` at `offset` and returns the offset after it.
+  (func $hd.string_copy_into
+    (param $target (ref $hd.bytes))
+    (param $offset i32)
+    (param $source (ref $hd.bytes))
+    (result i32)
+    (local $index i32)
+    (block $done
+      (loop $next
+        (br_if $done (i32.ge_u (local.get $index) (array.len (local.get $source))))
+        (array.set $hd.bytes
+          (local.get $target)
+          (i32.add (local.get $offset) (local.get $index))
+          (array.get_u $hd.bytes (local.get $source) (local.get $index)))
+        (local.set $index (i32.add (local.get $index) (i32.const 1)))
+        (br $next)))
+    (i32.add (local.get $offset) (array.len (local.get $source))))
+
+  ;; `replace` substitutes non-overlapping matches from left to right; an empty
+  ;; `old` inserts the replacement at every scalar boundary. A valid UTF-8
+  ;; needle can only match at a scalar boundary, so matching compares bytes.
+  (func $hd.string_replace
+    (param $value-source (ref null $hd.bytes))
+    (param $old-source (ref null $hd.bytes))
+    (param $replacement-source (ref null $hd.bytes))
+    (result (ref null $hd.bytes))
+    (local $value (ref $hd.bytes))
+    (local $old (ref $hd.bytes))
+    (local $replacement (ref $hd.bytes))
+    (local $result (ref $hd.bytes))
+    (local $value-length i32)
+    (local $old-length i32)
+    (local $replacement-length i32)
+    (local $position i32)
+    (local $matches i32)
+    (local $offset i32)
+    (local.set $value (ref.as_non_null (local.get $value-source)))
+    (local.set $old (ref.as_non_null (local.get $old-source)))
+    (local.set $replacement (ref.as_non_null (local.get $replacement-source)))
+    (local.set $value-length (array.len (local.get $value)))
+    (local.set $old-length (array.len (local.get $old)))
+    (local.set $replacement-length (array.len (local.get $replacement)))
+    (if (i32.eqz (local.get $old-length))
+      (then
+        (local.set $result
+          (array.new_default $hd.bytes
+            (i32.add
+              (local.get $value-length)
+              (i32.mul
+                (i32.add (call $hd.string_len (local.get $value)) (i32.const 1))
+                (local.get $replacement-length)))))
+        (local.set $offset
+          (call $hd.string_copy_into
+            (local.get $result) (i32.const 0) (local.get $replacement)))
+        (block $empty-done
+          (loop $empty-next
+            (br_if $empty-done
+              (i32.ge_u (local.get $position) (local.get $value-length)))
+            (array.set $hd.bytes
+              (local.get $result)
+              (local.get $offset)
+              (array.get_u $hd.bytes (local.get $value) (local.get $position)))
+            (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+            (local.set $position (i32.add (local.get $position) (i32.const 1)))
+            (if
+              (if (result i32)
+                (i32.ge_u (local.get $position) (local.get $value-length))
+                (then (i32.const 1))
+                (else
+                  (i32.ne
+                    (i32.and
+                      (array.get_u $hd.bytes (local.get $value) (local.get $position))
+                      (i32.const 192))
+                    (i32.const 128))))
+              (then
+                (local.set $offset
+                  (call $hd.string_copy_into
+                    (local.get $result) (local.get $offset) (local.get $replacement)))))
+            (br $empty-next)))
+        (return (local.get $result))))
+    (block $counted
+      (loop $count
+        (br_if $counted
+          (i32.gt_u (local.get $old-length)
+            (i32.sub (local.get $value-length) (local.get $position))))
+        (if (call $hd.string_match_at
+              (local.get $value) (local.get $old) (local.get $position))
+          (then
+            (local.set $matches (i32.add (local.get $matches) (i32.const 1)))
+            (local.set $position
+              (i32.add (local.get $position) (local.get $old-length))))
+          (else
+            (local.set $position (i32.add (local.get $position) (i32.const 1)))))
+        (br $count)))
+    (if (i32.eqz (local.get $matches))
+      (then (return (local.get $value))))
+    (local.set $result
+      (array.new_default $hd.bytes
+        (i32.add
+          (local.get $value-length)
+          (i32.mul
+            (local.get $matches)
+            (i32.sub (local.get $replacement-length) (local.get $old-length))))))
+    (local.set $position (i32.const 0))
+    (block $replace-done
+      (loop $replace
+        (br_if $replace-done
+          (i32.ge_u (local.get $position) (local.get $value-length)))
+        (if
+          (i32.and
+            (i32.le_u (local.get $old-length)
+              (i32.sub (local.get $value-length) (local.get $position)))
+            (call $hd.string_match_at
+              (local.get $value) (local.get $old) (local.get $position)))
+          (then
+            (local.set $offset
+              (call $hd.string_copy_into
+                (local.get $result) (local.get $offset) (local.get $replacement)))
+            (local.set $position
+              (i32.add (local.get $position) (local.get $old-length))))
+          (else
+            (array.set $hd.bytes
+              (local.get $result)
+              (local.get $offset)
+              (array.get_u $hd.bytes (local.get $value) (local.get $position)))
+            (local.set $offset (i32.add (local.get $offset) (i32.const 1)))
+            (local.set $position (i32.add (local.get $position) (i32.const 1)))))
+        (br $replace)))
+    (local.get $result))
