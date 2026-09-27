@@ -9,12 +9,32 @@ export interface SourceSpan {
   readonly end: SourcePosition;
 }
 
+/** A secondary location a diagnostic points to, such as an earlier declaration. */
+export interface RelatedSpan {
+  readonly message: string;
+  readonly span: SourceSpan;
+}
+
+/** One text replacement; an empty span inserts and an empty replacement deletes. */
+export interface TextEdit {
+  readonly span: SourceSpan;
+  readonly replacement: string;
+}
+
+/** A suggested fix: edits that, applied together, resolve the diagnostic. */
+export interface DiagnosticFix {
+  readonly message: string;
+  readonly edits: readonly TextEdit[];
+}
+
 export interface Diagnostic {
   readonly code: string;
   readonly message: string;
   readonly span: SourceSpan;
   readonly severity?: "error" | "warning";
   readonly notes?: readonly string[];
+  readonly related?: readonly RelatedSpan[];
+  readonly fix?: DiagnosticFix;
 }
 
 export class DiagnosticError extends Error {
