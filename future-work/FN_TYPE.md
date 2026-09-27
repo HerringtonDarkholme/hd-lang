@@ -53,8 +53,8 @@ Decided 2026-09-27:
    sugar needs no import; the spelled forms are imported where written.
 
 Requirement rows (raised the same day) are comma lists with no `+` or `-`,
-so a row type argument is written `$(Db, Cache)` (see the row sweep in
-spec 02 and 11). Question 6 disappeared with decision 2.
+so a row type argument is written `$(Db, Cache)`; applied to spec 02 and
+11 on 2026-09-27 (commits e176f5d to 9541c58). Question 6 disappeared with decision 2.
 
 9. **Q11: function values are `AnyRef` with unspecified identity, and
    cannot be compared** (revised 2026-09-27, following Scala, where
