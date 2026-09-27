@@ -1,5 +1,0 @@
-fn main() -> i32:
-    a := missing_one
-    b := missing_two()
-    c := MissingType { x: 1 }
-    0

@@ -1,4 +1,0 @@
-# test: List[f64] equality
-# expect: accept
-pub fn probe() -> bool:
-    [1.0] == [1.0]

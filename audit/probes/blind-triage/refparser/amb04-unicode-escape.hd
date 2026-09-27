@@ -1,4 +1,0 @@
-# test: AMB-04 \u{...} escape (spec 01 escapes)
-# expect: parse
-fn letter() -> string:
-    "\u{41}"

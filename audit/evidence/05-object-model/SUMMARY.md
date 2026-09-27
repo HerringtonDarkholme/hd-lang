@@ -5,6 +5,8 @@ coordinator wrote this file from the worker's final report. The coordinator
 reproduced F-500 independently
 (`audit/probes/coordinator/prim-partialeq.hd`:
 `missing-trait-implementation: type 'i32' does not implement PartialEq`).
+F-160 and F-500 are fixed; that probe and `failures-f160-f500.txt` were
+removed in the 2026-09-26 cleanup.
 
 ## Headline
 

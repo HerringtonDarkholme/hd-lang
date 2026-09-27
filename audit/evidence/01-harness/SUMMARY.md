@@ -4,6 +4,7 @@ Commit `bd985d7`, 2026-09-25. The audit worker could not write report
 files, so the coordinator wrote this summary from the worker's report and the
 evidence files below. The coordinator reproduced F-160 independently
 (`audit/probes/coordinator/f64-lt.hd`: `1.0 < 2.0` crashes in `src/wasm.ts`).
+F-160 is fixed, and that probe was removed in the 2026-09-26 cleanup.
 
 ## Evidence
 

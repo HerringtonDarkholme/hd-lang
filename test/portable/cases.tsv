@@ -896,3 +896,4 @@ parse/invalid/lone-reified-before-bound.hd	parse
 typing/invalid/none-beside-values-needs-expected-type.hd	type
 typing/invalid/none-branch-needs-expected-type.hd	type
 runtime/valid/none-with-expected-list-type.hd	runtime
+typing/invalid/lowercase-list-type.hd	type

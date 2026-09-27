@@ -7,11 +7,13 @@ evidence folder for each section is linked in place.
 
 **Since the audit:** the conformance work fixed every test-integrity,
 fixture-format, and reference-parser finding, and the owner's decisions are
-in the specification. This report now keeps only what is still open. The
-current compiler status is 673 of 810 conformance cases passing; each of the
-137 failures is listed in `test/portable/KNOWN_FAILURES.tsv` with a finding or
-decision ID, and [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv)
-groups them. Decision IDs are in [`README.md`](README.md).
+in the specification. This report now keeps only what is still open. On
+2026-09-26 the compiler passes 898 of the 1,036 conformance cases: the 898 in
+`test/portable/cases.tsv`, which `npm run test:portable` runs with 21
+fixture tests. Each of the other 138 is listed in
+`test/portable/KNOWN_FAILURES.tsv` with a finding or decision ID, and
+[`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) groups
+them. Decision IDs are in [`README.md`](README.md).
 
 ## 1. Verdict
 
@@ -70,7 +72,7 @@ replaced.
 | spec examples                             | 85 of 141 accept or mixed examples compile; 82 run cleanly        | [`02-coverage`](evidence/02-coverage/SUMMARY.md) |
 | spec edits in the MVP window              | 7 hunks: 0 relaxed; 179 fixtures touched, 0 weakened              | [`01-spec-edits`](evidence/01-spec-edits/SUMMARY.md) |
 | fuzzing                                   | 30,000 generated cases plus 1,000 cross-implementation cases: 0 phase-consistency violations, 0 cross-implementation disagreements, 17 findings (4 of them in the reference parser) | [`03-fuzz`](evidence/03-fuzz/SUMMARY.md) |
-| findings                                  | 112 filed (1 blocker, 31 major, 60 minor, 20 note); about 96 after merging cross-worker duplicates | [`findings-table.md`](evidence/findings-table.md) |
+| findings                                  | 112 filed (1 blocker, 31 major, 60 minor, 20 note); about 96 after merging cross-worker duplicates; 58 still open on 2026-09-26 | [`findings-table.md`](evidence/findings-table.md) |
 
 Blind pass rate by area:
 
@@ -108,7 +110,7 @@ Evidence: [`05-object-model`](evidence/05-object-model/SUMMARY.md),
 | generic data         | one erased struct with `anyref` fields                       | a box per primitive; a cast and unbox per read     |
 | enum                 | one flat struct per enum: tag plus the union of all variant fields | `match` is a linear if-chain on the tag      |
 | fieldless variant    | global singleton                                             | 0 allocations                                     |
-| `T?`, `Result`       | shared `{tag, anyref}` variant                               | `nil` allocates; a present `i32` costs 2 allocations |
+| `T?`, `Result`       | shared `{tag, anyref}` variant                               | `.None` allocates; a present `i32` costs 2 allocations |
 | tuple                | `anyref` array                                               | a box per scalar; a cast per read                  |
 | `List[T]`            | vector plus `anyref` array                                   | a box per element, even for concrete `List[i32]`  |
 | `Map[K, V]`          | parallel arrays, no hashing                                  | O(n) `get` and insert; O(n²) build                |
@@ -144,8 +146,9 @@ Measured costs:
   scalar code, and pair ratios are unchanged at `-O2`. V8 already removes
   most emission waste; the remaining costs come from the representation.
 - **Edit loop:** in-process compilation has an 11 ms median and never
-  exceeds 1 s. Command-line wall time has a 687 ms median, and 136 of 551
-  invocations exceed 1 s, dominated by loading Binaryen (F-560).
+  exceeds 1 s. Command-line wall time had a 687 ms median, and 136 of 551
+  invocations exceeded 1 s, dominated by loading Binaryen (F-560). On an
+  idle machine on 2026-09-26, `hd parse` takes 0.33 s, 0.2 s of it Binaryen.
 
 **Erasure verdict:** uniform erasure was the right MVP choice. As
 implemented, it is not a good long-term default. It needs:
@@ -176,7 +179,8 @@ Evidence: [`06-compiler`](evidence/06-compiler/SUMMARY.md).
     fields;
   - 13 functions sit at 258 to 300 lines against the 300 cap (re-measured
     2026-09-26);
-  - two files are within 10 lines of the 1,500-line cap (1,495 and 1,490);
+  - two files are within 12 lines of the 1,500-line cap (1,500 and 1,488 on
+    2026-09-26);
   - duplication is 31.7% within `emitter.ts`;
   - folder boundaries are clean (0 violations).
 - **Error recovery:** one error per function body; a signature error hides
@@ -211,7 +215,7 @@ multi-module or incremental work, it needs:
 ## 4. Key Findings
 
 Ranked by impact. Duplicates found by several workers are merged under one
-canonical ID, and the other IDs are listed. The 65 findings still open are in
+canonical ID, and the other IDs are listed. The 58 findings still open are in
 [`evidence/findings-table.md`](evidence/findings-table.md).
 
 ### Correctness
@@ -219,34 +223,35 @@ canonical ID, and the other IDs are listed. The 65 findings still open are in
 | Rank | ID                    | Severity | Finding                                                                                     |
 | ---- | --------------------- | -------- | ------------------------------------------------------------------------------------------- |
 | 1    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
-| 2    | F-252 (F-309)         | major    | the parser rejects core forms: same-line `if`/`else`, `use self.`/`super.`, unnamed payloads, tuple patterns |
+| 2    | F-252 (F-309, F-315)  | major    | the parser rejects core forms: unnamed payloads, tuple patterns, closing delimiters in nested suites, `else` after same-line loops |
 | 3    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
-| 4    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in replay                                 |
-| 5    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
-| 6    | F-401                 | minor    | replay accepts a changed executed non-suspending function and prints a different result     |
+| 4    | F-700                 | major    | optional `?` inside a closure type-checks, then emits WAT that Binaryen cannot parse        |
+| 5    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in the string bridge                      |
+| 6    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
+| 7    | F-401 (F-611)         | minor    | replay identity hashes each function's source: a changed helper replays, a reformatted one fails |
 
 ### Unimplemented features and codes
 
 | Rank | ID    | Severity | Finding                                                                                      |
 | ---- | ----- | -------- | -------------------------------------------------------------------------------------------- |
-| 7    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
-| 8    | F-155 | minor    | runtime panics carry no source location                                                      |
+| 8    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
+| 9    | F-155 | minor    | runtime panics carry no source location                                                      |
 
 ### Performance and architecture
 
 | Rank | ID    | Severity | Finding                                                                        |
 | ---- | ----- | -------- | ------------------------------------------------------------------------------ |
-| 9    | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
-| 10   | F-501 | major    | maps have no hashing                                                           |
-| 11   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
-| 12   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
+| 10   | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
+| 11   | F-501 | major    | maps have no hashing                                                           |
+| 12   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
+| 13   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
 
 Merged duplicates:
 
-- F-611 = F-264;
+- F-401 = F-611 = F-264;
 - F-265 = F-162 = F-306;
 - F-257 = F-352;
-- F-252 = F-309;
+- F-252 = F-309 = F-315;
 - F-250 = F-312.
 
 ## 5. Fuzzing
@@ -271,7 +276,8 @@ four fuzzers, plus 1,000 cross-implementation cases:
   class, so the common failure classes are exhausted.
 - 58.5% of `check` rejections carry one of 48 codes missing from the spec
   inventory (since fixed in the prototype).
-- Implementation bugs still open: F-310, F-311, F-315, F-316 (front end).
+- Implementation bugs still open: F-310 (front end); F-315 is merged into
+  F-252, and F-311 and F-316 are fixed.
 - Minimized findings are portable `.hd` fixtures in
   [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/); the ones the
   spec settles are now conformance cases.
