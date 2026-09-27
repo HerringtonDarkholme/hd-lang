@@ -119,8 +119,8 @@ Decided 2026-09-26:
     declaration order; unnamed parameters come first), so
     `@message("not found: $_0")` on `NotFound(string)` works with ordinary
     `$identifier` interpolation. Named members are in scope by name. The
-    spelling differs from tuple access (`pair.0`) because interpolation
-    takes an identifier. `@source` on an unnamed parameter needs no name
+    spelling matches tuple access, which becomes `pair._0` (audit TUP-1,
+    same day). `@source` on an unnamed parameter needs no name
     (`Io(@source FsError)`, decision 12).
     Scope: the intrinsic is Rust's `thiserror` moved into hd (messages,
     `@from`, `@source`, `@transparent`) and no more. It has no error codes:

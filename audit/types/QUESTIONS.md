@@ -14,7 +14,7 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 
 ## Decided, Not Yet Applied
 
-Decided 2026-09-26, except TQ-20 and EQ-1 (2026-09-27). None of these is in
+Decided 2026-09-26, except TQ-20, EQ-1, and TUP-1 (2026-09-27). None of these is in
 the specification yet.
 
 - **TQ-9** (TY-10). `Type::f` checks inherent, then implemented available
@@ -61,6 +61,16 @@ the specification yet.
   error. The limit is not configurable per package, and there are no
   Paterson-style structural conditions. (K2 removed `where` clauses, so the
   original question about predicate subjects no longer arises.)
+- **TUP-1**, decided 2026-09-27. Numeric member access is spelled with a
+  leading underscore: tuple elements are `pair._0`, `pair._1`, ...
+  (replacing `pair.0`), and an enum's unnamed shared constructor
+  parameters are `StatusCode.NotFound._0` (replacing `.0`). The spelling
+  is an ordinary identifier, so it also works in interpolation
+  (`"$_0"`) and removes the float-literal ambiguity of `t.0.1`. Inside a
+  variant's `@message`, unnamed payload parameters are in scope as `_0`,
+  `_1`, ... (ERROR_CONVERSION gap 3). This affects 01 (lexing of numeric
+  members), 05 (member and tuple selection), 08 (`data.shared.numeric-field`),
+  and every example, fixture, and prototype path that uses `.0`.
 - **EQ-1**, decided 2026-09-27 (the Swift model). `std.cmp` has one `Eq`
   trait, with `fn eq(self, other: Self) -> bool`, and `PartialEq` is
   dropped. Floats implement `Eq` with IEEE semantics, so `NaN != NaN`, a
