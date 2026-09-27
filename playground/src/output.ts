@@ -1,7 +1,7 @@
 // The output panel: console lines, the outcome line, and diagnostics that
 // jump to their source position when clicked.
 
-import type { RunDiagnostic, RunResult } from "./runner.ts";
+import type { RunDiagnostic, RunMode, RunResult } from "./runner.ts";
 
 export type Outcome = RunResult | "stopped" | "timeout";
 
@@ -49,17 +49,17 @@ export class OutputPanel {
     this.root.append(element("div", `outcome ${kind === "error" ? "failed" : "running"}`, text));
   }
 
-  finish(outcome: Outcome, mode: "run" | "check"): void {
+  finish(outcome: Outcome, mode: RunMode): void {
     this.root.querySelector(".outcome.running")?.remove();
     const header = this.outcomeLine(outcome, mode);
     this.root.prepend(header);
     if (typeof outcome === "string") return;
-    if (outcome.stdout.length === 0 && mode === "run" && outcome.status !== "compile-error")
+    if (outcome.stdout.length === 0 && mode !== "check" && outcome.status !== "compile-error")
       this.root.append(element("div", "empty", "(no console output)"));
     if (outcome.diagnostics.length > 0) this.root.append(this.diagnosticList(outcome.diagnostics));
   }
 
-  private outcomeLine(outcome: Outcome, mode: "run" | "check"): HTMLElement {
+  private outcomeLine(outcome: Outcome, mode: RunMode): HTMLElement {
     if (outcome === "stopped") return element("div", "outcome failed", "Stopped.");
     if (outcome === "timeout")
       return element(

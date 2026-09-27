@@ -24,14 +24,31 @@ or later.
   There is one token classifier, and
   [`test/highlight.test.ts`](test/highlight.test.ts) checks that the editor's
   classes match it.
-- **Run** (Ctrl+Enter or Cmd+Enter) compiles the project and runs its
-  `pub fn main` or script body. With no entry point, it runs the `test`
-  blocks, as `hd test` does. Console output streams into the output panel.
-  Runtime panics are reported with their panic code. A run longer than 15
-  seconds is stopped, and **Stop** ends a run early.
-- **Check** (Ctrl+Shift+Enter) type-checks only. Diagnostics show
-  `path:line:column` and the diagnostic code. Clicking one jumps to it, and
-  the editor underlines it.
+- **Run** (Ctrl+Enter or Cmd+Enter) compiles the project and runs it:
+  - when the entry module declares `main`, Run calls `pub fn main`, as
+    `hd run` does;
+  - without `main`, Run evaluates the entry module with REPL semantics
+    ([`src/repl.ts`](../src/repl.ts), the session `hd repl` uses). Each
+    top-level input runs in order: declarations join the session, statements
+    run, and each expression prints its value and type as the REPL prints
+    them, such as `42 : i32`. The first rejected input stops the run, and its
+    diagnostic points at the file's line. As in the REPL, declarations cannot
+    see top-level bindings. The other modules of a multi-file project become
+    the session's first declarations;
+  - a file without `main` whose top level holds only declarations runs its
+    `test` blocks, as before.
+
+  Console output streams into the output panel. Runtime panics are reported
+  with their panic code. A run longer than 15 seconds is stopped, and
+  **Stop** ends a run early.
+- **Check** (Ctrl+Shift+Enter) type-checks only, with the same semantics as
+  Run: a file without `main` is checked input by input, as the REPL would
+  check it, without running anything. Diagnostics show `path:line:column`
+  and the diagnostic code. Clicking one jumps to it, and the editor
+  underlines it.
+- **Test** runs the `test` blocks, as `hd test` does, whether or not the
+  entry module declares `main`. It checks the file as a module, so top-level
+  code must type-check as module initialization.
 - Files: `+` adds a module, double-click renames one, and `×` deletes one.
   `▸` makes a module the entry module, which is marked `main`.
 - **Share** copies a link that holds the whole project in the URL hash:
@@ -45,7 +62,8 @@ or later.
 - **Examples** bundles programs from [`../examples`](../examples),
   [`../spec/conformance/runtime/valid`](../spec/conformance/runtime/valid), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
-  run.
+  run. [`examples/top-level.hd`](examples/top-level.hd) has no `main` and
+  shows Run's REPL semantics.
 - Light and dark themes follow `prefers-color-scheme`. The layout stacks the
   editor and output on narrow screens.
 
@@ -55,7 +73,11 @@ or later.
 Web Worker, so a long compile or an endless loop never blocks the page.
 Stopping a run terminates the worker. `src/runner.ts` holds the pipeline:
 link, `analyze`, then `instantiate` and call the entry export with a
-`Console` provider, the default runtime profile. The compiler's two Node
+`Console` provider, the default runtime profile. Without `main`, it feeds the
+entry module's top-level inputs (`splitInputs` in
+[`src/repl-input.ts`](../src/repl-input.ts)) to a `ReplSession`.
+`src/compiler-client.ts` is the page side of the worker, shared with the
+website's REPL panel. The compiler's two Node
 dependencies get browser versions in `build.ts`:
 
 - the emitter's `.wat` runtime files, read with `node:fs`, are embedded as
@@ -65,6 +87,40 @@ dependencies get browser versions in `build.ts`:
 
 Binaryen's npm build already runs in browsers. It makes up most of the
 14.6 MB worker bundle, which the page loads in the background.
+
+## The Website REPL Panel
+
+Every page of the website has a REPL panel docked at the bottom. **›\_ REPL**
+or Ctrl+\` opens it over the page; Esc or Ctrl+\` closes it. It is the same
+REPL as `hd repl`, with the same commands (`:type EXPR`, `:source`,
+`:reset`, `:help`; `:quit` and Ctrl+D on an empty line close the panel):
+
+- the panel script, [`../website/client/repl.ts`](../website/client/repl.ts),
+  reads input with `needsMoreInput` from
+  [`src/repl-input.ts`](../src/repl-input.ts): Enter evaluates, while a line
+  ending in `:` or an open bracket continues and an empty line ends a block.
+  Shift+Enter always adds a line, Tab indents, and Up and Down recall
+  history, which is kept in `localStorage`. Input, echoed input, values, and
+  `:type` results are highlighted with `classify` from
+  [`src/highlight.ts`](../src/highlight.ts); errors show in red with their
+  `line:column` in the input;
+- the session runs in this playground's `worker.js`, through
+  `CompilerClient`. The worker answers each input with `respond` from
+  [`src/repl.ts`](../src/repl.ts), the function the terminal REPL calls. The
+  panel script is about 13 KB. The 14.6 MB worker loads only when the panel
+  first opens;
+- **Stop** ends an input that runs too long, and so does the 15-second
+  limit. The client replays the inputs the old worker had accepted into the
+  new one, so the session survives;
+- a code block that parses gets a **Try in REPL** button. It opens the panel
+  and evaluates the block's inputs in order, so declarations join the
+  session and statements and expressions run. A block that declares `main`
+  is a whole program, which the REPL cannot take because it supplies its own
+  `main`. Such a block gets a smaller **Open in playground** link instead.
+
+The website build bundles the panel only when `playground/dist/` exists, so
+build the playground first. `npm run website:e2e` drives the panel in a
+headless Chromium after both builds.
 
 ## Packages and Modules
 

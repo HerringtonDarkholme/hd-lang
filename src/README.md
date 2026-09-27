@@ -41,7 +41,11 @@ one program (`:source` shows it): declarations at the top level and statements
 in a synthesized `pub fn main() -> void $ Console`. Every input recompiles and
 reruns that program, skipping console output already shown, so declarations
 cannot see REPL bindings and suspending calls are not available. `:type EXPR`,
-`:reset`, `:help`, and `:quit` are the commands.
+`:reset`, `:help`, and `:quit` are the commands. The session and its
+commands live in `repl.ts` and its input rules in `repl-input.ts`; both run
+in a browser too. `repl-terminal.ts` adds the terminal front end. The
+website's REPL panel runs the same session in the playground's compiler
+worker ([`../playground/README.md`](../playground/README.md)).
 In a terminal the REPL colors the line being typed, printed values, and
 `:source` output (`src/highlight.ts`), and colors errors and warnings. Set
 `NO_COLOR` or `TERM=dumb` to turn coloring off; piped input is never colored.

@@ -1,0 +1,20 @@
+# No `main` here: Run evaluates each top-level input in order, the way the
+# REPL does, and prints every expression's value with its type.
+
+data Point:
+    x: i32
+    y: i32
+
+fn manhattan(point: Point) -> i32:
+    point.x + point.y
+
+corner := Point { x: 3, y: 4 }
+manhattan(corner)
+corner
+[corner.x, corner.y]
+
+let total: i32 = 0
+for n in [1, 2, 3]:
+    total = total + n
+    println("added $n")
+total * 10

@@ -9,8 +9,8 @@
   "scripts": {
     "check": "npm run check:types && npm run lint && npm run format:check && npm test && npm run fuzz:smoke && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p playground",
-    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
-    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
     "test": "npm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts' 'website/test/*.test.ts' 'playground/test/**/*.test.ts'",
     "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer contract,phase --fail-on phase --seed smoke --cases 100",
@@ -21,7 +21,8 @@
     "website:dev": "node --experimental-strip-types website/serve.ts",
     "playground:build": "node --experimental-strip-types playground/build.ts",
     "playground:dev": "node --experimental-strip-types playground/build.ts --serve",
-    "playground:e2e": "node --experimental-strip-types playground/e2e.ts"
+    "playground:e2e": "node --experimental-strip-types playground/e2e.ts",
+    "website:e2e": "node --experimental-strip-types website/e2e.ts"
   },
   "dependencies": {
     "binaryen": "132.0.0"

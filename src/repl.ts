@@ -1,10 +1,16 @@
-import { clearLine, createInterface, cursorTo } from "node:readline";
-
 import { analyze, instantiate, type CompileOptions } from "./compiler.ts";
 import type { Diagnostic } from "./diagnostics.ts";
-import { highlight, highlightLines } from "./highlight.ts";
 import type { HirData, HirEnum, HirProgram } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
+import { classifyInput } from "./repl-input.ts";
+
+export {
+  classifyInput,
+  needsMoreInput,
+  splitInputs,
+  type InputKind,
+  type SourceInput,
+} from "./repl-input.ts";
 
 // The REPL keeps a session as ordinary hd source: accepted declarations at the
 // top level, and accepted statements in the body of a synthesized entry point.
@@ -13,28 +19,6 @@ import { RuntimePanicError } from "./runtime-panic.ts";
 
 const VALUE = "__repl_value";
 const SHOW = "__repl_show";
-const DECLARATION_WORDS = new Set([
-  "fn",
-  "pub",
-  "data",
-  "enum",
-  "trait",
-  "impl",
-  "use",
-  "type",
-  "annotate",
-  "test",
-]);
-const STATEMENT_WORDS = new Set([
-  "let",
-  "for",
-  "while",
-  "return",
-  "defer",
-  "break",
-  "continue",
-  "pass",
-]);
 const DISPLAY_PRIMITIVES = new Set([
   "i8",
   "i16",
@@ -72,12 +56,15 @@ interface Attempt {
   readonly prefix?: number;
 }
 
+export interface EvaluateOptions {
+  /** False to type-check an input without running it; defaults to true. */
+  readonly run?: boolean;
+}
+
 interface RunResult {
   readonly lines: readonly string[];
   readonly error?: string;
 }
-
-export type InputKind = "declaration" | "statement" | "expression";
 
 export class ReplSession {
   private declarations: string[] = [];
@@ -100,13 +87,19 @@ export class ReplSession {
     return this.program(this.declarations, this.statements).source;
   }
 
-  async evaluate(input: string): Promise<ReplOutcome> {
+  /**
+   * Checks an input and, unless `run` is false, runs it. With `run: false`
+   * an accepted input is kept after type-checking, and an expression reports
+   * its type but no value. Checked statements run with the next input
+   * that does run, so use a session either to check or to run.
+   */
+  async evaluate(input: string, { run = true }: EvaluateOptions = {}): Promise<ReplOutcome> {
     const text = input.replace(/\s+$/, "");
     if (text.trim() === "") return { output: [], errors: [], warnings: [], accepted: true };
     const kind = classifyInput(text);
-    if (kind === "declaration") return this.evaluateDeclaration(text);
-    if (kind === "statement") return this.evaluateStatement(text);
-    return this.evaluateExpression(text);
+    if (kind === "declaration") return this.declare(text);
+    if (kind === "statement") return this.evaluateStatement(text, run);
+    return this.evaluateExpression(text, run);
   }
 
   /** The type of an expression, without running or keeping it. */
@@ -124,7 +117,8 @@ export class ReplSession {
       : { type: displayType(found), errors: [] };
   }
 
-  private async evaluateDeclaration(text: string): Promise<ReplOutcome> {
+  /** Adds `text` as top-level declarations, whatever its leading word. */
+  async declare(text: string): Promise<ReplOutcome> {
     const declarations = [...this.declarations, text];
     const attempt = this.program(declarations, this.statements, text);
     const analysis = analyze(attempt.source, this.options);
@@ -138,25 +132,25 @@ export class ReplSession {
     };
   }
 
-  private async evaluateStatement(text: string): Promise<ReplOutcome> {
+  private async evaluateStatement(text: string, execute: boolean): Promise<ReplOutcome> {
     const statements = [...this.statements, text];
     const attempt = this.program(this.declarations, statements);
     const analysis = analyze(attempt.source, this.options);
     if (!analysis.hir) return rejected(this.format(analysis.diagnostics, attempt));
+    const warnings = this.warnings(analysis.diagnostics, attempt);
+    if (!execute) {
+      this.statements = statements;
+      return { output: [], errors: [], warnings, accepted: true };
+    }
     const run = await this.run(attempt.source);
     if (run.error) return rejected([run.error], run.lines.slice(this.shownLines));
     const output = run.lines.slice(this.shownLines);
     this.statements = statements;
     this.shownLines = run.lines.length;
-    return {
-      output,
-      errors: [],
-      warnings: this.warnings(analysis.diagnostics, attempt),
-      accepted: true,
-    };
+    return { output, errors: [], warnings, accepted: true };
   }
 
-  private async evaluateExpression(text: string): Promise<ReplOutcome> {
+  private async evaluateExpression(text: string, execute: boolean): Promise<ReplOutcome> {
     const probe: Attempt = {
       ...this.program(this.declarations, [...this.statements, `${VALUE} := ${text}`]),
       prefix: `${VALUE} := `.length,
@@ -166,7 +160,7 @@ export class ReplSession {
       // A void call, or a statement form such as `if` without `else`, is not a
       // value; run it as a statement. Its diagnostics are reported unless it
       // does not even parse as a statement.
-      const statement = await this.evaluateStatement(text);
+      const statement = await this.evaluateStatement(text, execute);
       if (statement.accepted) return statement;
       const statementIsSyntax = statement.errors.every(isSyntaxMessage);
       const probeIsSyntax = analysis.diagnostics.every(({ code }) => isSyntaxCode(code));
@@ -175,6 +169,16 @@ export class ReplSession {
         : statement;
     }
     const type = valueType(analysis.hir) ?? "void";
+    if (!execute) {
+      this.statements = [...this.statements, `_ := ${text}`];
+      return {
+        output: [],
+        type: displayType(type),
+        errors: [],
+        warnings: this.warnings(analysis.diagnostics, probe),
+        accepted: true,
+      };
+    }
     const helpers = renderers(type, analysis.hir);
     const shown = this.program(
       [...this.declarations, ...helpers.declarations],
@@ -273,6 +277,35 @@ function isSyntaxMessage(message: string): boolean {
   return code !== undefined && isSyntaxCode(code);
 }
 
+/** A REPL error or warning line, split back into its parts. */
+export interface ReplMessage {
+  /** Line and column in the input, when the message points into it. */
+  readonly line?: number;
+  readonly column?: number;
+  /** A line of the session's program before the input, such as a declaration. */
+  readonly sessionLine?: number;
+  readonly severity: "error" | "warning";
+  /** A diagnostic code, `runtime-panic`, or `internal-error`. */
+  readonly code: string;
+  /** The diagnostic message, or the panic code for `runtime-panic`. */
+  readonly message: string;
+}
+
+/** Parses a line of `ReplOutcome.errors` or `ReplOutcome.warnings`. */
+export function parseReplMessage(text: string): ReplMessage {
+  const located = /^(session:)?(\d+):(\d+): (warning: )?([a-z0-9-]+): ([\s\S]*)$/.exec(text);
+  if (located) {
+    const [, session, line, column, warning, code, message] = located;
+    const position = session
+      ? { sessionLine: Number(line) }
+      : { line: Number(line), column: Number(column) };
+    return { ...position, severity: warning ? "warning" : "error", code: code!, message: message! };
+  }
+  const panic = /^panic: (.*)$/.exec(text);
+  if (panic) return { severity: "error", code: "runtime-panic", message: panic[1]! };
+  return { severity: "error", code: "internal-error", message: text };
+}
+
 function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string {
   const { line, column } = diagnostic.span.start;
   const relative = line - attempt.inputLine;
@@ -281,75 +314,6 @@ function formatReplDiagnostic(diagnostic: Diagnostic, attempt: Attempt): string 
     relative >= 1 ? `${relative}:${Math.max(1, column - shift)}` : `session:${line}:${column}`;
   const severity = diagnostic.severity === "warning" ? "warning: " : "";
   return `${where}: ${severity}${diagnostic.code}: ${diagnostic.message}`;
-}
-
-/** Classifies one complete input by its leading words and top-level tokens. */
-export function classifyInput(text: string): InputKind {
-  const first = text.trimStart();
-  const word = /^[A-Za-z_][A-Za-z0-9_]*/.exec(first)?.[0] ?? "";
-  if (first.startsWith("@")) return "declaration";
-  if (word === "fn") return /^fn!?\s*\(/.test(first) ? "expression" : "declaration";
-  // `use` is contextual: it begins a declaration only before a use root.
-  if (word === "use" && !/^use\s+(?:pkg|std|dep|self|super)\b/.test(first))
-    return hasTopLevelBinding(first.split("\n")[0]!) ? "statement" : "expression";
-  if (DECLARATION_WORDS.has(word)) return "declaration";
-  if (STATEMENT_WORDS.has(word)) return "statement";
-  return hasTopLevelBinding(first.split("\n")[0]!) ? "statement" : "expression";
-}
-
-function hasTopLevelBinding(line: string): boolean {
-  let depth = 0;
-  let quote: string | undefined;
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]!;
-    if (quote) {
-      if (character === "\\") index += 1;
-      else if (character === quote) quote = undefined;
-      continue;
-    }
-    if (character === '"' || character === "'") quote = character;
-    else if (character === "#") return false;
-    else if ("([{".includes(character)) depth += 1;
-    else if (")]}".includes(character)) depth -= 1;
-    else if (depth === 0 && character === ":" && line[index + 1] === "=") return true;
-    else if (depth === 0 && character === ":") return false;
-    else if (
-      depth === 0 &&
-      character === "=" &&
-      line[index + 1] !== "=" &&
-      line[index + 1] !== ">" &&
-      !"=!<>".includes(line[index - 1] ?? "")
-    )
-      return true;
-  }
-  return false;
-}
-
-/** True when more lines are needed before the input can be evaluated. */
-export function needsMoreInput(lines: readonly string[]): boolean {
-  let depth = 0;
-  let block = false;
-  for (const line of lines) {
-    let quote: string | undefined;
-    let code = "";
-    for (let index = 0; index < line.length; index += 1) {
-      const character = line[index]!;
-      if (quote) {
-        if (character === "\\") index += 1;
-        else if (character === quote) quote = undefined;
-        continue;
-      }
-      if (character === "#") break;
-      if (character === '"' || character === "'") quote = character;
-      else if ("([{".includes(character)) depth += 1;
-      else if (")]}".includes(character)) depth -= 1;
-      code += character;
-    }
-    if (depth === 0 && /:\s*$/.test(code)) block = true;
-  }
-  if (depth > 0) return true;
-  // A block ends with an empty line, as in Python's interactive mode.
-  return block && lines.at(-1)?.trim() !== "";
 }
 
 function valueType(hir: HirProgram): string | undefined {
@@ -565,117 +529,70 @@ Expressions print their value and type. Declarations cannot see REPL bindings.
   :reset         forget every declaration and binding
   :quit          leave (also Ctrl-D)`;
 
-export interface ReplIo {
-  readonly input: NodeJS.ReadableStream;
-  readonly output: NodeJS.WritableStream;
-  readonly terminal?: boolean;
-  /** Syntax coloring; defaults to on for a terminal unless NO_COLOR is set. */
-  readonly color?: boolean;
+/** One line of a REPL reply, by what it shows. */
+export interface ReplEntry {
+  /**
+   * `output`: console output; `value`: an expression's rendered value, with
+   * `type`; `code`: hd source or a type to highlight; `info`: plain text.
+   */
+  readonly kind: "output" | "value" | "code" | "info" | "warning" | "error";
+  readonly text: string;
+  readonly type?: string;
 }
 
-const RED = "\u001b[31m";
-const YELLOW = "\u001b[33m";
-const DIM = "\u001b[2m";
-const RESET = "\u001b[0m";
-
-function colorEnabled(terminal: boolean): boolean {
-  return terminal && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
+/** What one input or `:` command produced. */
+export interface ReplReply {
+  readonly entries: readonly ReplEntry[];
+  /** True when the input was accepted and is now part of the session. */
+  readonly kept: boolean;
+  /** Set when the input was `:reset` or `:quit`. */
+  readonly command?: "reset" | "quit";
 }
 
-/** Runs an interactive session until end of input or `:quit`. */
-export async function runRepl(
-  io: ReplIo = { input: process.stdin, output: process.stdout },
-  options: CompileOptions = {},
-): Promise<number> {
-  const session = new ReplSession(options);
-  const terminal = io.terminal ?? Boolean((io.output as { isTTY?: boolean }).isTTY);
-  const reader = createInterface({ input: io.input, output: io.output, terminal });
-  const write = (text: string): void => {
-    io.output.write(`${text}\n`);
-  };
-  let closed = false;
-  reader.on("close", () => {
-    closed = true;
-  });
-  let pending: string[] = [];
-  const promptText = (): string => (pending.length === 0 ? "hd> " : "... ");
-  const prompt = (): void => {
-    if (!terminal || closed) return;
-    reader.setPrompt(promptText());
-    reader.prompt();
-  };
-  const color = io.color ?? colorEnabled(terminal);
-  const paint = (code: string, text: string): string => (color ? `${code}${text}${RESET}` : text);
-  if (color) {
-    // Readline echoes plain text; after it handles a key, redraw the edited
-    // line in color. The return key is handled first, so the submitted line
-    // stays colored after readline moves to the next line.
-    const redraw = (): void => {
-      if (closed) return;
-      const position = reader.getCursorPos();
-      const columns = (io.output as { columns?: number }).columns || 80;
-      if (position.rows > 0 || promptText().length + reader.line.length >= columns) return;
-      cursorTo(io.output, 0);
-      const line = reader.line.trimStart().startsWith(":") ? reader.line : highlight(reader.line);
-      io.output.write(promptText() + line);
-      clearLine(io.output, 1);
-      cursorTo(io.output, position.cols);
-    };
-    const isReturn = (key?: { name?: string }): boolean =>
-      key?.name === "return" || key?.name === "enter";
-    io.input.prependListener("keypress", (_text: string, key?: { name?: string }) => {
-      if (isReturn(key)) redraw();
-    });
-    io.input.on("keypress", (_text: string, key?: { name?: string }) => {
-      if (!isReturn(key)) redraw();
-    });
+/** Whether `text` is a `:` command rather than hd input. */
+export function isReplCommand(text: string): boolean {
+  return text.trim().startsWith(":");
+}
+
+/**
+ * Answers one complete input or `:` command. Every REPL front end, the
+ * terminal and the web page's worker, goes through this.
+ */
+export async function respond(session: ReplSession, input: string): Promise<ReplReply> {
+  if (!isReplCommand(input)) {
+    const outcome = await session.evaluate(input);
+    return { entries: outcomeEntries(outcome), kept: outcome.accepted && input.trim() !== "" };
   }
-  const report = (outcome: ReplOutcome): void => {
-    for (const text of outcome.output) write(text);
-    for (const warning of outcome.warnings) write(paint(YELLOW, warning));
-    for (const error of outcome.errors) write(paint(RED, error));
-    if (outcome.value !== undefined)
-      write(
-        color
-          ? `${highlight(outcome.value)}${paint(DIM, ` : ${outcome.type}`)}`
-          : `${outcome.value} : ${outcome.type}`,
-      );
-  };
-  if (terminal) write("hd repl. Type :help for commands, :quit to leave.");
-  prompt();
-  for await (const line of reader) {
-    if (pending.length === 0 && line.trim().startsWith(":")) {
-      const trimmed = line.trim();
-      const command = trimmed.split(/\s+/)[0]!;
-      const argument = trimmed.slice(command.length).trim();
-      if (command === ":quit" || command === ":q" || command === ":exit") break;
-      if (command === ":help") write(HELP);
-      else if (command === ":reset") {
-        session.reset();
-        write("session reset");
-      } else if (command === ":source") {
-        const source = session.source().trimEnd();
-        write(color ? highlightLines(source) : source);
-      } else if (command === ":type" && argument !== "") {
-        const result = session.typeOf(argument);
-        for (const error of result.errors) write(paint(RED, error));
-        if (result.type) write(color ? highlight(result.type) : result.type);
-      } else write(`unknown command ${command}; type :help`);
-      prompt();
-      continue;
-    }
-    pending.push(line);
-    if (needsMoreInput(pending)) {
-      prompt();
-      continue;
-    }
-    const input = pending.join("\n");
-    pending = [];
-    report(await session.evaluate(input));
-    prompt();
+  const trimmed = input.trim();
+  const command = trimmed.split(/\s+/)[0]!;
+  const argument = trimmed.slice(command.length).trim();
+  const info = (text: string): ReplReply => ({ entries: [{ kind: "info", text }], kept: false });
+  if (command === ":quit" || command === ":q" || command === ":exit")
+    return { entries: [], kept: false, command: "quit" };
+  if (command === ":help") return info(HELP);
+  if (command === ":reset") {
+    session.reset();
+    return { ...info("session reset"), command: "reset" };
   }
-  if (pending.length > 0) report(await session.evaluate(pending.join("\n")));
-  reader.close();
-  if (terminal) write("");
-  return 0;
+  if (command === ":source")
+    return { entries: [{ kind: "code", text: session.source().trimEnd() }], kept: false };
+  if (command === ":type" && argument !== "") {
+    const result = session.typeOf(argument);
+    const entries: ReplEntry[] = result.errors.map((text) => ({ kind: "error", text }));
+    if (result.type) entries.push({ kind: "code", text: result.type });
+    return { entries, kept: false };
+  }
+  return info(`unknown command ${command}; type :help`);
+}
+
+/** The reply lines for an evaluated input, in the order the REPL shows them. */
+export function outcomeEntries(outcome: ReplOutcome): ReplEntry[] {
+  const entries: ReplEntry[] = [
+    ...outcome.output.map((text): ReplEntry => ({ kind: "output", text })),
+    ...outcome.warnings.map((text): ReplEntry => ({ kind: "warning", text })),
+    ...outcome.errors.map((text): ReplEntry => ({ kind: "error", text })),
+  ];
+  if (outcome.value !== undefined)
+    entries.push({ kind: "value", text: outcome.value, type: outcome.type });
+  return entries;
 }

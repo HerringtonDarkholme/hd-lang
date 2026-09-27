@@ -43,6 +43,12 @@ export interface LinkedPackage {
   /** Linked modules in initialization order. */
   readonly modules: readonly PackageModule[];
   readonly diagnostics: readonly PackageDiagnostic[];
+  /**
+   * The line of `source` where the entry module starts. The entry module is
+   * initialized last, so it runs to the end of `source`, and its lines keep
+   * their numbers relative to this one.
+   */
+  readonly entryLine?: number;
   /** Maps a diagnostic on the linked source back to its package file. */
   locate(diagnostic: Diagnostic): PackageDiagnostic;
 }
@@ -404,7 +410,7 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
     source += text;
     line += lineCount;
   }
-  return { source, modules: order, diagnostics, locate };
+  return { source, modules: order, diagnostics, locate, entryLine: segments.at(-1)?.firstLine };
 }
 
 function isStandardUse(declaration: UseDecl): boolean {
