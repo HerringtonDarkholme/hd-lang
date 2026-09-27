@@ -72,8 +72,8 @@ Goal: state trait behavior as normative rules rather than prose.
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
     with a survey, candidate designs, and owner questions in
     [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-    (deferred by the owner on 2026-09-27; `@derive` stays a closed
-    intrinsic list, and error derivation is the `@derive(Error)` intrinsic);
+    (owner decisions M1-M20 recorded; error derivation is the separate
+    `@error` intrinsic);
   - the propagation rules and dependent-return provenance from
     [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy);
   - [Confirmed Deferred Type Features](OPEN_ISSUES.md#confirmed-deferred-type-features);
@@ -90,7 +90,10 @@ Scope: [Requirements and Suspension](../spec/11-requirements-and-suspension.md)
 and [Runtime and Library Design](RUNTIME_AND_LIBRARY.md).
 
 Goal: decide, with evidence, whether durable replay is a core language feature
-or a library feature.
+or a library feature. Decided: a runtime feature with a small specification
+and compiler contract, with the rest in libraries. All fifteen
+[Durable Replay](DURABLE_REPLAY.md#owner-decisions) decisions are applied to
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules) and the specification.
 
 - Question: what must the compiler provide, and what can a library build?
   - Compiler candidates: stable suspension-site IDs, code identity, provider
@@ -103,8 +106,8 @@ or a library feature.
   cannot do is core; the rest is library.
 - Moved here:
   - [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows);
-  - [Observability Hooks](OPEN_ISSUES.md#observability-hooks), which share the
-    interception point;
+  - [Observability Hooks](OPEN_ISSUES.md#observability-hooks), which use a
+    hook separate from replay (Durable Replay decision 14);
   - [Serializable Closures And Incremental Computation](OPEN_ISSUES.md#serializable-closures-and-incremental-computation);
   - weak references and finalizers;
   - asynchronous and fallible cleanup;
@@ -130,10 +133,12 @@ specification once accepted.
   - core: numbers, strings and text, optionals and `Result`, errors,
     collections, iterators, comparison, and hashing;
   - effect traits and their providers;
-  - `std.task`: combinators, `Task[T]`, timeout, race, and retry;
+  - `std.task`: combinators, structured-scope `Task[T]` (STDLIB decision
+    11), timeout, race, and retry;
   - serialization and JSON, which depend on derivation from area 2;
   - `std.testing`: property testing, shrinking, and providers;
-  - time, fingerprint, and `Secret[T]`.
+  - time and fingerprint. `Secret[T]` was removed from the design for now
+    ([STDLIB decision 12](STDLIB.md#owner-decisions)).
 - Error conversion: how `?` combines errors from several domains, drafted in
   [Error Conversion](ERROR_CONVERSION.md). Its `?` typing change belongs to
   area 2.

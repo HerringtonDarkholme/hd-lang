@@ -6,33 +6,37 @@ language specification:
 - [Roadmap](ROADMAP.md) orders the remaining work into grammar, type
   checking, runtime, standard library, packages, prototype, audit cleanup, and
   agent tooling areas.
-- [Durable Replay: Core Or Library](DURABLE_REPLAY.md) decides which parts of
-  durable replay the compiler and runtime provide and which a library builds.
+- [Durable Replay: Core Or Library](DURABLE_REPLAY.md) records which parts of
+  durable replay the compiler and runtime provide and which a library builds;
+  all fifteen owner decisions are applied.
 - [Spec Follow-Ups](SPEC_FOLLOWUPS.md) logs decided editorial fixes, the
   glossary pass, unnamed diagnostic codes, and open restyle questions.
 - [Open Issues](OPEN_ISSUES.md) is the single backlog for unresolved language,
   runtime, library, ABI, product, and tooling work.
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package managers
   and drafts the `hd.toml` schema, versioning, resolution, and lockfile for
-  roadmap area 5.
+  roadmap area 5, revised to the owner's decisions 1-14.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-  surveys derivation in other languages and proposes how libraries derive
+  surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
+  Owner decisions M1-M20 are recorded; the round 3 stress test's questions
+  are being answered.
 - [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)
   tests the current derivation design against 21 use cases and ranks the problems found, with questions for the owner.
 - [Typed Derivation: Stress Test Round 2 (M1-M15)](DERIVATION_STRESS_TEST_2.md)
-  retests the design after typed member handles (M14) and `@derive(Error)`
-  (M15), maps round 1's problems to their status, and ranks the remaining
-  and new ones, with questions for the owner.
+  retests the design after typed member handles (M14) and the error
+  intrinsic (M15, now spelled `@error`), maps round 1's problems to their
+  status, and ranks the remaining and new ones, with questions for the
+  owner.
 - [Typed Derivation: Stress Test Round 3 (M1-M19)](DERIVATION_STRESS_TEST_3.md)
   retests the value-driven walk (M19) on 14 library cases, proposes a
   `Source` protocol for input-driven `build`, and ranks what still breaks.
-- [Nominal Function Types](FN_TYPE.md) proposes making function types
-  standard generic constructors such as `Fn[(Is...), O, R]`, so they can be
-  implementation targets, and compares per-declaration data for tool
-  adapters, with questions for the owner.
+- [Nominal Function Types](FN_TYPE.md) records the owner's decisions 1-9
+  making function types standard generic constructors such as
+  `Fn[(Is...), O, R]`, so they can be implementation targets. Per-declaration
+  data for tool adapters (Q9, Q10) is parked with typed derivation.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and
@@ -43,15 +47,17 @@ language specification:
 - [Error Design Stress Test (V1, V2a, V2b)](ERROR_STRESS_TEST.md) translates
   real crates' error types (ripgrep, cargo, serde_json, reqwest,
   `std::io::Error`, ast-grep, naga, globset) into the recorded
-  `@derive(Error)` design and two message-free variants, compares them,
-  and ranks the problems found, with questions for the owner.
+  error-derivation design (now the `@error` intrinsic) and two message-free
+  variants, compares them, and ranks the problems found, with questions for
+  the owner.
 - [Runtime Type Identity](INSPECTABLE.md) records the design of the
   `Inspectable` trait, `TypeId`, and `downcast`, and the owner decisions now
   in the specification.
 - [Enum Semantics: Value Category And Identity](ENUM_SEMANTICS.md) asks
   whether enums, `Option`, and `Result` belong with values (`AnyVal`) or
-  references (`AnyRef`), surveys other languages, and recommends making
-  every enum an identity-free value, with questions for the owner.
+  references (`AnyRef`) and surveys other languages. The owner kept every
+  enum `AnyRef` with identity, made enum values immutable, and turned shared
+  constructor data into per-variant constants; the decisions are applied.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

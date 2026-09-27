@@ -148,8 +148,9 @@ Decided 2026-09-26:
     `Diagnostic` trait for the same reason).
     Generated impls are ordinary impls: a hand-written duplicate is
     `overlapping-impl`. Unmarked variants get no `From`, so
-    `Invalid(reason: string)` never yields `From[string]`. This adds `Error`
-    to `@derive`'s closed intrinsic list (TQ-13). Reference case: ast-grep's
+    `Invalid(reason: string)` never yields `From[string]`. `@error` is its
+    own intrinsic; `@derive`'s closed list (TQ-13) does not gain `Error`.
+    Reference case: ast-grep's
     `RuleCoreError` (three variants carry `RuleSerializeError`; one is
     `@from`, two are `@source`). The general fact check hook (a fact type's
     compile-time `check` against its member or variant) stays for other
@@ -331,13 +332,13 @@ fn run(path: string) -> Result[void, Error]:
     M12's rule).
 12. **Not in hd, deliberately:** anonymous error unions (decision 9), a
    mapping clause on `?` (decision 8), chained conversions (decision 5),
-   impl-family derivation outside `@derive(Error)`.
+   impl-family derivation outside `@error`.
 
 ## Still To Do
 
 Not decided, and deliberately not specified:
 
-- **`@derive(Error)`** (decision 10) and decisions 12-14 (payload-parameter
+- **`@error`** (decision 10) and decisions 12-14 (payload-parameter
   annotations, chain printing at the entry point, `?` in test blocks) are
   decided but not yet in the specification (02, 05, 08, 09, 10).
 - **`Console.write_line!` taking `mut self`,** raised by the recording

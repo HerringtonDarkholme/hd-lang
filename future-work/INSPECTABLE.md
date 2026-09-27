@@ -9,7 +9,7 @@ chapter 04, and `inspectable-requirement` in
 the error-chain helpers are in [Standard Library Design](STDLIB.md#stderror).
 The proposal below predates decisions 2, 3, 13, 14, and 15: where it says
 `RuntimeType`, read `TypeId`; `value.downcast[T]()` is now a default method
-of `Inspectable` bounded by `T < Reference + Inspectable`, with no `reified`
+of `Inspectable` bounded by `T < AnyRef + Inspectable`, with no `reified`
 (value types use `std.inspect.downcast_val[T](value)`). Its rule that an
 inner `mut` is part of identity was removed by decision 2 and restored by
 decision 16. What is still open is

@@ -1389,9 +1389,9 @@ fn exit_code(error: Error) -> i32:
   on the success path too; anyhow users write `.with_context(|| ...)` to
   avoid that ([problem 10](#10-context-builds-its-message-on-success)).
 - **Bound (all).** `find[T < AnyRef + Inspectable]` works for enums today.
-  [Enum Semantics](ENUM_SEMANTICS.md) recommends making enums values;
-  under that change `find[FsError]` no longer satisfies `AnyRef`
-  ([problem 14](#14-find-requires-anyref)).
+  [Enum Semantics](ENUM_SEMANTICS.md) recommended making enums values, but
+  the owner kept every enum `AnyRef` (its decision 1), so `find[FsError]`
+  keeps satisfying the bound ([problem 14](#14-find-requires-anyref)).
 
 ### 11. `?` Across Three Layers
 
@@ -1893,9 +1893,10 @@ enums therefore cannot copy these crates' shapes. All variants.
 ### 14. `find` Requires `AnyRef`
 
 **Effect.** `find[T < AnyRef + Inspectable]` works for enums only while
-enums are references. [Enum Semantics](ENUM_SEMANTICS.md) (deferred)
-recommends values; then `find[FsError]` fails its bound, in every case
-that tests an enum error (cases 1, 10, 11, 12). All variants.
+enums are references. [Enum Semantics](ENUM_SEMANTICS.md) recommended
+values; then `find[FsError]` would fail its bound, in every case that tests
+an enum error (cases 1, 10, 11, 12). All variants. Resolved since: the owner
+kept enums `AnyRef` ([Enum Semantics decision 1](ENUM_SEMANTICS.md#owner-decisions)).
 
 **Candidates.**
 

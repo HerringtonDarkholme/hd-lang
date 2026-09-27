@@ -53,38 +53,21 @@ their profiles are named, and a recording
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Problem.** Current shapes describe declarations but
-cannot generically get fields, construct a target, or produce target-indexed
-information. Libraries therefore cannot implement typed serializers or tool
-adapters, and the boundary lacks a redaction contract.
+**Pointer.** The design lives in
+[Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md), where
+owner decisions M1-M20 are recorded and the
+[round 3 stress test](DERIVATION_STRESS_TEST_3.md) questions are being
+answered. Error derivation is the separate `@error` intrinsic
+([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
 
-**Options.** (1) Open `@derive` to library traits through a typed compiler
-protocol. (2) Add typed reflection operations for field access, construction,
-and checked downcast. (3) Make annotation `Info` target-indexed so a facet can
-produce `Decoder[T]` or `ToolAdapter[F]`. Mock-provider generation can either
-add a read-only `TraitShape` to this surface or remain an external code generator
-that reads package interface files.
-
-**Recommendation.** Combine options 1 and 3: a narrow derivation protocol with
-target-indexed output. Generate boundary adapters in the compiler and include
-`Secret[T]`/`Redact` in the contract; avoid general mutable reflection.
-
-**Unblocks.** Serializers, property generators, schema-backed RPC/tool
-invocation, validation at the boundary, reliable secret redaction, and
-derived `std.convert.From` implementations for error enums
-([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)). These
-are language-design tasks, not merely library work.
-
-**Design notes.** [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-surveys other languages, compares four candidate designs, and lists questions
-for the owner. Nothing there is decided.
-
-**Secret values (deferred).** The owner removed `Secret[T]` from the current
-standard-library design as too early (2026-09-26). Revisit it together with
-typed derivation. Options already discussed: whether standard capability
-traits may take `Secret[T]` parameters so the host receives the real value
-without an `expose()` in hd code; whether exported functions may take
-`Secret[T]` inputs; and that a secret never encodes or appears in outputs.
+**Secret values (removed for now).** `Secret[T]` and `Redact` were removed
+from the standard-library design as too early
+([STDLIB decision 12](STDLIB.md#owner-decisions), 2026-09-26). Revisit them
+together with typed derivation. Options already discussed: whether standard
+capability traits may take `Secret[T]` parameters so the host receives the
+real value without an `expose()` in hd code; whether exported functions may
+take `Secret[T]` inputs; and that a secret never encodes or appears in
+outputs.
 
 ### Serializable Closures And Incremental Computation
 
