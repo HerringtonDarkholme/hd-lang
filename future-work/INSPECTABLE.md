@@ -80,11 +80,20 @@ Decided 2026-09-26:
     `downcast[Error](e)` satisfies the bound and returns `.None`; `Any` is
     rejected by the bound. Both edge cases are left to a lint; no rules are
     specific to `downcast`.
-
-Open for the specification pass: whether the `T < Inspectable` dictionary
-carries the type's `TypeId`, so `downcast[T]` and `TypeId::of[T]()` need only
-the bound and not `reified` (a generic target is then written
-`fn get[T < Inspectable](...)` instead of `fn get[reified T < Inspectable](...)`).
+15. **`downcast` and `downcast_mut` are default methods of `Inspectable`**
+    (supersedes decision 13's free functions and the matching parts of 14):
+    `fn downcast[T < Reference + Inspectable](self) -> T?` and
+    `fn downcast_mut[T < Reference + Inspectable](mut self) -> mut T?`. They
+    are dynamically safe under the existing rule that a method-level generic
+    bounded by `Reference` is allowed (one body serves every instantiation).
+    `T`'s `Inspectable` dictionary carries its `TypeId`, so no `reified` is
+    needed (this settles the earlier open question; `TypeId::of[T]()` likewise
+    needs only `T < Inspectable`). `mut` comes from the receiver: a readonly
+    view cannot call `downcast_mut`. Value types (scalars, `string`, tuples)
+    are recovered with the static free function
+    `std.inspect.downcast_val[T < Inspectable](value: Inspectable) -> T?`,
+    which is never `mut`. `std.error.Error` inherits the methods, and `find[T]`
+    can be a default method of `Error` bounded the same way.
 
 ## Contents
 
