@@ -53,23 +53,42 @@ Decided 2026-09-26:
    is cross-referenced there.
 8. **Question 9: no mapping clause on `?`;** `From` and `map_err` cover it.
 9. **Question 10: no anonymous error unions.**
-10. **Question 11: derived `From` is a compiler intrinsic, `@from` on a
-    variant of an error enum** (revised 2026-09-27; originally "derived
+10. **Question 11: error derivation is one compiler intrinsic,
+    `@derive(Error)`** (revised twice on 2026-09-27; originally "derived
     `From` implementations wait for typed derivation"). Typed derivation
     deliberately does not cover impl families (one impl per variant, each a
-    different trait instantiation); `From` per variant is the only real
-    case, so it stays intrinsic rather than growing a proc-macro-like
-    mechanism. Rules: `@from` is allowed only on a variant of an enum that
-    implements `std.error.Error`; the variant has exactly one payload
-    member, of type `P`; it generates `impl From[P] for E` whose `from` is
-    the variant constructor (pure, as 09 requires); common enum fields must
-    have defaults, otherwise the error names the missing one; two marked
-    variants with the same payload type are an error naming both; generic
-    payloads work (`@from Inner(error: E)` in `enum AppError[E]` gives
-    `impl[E] From[E] for AppError[E]`); the result is an ordinary impl, so a
-    hand-written duplicate is `overlapping-impl`. Unmarked variants get no
-    `From`, so `Invalid(reason: string)` never yields `From[string]`. Not
-    yet applied to the spec.
+    different trait instantiation), and error enums need `Display`,
+    `Error::cause`, and `From` from the same per-variant markers, so they
+    are one intrinsic, the equivalent of Rust's `thiserror`, rather than a
+    proc-macro-like mechanism. On an enum (or a data type) that says
+    `@derive(Error)`, the compiler generates `impl Display`, `impl Error`
+    (with `cause()`), and one `impl From[P] for E` per `@from` variant.
+    Markers, recognized only under `@derive(Error)`:
+    - `@message("... {member} ...")` on a variant, or on a data type: the
+      `Display` text. Every placeholder must name a payload member or a
+      common enum field whose type implements `Display`, checked at compile
+      time. A variant without `@message` displays as its variant name.
+    - `@from` on a one-payload variant: generates `impl From[P] for E`
+      (pure, as 09 requires) and makes the payload the cause. Two `@from`
+      variants with the same payload type are an error naming both. Common
+      enum fields of a `@from` variant must have defaults, otherwise the
+      error names the missing one. Generic payloads work (`@from
+      Inner(error: E)` in `enum AppError[E]` gives
+      `impl[E] From[E] for AppError[E]`).
+    - `@source` on a one-payload variant, or on a named payload member: that
+      member is the cause, with no `From` (for variants that share a payload
+      type with a `@from` variant).
+    - `@transparent` on a one-payload variant: `Display` and `cause()`
+      forward to the payload; it may combine with `@from`.
+    Generated impls are ordinary impls: a hand-written duplicate is
+    `overlapping-impl`. Unmarked variants get no `From`, so
+    `Invalid(reason: string)` never yields `From[string]`. This adds `Error`
+    to `@derive`'s closed intrinsic list (TQ-13). Reference case: ast-grep's
+    `RuleCoreError` (three variants carry `RuleSerializeError`; one is
+    `@from`, two are `@source`). The general fact check hook (a fact type's
+    compile-time `check` against its member or variant) stays for other
+    libraries' facts (derivation stress-test P14). Not yet applied to the
+    spec.
 11. **Location: `From[T]` is declared in `std.convert` and the erased error
     trait in `std.error`.** Neither is a prelude name (consistent with
     [STDLIB decision 7](STDLIB.md#owner-decisions)); code imports them with
