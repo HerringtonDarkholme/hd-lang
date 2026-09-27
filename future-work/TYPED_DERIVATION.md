@@ -765,6 +765,43 @@ Notes:
 - A non-suspending target is weakened to `fn!` or served by a second
   overload-free function `tool_sync`; that is a library choice.
 
+## Notable Use Case: Error Conversion
+
+[Error Conversion](ERROR_CONVERSION.md) decided that `?` converts an error
+through the target error type's pure `From[E]` implementation, at most once,
+and that derived `From` implementations wait for this protocol. Application
+error enums are therefore a primary client of derivation: each variant with
+exactly one payload field wraps one source error, and its `From`
+implementation is mechanical.
+
+```text
+@derive(From)                      # hypothetical: a std deriver over the Sum view
+enum SyncError:
+    Fs(error: FsError)
+    Http(error: HttpError)
+    Invalid(reason: string)        # string payload: no From generated, or opt out
+
+fn sync!(p: Path) -> Result[void, SyncError] $ FsRead + Http:
+    text := $.use(FsRead).read_text!(p)?      # From[FsError] for SyncError
+    $.use(Http).post!(url, text)?             # From[HttpError] for SyncError
+```
+
+What the deriver needs from the protocol:
+
+- the `Sum` view of the enum, with each variant's payload fields as a pack,
+  so the deriver can select variants with exactly one payload field;
+- one generated `impl From[P] for E` per selected variant `V(p: P)`,
+  forwarding to the variant constructor (which is itself a function value
+  for single-payload variants, per Error Conversion question 8);
+- a per-variant opt-out in field or variant metadata (for example
+  `@from.skip`), since not every single-payload variant wraps an error;
+- an overlap diagnostic at the derive site when two variants carry the same
+  payload type, since two `From[P]` implementations for one enum overlap
+  (TQ-28) and `?` would have no unique conversion.
+
+This matches Rust's `thiserror` `#[from]`, but stays a type-checked library
+deriver in `std.error` rather than a procedural macro.
+
 ## Comparison
 
 | | A: views | B: comptime | C: runtime | D: hybrid |
