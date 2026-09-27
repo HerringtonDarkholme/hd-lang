@@ -55,6 +55,14 @@ are applied later in one `spec-update` pass, not per chapter.
   today's identity rule (ENUM_SEMANTICS decision 1); add the
   implementation note that payload-free enums may be integers.
 
+- **Decided 2026-09-27 from the restyle notes:** (07) one declared result
+  type in a recursive cycle is enough; the others are inferred
+  (`fn.recursion.named` is aligned with `fn.decl.omitted-cycle.resolve`);
+  (02/11) chapter 02 is the only grammar authority: 11 drops its repeated
+  EBNF and links to 02's rules; (01) confusable and mixed-script
+  identifiers are warnings, as README lists them; (06) `break value` in a
+  loop without `else` is an error, `break-value-context`.
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -79,11 +87,6 @@ example, as the 08 pilot did.
 ## Open, for the owner
 
 From the 02, 11 restyles (12c7501, 14ec05e):
-- 11 repeats grammar that disagrees with 02 (`function_decl`,
-  `closure_expression` use `[ "->", type ]` vs 02's `result_type` and
-  `closure_header`; 11's `suspension_call_suffix` lacks
-  `[ function_type_arguments ]`), so the website sees duplicate
-  definitions. Proposal: 02 is the only grammar authority; 11 refers to it.
 - 11 `req.schedule.all-order`: does `all!` re-poll completed children after
   a wake?
 - 11 `req.model.no-reinterpretation`: "not generally reinterpreted" leaves
@@ -96,14 +99,8 @@ From the 01, 06, 07 restyles (7380905, 8fb85c1, 7c73971):
   says tabs occur only as `\t`.
 - 01: a lone `"` inside `"""..."""` looks invalid by
   `multiline_string_character`, though the literal ends only at `"""`.
-- 01: confusable and mixed-script identifiers "must be diagnosed" (error?)
-  but README lists them as warnings.
 - 06: is the list of suites whose value is discarded
   (`flow.must-use.suite-final`) complete?
-- 06: `break value` in a loop without `else` is never called an error.
-- 07: recursion rules conflict (`fn.decl.omitted-cycle.resolve`: one member's
-  result type resolves a cycle; `fn.recursion.named`: every member must
-  declare one).
 - 07: may a `pub` inherent method omit its result type?
 - 07: `fn.vararg.list` states its rule only through the example.
 
