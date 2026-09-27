@@ -185,6 +185,8 @@ test("the real specification indexes every stable code", async () => {
   assert.equal(index.codes.get("integer-overflow")?.category, "runtime panic");
   assert.ok(explainCode(index, "type-mismatch")?.meaning);
   for (const rule of index.rules) assert.match(rule.anchor, /^spec\/\d\d-[^#]+\.md#r-[a-z]/);
+  // Restyled chapters carry rule IDs; the scanner must keep finding the codes they name.
+  if (index.rules.length > 0) assert.ok(index.rulesByCode.size > 0);
 });
 
 function diagnosticAt(code: string, source: string, text: string): Diagnostic {
