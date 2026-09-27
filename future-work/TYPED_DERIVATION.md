@@ -456,7 +456,11 @@ code keeps one local per member, then constructs. P10: templates only
 implement existing traits; builders, patch types, and field-key enums are
 not derived (literals with defaults and copy-update cover builders). P11b:
 a newtype derives through its base type (TQ-11), so `Mile` encodes like
-`i32`. P13 (tier-1 template selection; the proposal is `@derives(...)` on
+`i32`. P11a: shared enum fields are visible to walks, visited first with
+handles marked `shared` (libraries choose to show or skip them), and `build`
+never reads them from input (the variant's `->` expression computes them);
+the owner also asked to revisit the shared-data design itself. P13
+(tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
 
