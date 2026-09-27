@@ -59,6 +59,15 @@ Decided 2026-09-26:
     pinned to their build, and histories never hold erased values or
     `TypeId`s). It is not meant to be persisted across builds; use explicit
     versioned tags for that.
+13. **`downcast` is an ordinary generic free function, not a method.**
+    `std.inspect.downcast[reified T < Inspectable](value: Inspectable) -> T?`
+    and `downcast_mut[reified T < Inspectable](value: mut Inspectable) ->
+    mut T?`, statically dispatched; a checked reinterpretation primitive lives
+    only inside their `std` bodies. No compiler-provided method on trait
+    values (it would break the no-impl-on-trait-values and dynamic-safety
+    rules), and no `Downcast` trait. Error helpers follow the same form:
+    `std.error.find[T](e)`. This supersedes the `value.downcast[T]()`
+    spelling everywhere in this document and in Open Issues direction item 5.
 
 ## Contents
 
