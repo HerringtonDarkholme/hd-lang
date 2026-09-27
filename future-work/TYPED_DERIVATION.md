@@ -481,9 +481,18 @@ interfaces carry needed generic bodies); code size is one specialization
 per (type, walker). P15: a foreign type is derived through a local mirror
 type, as with serde's `remote`: the user declares a local data type with
 the foreign type's public fields, derives on it, and converts; no orphan
-exception for `by Structure`. P13
-(tier-1 template selection; the proposal is `@derives(...)` on
-the annotation function) is deferred. R2 (the enum protocol, with a proposed
+exception for `by Structure`. P13 (tier-1 template selection), decided:
+`@derive(...)` lists the traits and is the only thing that creates impls.
+It accepts the intrinsic comparison traits and any trait with a `by
+Structure` template; `@derive(json.Encode)` means exactly `impl
+json.Encode for T by Structure`. Annotations only attach facts:
+configuration is a separate annotation such as `@json.style(case=.Camel)`
+that templates read through `T::facts()`. A lint flags a configuration fact
+whose package supplies no template derived on that type. This replaces M5's
+"the annotation is the opt-in" and the proposed `@derives(...)` groups;
+tier 2 (`impl X for T by Structure:` with member lines) stays for per-trait
+customization, and listing a trait in `@derive` plus a tier-2 block for it
+is an ordinary `overlapping-impl`. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
 
 ### Current Design: Full Example (M1-M14)
