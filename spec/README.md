@@ -742,3 +742,9 @@ existing source. Each entry names the decision that made the change.
   and finalizers, previously deferred, may exist only inside the standard
   runtime, where user code cannot observe them. A runtime profile now
   includes the host's stack and memory limits.
+- Standard-library inherent methods (standard library decision 8,
+  2026-09-26): the standard library, which owns the built-in types, may now
+  declare inherent implementations for primitives, built-in collection type
+  constructors, and `Option`, in any of its modules. Their `pub` methods
+  need no `use`. User code is unaffected: an inherent implementation for a
+  type another package owns stays invalid.

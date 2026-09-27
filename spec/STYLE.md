@@ -373,3 +373,10 @@ style lint rejects a chapter that reuses one.
 - `data.repr.deferred`: retired 2026-09-27. Durable replay decision 12
   confines weak references and finalizers to the standard runtime. Replaced
   by `data.repr.runtime-only`.
+- `trait.own.inherent.targets`: retired 2026-09-27. Standard library
+  decision 8 lets `std` declare inherent implementations for primitives.
+  Replaced by `trait.own.inherent.target-kinds` and `trait.own.inherent.std`.
+- `trait.own.module.inherent`: retired 2026-09-27. Standard library
+  decision 8 lets `std` declare such implementations in any of its modules.
+  Replaced by `trait.own.module.inherent-target` and
+  `trait.own.module.inherent.std`.

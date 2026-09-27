@@ -65,10 +65,9 @@ Other facts the library must respect:
 - There is no `bytes` primitive; `Hasher.write` takes `List[u8]`.
 - User code cannot write an inherent `impl` for a primitive or another
   built-in type. By decision 8, `std` owns the built-in types and declares
-  their extra methods as inherent methods, available without a `use`. This
-  needs an exception in
-  [Implementation Targets](../spec/09-traits.md#implementation-targets),
-  which today bars inherent implementations on primitives.
+  their extra methods as inherent methods, available without a `use`
+  ([`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std),
+  applied 2026-09-27).
 - A trait's methods are callable with dot syntax only in modules that name the
   trait with `use` (or get it from the prelude).
 - `decimal` is named as a possible library type.
@@ -1400,8 +1399,8 @@ Stateful testing and replay artifacts wait for area 3's event log.
 | Module | Depends on | Open item |
 | --- | --- | --- |
 | host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | which traits each profile marks mutable; `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
-| `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2) | [Replay Determinism](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) |
-| inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule | [Implementation Targets](../spec/09-traits.md#implementation-targets) |
+| `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](DURABLE_REPLAY.md#owner-decisions)) | none |
+| inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std) | none |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
 | `std.fs` handles, `std.net`, `std.process` streaming | non-escaping handles and fallible cleanup | [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy) |
 | `std.observe`, `std.log` | task-local trace context | [Observability Hooks](OPEN_ISSUES.md#observability-hooks) |
@@ -1439,7 +1438,9 @@ Decided 2026-09-26:
 8. **Question 8: more methods on built-in types live in the standard library
    as inherent methods,** not in the normative table and not in extension
    traits. `std` owns the built-in types, so it may declare inherent impls
-   for them, and those methods are available without a `use`.
+   for them, and those methods are available without a `use`. Applied
+   2026-09-27:
+   [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std).
 9. **Question 9: `decimal` only** beyond the primitives; `BigInt` is a
    package.
 10. **Question 10: virtual time auto-advances now** (`sleep!` on a manual
@@ -1622,8 +1623,8 @@ use std.time.Duration
 **Decided: inherent methods declared in `std`** (decision 8), neither the
 normative table nor extension traits. `std` owns the built-in types, so it
 declares inherent implementations for them, and their methods need no `use`.
-This needs a `std` exception in
-[Implementation Targets](../spec/09-traits.md#implementation-targets).
+The `std` exception is in
+[Implementation Ownership](../spec/09-traits.md#r-trait.own.inherent.std).
 
 ```text
 fn greeting(name: string?) -> string:

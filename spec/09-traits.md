@@ -546,8 +546,10 @@ one of these declarations:
 6. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enum `Option`.
 7. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `annotate Validation for string?` in the package that owns `Validation`.
 8. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
-9. r[trait.own.inherent.targets] An inherent implementation cannot target a trait value, primitive, tuple, transparent alias, or type owned by another package.
-10. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
+9. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
+10. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enum `Option`.
+11. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
+12. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
 impl Display for i32:  # error: orphan-impl
@@ -560,10 +562,11 @@ impl Display for i32:  # error: orphan-impl
 
 #### Implementation Modules
 
-1. r[trait.own.module.inherent] An inherent implementation must be declared in the module that declares its target type.
-2. r[trait.own.module.trait] A trait implementation must be declared in a module that declares the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
-3. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
-4. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
+1. r[trait.own.module.inherent-target] An inherent implementation must be declared in the module that declares its target type, except as `trait.own.module.inherent.std` allows.
+2. r[trait.own.module.inherent.std] An inherent implementation that `trait.own.inherent.std` allows may be declared in any module of the standard library.
+3. r[trait.own.module.trait] A trait implementation must be declared in a module that declares the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
+4. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
+5. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
 
 > **Why.** A reader of the type's or the trait's module sees every
 > implementation that can answer a call, and no distant module of the package
