@@ -239,7 +239,65 @@ sealed `Visitor`/`Source` may strengthen `F`'s bound, becoming the obligation
 "every visited member implements it", checked at the opt-in site and naming
 the member (`= pass` exempts it); templates must call `visit` with a concrete
 visitor (recommended; what decision 6 assumed); (2) trait-kinded generic
-parameters; (3) associated type packs from chapter 12.
+parameters (rejected by the owner: too complicated); (3) associated type packs
+from chapter 12 (enums need a pack of packs, and decode infers only from the
+return type); (4) a trait value per member, `Visitor[D]` with
+`member(m, value: D)` (no special rule for encoding, but decode cannot
+produce a value from a trait value, and converting a value without identity
+to a trait value allocates a box, per 04 Runtime Values).
+
+Cost note: hd compiles generic code once per shape with dictionaries
+(04 Shapes and Generic Code), so "zero cost" here means no per-member
+allocation and constant dictionaries, not full monomorphization. Option 1
+and option 4 both make one indirect call per member; only option 4
+allocates.
+
+(M9, decided 2026-09-27; closes gap 1) Option 1: strengthened member bounds.
+
+```text
+# std.structure (sealed)
+pub trait Visitor:
+    type Error
+    fn member[F](mut self, m: Member, value: F) -> Result[(), Self::Error]
+    fn variant(mut self, v: Variant) -> Result[(), Self::Error]
+pub trait Source:
+    type Error
+    fn member[F](mut self, m: Member) -> Result[F, Self::Error]
+    fn variant(mut self, choices: List[Variant]) -> Result[Variant, Self::Error]
+
+# library json
+impl Visitor for Encoder:
+    type Error = EncodeError
+    fn member[F < Encode](mut self, m: Member, value: F) -> Result[(), EncodeError]:
+        # value.encode(...)
+impl Source for FieldSource:
+    type Error = DecodeError
+    fn member[F < Decode](mut self, m: Member) -> Result[F, DecodeError]:
+        # F::decode(...)
+```
+
+1. An impl of the sealed `Visitor` or `Source` may strengthen `member[F]`'s
+   bound; no other trait may.
+2. `member` may be called through a generic `V < Visitor` / `S < Source`
+   only by the compiler-generated `visit` and `build`; such a call in user
+   code is an error. A call on a concrete visitor type applies its own bound.
+3. Templates call `visit` and `build` with a concrete visitor or source, so
+   the generated body is checked at the opt-in site, where member types and
+   the strengthened bound are both known. The obligation "every visited
+   member satisfies the bound" is reported there, naming the member; a
+   `= pass` member is exempt.
+4. Cost: the generated code is typed per member; each call passes a constant
+   dictionary and an unboxed value, so there is no per-member allocation.
+
+Explored and rejected on the way (2026-09-27): trait-kinded parameters (too
+complicated); associated type packs (enums need nested packs, decode infers
+only from return types); trait values per member, including `Field[F]` and
+`Slot[F]` with `Fill[P, E]` (zero typing rules, but decode needs a typed slot,
+zero cost needs a non-escape rule plus mandatory specialization that compiles
+back to option 1's code, and dynamically safe member traits cannot suspend);
+treating trait values as bounds language-wide (generics stay: same-type
+parameters, typed returns, receiverless constructors, homogeneous
+collections).
 
 ## Contents
 
