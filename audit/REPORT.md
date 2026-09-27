@@ -9,8 +9,8 @@ this report: the verdict, the scorecard, the claim ledger, the coverage and
 blind-fixture runs, and the fuzzing rounds. The repository history keeps
 them. What remains is the architecture review, which still describes the
 prototype, and the findings that are still open. On 2026-09-27 the prototype
-passes 942 of the 1,085 conformance cases; [`README.md`](README.md) says
-where the other 143 are listed.
+passes 962 of the 1,086 conformance cases; [`README.md`](README.md) says
+where the other 124 are listed.
 
 The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
@@ -135,7 +135,7 @@ multi-module or incremental work, it needs:
 
 ## 2. Open Findings
 
-The most important open findings, ranked by impact. All 58 open findings,
+The most important open findings, ranked by impact. All 47 open findings,
 with the conformance cases each one keeps failing, are in
 [`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
 by several workers are merged under one canonical ID.
@@ -145,35 +145,31 @@ by several workers are merged under one canonical ID.
 | Rank | ID                    | Severity | Finding                                                                                     |
 | ---- | --------------------- | -------- | ------------------------------------------------------------------------------------------- |
 | 1    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
-| 2    | F-252 (F-309, F-315)  | major    | the parser rejects core forms: unnamed payloads, tuple patterns, closing delimiters in nested suites, `else` after same-line loops |
-| 3    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
-| 4    | F-700                 | major    | optional `?` inside a closure type-checks, then emits WAT that Binaryen cannot parse        |
-| 5    | F-400                 | major    | a leading U+FEFF is lost at the host boundary and in the string bridge                      |
-| 6    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
-| 7    | F-401 (F-611)         | minor    | replay identity hashes each function's source: a changed helper replays, a reformatted one fails |
+| 2    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
+| 3    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
+| 4    | F-401 (F-611)         | minor    | replay identity hashes each function's source: a changed helper replays, a reformatted one fails |
 
 ### Unimplemented features and codes
 
 | Rank | ID    | Severity | Finding                                                                                      |
 | ---- | ----- | -------- | -------------------------------------------------------------------------------------------- |
-| 8    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
-| 9    | F-155 | minor    | runtime panics carry no source location                                                      |
+| 5    | F-250 | major    | deferred features get generic or wrong diagnostics (MVP goal 5 not met)                      |
+| 6    | F-155 | minor    | runtime panics carry no source location                                                      |
 
 ### Performance and architecture
 
 | Rank | ID    | Severity | Finding                                                                        |
 | ---- | ----- | -------- | ------------------------------------------------------------------------------ |
-| 10   | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
-| 11   | F-501 | major    | maps have no hashing                                                           |
-| 12   | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
-| 13   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
+| 7    | F-552 | major    | suspension code size grows super-linearly with bang-call sites                 |
+| 8    | F-501 | major    | maps have no hashing                                                           |
+| 9    | F-502 | major    | dictionaries are rebuilt per call, plus a trait value per method call          |
+| 10   | F-550 | major    | the row-generic callback adapter copies the provider pack once per lookup      |
 
 Merged duplicates:
 
 - F-401 = F-611 = F-264;
 - F-265 = F-162 = F-306;
 - F-257 = F-352;
-- F-252 = F-309 = F-315;
 - F-250 = F-312.
 
 ## 3. Fuzzing
@@ -181,5 +177,5 @@ Merged duplicates:
 The fuzzer is now [`spec/tools/fuzz/`](../spec/tools/fuzz/README.md). Its
 audit rounds are finished; the one implementation bug they found that is
 still open on its own is F-310. The minimized fixtures for open findings
-(F-306 in F-265, F-310, F-312 in F-250, and F-315 in F-252) are in
+(F-306 in F-265, F-310, F-312 in F-250, and F-315 in F-254) are in
 [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/).

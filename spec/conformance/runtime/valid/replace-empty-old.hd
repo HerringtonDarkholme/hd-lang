@@ -1,0 +1,13 @@
+# test: replace with an empty old string inserts the replacement at every scalar boundary
+# Spec 10 Prelude: "an empty `old` inserts the replacement at scalar boundaries".
+# expect: test
+use std.testing.assert_equal
+
+test "empty old inserts at scalar boundaries":
+    assert_equal("abc".replace("", "-"), "-a-b-c-", reason="both ends and between scalars")
+    assert_equal("".replace("", "x"), "x", reason="an empty string has one boundary")
+    assert_equal("a\u{1F600}".replace("", "|"), "|a|\u{1F600}|", reason="an astral scalar is one scalar")
+
+test "a leading U+FEFF is an ordinary scalar":
+    assert_equal("\u{FEFF}A".lower().len(), 2, reason="lower keeps a leading U+FEFF")
+    assert_equal("\u{FEFF}".replace("", "-"), "-\u{FEFF}-", reason="replace keeps a leading U+FEFF")

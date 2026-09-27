@@ -300,6 +300,9 @@ else`, `break`, `break value`, and `continue`;
 - expected-type contextual enum constructors such as `.Ready(42)`;
 - exhaustive boolean matching, guarded patterns, and literal matching for
   integers, floats, characters, and strings;
+- tuple patterns, nested in any pattern, and exhaustiveness by
+  pattern-matrix usefulness over bool, optionals, `Result`, enums, tuples,
+  and data;
 - contextual enum patterns and recursive nominal data patterns with field
   bindings and literal field constraints, plus named enum-payload bindings
   resolved independently of source order and literal, nested-data, or
@@ -427,8 +430,9 @@ else`, `break`, `break value`, and `continue`;
   parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
   closure types and provider scopes, qualified printable names (the
   prototype has one module), and opaqueness (`TypeId { key: ... }` is
-  constructible), and the inner `mut` of a type parameter instantiated with
-  `mut U`, whose dictionary is built from `U` (I16);
+  constructible). A type parameter instantiated with `mut U` looks up
+  implementations for `U`, and its Inspectable dictionary adds the inner
+  `mut` when a composite key is built from it;
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
@@ -458,10 +462,12 @@ else`, `break`, `break value`, and `continue`;
   identity, argument/result and provider configuration checks, and CLI sidecar
   commands;
 - strings backed by Wasm GC byte arrays, with scalar-counting `string.len()`;
-- Unicode `string.trim()` and default-case `string.lower()` through a bytewise
-  host bridge that reconstructs the result as a Wasm GC byte array;
-- `string.split()` implemented in WAT, retaining boundary empty pieces and
-  splitting an empty separator into Unicode scalar strings;
+- White_Space `string.trim()` and default-case `string.lower()` through a
+  bytewise host bridge that reconstructs the result as a Wasm GC byte array;
+  every host-boundary decoder keeps a leading U+FEFF;
+- `string.split()` and `string.replace()` implemented in WAT, retaining
+  boundary empty pieces, splitting an empty separator into Unicode scalar
+  strings, and inserting an empty `old`'s replacement at scalar boundaries;
 - non-suspending `defer` on normal completion, return, break, and continue;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed

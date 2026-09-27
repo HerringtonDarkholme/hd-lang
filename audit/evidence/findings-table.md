@@ -1,6 +1,6 @@
 # All Findings
 
-Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
+Generated from `audit/findings/` on 2026-09-27. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
 
 | ID | Severity | Area | Title | Merged duplicates | Known failures |
 | -- | -------- | ---- | ----- | ----------------- | -------------- |
@@ -10,19 +10,15 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |  |
 | [F-201](../findings/F-201-undeclared-requirement-key-accepted.md) | minor | correctness | The compiler accepts an undeclared requirement key on a non-entry function |  |  |
 | [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-312 | 48 |
-| [F-252](../findings/F-252-parser-rejects-core-grammar.md) | major | correctness | The parser rejects core grammar forms | F-309, F-315 | 5 |
 | [F-253](../findings/F-253-sized-numeric-types-unsupported.md) | minor | coverage | Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred |  | 14 |
 | [F-254](../findings/F-254-type-and-local-declarations-unsupported.md) | minor | coverage | `type` declarations and local type/impl declarations are rejected as syntax errors |  | 7 |
 | [F-255](../findings/F-255-prelude-surface-gaps.md) | minor | coverage | Prelude names `Any`, `Eq`, `Hash`, and `Hasher` are unknown |  | 9 |
 | [F-256](../findings/F-256-row-kinded-arguments-unparsed.md) | minor | coverage | Row-kinded generic data arguments such as `Job[$()]` fail to parse |  | 2 |
 | [F-257](../findings/F-257-mut-fn-closures-unsupported.md) | minor | coverage | `mut fn` closure literals do not parse | F-352 | 3 |
-| [F-258](../findings/F-258-least-common-type-code.md) | minor | correctness | Mixed-permission list literal reports `no-common-type` instead of `no-least-common-type` |  | 1 |
 | [F-259](../findings/F-259-disposed-file-profile-missing.md) | minor | test-integrity | The `disposed-file` runtime profile named in spec/conformance/README.md does not exist |  | 1 |
 | [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162, F-306 |  |
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |  |
 | [F-354](../findings/F-354-map-value-covariance-missing.md) | minor | correctness | Readonly `Map[K, V]` is not covariant in `V` |  |  |
-| [F-355](../findings/F-355-trim-uses-host-whitespace-set.md) | minor | correctness | `string.trim()` removes U+FEFF and keeps U+0085 |  | 1 |
-| [F-400](../findings/F-400-host-strings-drop-leading-bom.md) | major | correctness | Strings that start with U+FEFF lose it at the host boundary |  |  |
 | [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay code identity is a per-function source hash, not the decided whole-module semantic hash | F-611, F-264, F-611 |  |
 | [F-402](../findings/F-402-cli-provider-configuration-constant.md) | minor | runtime | `hd replay` accepts a history recorded under a different runtime profile |  |  |
 | [F-403](../findings/F-403-test-blocks-share-one-instance.md) | major | runtime | `hd test` runs `main` and every test block in one shared instance |  |  |
@@ -53,12 +49,5 @@ Generated from `audit/findings/` on 2026-09-26. "Merged duplicates" lists the ID
 | [F-609](../findings/F-609-lowering-split-and-triplicated.md) | note | architecture | Desugaring is split between checker and emitter, and control flow is lowered three times |  |  |
 | [F-610](../findings/F-610-dispatch-chains-defeat-exhaustiveness.md) | note | architecture | Expression dispatch is split into `??` chains, so missing kinds fail only at runtime |  |  |
 | [F-612](../findings/F-612-explain-requirements-path-explosion.md) | note | architecture | explain-requirements prints every call path, so output grows exponentially |  |  |
-| [F-700](../findings/F-700-closure-propagation-invalid-wat.md) | major | correctness | Optional `?` inside a closure emits WAT that Binaryen cannot parse |  | 1 |
 | [F-701](../findings/F-701-generic-function-value-rejected.md) | minor | correctness | A generic function cannot be used as a value, even when its type arguments are known |  | 1 |
-| [F-702](../findings/F-702-pub-path-only-use-accepted.md) | minor | correctness | `pub` on a path-only `use` is accepted |  | 1 |
-| [F-703](../findings/F-703-pub-top-level-binding-accepted.md) | minor | correctness | `pub` on a top-level binding is accepted |  | 1 |
-| [F-704](../findings/F-704-string-replace-unimplemented.md) | minor | coverage | `string.replace` is not implemented |  | 2 |
 | [F-705](../findings/F-705-declared-variance-deferred.md) | note | coverage | Declared variance is deferred, so covariant data cannot be written |  | 1 |
-| [F-706](../findings/F-706-raw-string-escaped-quote.md) | minor | correctness | A backslash before a quote in a raw string is a lexer error |  | 1 |
-| [F-707](../findings/F-707-same-line-suite-comma-accepted.md) | minor | correctness | A comma at depth zero does not end a same-line suite |  | 2 |
-| [F-710](../findings/F-710-colon-generic-bound-accepted.md) | minor | correctness | A generic bound written with `:` is accepted |  | 1 |

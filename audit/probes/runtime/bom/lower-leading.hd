@@ -1,7 +1,0 @@
-# F-400: the string bridge keeps a leading U+FEFF
-# run: hd test audit/probes/runtime/bom/lower-leading.hd
-use std.testing.assert_equal
-
-test "lower keeps a leading U+FEFF":
-    assert_equal("\u{FEFF}A".len(), 2, reason="control: len counts U+FEFF")
-    assert_equal("\u{FEFF}A".lower().len(), 2, reason="lower keeps U+FEFF")

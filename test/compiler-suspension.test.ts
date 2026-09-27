@@ -656,6 +656,43 @@ test("host provider string arguments and results use durable UTF-8 replay encodi
   replayed.replay.assertComplete();
 });
 
+test("a leading U+FEFF host string is text on the live and replayed boundary", async () => {
+  const source = [
+    "use std.testing.assert_equal",
+    "",
+    "pub trait TextBridge:",
+    "    fn join!(self, left: string, right: string) -> string",
+    "",
+    "pub fn main!() -> void $ TextBridge:",
+    '    joined := $.use(TextBridge).join!("\\u{FEFF}", "x")',
+    '    assert_equal(joined.len(), 2, reason="a leading U+FEFF is not a byte order mark")',
+    "",
+  ].join("\n");
+  const events: ReplayEvent[] = [];
+  const calls: Array<readonly (number | string)[]> = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["TextBridge"],
+    hostSuspensionInvoke: (call) => {
+      calls.push(call.arguments);
+      return { pending: false, value: `${call.arguments[0]}${call.arguments[1]}` };
+    },
+    providerConfigurationId: "text-a",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "text" });
+  assert.deepEqual(calls, [["﻿", "x"]]);
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["TextBridge"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "text-a",
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "text" });
+  replayed.replay.assertComplete();
+});
+
 test("println requires Console and streams displayed UTF-8 through the host boundary", async () => {
   const source = fixture(
     "suspension/27-println-requires-console-and-streams-displayed-utf-8-through-the-host-bo",
