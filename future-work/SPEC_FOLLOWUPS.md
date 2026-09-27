@@ -71,6 +71,11 @@ are applied later in one `spec-update` pass, not per chapter.
   written; state the vararg `List[T]` rule in words; name `syntax-error`
   consistently in 02.
 
+- **Decided 2026-09-27 (11):** `all!` never polls a completed child again;
+  it keeps the result and re-polls only unfinished children, in argument
+  order; `req.model.no-reinterpretation` reads "Code outside those
+  boundaries is never reinterpreted: every runtime runs it the same way."
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -94,7 +99,4 @@ example, as the 08 pilot did.
 
 ## Open, for the owner
 
-- 11 `req.schedule.all-order`: does `all!` re-poll completed children after
-  a wake?
-- 11 `req.model.no-reinterpretation`: "not generally reinterpreted" leaves
-  the exceptions unstated.
+(none)
