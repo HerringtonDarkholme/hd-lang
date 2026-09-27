@@ -132,6 +132,18 @@ a field whose type does not support the derivation needs a changed data type
 or a hand-written method. Under discussion: how a trait opts in as derivable
 and how a type opts in to a derived impl.
 
+(M3, decided 2026-09-27) Facts may be declared on the data declaration and
+are shared by every impl. An impl body adjusts them per field, variant, or
+parameter with three line forms and no new keywords: `f += [facts]` extends
+the declaration's facts for this impl (a fact whose concrete type is already
+present is an error; use `=` to change it); `f = [facts]` replaces them for
+this impl; `f = pass` leaves the member out of this impl's generated calls,
+so its type need not support the derivation, and a construction uses the
+member's declared default (an error when there is none). Members without a
+line keep the declaration's facts. This supersedes the "no
+compiler-interpreted fact" wording above: `= pass` is the one form that
+changes generated code.
+
 ## Contents
 
 1. [Problem](#problem)
