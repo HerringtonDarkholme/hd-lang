@@ -447,7 +447,10 @@ must not escape the walk (no capture, no storage); this waits for the
 parked NonEscapable design (TQ-24 to TQ-26), so typed derivation stays
 blocked on it. P8: traversal stays pure: `walk`, `build`, `Walker`, and
 `Source` have the empty requirement row and never suspend; I/O happens
-before `build`, as in serde. R2 (the enum protocol, with a proposed
+before `build`, as in serde. R3: the comparison traits (`Eq`, `PartialOrd`,
+`Ord`, `Hash`) stay on the closed `@derive` list permanently (all members,
+no member lines); hand-written impls are trusted obligations as in Rust, and
+TQ-12 forbids mixing derived and hand-written partners. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
 
 ### Current Design: Full Example (M1-M14)
