@@ -472,7 +472,11 @@ variant cannot be skipped (`Login = pass` is an error, since `build` could
 never produce it). P20: wire stability is documented, not checked:
 reordering or renaming members or variants changes derived formats,
 `Variant.index`, and derived `Ord`; libraries may require explicit tags,
-and a toolchain check can come later from recorded interfaces. P13
+and a toolchain check can come later from recorded interfaces. P19:
+package interfaces carry template bodies, the walker and source bodies they
+name, and annotation-function bodies (matching the 04 decision that
+interfaces carry needed generic bodies); code size is one specialization
+per (type, walker). P13
 (tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
