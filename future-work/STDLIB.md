@@ -42,7 +42,7 @@ every user module that already declares it.
 
 | Module | Names fixed today | Source |
 | --- | --- | --- |
-| `std.core` | primitives, `List`, `Map`, `Any`, `Reference`, `Result`, `Ok`, `Err`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
+| `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Result`, `Ok`, `Err`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.format` | `Display` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md) |
 | `std.cmp` | `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
@@ -1516,6 +1516,9 @@ fn describe(error: FsError) -> string:
 - **B.** Add a few (`Error`, `Duration`, `Set`) now, before users exist.
 
 **Decided: A** (decision 7). `Error`, `Duration`, and `Set` are imported.
+One later owner exception: the sealed `AnyVal` joined `std.core` next to
+`AnyRef`, the renamed `Reference`
+([Revision Notes](../spec/README.md#revision-notes)).
 
 ```text
 use std.error.Error

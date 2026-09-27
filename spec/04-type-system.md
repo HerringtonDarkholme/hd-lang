@@ -579,7 +579,7 @@ The runtime representation of generic code is not observable. A program
 cannot distinguish an implementation that shares one body among
 instantiations from one that specializes each instantiation, except through
 the rules this chapter states: an erased generic parameter has no runtime
-type identity, `is` on a type parameter requires `T < Reference`, and variance
+type identity, `is` on a type parameter requires `T < AnyRef`, and variance
 conversions must be representation-preserving. Pack functions and calls with
 `reified` parameters are specialized. Package interfaces therefore carry the
 bodies of generic and pack functions needed by downstream compilation. The
@@ -591,7 +591,7 @@ such as `shape[T]()` or passed to another reified operation. An erased parameter
 must not be used where runtime type identity is required.
 
 Identity comparison `is` on a type parameter is permitted only with the sealed
-`T < Reference` bound. An unconstrained type parameter may be primitive after
+`T < AnyRef` bound. An unconstrained type parameter may be primitive after
 substitution and therefore cannot be used with `is`.
 
 Reification is part of the function's public type and ABI, but its descriptor
@@ -690,8 +690,8 @@ does not use a `dyn` marker.
 Only a dynamically safe trait may be used as a value type. A dynamically safe
 trait and every supertrait must have no associated types or associated
 functions, and `Self` may appear only as the receiver type. A method-level
-generic parameter is permitted only when it is bounded by `Reference`; further
-bounds such as `T < Reference + Display` are allowed. Every argument for such a
+generic parameter is permitted only when it is bounded by `AnyRef`; further
+bounds such as `T < AnyRef + Display` are allowed. Every argument for such a
 parameter is a reference, so one method body serves every instantiation, and
 the further bounds are supplied with each call. A caller converts a primitive,
 tuple, or optional value explicitly before passing it. Trait declaration
@@ -714,6 +714,23 @@ for `T < Display`. It is still not an implementation target;
 `Any` is the built-in universal empty trait. Every value type, including an
 optional type, satisfies it automatically. As a value type, `Any` erases the concrete type.
 `mut Trait` and `mut Any` preserve mutable access to an erased composite root.
+
+`AnyVal` and `AnyRef` are the two sealed subtraits of `Any`, declared as
+`trait AnyVal < Any` and `trait AnyRef < Any`. Both are empty marker traits
+that the compiler implements; an explicit implementation of either is
+`sealed-trait-implementation`. Every value type implements exactly one of
+them:
+
+- `AnyVal`: `bool`, `char`, the integer types, `f32`, `f64`, `string`, and
+  tuples. These values have no identity.
+- `AnyRef`: data types, enums (including optionals and `Result`), `List`,
+  `Map`, function types, dynamic trait value types, `Any`, suspensions, and
+  runtime handles. These values have identity.
+
+Access permission does not change the category, so `mut User` implements
+`AnyRef`. A type parameter implements `AnyVal` or `AnyRef` only through its
+bound. `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts
+only `AnyRef` types.
 
 ## Map Key Types
 
@@ -821,8 +838,10 @@ Runtime values fall into three categories:
 | Identity-free composites | `string`, tuples | none |
 | Reference values | data values, stored enum values (including `Result` and optionals), lists, maps, closures, trait values, `Any`, suspensions, runtime handles | allocation identity, or one canonical identity for values that store no data |
 
-The reference values are exactly the implementers of the sealed `Reference`
-trait ([Modules](10-modules.md#prelude)).
+The reference values are exactly the implementers of the sealed `AnyRef`
+trait, and the scalar values and identity-free composites are exactly the
+implementers of the sealed `AnyVal` trait
+([Trait Values And `Any`](#trait-values-and-any)).
 
 Values without identity are immutable, so storing one by copy or by
 reference cannot be observed. A payload-free enum value and a fieldless data

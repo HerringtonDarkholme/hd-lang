@@ -8,20 +8,20 @@ impl Display for User:
         self.name
 
 trait Visitor:
-    fn visit[T < Reference](self, value: T) -> string
+    fn visit[T < AnyRef](self, value: T) -> string
 
 trait Labeler:
-    fn label[T < Reference + Display](self, value: T) -> string
+    fn label[T < AnyRef + Display](self, value: T) -> string
 
 data Tagger:
     tag: string
 
 impl Visitor for Tagger:
-    fn visit[T < Reference](self, value: T) -> string:
+    fn visit[T < AnyRef](self, value: T) -> string:
         self.tag
 
 impl Labeler for Tagger:
-    fn label[T < Reference + Display](self, value: T) -> string:
+    fn label[T < AnyRef + Display](self, value: T) -> string:
         self.tag + value.to_string()
 
 fn through_visitor(visitor: Visitor, user: User) -> string:
@@ -30,12 +30,12 @@ fn through_visitor(visitor: Visitor, user: User) -> string:
 fn through_labeler(labeler: Labeler, user: User) -> string:
     labeler.label(user)
 
-test "a Reference-bounded method generic is callable through a trait value":
+test "an AnyRef-bounded method generic is callable through a trait value":
     tagger := Tagger { tag: "tag:" }
     user := User { name: "Ada" }
     assert_equal(through_visitor(tagger, user), "tag:", reason="the Visitor value dispatches to the Tagger method")
 
-test "further bounds on a Reference-bounded method generic are supplied per call":
+test "further bounds on an AnyRef-bounded method generic are supplied per call":
     tagger := Tagger { tag: "tag:" }
     user := User { name: "Ada" }
     assert_equal(through_labeler(tagger, user), "tag:Ada", reason="the Display bound reaches the dynamic call")

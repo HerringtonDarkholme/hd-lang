@@ -57,6 +57,7 @@ export interface Signature {
   readonly genericParameters: readonly string[];
   readonly genericBounds: readonly HirGenericBound[];
   readonly referenceParameters?: readonly string[];
+  readonly valueParameters?: readonly string[];
   readonly rowParameters: readonly string[];
   readonly parameters: readonly ValueType[];
   readonly parameterNames: readonly string[];
@@ -148,7 +149,8 @@ export const PRELUDE_NAMES = new Set([
   "List",
   "Map",
   "Any",
-  "Reference",
+  "AnyVal",
+  "AnyRef",
   "Option",
   "Result",
   "Ok",

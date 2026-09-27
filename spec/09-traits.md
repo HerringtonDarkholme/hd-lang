@@ -543,8 +543,8 @@ requires mutable-root access without a type-specific behavior requirement.
 
 A type argument, explicit or inferred, that does not implement a trait its
 parameter's bound requires is an `unsatisfied-trait-bound` error. This includes
-a non-reference type for `T < Reference`, and a readonly argument for
-`T < mut Trait`.
+a non-reference type for `T < AnyRef`, a reference type for `T < AnyVal`,
+and a readonly argument for `T < mut Trait`.
 
 The compiler may monomorphize static calls, share one body among
 instantiations, or use another representation, as long as the choice preserves
@@ -623,7 +623,7 @@ through the erased value.
 
 The trait must be dynamically safe: neither it nor a supertrait may declare an
 associated type or associated function, every method-level generic parameter
-must be bounded by `Reference`, and `Self` may occur only as a method
+must be bounded by `AnyRef`, and `Self` may occur only as a method
 receiver. Further bounds on such a parameter are allowed; see
 [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 A trait that is not dynamically safe can still be implemented and used as a

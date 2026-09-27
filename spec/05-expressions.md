@@ -516,7 +516,9 @@ every `.None` of one optional type is the same value, and each construction of
 `.Some(value)`, including the implicit wrap of a `T` where `T?` is expected,
 has its own identity, distinct from its payload's. Tuples have no identity and
 using `is` with a tuple is rejected even if it contains references. Primitive
-values likewise cannot be compared with `is`. Both operands
+values likewise cannot be compared with `is`: an operand type must implement
+`AnyRef` ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)),
+not `AnyVal`. Both operands
 must otherwise have compatible composite reference types: after removing
 `mut` at every level, the two types are equal, or one is a trait value or
 `Any` type that the other converts to. Permissions never affect identity, so

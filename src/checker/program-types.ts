@@ -538,14 +538,19 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, memberGenerics) ??
         "void";
       const referenceParameters: string[] = [];
+      const valueParameters: string[] = [];
       const genericBounds = method.genericBounds.flatMap((bound) =>
         bound.traits.flatMap((sourceTraitName) => {
           const mutable = mutableInner(sourceTraitName) !== undefined;
           const traitKey = mutableInner(sourceTraitName) ?? sourceTraitName;
           const application = nominalGenericParts(traitKey);
           const traitName = application?.name ?? traitKey;
-          if (traitName === "Reference") {
+          if (traitName === "AnyRef") {
             referenceParameters.push(bound.parameter);
+            return [];
+          }
+          if (traitName === "AnyVal") {
+            valueParameters.push(bound.parameter);
             return [];
           }
           const boundTrait = traitName === "Any" ? undefined : traitTypes.get(traitName);
@@ -571,6 +576,7 @@ export function defineProgramTraits(context: ProgramCheckContext): void {
         genericParameters: method.genericParameters,
         genericBounds,
         referenceParameters,
+        valueParameters,
         suspending: method.suspending,
         receiverMutable: method.parameters[0]?.type.name === "mut:Self",
         parameters: parameters.map((parameter) => parameter ?? "void"),

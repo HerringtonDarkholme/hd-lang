@@ -21,8 +21,8 @@ Decided 2026-09-26. None of these is in the specification yet.
   type identity question on static calls).
 - **TQ-10** (TY-14): dynamic safety stays literal. A dynamically safe trait
   may not have methods with row parameters, `reified` parameters, packs, or
-  suspension; only `Reference`-bounded method generics are allowed (G2).
-  09 Dynamic Trait Values states the `Reference` rule but not the exclusion
+  suspension; only `AnyRef`-bounded method generics are allowed (G2).
+  09 Dynamic Trait Values states the `AnyRef` rule but not the exclusion
   of suspending methods.
 - **TQ-11** (TY-16). Newtypes may carry `@derive(...)`; the derived
   implementations use the base type's behavior.

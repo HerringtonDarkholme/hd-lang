@@ -136,7 +136,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           if (generic && !(this.signature.referenceParameters ?? []).includes(generic)) {
             this.fail(
               "identity-needs-reference-bound",
-              `generic parameter '${generic}' requires a Reference bound for identity comparison`,
+              `generic parameter '${generic}' requires an AnyRef bound for identity comparison`,
               expression.span,
             );
           }

@@ -144,7 +144,7 @@ already implies. Codes marked *(new)* are not in the README table yet.
   meet all of these:
   - it declares no associated types or associated functions;
   - `Self` occurs only as a receiver;
-  - every method-level type parameter is bounded by `Reference`;
+  - every method-level type parameter is bounded by `AnyRef`;
   - suspending methods are allowed;
   - row parameters are allowed, and providers are passed keyed;
   - `reified` parameters are allowed;
@@ -261,11 +261,11 @@ For `e.m(args)`, where `e` has view `V`:
 ## R13. Compiler-Provided Traits
 
 - R13.1 **Sealed** traits: user impls are `sealed-trait-implementation`. The
-  sealed traits are `Reference`, `Suspend[T]`, `ShapeMetadata`, `Any`, and,
+  sealed traits are `AnyRef`, `Suspend[T]`, `ShapeMetadata`, `Any`, and,
   when adopted, `Inspectable` and `NonEscapable`.
 - R13.2 `Any` is satisfied by every type except optionals, `void`, and
   `never`. `mut X` satisfies `mut Any` when X is a composite.
-- R13.3 `Reference`: as the prelude lists today.
+- R13.3 `AnyRef`: as the prelude lists today.
 - R13.4 Provided evidence is constant and cannot be overridden.
 - R13.5 **[TQ-1]** Iterator adapter: a `mut X` view with `mut X < Iterator[T]`
   satisfies `Iterable[T]` with `iter` returning itself. A type with any

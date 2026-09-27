@@ -499,8 +499,9 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
       };
       let bounds: HirExpression[] | undefined;
       if (method.genericParameters.length > 0) {
-        // Method-level generics are inferred per call; their non-Reference
-        // bounds travel as dictionary arguments, also through a trait value.
+        // Method-level generics are inferred per call; their bounds other
+        // than AnyVal and AnyRef travel as dictionary arguments, also through a
+        // trait value.
         const methodSignature: Signature = {
           name: method.name,
           index: -1,
@@ -513,6 +514,7 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
             ),
           })),
           referenceParameters: method.referenceParameters,
+          valueParameters: method.valueParameters,
           rowParameters: [],
           parameters: methodParameters,
           parameterNames: method.parameterNames,

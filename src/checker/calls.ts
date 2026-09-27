@@ -805,14 +805,41 @@ export abstract class CallChecker extends StatementChecker {
         if (!(this.signature.referenceParameters ?? []).includes(forwarded)) {
           this.fail(
             "unsatisfied-trait-bound",
-            `generic parameter '${forwarded}' does not implement Reference, required by the bound on '${parameter}' of '${signature.name}'`,
+            `generic parameter '${forwarded}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
             span,
           );
         }
       } else if (!this.isIdentityType(actual)) {
         this.fail(
           "unsatisfied-trait-bound",
-          `type '${actual}' does not implement Reference, required by the bound on '${parameter}' of '${signature.name}'`,
+          `type '${actual}' does not implement AnyRef, required by the bound on '${parameter}' of '${signature.name}'`,
+          span,
+        );
+      }
+    }
+    // AnyVal and AnyRef partition the value types
+    // (04-type-system.md#trait-values-and-any).
+    for (const parameter of signature.valueParameters ?? []) {
+      const actual = substitutions.get(parameter);
+      if (!actual)
+        this.fail(
+          "unresolved-generic-placeholder",
+          `could not infer generic parameter ${parameter}`,
+          span,
+        );
+      const forwarded = genericTypeName(actual);
+      if (forwarded) {
+        if (!(this.signature.valueParameters ?? []).includes(forwarded)) {
+          this.fail(
+            "unsatisfied-trait-bound",
+            `generic parameter '${forwarded}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
+            span,
+          );
+        }
+      } else if (this.isIdentityType(actual)) {
+        this.fail(
+          "unsatisfied-trait-bound",
+          `type '${actual}' does not implement AnyVal, required by the bound on '${parameter}' of '${signature.name}'`,
           span,
         );
       }
