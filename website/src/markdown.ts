@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import markdownIt, { type MarkdownIt, type Token } from "markdown-it";
 
 import { parseSource } from "../../spec/reference-parser/parser.ts";
+import { isErrorExample, RULE_ID, ruleIdAnchor } from "../../spec/tools/spec-prose.ts";
 import { classify } from "../../src/highlight.ts";
 import { type GrammarIndex, ruleAnchor, ruleTarget, tokenizeEbnf } from "./ebnf.ts";
 
@@ -78,22 +79,32 @@ const HD_MARKERS =
 export function isHdBlock(info: string, code: string): boolean {
   if (info === "hd") return true;
   if (info !== "text") return false;
-  return parsesAsHd(code) || HD_MARKERS.test(code);
+  return parsesAsHd(code) || HD_MARKERS.test(code) || isErrorExample(code);
 }
 
-/** Renders hd source as spans carrying the repository highlighter's token classes. */
+/** A line an error example marks as rejected: it ends in `# error` or `# error: CODE`. */
+const ERROR_LINE = /#\s*error(?::\s*[a-z0-9-]+)?\s*$/;
+
+/**
+ * Renders hd source as spans carrying the repository highlighter's token
+ * classes. A line that an error example marks as rejected is wrapped in a
+ * `line-error` span, and its marker comment gets `hl-error-marker`.
+ */
 export function highlightHd(code: string): string {
   return code
     .split("\n")
-    .map((line) =>
-      classify(line)
-        .map(({ text, kind }) =>
-          kind === "plain"
-            ? escapeHtml(text)
-            : `<span class="hl-${kind}">${escapeHtml(text)}</span>`,
-        )
-        .join(""),
-    )
+    .map((line) => {
+      const rejected = ERROR_LINE.test(line);
+      const html = classify(line)
+        .map(({ text, kind }) => {
+          if (kind === "plain") return escapeHtml(text);
+          const marker = rejected && kind === "comment" && ERROR_LINE.test(text);
+          const classes = marker ? `hl-${kind} hl-error-marker` : `hl-${kind}`;
+          return `<span class="${classes}">${escapeHtml(text)}</span>`;
+        })
+        .join("");
+      return rejected ? `<span class="line-error">${html}</span>` : html;
+    })
     .join("\n");
 }
 
@@ -159,6 +170,76 @@ function assignHeadingIds(tokens: Token[], env: RenderEnv): void {
   }
 }
 
+/** Gives each body cell of a table its column's header text, for the phone layout. */
+function labelCells(tableTokens: Token[]): void {
+  const headers: string[] = [];
+  let column = 0;
+  for (const [index, token] of tableTokens.entries()) {
+    if (token.type === "th_open") headers.push(tableTokens[index + 1]!.content.replaceAll("`", ""));
+    if (token.type === "tr_open") column = 0;
+    if (token.type === "td_open") {
+      const header = headers[column++];
+      if (header) token.attrSet("data-label", header);
+    }
+  }
+}
+
+/** A rule ID marker opening a block or table cell, as spec/STYLE.md defines it. */
+const RULE_MARKER = /^r\[([^\]\s]+)\]\s*/;
+
+/**
+ * Turns each rule ID marker that opens a paragraph, list item, or table cell
+ * into a `rule_id` token, which renders as a linkable anchor. A table with a
+ * rule in it becomes a rule table. A block quote that opens with a bold
+ * "Why." or "Note." becomes a callout.
+ */
+function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeof Token): void {
+  let table: Token | undefined;
+  let tableStart = 0;
+  for (const [index, token] of tokens.entries()) {
+    if (token.type === "table_open") {
+      table = token;
+      tableStart = index;
+    }
+    if (token.type === "table_close") {
+      if (table?.attrGet("class") === "rule-table") labelCells(tokens.slice(tableStart, index));
+      table = undefined;
+    }
+    if (token.type === "blockquote_open") {
+      const inline = tokens[index + 2];
+      const callout = /^\*\*(Why|Note)\.\*\*/.exec(inline?.content ?? "");
+      if (tokens[index + 1]?.type === "paragraph_open" && callout)
+        token.attrSet("class", `callout callout-${callout[1]!.toLowerCase()}`);
+    }
+    if (token.type !== "inline") continue;
+    const opener = tokens[index - 1]?.type;
+    if (opener !== "paragraph_open" && opener !== "td_open" && opener !== "th_open") continue;
+    const marker = RULE_MARKER.exec(token.content);
+    if (!marker || !RULE_ID.test(marker[1]!)) continue;
+    const id = ruleIdAnchor(marker[1]!);
+    if (env.slugCounts.has(id)) throw new Error(`${env.source}: duplicate rule ID ${marker[1]}`);
+    env.slugCounts.set(id, 1);
+    // Drop the marker's text from the leading text children, then put the anchor first.
+    let remaining = marker[0].length;
+    const children = token.children ?? [];
+    while (remaining > 0 && children[0]?.type === "text") {
+      const child = children[0];
+      if (child.content.length <= remaining) {
+        remaining -= child.content.length;
+        children.shift();
+      } else {
+        child.content = child.content.slice(remaining);
+        remaining = 0;
+      }
+    }
+    const anchor = new TokenClass("rule_id", "", 0);
+    anchor.meta = { id: marker[1] };
+    children.unshift(anchor);
+    token.children = children;
+    if (opener !== "paragraph_open" && table) table.attrSet("class", "rule-table");
+  }
+}
+
 /** Whether `code` declares `main`, which makes it a whole program rather than REPL input. */
 export function isWholeProgram(code: string): boolean {
   return /^(?:pub\s+)?fn\s+main!?\s*\(/m.test(code);
@@ -185,6 +266,15 @@ export function createMarkdown(): MarkdownIt {
   md.core.ruler.push("heading_ids", (state) => {
     assignHeadingIds(state.tokens, asRenderEnv(state.env));
   });
+  md.core.ruler.push("rule_ids_and_callouts", (state) => {
+    markRulesAndCallouts(state.tokens, asRenderEnv(state.env), state.Token);
+  });
+
+  md.renderer.rules.rule_id = (tokens, index) => {
+    const id = String(tokens[index]!.meta?.id);
+    const anchor = escapeHtml(ruleIdAnchor(id));
+    return `<a class="rule-id" id="${anchor}" href="#${anchor}" title="Rule ${escapeHtml(id)}">${escapeHtml(id)}</a>`;
+  };
 
   md.renderer.rules.heading_open = (tokens, index, options, _env, self) => {
     const id = String(tokens[index]!.attrGet("id") ?? "");
@@ -200,7 +290,10 @@ export function createMarkdown(): MarkdownIt {
     return self.renderToken(tokens, index, options);
   };
 
-  md.renderer.rules.table_open = () => '<div class="table-wrap"><table>\n';
+  md.renderer.rules.table_open = (tokens, index) => {
+    const kind = tokens[index]!.attrGet("class");
+    return `<div class="table-wrap"><table${kind ? ` class="${escapeHtml(String(kind))}"` : ""}>\n`;
+  };
   md.renderer.rules.table_close = () => "</table></div>\n";
 
   md.renderer.rules.fence = (tokens, index, _options, env) => {
@@ -213,6 +306,8 @@ export function createMarkdown(): MarkdownIt {
       const language = info === "" ? "" : ` class="language-${escapeHtml(info)}"`;
       return `<pre class="code"><code${language}>${escapeHtml(code)}</code></pre>\n`;
     }
+    if (isErrorExample(code))
+      return `<div class="code-block error-example"><div class="example-label">Error example</div><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryAction(code, asRenderEnv(env))}</div>\n`;
     return `<div class="code-block"><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryAction(code, asRenderEnv(env))}</div>\n`;
   };
   return md;

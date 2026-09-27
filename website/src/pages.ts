@@ -59,6 +59,7 @@ export const PAGES: readonly PageSource[] = [
   ...SPEC_CHAPTERS.map(([file, title], index) =>
     page(`spec/${file}.md`, `spec/${file}.html`, `${index + 1}. ${title}`, "Reference"),
   ),
+  page("spec/STYLE.md", "spec/style.html", "Specification Style Guide", "Reference"),
   page("future-work/ROADMAP.md", "roadmap.html", "Roadmap", "Project"),
 ];
 

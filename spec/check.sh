@@ -122,6 +122,9 @@ done
 
 node --experimental-strip-types "$spec_dir/reference-parser/index.ts" "$manifest" "$spec_dir/conformance"
 node --experimental-strip-types "$spec_dir/check-spec-anchors.ts" "$spec_dir" "$manifest"
+# Style lint (spec/STYLE.md): long paragraphs and sentences only warn; rule ID
+# syntax, placement, prefixes, and uniqueness fail.
+node --experimental-strip-types "$spec_dir/check-spec-style.ts" "$spec_dir"
 
 # Fuzzer (spec/tools/fuzz): the import gate, then a seeded smoke run whose only
 # oracles are the reference parser and the spec inventory. No implementation

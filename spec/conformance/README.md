@@ -110,7 +110,9 @@ tab-separated fields:
 - `expectation`: `accept`, `reject:CODE`, `warn:CODE`, or `panic:CODE`. For a
   marked fixture, it equals the marker kind (`diagnostic` is written
   `reject`) and code;
-- `specification`: the one primary section, as `NN-chapter.md#anchor`.
+- `specification`: the one primary section, as `NN-chapter.md#anchor`. The
+  anchor may instead name one rule, as `r-` followed by its
+  [rule ID](../STYLE.md#rule-ids).
 
 Every fixture has exactly one row.
 

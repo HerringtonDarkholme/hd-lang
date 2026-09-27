@@ -2,6 +2,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { blocks, ruleIdAnchor, ruleMarkers } from "./tools/spec-prose.ts";
+
 const headingPattern = /^#{1,6}\s+(.+?)\s*#*\s*$/gm;
 const linkPattern = /(?<!!)\[[^\]]*\]\(([^)]+)\)/g;
 
@@ -25,6 +27,9 @@ async function anchors(path: string): Promise<Set<string>> {
     counts.set(base, index + 1);
     result.add(index === 0 ? base : `${base}-${index}`);
   }
+  // Rule ID markers (spec/STYLE.md) are anchors too, so a case or link may cite a rule.
+  if (path.endsWith(".md"))
+    for (const marker of ruleMarkers(blocks(text)).markers) result.add(ruleIdAnchor(marker.id));
   return result;
 }
 

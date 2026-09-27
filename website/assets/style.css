@@ -22,7 +22,8 @@
   --repl-height: min(45vh, 420px);
   --topbar-height: 56px;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   color-scheme: light dark;
 }
 
@@ -445,6 +446,126 @@ h4:hover .heading-anchor,
   background: var(--bg-soft);
 }
 
+/* Specification rules (spec/STYLE.md): rule ID anchors, callouts, rule tables. */
+
+.rule-id {
+  float: right;
+  margin: 0.2em 0 0.1em 1em;
+  padding: 0 0.45em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.rule-id:hover,
+.rule-id:focus {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+
+.rule-id:target {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.prose li:has(> .rule-id:target),
+.prose p:has(> .rule-id:target) {
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
+.prose li:has(> .rule-id)::after,
+.prose p:has(> .rule-id)::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.prose table.rule-table .rule-id {
+  float: none;
+  display: block;
+  width: max-content;
+  margin: 0 0 0.25em;
+}
+
+.prose table.rule-table code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.prose blockquote.callout {
+  padding: 0.6em 1em;
+  color: var(--text);
+  background: var(--bg-soft);
+  border-left-color: var(--accent);
+  border-radius: 0 8px 8px 0;
+}
+
+.prose blockquote.callout > :last-child {
+  margin-bottom: 0;
+}
+
+.prose blockquote.callout-why > p:first-child > strong:first-child {
+  color: var(--accent);
+}
+
+.prose blockquote.callout-note {
+  border-left-color: var(--text-soft);
+}
+
+@media (max-width: 600px) {
+  .rule-id {
+    float: none;
+    display: inline-block;
+    margin: 0 0.5em 0 0;
+  }
+
+  /* A rule table becomes one card per rule, each cell labeled by its column. */
+  .prose table.rule-table,
+  .prose table.rule-table tbody,
+  .prose table.rule-table tr,
+  .prose table.rule-table td {
+    display: block;
+  }
+
+  .prose table.rule-table thead {
+    display: none;
+  }
+
+  .prose table.rule-table tr {
+    margin: 0 0 0.75em;
+    padding: 0.5em 0.8em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .prose table.rule-table td {
+    padding: 0.1em 0;
+    border: 0;
+  }
+
+  .prose table.rule-table td:first-child {
+    font-weight: 600;
+  }
+
+  .prose table.rule-table td[data-label]:not(:first-child)::before {
+    content: attr(data-label) ": ";
+    color: var(--text-soft);
+    font-weight: 600;
+  }
+
+  .prose table.rule-table code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Code */
 
 pre.code {
@@ -497,6 +618,45 @@ pre.code code {
 .try-link:hover {
   color: var(--accent);
   text-decoration: none;
+}
+
+/* Error examples: every line marked `# error` is tinted, under an "Error example" tab. */
+
+.example-label {
+  display: inline-block;
+  padding: 1px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--repl-error);
+  background: color-mix(in srgb, var(--repl-error) 10%, var(--bg-code));
+  border: 1px solid color-mix(in srgb, var(--repl-error) 40%, var(--border));
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.error-example pre.code {
+  border-color: color-mix(in srgb, var(--repl-error) 40%, var(--border));
+  border-top-left-radius: 0;
+}
+
+.line-error {
+  display: inline-block;
+  min-width: calc(100% + 32px);
+  margin: 0 -16px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--repl-error) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--repl-error);
+}
+
+.hl-comment.hl-error-marker {
+  color: var(--repl-error);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.error-example .try-link {
+  top: 30px;
 }
 
 @media (hover: none) {

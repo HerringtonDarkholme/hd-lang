@@ -33,6 +33,8 @@ Runtime and standard-library behavior that is not language semantics remains in
 [`RUNTIME_AND_LIBRARY.md`](../future-work/RUNTIME_AND_LIBRARY.md). The language tour remains
 the readable introduction; this directory is the formalization target.
 
+Chapters are written to the [Specification Style](STYLE.md) guide.
+
 Parser and type-checker cases live in
 [Conformance Fixtures](conformance/README.md). Run the repository-local
 specification checks with:
@@ -46,6 +48,24 @@ spec/check.sh
 The key words **must**, **must not**, **should**, **should not**, and **may** are
 normative. Text marked as a note or example is explanatory unless it explicitly
 states otherwise.
+
+### Normative Vocabulary
+
+Chapters written in the [specification style](STYLE.md) use these words and
+phrases with these meanings:
+
+| Word or phrase | Meaning |
+| --- | --- |
+| **must**, **must not** | An absolute requirement on a program or an implementation. |
+| **should**, **should not** | A recommendation. There may be valid reasons to depart from it, and doing so does not by itself make a program invalid. |
+| **may** | A permission: the program or implementation is allowed, but not required, to do it. |
+| **is an error**, **is a `code` error**, "Error: `code`." | The implementation diagnoses the program, as [Diagnostics](#diagnostics) defines. When a code is named, the diagnostic carries that code. |
+| **is invalid**, **is rejected** | The implementation diagnoses the program. The rule names no specific code. |
+| **Why**, **Note** | A callout that explains the rules around it. It adds no requirement. |
+
+A rule may carry a stable **rule ID**, written `r[data.field.unique]` before
+the rule. A link cites it by the anchor `r-` followed by the ID, as
+[Rule IDs](STYLE.md#rule-ids) describes.
 
 ### Diagnostics
 
@@ -139,6 +159,21 @@ Unresolved decisions are recorded in [Open Issues](../future-work/OPEN_ISSUES.md
 draft is not complete until every issue required for parsing, type checking, or
 execution has either been specified or explicitly classified as unsupported or
 runtime and library work.
+
+## Glossary
+
+This glossary is a stub. It grows as chapters are restyled, and each entry
+links to the rule that defines the term.
+
+| Term | Definition |
+| --- | --- |
+| **copy-update literal** | A data literal with one leading spread, which builds a new value from an existing one. See [Copy-Update Literals](08-data-and-enums.md#copy-update-literals). |
+| **data type** | A nominal product type with reference semantics. See [`data.kind.data`](08-data-and-enums.md#r-data.kind.data). |
+| **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
+| **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
+| **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
+| **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
+| **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 
 ## Revision Notes
 

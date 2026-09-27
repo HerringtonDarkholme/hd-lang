@@ -59,6 +59,34 @@ describe("website build", () => {
     assert.ok(!existsSync(join(outDir, "assets/repl.js")));
   });
 
+  test("renders rule IDs, callouts, rule tables, and error examples", async () => {
+    const data = await readFile(join(scratch, "pages", "spec/08-data-and-enums.html"), "utf8");
+    assert.match(
+      data,
+      /<li><a class="rule-id" id="r-data\.field\.unique" href="#r-data\.field\.unique" title="Rule data\.field\.unique">data\.field\.unique<\/a>Field names must be unique/,
+    );
+    assert.doesNotMatch(data, /r\[data\./, "no marker is left as text");
+    assert.match(data, /<blockquote class="callout callout-why">\s*<p><strong>Why\.<\/strong>/);
+    assert.match(data, /<blockquote class="callout callout-note">/);
+    assert.match(data, /<table class="rule-table">/);
+    assert.match(data, /<td data-label="Rule"><a class="rule-id" id="r-data\.embed\.width"/);
+    assert.match(
+      data,
+      /<div class="code-block error-example"><div class="example-label">Error example<\/div>/,
+    );
+    assert.match(
+      data,
+      /<span class="line-error">.*<span class="hl-comment hl-error-marker"># error: duplicate-embedded-field<\/span><\/span>/,
+    );
+    // The style guide's link to a rule anchor resolves on the chapter page.
+    const style = await readFile(join(scratch, "pages", "spec/style.html"), "utf8");
+    assert.match(style, /href="\/hd-lang\/spec\/08-data-and-enums\.html#r-data\.embed\.width"/);
+    // A marker inside a fence or inline code stays text.
+    assert.match(style, /language-markdown">1\. r\[data\.field\.unique\] Field names/);
+    const readme = await readFile(join(scratch, "pages", "spec/index.html"), "utf8");
+    assert.match(readme, /<code>r\[data\.field\.unique\]<\/code>/);
+  });
+
   test("serves a playground build at playground/ when one exists", async () => {
     const playgroundDist = join(scratch, "playground-dist");
     await mkdir(join(playgroundDist, "assets"), { recursive: true });

@@ -262,6 +262,62 @@ try {
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "repl-phone.png") });
     await page.context().close();
   });
+  await step("spec rule IDs, callouts, and error examples fit light, dark, and phone", async () => {
+    const views = [
+      ["light", 1280],
+      ["dark", 1280],
+      ["light", 375],
+      ["dark", 375],
+    ] as const;
+    for (const [colorScheme, width] of views) {
+      const { page } = await openPage("spec/08-data-and-enums.html#r-data.embed.width", {
+        colorScheme,
+        width,
+      });
+      const view = `${colorScheme} at ${width}px`;
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      assert.equal(overflow, 0, `${view}: no horizontal page scroll`);
+      const target = page.locator("#r-data\\.embed\\.width");
+      assert.ok(await target.evaluate((node) => node.matches(":target")), `${view}: rule anchor`);
+      assert.equal(await target.textContent(), "data.embed.width");
+      // A rule ID never covers its rule's text.
+      const item = page.locator("li", { has: page.locator("#r-data\\.field\\.unique") });
+      const [chip, text] = await item.evaluate((node) => {
+        const anchor = node.querySelector(".rule-id")!.getBoundingClientRect();
+        const range = document.createRange();
+        range.setStart(node.lastChild!, 0);
+        range.setEnd(node.lastChild!, 1);
+        return [anchor.toJSON(), range.getBoundingClientRect().toJSON()];
+      });
+      assert.ok(
+        chip.right <= text.left || chip.left >= text.right || chip.bottom <= text.top,
+        `${view}: the rule ID does not overlap the rule`,
+      );
+      const tint = await page
+        .locator(".line-error")
+        .first()
+        .evaluate((node) => getComputedStyle(node).backgroundColor);
+      assert.notEqual(tint, "rgba(0, 0, 0, 0)", `${view}: error lines are tinted`);
+      const label = page.locator(".error-example .example-label").first();
+      assert.equal(await label.textContent(), "Error example");
+      const why = page.locator("blockquote.callout-why").first();
+      const [border, text2] = await why.evaluate((node) => [
+        getComputedStyle(node).borderLeftColor,
+        getComputedStyle(node).color,
+      ]);
+      assert.notEqual(border, text2, `${view}: the Why callout has an accent border`);
+      if (SCREENSHOTS) {
+        const name = `spec-rules-${colorScheme}-${width}`;
+        await page.screenshot({ path: join(SCREENSHOTS, `${name}-limits.png`) });
+        await page.locator("#fields").scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollBy(0, -70));
+        await page.screenshot({ path: join(SCREENSHOTS, `${name}-fields.png`) });
+      }
+      await page.context().close();
+    }
+  });
   console.log(`${passed} passed`);
 } finally {
   await browser.close();
