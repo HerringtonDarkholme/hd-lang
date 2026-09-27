@@ -129,10 +129,16 @@ function loneReifiedParameter(clean: string, parent: string): boolean {
 
 // Chapter 02: a requirement row is a comma list of keys. A `+` or `-`
 // between keys, as in `$ A + B`, `$ (R - K)`, or `$.Context[A + B]`, is
-// the removed row union or subtraction.
+// the removed row union or subtraction. A row type argument such as
+// `Job[A + B]` is matched only between capitalized names, so a list or
+// index expression like `[a + b]` stays an expression.
 const rowKey = String.raw`(?:mut\s+)?[\p{L}_][\p{L}\p{N}_.]*(?:\[(?:[^[\]]|\[[^[\]]*\])*\])?`;
 const oldRowOperator = new RegExp(
   String.raw`\$\s*(?:\.\s*Context\s*\[)?\s*\(?\s*${rowKey}\s*[+-]\s*\(?\s*(?:mut\s+)?[\p{L}_]`,
+  "u",
+);
+const oldRowTypeArgument = new RegExp(
+  String.raw`\b\p{Lu}[\p{L}\p{N}_]*\[(?:[^[\]]*,\s*)?\p{Lu}[\p{L}\p{N}_]*\s*\+\s*\p{Lu}`,
   "u",
 );
 
@@ -143,7 +149,8 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
   if (/^struct\b/.test(clean)) diagnostics.push(diagnostic("old-struct-declaration", line));
   if (/^import\b/.test(clean)) diagnostics.push(diagnostic("old-import-declaration", line));
   if (/^export\b/.test(clean)) diagnostics.push(diagnostic("old-export-declaration", line));
-  if (oldRowOperator.test(clean)) diagnostics.push(diagnostic("old-row-operator", line));
+  if (oldRowOperator.test(clean) || oldRowTypeArgument.test(clean))
+    diagnostics.push(diagnostic("old-row-operator", line));
   if (/^(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b.*\{[^}]*\.[A-Za-z_]/.test(clean))
     diagnostics.push(diagnostic("direct-variant-use", line));
   if (/\b[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+\s*(?:<=|>=|==|!=|<|>)\s*[\w.]+/u.test(clean))

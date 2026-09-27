@@ -1000,3 +1000,4 @@ parse/invalid/old-row-operator-in-type.hd	parse
 parse/invalid/old-row-operator-in-context.hd	parse
 parse/invalid/bare-row-list-in-type.hd	parse
 typing/invalid/row-extension-absent-key.hd	type
+parse/invalid/old-row-operator-type-argument.hd	parse

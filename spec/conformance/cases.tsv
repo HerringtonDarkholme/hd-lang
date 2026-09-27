@@ -1094,3 +1094,4 @@ parse/invalid/old-row-operator-in-type.hd	parse	reject:old-row-operator	02-gramm
 parse/invalid/old-row-operator-in-context.hd	parse	reject:old-row-operator	02-grammar.md#types
 parse/invalid/bare-row-list-in-type.hd	parse	reject:syntax-error	02-grammar.md#types
 typing/invalid/row-extension-absent-key.hd	type	reject:type-mismatch	11-requirements-and-suspension.md#requirement-polymorphism
+parse/invalid/old-row-operator-type-argument.hd	parse	reject:old-row-operator	02-grammar.md#types
