@@ -46,6 +46,11 @@ are applied later in one `spec-update` pass, not per chapter.
   `Iterator[mut Word]` or builds readonly elements explicitly. Fix the
   fixture `trait-argument-owner-impl.hd` accordingly.
 
+- **Enum shared constructor data is read-only** (ENUM_SEMANTICS question 2,
+  decided 2026-09-27): a `mut` enum view can no longer reassign a named
+  shared constructor field, so enum values are immutable once built. The
+  value-category question (question 1) is still open.
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
