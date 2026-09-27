@@ -1,20 +1,14 @@
 id	count	title
-F-250	48	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-250	44	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 F-253	15	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 R-MUT	9	`$.use(mut K)` and other `mut` requirement keys are not implemented
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
-TQ-2	4	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
+TQ-2	3	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-255	2	Prelude names `Eq`, `Hash`, and `Hasher` are unknown
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
-F-256	2	Row-kinded generic data arguments such as `Job[$()]` fail to parse
 GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly after `annotate` fail
-TQ-1	2	The prototype has no `Iterable` trait, so user `Iterable` impls and `Iterable` bounds fail
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
-F-705	1	Declared variance is deferred, so covariant data cannot be written
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
-TQ-29	1	The prototype has no `Iterable` trait, so a type implementing both `Iterable` and `Iterator` cannot be iterated
-VE	1	Value embedding is implemented except the variance rule: variance markers do not parse (F-705), so embedded fields cannot be checked as invariant positions
-EC	1	A dynamic trait value does not satisfy a bound on its own trait or a supertrait: the prototype has no dictionary that forwards bound calls through the value's table

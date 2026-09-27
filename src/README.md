@@ -321,7 +321,12 @@ else`, `break`, `break value`, and `continue`;
   type arguments or the expected function type;
 - `type` aliases, expanded before checking, and newtypes lowered to one-field
   data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
-  hoisted under a scoped name; the prelude trait `Any`;
+  hoisted under a scoped name; the prelude traits `Any` and `Iterable` (user
+  implementations and bounds drive `for` loops and comprehensions, and
+  collections satisfy `Iterable` bounds); declared `+T`/`-T` variance with
+  readonly variance conversions; row-kinded data parameters such as
+  `Job[Logger + Clock]`; a dynamic trait value satisfying bounds on its own
+  trait and supertraits through forwarding dictionaries;
 - concrete requirement rows with hidden `externref` provider threading and
   transitive call paths from `hd explain-requirements`;
 - normalized concrete row union/subtraction plus statically resolved `$.use`

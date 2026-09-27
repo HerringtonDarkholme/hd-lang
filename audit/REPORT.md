@@ -9,8 +9,8 @@ this report: the verdict, the scorecard, the claim ledger, the coverage and
 blind-fixture runs, and the fuzzing rounds. The repository history keeps
 them. What remains is the architecture review, which still describes the
 prototype, and the findings that are still open. On 2026-09-27 the prototype
-passes 983 of the 1,090 conformance cases; [`README.md`](README.md) says
-where the other 107 are listed.
+passes 996 of the 1,090 conformance cases; [`README.md`](README.md) says
+where the other 94 are listed.
 
 The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
@@ -135,7 +135,7 @@ multi-module or incremental work, it needs:
 
 ## 2. Open Findings
 
-The most important open findings, ranked by impact. All 44 open findings,
+The most important open findings, ranked by impact. All 42 open findings,
 with the conformance cases each one keeps failing, are in
 [`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
 by several workers are merged under one canonical ID.

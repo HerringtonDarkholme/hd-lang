@@ -445,9 +445,9 @@ hd trace FILE
 
 ## Deferred Work
 
-The MVP defers GADTs, packs, declared variance, multiple packages, dependency
+The MVP defers GADTs, packs, multiple packages, dependency
 resolution, the LSP, formatting, production optimization, the final WASI and
 Component Model boundary, and complete annotation support. A deferred feature
 enters the MVP only when it is necessary to settle an active semantic question.
-GADTs, packs, and declared variance remain in the language and are planned
-soon after the MVP.
+GADTs and packs remain in the language and are planned soon after the MVP.
+Declared variance on data and enums is implemented.
