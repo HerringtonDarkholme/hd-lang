@@ -132,8 +132,8 @@ spans to a `Diagnostic` directly.
 
 Rule IDs are not kept in a table. `spec-index.ts` reads the specification
 each time a command needs it and finds each rule ID marker (`r[data.field.unique]`
-opening a list item, paragraph, quote, or table cell, as the specification
-style defines it). A rule names a code
+opening a list item, paragraph, quote, or table cell, as
+[Rule IDs](../spec/STYLE.md#rule-ids) defines it). A rule names a code
 with "Error: `code`." or "Warning: `code`." or "is a `code` error". So as more
 chapters gain rule IDs, `rule` and `rules` fill in without code changes.
 `HD_SPEC_DIR` points the index at another specification directory; the
