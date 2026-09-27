@@ -2,15 +2,13 @@
 
 Status: language specification draft.
 
-Functions are hd-lang's primary unit of behavior. Methods, entry points, tests,
-tools, workflows, and generated adapters are ordinary functions with additional
-library metadata or calling conventions.
+This chapter defines functions, hd-lang's primary unit of behavior.
+
+1. r[fn.kind.ordinary] Methods, entry points, tests, tools, workflows, and generated adapters are ordinary functions with additional library metadata or calling conventions.
 
 ## Declarations
 
-A named function declares typed parameters and a result type. A name ending in
-`!` declares a suspending function, and a trailing `$` clause declares
-requirements:
+A named function declares typed parameters and a result type.
 
 ```text
 fn add(a: i32, b: i32) -> i32:
@@ -20,46 +18,74 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
     ...
 ```
 
-Named functions must declare every parameter type. A public function, a trait
-method, and a method of a trait implementation must also declare its result
-type; omitting it is a `missing-result-type` error. A non-public function,
-inherent method, or local `fn` declaration may omit `-> type`: its result type
-is then inferred from its body, as for a nonrecursive closure: it is the
-[least common type](04-type-system.md#least-common-type) of the body's final
-value and every `return` operand, and is `void` when the body produces no
-value. Such a function may also omit its
-requirement clause; its row is then inferred as specified in
-[Requirements and Suspension](11-requirements-and-suspension.md). Suspension is
-never inferred: it is part of the function's name. A function whose result
-type is omitted must not be recursive: if
-functions with omitted result types call each other in a cycle, directly or
-through one another, the cycle is a `recursive-function-needs-result-type`
-error, reported once on the member of the cycle that appears first in source
-order. Adding a result type to any member of the cycle resolves it.
+1. r[fn.decl.suspending] A name ending in `!` declares a suspending function.
+2. r[fn.decl.requirements] A trailing `$` clause declares requirements.
 
-The body's normal final value must be assignable to the declared or inferred
-result. Explicit `return` may complete the function earlier.
+### Parameter And Result Types
 
-Every reachable control path must either return a value assignable to the
-declared result, fall through with such a final value, or complete abruptly by
-propagation or panic. A non-`void` function with a reachable value-less
-fallthrough is rejected. A `void` function likewise rejects a non-`void` final
-expression; use `return`, `pass`, or another `void` expression when a preceding
-value is intentionally ignored.
+1. r[fn.decl.parameter-types] Named functions must declare every parameter type.
+2. r[fn.decl.result-required] A public function, a trait method, and a method of a trait implementation must also declare its result type. Omitting it is an error. Error: `missing-result-type`.
+3. r[fn.decl.result-omitted] A non-public function, inherent method, or local `fn` declaration may omit `-> type`.
+4. r[fn.decl.result-inferred] Its result type is then inferred from its body, as for a nonrecursive closure.
+5. r[fn.decl.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand.
+6. r[fn.decl.result-inferred.void] The inferred result is `void` when the body produces no value.
+7. r[fn.decl.row-omitted] Such a function may also omit its requirement clause. Its row is then inferred as specified in [Requirements and Suspension](11-requirements-and-suspension.md).
+8. r[fn.decl.suspension-not-inferred] Suspension is never inferred: it is part of the function's name.
 
-Function names are unique in their scope. hd-lang has no function or method
-overloading; one name resolves to one declaration in its scope.
+```text
+pub fn identity(x: i32): x  # error: missing-result-type
+```
 
-A same-line body is permitted when it contains one simple statement:
+### Recursion Without A Result Type
+
+1. r[fn.decl.omitted-not-recursive] A function whose result type is omitted must not be recursive.
+2. r[fn.decl.omitted-cycle] A cycle of functions with omitted result types that call each other, directly or through one another, is an error. Error: `recursive-function-needs-result-type`.
+3. r[fn.decl.omitted-cycle.report] The error is reported once, on the member of the cycle that appears first in source order.
+4. r[fn.decl.omitted-cycle.resolve] Adding a result type to any member of the cycle resolves it.
+
+```text
+fn is_even(n: i32):  # error: recursive-function-needs-result-type
+    if n == 0: true
+    else: is_odd(n - 1)
+
+fn is_odd(n: i32):
+    if n == 0: false
+    else: is_even(n - 1)
+```
+
+### Bodies And Control Paths
+
+1. r[fn.body.final-value] The body's normal final value must be assignable to the declared or inferred result.
+2. r[fn.body.early-return] Explicit `return` may complete the function earlier.
+3. r[fn.body.paths] Every reachable control path must return a value assignable to the declared result, fall through with such a final value, or complete abruptly by propagation or panic.
+4. r[fn.body.value-less-fallthrough] A non-`void` function with a reachable value-less fallthrough is rejected.
+5. r[fn.body.void-final] A `void` function likewise rejects a non-`void` final expression.
+
+```text
+fn invalid(flag: bool) -> i32:
+    if flag:  # error
+        return 1
+```
+
+> **Note.** Use `return`, `pass`, or another `void` expression when a
+> preceding value is intentionally ignored.
+
+### Function Names
+
+1. r[fn.name.unique] Function names are unique in their scope.
+2. r[fn.name.no-overloading] hd-lang has no function or method overloading: one name resolves to one declaration in its scope.
+
+### Same-Line Bodies
+
+1. r[fn.body.same-line] A same-line body is permitted when it contains one simple statement.
 
 ```text
 fn test() -> void $ Console: println("hi")
 ```
 
-A named function may also be declared inside an executable block suite. Its
-name is visible from that declaration onward and within its own body; it can
-capture enclosing local values under the same readonly capture rules as a
-plain closure. It cannot be marked `pub` or used from another module:
+### Local Functions
+
+A named function may also be declared inside an executable block suite:
 
 ```text
 fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
@@ -72,12 +98,16 @@ fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
     total
 ```
 
+1. r[fn.local.declare] A named function may be declared inside an executable block suite.
+2. r[fn.local.scope] Its name is visible from that declaration onward and within its own body.
+3. r[fn.local.capture] It can capture enclosing local values under the same readonly capture rules as a plain closure.
+4. r[fn.local.private] It cannot be marked `pub` or used from another module.
+
+See also: [Captures](#captures).
+
 ## Parameters
 
-Parameters are evaluated and initialized from left to right after argument
-mapping. Parameters are non-reassignable bindings: their names cannot be reassigned.
-For composite parameters, `T` permits readonly access and `mut T` requires mutable
-access:
+This section defines how parameters are initialized and passed.
 
 ```text
 fn inspect(user: User) -> string: user.name
@@ -86,24 +116,41 @@ fn rename(user: mut User, name: string) -> void:
     user.name = name
 ```
 
-Primitive parameters pass by value. Composite parameters pass shared reference
-access according to their declared type. hd-lang does not perform ownership
-transfer at a call.
+1. r[fn.param.init-order] Parameters are evaluated and initialized from left to right after argument mapping.
+2. r[fn.param.non-reassignable] Parameters are non-reassignable bindings: their names cannot be reassigned.
+3. r[fn.param.access] For composite parameters, `T` permits readonly access and `mut T` requires mutable access.
+4. r[fn.param.primitive] Primitive parameters pass by value.
+5. r[fn.param.composite] Composite parameters pass shared reference access according to their declared type.
+6. r[fn.param.no-transfer] hd-lang does not perform ownership transfer at a call.
+
+```text
+fn normalize(value: i32) -> i32:
+    value = 0  # error
+    value
+```
 
 ### Positional And Named Arguments
 
-Calls may mix positional and named arguments. Positional arguments must come
-first:
+A call may mix positional and named arguments:
 
 ```text
 resize(640, height=480)
 ```
 
-Named argument labels are parameter names and are part of the source-level
-calling interface. A named argument that names no parameter is an
-`unknown-named-argument` error. A positional argument must not follow a named
-argument. A parameter must receive one value, either explicitly or from its
-default; supplying it more than once is a `duplicate-argument` error.
+1. r[fn.arg.mix] Calls may mix positional and named arguments.
+2. r[fn.arg.positional-first] Positional arguments must come first.
+3. r[fn.arg.positional-after-named] A positional argument must not follow a named argument.
+4. r[fn.arg.labels] Named argument labels are parameter names and are part of the source-level calling interface.
+5. r[fn.arg.unknown-name] A named argument that names no parameter is an error. Error: `unknown-named-argument`.
+6. r[fn.arg.once] A parameter must receive one value, either explicitly or from its default.
+7. r[fn.arg.duplicate] Supplying a parameter more than once is an error. Error: `duplicate-argument`.
+
+```text
+fn resize(width: i32, height: i32) -> i32: width * height
+
+fn area() -> i32: resize(640, depth=480)   # error: unknown-named-argument
+fn twice() -> i32: resize(640, width=480)  # error: duplicate-argument
+```
 
 ### Default Values
 
@@ -114,28 +161,41 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
     ...
 ```
 
-After the first parameter with a default, every following non-vararg parameter
-must also have a default; a later parameter without one is a `default-order`
-error. Calls may omit only parameters that have defaults.
+1. r[fn.default.allowed] A parameter may declare a default.
+2. r[fn.default.order] After the first parameter with a default, every following non-vararg parameter must also have a default. A later parameter without one is an error. Error: `default-order`.
+3. r[fn.default.omit] Calls may omit only parameters that have defaults.
+4. r[fn.default.eval] Defaults are evaluated for each call, in parameter declaration order, after all explicit argument expressions have been evaluated.
+5. r[fn.default.scope] A default may refer to earlier parameters but not later parameters.
+6. r[fn.default.later-parameter] A default that names a later parameter is an error. Error: `binding-not-yet-visible`.
 
-Defaults are evaluated for each call, in parameter declaration order, after
-all explicit argument expressions have been evaluated. A default may refer to
-earlier parameters but not later parameters.
+#### Requirement-Free Defaults
 
-A default expression must be **requirement-free**: it must not use a
-provider and must not suspend. Concretely, it must not contain `$.use`, a
-provider scope, or a bang call, and every function, method, closure, or
-function value it calls must have an empty requirement row. Both properties
-are part of every callable's type, so the check reads only signatures, never
-function bodies, and it applies equally to named functions, function values,
-and dynamic trait methods. A default may otherwise evaluate any expression,
-including calls that mutate state; because defaults run after all explicit
-arguments, in parameter declaration order, such effects are ordered.
+1. r[fn.default.requirement-free] A default expression must be **requirement-free**: it must not use a provider and must not suspend.
+2. r[fn.default.requirement-free.syntax] Concretely, it must not contain `$.use`, a provider scope, or a bang call.
+3. r[fn.default.requirement-free.calls] Every function, method, closure, or function value it calls must have an empty requirement row.
+4. r[fn.default.requirement-free.signatures] The check reads only signatures, never function bodies, because both properties are part of every callable's type.
+5. r[fn.default.requirement-free.uniform] The check applies equally to named functions, function values, and dynamic trait methods.
+6. r[fn.default.effects] A default may otherwise evaluate any expression, including calls that mutate state.
+7. r[fn.default.provider] A default that uses a provider, in a parameter, data field, or shared enum constructor parameter, is an error. Error: `requirement-in-default`.
+8. r[fn.default.suspends] A default that suspends is an error. Error: `suspension-forbidden-context`.
 
-A default that uses a provider, in a parameter, data field, or shared enum
-constructor parameter, is a `requirement-in-default` error. A default that
-suspends is a `suspension-forbidden-context` error. A default that names a
-later parameter is a `binding-not-yet-visible` error.
+```text
+trait Clock:
+    fn now(self) -> i32
+
+fn current_time() -> i32 $ Clock:
+    $.use(Clock).now()
+
+fn wait!() -> i32: 1
+
+fn bad(first: i32 = 1, second: i32) -> i32: second                     # error: default-order
+fn span(start: i32 = finish, finish: i32 = 10) -> i32: finish - start  # error: binding-not-yet-visible
+fn stamp(time: i32 = current_time()) -> i32 $ Clock: time              # error: requirement-in-default
+fn late(value: i32 = wait!()) -> i32: value                            # error: suspension-forbidden-context
+```
+
+> **Note.** Because defaults run after all explicit arguments, in parameter
+> declaration order, the effects of a default are ordered.
 
 ### Varargs
 
@@ -146,8 +206,9 @@ fn sum(values: i32...) -> i32:
     ...
 ```
 
-Within the function, `values` is a `List[i32]`. A call may supply zero or more
-positional elements or spread one compatible list:
+1. r[fn.vararg.declare] A final positional parameter may end in `...`.
+2. r[fn.vararg.list] Within the function, `values` is a `List[i32]`.
+3. r[fn.vararg.call] A call may supply zero or more positional elements or spread one compatible list.
 
 ```text
 sum()
@@ -155,52 +216,65 @@ sum(1, 2, 3)
 sum(items...)
 ```
 
-A vararg must be the last positional parameter; a non-final vararg, in a
-declaration or in a function type, is a `nonfinal-vararg` error. Passing it by
-name supplies a
-list without spread syntax. A vararg has no default expression. At a call site,
-one list spread may supply the remaining vararg elements and must be the final
-positional argument; it does not fill fixed parameters. A spread passed to a
-callee without a vararg is a `positional-spread-needs-vararg` error.
-Homogeneous varargs and heterogeneous type-pack expansion share the ellipsis token; name resolution
-distinguishes them as specified in [Variadic Generics](12-variadic-generics.md).
+1. r[fn.vararg.last] A vararg must be the last positional parameter. A non-final vararg, in a declaration or in a function type, is an error. Error: `nonfinal-vararg`.
+2. r[fn.vararg.by-name] Passing a vararg by name supplies a list without spread syntax.
+3. r[fn.vararg.no-default] A vararg has no default expression.
+4. r[fn.vararg.spread] At a call site, one list spread may supply the remaining vararg elements and must be the final positional argument.
+5. r[fn.vararg.spread-fixed] The spread does not fill fixed parameters.
+6. r[fn.vararg.spread-needs-vararg] A spread passed to a callee without a vararg is an error. Error: `positional-spread-needs-vararg`.
+7. r[fn.vararg.ellipsis] Homogeneous varargs and heterogeneous type-pack expansion share the ellipsis token. Name resolution distinguishes them.
+
+```text
+fn scaled(values: i32..., factor: i32) -> i32: factor    # error: nonfinal-vararg
+fn apply(callback: fn(i32..., string) -> i32) -> i32: 0  # error: nonfinal-vararg
+
+fn fixed(value: i32) -> i32: value
+fn total(values: List[i32]) -> i32: fixed(values...)     # error: positional-spread-needs-vararg
+```
+
+See also: [Variadic Generics](12-variadic-generics.md).
 
 ## Function Types And Values
 
-Functions are values. A plain function type lists parameter types and a result:
+Functions are values. A plain function type lists parameter types and a
+result:
 
 ```text
 fn(string) -> string
 fn!(UserId) -> Result[User, DbError] $ Database
 ```
 
-Parameter names and default values are not part of a function value type.
-Calling through a function value therefore uses positional arguments only and
-does not inherit declaration defaults. Vararg calling convention, function
-mutability, suspension, and requirement rows are part of the type; a vararg
-function type writes an ellipsis after its final element type, such as
-`fn(string, i32...) -> i32`.
+1. r[fn.type.values] Functions are values.
+2. r[fn.type.form] A plain function type lists parameter types and a result.
+3. r[fn.type.no-names] Parameter names and default values are not part of a function value type.
+4. r[fn.type.positional] Calling through a function value therefore uses positional arguments only and does not inherit declaration defaults.
+5. r[fn.type.parts] Vararg calling convention, function mutability, suspension, and requirement rows are part of the type.
+6. r[fn.type.vararg] A vararg function type writes an ellipsis after its final element type, such as `fn(string, i32...) -> i32`.
 
-A named function value may be passed anywhere its function type is expected.
-So may a variant constructor with exactly one payload field, such as
-`SyncError.Fs` of type `fn(FsError) -> SyncError`
-([Enum Declarations](08-data-and-enums.md#enum-declarations)).
-Function types are invariant in parameter and result types. Parameter and
-result types must therefore match after transparent alias expansion; ordinary
-numeric or reference-view coercions do not create a different function value
-type.
+### Passing Function Values
 
-Generic functions are not first-class polymorphic values. Referring to one as
-a value must instantiate every generic parameter, either from an expected
-monomorphic function type or with a complete explicit type-argument list. A
-placeholder in that list may be solved from the expected monomorphic type.
-The resulting value has an ordinary monomorphic function type. A reified
-instantiation captures the required runtime type descriptors in that value.
+1. r[fn.type.named-value] A named function value may be passed anywhere its function type is expected.
+2. r[fn.type.variant-value] So may a variant constructor with exactly one payload field, such as `SyncError.Fs` of type `fn(FsError) -> SyncError`.
+3. r[fn.type.invariant] Function types are invariant in parameter and result types.
+4. r[fn.type.exact] Parameter and result types must therefore match after transparent alias expansion.
+5. r[fn.type.no-coercion] Ordinary numeric or reference-view coercions do not create a different function value type.
 
-A value of type `fn!(A) -> T $ R` constructs `mut Suspend[T]` when called normally
-and may be bang-called inside a suspending body. It may be weakened to the
-lowered constructor type `fn(A) -> mut Suspend[T] $ R`; the reverse conversion is
-not implicit.
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
+
+### Generic Function Values
+
+1. r[fn.type.generic.not-polymorphic] Generic functions are not first-class polymorphic values.
+2. r[fn.type.generic.instantiate] Referring to one as a value must instantiate every generic parameter, either from an expected monomorphic function type or with a complete explicit type-argument list.
+3. r[fn.type.generic.placeholder] A placeholder in that list may be solved from the expected monomorphic type.
+4. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
+5. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
+
+### Suspending Function Values
+
+1. r[fn.type.suspend.call] A value of type `fn!(A) -> T $ R` constructs `mut Suspend[T]` when called normally.
+2. r[fn.type.suspend.bang] It may be bang-called inside a suspending body.
+3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> mut Suspend[T] $ R`.
+4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
 
 ## Closures
 
@@ -211,15 +285,17 @@ slugify := fn(text: string) -> string:
     text.trim().lower().replace(" ", "-")
 ```
 
-There is no separate arrow or shorthand-argument closure syntax.
-A one-line closure uses the same `:` suite syntax:
+1. r[fn.closure.form] A closure uses `fn` without a name.
+2. r[fn.closure.no-other-syntax] There is no separate arrow or shorthand-argument closure syntax.
+3. r[fn.closure.one-line] A one-line closure uses the same `:` suite syntax.
 
 ```text
 inc := fn(x: i32) -> i32: x + 1
 ```
 
-A suspending closure places `!` after `fn`; a requirement clause follows its
-result type:
+### Suspending Closures And Clauses
+
+A suspending closure places `!` after `fn`:
 
 ```text
 loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
@@ -227,11 +303,14 @@ loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
     db.load_user!(id)
 ```
 
-The clause directly before a header's `:` always belongs to the function or
-closure being declared, even when its result is a function type. A returned
-function type with its own row is parenthesized, as in
-`fn make() -> (fn() -> i32 $ Log) $ Console:`
-([Types](02-grammar.md#types)).
+1. r[fn.closure.suspending] A suspending closure places `!` after `fn`.
+2. r[fn.closure.requirements] A requirement clause follows its result type.
+3. r[fn.closure.clause-owner] The clause directly before a header's `:` always belongs to the function or closure being declared, even when its result is a function type.
+4. r[fn.closure.clause-grouped] A returned function type with its own row is parenthesized, as in `fn make() -> (fn() -> i32 $ Log) $ Console:`.
+
+See also: [Types](02-grammar.md#types).
+
+### Closure Annotations
 
 When an expected function type is available, an inline closure may omit
 parameter and result annotations:
@@ -240,39 +319,59 @@ parameter and result annotations:
 lower := names.map(fn(name): name.lower())
 ```
 
-Without a sufficient expected type, parameters must be annotated; an
-unannotated parameter is then a `closure-parameter-needs-annotation` error. A
-nonrecursive closure may infer its result type from its body: the result is
-the [least common type](04-type-system.md#least-common-type) of the body's
-final value and every `return` operand. An expected function type may instead
-supply the result type. A recursive local closure
-must always write its result type explicitly, even if an expected function
-type could supply it.
+1. r[fn.closure.annotations-omitted] When an expected function type is available, an inline closure may omit parameter and result annotations.
+2. r[fn.closure.needs-annotation] Without a sufficient expected type, parameters must be annotated. An unannotated parameter is then an error. Error: `closure-parameter-needs-annotation`.
+3. r[fn.closure.result-inferred] A nonrecursive closure may infer its result type from its body.
+4. r[fn.closure.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand.
+5. r[fn.closure.result-expected] An expected function type may instead supply the result type.
+6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it.
+
+```text
+fn run() -> i32:
+    closure := fn(value) -> i32: value  # error: closure-parameter-needs-annotation
+    0
+```
 
 ### Captures
 
-A closure captures local bindings that it references from enclosing lexical
-scopes. It also captures, when created, every lexical provider from an
-enclosing `$.with` scope that its body uses. Those provider values remain bound
-to the closure after the provider scope ends, exactly as providers captured by
-a suspension frame remain bound after construction.
+This section defines what a closure captures and how it may use its captures.
 
-A plain `fn(...) -> T` closure may read captures but must not mutate through
-them. Within a plain closure, captured mutable access `mut T` is viewed as
-readonly `T`. A closure must be `mut fn` when it assigns captured `let` storage
-or obtains mutable access from a capture—for example, by calling a `mut self`
-method on a captured list or on a captured mutable child.
-A plain closure that obtains mutable access from a capture reports
-`mutable-capture-requires-mut-fn`. This includes passing a captured `mut T`
-binding to a `mut T` parameter.
+1. r[fn.capture.locals] A closure captures local bindings that it references from enclosing lexical scopes.
+2. r[fn.capture.providers] It also captures, when created, every lexical provider from an enclosing `$.with` scope that its body uses.
+3. r[fn.capture.providers.bound] Those provider values remain bound to the closure after the provider scope ends, exactly as providers captured by a suspension frame remain bound after construction.
 
-Returning mutable access obtained from a capture therefore also requires a
-`mut fn` closure. A callable's declared `mut T` result is not itself weakened
-when the callable is read through a readonly reference. Calling a `mut fn`
-closure still requires mutable access to the closure itself.
+#### Plain Closures
 
-A closure that mutates captured state has type `mut fn(...) -> T` and uses the
-same marker in its literal:
+1. r[fn.capture.plain.read-only] A plain `fn(...) -> T` closure may read captures but must not mutate through them.
+2. r[fn.capture.plain.view] Within a plain closure, captured mutable access `mut T` is viewed as readonly `T`.
+3. r[fn.capture.mut-fn-required] A closure must be `mut fn` when it assigns captured `let` storage or obtains mutable access from a capture.
+4. r[fn.capture.mut-fn-required.method] Calling a `mut self` method on a captured list or on a captured mutable child is one way to obtain mutable access from a capture.
+5. r[fn.capture.plain.error] A plain closure that obtains mutable access from a capture is an error. Error: `mutable-capture-requires-mut-fn`.
+6. r[fn.capture.plain.error.argument] This includes passing a captured `mut T` binding to a `mut T` parameter.
+7. r[fn.capture.return-mut] Returning mutable access obtained from a capture therefore also requires a `mut fn` closure.
+8. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
+9. r[fn.capture.call-needs-mut] Calling a `mut fn` closure still requires mutable access to the closure itself.
+
+```text
+data User:
+    name: string
+
+fn rename(user: mut User) -> void:
+    user.name = "renamed"
+
+fn plain_closure(user: mut User) -> fn() -> void:
+    fn() -> void:
+        rename(user)  # error: mutable-capture-requires-mut-fn
+
+fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
+    fn(value: i32) -> void:
+        items.append(value)  # error: mutable-capture-requires-mut-fn
+```
+
+#### Mutable Closures
+
+A closure that mutates captured state has type `mut fn(...) -> T` and uses
+the same marker in its literal:
 
 ```text
 let count: i32 = 0
@@ -282,14 +381,15 @@ let next: mut fn() -> i32 = mut fn() -> i32:
     count
 ```
 
-Calling a mutable closure requires a value with mutable function access.
-Captured `let` storage is shared with its defining scope and other closures that
-capture the same binding. If a closure outlives the original stack activation,
-the runtime preserves its captured storage through garbage collection.
+1. r[fn.capture.mut-fn.type] A closure that mutates captured state has type `mut fn(...) -> T` and uses the same marker in its literal.
+2. r[fn.capture.mut-fn.call] Calling a mutable closure requires a value with mutable function access.
+3. r[fn.capture.storage.shared] Captured `let` storage is shared with its defining scope and other closures that capture the same binding.
+4. r[fn.capture.storage.lifetime] If a closure outlives the original stack activation, the runtime preserves its captured storage through garbage collection.
 
-This section defines ordinary in-process closure behavior only. Serializable
-closure capture, code identity, and restoration semantics are deferred to the
-runtime design.
+#### Scope Of This Section
+
+1. r[fn.capture.in-process] This section defines ordinary in-process closure behavior only.
+2. r[fn.capture.serializable-deferred] Serializable closure capture, code identity, and restoration semantics are deferred to the runtime design.
 
 ## Multiple Inline Closures
 
@@ -309,19 +409,20 @@ choice(
 )
 ```
 
-Newlines do not replace commas in argument lists. Parentheses make each
-multiline closure's boundary explicit. Without them, the line after an
-indented closure body must start with `,` or a closing delimiter and be
-indented no farther than the line holding the closure header
-([Lexical Structure](01-lexical-structure.md#physical-and-logical-lines)).
-The next closure may start on that line, as in `, fn(b):`. A later argument
-written at body indentation, or a closing delimiter at the end of a body
-line, is a `syntax-error`.
+1. r[fn.multi.parenthesized] Multiple multiline closures may be passed by parenthesizing each closure expression and separating the arguments with commas.
+2. r[fn.multi.commas] Newlines do not replace commas in argument lists.
+3. r[fn.multi.unparenthesized] Without parentheses, the line after an indented closure body must start with `,` or a closing delimiter and be indented no farther than the line holding the closure header.
+4. r[fn.multi.next-closure] The next closure may start on that line, as in `, fn(b):`.
+5. r[fn.multi.syntax-error] A later argument written at body indentation, or a closing delimiter at the end of a body line, is a `syntax-error`.
+
+> **Why.** Parentheses make each multiline closure's boundary explicit.
+
+See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logical-lines).
 
 ## Trailing Callback Blocks
 
-When the final parameter has a zero-argument function type, a call may supply it
-as an indented trailing block:
+When the final parameter has a zero-argument function type, a call may
+supply it as an indented trailing block:
 
 ```text
 result := when(a, b):
@@ -331,16 +432,21 @@ transaction:
     save_user()
 ```
 
-Ordinary arguments remain in parentheses. If there are no ordinary arguments,
-empty `()` is omitted. The trailing block is equivalent to a zero-argument
-closure whose result and behavior are contextually inferred from the final
-parameter. A trailing block call may be a complete statement or the complete
-right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`, as in
-`total = sum_of(items):` or `return retry(3):` followed by the block.
+1. r[fn.trailing.form] When the final parameter has a zero-argument function type, a call may supply it as an indented trailing block.
+2. r[fn.trailing.arguments] Ordinary arguments remain in parentheses.
+3. r[fn.trailing.empty-parentheses] If there are no ordinary arguments, empty `()` is omitted.
+4. r[fn.trailing.closure] The trailing block is equivalent to a zero-argument closure whose result and behavior are contextually inferred from the final parameter.
+5. r[fn.trailing.position] A trailing block call may be a complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`, as in `total = sum_of(items):` or `return retry(3):` followed by the block.
+6. r[fn.trailing.one] Only one trailing block is permitted, and only for a zero-argument final parameter.
+7. r[fn.trailing.parameterized] Parameterized callbacks use explicit closure syntax.
+8. r[fn.trailing.return] `return` inside the block returns from the generated callback, not from the enclosing function.
 
-Only one trailing block is permitted, and only for a zero-argument final
-parameter. Parameterized callbacks use explicit closure syntax. `return` inside
-the block returns from the generated callback, not from the enclosing function.
+```text
+transaction:
+    save_user()
+:  # error
+    save_again()
+```
 
 ## Generic Functions
 
@@ -365,9 +471,23 @@ first(names)
 first[string](names)
 ```
 
-An explicit type-argument list must supply every generic parameter. Partial
-prefix lists are not permitted, even when inference could determine the
-remaining arguments.
+1. r[fn.generic.parameters] Generic parameters follow the function name.
+2. r[fn.generic.bounds] Trait bounds use `+` composition.
+3. r[fn.generic.call] Callers may rely on inference or provide the complete type argument list.
+4. r[fn.generic.erased] Generic parameters are erased by default.
+5. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).
+
+### Explicit Type Arguments
+
+1. r[fn.generic.explicit.complete] An explicit type-argument list must supply every generic parameter.
+2. r[fn.generic.explicit.no-partial] Partial prefix lists are not permitted, even when inference could determine the remaining arguments.
+
+```text
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)
+
+value := pair[string]("left", 1)  # error
+```
 
 An explicit list may write `_` in any slot to infer that argument:
 
@@ -378,11 +498,20 @@ fn convert[From, To](value: From) -> To:
 user := convert[_, User](payload)
 ```
 
-The list still has exactly one slot per generic parameter. A placeholder is
-solved from call arguments, the expected result type, and the function's
-generic constraints. If those constraints do not determine one type, the call
-is rejected as ambiguous. `_` is a call-site inference instruction, not a type,
-and cannot appear in an ordinary type argument list such as `List[_]`.
+1. r[fn.generic.placeholder] An explicit list may write `_` in any slot to infer that argument.
+2. r[fn.generic.placeholder.slots] The list still has exactly one slot per generic parameter.
+3. r[fn.generic.placeholder.solve] A placeholder is solved from call arguments, the expected result type, and the function's generic constraints.
+4. r[fn.generic.placeholder.ambiguous] If those constraints do not determine one type, the call is rejected as ambiguous.
+5. r[fn.generic.placeholder.not-type] `_` is a call-site inference instruction, not a type, and cannot appear in an ordinary type argument list such as `List[_]`.
+
+```text
+fn make[T]() -> T:
+    panic("not implemented")
+
+value := make[_]()  # error
+```
+
+### Generic Methods And Qualified Calls
 
 The same explicit-list rules apply to generic methods:
 
@@ -391,29 +520,20 @@ parser.parse[User](text)
 parser.convert[_, User](payload)
 ```
 
-They also apply to qualified calls of generic associated functions and trait
-methods. The method-level list follows the member name, as in
-`Type::name[T](...)` and `Trait::name[T](receiver, ...)`. Type arguments of
-the qualifying type or trait stay before `::`, as in
-`Add[Money]::add(left, right)`.
-
-A bang call keeps the `!` on the name, as the declaration does, and writes the
-list after it: `fn all![Ts...](...)` is called as `all![i32, string](a, b)`,
-and suspending methods as `parser.load![User](text)` and
-`Store::load![User](key)`.
-
-Name resolution distinguishes the brackets from an indexing operation. A
-generic method may still rely entirely on inference by omitting the list. Bare
-generic bound-method values remain unsupported; the explicitly instantiated
-member must be called.
-
-Generic parameters are erased by default. `reified T` requests runtime type
-metadata, as defined in [Type System](04-type-system.md).
+1. r[fn.generic.methods] The same explicit-list rules apply to generic methods.
+2. r[fn.generic.qualified] They also apply to qualified calls of generic associated functions and trait methods.
+3. r[fn.generic.qualified.member-list] The method-level list follows the member name, as in `Type::name[T](...)` and `Trait::name[T](receiver, ...)`.
+4. r[fn.generic.qualified.owner-list] Type arguments of the qualifying type or trait stay before `::`, as in `Add[Money]::add(left, right)`.
+5. r[fn.generic.bang] A bang call keeps the `!` on the name, as the declaration does, and writes the list after it.
+6. r[fn.generic.bang.examples] `fn all![Ts...](...)` is called as `all![i32, string](a, b)`, and suspending methods as `parser.load![User](text)` and `Store::load![User](key)`.
+7. r[fn.generic.brackets] Name resolution distinguishes the brackets from an indexing operation.
+8. r[fn.generic.method-inference] A generic method may still rely entirely on inference by omitting the list.
+9. r[fn.generic.bound-method-values] Bare generic bound-method values remain unsupported: the explicitly instantiated member must be called.
 
 ## Methods And Receivers
 
-Functions declared in `impl` blocks are methods when their first parameter is
-`self` or `mut self`:
+Functions declared in `impl` blocks are methods when their first parameter
+is `self` or `mut self`:
 
 ```text
 impl User:
@@ -426,72 +546,101 @@ impl User:
 label := user.tagged[string]("admin")
 ```
 
-`self` is readonly access to the receiver. `mut self` is shorthand for
-`self: mut Self`. There is no reference sigil or ownership-taking receiver form.
-Receiverless members are associated functions and are called with qualified
-`Type::function(...)` or `Trait::function(...)` syntax.
+1. r[fn.method.form] Functions declared in `impl` blocks are methods when their first parameter is `self` or `mut self`.
+2. r[fn.method.self] `self` is readonly access to the receiver.
+3. r[fn.method.mut-self] `mut self` is shorthand for `self: mut Self`.
+4. r[fn.method.no-sigil] There is no reference sigil or ownership-taking receiver form.
+5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
+6. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
+7. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
+8. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
 
-Method-call syntax evaluates the receiver first and then ordinary arguments.
-It is semantically equivalent to selecting the resolved method and supplying
-the receiver as its first argument; member lookup, including promotion, is
-defined in [Member Resolution](03-names-and-scopes.md#member-resolution), and
-dynamic dispatch in [Traits](09-traits.md). The treatment of bare `receiver.method` as a
-function value is deferred; see [Member Access](05-expressions.md#member-access).
+```text
+data Counter:
+    value: i32
+
+impl Counter:
+    fn reset(self) -> void:
+        self.value = 0  # error
+```
+
+See also: [Member Resolution](03-names-and-scopes.md#member-resolution), which
+defines member lookup, including promotion;
+[Traits](09-traits.md), which defines dynamic dispatch;
+[Member Access](05-expressions.md#member-access).
 
 ## Recursion
 
-Named functions may call themselves or other visible named functions
-recursively, provided every function in a recursive cycle has a declared
-result type (see [Declarations](#declarations)).
-Closures do not acquire an implicit self-name. A closure directly initialized
-by a statement-form local `:=` or `let` binding may refer to that binding's
-name inside its body. Its result type after `->` is mandatory. Parameter types
-may be supplied by an expected function type or written on the closure. The
-compiler checks recursive calls against that established function type, not
-against a result inferred from the recursive body. Ordinary references in the
-initializer outside the closure body still resolve in the outer scope.
+This section defines recursive functions and closures.
 
-The self-reference uses the ordinary binding. With `let`, reassignment changes
-which function a later recursive call invokes. A closure body cannot execute
-until its binding's initializer completes; this exception does not enable
-general forward references or mutual recursion between local closures.
+1. r[fn.recursion.named] Named functions may call themselves or other visible named functions recursively, provided every function in a recursive cycle has a declared result type.
+2. r[fn.recursion.closure.no-self-name] Closures do not acquire an implicit self-name.
+3. r[fn.recursion.closure.binding] A closure directly initialized by a statement-form local `:=` or `let` binding may refer to that binding's name inside its body.
+4. r[fn.recursion.closure.result] Its result type after `->` is mandatory.
+5. r[fn.recursion.closure.parameters] Parameter types may be supplied by an expected function type or written on the closure.
+6. r[fn.recursion.closure.check] The compiler checks recursive calls against that established function type, not against a result inferred from the recursive body.
+7. r[fn.recursion.closure.outer] Ordinary references in the initializer outside the closure body still resolve in the outer scope.
+8. r[fn.recursion.closure.ordinary-binding] The self-reference uses the ordinary binding.
+9. r[fn.recursion.closure.let] With `let`, reassignment changes which function a later recursive call invokes.
+10. r[fn.recursion.closure.initialized] A closure body cannot execute until its binding's initializer completes.
+11. r[fn.recursion.closure.no-forward] This exception does not enable general forward references or mutual recursion between local closures.
+
+```text
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32):  # error
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+```
+
+See also: [Declarations](#declarations).
 
 ## Program Entry Functions
 
-`pub fn main() -> void` or `pub fn main() -> Result[void, E]` is the default
-non-suspending executable entry point. It has no source-level parameters.
-A suspending entry point is named `main!`; entry points may declare host
-requirements with the ordinary `$` clause.
+This section defines program entry functions.
 
-`pub` controls module visibility and does not itself create a Wasm host export.
+1. r[fn.entry.main] `pub fn main() -> void` or `pub fn main() -> Result[void, E]` is the default non-suspending executable entry point.
+2. r[fn.entry.no-parameters] It has no source-level parameters.
+3. r[fn.entry.suspending] A suspending entry point is named `main!`.
+4. r[fn.entry.requirements] Entry points may declare host requirements with the ordinary `$` clause.
+5. r[fn.entry.pub] `pub` controls module visibility and does not itself create a Wasm host export.
 
 ## Unsupported Function Extensions
 
-hd-lang has no general recursive local binding facility, partial generic
-argument lists, shorthand-argument closures, or non-local
-returns from closures.
+1. r[fn.unsupported.list] hd-lang has no general recursive local binding facility, partial generic argument lists, shorthand-argument closures, or non-local returns from closures.
+
+### Method Values
 
 Method values are confirmed deferred, and two spellings are reserved for
 them:
 
-- `Type::name` or `Trait::name`, with optional type arguments, not followed
-  by an argument clause, for the unbound method function, whose receiver is
-  its first parameter;
-- `x::name`, where `x` names a value rather than a type or trait, for the
-  bound method value that captures the receiver `x`, whether or not it is
-  called.
+| Rule | Spelling | Reserved for |
+| --- | --- | --- |
+| r[fn.unsupported.unbound-method] Unbound method | `Type::name` or `Trait::name`, with optional type arguments, not followed by an argument clause | the unbound method function, whose receiver is its first parameter |
+| r[fn.unsupported.bound-method] Bound method | `x::name`, where `x` names a value rather than a type or trait | the bound method value that captures the receiver `x`, whether or not it is called |
 
-Both are `deferred-method-value` errors. The first is outside the grammar, so
-it is reported during parsing; the second parses as a qualified call, as in
-`button::click()`, and is reported during type checking. A qualified call
-such as `User::guest()`, `Display::to_string(value)`, or
-`Add[Money]::add(left, right)` remains an ordinary call. An explicit closure,
-such as `fn(user: User) -> string: user.domain()`, adapts a method where a
-function value is needed.
+1. r[fn.unsupported.method-value] Both spellings are errors. Error: `deferred-method-value`.
+2. r[fn.unsupported.method-value.parse] The first is outside the grammar, so it is reported during parsing.
+3. r[fn.unsupported.method-value.type] The second parses as a qualified call, as in `button::click()`, and is reported during type checking.
+4. r[fn.unsupported.qualified-call] A qualified call such as `User::guest()`, `Display::to_string(value)`, or `Add[Money]::add(left, right)` remains an ordinary call.
+5. r[fn.unsupported.closure-adapter] An explicit closure, such as `fn(user: User) -> string: user.domain()`, adapts a method where a function value is needed.
+6. r[fn.unsupported.method-scope] The deferral covers methods and associated functions only.
+7. r[fn.unsupported.variant-value] A variant constructor with exactly one payload field, written `Enum.Variant` with a `.` and no argument clause, is already a function value.
+8. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.
 
-The deferral covers methods and associated functions only. A variant
-constructor with exactly one payload field, written `Enum.Variant` with a
-`.` and no argument clause, is already a function value
-([Enum Declarations](08-data-and-enums.md#enum-declarations)); a
-constructor with two or more payload fields stays an
-`unsaturated-enum-constructor` error.
+```text
+data User:
+    email: string
+
+impl User:
+    fn domain(self) -> string:
+        self.email
+
+fn pick() -> fn(User) -> string:
+    User::domain  # error: deferred-method-value
+
+fn invalid(user: User) -> string:
+    user::domain()  # error: deferred-method-value
+```
+
+See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
