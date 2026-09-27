@@ -642,6 +642,7 @@ export abstract class ExpressionParser extends ParserBase {
 
   protected parseFor(keyword: Token): Expression {
     const names = [this.expectKind("identifier", "expected a loop binding name")];
+    this.rejectCommaClosingInlineSuite();
     while (this.matchText(","))
       names.push(this.expectKind("identifier", "expected a loop binding name after ','"));
     this.expectText("in");

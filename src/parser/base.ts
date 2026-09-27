@@ -121,6 +121,21 @@ export abstract class ParserBase {
       );
   }
 
+  /**
+   * A comma at the delimiter depth where a same-line suite opened closes that
+   * suite (01-lexical-structure.md#physical-and-logical-lines), so a
+   * multi-name binding or loop written directly in the suite is a syntax
+   * error. Call this at such a comma.
+   */
+  protected rejectCommaClosingInlineSuite(): void {
+    if (this.atText(",") && this.inlineSuiteDepths.at(-1) === this.delimiterDepth(this.index))
+      this.fail(
+        "syntax-error",
+        "a comma ends a same-line suite, so several names need an indented body or parentheses",
+        this.current().span,
+      );
+  }
+
   /** True when the current token starts on the line where the previous token ends. */
   protected onPreviousLine(): boolean {
     return this.current().span.start.line === this.peek(-1).span.end.line;

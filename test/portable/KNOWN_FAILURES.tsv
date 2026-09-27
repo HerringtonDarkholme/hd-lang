@@ -17,8 +17,6 @@ parse/valid/closure-body-ends-at-comma-line.hd	parse fails: syntax-error at line
 runtime/valid/generic-function-value-instantiation.hd	check rejects a generic function value instantiated from the expected type or with explicit type arguments (unresolved-generic-placeholder)	F-701
 typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/invalid/duplicate-binding-in-one-pattern.hd	MVP rejects tuple match patterns with syntax-error instead of reporting duplicate-binding	F-252
-parse/invalid/pub-path-only-use.hd	MVP parse accepts pub on a path-only use	F-702
-parse/invalid/pub-top-level-binding.hd	MVP parse accepts pub on a top-level binding	F-703
 typing/invalid/any-exposes-no-methods.hd	check fails: MVP does not know Any (unknown-type)	F-255
 runtime/valid/any-accepts-non-optional-values.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
 parse/valid/declarations.hd	parse fails: expected-expression at line 1: expected an expression, found 'type'	F-254
@@ -96,9 +94,6 @@ typing/invalid/shape-of-closure.hd	MVP reports unknown-name at line 1 instead of
 typing/invalid/unknown-shape-variant.hd	MVP reports unknown-name at line 5 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist; the fixture also exposes the private trait Files from pub main (private-type-leak, F-150)	F-259
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
-parse/invalid/same-line-suite-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
-parse/invalid/same-line-let-comma.hd	MVP parse accepts a comma at depth zero inside a same-line suite	F-707
-parse/valid/raw-string-escaped-quote.hd	parse rejects a backslash-escaped quote inside a raw string (unexpected-character)	F-706
 typing/invalid/plain-closure-mutable-capture-argument.hd	check fails: expected-expression at line 13: expected an expression, found 'mut'	F-257
 typing/invalid/iterator-for-iterable-bound.hd	check reports unknown-trait: the prototype has no Iterable trait	TQ-1
 runtime/valid/user-iterable-for-loop.hd	check reports unknown-trait: the prototype has no Iterable trait, so a user impl cannot drive a for loop	TQ-1
@@ -137,7 +132,6 @@ runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric 
 parse/valid/closing-delimiter-ends-nested-suite.hd	parse fails: syntax-error at line 6: a closing delimiter does not end the last body line of a nested match or if suite	F-252
 parse/valid/bracketed-suite-header-line.hd	parse fails: expected-comprehension-clause at line 5: a bracketed for, if, or closure header cannot end its line	F-252
 parse/valid/same-line-loop-else.hd	parse fails: expected-expression at line 6: else does not close a same-line for or while suite	F-252
-parse/invalid/colon-generic-bound.hd	MVP parse accepts a generic bound written with ':'	F-710
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC
 runtime/valid/inspectable-alias-and-newtype-identity.hd	check fails: expected-expression at line 7: expected an expression, found 'type'	F-254
 typing/invalid/error-implementation-local-type.hd	MVP reports expected-expression at line 6 instead of missing-supertrait-implementation: expected an expression, found 'enum'	F-254

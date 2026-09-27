@@ -941,3 +941,9 @@ typing/invalid/bare-err-is-unknown-name.hd	type
 typing/invalid/bare-ok-call-pattern.hd	type
 runtime/valid/result-enum-spellings.hd	runtime
 typing/valid/ok-err-are-not-prelude-names.hd	type
+parse/invalid/pub-path-only-use.hd	parse
+parse/invalid/pub-top-level-binding.hd	parse
+parse/invalid/same-line-suite-comma.hd	parse
+parse/invalid/same-line-let-comma.hd	parse
+parse/valid/raw-string-escaped-quote.hd	parse
+parse/invalid/colon-generic-bound.hd	parse

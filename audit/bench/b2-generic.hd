@@ -5,7 +5,7 @@ trait Plus:
 impl Plus for i32:
     fn plus(self, other: i32) -> i32: (self + other) % 1000003
 
-fn sum[T: Plus](items: List[T]) -> i32:
+fn sum[T < Plus](items: List[T]) -> i32:
     let total: i32 = 0
     let index: i32 = 0
     while index < items.len():

@@ -89,6 +89,13 @@ class Parser extends ExpressionParser {
         else if (this.atText("test") && this.peek(1).kind === "string")
           tests.push(this.parseTest(doc));
         else {
+          // Top-level bindings cannot be public (10 Name Resolution Across Packages).
+          if (public_)
+            this.fail(
+              "syntax-error",
+              "'pub' must precede a declaration; top-level bindings cannot be public",
+              this.peek(-1).span,
+            );
           if (doc)
             this.fail(
               "doc-comment-without-target",
@@ -259,7 +266,13 @@ class Parser extends ExpressionParser {
             parameter.span,
           );
         parameters.push(parameter.text);
-        if (this.matchText("<") || this.matchText(":")) {
+        if (this.atText(":"))
+          this.fail(
+            "syntax-error",
+            `a generic bound is written with '<', not ':': write '${parameter.text} < Trait'`,
+            this.current().span,
+          );
+        if (this.matchText("<")) {
           const bindings: AssociatedTypeBinding[] = [];
           const traits = this.parseTraitBoundNames(bindings);
           bounds.push({
@@ -399,6 +412,13 @@ class Parser extends ExpressionParser {
       }
       this.expectText("}");
     } else {
+      // Only the grouped form accepts a `pub` prefix (10 Use Forms).
+      if (public_)
+        this.fail(
+          "syntax-error",
+          "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
+          { start, end: this.peek(-1).span.end },
+        );
       const name = parts.pop()!;
       module = parts.join(".");
       const alias = this.matchText("as")
@@ -1180,6 +1200,7 @@ class Parser extends ExpressionParser {
     if (this.atText("fn") && this.peek(1).kind === "identifier") return this.parseLocalFunction();
     if (this.matchText("let")) {
       const names = [this.expectKind("identifier", "expected a binding name")];
+      this.rejectCommaClosingInlineSuite();
       while (this.matchText(","))
         names.push(this.expectKind("identifier", "expected a binding name after ','"));
       const annotation = this.matchText(":") ? this.parseType() : undefined;
@@ -1255,6 +1276,7 @@ class Parser extends ExpressionParser {
     }
     if (this.atKind("identifier") && this.peek(1).text === ",") {
       const names = [this.advance()];
+      this.rejectCommaClosingInlineSuite();
       while (this.matchText(","))
         names.push(this.expectKind("identifier", "expected a binding name after ','"));
       this.expectText(":=");
@@ -1383,7 +1405,11 @@ class Parser extends ExpressionParser {
     // A same-line suite also ends before the `else` of its conditional or loop.
     if (
       _topOrInline &&
-      (this.atText(")") || this.atText(",") || this.atText("]") || this.atText("else"))
+      (this.atText(")") ||
+        this.atText(",") ||
+        this.atText("]") ||
+        this.atText("}") ||
+        this.atText("else"))
     )
       return previous.span.end;
     this.fail(

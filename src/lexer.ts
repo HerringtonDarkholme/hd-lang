@@ -448,7 +448,16 @@ class Scanner {
         value += "\n";
         continue;
       }
-      if (current === "\\" && !raw) {
+      if (current === "\\" && raw) {
+        // A raw backslash keeps the next character from ending the literal and
+        // both stay in the value (01-lexical-structure.md#string-and-character-literals).
+        value += current;
+        const next = this.peek();
+        if (!this.done() && (triple || (next !== "\n" && next !== "\r"))) {
+          text += this.advance();
+          value += next;
+        }
+      } else if (current === "\\" && !raw) {
         const escaped = this.advance();
         text += escaped;
         const escapes: Readonly<Record<string, string>> = {
