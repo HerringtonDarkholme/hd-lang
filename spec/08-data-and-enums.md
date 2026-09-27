@@ -782,7 +782,7 @@ See also: [Optional Types](04-type-system.md#optional-types),
 2. r[data.repr.no-dependence] Programs must not depend on field offsets, variant tags, object addresses, or representation identity unless a future interop facility exposes them explicitly.
 3. r[data.repr.gc] Reachable composite values are garbage collected, and unreachable reference cycles are reclaimable.
 4. r[data.repr.no-manual] The language does not expose manual deallocation, user-visible finalizers, or weak references.
-5. r[data.repr.deferred] Weak references and finalizers are deferred rather than permanently ruled out.
+5. r[data.repr.runtime-only] Weak references and finalizers may exist only inside the standard runtime, and user code cannot observe when one clears or runs.
 6. r[data.repr.cleanup] Resource cleanup is separate from memory reclamation.
 7. r[data.repr.defer] Block-scoped `defer` provides explicit synchronous cleanup on ordinary control-flow exits and cancellation; it is not an ownership or garbage-collection mechanism.
 

@@ -820,7 +820,13 @@ providers come from, and what a program instance's behavior depends on.
 2. r[req.determinism.depends] Its observable behavior depends only on its code identity, its runtime profile, its entry arguments, and the ordered sequence of host-call results and waker and cancellation deliveries it receives.
 3. r[req.determinism.no-other-source] Code between host calls has no other source of nondeterminism.
 4. r[req.determinism.replay] A runtime may therefore reproduce an instance by supplying the same inputs in the same order.
-5. r[req.determinism.hash] Hash values other than those of a `TypeId` are outside this guarantee; they are not guaranteed stable across processes.
+5. r[req.determinism.hash-seeded] The standard `Hasher` is seeded from the code identity and the runtime profile, so the hash values it produces are within this guarantee.
 6. r[req.determinism.limits] Failures caused by host stack or memory limits are outside this guarantee.
+7. r[req.determinism.limits-profile] The host's stack and memory limits are part of the runtime profile.
+8. r[req.determinism.weak] Garbage collection timing is not an input: user code cannot observe a weak reference clearing or a finalizer running.
 
-See also: [Comparison Traits](09-traits.md#comparison-traits).
+> **Note.** A program that needs hash-flooding defense chooses a keyed
+> hasher explicitly; the standard `Hasher` does not provide it.
+
+See also: [Comparison Traits](09-traits.md#comparison-traits),
+[Representation And Garbage Collection](08-data-and-enums.md#representation-and-garbage-collection).

@@ -364,3 +364,12 @@ style lint rejects a chapter that reuses one.
   `trait.sealed.anyval-types`.
 - `module.prelude.anyval`: retired 2026-09-27. Owner decisions VC-1 and
   VC-2 add `void` and newtypes. Replaced by `module.prelude.anyval-types`.
+- `req.determinism.hash`: retired 2026-09-27. Durable replay decision 8
+  seeds the standard `Hasher` from the code identity and runtime profile.
+  Replaced by `req.determinism.hash-seeded`.
+- `trait.derive.hash.unstable`: retired 2026-09-27. Durable replay
+  decision 8 makes standard hash values stable within one code identity and
+  runtime profile. Replaced by `trait.derive.hash.seeded`.
+- `data.repr.deferred`: retired 2026-09-27. Durable replay decision 12
+  confines weak references and finalizers to the standard runtime. Replaced
+  by `data.repr.runtime-only`.

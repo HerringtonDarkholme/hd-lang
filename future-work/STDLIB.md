@@ -72,8 +72,10 @@ Other facts the library must respect:
 - A trait's methods are callable with dot syntax only in modules that name the
   trait with `use` (or get it from the prelude).
 - `decimal` is named as a possible library type.
-- `Hash` values are process-dependent; persisted identity uses
-  `std.fingerprint`.
+- `Hash` values from the standard `Hasher` are stable only within one code
+  identity and runtime profile
+  ([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); persisted
+  identity uses `std.fingerprint`.
 - `$.use(K)` returns a readonly value of the trait type. `$.use(mut K)`
   returns `mut K` when the provider was installed with `$.with(mut K=value)`
   ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
@@ -675,7 +677,9 @@ already forbid suspension points, and the same rule keeps adapters simple.
 
 These keep their fixed traits and add small helpers: `min`, `max`, `clamp`,
 and `Reverse[T]` in `std.cmp`; a default `SipHasher`-style hasher in
-`std.hash`; padding, radix, and precision formatting in `std.format`. None is
+`std.hash`, seeded per code identity and runtime profile, plus an
+explicitly chosen keyed hasher for hash-flooding defense
+([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); padding, radix, and precision formatting in `std.format`. None is
 blocked; none needs a question.
 
 ### `std.path`
@@ -1310,8 +1314,9 @@ pub fn of_bytes(bytes: List[u8]) -> Fingerprint:
     pass
 ```
 
-It mirrors `Hash` and `Hasher`, but the output is stable across processes and
-carries its algorithm and version. Deriving `Fingerprintable` needs a
+It mirrors `Hash` and `Hasher`, but the output is stable across code
+identities, runtime profiles, and processes, and carries its algorithm and
+version. Deriving `Fingerprintable` needs a
 derivation rule, which falls under the same typed-derivation issue.
 
 ## Testing Layer

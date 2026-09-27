@@ -10,46 +10,18 @@ and tooling work is listed separately at the end.
 
 ### Replay Determinism And Durable Workflows
 
-**Decided.** Durable replay is a runtime feature with a small specification
-and compiler contract; storage, runners, retry, and workflow APIs are library
-work. Calls are intercepted at the host boundary only. Recording is opt-in per
-run. Runs are pinned to their artifact and reach new code through
-continue-as-new. Reaching the end of a history resumes live execution, and
-in-flight host calls follow a per-method runtime-profile policy. These rules
-are in [Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules); the determinism
+**Decided.** Every question in
+[Durable Replay](DURABLE_REPLAY.md#owner-decisions) is decided (decisions 1
+to 15). The runtime rules are in
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), and the determinism
 clause is in
 [Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary).
 
-**Problem.** The remaining questions are listed, with options and
-recommendations, in [Durable Replay](DURABLE_REPLAY.md#questions-for-the-owner):
-
-- question 2: which host calls enter the history, and what each recording
-  level records;
-- question 3: whether the standard `Hasher` is deterministic within one code
-  identity and runtime profile;
-- question 4: whether code identity covers transitive dependencies and the
-  compiler's semantic version;
-- question 6: how events are matched to calls;
-- question 7: whether a `Durable` bound is needed or boundary-safe types
-  suffice;
-- question 9: whether weak references or finalizers may exist;
-- question 10: whether resource limits are part of configuration identity;
-- question 11: whether observability and replay share one hook;
-- question 12: how a panic is recorded in a history.
-
-**Unblocks.** Crash recovery, workflow upgrades, deterministic replay tests,
-and durable orchestration as a defining use case.
-
-**Status.** The first experiment in the
-[Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) records frame-poll
-events, per-function source identities, and a provider-configuration identity.
-A second experiment intercepts suspending host-provider calls with scalar or
-string arguments and scalar, string, or void results; it records a
-function-relative site, provider and method key, encoded arguments, readiness,
-and optional result, and replay restores the result while bypassing the live
-provider. Both experiments predate the decided rules: their identity is per
-function rather than per module, their site IDs contain byte offsets, and
-they stop at the end of a history instead of resuming.
+**Status.** The replay experiments in the
+[Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) predate the
+decided rules: their identity is per function rather than per program, their
+site IDs contain byte offsets, and they stop at the end of a history instead
+of resuming.
 
 ### Mutable Host Providers
 
@@ -127,8 +99,9 @@ process-local and expose only named registered computations.
 
 **Recommendation.** Begin with option 3 for a small dependable surface, then
 adopt option 1 when durable replay identity is settled. Provide weak references
-or explicit disposal for incremental graph nodes; user-visible finalizers
-remain a separate question.
+inside the standard runtime, or explicit disposal, for incremental graph
+nodes; user-visible finalizers are ruled out
+([Durable Replay decision 12](DURABLE_REPLAY.md#owner-decisions)).
 
 **Unblocks.** Persisted callbacks, safe incremental caches, distributed work,
 and bounded graph lifetimes.
@@ -139,13 +112,14 @@ and bounded graph lifetimes.
 specified point where suspension/provider activity can be instrumented without
 rewriting user code.
 
-**Options.** (1) Carry task-local storage in `PollContext` and expose one
-runtime hook shared with durable replay. Replay now intercepts at the host
-boundary only, so a shared hook would sit there, below semantic boundaries
-such as registered tools. (2) Model tracing only as explicit requirement
-providers. (3) Let hosts instrument Wasm calls without language-level
-correlation. Whether observability shares the replay hook is
-[Durable Replay](DURABLE_REPLAY.md) question 11.
+**Decided.** Observability and replay use separate hooks, and both derive
+their IDs from the execution ID and the event index
+([Durable Replay decision 14](DURABLE_REPLAY.md#owner-decisions)).
+
+**Options.** (1) Carry task-local storage in `PollContext`, with hooks at
+compiler-generated adapters for registered boundaries plus host-boundary
+events. (2) Model tracing only as explicit requirement providers. (3) Let
+hosts instrument Wasm calls without language-level correlation.
 
 **Recommendation.** Option 1, while keeping exporters and policy behind
 ordinary providers. The hook must honor `Secret[T]`/`Redact` once defined.
@@ -333,8 +307,9 @@ reports: provider values are ordinary values that may escape today, and a
 
 These items remain required but do not currently require new core syntax:
 
-- weak-reference runtime representation and whether user-visible finalizers
-  should ever be exposed;
+- weak-reference runtime representation inside the standard runtime; weak
+  references and finalizers are never user-visible
+  ([Durable Replay decision 12](DURABLE_REPLAY.md#owner-decisions));
 - the mandatory default algorithm, canonical field encoding, and evolution
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
@@ -342,7 +317,8 @@ These items remain required but do not currently require new core syntax:
   constraints, dependency resolver, and the concrete host binding for
   capabilities such as `Console`;
 - the Wasm component ABI, exact export registration API, adapter wire format,
-  and runtime-profile panic status codes;
+  and runtime-profile panic status codes (histories record a panic by its
+  diagnostic name, [Durable Replay decision 15](DURABLE_REPLAY.md#owner-decisions));
 - property-testing strategies, shrinking, replay artifacts, and correlated or
   stateful generators in `std.testing`;
 - final signatures, behavior, and the complete intrinsic set for the

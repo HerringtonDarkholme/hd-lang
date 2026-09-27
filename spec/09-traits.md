@@ -305,7 +305,7 @@ See also: [Newtypes](04-type-system.md#newtypes).
 3. r[trait.derive.hash.enum] For an enum, it hashes the variant identity, then shared enum data in declaration order, then that variant's payload fields in declaration order.
 4. r[trait.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
 5. r[trait.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
-6. r[trait.derive.hash.unstable] Hash values are not guaranteed to be stable across processes or runtime versions.
+6. r[trait.derive.hash.seeded] Hash values from the standard `Hasher` are stable within one code identity and runtime profile, and may change when either changes.
 
 ### Conversion Trait
 

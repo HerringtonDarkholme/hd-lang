@@ -1,9 +1,12 @@
 # Durable Replay: Core Or Library
 
-Status: decision proposal for [Roadmap](ROADMAP.md#3-runtime-durable-replay)
-area 3. Nothing here is accepted language behavior. Decided rules stay in
-[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules); open items stay in
-[Open Issues](OPEN_ISSUES.md).
+Status: decided and applied, for
+[Roadmap](ROADMAP.md#3-runtime-durable-replay) area 3. All fifteen
+[owner decisions](#owner-decisions) are applied: the runtime rules are in
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), and the language-level
+parts are in [Determinism](../spec/11-requirements-and-suspension.md#determinism)
+and [Representation And Garbage Collection](../spec/08-data-and-enums.md#representation-and-garbage-collection).
+The analysis below is kept as the record.
 
 ## Summary
 
@@ -24,10 +27,15 @@ compiler metadata that a pure Wasm host cannot recover.
 ## Owner Decisions
 
 Decided 2026-09-26. Applied 2026-09-26: items 1 to 6 are written into
-[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), the determinism clause is
-in [Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary),
-and [Open Issues](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) now
-lists only questions 2, 3, 4, 6, 7, 9, 10, 11, and 12.
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules), and the determinism clause
+is in [Runtime Boundary](../spec/11-requirements-and-suspension.md#runtime-boundary).
+Applied 2026-09-27: items 7 to 15 are written into
+[Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules). Items 8 and 13 are also
+[`req.determinism.hash-seeded`](../spec/11-requirements-and-suspension.md#r-req.determinism.hash-seeded)
+and [`req.determinism.limits-profile`](../spec/11-requirements-and-suspension.md#r-req.determinism.limits-profile),
+and item 12 is [`data.repr.runtime-only`](../spec/08-data-and-enums.md#r-data.repr.runtime-only).
+[Open Issues](OPEN_ISSUES.md#replay-determinism-and-durable-workflows) keeps
+only a pointer here.
 
 1. **Option B.** Durable replay is a runtime feature with a small
    specification and compiler contract; storage, runners, retry, and

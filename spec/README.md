@@ -735,3 +735,10 @@ existing source. Each entry names the decision that made the change.
   `type Mile(i32)` satisfies `T < AnyVal` and `type Owner(User)` satisfies
   `T < AnyRef`, both previously unspecified. `downcast_val` keeps its
   `T < Inspectable` bound.
+- Replay determinism (durable replay decisions 8, 12, and 13, 2026-09-26):
+  the standard `Hasher` is seeded from the code identity and runtime
+  profile, so its hash values, previously not stable across processes, are
+  now stable within one code identity and runtime profile. Weak references
+  and finalizers, previously deferred, may exist only inside the standard
+  runtime, where user code cannot observe them. A runtime profile now
+  includes the host's stack and memory limits.
