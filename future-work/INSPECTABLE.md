@@ -68,6 +68,18 @@ Decided 2026-09-26:
     rules), and no `Downcast` trait. Error helpers follow the same form:
     `std.error.find[T](e)`. This supersedes the `value.downcast[T]()`
     spelling everywhere in this document and in Open Issues direction item 5.
+14. **Reconciling decisions 2, 7, and 8 with the free-function form.**
+    Permission belongs to the erased view, statically: `downcast[C](value:
+    Inspectable) -> C?` yields a readonly `C`, and `downcast_mut[C](value: mut
+    Inspectable) -> mut C?` needs a `mut Inspectable`, which only a `mut` view
+    can produce (erasing a readonly value to `mut Inspectable` is
+    `mutable-upgrade`). The `downcast[mut C]` spelling of decision 2 is
+    replaced by `downcast_mut`. Decision 7 is withdrawn: a concrete argument
+    is erased at the call by ordinary assignability, so `downcast[User](user)`
+    is allowed. Decision 8 is withdrawn: a trait-value target such as
+    `downcast[Error](e)` satisfies the bound and returns `.None`; `Any` is
+    rejected by the bound. Both edge cases are left to a lint; no rules are
+    specific to `downcast`.
 
 ## Contents
 
