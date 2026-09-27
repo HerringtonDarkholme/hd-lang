@@ -26,6 +26,9 @@ language specification:
   retests the design after typed member handles (M14) and `@derive(Error)`
   (M15), maps round 1's problems to their status, and ranks the remaining
   and new ones, with questions for the owner.
+- [Typed Derivation: Stress Test Round 3 (M1-M19)](DERIVATION_STRESS_TEST_3.md)
+  retests the value-driven walk (M19) on 14 library cases, proposes a
+  `Source` protocol for input-driven `build`, and ranks what still breaks.
 - [Nominal Function Types](FN_TYPE.md) proposes making function types
   standard generic constructors such as `Fn[(Is...), O, R]`, so they can be
   implementation targets, and compares per-declaration data for tool
