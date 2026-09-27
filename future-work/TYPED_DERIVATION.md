@@ -495,6 +495,35 @@ customization, and listing a trait in `@derive` plus a tier-2 block for it
 is an ordinary `overlapping-impl`. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
 
+(M19, decided 2026-09-27; closes stress-test round 2 R2; revises M14's
+walk protocol) The walk is value-driven and hands out member values:
+
+```text
+pub trait Walker[S]:                  # a walk over one value
+    type Error
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
+
+pub trait Describer[S]:               # a walk over the type only (schemas, DDL, help)
+    type Error
+    fn variant(mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
+```
+
+For each opted-in type the compiler generates `walk(value, w)` (one
+`match` on the value: `w.variant(v)` once for the value's variant, then
+`w.member(h, member_value)` for each of its members, value
+viewpoint-adapted per M17), `describe(d)` (every variant in order, then its
+member handles), and the input-driven `build(source)` (P7; returns
+`mut Self`, M17). A data type is an enum with one variant. The variant check
+is done by generated code, so walkers no longer answer "enter this
+variant?" or store the value; two-value walkers store only the other value
+and use `h.get` on it; nested members go through their own type's impl
+(M7), so each walk covers exactly one value's own members. M9's
+strengthened member bounds apply to `Walker::member`, `Describer::member`,
+and `Source::member`. The Current Design example below still shows M14's
+protocol and needs updating.
+
 ### Current Design: Full Example (M1-M14)
 
 This is the reference example for the design as decided on 2026-09-27. When
