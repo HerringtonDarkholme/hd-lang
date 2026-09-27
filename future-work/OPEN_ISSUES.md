@@ -88,6 +88,10 @@ target-indexed output. Generate boundary adapters in the compiler and include
 invocation, validation at the boundary, and reliable secret redaction. These
 are language-design tasks, not merely library work.
 
+**Design notes.** [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
+surveys other languages, compares four candidate designs, and lists questions
+for the owner. Nothing there is decided.
+
 **Secret values (deferred).** The owner removed `Secret[T]` from the current
 standard-library design as too early (2026-09-26). Revisit it together with
 typed derivation. Options already discussed: whether standard capability
