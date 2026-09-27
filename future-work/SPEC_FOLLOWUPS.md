@@ -31,6 +31,15 @@ are applied later in one `spec-update` pass, not per chapter.
   types, generic parameters, and bounds are always written in its
   declaration (clarifies Type Inference Boundaries).
 
+- **06/04, decided 2026-09-27:** `break` and `continue` are expressions of
+  type `never`, like `return`, `panic`, and calls returning `never`, so they
+  fit any expected type (`.None => continue` in a match arm,
+  `if empty: break else: pop()`); this explains the existing "every
+  reachable branch" rule and changes no program's validity. The complete
+  list of `never` expressions is those five forms.
+- **Fixture fix:** F-150's fixtures need `pub` added in `spec/conformance`
+  (from the prototype catch-up).
+
 ## Logged, not scheduled (owner: do not spend on it now)
 
 Rules whose conformance fixtures expect a diagnostic code the rule does not
@@ -49,6 +58,7 @@ example, as the 08 pilot did.
 
 ## Open, for the owner
 
-- 04 `never`: whether "unconditional" covers `break` and `continue`, and
-  whether the list of abrupt expressions is complete (examples given to the
-  owner 2026-09-27).
+- TQ-2 fixture `trait-argument-owner-impl.hd`: its comprehension builds
+  `mut Word` elements while the declared result is `Iterator[Word]`; may an
+  expected type weaken a fresh element's `mut`? (from the prototype
+  catch-up)
