@@ -225,6 +225,18 @@ A language server is therefore low priority.
   specification.
 - Lower priority: a formatter and a language server for human reading.
 
+Owner decisions (2026-09-27) on the program database: it is a compiler
+feature, not specification text. It is queried with SQL, SQLite preferred
+as an implementation detail; recursive questions use `WITH RECURSIVE`. It
+is a snapshot (`hd index` / `hd check` write it; `hd query` rebuilds it when
+stale; programs that do not type-check still get their parse-level facts,
+marked partial), not a live service. The fact schema, the `--format json`
+diagnostic records, and the symbol-name format (`pkg.user.User`,
+`User.email`) are tooling contracts versioned with the toolchain and
+documented in `src/README.md`; diagnostic codes stay normative. The checker
+tags each diagnostic with the exact rule ID that fired where it knows it,
+added incrementally, falling back to the code's rule list.
+
 ## Order
 
 1. Areas 1 and 2 run in parallel. Findings go under `audit/`; questions go to
