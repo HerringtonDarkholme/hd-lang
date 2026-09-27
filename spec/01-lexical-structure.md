@@ -333,6 +333,13 @@ DECIMAL_DIGIT    = "0" ... "9" ;
 7. r[lex.ident.xid] `XID_START` and `XID_CONTINUE` denote the corresponding Unicode derived core properties.
 8. r[lex.ident.unicode-version] An implementation must use one declared Unicode data version consistently for lexing, normalization, and diagnostics.
 
+> **Note.** Tuple elements and unnamed shared enum parameters are selected
+> through identifiers such as `_0` and `_1`. No lexing rule treats digits
+> after `.` specially, so `t.0.1` lexes as `t`, `.`, and the floating-point
+> literal `0.1`.
+
+See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens).
+
 ### Identifier Security
 
 1. r[lex.ident.confusable] The compiler must diagnose identifiers that are visually confusable with another identifier visible in the same scope.

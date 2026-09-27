@@ -1,0 +1,4 @@
+# test: a tuple element is selected with an identifier such as _0, never a bare integer
+
+pair := (1, 2)
+first := pair.0  # diagnostic: syntax-error

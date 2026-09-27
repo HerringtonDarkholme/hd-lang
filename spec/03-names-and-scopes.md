@@ -683,8 +683,8 @@ match status:
 
 1. r[names.variant.member] Enum variants are members of their enum.
 2. r[names.variant.spelling] Construction and patterns may use the qualified spelling or `.Variant` with an unambiguous contextual enum type.
-3. r[names.tuple-member.numeric] Tuple members use numeric selectors such as `.0` and `.1`.
-4. r[names.tuple-member.not-identifiers] Numeric selectors are not ordinary identifiers and cannot be declared by users.
+3. r[names.tuple-member.underscore] Tuple members are named `_0`, `_1`, and so on: `_` followed by the zero-based element index.
+4. r[names.tuple-member.identifier] A tuple member name is an ordinary identifier.
 
 ## Unsupported Scope Extensions
 

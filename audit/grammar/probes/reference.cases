@@ -40,7 +40,7 @@ fn main() -> void:
 #### R10 named argument whose value is a comparison, then a closure
 fn main() -> void:
     f(flag = a == b, fn(): go())
-#### R11 tuple index with separator
+#### R11 numeric tuple index with separator (spec: syntax-error since TUP-1)
 fn main() -> void:
     x := t.1_0
 #### R12 dedent to a non-level column inside brackets

@@ -21,7 +21,7 @@ test "a shared-data variant has allocation identity per construction":
     first := StatusCode.NotFound
     second := StatusCode.NotFound
     assert(!(first is second), reason="a variant that stores shared constructor data is allocated per construction")
-    assert(first.0 == 404, reason="shared data readable")
+    assert(first._0 == 404, reason="shared data readable")
     let erased: Any = first
     let erased_again: Any = first
     let erased_other: Any = second

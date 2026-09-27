@@ -33,7 +33,7 @@ test "list and tuple elements around bang calls":
     pair := (note(log, "4", 4), child!(log, "5", 5))
     assert_equal(log.text, "12345", reason="elements evaluate in order")
     assert_equal(values, [1, 2, 3], reason="element values preserved")
-    assert_equal(pair.1, 5, reason="tuple element preserved")
+    assert_equal(pair._1, 5, reason="tuple element preserved")
 
 test "statements around child calls keep source order":
     let log: mut Log = Log { text: "" }

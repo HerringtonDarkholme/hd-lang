@@ -654,13 +654,13 @@ enum Status(code: i32 = 0, phrase: string):  # error: default-order
 Shared data is read as fields of the enum value:
 
 ```text
-code := StatusCode.NotFound.0
+code := StatusCode.NotFound._0
 phrase := HttpStatus.NotFound.phrase
 ```
 
 1. r[data.shared.value] Shared constructor data is part of every enum value.
 2. r[data.shared.named-field] A named constructor parameter is available as a field on the enum value.
-3. r[data.shared.numeric-field] An unnamed parameter uses zero-based tuple-style numeric access.
+3. r[data.shared.underscore-field] An unnamed parameter uses zero-based tuple-style access, spelled `_0`, `_1`, and so on, as in `StatusCode.NotFound._0`.
 4. r[data.shared.permissions] Shared fields follow ordinary composite access permissions.
 5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
 6. r[data.shared.assignment] Assignment requires a mutable enum root and the required mutable edges.

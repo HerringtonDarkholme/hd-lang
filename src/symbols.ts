@@ -472,7 +472,14 @@ export class SymbolIndex {
           signature: view.header(decl.span, decl.public),
           doc: decl.doc ?? null,
           members: [
-            ...decl.sharedFields.map((field) => fieldSymbol(view, name, field)),
+            // An unnamed shared parameter is read as `_0`, `_1`, ... (TUP-1).
+            ...decl.sharedFields.map((field) =>
+              fieldSymbol(
+                view,
+                name,
+                /^[0-9]+$/.test(field.name) ? { ...field, name: `_${field.name}` } : field,
+              ),
+            ),
             ...decl.variants.map((variant) => variantSymbol(view, name, variant)),
             ...this.typeMembers(view, name, decl.name),
           ],

@@ -342,13 +342,6 @@ class Scanner {
   private scanNumber(): void {
     const start = this.position();
     let text = "";
-    const previous = this.tokens.at(-1);
-    const numericSelector = previous?.text === "." && previous.span.end.offset === start.offset;
-    if (numericSelector) {
-      while (isDigit(this.peek())) text += this.advance();
-      this.emit("integer", text, start, this.position(), BigInt(text));
-      return;
-    }
     const radixPrefix = this.peek() === "0" && /[bBoOxX]/.test(this.peek(1));
     if (radixPrefix) {
       text += this.advance() + this.advance();

@@ -23,7 +23,7 @@ fn via_list[T](value: T) -> T:
 
 fn via_tuple[T](value: T) -> T:
     pair := (value, 1)
-    pair.0
+    pair._0
 
 fn via_optional[T](value: T) -> T:
     let wrapped: T? = value

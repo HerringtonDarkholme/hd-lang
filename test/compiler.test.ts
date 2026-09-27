@@ -490,7 +490,7 @@ test("strings compare by UTF-8 value order", async () => {
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 
-test("strings concatenate and unnamed enum fields use numeric selectors", async () => {
+test("strings concatenate and unnamed enum fields use underscore selectors", async () => {
   const source = conformance("runtime/valid/string-concatenation-and-numeric-selectors");
   const { instance, compilation } = await instantiate(source);
   assert.deepEqual(compilation.diagnostics, []);

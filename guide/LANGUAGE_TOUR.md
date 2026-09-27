@@ -298,11 +298,11 @@ single := (1,)                    # (i32,)
 empty := ()                       # empty tuple
 ```
 
-Tuple fields use Rust-style numeric field access:
+Tuple fields are read as `_` followed by the zero-based index:
 
 ```text
-x := point.0
-y := point.1
+x := point._0
+y := point._1
 ```
 
 Tuple destructuring works with both binding forms:
@@ -869,9 +869,9 @@ function-parameter ordering and run when omitted for each construction, after
 explicit arguments. Variant payload parameters remain required.
 
 Shared named constructor data is available on every enum value as a field, such
-as `HttpStatus.NotFound.phrase`. Unnamed shared data uses a zero-based numeric
-member, such as `StatusCode.NotFound.0`. Variant-specific payloads remain
-available through pattern matching.
+as `HttpStatus.NotFound.phrase`. Unnamed shared data uses a zero-based
+tuple-style member, such as `StatusCode.NotFound._0`. Variant-specific
+payloads remain available through pattern matching.
 
 Enums can be generic algebraic data types:
 

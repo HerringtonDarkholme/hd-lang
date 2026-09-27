@@ -19,7 +19,7 @@ test "tuple elements evaluate left to right":
     let log: mut Log = Log { text: "" }
     triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
     assert_equal(log.text, "abc", reason="tuple element order")
-    assert_equal(triple.2, 3, reason="tuple element value")
+    assert_equal(triple._2, 3, reason="tuple element value")
 
 test "list elements evaluate left to right":
     let log: mut Log = Log { text: "" }

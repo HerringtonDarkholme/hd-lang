@@ -1,6 +1,6 @@
 fn use_types(callback: fn() -> i32?, optional_callback: (fn() -> i32)?) -> void:
     nested := ((1, 2), 3)
-    first := nested.0.1
+    first := nested._0._1
     match first:
         -1 => return
         value => pass

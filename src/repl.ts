@@ -457,7 +457,7 @@ function rendererBody(type: string, hir: HirProgram, nameFor: (type: string) => 
   }
   if (type.startsWith("(") && type.endsWith(")")) {
     const elements = splitTopLevel(type.slice(1, -1));
-    const parts = elements.map((element, index) => `${nameFor(element)}(value.${index})`);
+    const parts = elements.map((element, index) => `${nameFor(element)}(value._${index})`);
     return [`"(" + ${parts.join(' + ", " + ')} + ")"`];
   }
   const data = hir.data.find(({ name }) => name === (generic?.name ?? type));

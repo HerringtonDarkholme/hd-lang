@@ -230,7 +230,7 @@ Yes for the variant and its payloads. No for named shared constructor data.
 | Object behind a non-generic `mut U` payload | the object, yes; the payload slot, no | the pattern binds `mut U` instead of `U` |
 | Object behind a generic payload `P = mut U` | the object, yes | nothing extra; `mut U` either way |
 | Named shared constructor data | **yes**, through a `mut E` root | field assignment |
-| Unnamed shared data (`.0`) | no assignment form is specified | unclear |
+| Unnamed shared data (`._0`) | no assignment form is specified | unclear |
 
 So `mut` applies to enum payloads only as a viewpoint on the objects they
 point to, the way a data field `field: mut U` works. The payload slot itself
@@ -804,8 +804,8 @@ These hold whatever the owner decides about categories:
   says "a caller converts a primitive, tuple, or optional value explicitly".
   After A3, optionals implement `AnyRef` and need no conversion.
 - **The `Hash` contradiction** in question 7.
-- **Unnamed shared data.** Chapter 08 gives `.0` access to unnamed shared
-  constructor data. It does not say whether `.0` can be assigned when named
+- **Unnamed shared data.** Chapter 08 gives `._0` access to unnamed shared
+  constructor data. It does not say whether `._0` can be assigned when named
   shared fields can.
 - **`EnumShape`** ([Shape Intrinsics](../spec/14-annotations.md#shape-intrinsics))
   lists variants and their payload fields but not shared constructor data. A

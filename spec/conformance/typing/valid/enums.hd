@@ -51,7 +51,7 @@ fn eval_expr(expr: Expr) -> i32:
         Expr.Scale(left, factor) => left * factor
 
 status := StatusCode.NotFound
-code := status.0
+code := status._0
 phrase := HttpStatus.NotFound.phrase
 maybe := Maybe.Some(1)
 job_status := JobStatus.Queued

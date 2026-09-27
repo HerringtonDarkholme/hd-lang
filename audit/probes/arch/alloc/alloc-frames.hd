@@ -26,7 +26,7 @@ fn heap!(n: i32) -> i32:
     text := "abc"
     values := [n, n, n]
     point := (n, text)
-    first := ready!(values[0] + text.len() + point.0)
+    first := ready!(values[0] + text.len() + point._0)
     second := ready!(first)
     second
 

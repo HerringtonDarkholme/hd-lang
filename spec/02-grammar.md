@@ -743,7 +743,6 @@ power_expression = postfix_expression, [ "**", unary_expression ] ;
 
 postfix_expression = primary_expression, { postfix_suffix } ;
 postfix_suffix = ".", identifier, [ function_type_arguments ]
-               | ".", integer_literal
                | "[", expression, "]"
                | argument_clause
                | suspension_call_suffix
@@ -781,7 +780,13 @@ values := [a, b := pair()]  # error
 1. r[grammar.expr.bang-suffix] `!(` or `![` after a completed operand begins a suspension call suffix at ordinary call precedence.
 2. r[grammar.expr.prefix-not] A `!` at the start of an operand is the prefix logical-not operator of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
 3. r[grammar.expr.not-equal] `!=` is a single token by longest match: `f!=g` is the comparison `f != g`.
-4. r[grammar.expr.tuple-index] Immediately after `.`, the lexer scans an integer tuple index using decimal digits only, so `t.0.1` is two tuple-index suffixes rather than a floating-point token.
+4. r[grammar.expr.member-identifier] A member suffix takes an identifier after `.`, so the tuple selection `t._0._1` is two member suffixes.
+5. r[grammar.expr.no-numeric-member] An integer or floating-point literal after `.` forms no suffix, so `t.0` and `t.0.1` are errors. Error: `syntax-error`.
+
+```text
+first := pair.0       # error: syntax-error
+second := nested.0.1  # error: syntax-error
+```
 
 ### Method Type Arguments
 

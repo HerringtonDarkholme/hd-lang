@@ -260,7 +260,7 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   enclosing captures, recursion, suspension, and requirement forwarding;
 - `i32`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8 `string` values;
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
-  and statically typed numeric selection, stored in erased Wasm GC arrays;
+  and statically typed `._0` selection, stored in erased Wasm GC arrays;
 - checked `i32` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
@@ -295,7 +295,7 @@ else`, `break`, `break value`, and `continue`;
   mutable-path checking, and field assignment through Wasm GC `struct.set`;
 - tagged enums, constructors, exhaustive matching, and payload bindings backed
   by Wasm GC structs, including shared constructor fields,
-  requirement-free ordered defaults, per-variant factories, named or numeric shared-field access, and
+  requirement-free ordered defaults, per-variant factories, named or `._0` shared-field access, and
   canonical fieldless-variant identities;
 - expected-type contextual enum constructors such as `.Ready(42)`;
 - exhaustive boolean matching, guarded patterns, and literal matching for

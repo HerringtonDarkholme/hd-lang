@@ -1001,3 +1001,6 @@ parse/invalid/old-row-operator-in-context.hd	parse
 parse/invalid/bare-row-list-in-type.hd	parse
 typing/invalid/row-extension-absent-key.hd	type
 parse/invalid/old-row-operator-type-argument.hd	parse
+parse/invalid/numeric-member-access.hd	parse
+parse/invalid/numeric-member-access-float.hd	parse
+runtime/valid/underscore-tuple-members.hd	runtime

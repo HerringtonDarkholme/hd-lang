@@ -166,11 +166,16 @@ export abstract class ExpressionParser extends ParserBase {
           );
         this.advance();
         const member = this.current();
-        if (
-          member.kind !== "identifier" &&
-          !(member.kind === "integer" && /^[0-9]+$/.test(member.text))
-        ) {
-          this.fail("syntax-error", "expected a member name after '.'", member.span);
+        if (member.kind !== "identifier") {
+          // Tuple members are identifiers such as `_0` (owner decision TUP-1).
+          const numeric = /^[0-9]/.test(member.text);
+          this.fail(
+            "syntax-error",
+            numeric
+              ? `expected a member name after '.'; a tuple element is written '._${member.text.split(".")[0]}'`
+              : "expected a member name after '.'",
+            member.span,
+          );
         }
         this.advance();
         left = {

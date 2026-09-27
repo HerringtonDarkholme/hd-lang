@@ -275,3 +275,23 @@ style lint rejects a chapter that reuses one.
 - `data.edge.upgrade`: retired 2026-09-27. The owner ruled that a store of a
   readonly copy is an error only where its target requires a mutable part.
   Replaced by `data.edge.upgrade-literal` and `data.edge.upgrade-store`.
+- `grammar.expr.tuple-index`: retired 2026-09-27. Owner decision TUP-1
+  spells tuple selection with an identifier, so no integer follows `.`.
+  Replaced by `grammar.expr.member-identifier` and
+  `grammar.expr.no-numeric-member`.
+- `names.tuple-member.numeric`: retired 2026-09-27. Owner decision TUP-1
+  renamed tuple members from `.0` to `._0`. Replaced by
+  `names.tuple-member.underscore`.
+- `names.tuple-member.not-identifiers`: retired 2026-09-27. Owner decision
+  TUP-1 made tuple member names ordinary identifiers. Replaced by
+  `names.tuple-member.identifier`.
+- `expr.tuple.select`: retired 2026-09-27. Owner decision TUP-1 changed the
+  spelling from `point.0` to `point._0`. Replaced by
+  `expr.tuple.select-underscore` and
+  `expr.tuple.select-underscore.identifier`.
+- `expr.member.select`: retired 2026-09-27. Owner decision TUP-1 changed its
+  tuple example from `tuple.0` to `tuple._0`. Replaced by
+  `expr.member.select-identifier`.
+- `data.shared.numeric-field`: retired 2026-09-27. Owner decision TUP-1
+  spells unnamed shared parameters `_0`, `_1`, and so on. Replaced by
+  `data.shared.underscore-field`.

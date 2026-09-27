@@ -282,14 +282,17 @@ function validNumber(text: string): boolean {
   return validNumberPattern.test(text);
 }
 
-function numberEnd(source: string, start: number, afterDot: boolean): NumberScan {
+// Chapter 01 and 02 (owner decision TUP-1): digits after `.` are an ordinary
+// number, so `t.0.1` lexes `0.1` as one floating-point token; tuple members
+// are identifiers such as `_0`.
+function numberEnd(source: string, start: number): NumberScan {
   const rest = source.slice(start);
   const based = /^(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+)/.exec(rest);
   if (based) return { end: start + based[0].length, floating: false };
   const integer = /^[0-9][0-9_]*/.exec(rest)!;
   let end = start + integer[0].length;
   let floating = false;
-  if (!afterDot && source[end] === "." && isDigit(source[end + 1] ?? "")) {
+  if (source[end] === "." && isDigit(source[end + 1] ?? "")) {
     floating = true;
     end += 1;
     end += /^[0-9][0-9_]*/.exec(source.slice(end))![0].length;
@@ -677,7 +680,7 @@ export function lexSource(source: string): LexResult {
       continue;
     }
     if (isDigit(character)) {
-      const found = numberEnd(source, index, previousText === ".");
+      const found = numberEnd(source, index);
       const text = source.slice(index, found.end);
       if (!validNumber(text)) diagnostics.push(diagnostic("invalid-token", line));
       tokens.push(token(found.floating ? "float_literal" : "integer_literal", line, text));

@@ -20,7 +20,7 @@ fn main!() -> i32:
     for key, score in scores:
         total = total + score + key.len() - 1
     for entry in {"c": 7}:
-        total = total + entry.1
+        total = total + entry._1
     let cleanup: i32 = 0
     for value in [1, 2]:
         defer:

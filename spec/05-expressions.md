@@ -32,7 +32,7 @@ The core place expressions are locals, fields, and index operations:
 3. r[expr.place.index] An index operation whose receiver and indexing protocol expose mutable storage is a core place expression.
 4. r[expr.place.receiver] The receiver of a field or index place may be any expression of mutable composite type, including a call that returns mutable access.
 5. r[expr.place.not-places] `:=` bindings, literals, calls, arithmetic, and temporary values are not places.
-6. r[expr.place.tuple-element] A tuple element selection such as `pair.0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
+6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
 
 ### Assignment
 
@@ -48,7 +48,7 @@ The core place expressions are locals, fields, and index operations:
 ```text
 fn invalid() -> (i32, i32):
     let pair: (i32, i32) = (0, 0)
-    pair.0 = 1  # error: invalid-assignment-target
+    pair._0 = 1  # error: invalid-assignment-target
     pair
 ```
 
@@ -134,7 +134,14 @@ point := (10, 20)
 2. r[expr.tuple.comma] A comma constructs a tuple.
 3. r[expr.tuple.single] A one-element tuple requires a trailing comma.
 4. r[expr.tuple.order] Tuple elements evaluate left to right.
-5. r[expr.tuple.select] Tuple selection uses a zero-based numeric member such as `point.0`.
+5. r[expr.tuple.select-underscore] Tuple selection uses the member `_` followed by the zero-based element index, such as `point._0` and `point._1`.
+6. r[expr.tuple.select-underscore.identifier] That member name is an ordinary identifier, so `point._0._1` selects through a nested tuple like any other member chain.
+
+> **Why.** An identifier removes the floating-point ambiguity of `t.0.1`, and
+> works wherever a member does, as in `"${point._0}"`.
+
+See also: [Bang And Dot Tokens](02-grammar.md#bang-and-dot-tokens), which
+rejects the former spelling `point.0`.
 
 ### List And Map Expressions
 
@@ -245,9 +252,9 @@ See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals),
 
 ### Member Access
 
-`value.member` selects a member, and `tuple.0` selects a tuple element.
+`value.member` selects a member, and `tuple._0` selects a tuple element.
 
-1. r[expr.member.select] `value.member` selects a member, and `tuple.0` selects a tuple element.
+1. r[expr.member.select-identifier] `value.member` selects a member named by an identifier, and `tuple._0` selects a tuple element.
 2. r[expr.member.field-read] Without an argument clause, `value.name` reads a field.
 3. r[expr.member.lookup] [Member Resolution](03-names-and-scopes.md#member-resolution) defines field and method lookup, including promoted members and the declaration-time check `ambiguous-promoted-member`.
 4. r[expr.member.enum-variant] `Enum.Variant` is not member access: it names an enum variant.

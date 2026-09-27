@@ -1,0 +1,4 @@
+# test: after '.', the text 0.1 is one floating-point token, not two tuple selections
+
+nested := ((1, 2), 3)
+second := nested.0.1  # diagnostic: syntax-error

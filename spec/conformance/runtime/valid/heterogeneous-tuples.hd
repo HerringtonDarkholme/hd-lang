@@ -12,7 +12,7 @@ fn main!() -> i32:
     generic := pair("value", 1)
     let first, second: (i32, i32) = (1, 2)
     first = 2
-    loaded + text.len() + nested.0.0 + single.0 + generic.1 + first + second - second
+    loaded + text.len() + nested._0._0 + single._0 + generic._1 + first + second - second
 
 test "main returns 42":
     assert_equal(main!(), 42, reason="heterogeneous tuples")

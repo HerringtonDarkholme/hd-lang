@@ -20,6 +20,11 @@ import {
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
 
+/** The decimal position a tuple-style member such as `_0` or `_12` names. */
+function underscorePosition(name: string): string | undefined {
+  return /^_(?:0|[1-9][0-9]*)$/.test(name) ? name.slice(1) : undefined;
+}
+
 /** The type an index operand spells, as in `List[i32]` or `(i32, string)`. */
 function typeRefFromExpression(expression: Expression): TypeRef | undefined {
   const name = typeNameFromExpression(expression);
@@ -596,14 +601,15 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const receiverReadonly = readonlyType(receiver.type);
         const tuple = tupleParts(receiverReadonly);
         if (tuple) {
-          if (!/^[0-9]+$/.test(expression.name)) {
+          const position = underscorePosition(expression.name);
+          if (position === undefined) {
             this.fail(
               "unknown-tuple-member",
               `tuple type '${receiver.type}' has no member '${expression.name}'`,
               expression.span,
             );
           }
-          const index = Number(expression.name);
+          const index = Number(position);
           if (!Number.isSafeInteger(index) || index >= tuple.length) {
             this.fail(
               "unknown-method",
@@ -642,9 +648,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         }
         const enumDeclaration = this.enumTypes.get(typeName);
         if (enumDeclaration) {
-          const field = enumDeclaration.sharedFields.find(
-            (candidate) => candidate.name === expression.name,
-          );
+          // Unnamed shared parameters keep their position as their internal
+          // name and are read as `_0`, `_1`, ... (owner decision TUP-1).
+          const position = underscorePosition(expression.name);
+          const field =
+            enumDeclaration.sharedFields.find((candidate) => candidate.name === expression.name) ??
+            (position === undefined
+              ? undefined
+              : enumDeclaration.sharedFields.find((candidate) => candidate.name === position));
           if (!field)
             this.fail(
               "unknown-data-field",

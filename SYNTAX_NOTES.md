@@ -668,11 +668,11 @@ Tuple type spelling:
 ()
 ```
 
-Tuple fields use Rust-style numeric field access:
+Tuple fields are read as `_` followed by the zero-based index:
 
 ```text
-x := point.0
-y := point.1
+x := point._0
+y := point._1
 ```
 
 Tuple destructuring works with both binding forms:

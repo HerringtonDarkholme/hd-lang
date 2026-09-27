@@ -627,3 +627,11 @@ existing source. Each entry names the decision that made the change.
   whose row lacks the removed key, previously accepted with the
   `requirement-subtract-absent` warning, is now a `type-mismatch`, and that
   warning was withdrawn.
+- Numeric member access (owner decision TUP-1, 2026-09-27): tuple elements
+  are selected as `pair._0`, `pair._1`, and so on, and an enum's unnamed
+  shared constructor parameters as `StatusCode.NotFound._0`. The member name
+  is an ordinary identifier, so `t._0._1` needs no special lexing, and
+  `"${pair._0}"` interpolates an element. The former spelling `pair.0`, and
+  `t.0.1` with its floating-point token `0.1`, are now `syntax-error`; no new
+  code was added. A leading-dot line such as `._0` now continues the
+  previous line, while `.0` still does not.

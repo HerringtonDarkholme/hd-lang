@@ -21,12 +21,12 @@ impl Identity:
 fn explicit_right() -> i32:
     identity := Identity {}
     pair := identity.pair[string, i32]("left", 42)
-    pair.1
+    pair._1
 
 fn inferred_right() -> i32:
     identity := Identity {}
     pair := identity.pair("left", 7)
-    pair.1
+    pair._1
 
 fn bounded_display() -> i32:
     identity := Identity {}

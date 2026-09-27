@@ -119,8 +119,10 @@ Decided 2026-09-26:
     declaration order; unnamed parameters come first), so
     `@message("not found: $_0")` on `NotFound(string)` works with ordinary
     `$identifier` interpolation. Named members are in scope by name. The
-    spelling matches tuple access, which becomes `pair._0` (audit TUP-1,
-    same day). `@source` on an unnamed parameter needs no name
+    spelling matches tuple access, `pair._0` (audit TUP-1, same day;
+    applied in
+    [Parenthesized And Tuple Expressions](../spec/05-expressions.md#r-expr.tuple.select-underscore)).
+    `@source` on an unnamed parameter needs no name
     (`Io(@source FsError)`, decision 12).
     (Gap 4, decided 2026-09-27) Opaque public errors: `@error(transparent)`
     and `@from` are allowed on a one-field data type, so a stable public

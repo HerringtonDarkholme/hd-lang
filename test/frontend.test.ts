@@ -350,18 +350,18 @@ test("parser retains shared enum fields, defaults, and variant results", () => {
   assert.equal(result.program?.enums[0]?.variants[0]?.result?.kind, "call");
 });
 
-test("parser retains decimal numeric member selectors", () => {
+test("parser retains underscore tuple member selectors", () => {
   const result = parse(conformanceBody("parse/valid/numeric-member-selectors"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.statements[0];
   assert.equal(statement?.kind, "binding");
   if (statement?.kind === "binding" && statement.value.kind === "member") {
-    assert.equal(statement.value.name, "1");
+    assert.equal(statement.value.name, "_1");
     assert.equal(statement.value.receiver.kind, "member");
     if (statement.value.receiver.kind === "member")
-      assert.equal(statement.value.receiver.name, "0");
+      assert.equal(statement.value.receiver.name, "_0");
   } else {
-    assert.fail("expected nested numeric member access");
+    assert.fail("expected nested tuple member access");
   }
 });
 

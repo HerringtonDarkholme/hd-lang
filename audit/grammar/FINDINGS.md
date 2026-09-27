@@ -51,19 +51,20 @@ Removed from this file: GR-01 to GR-09, GR-11 to GR-20, GR-22, GR-23, and
 the keyword-set review. Each was fixed in the reference parser or the spec
 text, or settled by one of Q1 to Q17 and K1 to K3. GR-10 items a to e are
 fixed; item e was re-checked on 2026-09-26 (`f(x = 1, fn (y): y)` is now
-rejected).
+rejected). Item g (`t.1_0`, probe R11) is gone: owner decision TUP-1 spells
+tuple selection `t._1`, so both the spec and the reference parser reject
+`t.1_0` as a `syntax-error`.
 
 ## Open Findings
 
 ### GR-10: Reference-parser heuristics disagree with the spec
 
-Severity: Medium. Status: items f and g open, re-checked on 2026-09-27 with
-`amb cases audit/grammar/probes/reference.cases` (probes R12 and R11).
+Severity: Medium. Status: item f open, re-checked on 2026-09-27 with
+`amb cases audit/grammar/probes/reference.cases` (probe R12).
 
 | # | Input | Reference | Spec |
 | - | ----- | --------- | ---- |
 | f | dedent to an unused column inside a bracketed suite (R12) | `syntax-error` | `invalid-dedent` |
-| g | `t.1_0` (R11) | accepted | a tuple index is decimal digits only |
 
 Also open: a multi-line parameter list with a default value
 (`fn f(\n    x: i32 = 1,\n) -> void:`) reports `missing-let`, from the
