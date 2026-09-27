@@ -21,6 +21,7 @@
   --tok-interpolation: #0f5f3a;
   --tok-comment: #7a8193;
   --tok-operator: #4a5162;
+  --tok-name: #a3366e;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -50,6 +51,7 @@
     --tok-interpolation: #d6f5a6;
     --tok-comment: #7d8599;
     --tok-operator: #b7bfd0;
+    --tok-name: #f59ac8;
     color-scheme: dark;
   }
 }
@@ -417,4 +419,126 @@ button.quiet {
     margin-left: 0;
     width: 100%;
   }
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.views,
+.view-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.output-header .view {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 8px 3px;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+.output-header .view:first-child {
+  padding-left: 0;
+}
+
+.output-header .view:hover {
+  color: var(--fg);
+}
+
+.output-header .view[aria-selected="true"] {
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.output.wat {
+  padding: 0;
+}
+
+.wat .outcome,
+.wat .diagnostics {
+  margin: 10px 14px;
+}
+
+.wat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font: 12px/1.4 var(--sans);
+}
+
+.wat-code {
+  margin: 0;
+  padding: 8px 0;
+  counter-reset: wat-line;
+  font: 12.5px/1.5 var(--mono);
+  white-space: pre;
+  tab-size: 2;
+}
+
+.wat-line {
+  display: block;
+  padding-right: 14px;
+}
+
+.wat-line::before {
+  counter-increment: wat-line;
+  content: counter(wat-line);
+  display: inline-block;
+  min-width: 4ch;
+  margin-right: 2ch;
+  padding-left: 8px;
+  text-align: right;
+  color: var(--tok-comment);
+  opacity: 0.7;
+  user-select: none;
+}
+
+.wat-truncated {
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--sans);
+}
+
+.wat-truncated button {
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.wat-keyword {
+  color: var(--tok-keyword);
+}
+.wat-instruction {
+  color: var(--tok-function);
+}
+.wat-type {
+  color: var(--tok-type);
+}
+.wat-name {
+  color: var(--tok-name);
+}
+.wat-number {
+  color: var(--tok-number);
+}
+.wat-string {
+  color: var(--tok-string);
+}
+.wat-comment {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.wat-paren {
+  color: var(--tok-operator);
 }

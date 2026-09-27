@@ -208,6 +208,82 @@ try {
     await page.context().close();
   });
 
+  await step("the WAT view shows the module, copies, downloads, and reports errors", async () => {
+    const page = await openPage();
+    await page.selectOption("#examples", "hello");
+    assert.equal(await page.locator("#wat-copy").isVisible(), false);
+    await page.click("#view-wat");
+    assert.equal(await page.locator("#view-wat").getAttribute("aria-selected"), "true");
+    assert.equal(await page.locator("#output").isVisible(), false);
+    const module = page.locator(".wat-code");
+    await module.waitFor();
+    const text = (await module.textContent()) ?? "";
+    assert.ok(text.startsWith("(module"), text.slice(0, 40));
+    assert.match(text, /\(func \$f\d+ \(export "main"\)/);
+    assert.match(
+      (await page.locator(".wat-meta").textContent()) ?? "",
+      /compiles to, with entry module src\/main\.hd/,
+    );
+    for (const kind of ["keyword", "instruction", "type", "name", "string", "number"])
+      assert.ok((await page.locator(`.wat-code .wat-${kind}`).count()) > 0, kind);
+    const main = page.locator(".wat-line", { hasText: '(export "main")' }).first();
+    assert.equal(await main.locator(".wat-keyword").first().textContent(), "func");
+    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "desktop-wat.png") });
+    await page.click("#wat-copy");
+    await page.getByText("WAT copied").waitFor();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    assert.ok(copied.startsWith("(module"));
+    assert.equal(
+      copied.replace(/\n$/, "").split("\n").length,
+      await page.locator(".wat-line").count(),
+    );
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.click("#wat-download"),
+    ]);
+    assert.equal(download.suggestedFilename(), "main.wat");
+    // A type error replaces the module with its diagnostics.
+    const broken = code('pub fn main() -> void:\n    let x: i32 = "no"\n');
+    await page.evaluate((hash) => (location.hash = hash), broken);
+    await page.locator("#wat .outcome.failed").waitFor();
+    assert.equal(await page.locator(".wat-code").count(), 0);
+    assert.equal(
+      await page.locator("#wat .diagnostic .location").textContent(),
+      "src/main.hd:2:18",
+    );
+    assert.equal(await page.locator("#wat-copy").isDisabled(), true);
+    // Fixing it in the editor brings the module back.
+    await page.click(".cm-content");
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.insertText("pub fn main() -> void:\n    pass\n");
+    await page.locator(".wat-code").waitFor();
+    await page.click("#view-output");
+    assert.equal(await page.locator("#wat").isVisible(), false);
+    assert.equal(await page.locator("#clear").isVisible(), true);
+    await page.context().close();
+  });
+
+  await step("without main, the WAT view shows the last module Run compiled", async () => {
+    const page = await openPage();
+    await page.selectOption("#examples", "top-level");
+    await page.click("#view-wat");
+    await page.getByText("Run the project to see the last one").waitFor();
+    await page.click("#run");
+    await page.locator(".wat-code").waitFor();
+    assert.match(
+      (await page.locator(".wat-meta").textContent()) ?? "",
+      /Run compiled \d+ modules, one for each top-level input it ran\. This is the last one\./,
+    );
+    assert.match(
+      (await page.locator(".wat-code").textContent()) ?? "",
+      /^\(module[\s\S]*\(export "main"\)/,
+    );
+    await page.click("#view-output");
+    await page.locator(".outcome.passed").waitFor();
+    assert.match((await page.locator(".stdout").textContent()) ?? "", /60 : i32/);
+    await page.context().close();
+  });
+
   await step("editor token classes match classify", async () => {
     const source = [
       'println("total ${count + 1} for $name")  # note',
@@ -260,6 +336,23 @@ try {
     );
     assert.equal(overflow, 0);
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "phone-dark.png") });
+    await page.click("#view-wat");
+    await page.locator(".wat-code").waitFor();
+    const watOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    assert.equal(watOverflow, 0);
+    assert.notEqual(
+      await page
+        .locator(".wat-keyword")
+        .first()
+        .evaluate((node) => getComputedStyle(node).color),
+      await page
+        .locator(".wat-name")
+        .first()
+        .evaluate((node) => getComputedStyle(node).color),
+    );
+    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "phone-dark-wat.png") });
     await page.context().close();
     const light = await openPage();
     await light.click("#run");

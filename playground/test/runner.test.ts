@@ -44,7 +44,7 @@ after(async () => {
 
 const single = (source: string) => ({ files: { "src/main.hd": source }, main: "src/main.hd" });
 
-function located(result: RunResult): string[] {
+function located(result: Pick<RunResult, "diagnostics">): string[] {
   return result.diagnostics.map(
     ({ path, line, column, code }) => `${path}:${line}:${column}:${code}`,
   );
@@ -287,6 +287,53 @@ async function bundleExamples(): Promise<string> {
   );
   return outfile;
 }
+
+test("the WAT of a program is the module Run instantiates", async () => {
+  const project = single('pub fn main() -> void $ Console:\n    println("hi")\n');
+  const shown = runner.watProject(project);
+  assert.equal(shown.status, "ok", shown.summary);
+  assert.equal(shown.module?.origin, "program");
+  assert.match(shown.module!.wat, /^\(module\n/);
+  assert.match(shown.module!.wat, /\(func \$f\d+ \(export "main"\)/);
+  const modules: Runner.CompiledModule[] = [];
+  const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
+  assert.equal(ran.status, "ok", ran.summary);
+  assert.deepEqual(modules, [shown.module]);
+  assert.deepEqual(runner.watFromRun(ran, modules[0]), { ...shown, diagnostics: ran.diagnostics });
+  const checked: Runner.CompiledModule[] = [];
+  await runner.runProject(project, "check", undefined, (module) => checked.push(module));
+  assert.deepEqual(checked, [], "Check compiles no module");
+});
+
+test("the WAT view shows diagnostics when compilation fails", async () => {
+  const broken = single('pub fn main() -> void:\n    let x: i32 = "no"\n');
+  const shown = runner.watProject(broken);
+  assert.equal(shown.status, "compile-error");
+  assert.equal(shown.module, undefined);
+  assert.deepEqual(located(shown), ["src/main.hd:2:18:type-mismatch"]);
+  const ran = await runner.runProject(broken, "run");
+  assert.equal(runner.watFromRun(ran, undefined)?.status, "compile-error");
+  const unlinked = runner.watProject({
+    files: { "src/main.hd": "use pkg.gone.{X}\n" },
+    main: "src/main.hd",
+  });
+  assert.equal(unlinked.status, "compile-error");
+});
+
+test("without main, the WAT is the last module Run compiled", async () => {
+  const project = single('x := 20\nprintln("start")\nx + 1\nx * 2\n');
+  assert.equal(runner.watProject(project).status, "not-run");
+  const modules: Runner.CompiledModule[] = [];
+  const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
+  assert.equal(ran.status, "ok", ran.summary);
+  assert.equal(modules.length, 1);
+  const [module] = modules;
+  assert.equal(module!.origin, "top-level");
+  assert.equal(module!.count, 4, "each of the four inputs compiles a module");
+  assert.match(module!.wat, /\(export "main"\)/);
+  const declarationsOnly = runner.watProject(single('fn f() -> i32: 1\ntest "t":\n    pass\n'));
+  assert.equal(declarationsOnly.status, "ok", "declarations with tests compile as one module");
+});
 
 test("the crypto shim matches node:crypto", async () => {
   const { createHash } = await import("node:crypto");

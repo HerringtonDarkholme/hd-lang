@@ -4,9 +4,13 @@
 // A project whose entry module declares `main` runs as a program. Without
 // `main`, the entry module's top-level inputs go through a REPL session in
 // order, and expression values print as the REPL prints them.
+//
+// `watProject` gives the WebAssembly text of the module a project compiles
+// to, for the playground's WAT view.
 
 import { analyze, instantiate } from "../../src/compiler.ts";
 import type { Diagnostic } from "../../src/diagnostics.ts";
+import { emitWat } from "../../src/emitter/index.ts";
 import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../src/package.ts";
 import { parse } from "../../src/parser/index.ts";
 import {
@@ -19,6 +23,7 @@ import {
 } from "../../src/repl.ts";
 import { RuntimePanicError } from "../../src/runtime-panic.ts";
 import { resultParts } from "../../src/types.ts";
+import { assembleWat } from "../../src/wasm.ts";
 import type { Project } from "./project.ts";
 
 /** `run` runs `main` or the top-level code, `check` type-checks, `test` runs test blocks. */
@@ -68,6 +73,26 @@ export function formatRunDiagnostic(diagnostic: RunDiagnostic): string {
   return `${diagnostic.path}:${diagnostic.line}:${diagnostic.column}: ${severity}${diagnostic.code}: ${diagnostic.message}${notes}`;
 }
 
+/** A module a run compiled to Wasm GC, as WebAssembly text. */
+export interface CompiledModule {
+  readonly wat: string;
+  /** `program`: the one module of the project; `top-level`: the last module REPL semantics compiled. */
+  readonly origin: "program" | "top-level";
+  /** How many modules the run compiled; REPL semantics compiles one per input that runs. */
+  readonly count: number;
+}
+
+export interface WatResult {
+  /**
+   * `ok`: `module` is set. `not-run`: top-level code without `main` compiles
+   * its modules only as Run evaluates it, so there is no module until then.
+   */
+  readonly status: "ok" | "compile-error" | "not-run" | "failure";
+  readonly module?: CompiledModule;
+  readonly diagnostics: readonly RunDiagnostic[];
+  readonly summary: string;
+}
+
 const hasErrors = (diagnostics: readonly RunDiagnostic[]): boolean =>
   diagnostics.some(({ severity }) => severity === "error");
 
@@ -77,10 +102,15 @@ type Finish = (
   summary: string,
 ) => RunResult;
 
+/**
+ * Runs, checks, or tests a project. `onModule` receives the module the run
+ * compiled, or with REPL semantics the last of them; `check` compiles none.
+ */
 export async function runProject(
   project: Project,
   mode: RunMode,
   onStdout: (line: string) => void = () => undefined,
+  onModule: (module: CompiledModule) => void = () => undefined,
 ): Promise<RunResult> {
   const started = performance.now();
   const stdout: string[] = [];
@@ -104,10 +134,10 @@ export async function runProject(
     return finish("compile-error", linkDiagnostics, "compilation failed");
   const source = linked.source;
   const program = parse(source).program;
-  if (mode !== "test" && program && !program.functions.some(({ name }) => name === "main")) {
-    const inputs = splitInputs(entryText(linked));
-    if (inputs.some(({ text }) => classifyInput(text) !== "declaration"))
-      return evaluateTopLevel(linked, project.main, inputs, mode === "run", emit, finish);
+  if (mode !== "test") {
+    const inputs = topLevelInputs(linked, program);
+    if (inputs)
+      return evaluateTopLevel(linked, project.main, inputs, mode === "run", emit, finish, onModule);
   }
 
   const analysis = analyze(source);
@@ -125,6 +155,7 @@ export async function runProject(
       console: emit,
       providerConfigurationId: "playground",
     });
+    onModule({ wat: compilation.wat, origin: "program", count: 1 });
     const functions = compilation.hir.functions;
     const entry = functions.find((declaration) => declaration.entry === true);
     const providers = (requirements: readonly string[]): unknown[] =>
@@ -169,6 +200,65 @@ export async function runProject(
   }
 }
 
+/**
+ * The WAT of the module `project` compiles to, without running it. Top-level
+ * code without `main` has no single module (see `WatResult`); the worker
+ * answers for it from the last run.
+ */
+export function watProject(project: Project): WatResult {
+  const linked = linkPackage(project.files, project.main);
+  const linkDiagnostics = linked.diagnostics.map(toRunDiagnostic);
+  if (!linked.source || hasErrors(linkDiagnostics))
+    return { status: "compile-error", diagnostics: linkDiagnostics, summary: "compilation failed" };
+  if (topLevelInputs(linked))
+    return {
+      status: "not-run",
+      diagnostics: [],
+      summary:
+        "Without main, Run compiles one module for each top-level input it evaluates. Run the project to see the last one.",
+    };
+  const analysis = analyze(linked.source);
+  const diagnostics = analysis.diagnostics.map((diagnostic: Diagnostic) =>
+    toRunDiagnostic(linked.locate(diagnostic)),
+  );
+  if (!analysis.hir || hasErrors(diagnostics))
+    return { status: "compile-error", diagnostics, summary: "compilation failed" };
+  try {
+    const { wat } = assembleWat(emitWat(analysis.hir));
+    return { status: "ok", module: { wat, origin: "program", count: 1 }, diagnostics, summary: "" };
+  } catch (error) {
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    return { status: "failure", diagnostics, summary: message };
+  }
+}
+
+/**
+ * What the WAT view shows after a run or test: its compile errors, or the
+ * module it compiled. Undefined when neither applies, such as after Check.
+ */
+export function watFromRun(
+  result: RunResult,
+  module: CompiledModule | undefined,
+): WatResult | undefined {
+  if (result.status === "compile-error")
+    return { status: "compile-error", diagnostics: result.diagnostics, summary: result.summary };
+  if (!module) return undefined;
+  return { status: "ok", module, diagnostics: result.diagnostics, summary: "" };
+}
+
+/**
+ * The entry module's top-level inputs when Run evaluates them with REPL
+ * semantics: the entry declares no `main` and has top-level code.
+ */
+function topLevelInputs(
+  linked: LinkedPackage,
+  program = parse(linked.source!).program,
+): readonly SourceInput[] | undefined {
+  if (!program || program.functions.some(({ name }) => name === "main")) return undefined;
+  const inputs = splitInputs(entryText(linked));
+  return inputs.some(({ text }) => classifyInput(text) !== "declaration") ? inputs : undefined;
+}
+
 /** The entry module's text in the linked source, with its package uses blanked. */
 function entryText(linked: LinkedPackage): string {
   return linked
@@ -189,9 +279,15 @@ async function evaluateTopLevel(
   inputs: readonly SourceInput[],
   execute: boolean,
   emit: (text: string) => void,
-  finish: Finish,
+  finishRun: Finish,
+  onModule: (module: CompiledModule) => void,
 ): Promise<RunResult> {
   const session = new ReplSession();
+  const finish: Finish = (status, diagnostics, summary) => {
+    const compiled = session.compiledModule();
+    if (compiled) onModule({ wat: compiled.wat, origin: "top-level", count: compiled.count });
+    return finishRun(status, diagnostics, summary);
+  };
   const lines = linked.source!.split("\n");
   const entryLine = linked.entryLine ?? 1;
   const diagnostics: RunDiagnostic[] = [];

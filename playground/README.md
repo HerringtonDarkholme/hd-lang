@@ -49,6 +49,28 @@ or later.
 - **Test** runs the `test` blocks, as `hd test` does, whether or not the
   entry module declares `main`. It checks the file as a module, so top-level
   code must type-check as module initialization.
+- **WAT**, beside **Output** in the output pane, shows the WebAssembly text
+  of the module the project compiles to:
+  - for a program, the module Run and Test instantiate. The prototype
+    compiler emits this text itself (`emitWat`), and Binaryen assembles it
+    into the Wasm binary without optimization passes, so the text is the
+    module the runtime executes; there is no optimized variant to show.
+    `hd build --wat FILE` prints the same text;
+  - without `main`, Run compiles one module for each top-level input it
+    evaluates, since REPL semantics runs each input as its own program. The
+    view shows the last module the run compiled and says how many there
+    were. Before the first Run, it asks for one;
+  - when compilation fails, the view shows the diagnostics, which jump to
+    their source positions, instead of an old module.
+
+  The view is generated on demand. The page asks the worker for the text only
+  while the view is open, and refreshes it after an edit, a run, or a test.
+  The worker keeps the text of the module its last run or test compiled, so
+  opening the view after a run compiles nothing. Highlighting comes from a
+  small tokenizer, [`src/wat.ts`](src/wat.ts), tested in
+  [`test/wat.test.ts`](test/wat.test.ts). Lines are numbered. The view
+  renders at most 5,000 lines; **Copy** and **Download .wat** give the full
+  text.
 - Files: `+` adds a module, double-click renames one, and `×` deletes one.
   `▸` makes a module the entry module, which is marked `main`.
 - **Share** copies a link that holds the whole project in the URL hash:
@@ -73,9 +95,12 @@ or later.
 Web Worker, so a long compile or an endless loop never blocks the page.
 Stopping a run terminates the worker. `src/runner.ts` holds the pipeline:
 link, `analyze`, then `instantiate` and call the entry export with a
-`Console` provider, the default runtime profile. Without `main`, it feeds the
+`Console` provider, the default runtime profile. It also reports the module
+a run compiled, and `watProject` compiles a project's module without running
+it, for the WAT view. Without `main`, it feeds the
 entry module's top-level inputs (`splitInputs` in
-[`src/repl-input.ts`](../src/repl-input.ts)) to a `ReplSession`.
+[`src/repl-input.ts`](../src/repl-input.ts)) to a `ReplSession`, whose
+`compiledModule()` gives the WAT of the last module it compiled.
 `src/compiler-client.ts` is the page side of the worker, shared with the
 website's REPL panel. The compiler's two Node
 dependencies get browser versions in `build.ts`:

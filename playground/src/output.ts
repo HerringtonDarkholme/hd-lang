@@ -5,7 +5,7 @@ import type { RunDiagnostic, RunMode, RunResult } from "./runner.ts";
 
 export type Outcome = RunResult | "stopped" | "timeout";
 
-function element<K extends keyof HTMLElementTagNameMap>(
+export function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
   text = "",
@@ -56,7 +56,8 @@ export class OutputPanel {
     if (typeof outcome === "string") return;
     if (outcome.stdout.length === 0 && mode !== "check" && outcome.status !== "compile-error")
       this.root.append(element("div", "empty", "(no console output)"));
-    if (outcome.diagnostics.length > 0) this.root.append(this.diagnosticList(outcome.diagnostics));
+    if (outcome.diagnostics.length > 0)
+      this.root.append(diagnosticList(outcome.diagnostics, this.onJump));
   }
 
   private outcomeLine(outcome: Outcome, mode: RunMode): HTMLElement {
@@ -81,25 +82,29 @@ export class OutputPanel {
     const label = mode === "check" ? "✓ No errors" : `✓ ${outcome.summary}`;
     return element("div", "outcome passed", `${label} · ${time}`);
   }
+}
 
-  private diagnosticList(diagnostics: readonly RunDiagnostic[]): HTMLElement {
-    const list = element("ul", "diagnostics");
-    for (const diagnostic of diagnostics) {
-      const item = element("li", `diagnostic ${diagnostic.severity}`);
-      const button = element("button", "jump");
-      button.type = "button";
-      button.title = "Show in editor";
-      button.append(
-        element("span", "location", `${diagnostic.path}:${diagnostic.line}:${diagnostic.column}`),
-        element("span", "severity", diagnostic.severity),
-        element("span", "code", diagnostic.code),
-        element("span", "message", diagnostic.message),
-      );
-      for (const note of diagnostic.notes) button.append(element("span", "note", `note: ${note}`));
-      button.addEventListener("click", () => this.onJump(diagnostic));
-      item.append(button);
-      list.append(item);
-    }
-    return list;
+/** Diagnostics as buttons that jump to their source position. */
+export function diagnosticList(
+  diagnostics: readonly RunDiagnostic[],
+  onJump: (diagnostic: RunDiagnostic) => void,
+): HTMLElement {
+  const list = element("ul", "diagnostics");
+  for (const diagnostic of diagnostics) {
+    const item = element("li", `diagnostic ${diagnostic.severity}`);
+    const button = element("button", "jump");
+    button.type = "button";
+    button.title = "Show in editor";
+    button.append(
+      element("span", "location", `${diagnostic.path}:${diagnostic.line}:${diagnostic.column}`),
+      element("span", "severity", diagnostic.severity),
+      element("span", "code", diagnostic.code),
+      element("span", "message", diagnostic.message),
+    );
+    for (const note of diagnostic.notes) button.append(element("span", "note", `note: ${note}`));
+    button.addEventListener("click", () => onJump(diagnostic));
+    item.append(button);
+    list.append(item);
   }
+  return list;
 }

@@ -1,4 +1,5 @@
-// The playground page: file tabs, the editor, run/check/share, and output.
+// The playground page: file tabs, the editor, run/check/share, and the
+// output pane with its Output and WAT views.
 
 import "./style.css";
 
@@ -12,6 +13,7 @@ import { OutputPanel } from "./output.ts";
 import { asProject, DEFAULT_MAIN, orderedPaths, pathProblem, type Project } from "./project.ts";
 import type { RunDiagnostic, RunMode } from "./runner.ts";
 import { projectFromHash, projectHash } from "./share.ts";
+import { WatPanel } from "./wat-view.ts";
 
 const STORAGE_KEY = "hd-playground-project";
 
@@ -24,12 +26,25 @@ const shareButton = byId<HTMLButtonElement>("share");
 const examplesSelect = byId<HTMLSelectElement>("examples");
 const tabs = byId<HTMLElement>("tabs");
 const status = byId<HTMLElement>("status");
+const outputViewButton = byId<HTMLButtonElement>("view-output");
+const watViewButton = byId<HTMLButtonElement>("view-wat");
+const clearButton = byId<HTMLButtonElement>("clear");
+const watCopyButton = byId<HTMLButtonElement>("wat-copy");
+const watDownloadButton = byId<HTMLButtonElement>("wat-download");
 
 const states = new Map<string, EditorState>();
 let entry = DEFAULT_MAIN;
 let current = DEFAULT_MAIN;
 let hashShown: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let running = false;
+// The WAT view asks the worker for the module only while the view is open.
+let watOpen = false;
+/** The project whose module the view shows, as JSON, and whether it may be out of date. */
+let watShown: string | undefined;
+let watStale = true;
+let watInFlight = false;
+let watTimer: ReturnType<typeof setTimeout> | undefined;
 
 const extensions = editorExtensions({
   run: () => void execute("run"),
@@ -38,6 +53,7 @@ const extensions = editorExtensions({
 });
 const view = new EditorView({ parent: byId("editor") });
 const output = new OutputPanel(byId("output"), jumpTo);
+const wat = new WatPanel(byId("wat"), jumpTo, downloadWat);
 const compiler = new CompilerClient({ onReady: () => setStatus("Compiler ready") });
 
 function setStatus(text: string): void {
@@ -63,6 +79,7 @@ function load(next: Project): void {
   view.setState(states.get(current)!);
   renderTabs();
   output.clear();
+  watChanged();
 }
 
 function open(path: string): void {
@@ -81,6 +98,7 @@ function changed(): void {
   }
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 400);
+  watChanged(500);
 }
 
 function save(): void {
@@ -131,6 +149,7 @@ function renderTabs(): void {
           entry = path;
           renderTabs();
           save();
+          watChanged();
         });
         tab.append(main);
       }
@@ -218,6 +237,7 @@ function rename(from: string, to: string): void {
   if (current === from) current = to;
   renderTabs();
   save();
+  watChanged();
   setStatus(`Renamed ${from} to ${to}`);
 }
 
@@ -234,6 +254,7 @@ function remove(path: string): void {
   }
   renderTabs();
   save();
+  watChanged();
 }
 
 function jumpTo(diagnostic: RunDiagnostic): void {
@@ -267,12 +288,14 @@ const MODE_LABELS: Record<RunMode, readonly [busy: string, done: string]> = {
 async function execute(mode: RunMode): Promise<void> {
   const snapshot = project();
   const [busy, done] = MODE_LABELS[mode];
+  running = true;
   runButton.disabled = true;
   checkButton.disabled = true;
   testButton.disabled = true;
   stopButton.hidden = false;
   output.begin(`${busy}…`);
   setStatus(busy);
+  if (mode !== "check") void refreshWat();
   try {
     const outcome = await compiler.run(mode, snapshot, (line) => output.line(line));
     output.finish(outcome, mode);
@@ -286,6 +309,92 @@ async function execute(mode: RunMode): Promise<void> {
     checkButton.disabled = false;
     testButton.disabled = false;
     stopButton.hidden = true;
+    running = false;
+    // A run or test may have compiled a new module; Check compiles none.
+    if (mode !== "check") watStale = true;
+    void refreshWat();
+  }
+}
+
+function showView(next: "output" | "wat"): void {
+  watOpen = next === "wat";
+  outputViewButton.setAttribute("aria-selected", String(!watOpen));
+  watViewButton.setAttribute("aria-selected", String(watOpen));
+  byId("output").hidden = watOpen;
+  byId("wat").hidden = !watOpen;
+  clearButton.hidden = watOpen;
+  watCopyButton.hidden = !watOpen;
+  watDownloadButton.hidden = !watOpen;
+  void refreshWat();
+}
+
+/** The project changed: refresh an open WAT view after `delay` ms. */
+function watChanged(delay = 0): void {
+  watStale = true;
+  clearTimeout(watTimer);
+  if (watOpen) watTimer = setTimeout(() => void refreshWat(), delay);
+}
+
+function setWatText(text: string | undefined): void {
+  watCopyButton.disabled = text === undefined;
+  watDownloadButton.disabled = text === undefined;
+}
+
+async function refreshWat(): Promise<void> {
+  if (!watOpen || watInFlight) return;
+  if (running) {
+    wat.message("Waiting for the run to finish…");
+    setWatText(undefined);
+    return;
+  }
+  const snapshot = project();
+  const key = JSON.stringify(snapshot);
+  if (!watStale && key === watShown) return;
+  watInFlight = true;
+  watStale = false;
+  if (watShown !== key) wat.message("Compiling…");
+  try {
+    const result = await compiler.wat(snapshot);
+    if (result === "busy") watStale = true;
+    else if (result === "stopped" || result === "timeout")
+      wat.message("Stopped: compiling took longer than 15 seconds.", "error");
+    else wat.show(result, snapshot.main);
+    watShown = key;
+  } catch (error) {
+    wat.message(`The compiler could not start: ${String(error)}`, "error");
+  } finally {
+    watInFlight = false;
+    setWatText(wat.text);
+  }
+  // The project changed while the worker compiled it.
+  if (watStale || JSON.stringify(project()) !== key) {
+    watStale = true;
+    clearTimeout(watTimer);
+    watTimer = setTimeout(() => void refreshWat(), 200);
+  }
+}
+
+function watFileName(): string {
+  return `${entry.replace(/^.*\//, "").replace(/\.hd$/, "")}.wat`;
+}
+
+function downloadWat(): void {
+  if (wat.text === undefined) return;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([wat.text], { type: "text/plain" }));
+  link.download = watFileName();
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  setStatus(`Downloaded ${link.download}`);
+}
+
+async function copyWat(): Promise<void> {
+  if (wat.text === undefined) return;
+  try {
+    await navigator.clipboard.writeText(wat.text);
+    setStatus("WAT copied to the clipboard");
+  } catch {
+    setStatus("Could not copy; use Download .wat instead");
   }
 }
 
@@ -334,7 +443,11 @@ checkButton.addEventListener("click", () => void execute("check"));
 testButton.addEventListener("click", () => void execute("test"));
 stopButton.addEventListener("click", () => compiler.stop());
 shareButton.addEventListener("click", () => void share());
-byId("clear").addEventListener("click", () => output.clear());
+clearButton.addEventListener("click", () => output.clear());
+outputViewButton.addEventListener("click", () => showView("output"));
+watViewButton.addEventListener("click", () => showView("wat"));
+watCopyButton.addEventListener("click", () => void copyWat());
+watDownloadButton.addEventListener("click", downloadWat);
 window.addEventListener("hashchange", () => void loadFromHash());
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || view.hasFocus) return;

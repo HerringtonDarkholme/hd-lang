@@ -70,6 +70,8 @@ export class ReplSession {
   private declarations: string[] = [];
   private statements: string[] = [];
   private shownLines = 0;
+  private lastModule: string | undefined;
+  private modules = 0;
   private readonly options: CompileOptions;
 
   constructor(options: CompileOptions = {}) {
@@ -80,6 +82,19 @@ export class ReplSession {
     this.declarations = [];
     this.statements = [];
     this.shownLines = 0;
+    this.lastModule = undefined;
+    this.modules = 0;
+  }
+
+  /**
+   * Each input that runs compiles its own module. This is the WAT text of the
+   * last one and how many the session has compiled, for tools that show the
+   * generated Wasm.
+   */
+  compiledModule(): { readonly wat: string; readonly count: number } | undefined {
+    return this.lastModule === undefined
+      ? undefined
+      : { wat: this.lastModule, count: this.modules };
   }
 
   /** The complete program the session currently stands for. */
@@ -246,6 +261,8 @@ export class ReplSession {
         ...this.options,
         console: (text) => lines.push(text),
       });
+      this.lastModule = compilation.wat;
+      this.modules += 1;
       const main = compilation.hir.functions.find(({ name }) => name === "main");
       const entry = instance.exports.main;
       if (!main || typeof entry !== "function") return { lines, error: "internal: no entry point" };

@@ -6,14 +6,14 @@
 
 import type { ReplReply } from "../../src/repl.ts";
 import type { Project } from "./project.ts";
-import type { RunMode, RunResult } from "./runner.ts";
+import type { RunMode, RunResult, WatResult } from "./runner.ts";
 import type { WorkerMessage, WorkerRequest } from "./worker.ts";
 
 export const TIME_LIMIT_MS = 15_000;
 
 export type Interrupted = "stopped" | "timeout";
 
-type Answer = Extract<WorkerMessage, { kind: "result" | "repl" | "restored" }>;
+type Answer = Extract<WorkerMessage, { kind: "result" | "wat" | "repl" | "restored" }>;
 
 interface Pending {
   readonly id: number;
@@ -41,6 +41,9 @@ export class CompilerClient {
   private kept: string[] = [];
   private restoreNeeded = false;
   private replQueue: Promise<unknown> = Promise.resolve();
+  /** A WAT request in progress; a run waits for it instead of stopping it. */
+  private watRequest: Promise<unknown> | undefined;
+  private runs = 0;
 
   constructor(options: CompilerClientOptions = {}) {
     this.options = options;
@@ -107,11 +110,37 @@ export class CompilerClient {
     project: Project,
     onStdout: (line: string) => void,
   ): Promise<RunResult | Interrupted> {
-    if (this.pending) this.stop();
-    const answer = await this.send({ kind: "project", id: this.nextId++, mode, project }, onStdout);
-    if (typeof answer === "string") return answer;
-    if (answer.kind !== "result") throw new Error(`unexpected ${answer.kind} answer`);
-    return answer.result;
+    this.runs += 1;
+    try {
+      await this.watRequest;
+      if (this.pending) this.stop();
+      const request = { kind: "project", id: this.nextId++, mode, project } as const;
+      const answer = await this.send(request, onStdout);
+      if (typeof answer === "string") return answer;
+      if (answer.kind !== "result") throw new Error(`unexpected ${answer.kind} answer`);
+      return answer.result;
+    } finally {
+      this.runs -= 1;
+    }
+  }
+
+  /**
+   * The WAT of the module `project` compiles to, or of the module its last run
+   * compiled. Returns `busy` while another request is in progress rather than
+   * stop it.
+   */
+  async wat(project: Project): Promise<WatResult | Interrupted | "busy"> {
+    if (this.pending || this.runs > 0 || this.watRequest) return "busy";
+    const request = this.send({ kind: "wat", id: this.nextId++, project });
+    this.watRequest = request.catch(() => undefined);
+    try {
+      const answer = await request;
+      if (typeof answer === "string") return answer;
+      if (answer.kind !== "wat") throw new Error(`unexpected ${answer.kind} answer`);
+      return answer.result;
+    } finally {
+      this.watRequest = undefined;
+    }
   }
 
   /** Answers one REPL input or `:` command, after any earlier REPL request. */

@@ -34,10 +34,39 @@
       </section>
       <section class="output-pane" aria-label="Output">
         <div class="output-header">
-          <span>Output</span>
-          <button id="clear" type="button" class="quiet">Clear</button>
+          <div class="views" role="tablist" aria-label="Output views">
+            <button
+              id="view-output"
+              class="view"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="output"
+            >
+              Output
+            </button>
+            <button
+              id="view-wat"
+              class="view"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="wat"
+              title="The WebAssembly text of the module the compiler generates"
+            >
+              WAT
+            </button>
+          </div>
+          <div class="view-actions">
+            <button id="clear" type="button" class="quiet">Clear</button>
+            <button id="wat-copy" type="button" class="quiet" hidden disabled>Copy</button>
+            <button id="wat-download" type="button" class="quiet" hidden disabled>
+              Download .wat
+            </button>
+          </div>
         </div>
-        <div id="output" class="output"></div>
+        <div id="output" class="output" role="tabpanel" aria-labelledby="view-output"></div>
+        <div id="wat" class="output wat" role="tabpanel" aria-labelledby="view-wat" hidden></div>
       </section>
     </main>
     <noscript>The playground needs JavaScript and a browser with WebAssembly GC.</noscript>
