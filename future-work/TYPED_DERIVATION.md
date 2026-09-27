@@ -67,6 +67,34 @@ Decided 2026-09-26:
    structural function is the escape hatch. The rule is the same for every
    derivation (codecs, comparison and hash traits rebuilt on `Structure`,
    generators, `From`).
+7. **Facets fold into derivation.** A facet's `info()` is derived like any
+   trait method: the facet's package provides a structural describer over
+   `Structure::describe` (typed per field; a child's information comes
+   through the field type's own `Annotate[Facet]` bound, or through
+   `annotation_ref` for recursive types). Chapter 14's aggregate annotator
+   protocols (`DataAnnotator`, `EnumAnnotator`) with uniform targets, the
+   field-override assignment grammar, and the local `fn build` override are
+   replaced: a field's result override becomes metadata implementing
+   `Replace[D]` (carrying the value), and a whole-result rewrite is a
+   hand-written `impl Annotate[F] for T` that calls the structural function.
+   Kept: shapes, member metadata, `Annotation`/`Annotate`/`Info`,
+   `Facet::annotation(T)` and `annotation_ref`, the per-instance lazy
+   memoizing registry with cycle detection, the requirement-free rule (an
+   empty row on `info`), coherence and the root-application orphan
+   exception, and the `@Facet` decorator as sugar for `@derive(Facet)`.
+   `@derive` is the single documented rule; decorators never change
+   behavior.
+8. **Configured facets use container metadata.** Configuration such as
+   `@tool.config(strict=true)` is metadata on the declaration (new
+   `DataMetadata`, `EnumMetadata`, `FnMetadata` markers), read by the
+   describer from the declaration's shape; the same concept covers enum
+   tagging and rename-all policies.
+9. **Foreign targets use a standalone derive.** `derive Validation for
+   dep.models.User` is allowed where the ownership rule allows the impl, plus
+   the root-application orphan exception. A derive written outside the
+   type's package sees only public fields; a private field that would be
+   visited is an error.
+   Still open: function targets (tools), previously `FuncAnnotator`.
 
 ## Contents
 
