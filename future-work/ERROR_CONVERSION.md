@@ -575,7 +575,7 @@ impl FromError[FsError] for SyncError:
 impl FromError[HttpError] for SyncError:
     fn from_error(error: HttpError) -> SyncError: SyncError.Http(error)
 
-pub fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
+pub fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead, Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(path)?
     response := http.send!(Request::get(url.trim()))?
@@ -764,13 +764,13 @@ the future `List` method.
 Application code then returns the erased error:
 
 ```text
-pub fn report!() -> Result[string, Error] $ FsRead + Http:
+pub fn report!() -> Result[string, Error] $ FsRead, Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
     .Ok("status ${response.status}")
 
-pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
+pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
     match report!():
         .Ok(line) => println(line)
         .Err(error) =>
@@ -861,7 +861,7 @@ Zig error sets, Roc tag unions, Scala 3 unions.
 A new type former in the error position, and new type patterns:
 
 ```text
-fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead + Http:
+fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead, Http:
     url := $.use(FsRead).read_text!(path)?
     response := $.use(Http).send!(Request::get(url))?
     .Ok(response)
@@ -968,7 +968,7 @@ fn use_adder() -> Result[i32, string]:
 neither is free. A free spelling is `? else`:
 
 ```text
-fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
+fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead, Http:
     url := $.use(FsRead).read_text!(path)? else SyncError.Fs
     response := $.use(Http).send!(Request::get(url))? else SyncError.Http
     .Ok(response)
@@ -1114,7 +1114,7 @@ impl FromError[FsError] for SyncError:
 impl for `AnyError`, and `downcast` already works on `Inspectable` values.
 
 ```text
-pub fn main!() -> Result[void, Error] $ FsRead + Console:
+pub fn main!() -> Result[void, Error] $ FsRead, Console:
     text := $.use(FsRead).read_text!(Path::parse("a.txt"))?
     println(text)
     .Ok()
@@ -1234,7 +1234,7 @@ gain over A plus B is the saved `FromError` impls. Revisit only if hd adopts
 union types in general.
 
 ```text
-fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead + Http:
+fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead, Http:
     pass
 ```
 

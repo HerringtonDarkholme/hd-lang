@@ -644,13 +644,13 @@ use std.error.{Error, chain, find}
 use std.fs.{FsError, FsRead}
 use std.http.{Http, HttpError}
 
-pub fn report!() -> Result[string, Error] $ FsRead + Http:
+pub fn report!() -> Result[string, Error] $ FsRead, Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
     .Ok("status ${response.status}")
 
-pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
+pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
     match report!():
         .Ok(line) => println(line)
         .Err(error) =>

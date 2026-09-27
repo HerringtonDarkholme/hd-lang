@@ -134,10 +134,11 @@ third needs something more than a function type, and is treated separately in
   `fn(A) -> mut Suspend[T] $ R`. The first form promises a cold construction
   and allows `callee!(...)`; the second may run code before it returns a
   suspension ([Suspending Functions](../spec/11-requirements-and-suspension.md#suspending-functions)).
-- **Rows are sets.** A requirement row is an unordered, normalized set, with
-  union and subtraction on row parameters. A row parameter is inferred from
-  its use after `$`, and a row-kinded argument is written as a requirement
-  expression or `$()` ([Types](../spec/02-grammar.md#types)).
+- **Rows are sets.** A requirement row is an unordered, normalized set,
+  written as a comma list; a row parameter listed beside keys, as in
+  `$(R, Logger)`, contributes its keys. A row parameter is inferred from
+  its use after `$`, and a row-kinded argument is written as a parenthesized
+  row such as `$(Log, Clock)` or `$()` ([Types](../spec/02-grammar.md#types)).
 - **GQ1.** The clause before a header's `:` belongs to the declaration, so a
   function-typed result with its own row is parenthesized:
   `fn make() -> (fn() -> i32 $ Log) $ Console:`.
@@ -208,9 +209,9 @@ third needs something more than a function type, and is treated separately in
    `Is = (A, B)`, `O = C`, `Rs = ()`, among others. Chapter 12 already
    refuses to guess a partition between positional packs.
 2. **Rows are not packs.** A pack is ordered and may repeat an element. A row
-   is an unordered set with normalization and subtraction.
+   is an unordered set with normalization.
    `Fn[..., Log, Clock]` and `Fn[..., Clock, Log]` must be the same type, and
-   `R - Logger` has no pack meaning. The row belongs in one row-kinded
+   an extension such as `$(R, Logger)` has no pack meaning. The row belongs in one row-kinded
    parameter, which the language already has.
 3. **Packs are not allowed on type declarations,** and pack arguments are
    never written explicitly. `Fn[i32, string, bool]` with a pack parameter
@@ -243,7 +244,7 @@ instantiated generic functions.
 
 ```text
 let plain: Fn[(i32, string), bool, $()] = check
-let rowed: Fn[(UserId,), User, Database + Cache] = load
+let rowed: Fn[(UserId,), User, $(Database, Cache)] = load
 let counter: mut MutFn[(), i32, $()] = next
 let loader: SuspendFn[(UserId,), Result[User, DbError], Database] = load_user
 ```
@@ -369,7 +370,7 @@ invariant in the row.
   The input argument is tuple-kinded, so its variance is stated per element
   by the declaration; tuples in general need no new variance rule.
 - **Row.** Row subsumption, using a function that needs `Log` where one that
-  may need `Log + Clock` is expected, is sound but not
+  may need `$(Log, Clock)` is expected, is sound but not
   representation-preserving: the implementation model passes providers
   positionally in canonical key order, so the callee's provider list would
   differ. The row stays invariant, as today.
@@ -446,7 +447,7 @@ do not overlap. Two points need rules:
   tuple of at least one element; implementation heads with packs already
   exist, so this only needs to be written down;
 - a row position in an implementation head is either a row parameter or a
-  concrete row. Patterns such as `R + Log` or `R - Log` in a head are
+  concrete row. Patterns such as `$(R, Log)` in a head are
   rejected, so row unification stays "a parameter unifies with anything, two
   concrete rows unify when they are equal sets".
 

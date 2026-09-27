@@ -94,8 +94,8 @@ systems. The design should support:
    and hide only the ones the helper satisfies itself;
 8. interactive resumption without silently gaining new authority.
 
-*Mechanism:* requirement rows, `$.use`, `$.with`, row parameters, and row
-subtraction ([Requirements and Suspension](../spec/11-requirements-and-suspension.md)).
+*Mechanism:* requirement rows, `$.use`, `$.with`, row parameters, and removal
+by row extension ([Requirements and Suspension](../spec/11-requirements-and-suspension.md)).
 Normal errors use `Result`; requirements describe dependencies; `fn!` and
 `Suspend[T]` describe one-shot suspension. These mechanisms replace the older
 single “effects and handlers” model.

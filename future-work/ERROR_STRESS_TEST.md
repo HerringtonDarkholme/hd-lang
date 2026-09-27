@@ -281,7 +281,7 @@ fn is_broken_pipe(error: Error) -> bool:
                 _ => false
         .None => false
 
-pub fn main!() -> Result[void, Error] $ Console + FsRead:
+pub fn main!() -> Result[void, Error] $ Console, FsRead:
     match run!():
         .Ok(_) => .Ok()
         .Err(error) =>

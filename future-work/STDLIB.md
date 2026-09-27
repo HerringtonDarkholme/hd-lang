@@ -180,7 +180,7 @@ pub data Stamped:
     pub text: string
     pub loaded_at: Timestamp
 
-pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead + Clock:
+pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead, Clock:
     files, clock := $.use(FsRead, Clock)
     text := files.read_text!(path)?
     .Ok(Stamped { text: text, loaded_at: clock.now() })
@@ -218,7 +218,7 @@ use std.fs.{FsRead, FsError}
 use std.path.Path
 use std.time.Clock
 
-pub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:
+pub fn main!() -> Result[void, FsError] $ FsRead, Clock, Console:
     stamped := load_stamped!(Path::parse("app.toml"))?
     println(stamped.text)
     .Ok()
@@ -1346,7 +1346,7 @@ use std.host.{Env, MapEnv}
 use std.random.{Random, SeededRandom}
 use std.time.{Clock, ManualClock, Timestamp}
 
-pub fn hermetic(seed: u64 = 0) -> $.Context[mut Clock + mut Random + Env + FsRead + mut FsWrite + mut Console]:
+pub fn hermetic(seed: u64 = 0) -> $.Context[$(mut Clock, mut Random, Env, FsRead, mut FsWrite, mut Console)]:
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
     let random: mut SeededRandom = SeededRandom::new(seed)
     let files: mut MemoryFs = MemoryFs::new()
@@ -1522,7 +1522,7 @@ fn elapsed!() -> Timestamp:
 records every host call at the boundary regardless of suspension.
 
 ```text
-fn deadline(budget: Duration) -> Timestamp $ Clock + Env:
+fn deadline(budget: Duration) -> Timestamp $ Clock, Env:
     clock, env := $.use(Clock, Env)
     extra := env.get("EXTRA_SECONDS")
     clock.now().plus(budget)
@@ -1539,7 +1539,7 @@ disk. The same split applies to `Console` and `ConsoleInput`. Writes take
 `mut self`, so a writer requires `mut FsWrite`.
 
 ```text
-fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead + mut FsWrite:
+fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead, mut FsWrite:
     text := $.use(FsRead).read_text!(input)?
     $.use(mut FsWrite).write_text!(output, text.upper())
 ```

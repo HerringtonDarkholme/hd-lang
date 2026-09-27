@@ -1848,7 +1848,7 @@ enum SyncError:
     Http(error: HttpError)
     Invalid(reason: string)        # string payload: no From generated, or opt out
 
-fn sync!(p: Path) -> Result[void, SyncError] $ FsRead + Http:
+fn sync!(p: Path) -> Result[void, SyncError] $ FsRead, Http:
     text := $.use(FsRead).read_text!(p)?      # From[FsError] for SyncError
     $.use(Http).post!(url, text)?             # From[HttpError] for SyncError
 ```

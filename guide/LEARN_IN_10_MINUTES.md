@@ -409,7 +409,7 @@ directory. Declarations are private unless marked `pub`. `use` roots are
 use pkg.user.types.{User, UserId}
 use std.host.Args
 
-pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
+pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
     args, console := $.use(Args, Console)
     console.write_line!("starting " + args.program_name())?
     .Ok()

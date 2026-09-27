@@ -401,7 +401,7 @@ replay. Under (b), histories fill with telemetry payloads. With (c), output
 suppression also gives observability its replay suppression.
 
 ```text
-fn stamp!() -> Timestamp $ Clock + Observability:
+fn stamp!() -> Timestamp $ Clock, Observability:
     now := $.use(Clock).now()          # input: result recorded
     log.info("stamped", fields={})     # output: suppressed on replay
     now
@@ -453,7 +453,7 @@ pub fn main!() -> Result[void, AppError] $ Net:
 also bounds history length.
 
 ```text
-fn poll_forever!(state: PollState) -> Result[void, PollError] $ Net + Workflow:
+fn poll_forever!(state: PollState) -> Result[void, PollError] $ Net, Workflow:
     next := poll_once!(state)?
     if next.rounds % 1000 == 0:
         return $.use(Workflow).continue_as_new!(next)   # illustrative API
@@ -507,7 +507,7 @@ pub fn main!(state: PollState) -> Result[void, PollError] $ Net:
 history and leaves the run in a state the live run never reached.
 
 ```text
-fn upload!(path: string) -> Result[void, IoError] $ Fs + Net:
+fn upload!(path: string) -> Result[void, IoError] $ Fs, Net:
     file := $.use(Fs).open!(path)?
     defer:
         _ := file.close()           # not run when replay stops early
