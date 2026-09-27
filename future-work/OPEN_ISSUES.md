@@ -313,9 +313,12 @@ These items remain required but do not currently require new core syntax:
 - the mandatory default algorithm, canonical field encoding, and evolution
   rules for `std.fingerprint`, whose digests always carry an algorithm/version
   identifier;
-- the complete `hd.toml` schema, executable-main selection, lockfile, version
-  constraints, dependency resolver, and the concrete host binding for
-  capabilities such as `Console`;
+- the final `hd.toml` schema and the concrete host binding for capabilities
+  such as `Console`. The manifest shape, executable-main selection, caret
+  version ranges, the PubGrub-style resolver, and the lockfile are decided in
+  [Packages decisions 1-14](PACKAGES.md#owner-decisions) and drafted there;
+  the root-application orphan exception for a package with both a library
+  and executables (decision 4) is still open;
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, [Durable Replay decision 15](DURABLE_REPLAY.md#owner-decisions));
@@ -324,8 +327,10 @@ These items remain required but do not currently require new core syntax:
 - final signatures, behavior, and the complete intrinsic set for the
   compiler-intrinsic `std.task` combinators, such as racing, retry, timeout,
   and heterogeneous scheduling;
-- a higher-level `std.task.Task[T]` API, which must not weaken one-shot
-  `Suspend[T]` semantics;
+- the final `std.task` structured-scope API: `Task[T]` is decided as
+  structured scopes only, with `scope!`, `start`, and `join!`
+  ([STDLIB decision 11](STDLIB.md#owner-decisions)), and must not weaken
+  one-shot `Suspend[T]` semantics;
 - the complete standard host capability-trait catalog and provider
   configuration format;
 - exporter configuration, sampling, storage, and operational privacy policy

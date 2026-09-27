@@ -1,9 +1,12 @@
 # Packages: Survey And Manifest Draft
 
-Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages).
-Nothing here is accepted language or tooling behavior. Decisions that change
-the language go to [Open Issues](OPEN_ISSUES.md) and the
-[specification](../spec/README.md); this document proposes, it does not decide.
+Status: research and design draft for [Roadmap area 5](ROADMAP.md#5-packages),
+revised to the [owner decisions](#owner-decisions) 1 to 14 of 2026-09-26.
+Nothing here is accepted language behavior. The draft sections below follow
+the decisions; details the decisions leave open are marked as open.
+Decisions that change the language go to the
+[specification](../spec/README.md): decision 4 (the root-application orphan
+exception) and decision 5 (`use` in `test` blocks) are not applied there yet.
 
 Inputs:
 
@@ -25,7 +28,9 @@ directory under [`spec/conformance/packages/`](../spec/conformance/packages),
 and each such directory is a source root whose `mod.hd` is the package root
 module ([Package Roles](../spec/conformance/README.md#package-roles)). The
 draft below keeps that model: a manifest dependency key is the `NAME` in
-`dep.NAME`, and a package kind is the role.
+`dep.NAME`. Under decision 4 one package may have both a library and
+executables, so the role is no longer one package kind; which targets take
+the root-application role is open.
 
 ## 1. Survey
 
@@ -92,11 +97,11 @@ added `/vN` module paths so majors can coexist, following Go.
 
 ### 1.3 Takeaways For hd
 
-1. **MVS fits hd best.** It is deterministic, explainable in one sentence
-   ("the largest minimum anyone asked for"), and never picks a version that no
-   manifest named. Its one weak assumption, that newer minors are compatible,
-   is exactly what hd's interface files let the registry check at publish.
-   Go and MoonBit trust authors; hd can verify them.
+1. **MVS was this draft's first choice; the owner chose ranges with a
+   solver.** MVS is deterministic and explainable in one sentence ("the
+   largest minimum anyone asked for"), and its trust assumption is what hd's
+   interface files let the registry check. Decision 2 instead adopts caret
+   ranges with PubGrub-style resolution, as Cargo and uv do.
 2. **Interface files replace rustdoc JSON or ABI dumps.** hd already requires
    complete public signatures and an interface file per package. A
    compatibility checker compares two interface files and needs no extra
@@ -120,18 +125,19 @@ added `/vN` module paths so majors can coexist, following Go.
 7. **Standard library tied to the toolchain.** Every surveyed language except
    Kotlin does this. The manifest states a minimum toolchain, like Go's `go`
    line.
-8. **Separate dependency groups for tests.** hd's use roots are module-wide,
-   so test-only dependencies need a module-level boundary, like MoonBit's
-   `test-import` and Go's `_test.go` files.
+8. **Separate dependency groups for tests.** hd's use declarations are
+   module-wide, so test-only dependencies need a boundary, like MoonBit's
+   `test-import` and Go's `_test.go` files. Decision 5 gives two: a `use`
+   scoped to one `test` block, and the separate `tests/` root.
 
 ## 2. Draft: `hd.toml`
 
 ### 2.1 Design Goals
 
-- One package is one source root, one kind, one version, and one interface
-  file.
+- One package is one source root, one version, and one interface file. Like
+  a Cargo package, it may have a library, executables, or both (decision 4).
 - The manifest is plain TOML with a closed schema. Every key has one meaning.
-  Unknown keys, and keys that are illegal for the package kind, are errors.
+  Unknown keys are errors.
 - Tools edit the manifest; humans read it. `hd` rewrites it in a canonical
   key order, so an agent's edit produces a minimal diff.
 - Nothing in the manifest duplicates what source already states. Provider
@@ -144,7 +150,6 @@ added `/vN` module paths so majors can coexist, following Go.
 ```toml
 [package]
 name = "invoice_cli"
-kind = "application"
 version = "0.3.0"
 hd = "0.9.0"
 description = "Command-line invoice generator"
@@ -180,7 +185,14 @@ optimize = "speed"
 
 [patch]
 "acme/json" = { path = "../json" }
+
+[toolchain]
+pin = "0.9.4"
 ```
+
+This package has executables and no library: its source root has no
+`mod.hd`. `[toolchain] pin` is allowed only in a root manifest
+(decision 10).
 
 ### 2.3 Full Example: Library
 
@@ -188,7 +200,6 @@ optimize = "speed"
 [package]
 name = "billing"
 id = "acme/billing"
-kind = "library"
 version = "1.4.2"
 hd = "0.9.0"
 description = "Billing primitives"
@@ -205,6 +216,10 @@ money = "acme/money@3.0.1"
 [test-dependencies]
 fixtures = "acme/test_fixtures@0.2.0"
 ```
+
+This package has a library, because `src/mod.hd` exists, and no executables.
+Adding an `[[executable]]` table would give it both, as a Cargo package with
+`src/lib.rs` and `src/main.rs` has.
 
 ### 2.4 Full Example: Workspace Root
 
@@ -224,8 +239,7 @@ root. A member depends on another member with `{ path = "..." }`.
 | Key | Type | Rule |
 | --- | --- | --- |
 | `name` | identifier | The package's local name, used in diagnostics and as the default executable name. Source never names it: the current package is always `pkg`. |
-| `id` | `owner/name` | Registry identity. Required to publish; forbidden for applications. `name` must equal its last component. |
-| `kind` | `"library"` or `"application"` | Selects the package role. Only an application may declare `[[executable]]` or be the root that uses the orphan annotation exception. Only a library may be a dependency. |
+| `id` | `owner/name` | Registry identity (decision 3). Required to publish. `name` must equal its last component. |
 | `version` | `MAJOR.MINOR.PATCH[-PRE]` | See [Versions](#3-versions). Build metadata (`+...`) is rejected. |
 | `hd` | version | Minimum toolchain version, which is also the minimum `std` version. |
 | `description`, `license`, `repository`, `readme` | strings | Metadata. `license` is an SPDX expression. Required to publish. |
@@ -234,23 +248,30 @@ root. A member depends on another member with `{ path = "..." }`.
 
 | Key | Default | Rule |
 | --- | --- | --- |
-| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index. |
-| `tests` | `"tests"` if the directory exists | Test source root. Its modules are compiled only by `hd test`. They may use `pkg`, dependencies, and test dependencies, and they see only the package's public surface, as a downstream package would. |
+| `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index, and its presence gives the package a library. |
+| `tests` | `"tests"` if the directory exists | Test source root. Its modules are compiled only by `hd test`. They may use `pkg`, dependencies, and test dependencies anywhere, and they see only the package's public surface, as a downstream package would. |
 
-The two roots must not overlap. Inline `test` blocks in `root` may use only
-`[dependencies]`, because a `use` is module-wide and the module is also part
-of the normal build.
+The two roots must not overlap. Within `root`, a test-only dependency may be
+named only by a `use` declared inside a `test` block, which is scoped to that
+block (decision 5). Module-level uses in `root` may name only
+`[dependencies]`, because the module is also part of the normal build. Test
+builds include the test dependencies.
 
-`[[executable]]`, applications only, zero or more:
+A package must have a library, at least one executable, or both. Only a
+package with a library can be a dependency; a dependent sees its library and
+never builds its executables. Which targets count as the root application
+for the orphan annotation exception is open (decision 4).
+
+`[[executable]]`, zero or more:
 
 | Key | Default | Rule |
 | --- | --- | --- |
 | `name` | package `name` | Output artifact name. Unique within the package. |
 | `module` | `"main"` | Entry module, as a module path relative to the source root. |
-| `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/10-modules.md#wasm-boundary)). The toolchain defines the profile names. |
+| `profile` | `"console"` | Runtime profile ([Wasm Boundary](../spec/10-modules.md#wasm-boundary)). Only toolchain-defined profile names are allowed (decision 13). |
 
-If an application declares no `[[executable]]`, it has one implicit entry
-with all defaults, so `src/main.hd` is the entry module. See
+If a package has no library and declares no `[[executable]]`, it has one
+implicit entry with all defaults, so `src/main.hd` is the entry module. See
 [Entry Points](#26-entry-points) below for the selection rule.
 
 `[dependencies]` and `[test-dependencies]`: each key is an identifier and
@@ -258,10 +279,10 @@ becomes the `NAME` in `dep.NAME`. Each value is one of:
 
 | Form | Meaning |
 | --- | --- |
-| `"owner/name@X.Y.Z"` | Registry package, minimum version `X.Y.Z`. |
+| `"owner/name@X.Y.Z"` | Registry package, caret range: at least `X.Y.Z`, within its compatibility line. |
 | `{ id = "owner/name", version = "X.Y.Z", registry = "URL" }` | Registry package from a non-default registry. |
-| `{ path = "DIR" }` | Local package. Not allowed in a published package. |
-| `{ git = "URL", rev = "SHA" }` | Git package at one full commit hash. Branches and tags are rejected. Not allowed in a published package. |
+| `{ path = "DIR" }` | Local package. Not allowed in a published package (decision 9). |
+| `{ git = "URL", rev = "SHA" }` | Git package at one full commit hash. Branches and tags are rejected. Not allowed in a published package (decision 9). |
 
 A key may not name `std`, `pkg`, or `dep`. Two keys may name the same
 registry package only at different majors; see [Coexistence](#43-coexistence).
@@ -277,6 +298,12 @@ dependency. It is the only override mechanism.
 
 `[workspace]`: workspace root only. `members` lists member directories.
 Globs are rejected, so the member list is explicit in review.
+
+`[toolchain]`: root only. `pin` names an exact toolchain version, which `hd`
+downloads when it is missing (decision 10). There are no editions.
+
+There is no table for optional features or conditional compilation
+(decision 12).
 
 ### 2.6 Entry Points
 
@@ -295,8 +322,8 @@ ordinary function. The manifest only selects the entry module:
 5. A public `main` in a module that no executable selects is an ordinary
    public function. `hd` warns (`unselected-main`) so an agent notices a
    missing `[[executable]]` entry.
-6. A library has no executables. `hd run` on a library fails with a
-   diagnostic that names the package kind.
+6. A package without executables cannot be run. `hd run` on it fails with
+   a diagnostic that says it has only a library.
 
 The manifest never names the function. That keeps one source of truth: an
 agent that renames `main` sees a checker error in source, not a stale
@@ -310,15 +337,16 @@ A version is `MAJOR.MINOR.PATCH` with an optional `-PRE` pre-release suffix
 using SemVer 2.0.0 ordering. All three numeric parts are required in the
 manifest, the lockfile, and CLI output. Build metadata is rejected.
 
-A dependency requirement is a single version, read as a minimum within its
-compatibility line. There are no ranges, no upper bounds, no `!=`, and no
-wildcards. A pre-release is selected only when some manifest names that exact
-pre-release.
+A dependency requirement is a caret range (decision 2): `X.Y.Z` means at
+least `X.Y.Z` and below the next compatibility line, as `^X.Y.Z` does in
+Cargo. Whether other range operators are accepted is open; this draft
+proposes none. A pre-release is selected only when some manifest names that
+exact pre-release.
 
 ### 3.2 Compatibility Lines
 
 The compatibility line of a version is its major number when the major is at
-least 1, and `0.MINOR` when the major is 0. Two versions in one line must be
+least 1, and `0.MINOR` when the major is 0 (decision 8). Two versions in one line must be
 compatible under the checked rule below. Versions in different lines are
 different packages for resolution and for declaration identity.
 
@@ -353,13 +381,13 @@ coherence rules:
 | Change `fn` to `fn!` or the reverse | breaking | Suspension changes how every call is written. |
 | Add a public data field with a default | compatible | Construction may omit it. Needs confirmation against the data-pattern rules. |
 | Add a public data field without a default | breaking | Existing constructions fail. |
-| Add an enum variant | breaking | `match` is exhaustive and hd has no marker for open enums. |
+| Add an enum variant | breaking | `match` is exhaustive and hd has no marker for open enums (decision 7). |
 | Add a trait method with a default | compatible | Subject to area 2's default-method conflict rules. |
 | Add a trait method without a default | breaking | Existing implementations fail. |
 | Add an inherent method | compatible, pending area 2 | Safe only if inherent lookup cannot change which method an existing call selects. |
 | Add an implementation whose trait and target the package both own | compatible | No other package can hold that slot. |
 | Add a generic (blanket) implementation | breaking | It can overlap an implementation in a downstream package. |
-| Add an implementation or annotation whose trait or facet another package owns | owner question 6 | It can take a slot that a root application filled with an orphan annotation. |
+| Add an implementation or annotation whose trait or facet another package owns | compatible (decision 6) | It can take a slot that a root application filled with an orphan annotation, so `hd update` reports the resulting coherence conflict before writing. |
 
 The registry runs `hd api diff` against the highest published version of the
 same line below the new one, and refuses a publish whose declared version is
@@ -374,31 +402,32 @@ declaration of that name becomes a `prelude-name-shadow` error.
 
 ### 4.1 Algorithm
 
-Minimal version selection, as in Go and MoonBit:
+Caret ranges solved by a PubGrub-style resolver, as in Cargo and uv
+(decision 2):
 
 1. Start from the root package, or from every member of a workspace.
-2. For each requirement, visit that package's manifest at the required
-   version, collecting requirements transitively. `[test-dependencies]` of
-   non-root packages are not visited.
-3. For each package identity and compatibility line, select the largest
-   minimum any visited manifest states. This is the whole algorithm. It needs
-   no search and never fails for version reasons.
+2. Collect requirements transitively from each candidate version's manifest.
+   `[test-dependencies]` of non-root packages are not visited.
+3. For each package identity and compatibility line, select one version that
+   satisfies every range on it, preferring the version in `hd.lock` and
+   otherwise the newest non-yanked release. The solver backtracks, and when
+   no assignment exists it fails with a derivation that names the
+   conflicting requirements.
 4. Apply root `[patch]` entries.
-5. Check the graph: no cycles, only libraries as dependencies, each
-   package's `hd` minimum at most the selected toolchain.
+5. Check the graph: no cycles, only packages with a library as dependencies,
+   each package's `hd` minimum at most the selected toolchain.
 6. Load the interface file of every selected package and run the link-time
    coherence check (next section). A failure here is a resolution failure.
 
-Because the registry checks compatibility, step 3's assumption, that the
-largest minimum satisfies every smaller one, is verified rather than
-trusted.
+Because the registry checks compatibility, choosing a newer version within a
+line is verified to be safe rather than trusted.
 
-Selection changes only when some manifest changes. `hd update NAME` raises
-the root's stated minimum, and the lockfile records the result.
+Selection is recorded in `hd.lock`. It changes only when `hd add`,
+`hd update`, or `hd remove` re-resolves, or when a manifest range no longer
+admits the locked version.
 
-A yanked version is never chosen as a new minimum by `hd add` or
-`hd update`. It stays usable when a manifest already names it, and `hd`
-warns, as Go does with `retract`.
+A yanked version is never newly selected. A version already in `hd.lock`
+stays usable after it is yanked, and `hd` warns, as Cargo does.
 
 ### 4.2 Coherence Across Packages
 
@@ -416,16 +445,17 @@ runs this check before compiling any function body. A registry that serves
 interface files lets `hd resolve` report a conflict before sources are
 downloaded.
 
-MVS makes the annotation rule predictable. The spec says that if a dependency
-version later supplies a pair the root annotated, resolution fails. Under
-MVS a dependency version changes only when a manifest does. So the failure
-appears on the `hd add` or `hd update` that raised the version, and names
-both annotations. It never appears on a later unrelated build.
+The lockfile makes the annotation rule predictable. The spec says that if a
+dependency version later supplies a pair the root annotated, resolution
+fails. A locked dependency version changes only when a command re-resolves.
+So the failure appears on the `hd add` or `hd update` that selected the new
+version, and names both annotations; `hd update` reports it before writing
+(decision 6). It never appears on a later unrelated build.
 
-A library is never the root, so it cannot contain an orphan annotation. That
-holds when the library is built or tested alone, too: `hd build` and
-`hd test` on a library use the library role, matching the conformance
-runner's `library` role.
+Which targets of a package with both a library and executables count as the
+root application is open (decision 4). Whatever the answer, a package used
+as a dependency is never the root, so its library cannot contain an orphan
+annotation.
 
 ### 4.3 Coexistence
 
@@ -455,15 +485,16 @@ Consequences under hd's rules:
    Rust's "expected `Serialize`, found `Serialize`" message.
 6. `std` exists exactly once in every graph.
 
-Owner question 1 covers the alternatives.
+Owner decision 1 chose this rule.
 
 ## 5. Lockfile
 
 `hd.lock` sits next to the root manifest, or the workspace manifest, and is
-committed. The lockfile of a dependency is ignored. Under MVS the manifests
-alone determine selection, so the lockfile's job is integrity and a fast,
-offline check. `hd build --locked` fails if resolution would produce a
-different lockfile.
+committed. The lockfile of a dependency is ignored. With ranges, manifests
+alone do not determine selection, so the lockfile records the selected
+versions as well as their hashes. Builds use the locked versions.
+`hd build --locked` fails if resolution would produce a different
+lockfile.
 
 Format: TOML written by `hd` only, with packages sorted by `id` then version,
 and keys in a fixed order. Every hash is written as `algorithm:hex` so the
@@ -559,9 +590,9 @@ absolute paths must not reach the output.
 - `std` ships inside the toolchain and is never downloaded or listed as a
   dependency. Its version is the toolchain version.
 - `[package] hd` is a minimum. The selected toolchain must be at least the
-  largest `hd` value in the resolved graph, as with Go's `go` line under MVS.
-- A toolchain pin (`hd-toolchain.toml` or `[toolchain]` in the root) is owner
-  question 10.
+  largest `hd` value in the resolved graph, as with Go's `go` line.
+- The root may pin a toolchain with `[toolchain] pin`, which `hd` downloads
+  (decision 10). There are no language editions yet.
 - `std` follows the checked compatibility rule across toolchain releases in
   one line, with the prelude rule from [section 3.3](#33-the-checked-compatibility-rule).
   A breaking `std` change needs a new toolchain major.
@@ -579,14 +610,14 @@ A published package is a canonical archive containing:
 - `README` and license files.
 
 It contains no compiled Wasm. Packages build from source, so there is one
-compiler-owned representation of generic code. Shipping applications as Wasm
-components is a runtime and deployment concern, separate from the registry
-(owner question 11).
+compiler-owned representation of generic code. Shipping executables as Wasm
+components is decided with the component ABI, separate from the registry
+(decision 11).
 
 Registry rules:
 
 - Package identity is `owner/name`. `owner` is a verified account or
-  organization (owner question 3).
+  organization (decision 3).
 - Published versions are immutable. Yanking marks a version as not
   selectable for new requirements; it does not delete it.
 - At publish, the registry recompiles the package's declarations, compares
@@ -596,6 +627,8 @@ Registry rules:
 - The registry serves each version's manifest and interface file separately
   from its archive, so resolution and coherence checks need no source
   download.
+- Once a public registry exists, it runs a public checksum transparency log,
+  like `sum.golang.org`, which `hd` checks on first download (decision 14).
 
 ## 8. Agent-First CLI
 
@@ -605,11 +638,11 @@ flag to pass.
 
 | Command | Effect |
 | --- | --- |
-| `hd new --kind library\|application NAME` | Create a package skeleton. |
+| `hd new [--library] [--executable] NAME` | Create a package skeleton with a library, an executable, or both. |
 | `hd add NAME ID@VERSION [--test]` | Add or raise a dependency, re-resolve, and update `hd.lock`. Without a version, use the newest non-yanked release. |
 | `hd remove NAME` | Remove a dependency. |
-| `hd update [NAME]` | Raise stated minimums to the newest compatible release. `--line` allows moving to a new line. |
-| `hd resolve [--explain ID]` | Resolve and check coherence. `--explain` lists each requirer of the package and its stated minimum; under MVS that is the full explanation. |
+| `hd update [NAME]` | Re-resolve to the newest versions the ranges allow and rewrite `hd.lock`, reporting any coherence conflict before writing. `--line` also moves the manifest requirement to a new line. |
+| `hd resolve [--explain ID]` | Resolve and check coherence. `--explain` lists each requirer of the package and its range, and on failure the solver's derivation. |
 | `hd lock --check` | Fail if `hd.lock` is stale. |
 | `hd api diff [OLD] [NEW]` | Compare interface files and report the required bump. Defaults: last published version and the working tree. |
 | `hd publish [--dry-run]` | Run every registry check locally, then upload. |
@@ -639,18 +672,20 @@ Output rules:
 
 ## 9. Rules Summary
 
-1. A package is one source root, one kind, one version, and one interface
-   file. Unknown manifest keys are errors.
+1. A package is one source root, one version, and one interface file, with
+   a library, executables, or both. Unknown manifest keys are errors.
 2. A dependency key is the `NAME` of `dep.NAME`. A key cannot be `std`, `pkg`,
    or `dep`.
-3. Only a library can be a dependency. Only an application can declare
-   executables or hold an orphan annotation.
+3. Only a package with a library can be a dependency. Which targets may
+   hold an orphan annotation is open (decision 4).
 4. An executable selects an entry module. The entry point is that module's
    public `main` or `main!`; without one, the module must be a script.
-5. Test-root modules may use test dependencies. Modules in the source root
-   may not.
-6. A requirement is a minimum version in its compatibility line. Resolution
-   is MVS.
+5. Test-root modules may use test dependencies anywhere. In the source
+   root, only a `use` inside a `test` block, scoped to that block, may name
+   one.
+6. A requirement is a caret range within its compatibility line.
+   Resolution is a PubGrub-style solver, and `hd.lock` records the
+   selection.
 7. At most one version per compatibility line. Distinct lines are distinct
    package identities for declarations, orphan rules, and coherence.
 8. Coherence is checked over resolved interface files before any body is
@@ -660,12 +695,18 @@ Output rules:
 10. `hd.lock` records selections, tree hashes, and interface hashes. Path and
     git sources are allowed only in unpublished packages; git sources are
     pinned to a full commit.
-11. `std` is the toolchain's. `[package] hd` states the minimum toolchain.
+11. `std` is the toolchain's. `[package] hd` states the minimum toolchain,
+    and the root may pin one.
 12. No command prompts. Every command accepts `--format json`.
 
 ## Owner Decisions
 
-Decided 2026-09-26:
+Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
+Decision 4's restatement of the root-application orphan exception is still
+open. Decision 5 is language syntax: `use` is top-level only today
+([Suites](../spec/02-grammar.md#r-grammar.suite.top-level-only),
+[Use Forms](../spec/10-modules.md#r-module.use.whole-module)), and the
+specification does not have it yet.
 
 1. **Question 1: one version per compatibility line.** Two majors of one
    package may coexist (`json = "acme/json@2.1.0"`,
@@ -698,6 +739,10 @@ Decided 2026-09-26:
     registry exists.
 
 ## 10. Questions For The Owner
+
+All fourteen questions were decided on 2026-09-26; see
+[Owner Decisions](#owner-decisions). The options and recommendations below
+are kept as the record of what was proposed.
 
 1. **Can two majors of one package coexist in a graph?**
    Options: (a) one version per package per graph, as in SwiftPM, uv, and
