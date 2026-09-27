@@ -13,6 +13,33 @@ import {
 // Assignability by permission weakening and readonly list variance, and the
 // least common type built on it (04-type-system.md#assignability-and-coercion).
 
+/**
+ * The component pairs `[narrow, wide]` of a function-type variance conversion
+ * from `actual` to `expected` (04-type-system.md#r-types.variance.function):
+ * each parameter is contravariant, the result covariant, and the kind, arity,
+ * vararg convention, and requirement row must match exactly.
+ */
+export function functionVariancePairs(
+  actual: ValueType,
+  expected: ValueType,
+): readonly (readonly [ValueType, ValueType])[] | undefined {
+  const from = functionParts(actual);
+  const to = functionParts(expected);
+  if (
+    !from ||
+    !to ||
+    from.suspending !== to.suspending ||
+    from.variadic !== to.variadic ||
+    from.parameters.length !== to.parameters.length ||
+    [...from.requirements].sort().join("+") !== [...to.requirements].sort().join("+")
+  )
+    return undefined;
+  return [
+    ...from.parameters.map((parameter, index) => [to.parameters[index]!, parameter] as const),
+    [from.result, to.result] as const,
+  ];
+}
+
 export function isPermissionWeakening(actual: ValueType, expected: ValueType): boolean {
   const mutable = mutableInner(actual);
   if (mutable !== undefined)
@@ -38,6 +65,13 @@ export function isPermissionWeakening(actual: ValueType, expected: ValueType): b
     const stored = storedSuspensionParts(expectedCallable.result);
     return stored?.mutable === true && stored.result === actualCallable.result;
   }
+  // Function types convert by their declared variance, which only changes
+  // access permissions (07-functions.md#r-fn.type.variance-repr).
+  const functionPairs = functionVariancePairs(actual, expected);
+  if (functionPairs)
+    return functionPairs.every(
+      ([narrow, wide]) => narrow === wide || isPermissionWeakening(narrow, wide),
+    );
   if (
     actualNominal?.name === "List" &&
     expectedNominal?.name === "List" &&

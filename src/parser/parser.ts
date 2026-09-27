@@ -1059,6 +1059,14 @@ class Parser extends ExpressionParser {
     }
     if (this.matchText("mut")) {
       const start = this.peek(-1).span.start;
+      // A function type carries no access permission
+      // (02-grammar.md#r-grammar.type.mut.no-function).
+      if (this.atText("fn"))
+        this.fail(
+          "syntax-error",
+          "'mut' cannot precede a function type; function values carry no permission",
+          this.peek(-1).span,
+        );
       this.rowlessResult = rowless;
       const inner = this.parseType();
       if (inner.name.startsWith("mut:")) {

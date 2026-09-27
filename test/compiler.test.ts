@@ -788,3 +788,137 @@ test("named local functions capture enclosing values and recurse", async () => {
   assert.deepEqual(compilation.diagnostics, []);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
+
+test("closures mutate their captures without a mut fn marker", async () => {
+  const source = [
+    "fn main() -> i32:",
+    "    let count: i32 = 0",
+    "    let items: mut List[i32] = []",
+    "    step := fn() -> i32:",
+    "        count = count + 1",
+    "        items.append(count)",
+    "        count",
+    "    _ := step()",
+    "    step() * 10 + items.len()",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.equal((instance.exports.main as CallableFunction)(), 22);
+  assert.deepEqual(
+    analyze(conformance("parse/invalid/mut-closure-literal")).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["syntax-error"],
+  );
+});
+
+test("a direct is on a function value is unsupported-function-identity", () => {
+  for (const name of ["closure-identity", "named-function-identity"])
+    assert.deepEqual(
+      analyze(conformance(`typing/invalid/${name}`)).diagnostics.map(
+        (diagnostic) => diagnostic.code,
+      ),
+      ["unsupported-function-identity"],
+    );
+  assert.deepEqual(analyze(conformance("typing/valid/generic-function-identity")).diagnostics, []);
+});
+
+test("function types convert by declared variance and share one closure layout", async () => {
+  const source = [
+    "data User:",
+    "    name: string",
+    "",
+    'fn fresh() -> mut User: User { name: "Ada" }',
+    "fn name_length(user: User) -> i32: user.name.len()",
+    "",
+    "fn widen(callback: fn(User) -> i32) -> fn(mut User) -> i32:",
+    "    callback",
+    "",
+    "fn makers(list: List[fn() -> mut User]) -> List[fn() -> User]:",
+    "    list",
+    "",
+    "fn main() -> i32:",
+    '    let user: mut User = User { name: "Grace" }',
+    "    maker := makers([fresh])[0]",
+    "    reader := widen(name_length)",
+    "    reader(user) * 10 + maker().name.len()",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.equal((instance.exports.main as CallableFunction)(), 53);
+  assert.deepEqual(
+    analyze(conformance("typing/invalid/function-result-representation-change")).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["variance-representation-change"],
+  );
+});
+
+test("function types are implementation targets owned by the standard library", async () => {
+  const source = [
+    "trait Describe:",
+    "    fn describe(self) -> i32",
+    "",
+    "impl Describe for fn(i32) -> i32:",
+    "    fn describe(self) -> i32: 7",
+    "",
+    "fn inc(value: i32) -> i32: value + 1",
+    "",
+    "fn main() -> i32:",
+    "    callback := inc",
+    "    callback.describe()",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.equal((instance.exports.main as CallableFunction)(), 7);
+  assert.deepEqual(
+    analyze(conformance("typing/invalid/function-type-orphan-impl")).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["orphan-impl"],
+  );
+  assert.deepEqual(
+    analyze(
+      ["trait Marker", "impl Marker for fn(i32) -> i32", "impl Marker for fn(i32) -> i32", ""].join(
+        "\n",
+      ),
+    ).diagnostics.map((diagnostic) => diagnostic.code),
+    ["overlapping-impl"],
+  );
+});
+
+test("spelled std.function constructors are the function type sugar", async () => {
+  const source = [
+    "use std.function.{Fn, Rest}",
+    "",
+    "fn count(label: string, values: i32...) -> i32: values.len()",
+    "fn inc(value: i32) -> i32: value + 1",
+    "",
+    "fn keep(callback: Fn[(i32,), i32, $()]) -> fn(i32) -> i32:",
+    "    callback",
+    "",
+    "fn spread(callback: Fn[(string, Rest[i32]), i32, $()]) -> i32:",
+    '    callback("n", 1, 2, 3)',
+    "",
+    "fn main() -> i32:",
+    "    kept := keep(inc)",
+    "    kept(1) * 10 + spread(count)",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.equal((instance.exports.main as CallableFunction)(), 23);
+  for (const [name, code] of [
+    ["function-type-non-tuple-inputs", "generic-kind-mismatch"],
+    ["function-type-rest-nonfinal", "nonfinal-vararg"],
+  ])
+    assert.deepEqual(
+      analyze(conformance(`typing/invalid/${name}`)).diagnostics.map(
+        (diagnostic) => diagnostic.code,
+      ),
+      [code],
+    );
+});

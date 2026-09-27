@@ -71,9 +71,9 @@ export abstract class StatementChecker extends CheckerContext {
           );
         }
         const captured = !local && !global ? this.availableCaptures.get(statement.name) : undefined;
-        // A `mut fn` closure assigns captured `let` storage through its shared
-        // cell (07-functions.md#captures).
-        if (captured?.mutable && this.declaration.mutableClosure) {
+        // A closure assigns captured `let` storage through its shared cell
+        // (07-functions.md#r-fn.capture.mutate).
+        if (captured?.mutable) {
           const value = this.requireCoercion(
             this.checkExpression(statement.value, captured.type),
             captured.type,
@@ -94,10 +94,8 @@ export abstract class StatementChecker extends CheckerContext {
         }
         if (captured)
           this.fail(
-            captured.mutable ? "mutable-capture-requires-mut-fn" : "non-reassignable-binding",
-            captured.mutable
-              ? `a plain fn closure cannot assign captured binding '${statement.name}'`
-              : `binding '${statement.name}' is not reassignable`,
+            "non-reassignable-binding",
+            `binding '${statement.name}' is not reassignable`,
             statement.span,
           );
         if (!local && !global)

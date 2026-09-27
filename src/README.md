@@ -316,9 +316,13 @@ else`, `break`, `break value`, and `continue`;
   parameter/result inference, result inference for nonrecursive closures, and
   GC environments for direct and transitive captures, including lexical
   provider overrides that escape their `$.with` scope; a captured `let` is a
-  shared heap cell, and `mut fn` closures may assign it and keep mutable
-  captures; a generic function used as a value is instantiated from explicit
-  type arguments or the expected function type;
+  shared heap cell, and every closure may assign it and keep mutable
+  captures (`mut fn` is a syntax error); a generic function used as a value is
+  instantiated from explicit type arguments or the expected function type;
+  function types convert by declared variance (permission changes only),
+  are implementation targets owned by the standard library, reject a direct
+  `is`, and may be spelled `Fn[...]`, `SuspendFn[...]`, and `Rest[T]` when
+  imported from `std.function`;
 - `type` aliases, expanded before checking, and newtypes lowered to one-field
   data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
   hoisted under a scoped name; the prelude traits `Any` and `Iterable` (user

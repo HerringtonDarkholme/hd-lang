@@ -3,7 +3,6 @@ typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-t
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
-typing/invalid/function-type-invariant-result.hd	check fails: MVP has no i64 type (unknown-type)	F-253
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
 typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 and i64 (sized numeric types unimplemented); the newtype and its unwrap are implemented	F-253
 typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
@@ -98,3 +97,5 @@ typing/invalid/hand-written-hash-beside-derived-eq.hd	MVP reports decorator-not-
 runtime/valid/derived-newtype.hd	check fails: decorator-not-top-level at line 5: decorators are only valid on top-level declarations (TQ-11 newtype derivation needs @derive)	F-250
 typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-parameter at line 4 instead of trait-not-dynamically-safe: packs and defaults are outside the current erased-generic slice (the TQ-10 row and reified exclusions are implemented)	F-250
 typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: the shape intrinsic is unimplemented (TQ-23 TypeShape.Mut)	K1
+typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
+typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250

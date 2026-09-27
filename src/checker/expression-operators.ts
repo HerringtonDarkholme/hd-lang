@@ -194,6 +194,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         const left = this.checkExpression(expression.left);
         const right = this.checkExpression(expression.right);
         if (expression.operator === "is") {
+          // Function identity is unspecified, so a direct `is` on a function
+          // value is rejected (05-expressions.md#r-expr.is.function).
+          const functionOperand = [left, right].find(
+            (operand) => functionParts(readonlyType(operand.type)) !== undefined,
+          );
+          if (functionOperand)
+            this.fail(
+              "unsupported-function-identity",
+              `identity of function value of type '${functionOperand.type}' is unspecified`,
+              expression.span,
+            );
           const operands = this.identityOperands(left, right);
           if (!operands) {
             this.fail(

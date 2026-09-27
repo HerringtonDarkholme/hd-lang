@@ -142,12 +142,6 @@ const TYPE_NAMES = new Set<ValueType>([
   "void",
   "ConsoleError",
 ]);
-const MUTABLE_ACCESS_CODES = new Set([
-  "mutable-receiver-required",
-  "readonly-argument-to-mutable-parameter",
-  "readonly-edge",
-  "readonly-root",
-]);
 
 export const PRELUDE_NAMES = new Set([
   "never",
@@ -363,9 +357,6 @@ export abstract class CheckerContext {
   protected inferredReturnType?: ValueType;
   protected readonly closureIndex: number;
   protected readonly captures = new Map<string, HirCapture>();
-  // Start offsets of capture references whose `mut T` access this plain
-  // closure weakened to readonly `T` (spec/07-functions.md#captures).
-  protected readonly weakenedCaptureOffsets = new Set<number>();
   protected readonly providerScopes: Map<string, HirLocal>[] = [new Map()];
   protected readonly diagnostics: Diagnostic[] = [];
   protected readonly scopes: Map<string, HirLocal>[] = [new Map()];
@@ -1390,19 +1381,16 @@ export abstract class CheckerContext {
     return { kind: "local", local, type: local.type, span };
   }
 
-  // A read of a captured binding inside a closure. A plain `fn` closure views
-  // captured `mut T` access as readonly `T`; a `mut fn` closure keeps it
-  // (07-functions.md#captures).
+  // A read of a captured binding inside a closure. A closure uses each capture
+  // with the access the binding has in its enclosing scope
+  // (07-functions.md#r-fn.capture.access).
   protected captureReference(name: string, source: HirLocal, span: SourceSpan): HirExpression {
     const fieldIndex = this.captureField(name, source);
-    const mutableClosure = this.declaration.mutableClosure === true;
-    if (mutableInner(source.type) !== undefined && !mutableClosure)
-      this.weakenedCaptureOffsets.add(span.start.offset);
     return {
       kind: "capture",
       closureIndex: this.closureIndex,
       fieldIndex,
-      type: mutableClosure ? source.type : readonlyType(source.type),
+      type: source.type,
       span,
     };
   }
@@ -1464,10 +1452,6 @@ export abstract class CheckerContext {
   }
 
   protected fail(code: string, message: string, span: SourceSpan): never {
-    if (MUTABLE_ACCESS_CODES.has(code) && this.weakenedCaptureOffsets.has(span.start.offset)) {
-      code = "mutable-capture-requires-mut-fn";
-      message = `a plain fn closure cannot obtain mutable access from a capture; ${message}`;
-    }
     if (this.declaration.defaultContext) {
       // A default runs with an empty row and outside any driver, so the
       // ordinary row and bang checks decide requirement-freedom from callee

@@ -9,7 +9,7 @@ import {
   readonlyType,
   tupleParts,
 } from "../types.ts";
-import { isPermissionWeakening } from "./assignability.ts";
+import { functionVariancePairs, isPermissionWeakening } from "./assignability.ts";
 import { genericTypeName } from "./shared.ts";
 
 // Declared variance (04-type-system.md#variance). A `+T` parameter may occur
@@ -131,6 +131,16 @@ export function varianceConversion(
   target: ValueType,
   declarations: Declarations,
 ): boolean | "representation-change" {
+  const functionPairs = functionVariancePairs(readonlyType(source), target);
+  if (functionPairs) {
+    for (const [narrow, wide] of functionPairs) {
+      if (narrow === wide || isPermissionWeakening(narrow, wide)) continue;
+      return wide.startsWith("trait:") || optionalInner(wide) === narrow
+        ? "representation-change"
+        : false;
+    }
+    return true;
+  }
   const from = nominalGenericParts(readonlyType(source));
   const to = mutableInner(target) === undefined ? nominalGenericParts(target) : undefined;
   if (!from || !to || from.name !== to.name || from.arguments.length !== to.arguments.length)

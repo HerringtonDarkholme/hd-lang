@@ -313,11 +313,10 @@ export abstract class ExpressionParser extends ParserBase {
     if (this.matchText("while")) return this.parseWhile(token);
     if (this.matchText("match")) return this.parseMatch(token);
     if (this.matchText("fn")) return this.parseClosure(token);
-    if (this.atText("mut") && this.peek(1).text === "fn") {
-      this.advance();
-      this.advance();
-      return { ...this.parseClosure(token), mutable: true } as Expression;
-    }
+    if (this.atText("mut") && this.peek(1).text === "fn")
+      // `mut fn` closures were removed: every closure may mutate its captures
+      // (07-functions.md#r-fn.type.no-mut.syntax).
+      this.fail("syntax-error", "'mut' cannot precede 'fn'; closures need no 'mut'", token.span);
     if (this.matchText("$")) return this.parseProviderExpression(token);
     if (this.matchText(".")) {
       const variant = this.expectKind("identifier", "expected an enum variant name after '.'");

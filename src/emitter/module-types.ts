@@ -6,6 +6,7 @@ import {
   mutableInner,
   nominalGenericParts,
   optionalInner,
+  readonlyType,
   resultParts,
   storedSuspensionParts,
   suspensionParts,
@@ -20,8 +21,43 @@ interface CollectedModuleTypes {
   readonly contextNames: Map<ValueType, number>;
 }
 
+/**
+ * The closure signature a function type shares with the types it converts to
+ * by declared variance (07-functions.md#r-fn.type.variance-repr): `mut` is
+ * erased at run time, so a parameter's or the result's outer `mut` does not
+ * select a different closure struct.
+ */
+export function signatureKey(type: ValueType): ValueType {
+  const callable = functionParts(type);
+  if (!callable) return type;
+  const { parameters, result, requirements, variadic, suspending } = callable;
+  if (functionType(parameters, result, requirements, variadic, suspending) !== type) return type;
+  return functionType(
+    parameters.map(readonlyType),
+    readonlyType(result),
+    requirements,
+    variadic,
+    suspending,
+  );
+}
+
+/** Closure signature indexes keyed by `signatureKey`. */
+class SignatureMap extends Map<ValueType, number> {
+  override get(type: ValueType): number | undefined {
+    return super.get(signatureKey(type));
+  }
+
+  override has(type: ValueType): boolean {
+    return super.has(signatureKey(type));
+  }
+
+  override set(type: ValueType, index: number): this {
+    return super.set(signatureKey(type), index);
+  }
+}
+
 export function collectModuleTypes(program: HirProgram): CollectedModuleTypes {
-  const signatureNames = new Map<ValueType, number>();
+  const signatureNames = new SignatureMap();
   const contextNames = new Map<ValueType, number>();
   const collectType = (type: ValueType): void => {
     if (type.startsWith("trait:")) return;

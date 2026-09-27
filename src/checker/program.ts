@@ -15,6 +15,7 @@ import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
 import { withStandardTraits } from "./standard-traits.ts";
+import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
@@ -24,7 +25,10 @@ export interface CheckOptions {
 }
 
 export function check(source: Program, options: CheckOptions = {}): CheckResult {
-  const hoisted = hoistLocalDeclarations(withStandardTraits(source));
+  const spelled = withFunctionTypeConstructors(source);
+  // A malformed spelled function type leaves no type to check against.
+  if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
+  const hoisted = hoistLocalDeclarations(withStandardTraits(spelled.program));
   const declared = withTypeDeclarations(hoisted.program);
   const program = declared.program;
   const context: ProgramCheckContext = {

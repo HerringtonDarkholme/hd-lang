@@ -5,8 +5,6 @@ import {
   contextType,
   functionType,
   functionParts,
-  mutableInner,
-  mutableType,
   nominalGenericParts,
   optionalInner,
   readonlyType,
@@ -232,13 +230,6 @@ export class FunctionChecker extends ExpressionControlChecker {
         const optionalCallable = expected ? optionalInner(expected) : undefined;
         if (optionalCallable && functionParts(readonlyType(optionalCallable)))
           return this.checkClosureExpression(expression, optionalCallable);
-        const mutableClosure = expression.mutable === true;
-        if (expected && mutableInner(expected) !== undefined && !mutableClosure)
-          this.fail(
-            "type-mismatch",
-            `expected ${expected}, found a plain fn closure; write 'mut fn' for a closure that mutates captured state`,
-            expression.span,
-          );
         const expectedCallable = expected ? functionParts(readonlyType(expected)) : undefined;
         const suspending = expression.suspending === true;
         if (expectedCallable && expectedCallable.suspending !== suspending) {
@@ -295,7 +286,6 @@ export class FunctionChecker extends ExpressionControlChecker {
           result: provisionalResultRef,
           requirements: expression.requirements ?? [],
           body: expression.body,
-          ...(mutableClosure ? { mutableClosure } : {}),
           span: expression.span,
         };
         let requirements = expression.requirements;
@@ -403,7 +393,7 @@ export class FunctionChecker extends ExpressionControlChecker {
           this.captureValue(capture.source, expression.span),
         );
         const callableType = functionType(parameterTypes, result, requirements, false, suspending);
-        const type = mutableClosure ? mutableType(callableType) : callableType;
+        const type = callableType;
         const expectedCallableType = expected && readonlyType(expected);
         if (
           expectedCallableType &&

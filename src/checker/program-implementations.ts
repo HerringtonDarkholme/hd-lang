@@ -13,7 +13,6 @@ import type {
 import { traitDefaultDeclarations } from "./member-lookup.ts";
 import type { HirTrait, ValueType } from "../hir.ts";
 import {
-  functionParts,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -136,14 +135,6 @@ function checkImplementationTarget(implementation: ImplDecl, diagnostics: Diagno
     diagnostics.push({
       code: "mutable-impl-target",
       message: `implementation target '${readonlyType(implementation.targetName)}' cannot be written with mut; permission belongs to receivers and bounds`,
-      span: implementation.span,
-    });
-    return false;
-  }
-  if (functionParts(implementation.targetName)) {
-    diagnostics.push({
-      code: "function-impl-target",
-      message: `implementation target '${implementation.targetName}' is a function type; function types are never implementation targets`,
       span: implementation.span,
     });
     return false;
