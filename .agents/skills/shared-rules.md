@@ -33,7 +33,7 @@ before relying on one, because they change.
   over inference where it adds a guarantee, and no action at a distance
   ([Roadmap, area 8](../../future-work/ROADMAP.md#8-tooling-for-agents)).
 - Fewer mechanisms beat more: reuse an existing rule before adding one. Past
-  cuts: `mut fn` removed (closures mutate captures freely), `@derive(Error)`
+  cuts: `mut fn` removed (closures mutate captures freely), the `@error` intrinsic
   as one intrinsic instead of derivation machinery, no marker templates,
   explicit `@from` and `@source` instead of inferred `From` and cause.
 - Derivation is written as one block per concern. Never propose merging all
