@@ -524,6 +524,21 @@ strengthened member bounds apply to `Walker::member`, `Describer::member`,
 and `Source::member`. The Current Design example below still shows M14's
 protocol and needs updating.
 
+(M20, decided 2026-09-27; answers stress-test round 3, see
+[DERIVATION_STRESS_TEST_3.md](DERIVATION_STRESS_TEST_3.md)) R3-12: the
+record is refreshed in one pass (status line, Current Design example and
+rules, P11a and M16 wording, M19 `Structure` signatures). R3-11: `h.get` on
+another variant's payload keeps panicking; the walker guide documents the
+`v.holds(other)` check for two-value walkers such as diff. R3-9: payload
+parameter facts reuse the decorator-on-payload-parameter grammar of Error
+Conversion decision 12; an unnamed payload member is named `_0`, `_1`, ...,
+and `Member` info gains `positional: bool`. R3-2 (A): `VariantInfo` gains
+`of_data: bool` and `doc: string?`; for a data type, its one variant's name
+and doc are the type's. R3-6 (A): a lint warns when tier-2 blocks (or a
+tier-2 block beside a `@derive`) for traits from one package on one type
+have different member lines; differences stay legal (M11). R3-7 is pending
+an owner clarification about shared enum constructor data.
+
 ### Current Design: Full Example (M1-M14)
 
 This is the reference example for the design as decided on 2026-09-27. When
