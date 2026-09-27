@@ -1125,3 +1125,4 @@ typing/invalid/enum-shared-field-assignment.hd	type	reject:invalid-assignment-ta
 typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	08-data-and-enums.md#r-data.shared.no-payload
 typing/invalid/payload-free-enum-equality.hd	type	reject:missing-partial-eq	09-traits.md#r-trait.hash.not-inferred
 runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	08-data-and-enums.md#r-data.shared.per-variant
+typing/valid/dynamic-trait-suspending-method.hd	type	accept	09-traits.md#r-trait.dyn.safe.suspending

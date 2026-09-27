@@ -4,7 +4,7 @@ Roadmap area 2. Scope: Type System (04), Traits (09), Variadic Generics (12),
 GADTs (13), and the trait-related parts of 03, 05, 06, 07, 08, 10, 11, 14.
 Audited at commit 158a430; re-checked against the specification on 2026-09-26.
 Resolved findings are removed (TY-01, TY-02, TY-03, TY-06, TY-09, TY-10,
-TY-11, TY-12, TY-13, TY-16, TY-19, TY-24, TY-25, TY-26, TY-27, TY-30,
+TY-11, TY-12, TY-13, TY-14, TY-16, TY-19, TY-24, TY-25, TY-26, TY-27, TY-30,
 TY-33); the decisions that settled them are in the spec's Revision Notes.
 Decisions taken but not yet applied are in [QUESTIONS.md](QUESTIONS.md).
 
@@ -19,7 +19,6 @@ anchor, or statement is missing.
 | TY-05 | High | GADTs | Existential bounds need stored dictionaries; representation rule omits them | R4.9 | - |
 | TY-07 | Med | Supertraits | Supertrait obligations of generic impls unchecked | R5.1 | - |
 | TY-08 | Med | Supertraits | Implied supertrait bounds used but never stated | R5.3 | - |
-| TY-14 | Med | Dynamic safety | Suspending methods uncovered (row, pack, reified settled by TQ-10) | R8.1 | TQ-10 suspending part (not applied) |
 | TY-15 | Med | Dynamic safety | Requirement keys must be dynamically safe; rule missing | R8.5 | - |
 | TY-17 | Med | Derivation | Derive on GADT variants with existential parameters | R10.6 | - |
 | TY-18 | Med | Derivation | Field obligations, recursion, placement, conflicts, codes | R10.3-R10.9 | - |
@@ -88,24 +87,6 @@ Medium. Anchor: 09 Dynamic Trait Values.
 
 09 says a child bound "exposes the methods" of supertraits (lookup only).
 Fix: elaboration rule (R5.3).
-
-## TY-14: Dynamic Safety Misses Row, Pack, Reified, Suspending
-Status: rows, `reified` parameters, and packs are settled by TQ-10 (09
-Dynamic Safety, `trait-not-dynamically-safe`). Still open: suspending
-methods. TQ-10 excludes them, but the prelude `Console` declares the
-suspending `write_line!`, and `$.use(Console)` yields a `Console` trait
-value, so that part is not applied.
-Medium. Anchor: 09 Dynamic Trait Values; 04 Trait Values And Any.
-
-    trait Runner:
-        fn run[R](self, job: fn() -> void $ R) -> void $ R
-    trait Lookup:
-        fn metadata[reified M](self) -> M?
-
-"Every method-level generic parameter must be bounded by AnyRef": row
-parameters cannot carry bounds; pack bounds are element-wise; `reified` not
-mentioned; suspending methods not mentioned though `Console` needs them.
-Fix: reconcile TQ-10's suspension part with `Console` (R8.1).
 
 ## TY-15: Requirement Keys Must Be Dynamically Safe
 Medium. Anchor: 11 Provider Access.

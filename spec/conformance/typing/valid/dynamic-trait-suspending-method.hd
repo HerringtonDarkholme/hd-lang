@@ -1,0 +1,7 @@
+# test: a dynamically safe trait may declare a suspending method
+
+trait Loader:
+    fn load!(self) -> i32
+
+fn run!(loader: Loader) -> i32:
+    loader.load!()

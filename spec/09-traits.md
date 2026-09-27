@@ -979,8 +979,9 @@ fn print_display(value: Display) -> void $ Console:
 4. r[trait.dyn.safe.self] `Self` may occur only as a method receiver.
 5. r[trait.dyn.safe.method-params] No method of the trait or of a supertrait may declare a row parameter, a `reified` parameter, or a type or value pack.
 6. r[trait.dyn.safe.error] Using a trait that breaks one of these rules as a value type is an error. Error: `trait-not-dynamically-safe`.
-7. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
-8. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+7. r[trait.dyn.safe.suspending] A dynamically safe trait's methods may be suspending, as the prelude `Console`'s `write_line!` is.
+8. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
+9. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
 
 ```text
 trait Runner:
@@ -991,7 +992,9 @@ fn invalid(runner: Runner) -> void:  # error: trait-not-dynamically-safe
 ```
 
 > **Why.** A method called through a trait value has exactly one body, so
-> nothing in its signature may need a per-call specialization.
+> nothing in its signature may need a per-call specialization. A suspending
+> method still has one body, because its suspension frame is a
+> reference-shaped heap value.
 
 See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 

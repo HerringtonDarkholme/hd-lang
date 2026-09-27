@@ -690,8 +690,7 @@ existing source. Each entry names the decision that made the change.
 - Dynamic safety (owner decision TQ-10, 2026-09-26, in part): a trait whose
   method, or a supertrait's method, declares a row parameter, a `reified`
   parameter, or a type or value pack is not dynamically safe; using it as a
-  value type, previously accepted, is now `trait-not-dynamically-safe`. The
-  decision's exclusion of suspending methods is not applied yet.
+  value type, previously accepted, is now `trait-not-dynamically-safe`.
 - Least common type (owner decision TQ-15, 2026-09-26): inference never
   widens a dynamic trait value to a supertrait, so `[shown, tagged]` with two
   child traits of `Named` is `no-common-type` unless an expected type such as
@@ -721,3 +720,7 @@ existing source. Each entry names the decision that made the change.
   payload-free variants and one GC struct subtype per payload variant.
   Chapter 13's GADT example `IntBox(n: i64) -> Box[i64](n)`, which built
   shared data from the payload, is now written with constants.
+- Suspending methods on trait values (owner decision TQ-10, suspending part,
+  2026-09-27): a dynamically safe trait's methods may be suspending, as
+  `Console.write_line!` already was in practice; chapter 09 now says so
+  (`trait.dyn.safe.suspending`). No source changes meaning.

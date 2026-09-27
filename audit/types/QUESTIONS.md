@@ -5,8 +5,8 @@ in `spec/README.md` are their record (TQ-1 to TQ-6, TQ-4 and its follow-ups,
 TQ-9, TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-23, TQ-27 to TQ-31,
 TQ-36, TY-13, EQ-1, E1 to E5, M2, O1 to O3, P2, P6, VE and VE-S, Cut 2,
 trait delegation, the embedding limits, the single view, A2, A3, C1 to C3,
-TUP-1 except its `@message` part, and TQ-10 except its suspending-method
-part). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
+TUP-1 except its `@message` part, and TQ-10, whose suspending-method part
+was decided on 2026-09-27 as allowing suspending methods). Superseded questions (TQ-7, TQ-8, TQ-32 to TQ-35) are gone too,
 and so is TQ-22: its impl-target half is applied, and the Inspectable
 decisions, also applied, replaced its `downcast` half.
 TQ-21 is answered by K2: a bound may bind associated types, as in
@@ -19,12 +19,6 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 Decided 2026-09-26, except TUP-1 (2026-09-27). None of these parts is in
 the specification yet.
 
-- **TQ-10, suspending-method part** (TY-14). The decision also makes a trait
-  with a suspending method not dynamically safe. The row, `reified`, and
-  pack parts are applied in 09 Dynamic Safety. The suspension part is not:
-  the prelude `Console` declares the suspending `write_line!`, and
-  `$.use(Console)` yields a `Console` trait value. Applying it needs the
-  owner to reconcile the two.
 - **TQ-18** (settles Annotation Locality). A foreign-target annotation may
   appear in the facet's defining module without a marker, and in the root
   application package under the existing exception with an explicit marker;
