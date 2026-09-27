@@ -2,18 +2,17 @@
 
 Status: language specification draft.
 
-This chapter collects the hd-lang grammar in EBNF. It specifies syntactic
-form, not name resolution, typing, exhaustiveness, or runtime behavior.
+This chapter collects the hd-lang grammar in EBNF.
 
-The grammar consumes the token stream produced by
-[Lexical Structure](01-lexical-structure.md). `NEWLINE`, `INDENT`, `DEDENT`,
-`SUITE_END`, and `EOF` are abstract layout tokens. Comments do not appear in
-this grammar.
-
-The feature chapters refine the semantic constraints on these productions, but
-do not maintain separate extension grammars.
+1. r[grammar.scope.syntax] The grammar specifies syntactic form, not name resolution, typing, exhaustiveness, or runtime behavior.
+2. r[grammar.scope.tokens] The grammar consumes the token stream produced by [Lexical Structure](01-lexical-structure.md).
+3. r[grammar.scope.layout-tokens] `NEWLINE`, `INDENT`, `DEDENT`, `SUITE_END`, and `EOF` are abstract layout tokens.
+4. r[grammar.scope.comments] Comments do not appear in this grammar.
+5. r[grammar.scope.consolidated] The feature chapters refine the semantic constraints on these productions, but do not maintain separate extension grammars.
 
 ## Source Files And Suites
+
+A source file is a sequence of top-level items:
 
 ```ebnf
 source_file = { NEWLINE | top_level_item }, EOF ;
@@ -31,14 +30,12 @@ top_level_statement = suite_statement
                     ;
 ```
 
-A same-line `suite_body` ends at `SUITE_END`; an indented `suite_body` begins on
-the following logical line. The production requires at least one statement in
-an indented body; use `pass` when an explicit no-op body is required.
-
-Named declarations and implementations may also occur in executable block
-suites. Use and annotation declarations remain top-level items. Methods occur
-inside trait and implementation declarations through their dedicated grammar
-productions.
+1. r[grammar.suite.same-line] A same-line `suite_body` ends at `SUITE_END`.
+2. r[grammar.suite.indented] An indented `suite_body` begins on the following logical line.
+3. r[grammar.suite.nonempty] The production requires at least one statement in an indented body; use `pass` when an explicit no-op body is required.
+4. r[grammar.suite.local-declarations] Named declarations and implementations may also occur in executable block suites.
+5. r[grammar.suite.top-level-only] Use and annotation declarations remain top-level items.
+6. r[grammar.suite.methods] Methods occur inside trait and implementation declarations through their dedicated grammar productions.
 
 ## Test Blocks
 
@@ -48,16 +45,18 @@ Unit-test entry points use a module-level named block:
 test_decl = "test", string_literal, ":", suite_body ;
 ```
 
-The string is the test's human-readable name. A test body is an ordinary suite.
-Its discovery and assertion APIs are standard-library and tooling behavior.
-Each test runs in its own program instance and is a driver context. It passes
-when its body completes normally and fails when the body panics or an assertion
-reports failure. Instances are not reused between tests.
-`test` blocks are not permitted inside executable suites. `test` is contextual:
-at module level it begins a test block only when followed by a string literal;
-otherwise it remains an ordinary identifier.
+1. r[grammar.test.name] The string is the test's human-readable name.
+2. r[grammar.test.body] A test body is an ordinary suite.
+3. r[grammar.test.tooling] Its discovery and assertion APIs are standard-library and tooling behavior.
+4. r[grammar.test.instance] Each test runs in its own program instance and is a driver context.
+5. r[grammar.test.outcome] A test passes when its body completes normally and fails when the body panics or an assertion reports failure.
+6. r[grammar.test.no-reuse] Instances are not reused between tests.
+7. r[grammar.test.not-in-suites] `test` blocks are not permitted inside executable suites.
+8. r[grammar.test.contextual] `test` is contextual: at module level it begins a test block only when followed by a string literal; otherwise it remains an ordinary identifier.
 
 ## Statements
+
+Statements, including local declarations, follow this grammar:
 
 ```ebnf
 statement = suite_statement
@@ -124,76 +123,104 @@ inline_statement = "let", identifier, [ ":", type ], "=", inline_expression
                  ;
 ```
 
-The dedicated discard forms make `_ := expression` a statement without making
-the placeholder `_` an identifier or a binding pattern. The suite form exists
-for the same reason when the discarded expression owns an indented suite.
-`defer` is parsed wherever a suite statement is accepted; the semantic rules
-in [Control Flow](06-control-flow.md#deferred-cleanup) restrict it to executing
-cleanup scopes.
+### Discard And Defer Statements
 
-A `suite_statement` is a statement whose outermost expression owns a suite.
-Its final `DEDENT`, or the `SUITE_END` of a same-line suite, terminates the
-statement; it does not require another `NEWLINE`. This separate production is
-what permits `value := if ...`, `let callback = fn ...`, and similar direct
-right-hand-side forms. Every right-hand side that accepts a suite expression,
-after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a
-trailing block call. A chain of bindings continues only with single names, as
-in `a := b := if c: 1 else: 2`: a multi-name pattern may only come first, so
-`a, b := c, d := pair` is a syntax error with or without a suite. A suite expression nested inside delimiters remains part
-of its enclosing expression, and the enclosing statement ends normally after
-the closing delimiter.
+1. r[grammar.stmt.discard] The dedicated discard forms make `_ := expression` a statement without making the placeholder `_` an identifier or a binding pattern.
+2. r[grammar.stmt.discard.suite] The suite form of a discard exists for the same reason when the discarded expression owns an indented suite.
+3. r[grammar.stmt.defer] `defer` is parsed wherever a suite statement is accepted; the semantic rules in [Control Flow](06-control-flow.md#deferred-cleanup) restrict it to executing cleanup scopes.
 
-A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot
-end in a suite, because layout emits no `NEWLINE` after a suite's `SUITE_END`
-or `DEDENT`. Only the `suite_statement` alternatives may end in a suite. Thus
-`y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and
-`return y := if c: 1 else: 2` are syntax errors; parenthesizing the inner
-binding makes them valid.
+### Suite Statements
 
-A same-line suite body is an `inline_statement`. Layout closes a same-line
-suite at the end of its logical line and at any comma at the suite's own
-delimiter depth. The body therefore contains no comma at that depth and no
-indented suite. It also contains no same-line `if` at that depth:
-`if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and
-`defer: if flag: pass` are syntax errors. Parentheses nest a conditional, as
-in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one;
-`else if` continues the same conditional rather than nesting one. Same-line
-`for` and `while` loops may still appear directly in a same-line suite. A multi-name binding such as `a, b := pair` needs an
-indented body or parentheses, as in `(a, b := pair)`. A `let` or `for` over
-several names needs an indented body.
+1. r[grammar.stmt.suite] A `suite_statement` is a statement whose outermost expression owns a suite.
+2. r[grammar.stmt.suite.end] Its final `DEDENT`, or the `SUITE_END` of a same-line suite, terminates the statement; it does not require another `NEWLINE`.
+3. r[grammar.stmt.suite.right-side] This separate production is what permits `value := if ...`, `let callback = fn ...`, and similar direct right-hand-side forms.
+4. r[grammar.stmt.suite.trailing-block] Every right-hand side that accepts a suite expression, after `:=`, `let ... =`, `=`, `_ :=`, `return`, and `break`, also accepts a trailing block call.
+5. r[grammar.stmt.chain] A chain of bindings continues only with single names, as in `a := b := if c: 1 else: 2`.
+6. r[grammar.stmt.chain.multi-name-first] A multi-name pattern may only come first, so `a, b := c, d := pair` is a syntax error with or without a suite.
+7. r[grammar.stmt.suite.in-delimiters] A suite expression nested inside delimiters remains part of its enclosing expression, and the enclosing statement ends normally after the closing delimiter.
 
-Where another token follows an expression inside brackets, the grammar uses
-`continued_expression`: in the header of a control-flow expression written
-directly inside brackets, a comprehension clause, a map key, a spread before
-`...`, and a parameter decorator. It cannot end in a same-line suite, because
-layout would extend that suite over the following token; layout ends a
-same-line suite only at a line boundary outside brackets, at a comma or closing
-delimiter at its depth, or before `else`. It may end in an indented suite,
-except a closure body: after an indented closure body inside brackets, the
-next line must start with `,` or a closing delimiter
-([Lexical Structure](01-lexical-structure.md#physical-and-logical-lines)), so
-`indented_suite_expression` has no closure alternative.
+```text
+fn pairs() -> void:
+    a, b := c, d := fn() -> (i32, i32): (1, 2)  # error
+    pass
+```
 
-Outside brackets, an expression followed by another token cannot end in any
-suite. A control-flow header in a statement, a match guard, and an annotation
-facet before `for` therefore take a `closed_expression`. A suite may still
-appear inside brackets within the header, as in `if check(fn(x): ...):`. But a
-statement `if fn() -> bool:`, followed by the closure's indented body and then
-a line beginning `: 1 else: 2`, is a syntax error: its header ends in an
-indented suite. The statements of a suite nested inside brackets follow the
-same rule, because they are statements too.
+### Statements Ending At A Newline
 
-Whether a statement may appear in a particular value-producing block is a
-semantic rule. In particular, `break` is valid only inside a loop, and `break`
-with a value is valid only in a loop with an `else` suite.
-The left side of an assignment must resolve to a reassignable local, mutable
-field, or mutable indexed place; calls and other non-place postfix expressions
-are rejected semantically. The copy assignment `place ...= value` is valid
-only when the place is an embedded field, and an embedded field is assigned
-only with `...=`
-([Data Embedding](08-data-and-enums.md#data-embedding)).
+1. r[grammar.stmt.closed] A statement that ends at `NEWLINE` takes a `closed_expression`, which cannot end in a suite, because layout emits no `NEWLINE` after a suite's `SUITE_END` or `DEDENT`.
+2. r[grammar.stmt.closed.suite-alternatives] Only the `suite_statement` alternatives may end in a suite.
+3. r[grammar.stmt.closed.examples] Thus `y := if c: 1 else: 2` is a statement, but `_ := y := if c: 1 else: 2` and `return y := if c: 1 else: 2` are syntax errors.
+4. r[grammar.stmt.closed.parenthesized] Parenthesizing the inner binding makes them valid.
+
+```text
+fn choose(flag: bool) -> i32:
+    _ := y := if flag: 1 else: 2  # error
+    return y := if flag: 1 else: 2  # error
+```
+
+### Same-Line Suite Bodies
+
+1. r[grammar.inline.statement] A same-line suite body is an `inline_statement`.
+2. r[grammar.inline.closed-by-layout] Layout closes a same-line suite at the end of its logical line and at any comma at the suite's own delimiter depth.
+3. r[grammar.inline.no-comma] The body therefore contains no comma at that depth and no indented suite.
+4. r[grammar.inline.no-if] It also contains no same-line `if` at that depth: `if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and `defer: if flag: pass` are syntax errors.
+5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
+6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
+7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
+8. r[grammar.inline.multi-name-binding] A multi-name binding such as `a, b := pair` needs an indented body or parentheses, as in `(a, b := pair)`.
+9. r[grammar.inline.multi-name-let-for] A `let` or `for` over several names needs an indented body.
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+fn pick(a: bool, b: bool) -> i32:
+    v := if a: if b: 1 else: 2 else: 3  # error
+    v
+
+fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # error
+
+fn release(flag: bool) -> void:
+    defer: if flag: pass  # error
+    if flag: a, b := pair()  # error
+```
+
+### Expressions Followed By Another Token
+
+1. r[grammar.continued.positions] Where another token follows an expression inside brackets, the grammar uses `continued_expression`.
+2. r[grammar.continued.position-list] Those positions are the header of a control-flow expression written directly inside brackets, a comprehension clause, a map key, a spread before `...`, and a parameter decorator.
+3. r[grammar.continued.no-same-line-suite] A `continued_expression` cannot end in a same-line suite, because layout would extend that suite over the following token.
+4. r[grammar.continued.layout] Layout ends a same-line suite only at a line boundary outside brackets, at a comma or closing delimiter at its depth, or before `else`.
+5. r[grammar.continued.indented-suite] A `continued_expression` may end in an indented suite, except a closure body.
+6. r[grammar.continued.no-closure] After an indented closure body inside brackets, the next line must start with `,` or a closing delimiter, so `indented_suite_expression` has no closure alternative.
+7. r[grammar.closed.outside-brackets] Outside brackets, an expression followed by another token cannot end in any suite.
+8. r[grammar.closed.headers] A control-flow header in a statement, a match guard, and an annotation facet before `for` therefore take a `closed_expression`.
+9. r[grammar.closed.bracketed-suite] A suite may still appear inside brackets within the header, as in `if check(fn(x): ...):`.
+10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error: its header ends in an indented suite.
+11. r[grammar.closed.nested-statements] The statements of a suite nested inside brackets follow the same rule, because they are statements too.
+
+```text
+fn pick() -> i32:
+    if fn() -> bool:  # error
+        true
+    : 1 else: 2
+```
+
+See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logical-lines).
+
+### Semantic Statement Rules
+
+1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
+2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
+3. r[grammar.stmt.assign-target] The left side of an assignment must resolve to a reassignable local, mutable field, or mutable indexed place; calls and other non-place postfix expressions are rejected semantically.
+4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
+5. r[grammar.stmt.copy-assign.embedded] An embedded field is assigned only with `...=`.
+
+See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
 ## Declarations
+
+A declaration is an optionally public named declaration or an
+implementation:
 
 ```ebnf
 declaration = [ "pub" ], ( function_decl
@@ -205,8 +232,9 @@ declaration = [ "pub" ], ( function_decl
             ;
 ```
 
-`pub` is not accepted before an `impl` declaration because implementations are
-not independently named module members.
+1. r[grammar.decl.impl-no-pub] `pub` is not accepted before an `impl` declaration.
+
+> **Why.** Implementations are not independently named module members.
 
 ### Functions
 
@@ -238,15 +266,17 @@ value_parameter = identifier, ":", type, [ "=", expression ]
 receiver_parameter = "self" | "mut", "self" ;
 ```
 
-The receiver forms are valid only for methods. Parameter decorators are valid
-only on value parameters of module-level named functions. Within a multiline
-parameter clause, each decorator may occupy its own prefix line; delimiter
-line breaks do not terminate the parameter. A vararg parameter ends in
-`...`; it must be the final positional parameter. This includes a value-pack
-parameter, whose nonfinal use is a `nonfinal-positional-value-pack` error.
-Default-argument ordering and the requirement-free rule are semantic
-constraints defined in
-[Functions](07-functions.md).
+1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
+2. r[grammar.fn.decorator] Parameter decorators are valid only on value parameters of module-level named functions.
+3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
+4. r[grammar.fn.vararg] A vararg parameter ends in `...`; it must be the final positional parameter.
+5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
+6. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+
+```text
+fn invalid[Ts...](values: Ts..., tail: i32) -> void:  # error: nonfinal-positional-value-pack
+    pass
+```
 
 ### Data Types
 
@@ -266,16 +296,27 @@ data_field = [ "pub" ], identifier, ":", type, [ "=", closed_expression ] ;
 embedded_field = named_type ;
 ```
 
-`mut` is not a data-member modifier: `mut name: string` and `mut Base` are
-invalid. A named field may instead declare a mutable type, as in
-`friend: mut User`. An embedded field must denote a data type and must not
-include `mut`. It takes no `pub` marker, because an embedded field is always
-public ([Data Declarations](08-data-and-enums.md#data-declarations)), so
-`pub Base` in a data body is a `syntax-error`. It may
-instantiate a generic data type. The type's final name, without its type
-arguments, is the embedded field name; duplicate embedded names are rejected.
-Data-field default expressions have the requirement-free constraint specified in
-[Data Types and Enums](08-data-and-enums.md#data-declarations).
+1. r[grammar.data.no-mut-modifier] `mut` is not a data-member modifier: `mut name: string` and `mut Base` are invalid.
+2. r[grammar.data.mut-type] A named field may instead declare a mutable type, as in `friend: mut User`.
+3. r[grammar.data.embedded] An embedded field must denote a data type and must not include `mut`.
+4. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a data body is an error. Error: `syntax-error`.
+5. r[grammar.data.embedded.generic] An embedded field may instantiate a generic data type.
+6. r[grammar.data.embedded.name] The type's final name, without its type arguments, is the embedded field name.
+7. r[grammar.data.embedded.unique] Duplicate embedded names are rejected.
+8. r[grammar.data.default] Data-field default expressions have the requirement-free constraint specified in [Data Types and Enums](08-data-and-enums.md#data-declarations).
+
+```text
+pub data Base:
+    id: string
+
+pub data Post:
+    pub Base  # error: syntax-error
+    pub title: string
+```
+
+> **Why.** An embedded field is always public.
+
+See also: [Data Declarations](08-data-and-enums.md#data-declarations).
 
 ### Enums
 
@@ -297,11 +338,10 @@ data_parameter = [ identifier, ":" ], type ;
 variant_result = named_type, [ argument_clause ] ;
 ```
 
-The optional variant result initializes constructor data shared by every
-variant, as in `NotFound -> StatusCode(404)`, and may refine the enclosing enum
-type as specified by the GADT rules.
-Only shared enum constructor parameters may declare defaults. Their ordering
-and requirement-free constraints follow function-parameter defaults.
+1. r[grammar.enum.variant-result] The optional variant result initializes constructor data shared by every variant, as in `NotFound -> StatusCode(404)`.
+2. r[grammar.enum.variant-result.refine] The optional variant result may refine the enclosing enum type as specified by the GADT rules.
+3. r[grammar.enum.defaults] Only shared enum constructor parameters may declare defaults.
+4. r[grammar.enum.defaults.rules] Their ordering and requirement-free constraints follow function-parameter defaults.
 
 ### Traits And Implementations
 
@@ -337,25 +377,31 @@ method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
 associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 ```
 
-`impl T:` is an inherent implementation. `impl Trait for T:` is a trait
-implementation. `impl Trait for T by E` delegates the trait to the embedded
-field `E` of `T` and may omit its body
-([Trait Delegation](09-traits.md#trait-delegation)). A trait declaration without a body is a marker trait. A trait
-implementation may omit its body when the trait is a marker or when every
-trait method has a default; a method promoted from an embedded field never
-fills a trait method. A
-`pub` method is permitted only in an inherent implementation; trait method
-visibility follows the trait. A
-bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a
-suite. `trait Child < Parent:` declares `Parent` as a supertrait and opens the
-body with `:`. In declarations, `<` introduces a bound (a supertrait or a
-generic parameter bound), while `:` means "has type"
-or opens a suite. A function member whose first parameter is `self` or
-`mut self` is a method; a receiverless member is an associated function.
-Associated type declarations omit `=` in a
-trait requirement and provide `= type` in an implementation. Generic
-implementations state every bound inline in their generic parameter list; the
-language has no separate bound clause.
+1. r[grammar.impl.inherent] `impl T:` is an inherent implementation.
+2. r[grammar.impl.trait] `impl Trait for T:` is a trait implementation.
+3. r[grammar.impl.delegation] `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
+4. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
+5. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
+6. r[grammar.impl.promoted] A method promoted from an embedded field never fills a trait method.
+7. r[grammar.impl.pub-method] A `pub` method is permitted only in an inherent implementation; trait method visibility follows the trait.
+8. r[grammar.trait.method-end] A bodyless trait method ends at `NEWLINE`; a default method has `:` followed by a suite.
+9. r[grammar.trait.supertrait] `trait Child < Parent:` declares `Parent` as a supertrait and opens the body with `:`.
+10. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
+11. r[grammar.trait.method-kind] A function member whose first parameter is `self` or `mut self` is a method; a receiverless member is an associated function.
+12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
+13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
+
+```text
+pub trait Display:
+    pub fn to_string(self) -> string  # error
+
+trait Named:
+    fn name(self) -> string
+
+trait Greeter: Named  # error
+```
+
+See also: [Trait Delegation](09-traits.md#trait-delegation).
 
 ### Type Declarations
 
@@ -364,8 +410,8 @@ type_decl = "type", identifier, [ type_params ],
             ( "=", type | "(", type, ")" ), NEWLINE ;
 ```
 
-The `=` form declares a transparent alias. The parenthesized form declares a
-nominal single-field newtype.
+1. r[grammar.type-decl.alias] The `=` form declares a transparent alias.
+2. r[grammar.type-decl.newtype] The parenthesized form declares a nominal single-field newtype.
 
 ## Generic Parameters And Bounds
 
@@ -391,23 +437,35 @@ associated_type_binding = identifier, "=", type ;
 trait_type = qualified_name, [ type_arguments ] ;
 ```
 
-A trait in a generic parameter bound may end its bracketed arguments with
-associated type bindings: `I < Supplier[Item = T]` requires `I` to implement
-`Supplier` with `I::Item` equal to `T`. Bindings follow every positional type
-argument. They are valid only in `trait_bounds`; a supertrait, an implemented
-trait, a trait-qualified call, a type argument, or a dynamic trait value type
-uses `trait_type` or `type`, so a binding there is a `syntax-error`. Binding
-semantics are specified in
-[Associated Type Bindings](09-traits.md#associated-type-bindings).
+### Associated Type Bindings In Bounds
 
-An unbackticked `reified` at the start of a `generic_parameter` is always the
-modifier, never the parameter name, so `[reified]` is a `syntax-error`; write
-`` [`reified`] `` for a parameter named reified
-([Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words)).
+1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings: `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
+2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
+3. r[grammar.generic.binding.bounds-only] Bindings are valid only in `trait_bounds`.
+4. r[grammar.generic.binding.elsewhere] A supertrait, an implemented trait, a trait-qualified call, a type argument, or a dynamic trait value type uses `trait_type` or `type`, so a binding there is an error. Error: `syntax-error`.
 
-Variance markers are valid on generic type declarations, not function generic
-parameters. `reified` and type packs are valid on function, method, variant, and
-generic-implementation parameters, not generic type declarations.
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant:
+    value: string
+
+impl Supplier[Item = string] for Constant:  # error: syntax-error
+    fn get(self) -> string: self.value
+```
+
+See also: [Associated Type Bindings](09-traits.md#associated-type-bindings).
+
+### Generic Parameter Modifiers
+
+1. r[grammar.generic.reified-modifier] An unbackticked `reified` at the start of a `generic_parameter` is always the modifier, never the parameter name, so `[reified]` is an error. Error: `syntax-error`.
+2. r[grammar.generic.reified-name] A parameter named reified is written `` [`reified`] ``.
+3. r[grammar.generic.variance] Variance markers are valid on generic type declarations, not function generic parameters.
+4. r[grammar.generic.reified-and-packs] `reified` and type packs are valid on function, method, variant, and generic-implementation parameters, not generic type declarations.
+
+See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
 ## Types
 
@@ -469,48 +527,70 @@ requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
 requirement_key = [ "mut" ], trait_type ;
 ```
 
-A requirement row lists separate requirement keys, so several keys form a
-comma list. A single key may be bare, as in `$ Console`. Several keys are
-parenthesized, as in `fn(UserId) -> User $(Db, Cache)`, and `$()` is the
-empty row. Only a `header_requirement_clause` may list several keys bare.
-It ends a declaration or closure header, or a bodyless trait method, as in
-`fn load(id: UserId) -> User $ Db, Cache:`. A `mut` key keeps its prefix
-inside a list: `$(R, mut Logger)`.
+### Requirement Clauses
 
-Every row inside a type uses the parenthesized form for several keys. This
-covers parameter and field types, type arguments, tuple types, a result
-with its own row, and `$.Context[...]`. A bare comma after a key inside a
-type separates the enclosing list instead, so
-`fn f(cb: fn() -> i32 $ A, B) -> i32:` is a `syntax-error`.
+1. r[grammar.type.row.keys] A requirement row lists separate requirement keys, so several keys form a comma list.
+2. r[grammar.type.row.single] A single key may be bare, as in `$ Console`.
+3. r[grammar.type.row.parenthesized] Several keys are parenthesized, as in `fn(UserId) -> User $(Db, Cache)`, and `$()` is the empty row.
+4. r[grammar.type.row.header-bare] Only a `header_requirement_clause` may list several keys bare.
+5. r[grammar.type.row.header-position] A `header_requirement_clause` ends a declaration or closure header, or a bodyless trait method, as in `fn load(id: UserId) -> User $ Db, Cache:`.
+6. r[grammar.type.row.mut-key] A `mut` key keeps its prefix inside a list: `$(R, mut Logger)`.
+7. r[grammar.type.row.in-type] Every row inside a type uses the parenthesized form for several keys.
+8. r[grammar.type.row.in-type.positions] The parenthesized form covers parameter and field types, type arguments, tuple types, a result with its own row, and `$.Context[...]`.
+9. r[grammar.type.row.in-type.comma] A bare comma after a key inside a type separates the enclosing list instead, so `fn f(cb: fn() -> i32 $ A, B) -> i32:` is an error. Error: `syntax-error`.
 
-A row contains no operators. `+` keeps only its bound meaning, several bounds
-on one type as in `T < A + B`. A `+` or `-` between requirement keys, as in
-the former `$ A + B` or `$ (R - K)`, is an error. Error: `old-row-operator`.
-Removing a key from a callback row is written by extension instead, as
-[Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism)
-specifies.
+```text
+trait Clock
 
-When the corresponding generic parameter is row-kinded, a type argument may
-be a parenthesized row such as `$(Logger, Clock)`, or `$()` for the empty
-row. A single requirement key is syntactically also a type; the parameter
-kind selects its interpretation, and using a row argument for a type-kinded
-parameter (or conversely) is an error.
+trait Logger
 
-`mut` is a type modifier. Semantic rules reject meaningless or nested forms,
-including direct `mut mut T`. Optionality applies to the complete reference
-access type and may be nested. In `fn() -> T?`, `?` belongs to the innermost
-result type; an optional function type must be grouped, as in `(fn() -> T)?`.
-Parentheses group types; unlike a one-element tuple type, grouping has no
-trailing comma. Inside a type, such as a parameter type, a field type, or a
-type argument, a requirement clause following nested function types likewise
-belongs to the innermost ungrouped function type; parentheses select an outer
-owner.
+fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # error: syntax-error
+```
 
-A declaration or closure header owns the requirement clause directly before
-its `:`, and a bodyless trait method owns the clause directly before its line
-end. Its result is a `result_type`, whose function types, however nested,
-carry no requirement clause, so the clause cannot attach to the result. A
-function-typed result with its own row is parenthesized:
+### Row Operators
+
+1. r[grammar.type.row.no-operators] A row contains no operators.
+2. r[grammar.type.row.plus-bound] `+` keeps only its bound meaning, several bounds on one type as in `T < A + B`.
+3. r[grammar.type.row.old-operator] A `+` or `-` between requirement keys, as in the former `$ A + B` or `$ (R - K)`, is an error. Error: `old-row-operator`.
+4. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
+
+```text
+trait Clock
+
+trait Logger
+
+fn run(callback: fn() -> void $ Clock + Logger) -> void $(Clock, Logger): callback()  # error: old-row-operator
+
+fn drop_logger[R](callback: fn() -> void $ R) -> void $ (R - Logger): callback()  # error: old-row-operator
+```
+
+### Row Type Arguments
+
+1. r[grammar.type.row-argument] When the corresponding generic parameter is row-kinded, a type argument may be a parenthesized row such as `$(Logger, Clock)`, or `$()` for the empty row.
+2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
+3. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
+
+```text
+data Box[T]:
+    value: T
+
+fn invalid(value: Box[$()]) -> void: pass  # error
+```
+
+### Modifiers, Optionality, And Grouping
+
+1. r[grammar.type.mut] `mut` is a type modifier.
+2. r[grammar.type.mut.semantic] Semantic rules reject meaningless or nested forms, including direct `mut mut T`.
+3. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
+4. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
+5. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
+6. r[grammar.type.row-owner] Inside a type, such as a parameter type, a field type, or a type argument, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type.
+7. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+
+### Header Requirement Clauses
+
+A header owns the requirement clause at its end, so a function-typed result
+with its own row is parenthesized:
 
 ```text
 fn make() -> fn() -> i32 $ Console, Log:          # make requires both keys
@@ -524,17 +604,25 @@ fn wrap() -> (fn() -> i32 $(Log, Trace)) $ Console:  # the result requires both
         2
 ```
 
-The rule applies to named functions, methods, trait methods, and closures:
-in `fn() -> fn() -> i32 $ Console:`, the closure requires `Console`. Writing
-`fn() -> i32 $ Log $ Console` as a declaration result is a `syntax-error`.
-Requirement rows on function types are specified in
-[Requirements and Suspension](11-requirements-and-suspension.md).
+1. r[grammar.type.header.owner] A declaration or closure header owns the requirement clause directly before its `:`.
+2. r[grammar.type.header.trait-method] A bodyless trait method owns the clause directly before its line end.
+3. r[grammar.type.header.result] Its result is a `result_type`, whose function types, however nested, carry no requirement clause, so the clause cannot attach to the result.
+4. r[grammar.type.header.parenthesized-result] A function-typed result with its own row is parenthesized.
+5. r[grammar.type.header.applies] The rule applies to named functions, methods, trait methods, and closures: in `fn() -> fn() -> i32 $ Console:`, the closure requires `Console`.
+6. r[grammar.type.header.two-clauses] Writing `fn() -> i32 $ Log $ Console` as a declaration result is an error. Error: `syntax-error`.
+
+```text
+trait Log
+
+fn make() -> fn() -> i32 $ Log $ Console:  # error: syntax-error
+    fn() -> i32 $ Log: 1
+```
+
+See also: [Requirements and Suspension](11-requirements-and-suspension.md).
 
 ## Use Declarations
 
-`import` and `export` are not declaration keywords. Diagnose legacy
-`import path` and `export path` forms as `old-import-declaration` and
-`old-export-declaration`, respectively.
+A use declaration imports a path or a group of names:
 
 ```ebnf
 use_decl = "use", use_path, [ "as", identifier ], NEWLINE
@@ -553,11 +641,19 @@ use_group = "{", use_item, { ",", use_item }, [ "," ], "}" ;
 use_item = identifier, [ "as", identifier ] ;
 ```
 
-`pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is
-contextual before an alias. `use` begins a use declaration only when a use
-root follows it
-([Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words)).
-The reserved word `self` also acts as a relative use root.
+1. r[grammar.use.no-import-export] `import` and `export` are not declaration keywords.
+2. r[grammar.use.old-import] A legacy `import path` form must be diagnosed. Error: `old-import-declaration`.
+3. r[grammar.use.old-export] A legacy `export path` form must be diagnosed. Error: `old-export-declaration`.
+4. r[grammar.use.contextual-words] `pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is contextual before an alias.
+5. r[grammar.use.needs-root] `use` begins a use declaration only when a use root follows it.
+6. r[grammar.use.self-root] The reserved word `self` also acts as a relative use root.
+
+```text
+import pkg.user.types.{User}  # error: old-import-declaration
+export pkg.user.types.{User}  # error: old-export-declaration
+```
+
+See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
 ## Expressions
 
@@ -656,32 +752,53 @@ postfix_suffix = ".", identifier, [ function_type_arguments ]
 suspension_call_suffix = "!", [ function_type_arguments ], argument_clause ;
 ```
 
-`:=` is right-associative and has the lowest precedence. Comparisons do not
-chain. Exponentiation is right-associative. The right operand of `**` may
-therefore begin with a unary operator.
+### Precedence And Associativity
 
-A multi-name short binding such as `a, b := value` is a statement. When used
-as a nested expression, including inside any delimiter, the complete binding
-must be parenthesized: `(a, b := value)`. Inside parentheses, the token
-sequence `identifier, identifier, ... :=` always forms this grouped binding;
-it is never a tuple whose final element is a binding expression. A tuple that
-contains a binding must parenthesize that element separately, as in
-`(a, (b := value))`.
+1. r[grammar.expr.binding] `:=` is right-associative and has the lowest precedence.
+2. r[grammar.expr.no-comparison-chain] Comparisons do not chain.
+3. r[grammar.expr.power] Exponentiation is right-associative.
+4. r[grammar.expr.power.unary] The right operand of `**` may therefore begin with a unary operator.
 
-`!(` or `![` after a completed operand begins a suspension call suffix at
-ordinary call precedence. A `!` at the start of an operand is the prefix logical-not operator
-of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
-`!=` is a single token by longest match: `f!=g` is the comparison `f != g`. Immediately
-after `.`, the lexer scans an integer tuple index using decimal digits only, so
-`t.0.1` is two tuple-index suffixes rather than a floating-point token.
+```text
+inside := 0 < value < 10  # error
+```
 
-After member resolution, brackets immediately following a generic method name
-are parsed as `function_type_arguments`, not as an indexing suffix. An explicit
-method type-argument list is valid only when the selected member is generic and
-the expression proceeds to an ordinary call. A bang call writes the `!` on the
-name and the list after it, as the declaration `fn all![Ts...](...)` does: the
-calls are `all![i32, string](a, b)`, `parser.load![User](text)`, and
-`Store::load![User](key)`.
+### Multi-Name Bindings
+
+1. r[grammar.expr.multi-binding] A multi-name short binding such as `a, b := value` is a statement.
+2. r[grammar.expr.multi-binding.nested] When used as a nested expression, including inside any delimiter, the complete binding must be parenthesized: `(a, b := value)`.
+3. r[grammar.expr.multi-binding.not-tuple] Inside parentheses, the token sequence `identifier, identifier, ... :=` always forms this grouped binding; it is never a tuple whose final element is a binding expression.
+4. r[grammar.expr.multi-binding.tuple-element] A tuple that contains a binding must parenthesize that element separately, as in `(a, (b := value))`.
+
+```text
+fn pair() -> (i32, i32): (1, 2)
+
+values := [a, b := pair()]  # error
+```
+
+### Bang And Dot Tokens
+
+1. r[grammar.expr.bang-suffix] `!(` or `![` after a completed operand begins a suspension call suffix at ordinary call precedence.
+2. r[grammar.expr.prefix-not] A `!` at the start of an operand is the prefix logical-not operator of `unary_expression`, so `!fetch!(id)` negates a suspending call's result.
+3. r[grammar.expr.not-equal] `!=` is a single token by longest match: `f!=g` is the comparison `f != g`.
+4. r[grammar.expr.tuple-index] Immediately after `.`, the lexer scans an integer tuple index using decimal digits only, so `t.0.1` is two tuple-index suffixes rather than a floating-point token.
+
+### Method Type Arguments
+
+1. r[grammar.expr.method-type-arguments] After member resolution, brackets immediately following a generic method name are parsed as `function_type_arguments`, not as an indexing suffix.
+2. r[grammar.expr.method-type-arguments.valid] An explicit method type-argument list is valid only when the selected member is generic and the expression proceeds to an ordinary call.
+3. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn all![Ts...](...)` does: the calls are `all![i32, string](a, b)`, `parser.load![User](text)`, and `Store::load![User](key)`.
+
+```text
+data Identity: pass
+
+impl Identity:
+    fn echo![Value](value: Value) -> Value:
+        value
+
+fn run!() -> i32:
+    Identity::echo[i32]!(42)  # error
+```
 
 ### Primary Expressions
 
@@ -789,50 +906,68 @@ data_items = [ "...", expression, "," ],
 data_field_item = identifier, ":", [ "..." ], expression ;
 ```
 
-A `...` after a field label copies the value into an embedded field; it is
-required for an embedded field and invalid for any other field, which the
-checker diagnoses ([Data Embedding](08-data-and-enums.md#data-embedding)). A
-prefix `...` in a data expression, whether it begins a copy-update spread or
-follows a field label, always means "copy the named members of this value".
+#### Copies In Data Expressions
 
-Declaration reflection has no dedicated syntax. `shape[User]()` and
-`shape_of(get_user)` are ordinary calls to prelude intrinsics specified in
-[Shape Intrinsics](14-annotations.md#shape-intrinsics).
+1. r[grammar.primary.field-copy] A `...` after a field label copies the value into an embedded field.
+2. r[grammar.primary.field-copy.required] A field-label `...` is required for an embedded field and invalid for any other field, which the checker diagnoses.
+3. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression, whether it begins a copy-update spread or follows a field label, always means "copy the named members of this value".
 
-Name resolution distinguishes a data expression from a map expression and
-an enum variant selection from ordinary field access. It also distinguishes a
-named generic-function reference from indexing: in `first[string](names)`, the
-bracketed form is parsed as function type arguments because `first` resolves
-to a named generic function. A parser may preserve this syntactic ambiguity
-until name resolution. Each argument is a type, a type-pack expansion, or the
-inference placeholder `_`. The placeholder is not part of ordinary
-`type_arguments` and therefore cannot occur in a type such as `List[_]`.
-In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or
-`Type::name![T](...)`, type arguments of the qualifying type or trait stay
-before `::`, as in `Add[Money]::add`. Method-level type arguments follow the
-member name, as in the dot call `parser.parse[User](text)`. Name resolution
-treats that bracket like any other generic reference: it is valid only when
-the selected member is generic, and it follows the explicit-list rules of
-[Generic Functions](07-functions.md#generic-functions).
-After `::`, the contextual words `annotation` and `annotation_ref` always
-select `annotation_runtime_access`, not an ordinary trait-qualified call.
-Likewise, the token sequences `pack . map (` and `pack . map_list (` always
-select `pack_map_expression`, even when a local or parameter named `pack` is
-in scope; a raw identifier `` `pack` `` never does.
+See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
-A list element ending in `...` is a spread that expands a list's elements in
-place ([List And Map Expressions](05-expressions.md#list-and-map-expressions)).
-The two positions of `...` never overlap. A prefix `...` always copies: it
-copies the named members of a value in a copy-update spread and after an
-embedded field label, and `...=` stores a copy into an embedded field. A
-suffix `...` always spreads: it expands the elements or entries of its operand
-in arguments, list elements, tuple elements, pack expansions, and
-provider-context entries, as in `$.with(ctx...)`. A prefix `...` anywhere
-else, including before a provider-context entry, is a `syntax-error`.
-A `::` member reference must be called: `Type::name` without an argument
-clause is not an expression. It is reserved for method values, and an
-implementation reports it as `deferred-method-value`
-([Unsupported Function Extensions](07-functions.md#unsupported-function-extensions)).
+#### Reflection
+
+1. r[grammar.primary.no-reflection-syntax] Declaration reflection has no dedicated syntax.
+2. r[grammar.primary.shape-intrinsics] `shape[User]()` and `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+
+#### Forms Resolved By Name
+
+1. r[grammar.primary.resolution] Name resolution distinguishes a data expression from a map expression and an enum variant selection from ordinary field access.
+2. r[grammar.primary.generic-reference] Name resolution also distinguishes a named generic-function reference from indexing: in `first[string](names)`, the bracketed form is parsed as function type arguments because `first` resolves to a named generic function.
+3. r[grammar.primary.preserve-ambiguity] A parser may preserve this syntactic ambiguity until name resolution.
+4. r[grammar.primary.function-type-argument] Each function type argument is a type, a type-pack expansion, or the inference placeholder `_`.
+5. r[grammar.primary.placeholder] The placeholder is not part of ordinary `type_arguments` and therefore cannot occur in a type such as `List[_]`.
+6. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or `Type::name![T](...)`, type arguments of the qualifying type or trait stay before `::`, as in `Add[Money]::add`.
+7. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse[User](text)`.
+8. r[grammar.primary.member-type-arguments.rules] Name resolution treats that bracket like any other generic reference: it is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
+9. r[grammar.primary.annotation-access] After `::`, the contextual words `annotation` and `annotation_ref` always select `annotation_runtime_access`, not an ordinary trait-qualified call.
+10. r[grammar.primary.pack-map] Likewise, the token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
+
+#### Prefix And Suffix `...`
+
+1. r[grammar.primary.list-spread] A list element ending in `...` is a spread that expands a list's elements in place.
+2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
+3. r[grammar.primary.prefix-copies] A prefix `...` always copies: it copies the named members of a value in a copy-update spread and after an embedded field label, and `...=` stores a copy into an embedded field.
+4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, tuple elements, pack expansions, and provider-context entries, as in `$.with(ctx...)`.
+5. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
+
+```text
+trait Tag:
+    fn name(self) -> string
+
+fn widen(base: $.Context[Tag]) -> $.Context[Tag]:
+    $.context(...base)  # error: syntax-error
+```
+
+See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions).
+
+#### Member References
+
+1. r[grammar.primary.member-reference] A `::` member reference must be called: `Type::name` without an argument clause is not an expression.
+2. r[grammar.primary.member-reference.deferred] `Type::name` without an argument clause is reserved for method values, and an implementation reports it as an error. Error: `deferred-method-value`.
+
+```text
+data User:
+    email: string
+
+impl User:
+    fn domain(self) -> string:
+        self.email
+
+fn pick() -> fn(User) -> string:
+    User::domain  # error: deferred-method-value
+```
+
+See also: [Unsupported Function Extensions](07-functions.md#unsupported-function-extensions).
 
 ### Calls And Arguments
 
@@ -849,10 +984,15 @@ positional_argument = expression
 named_argument = identifier, "=", expression ;
 ```
 
-Positional arguments, including positional spreads, must precede named
-arguments. A named vararg receives an ordinary list value and does not use
-spread syntax. Semantic rules require a positional spread to be the final
-positional argument and to feed a declared vararg parameter.
+1. r[grammar.call.positional-first] Positional arguments, including positional spreads, must precede named arguments.
+2. r[grammar.call.named-vararg] A named vararg receives an ordinary list value and does not use spread syntax.
+3. r[grammar.call.spread-final] Semantic rules require a positional spread to be the final positional argument and to feed a declared vararg parameter.
+
+```text
+resize(width=640, 480)  # error
+```
+
+#### Trailing Blocks
 
 A call whose final parameter is a zero-argument function may use an indented
 trailing block as a complete statement or as the complete right-hand side of
@@ -863,12 +1003,19 @@ trailing_block_call = postfix_expression, ":", indented_suite_body ;
 indented_suite_body = NEWLINE, INDENT, statement, { statement }, DEDENT ;
 ```
 
-When there are no ordinary arguments, the call omits `()`, as in
-`transaction:`. This production is accepted only at delimiter depth zero when
-the call is the complete statement or one of those complete right-hand sides
-and name and type resolution identify a callable with an eligible final
-parameter. Its body must begin on the next logical line. It is not accepted in
-an `if`, `while`, `for`, or `match` header or inside brackets.
+1. r[grammar.call.trailing-block] A call whose final parameter is a zero-argument function may use an indented trailing block as a complete statement or as the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
+2. r[grammar.call.trailing-block.no-arguments] When there are no ordinary arguments, the call omits `()`, as in `transaction:`.
+3. r[grammar.call.trailing-block.accepted] This production is accepted only at delimiter depth zero when the call is the complete statement or one of those complete right-hand sides.
+4. r[grammar.call.trailing-block.eligible] It is also accepted only when name and type resolution identify a callable with an eligible final parameter.
+5. r[grammar.call.trailing-block.next-line] Its body must begin on the next logical line.
+6. r[grammar.call.trailing-block.not-header] It is not accepted in an `if`, `while`, `for`, or `match` header or inside brackets.
+
+```text
+fn run(callback: fn() -> i32) -> i32: callback()
+
+values := [run:  # error
+    1]
+```
 
 ### Closures
 
@@ -884,10 +1031,9 @@ closure_parameter_list = closure_parameter,
 closure_parameter = identifier, [ ":", type ] ;
 ```
 
-Omitted closure parameter types require an expected function type. A
-nonrecursive closure may infer its result type from its body; a standalone or
-otherwise ambiguous closure must provide enough annotations to determine its
-complete function type.
+1. r[grammar.closure.parameter-types] Omitted closure parameter types require an expected function type.
+2. r[grammar.closure.result-type] A nonrecursive closure may infer its result type from its body.
+3. r[grammar.closure.annotations] A standalone or otherwise ambiguous closure must provide enough annotations to determine its complete function type.
 
 ## Control-Flow Expressions
 
@@ -961,11 +1107,10 @@ arm_body = suite_expression
          ;
 ```
 
-A `for` loop is an expression, so it may also appear inside brackets, as in
-`[for x in xs: body]` or `(for k, v in m: body)`.
-An `if` used where a value is required must have an `else`; statement-position
-`if` may omit it. A loop without `else` has type `void`. These are semantic
-rules, not separate grammar productions.
+1. r[grammar.flow.for-in-brackets] A `for` loop is an expression, so it may also appear inside brackets, as in `[for x in xs: body]` or `(for k, v in m: body)`.
+2. r[grammar.flow.if-else] An `if` used where a value is required must have an `else`; statement-position `if` may omit it.
+3. r[grammar.flow.loop-void] A loop without `else` has type `void`.
+4. r[grammar.flow.semantic] The `if` and loop rules above are semantic rules, not separate grammar productions.
 
 ## Patterns
 
@@ -1010,22 +1155,48 @@ tuple_pattern = "(", pattern, ",",
                 [ pattern, { ",", pattern }, [ "," ] ], ")" ;
 ```
 
-Variant patterns may use a qualified enum variant name or `.Variant` when the
-matched value's type supplies one enum. The unqualified
-`identifier, pattern_argument_clause` form parses so that a checker can report
-it as a `bare-variant-pattern` error
-([Match Expressions](06-control-flow.md#match-expressions)). Positional binding names need not match
-payload field names. In a payload list, only `field=pattern` is a named
-pattern, and no positional pattern may follow a named pattern.
-In a data pattern, bare `field` binds that field's value to a new name of the
-same spelling; `field: pattern` matches it against a nested pattern, and
-`field: name` binds it to `name`. Unlisted fields are ignored.
+1. r[grammar.pattern.variant] Variant patterns may use a qualified enum variant name or `.Variant` when the matched value's type supplies one enum.
+2. r[grammar.pattern.bare-variant] The unqualified `identifier, pattern_argument_clause` form parses so that a checker can report it as an error. Error: `bare-variant-pattern`.
+3. r[grammar.pattern.positional-names] Positional binding names need not match payload field names.
+4. r[grammar.pattern.named] In a payload list, only `field=pattern` is a named pattern.
+5. r[grammar.pattern.named-last] No positional pattern may follow a named pattern.
+6. r[grammar.pattern.data-field] In a data pattern, bare `field` binds that field's value to a new name of the same spelling.
+7. r[grammar.pattern.data-field.nested] `field: pattern` matches the field against a nested pattern, and `field: name` binds it to `name`.
+8. r[grammar.pattern.data-unlisted] Unlisted fields are ignored.
 
-Labels follow their brackets. Inside `Type { ... }`, in data expressions and
-data patterns alike, a field label is followed by `:`. Inside parentheses,
-in named arguments, variant payloads, and payload patterns, a label is
-followed by `=`. A data pattern written with `field = pattern` is a
-`syntax-error`.
+```text
+enum Pair:
+    Values(left: i32, right: i32)
+
+fn value_or_zero(value: i32?) -> i32:
+    match value:
+        Some(number) => number  # error: bare-variant-pattern
+        .None => 0
+
+fn invalid(value: Pair) -> i32:
+    match value:
+        Pair.Values(left=l, r) => l + r  # error
+```
+
+See also: [Match Expressions](06-control-flow.md#match-expressions).
+
+### Labels
+
+1. r[grammar.label.bracket] Labels follow their brackets.
+2. r[grammar.label.braces] Inside `Type { ... }`, in data expressions and data patterns alike, a field label is followed by `:`.
+3. r[grammar.label.parentheses] Inside parentheses, in named arguments, variant payloads, and payload patterns, a label is followed by `=`.
+4. r[grammar.label.data-pattern-equals] A data pattern written with `field = pattern` is an error. Error: `syntax-error`.
+
+```text
+data Point:
+    x: i32
+    y: i32
+
+fn first(p: Point) -> i32:
+    match p:
+        Point { x = 0, y } => y  # error: syntax-error
+        Point { x, y: _ } => x
+```
 
 ## Comprehensions
 
@@ -1041,9 +1212,9 @@ comprehension_for = "for", binding_pattern, "in", continued_expression ;
 comprehension_if = "if", continued_expression ;
 ```
 
-The first clause must be `for`. Later `for` and `if` clauses execute from left
-to right. Comprehensions do not have a `let` clause; `:=` binding expressions
-may be used inside guards or result expressions.
+1. r[grammar.comprehension.first-for] The first clause must be `for`.
+2. r[grammar.comprehension.order] Later `for` and `if` clauses execute from left to right.
+3. r[grammar.comprehension.no-let] Comprehensions do not have a `let` clause; `:=` binding expressions may be used inside guards or result expressions.
 
 ## Requirements And Provider Contexts
 
@@ -1065,9 +1236,9 @@ context_entry = requirement_key, "=", expression
               ;
 ```
 
-Requirement rows denote unordered sets of keys after name resolution. A
-generic identifier used as a complete requirement key is a row parameter,
-and listing it beside other keys extends that row with them.
+1. r[grammar.row.sets] Requirement rows denote unordered sets of keys after name resolution.
+2. r[grammar.row.parameter] A generic identifier used as a complete requirement key is a row parameter.
+3. r[grammar.row.parameter.extension] Listing a row parameter beside other keys extends that row with them.
 
 ## Annotations
 
@@ -1111,28 +1282,18 @@ facet_annotation_suite = "pass", SUITE_END
 facet_override = metadata_assignment | function_decl ;
 ```
 
-An `annotation_facet` that resolves as a type requests that stateless facet's
-default empty value and is valid only when the type has no required fields. An
-expression form is evaluated as a configured facet
-value; its static type is the facet type used for coherence and
-`Annotate[Facet]` generation. The syntactic overlap between a named type and a
-name expression is resolved by ordinary name and type resolution.
-
-`[` directly after `annotate` always opens generic parameters, as after
-`impl`, so a facet expression cannot begin with `[`; parenthesize one that
-would. Every annotation body, like a data body, accepts `pass` either after
-the header's `:` or alone on an indented line.
-
-Generic parameters and their bounds follow the same rules as a generic
-`impl`. A generic annotation target denotes a family of concrete
-targets; coherence and overlap are checked as if it were the lowered generic
-`impl Annotate[Facet] for Target`.
+1. r[grammar.annot.facet-type] An `annotation_facet` that resolves as a type requests that stateless facet's default empty value and is valid only when the type has no required fields.
+2. r[grammar.annot.facet-expression] An expression form is evaluated as a configured facet value; its static type is the facet type used for coherence and `Annotate[Facet]` generation.
+3. r[grammar.annot.facet-resolution] The syntactic overlap between a named type and a name expression is resolved by ordinary name and type resolution.
+4. r[grammar.annot.generic-bracket] `[` directly after `annotate` always opens generic parameters, as after `impl`, so a facet expression cannot begin with `[`; parenthesize one that would.
+5. r[grammar.annot.pass] Every annotation body, like a data body, accepts `pass` either after the header's `:` or alone on an indented line.
+6. r[grammar.annot.generic] Generic parameters and their bounds follow the same rules as a generic `impl`.
+7. r[grammar.annot.generic-target] A generic annotation target denotes a family of concrete targets.
+8. r[grammar.annot.coherence] Coherence and overlap are checked as if the generic annotation were the lowered generic `impl Annotate[Facet] for Target`.
 
 ## Pack Expansion
 
-An ellipsis following a generic parameter declares a type pack. In a type,
-parameter, tuple, or argument position, an ellipsis following a subtree that
-contains a pack reference expands that subtree once per pack element. The same
-token denotes an ordinary homogeneous vararg or list spread when no pack is
-referenced. Name and type resolution make the distinction; unresolved or mixed
-uses are compile-time errors.
+1. r[grammar.pack.declare] An ellipsis following a generic parameter declares a type pack.
+2. r[grammar.pack.expand] In a type, parameter, tuple, or argument position, an ellipsis following a subtree that contains a pack reference expands that subtree once per pack element.
+3. r[grammar.pack.vararg] The same token denotes an ordinary homogeneous vararg or list spread when no pack is referenced.
+4. r[grammar.pack.resolution] Name and type resolution make the distinction; unresolved or mixed uses are compile-time errors.
