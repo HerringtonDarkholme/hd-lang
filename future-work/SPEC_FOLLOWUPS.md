@@ -69,6 +69,25 @@ example, as the 08 pilot did.
 | 10 | `direct-variant-use`, `top-level-read-before-initialization`, `private-type-leak`, `missing-requirement`, `missing-partial-eq`, `syntax-error`, `duplicate-module-name` |
 | 12 | `multiple-positional-value-packs`, `pack-length-mismatch`, `pack-map-mapper-mismatch` |
 | 13 | `impossible-gadt-pattern` |
+| 01 | `unexpected-bom`, `tab-whitespace`, `invalid-dedent`, `invalid-escape`, `reserved-semicolon`, `unknown-name` |
+| 06 | `break-value-context`, `break-outside-loop`, `nonexhaustive-match`, `duplicate-data-pattern-field`, `return-outside-function`, `readonly-root`, `unknown-data-field`, `iterator-invalidated` |
+| 07 | `missing-return-value`, `non-reassignable-parameter-binding`, `nonfinal-positional-spread`, `trailing-block-position`, `partial-generic-arguments`, `unresolved-generic-placeholder`, `recursive-closure-needs-result-type`, `readonly-root`, `argument-count`, `type-mismatch`, `no-common-type`, `mutable-capture-requires-mut-fn` |
 
 ## Open, for the owner
+
+From the 01, 06, 07 restyles (7380905, 8fb85c1, 7c73971):
+- 01: raw tab inside a string: `string_character` admits it, the tab rule
+  says tabs occur only as `\t`.
+- 01: a lone `"` inside `"""..."""` looks invalid by
+  `multiline_string_character`, though the literal ends only at `"""`.
+- 01: confusable and mixed-script identifiers "must be diagnosed" (error?)
+  but README lists them as warnings.
+- 06: is the list of suites whose value is discarded
+  (`flow.must-use.suite-final`) complete?
+- 06: `break value` in a loop without `else` is never called an error.
+- 07: recursion rules conflict (`fn.decl.omitted-cycle.resolve`: one member's
+  result type resolves a cycle; `fn.recursion.named`: every member must
+  declare one).
+- 07: may a `pub` inherent method omit its result type?
+- 07: `fn.vararg.list` states its rule only through the example.
 
