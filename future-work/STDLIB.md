@@ -410,8 +410,8 @@ pub trait ResultExt[T, E]:
 ```
 
 Callbacks take no row parameter here, so `map_err(fn(e): ...)` cannot use a
-requirement. A row-polymorphic version, `fn map_err[F, r](self, transform:
-fn(E) -> F $ r) -> Result[T, F] $ r`, is possible and matches
+requirement. A row-polymorphic version, `fn map_err[F, R](self, transform:
+fn(E) -> F $ R) -> Result[T, F] $ R`, is possible and matches
 [Requirement Polymorphism](../spec/11-requirements-and-suspension.md#requirement-polymorphism);
 it is the recommended final form.
 

@@ -2,10 +2,10 @@
 
 use std.testing.assert_equal
 
-fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+fn invoke[R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
-fn forward[s, t](left: fn() -> i32 $ s, right: fn() -> i32 $ t, callback: fn() -> i32 $ s + t) -> i32 $ s + t:
+fn forward[S, T](left: fn() -> i32 $ S, right: fn() -> i32 $ T, callback: fn() -> i32 $ S + T) -> i32 $ S + T:
     a := left()
     b := right()
     a + b + invoke(callback)

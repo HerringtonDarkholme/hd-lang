@@ -97,22 +97,22 @@ an empty row merely because the expected row is generic. A written `$` clause
 is explicit and must entail the same body requirements.
 
 Rows are sets: order does not affect type identity, and a key occurs at most
-once after normalization. `+` forms set union. `r - Logger` removes `Logger`
-from a row parameter `r`; removing an absent key is allowed and leaves the row
+once after normalization. `+` forms set union. `R - Logger` removes `Logger`
+from a row parameter `R`; removing an absent key is allowed and leaves the row
 unchanged. Parentheses group row expressions. A function may call another
 required function only when its own row includes those requirements or a
 lexical provider scope satisfies them.
 
 Requirement checking uses set entailment after alias expansion. For a body,
 `available = declared_row + lexical_keys`, and every required key must be a
-member of `available`. For an unknown row parameter `r`:
+member of `available`. For an unknown row parameter `R`:
 
-- `r` is entailed by `(r - K) + S` exactly when `K` is in `S`;
-- `r` is not entailed by `r - K`;
+- `R` is entailed by `(R - K) + S` exactly when `K` is in `S`;
+- `R` is not entailed by `R - K`;
 - `K1 - K2` removes a generic key only when the two keys are identical after
   alias expansion; and
-- inference for a parameter pattern `r + K` chooses the least row solution,
-  so matching it against `{K}` infers the empty row for `r`.
+- inference for a parameter pattern `R + K` chooses the least row solution,
+  so matching it against `{K}` infers the empty row for `R`.
 
 Subtraction is legal on row parameters in parameter and result positions. The
 compiler warns with `requirement-subtract-absent` when it can prove that the
@@ -290,11 +290,11 @@ error is `mutable-upgrade`; when `K` is not available at all it is
 trait method's row is part of the normalized row that its implementations must
 match.
 
-Subtraction follows the same access: `r - K` removes a readonly `K` entry from
-`r` and leaves a `mut K` entry in place, while `r - mut K` removes `K` with
+Subtraction follows the same access: `R - K` removes a readonly `K` entry from
+`R` and leaves a `mut K` entry in place, while `R - mut K` removes `K` with
 either access. The entailment rules of [Requirement Rows](#requirement-rows)
-read accordingly: `r` is entailed by `(r - K) + S` exactly when `S` contains
-`K` with either access, and by `(r - mut K) + S` exactly when `S` contains
+read accordingly: `R` is entailed by `(R - K) + S` exactly when `S` contains
+`K` with either access, and by `(R - mut K) + S` exactly when `S` contains
 `mut K`.
 
 **Contexts.** A `$.Context[Row]` row may contain `mut` entries. The binding
@@ -581,20 +581,22 @@ signatures and the complete intrinsic set remain standard-library API design.
 Higher-order code preserves callback requirements with a row parameter:
 
 ```text
-fn transform[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r:
+fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     ...
 ```
 
 A local provider may remove one key from a callback row:
 
 ```text
-fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
+fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
     $.with(Logger=logger):
         callback("message")
 ```
 
-The compiler infers `r` as a row parameter from its use after `$`.
-At a call, it infers the callback's requirement row for `r`. The
+The compiler infers `R` as a row parameter from its use after `$`, not from
+the case of its name; row parameters follow the ordinary uppercase convention
+for generic parameters.
+At a call, it infers the callback's requirement row for `R`. The
 callee's own row is then normalized after union and subtraction. This mechanism
 does not quantify over arbitrary type-level expressions; it is specific to
 requirement rows.

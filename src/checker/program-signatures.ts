@@ -6,6 +6,7 @@ import {
   collectRowParameterReferences,
   firstPrivateSignatureType,
   normalizeBoundProjections,
+  normalizedRequirements,
   resolveGenericRequirement,
   resolveGenericType,
   rowParameterName,
@@ -215,13 +216,17 @@ export function createProgramSignatures(
       normalizeBoundProjections(type!, genericBounds),
     );
     const normalizedResult = normalizeBoundProjections(result, genericBounds);
-    const requirements = declaration.requirements
-      .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameterSet))
-      .map((requirement) =>
-        rowParameterName(requirement)
-          ? requirement
-          : resolveGenericType(requirement, genericParameters, new Set(rowParameters)),
-      );
+    // Sort after resolution: the parser sorts raw names, but a resolved row
+    // parameter gains a `row:` prefix, and function types sort the final keys.
+    const requirements = normalizedRequirements(
+      declaration.requirements
+        .flatMap((requirement) => resolveGenericRequirement(requirement, rowParameterSet))
+        .map((requirement) =>
+          rowParameterName(requirement)
+            ? requirement
+            : resolveGenericType(requirement, genericParameters, new Set(rowParameters)),
+        ),
+    );
     for (const requirement of requirements) {
       if (rowParameterName(requirement)) continue;
       const nominal = nominalGenericParts(requirement);

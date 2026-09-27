@@ -2,7 +2,7 @@
 
 use std.testing.assert_equal
 
-fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+fn invoke[R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
 fn read() -> i32 $ Clock + Logger:

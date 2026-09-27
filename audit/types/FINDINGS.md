@@ -273,7 +273,7 @@ Fix: R6.1-R6.5; name reuse is TQ-6.
 Medium. Anchor: 09 Dynamic Trait Values; 04 Trait Values And Any.
 
     trait Runner:
-        fn run[r](self, job: fn() -> void $ r) -> void $ r
+        fn run[R](self, job: fn() -> void $ R) -> void $ R
     trait Lookup:
         fn metadata[reified M](self) -> M?
 

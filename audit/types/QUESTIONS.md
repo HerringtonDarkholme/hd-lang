@@ -555,7 +555,7 @@ expected type.
 
 ## TQ-10: Dynamic safety of row, reified, pack, and suspending methods
     trait Runner:
-        fn run[r](self, job: fn() -> void $ r) -> void $ r
+        fn run[R](self, job: fn() -> void $ R) -> void $ R
 Options: (A) allow suspending, row (providers passed keyed), and `reified`
 methods, but reject packs; (B) reject everything except `Reference`-bounded
 types (the literal reading today).

@@ -20,12 +20,12 @@ fn counters() -> $.Context[mut Counter]:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
     $.context(mut Counter=counter)
 
-fn provide_mut[r](callback: fn() -> void $ r) -> void $ (r - mut Counter):
+fn provide_mut[R](callback: fn() -> void $ R) -> void $ (R - mut Counter):
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
     $.with(mut Counter=counter):
         callback()
 
-fn provide_readonly[r](callback: fn() -> void $ r) -> void $ (r - Counter):
+fn provide_readonly[R](callback: fn() -> void $ R) -> void $ (R - Counter):
     $.with(Counter=MemoryCounter { value: 0 }):
         callback()
 

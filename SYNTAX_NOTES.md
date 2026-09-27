@@ -1938,19 +1938,19 @@ requirement-row parameters. A generic parameter used after `$` has the
 requirement-row kind:
 
 ```text
-fn map[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r
+fn map[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R
 ```
 
 Union and removal transform rows explicitly. A provider scope may satisfy a
 removed requirement inside the function:
 
 ```text
-fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
+fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
     $.with(Logger=logger):
         callback("str")
 ```
 
-The compiler infers `r` from the callback's normalized requirement row and
+The compiler infers `R` from the callback's normalized requirement row and
 then normalizes the enclosing row after union and subtraction. Requirements do
 not propagate implicitly from function-typed parameters.
 

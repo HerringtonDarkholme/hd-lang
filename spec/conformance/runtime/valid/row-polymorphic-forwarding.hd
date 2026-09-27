@@ -2,10 +2,10 @@
 
 use std.testing.assert_equal
 
-fn invoke[r](callback: fn() -> i32 $ r) -> i32 $ r:
+fn invoke[R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
-fn forward[s](callback: fn() -> i32 $ s + Clock) -> i32 $ s + Clock:
+fn forward[S](callback: fn() -> i32 $ S + Clock) -> i32 $ S + Clock:
     invoke(callback)
 
 fn read() -> i32 $ Clock + Logger:

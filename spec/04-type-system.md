@@ -545,6 +545,11 @@ fn new_mutable_user() -> mut User: User { name: "Ada" }
 Generic type and function parameters denote complete types. A type parameter
 `T` may therefore be instantiated with either `User` or `mut User`.
 
+By convention, generic parameters, including row parameters, use uppercase
+names such as `T`, `U`, `K`, `V`, and `R`. The convention is style only: a
+parameter's kind comes from its declaration and use, never from the case of
+its name.
+
 An unconstrained generic declaration stores or passes `T` directly. It must not
 write `mut T`, because substitution with `T = mut User` would create the
 meaningless form `mut mut User`. Mutable generic requirements use a bound:

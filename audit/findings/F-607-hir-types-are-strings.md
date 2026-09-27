@@ -4,7 +4,7 @@ Area: architecture
 Evidence: audit/evidence/06-compiler/desugar-hir.md ("distinct HIR type strings"),
   `hd dump-hir spec/conformance/typing/valid/requirements-and-suspension.hd`
   (types such as `fn!(string)->Result[User?,DbError]$Database`,
-  `suspend(1):...`, `provider-row:r`, `mut:UserId`)
+  `suspend(1):...`, `provider-row:R`, `mut:UserId`)
 Effect: `ValueType = string` (src/hir.ts:3). The emitter calls 11 string
   parsers from src/types.ts at about 60 call sites, for example `functionParts` and
   `nominalGenericParts`. It resolves `Point` through `dataByName` and

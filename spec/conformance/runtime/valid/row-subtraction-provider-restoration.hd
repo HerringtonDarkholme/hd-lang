@@ -2,7 +2,7 @@
 
 use std.testing.assert_equal
 
-fn provide_logger[r](callback: fn() -> i32 $ r) -> i32 $ (r - Logger) + Backup:
+fn provide_logger[R](callback: fn() -> i32 $ R) -> i32 $ (R - Logger) + Backup:
     $.with(Logger=$.use(Backup)):
         callback()
 

@@ -1257,6 +1257,8 @@ fn first[T](items: List[T]) -> T?:
         items[0]
 ```
 
+Generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`. This is a style rule only; a parameter's kind comes from how it is declared and used.
+
 Generic arguments are inferred at call sites when the type is unambiguous. Callers can also provide the full generic argument list explicitly:
 
 ```text
@@ -1761,7 +1763,7 @@ let total: i64 = narrow + wide
 
 let labels: List[Display] = ["Ada", "Grace"]
 
-fn invoke[r](callback: fn() -> void $ r) -> void $ r:
+fn invoke[R](callback: fn() -> void $ R) -> void $ R:
     callback()
 
 fn report() -> void $ Console:
@@ -1769,7 +1771,7 @@ fn report() -> void $ Console:
 ```
 
 The `invoke` call infers the omitted closure row as `Console` from its body and
-unifies it with `r`; an omitted row is not assumed empty.
+unifies it with `R`; an omitted row is not assumed empty.
 
 ## Modules, Packages, and Use Declarations
 
@@ -2077,14 +2079,14 @@ Requirement polymorphism for higher-order functions preserves callback
 requirements rather than erasing them:
 
 ```text
-fn transform[T, U, r](items: List[T], f: fn(T) -> U $ r) -> List[U] $ r:
+fn transform[T, U, R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
     ...
 ```
 
 A provider scope removes a locally supplied requirement from a row parameter:
 
 ```text
-fn provide_logger[r](callback: fn(string) -> void $ r) -> void $ (r - Logger):
+fn provide_logger[R](callback: fn(string) -> void $ R) -> void $ (R - Logger):
     $.with(Logger=logger):
         callback("str")
 ```
