@@ -231,6 +231,12 @@ else`, `break`, `break value`, and `continue`;
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
+- imported `std.convert.From[T]` and `std.error.Error` as trait declarations
+  in the compiled module; `?` on a `Result` converts the error by one
+  assignability rule or one `From` call, `Type::from(x)` selects the `From`
+  instantiation by argument type, and a single-payload variant constructor
+  is a function value (a dynamic trait value does not yet satisfy a bound on
+  its own trait);
 - executable `std.testing.assert` with source-order argument evaluation, plus
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic

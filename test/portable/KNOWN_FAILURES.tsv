@@ -132,3 +132,4 @@ typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usag
 runtime/valid/embedded-part-follows-container.hd	check reports expected-expression at line 22: the prototype parser does not accept the embedded copy marker `...` or `...=` (VE-S not implemented)	VE
 typing/invalid/covariant-embedded-field.hd	MVP reports syntax-error at line 2 instead of invalid-variance: variance markers do not parse, and embedded fields are not invariant positions (VE not implemented)	VE
 runtime/valid/optional-erased-to-any.hd	check fails: MVP does not know Any (unknown-type List[Any])	F-255
+runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	check fails: unsatisfied-trait-bound: the prototype has no dictionary that forwards a bound call through a dynamic trait value, so a trait value never satisfies a bound on its own trait or a supertrait	EC

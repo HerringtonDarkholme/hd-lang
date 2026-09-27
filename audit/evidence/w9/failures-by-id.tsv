@@ -30,3 +30,4 @@ F-706	1	A backslash before a quote in a raw string is a lexer error
 GQ2	1	A closure body nested in brackets may hold only one statement, so an indented multi-statement body ending at a comma line fails to parse
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
+EC	1	A dynamic trait value does not satisfy a bound on its own trait or a supertrait: the prototype has no dictionary that forwards bound calls through the value's table

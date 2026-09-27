@@ -1337,6 +1337,59 @@ export abstract class ExpressionCallChecker extends MemberLookupChecker {
         implementation.methodFunctions.find((candidate) => candidate.methodIndex === method.index);
       return candidateTrait && method && mapping ? [{ candidateTrait, method, mapping }] : [];
     });
+    const signatureOf = (candidate: (typeof associatedCandidates)[number]): Signature =>
+      [...this.signatures.values()].find(
+        (signature) => signature.index === candidate.mapping.functionIndex,
+      )!;
+    // 09 Conversion Trait and Method Resolution: among instantiations of one
+    // generic trait, `Type::from(value)` selects the one whose parameters the
+    // arguments fit.
+    if (
+      associatedCandidates.length > 1 &&
+      associatedCandidates.every(
+        (candidate) =>
+          candidate.candidateTrait.index === associatedCandidates[0]!.candidateTrait.index,
+      ) &&
+      (expression.argumentNames ?? []).every((name) => name === undefined) &&
+      !(expression.argumentSpreads ?? []).some(Boolean) &&
+      speculationSafeArguments(expression.arguments)
+    ) {
+      const argumentTypes = expression.arguments.map(
+        (argument) => this.checkExpression(argument).type,
+      );
+      const fitting = associatedCandidates.filter((candidate) => {
+        const parameters = signatureOf(candidate).parameters;
+        return (
+          parameters.length === argumentTypes.length &&
+          argumentTypes.every((type, index) => {
+            const parameter = parameters[index]!;
+            if (type === parameter || type === "never") return true;
+            const probe = {
+              kind: "local" as const,
+              local: {
+                name: "$probe",
+                type,
+                index: -1,
+                mutable: false,
+                parameter: false,
+                span: expression.span,
+              },
+              type,
+              span: expression.span,
+            };
+            return this.coerce(probe, parameter, expression.span).type === parameter;
+          })
+        );
+      });
+      if (fitting.length === 0)
+        this.fail(
+          "type-mismatch",
+          `no instantiation of '${associatedCandidates[0]!.candidateTrait.name}' for '${ownerType}' accepts (${argumentTypes.join(", ")}); available: ${associatedCandidates.map((candidate) => signatureOf(candidate).parameters.join(", ")).join("; ")}`,
+          expression.span,
+        );
+      if (fitting.length === 1)
+        associatedCandidates.splice(0, associatedCandidates.length, fitting[0]!);
+    }
     if (associatedCandidates.length > 1)
       this.fail(
         "ambiguous-associated-function",

@@ -1,6 +1,6 @@
 import type { Expression, Statement } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import type { HirExpression, HirStatement, ValueType } from "../hir.ts";
+import type { HirEnum, HirExpression, HirStatement, ValueType } from "../hir.ts";
 import {
   mutableInner,
   mutableType,
@@ -446,6 +446,44 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
     return { kind: "expression", expression, span: statement.span };
   }
 
+  /**
+   * Checks `Enum.Variant` for a single-payload variant as the function value
+   * `fn(payload: P) -> Enum: Enum.Variant(payload)`. A generic enum takes its
+   * types from the expected function type.
+   */
+  private checkVariantFunctionValue(
+    enumType: HirEnum,
+    payloadType: ValueType,
+    expression: Extract<Expression, { kind: "member" }>,
+    expected?: ValueType,
+  ): HirExpression {
+    const span = expression.span;
+    const generic = enumType.genericParameters.length > 0 || containsGenericType(payloadType);
+    return this.checkExpression(
+      {
+        kind: "closure",
+        parameters: [
+          { name: "$payload", type: generic ? undefined : { name: payloadType, span }, span },
+        ],
+        result: generic ? undefined : { name: enumType.name, span },
+        body: [
+          {
+            kind: "expression",
+            expression: {
+              kind: "call",
+              callee: expression,
+              arguments: [{ kind: "name", name: "$payload", span }],
+              span,
+            },
+            span,
+          },
+        ],
+        span,
+      },
+      expected,
+    );
+  }
+
   protected checkAccessExpression(
     expression: Expression,
     expected?: ValueType,
@@ -466,10 +504,19 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
             const variant = enumType.variants.find(
               (candidate) => candidate.name === expression.name,
             );
-            if (variant && variant.fields.length > 0) {
+            // 08 Enum Declarations: a constructor with exactly one payload
+            // field is a function value; with two or more it must be called.
+            if (variant && variant.fields.length === 1)
+              return this.checkVariantFunctionValue(
+                enumType,
+                variant.fields[0]!.type,
+                expression,
+                expected,
+              );
+            if (variant && variant.fields.length > 1) {
               this.fail(
                 "unsaturated-enum-constructor",
-                `variant '${variant.name}' requires ${variant.fields.length} argument${variant.fields.length === 1 ? "" : "s"}`,
+                `variant '${variant.name}' requires ${variant.fields.length} arguments; only a single-payload constructor is a function value`,
                 expression.span,
               );
             }

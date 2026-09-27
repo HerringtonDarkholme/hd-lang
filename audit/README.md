@@ -85,6 +85,14 @@ prototype has no `Any`. The prototype-fix follow-ups C1 to C3 are
 implemented: the lexer reports `0b1z` as `syntax-error`, and an impl
 method's generic parameters are compared with the trait method's by
 position, bounds included.
+Error conversion (EC) is implemented except decision 4: `use std.convert.From`
+and `use std.error.Error` declare the standard traits in the compiled module,
+`?` converts by one assignability rule or one `From` call (checked as a
+`match` whose `Err` arm returns), `Type::from(x)` chooses among `From`
+instantiations by argument type, and a single-payload variant constructor
+checks as a closure. A `return`, `break`, or `continue` that ends a match arm
+or `if` branch now has type `never`, so a `return` arm no longer makes the
+match `void`.
 `test/portable/KNOWN_FAILURES.tsv` tags the rest:
 
 | #  | Decision |
@@ -101,3 +109,4 @@ position, bounds included.
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
+| EC | Error conversion decision 4: a dynamic trait value type satisfies a bound on its own trait and its supertraits. The prototype passes a trait value to a bounded parameter only with a dictionary from an implementation, so it reports `unsatisfied-trait-bound`; supporting it needs a dictionary whose methods forward through the value's own table. |

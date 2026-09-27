@@ -1202,6 +1202,10 @@ export abstract class CheckerContext {
 
   protected blockType(statements: readonly HirStatement[]): ValueType {
     const last = statements.at(-1);
+    // A suite that ends by leaving it (`return`, `break`, `continue`) has type
+    // `never`, so it joins any other branch type (spec/06-control-flow.md).
+    if (last?.kind === "return" || last?.kind === "break" || last?.kind === "continue")
+      return "never";
     return last?.kind === "expression" ? last.expression.type : "void";
   }
 
