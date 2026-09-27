@@ -502,18 +502,22 @@ pub fn chain(error: Error) -> List[Error]:
     while true:
         match current:
             .Some(next) =>
+                if seen(found, next):
+                    break                        # a cyclic chain stops at the first repeat
                 found.append(next)
                 current = next.cause()
             .None => break
     found
 
 pub fn root_cause(error: Error) -> Error:
-    let current: Error = error
-    while true:
-        match current.cause():
-            .Some(next) => current = next
-            .None => break
-    current
+    let parts: List[Error] = chain(error)
+    parts[parts.len() - 1]
+
+fn seen(parts: List[Error], candidate: Error) -> bool:
+    for part in parts:
+        if part is candidate:                    # identity: errors are reference values
+            return true
+    false
 ```
 
 Context and boundary reports ([Error Conversion decision
@@ -537,6 +541,11 @@ pub fn context[T, E < Error](result: Result[T, E], message: string) -> Result[T,
         .Ok(value) => .Ok(value)
         .Err(error) => .Err(Context { message: message, cause: error })
 
+pub fn with_context[T, E < Error](result: Result[T, E], message: fn() -> string) -> Result[T, Error]:
+    match result:
+        .Ok(value) => .Ok(value)                 # the message is never built on success
+        .Err(error) => .Err(Context { message: message(), cause: error })
+
 pub data ErrorReport:                    # boundary-safe snapshot
     pub message: string
     pub causes: List[string]
@@ -544,12 +553,18 @@ pub data ErrorReport:                    # boundary-safe snapshot
 pub fn report_of(error: Error) -> ErrorReport:
     let causes: mut List[string] = []
     for part in chain(error):
-        causes.append(part.to_string())
+        if !(part is error):                     # the causes after the top error
+            causes.append(part.to_string())
     ErrorReport { message: error.to_string(), causes: causes }
 ```
 
-`.context(...)` is written as a method on `Result` once method syntax for
-it is settled; the free function shows its typing.
+`.context(...)` and `.with_context(...)` are written as methods on
+`Result` once method syntax for them is settled; the free functions show
+their typing. `chain` stops at the first part it has already visited, so a
+cyclic chain cannot loop (`find` and `root_cause` walk `chain`), and
+`ErrorReport.causes` excludes the top error, matching the entry point's
+`caused by:` lines (Error Conversion review gaps 5-7, decided
+2026-09-27).
 
 `Error` extends the sealed `Inspectable`
 ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)), so it
