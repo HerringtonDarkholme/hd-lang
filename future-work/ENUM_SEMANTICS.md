@@ -55,6 +55,20 @@ Decided 2026-09-27:
    slots never change once built; this is shallow, since a payload may be a
    mutable reference.
 
+4. **Shared constructor data becomes per-variant constants** (decided
+   2026-09-27, revising decision 2's storage): the declaration syntax
+   stays (`enum HttpStatus(code: i32, phrase: string):` with
+   `NotFound -> HttpStatus(404, phrase="Not Found")`), but each variant's
+   `->` values are evaluated once at compile time (requirement-free, the
+   annotation evaluator), stored once per variant in a table indexed by
+   tag, and never stored in enum values; `s.code` reads the table. The `->`
+   expression cannot use the payload. Payload-free variants therefore stay
+   plain `i31ref` tags even with shared data; typed derivation reads shared
+   data from the variant (`v.info`), never as members, and `build` never
+   fills it; `@error`'s review R12 rule about common fields becomes moot.
+   Per-value common data (a different span on each value) belongs in each
+   variant's payload or a wrapper data type. Like Java and Kotlin enum
+   constructor arguments.
 3. **Question 7: payload-free enums get no automatic `Eq` or `Hash`.**
    `PayloadLess.A is PayloadLess.A` is always `true` (canonical identity),
    and `==` needs `@derive(Eq)` (and `Hash` for map keys), as for every
