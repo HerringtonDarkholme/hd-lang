@@ -357,6 +357,46 @@ compile error. Still open: how a tier-1 type-level annotation selects the
 templates it opts in to (stress test P13), now that no hook returns its
 type.
 
+(M14, decided 2026-09-27; closes stress-test P1, P2 and P3; replaces the
+value-passing `visit` and `member(m, value)` protocol of M9) Typed member
+handles. For each opted-in type the compiler generates only:
+
+- `facts() -> Facts`: the type-level facts (M13);
+- `walk[W < Walker[Self]](w: mut W) -> Result[void, W::Error]`: a value-free
+  walk that passes one handle per member, and for an enum first asks
+  `w.variant(v)` whether to enter each variant;
+- `build[S < Source[Self]](s: mut S) -> Result[Self, S::Error]`;
+- one constant handle per member, `Field[S, F]` (`info: Member`,
+  `get(s: S) -> F`, `has_default() -> bool`, `default() -> F?`), and one per
+  variant, `Variant[S]` (`info`, `holds(s: S) -> bool`).
+
+```text
+pub trait Walker[S]:
+    type Error
+    fn variant(mut self, v: Variant[S]) -> bool          # true: walk its members
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, Self::Error]
+
+pub trait Source[S]:
+    type Error
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
+    fn member[F](mut self, h: Field[S, F]) -> Result[F, Self::Error]
+```
+
+M9's strengthened-bound rule now applies to `Walker::member` and
+`Source::member`. Everything else is library code over handles: encoding is
+`walk` plus `h.get(value)`; `Eq`, `Ord`, and diff hold two values and enter a
+variant only when both hold it; clone, patch, and shrinking are `build` with
+a source that reads an old value; schemas, CLI help, and tool schemas are
+`walk` with no value (P2); decoders fall back to `h.default()` when input
+lacks a member (P3). An enum payload handle's `get` on a value of another
+variant panics; generated `walk` calls `member` only for entered variants.
+Handles are constants and `get` is one projection, so there is still no
+per-member allocation (`default()` allocates `.Some` for reference-shaped
+members; `has_default()` does not). Prior art: GHC.Generics, Scala 3
+`Mirror`. Still open: whether `T -> U` mapping between two types is in
+scope, how `= pass` members appear in `walk` and `build`, and the exact
+handle API.
+
 ### Current Design: Full Example (M1-M13)
 
 This is the reference example for the design as decided on 2026-09-27. When
