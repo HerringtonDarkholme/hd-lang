@@ -26,9 +26,10 @@ are applied later in one `spec-update` pass, not per chapter.
   package interfaces carry the generic and pack function bodies needed
   downstream (fix the Implementation Model note to say per-shape bodies are
   compiled in the defining package but carried bodies may be used for
-  specialization, and packages ship sources); a named function's generic
-  parameters and bounds are always written in its declaration, never
-  inferred from the body (clarifies Type Inference Boundaries).
+  specialization, and packages ship sources); for a named function, inference
+  applies only to its result type and its requirement row; its parameter
+  types, generic parameters, and bounds are always written in its
+  declaration (clarifies Type Inference Boundaries).
 
 ## Logged, not scheduled (owner: do not spend on it now)
 
