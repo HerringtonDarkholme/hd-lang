@@ -465,7 +465,11 @@ P11e: a tier-2 block lives only in the target type's module. P11f: GADT
 enums are rejected at the opt-in for now. P11g: a member's `info` carries
 name, position, facts, doc comment, and the `embedded` flag (the handle
 has `has_default`); a variant's carries name, index, facts, and its shared
-constants. P13
+constants. P11d: in an enum's tier-2 block, member lines name whole
+variants only (`Login = [facts]`, `Login += [facts]`); payload members get
+no lines (declaration facts on payload parameters still apply), and a whole
+variant cannot be skipped (`Login = pass` is an error, since `build` could
+never produce it). P13
 (tier-1 template selection; the proposal is `@derives(...)` on
 the annotation function) is deferred. R2 (the enum protocol, with a proposed
 `variants()`/`variant_of`/`walk_variant` design) is deferred by the owner.
