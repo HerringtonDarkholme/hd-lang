@@ -325,6 +325,19 @@ tier-2 block is written per trait, and repeating member lines across them is
 accepted. A type may be encode-only (a hand-written `Encode` without
 `Decode`).
 
+(M12, decided 2026-09-27, from the [stress test](DERIVATION_STRESS_TEST.md))
+P6: a derived impl for a generic type gets `T < Trait` for each type
+parameter that appears in a visited member; recursion is checked
+coinductively (`Tree[T]` may assume its own impl while checking its
+members); when a member needs more (a `Set[T]` member needs `T < Hash`), the
+error suggests a tier-2 block with an explicit header. P4: there are no
+marker templates: a template must have a body that visits or builds, so a
+bodiless `by Structure` template is an error. The owner considers today's
+marker `Eq` wrong: `Eq` should carry a method like `PartialEq` does, so it
+is derivable and never needs an empty hand-written impl (redesign under
+discussion). Still under discussion: P1-P3 (the core walk), P5 (where
+configuration lives), and the rest of the stress test's problems.
+
 ### Current Design: Full Example (M1-M11)
 
 This is the reference example for the design as decided on 2026-09-27. When
