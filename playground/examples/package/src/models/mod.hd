@@ -1,0 +1,2 @@
+# The `models` directory module: its public index.
+pub use self.user.{User, greeting}

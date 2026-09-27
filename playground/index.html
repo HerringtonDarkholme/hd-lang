@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Write, check, and run hd-lang programs in the browser with the prototype Wasm GC compiler."
+    />
+    <title>hd playground</title>
+    <link rel="stylesheet" href="./assets/main.css" />
+    <script type="module" src="./assets/main.js"></script>
+  </head>
+  <body>
+    <header class="toolbar">
+      <a class="brand" href="../" title="hd-lang home">hd <span>playground</span></a>
+      <div class="actions">
+        <button id="run" class="primary" type="button" title="Run (Ctrl/⌘+Enter)">▶ Run</button>
+        <button id="check" type="button" title="Type-check only (Ctrl/⌘+Shift+Enter)">Check</button>
+        <button id="stop" type="button" hidden>■ Stop</button>
+        <select id="examples" aria-label="Examples">
+          <option value="">Examples…</option>
+        </select>
+        <button id="share" type="button" title="Copy a link to this project">Share</button>
+      </div>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </header>
+    <main class="workspace">
+      <section class="editor-pane" aria-label="Editor">
+        <nav id="tabs" class="tabs" role="tablist" aria-label="Files"></nav>
+        <div id="editor" class="editor"></div>
+      </section>
+      <section class="output-pane" aria-label="Output">
+        <div class="output-header">
+          <span>Output</span>
+          <button id="clear" type="button" class="quiet">Clear</button>
+        </div>
+        <div id="output" class="output"></div>
+      </section>
+    </main>
+    <noscript>The playground needs JavaScript and a browser with WebAssembly GC.</noscript>
+  </body>
+</html>

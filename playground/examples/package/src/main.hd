@@ -1,0 +1,8 @@
+# A package with three modules. `src/models/mod.hd` re-exports what
+# `src/models/user.hd` declares, so this module uses it through `pkg.models`.
+use pkg.models.{User, greeting}
+
+pub fn main() -> void $ Console:
+    users := [User { name: "Ada", visits: 3 }, User { name: "Grace", visits: 1 }]
+    for user in users:
+        println(greeting(user))

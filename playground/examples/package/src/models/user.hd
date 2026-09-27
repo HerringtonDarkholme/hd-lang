@@ -1,0 +1,13 @@
+pub data User:
+    pub name: string
+    pub visits: i32
+
+pub fn greeting(user: User) -> string:
+    "hello ${user.name}, visit ${user.visits + 1}${suffix(user.visits)}"
+
+# Private to this module: other modules cannot use it.
+fn suffix(visits: i32) -> string:
+    if visits > 2:
+        " (regular)"
+    else:
+        ""

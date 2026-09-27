@@ -8,23 +8,35 @@
   "type": "module",
   "scripts": {
     "check": "npm run check:types && npm run lint && npm run format:check && npm test && npm run fuzz:smoke && bash spec/check.sh",
-    "check:types": "tsc --noEmit",
-    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
-    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' package.json .oxfmtrc.json .oxlintrc.json",
+    "check:types": "tsc --noEmit && tsc --noEmit -p playground",
+    "format": "oxfmt --write 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
+    "format:check": "oxfmt --check 'src/**/*.ts' 'test/**/*.ts' 'spec/**/*.ts' 'bin/**/*.js' 'playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",
-    "test": "npm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts'",
+    "test": "npm run test:portable && node --test --experimental-strip-types 'test/**/*.test.ts' 'playground/test/**/*.test.ts'",
     "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --compiler \"node --experimental-strip-types bin/hd.js\" --fuzzer contract,phase --fail-on phase --seed smoke --cases 100",
     "test:portable": "node --experimental-strip-types test/run-portable.ts",
     "toolchain:gate": "node --experimental-strip-types src/toolchain-gate.ts",
-    "hd": "node --experimental-strip-types src/cli.ts"
+    "hd": "node --experimental-strip-types src/cli.ts",
+    "playground:build": "node --experimental-strip-types playground/build.ts",
+    "playground:dev": "node --experimental-strip-types playground/build.ts --serve",
+    "playground:e2e": "node --experimental-strip-types playground/e2e.ts"
   },
   "dependencies": {
     "binaryen": "132.0.0"
   },
   "devDependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/lint": "6.9.7",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "@lezer/highlight": "1.2.4",
     "@types/node": "26.6.2",
+    "codemirror": "6.0.2",
+    "esbuild": "0.28.2",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
+    "playwright-core": "1.63.0",
     "typescript": "7.0.2"
   },
   "engines": {

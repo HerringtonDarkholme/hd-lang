@@ -1,0 +1,8 @@
+# Integer division by zero is a runtime panic: the program stops, and the
+# output panel reports the panic code.
+fn average(total: i32, count: i32) -> i32: total / count
+
+pub fn main() -> void $ Console:
+    println("average of 10 over 2: ${average(10, 2)}")
+    println("average of 10 over 0: ${average(10, 0)}")
+    println("not reached")
