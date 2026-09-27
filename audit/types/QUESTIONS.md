@@ -14,8 +14,8 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 
 ## Decided, Not Yet Applied
 
-Decided 2026-09-26, except TQ-20 (2026-09-27). None of these is in the
-specification yet.
+Decided 2026-09-26, except TQ-20 and EQ-1 (2026-09-27). None of these is in
+the specification yet.
 
 - **TQ-9** (TY-10). `Type::f` checks inherent, then implemented available
   traits; `T::f` under a bound goes through the bound's dictionary;
@@ -61,6 +61,14 @@ specification yet.
   error. The limit is not configurable per package, and there are no
   Paterson-style structural conditions. (K2 removed `where` clauses, so the
   original question about predicate subjects no longer arises.)
+- **EQ-1**, decided 2026-09-27 (the Swift model). `std.cmp` has one `Eq`
+  trait, with `fn eq(self, other: Self) -> bool`, and `PartialEq` is
+  dropped. Floats implement `Eq` with IEEE semantics, so `NaN != NaN`, a
+  documented exception to the law. `PartialOrd` and `Ord` stay, with
+  `PartialOrd < Eq` and `Ord < PartialOrd`, so floats are `Eq + PartialOrd`
+  but not `Ord`. Map keys need `Eq + Hash`. This affects 09 Comparison
+  Traits, the `@derive` list, and TQ-12's partner rule, whose `PartialEq`
+  partner becomes `Eq`.
 
 ## Decided, No Specification Change
 
