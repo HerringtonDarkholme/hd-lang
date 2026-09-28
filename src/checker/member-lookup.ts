@@ -67,7 +67,7 @@ export const traitDefaultDeclarations = new WeakMap<FunctionDecl, number>();
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
   /**
    * The prelude `string` methods (10-modules.md#prelude), and `std.text`'s
-   * host-backed `upper` (src/std/text.hd).
+   * host-backed `upper` (lib/std/text.hd).
    */
   protected checkStringMemberCall(
     expression: MemberCall,

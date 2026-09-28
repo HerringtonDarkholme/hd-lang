@@ -1744,7 +1744,8 @@ Each entry keeps the options that were weighed and states the decision. The
 examples follow the decided design.
 
 Questions 14 to 22 are open. They came up while writing the prototype's toy
-standard library ([src/README.md](../src/README.md#standard-library)), which
+standard library in [lib/std](../lib/std/)
+([src/README.md](../src/README.md#standard-library)), which
 takes the smallest reading of this draft where it is silent. Nothing in them
 is accepted behavior.
 

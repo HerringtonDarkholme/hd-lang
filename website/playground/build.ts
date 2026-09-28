@@ -12,18 +12,29 @@ import * as esbuild from "esbuild";
 
 const playground = dirname(fileURLToPath(import.meta.url));
 const root = resolve(playground, "../..");
-const RUNTIME_DIR = join(root, "src", "emitter", "runtime");
-const STD_DIR = join(root, "src", "std");
-/** Directories whose files the compiler reads with `node:fs`, by shim path. */
-const EMBEDDED: Readonly<Record<string, { readonly dir: string; readonly extension: string }>> = {
-  "runtime-wat": { dir: RUNTIME_DIR, extension: ".wat" },
-  "std-hd": { dir: STD_DIR, extension: ".hd" },
+/**
+ * Files the compiler reads with `node:fs`, by shim path: the module that
+ * imports `node:fs`, and the directory and extension of the files it reads.
+ */
+const EMBEDDED: Readonly<
+  Record<string, { readonly importer: string; readonly dir: string; readonly extension: string }>
+> = {
+  "runtime-wat": {
+    importer: join(root, "src", "emitter", "runtime", "index.ts"),
+    dir: join(root, "src", "emitter", "runtime"),
+    extension: ".wat",
+  },
+  "std-hd": {
+    importer: join(root, "src", "checker", "standard-sources.ts"),
+    dir: join(root, "lib", "std"),
+    extension: ".hd",
+  },
 };
 
 /**
  * Browser replacements for the Node APIs the compiler uses: the emitter's
- * runtime reads its `.wat` files and the checker its `std` `.hd` sources with
- * `node:fs`, and `instantiate` hashes
+ * runtime reads its `.wat` files and the checker its `lib/std` `.hd` sources
+ * with `node:fs`, and `instantiate` hashes
  * function sources with `node:crypto`. Binaryen imports Node modules only
  * behind a Node check, so they stay external.
  */
@@ -33,7 +44,7 @@ export function browserShims(): esbuild.Plugin {
     setup(build) {
       build.onResolve({ filter: /^node:fs$/ }, (args) => {
         const embedded = Object.entries(EMBEDDED).find(
-          ([, { dir }]) => resolve(args.resolveDir) === dir,
+          ([, { importer }]) => resolve(args.importer) === importer,
         );
         return embedded ? { path: embedded[0], namespace: "hd-shim" } : undefined;
       });

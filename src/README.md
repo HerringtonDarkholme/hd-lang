@@ -624,13 +624,15 @@ does not implement the canonical prelude trait.
 
 ## Standard Library
 
-The toy standard library is hd source in [`std/`](std/), one file per
+The toy standard library is hd source in the top-level
+[`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
 module: `std.cmp`, `std.collections`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.result`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
 specification allows; the open points are listed there under
 [Questions For The Owner](../future-work/STDLIB.md#questions-for-the-owner).
+`checker/standard-sources.ts` reads the files, and
 `checker/standard-library.ts` joins what a program uses into the one module
 the prototype compiles:
 
@@ -682,8 +684,9 @@ the playground's `std` example uses several.
 - `parser/` builds the AST and exposes its public API from `parser/index.ts`.
 - `checker/` resolves names and produces the typed nodes in `hir.ts`.
 - `emitter/` lowers HIR to readable WAT and exposes only `emitter/index.ts`.
-- `std/` holds the toy standard library's hd sources, read by
-  `std/index.ts`; `checker/standard-library.ts` joins them into a program.
+- `checker/standard-sources.ts` reads the toy standard library's hd
+  sources from the top-level `lib/std/`; `checker/standard-library.ts` joins
+  them into a program.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.

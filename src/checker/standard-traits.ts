@@ -13,7 +13,7 @@ const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
 
 export const STANDARD_FROM = "std.convert.From";
 
-// `std.time`, `std.ops`, and `std.process` are hd sources in `src/std/`,
+// `std.time`, `std.ops`, and `std.process` are hd sources in `lib/std/`,
 // declared by standard-library.ts under a program's local names or hidden
 // names such as these.
 export const HIDDEN_DURATION = "__std_time_Duration";

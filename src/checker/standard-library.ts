@@ -1,9 +1,9 @@
 import type { ImplDecl, MethodDecl, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
-import { STANDARD_MODULES, standardSource, type StandardModule } from "../std/index.ts";
+import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
 
-// Joins the toy standard library (`src/std/*.hd`) into the one module the
+// Joins the toy standard library (`lib/std/*.hd`) into the one module the
 // prototype compiles.
 //
 // - A module's top-level declarations are declared when the program imports

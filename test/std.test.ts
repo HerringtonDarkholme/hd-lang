@@ -8,9 +8,9 @@ import test from "node:test";
 import { analyze } from "../src/compiler.ts";
 import { withStandardLibrary } from "../src/checker/standard-library.ts";
 import { parse } from "../src/parser/index.ts";
-import { STANDARD_MODULES, standardSource } from "../src/std/index.ts";
+import { STANDARD_MODULES, standardSource } from "../src/checker/standard-sources.ts";
 
-// The toy standard library in src/std/: each test/std/*.hd file exercises
+// The toy standard library in lib/std/: each test/std/*.hd file exercises
 // one or two modules through `hd test`.
 
 const execute = promisify(execFile);

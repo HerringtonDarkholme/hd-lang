@@ -141,7 +141,7 @@ export interface ImplDecl {
   readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   /**
-   * Declared by the standard library (`src/std/`), which may give a built-in
+   * Declared by the standard library (`lib/std/`), which may give a built-in
    * type inherent methods (09-traits.md#r-trait.own.inherent.std).
    */
   readonly standard?: boolean;
