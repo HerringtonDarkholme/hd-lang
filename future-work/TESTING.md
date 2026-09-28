@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T9 are
+Status: design record, started 2026-09-27. Owner decisions T1-T10 are
 decided; none is in the specification yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
@@ -62,6 +62,10 @@ more issues (property testing is folded in from
    `hd test`, see only the package's public surface as a dependent would,
    and may use test dependencies anywhere. Unit tests live beside the code
    with `test(...)` and `@test` items.
+10. **T10: test names are unique per module; filtering is by substring.**
+    Two `test(...)` calls with one name in a module are an error. A test's
+    full id is `module::name`, and `hd test <text>` runs the tests whose id
+    contains the text, like `cargo test`.
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
@@ -112,4 +116,3 @@ test("bills on time"):
 ## Still Open
 
 - Property testing API (library-level, `std.testing`).
-- Test filtering, naming rules for duplicate names, and parameterized tests.
