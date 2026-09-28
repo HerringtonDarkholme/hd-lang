@@ -234,7 +234,10 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     generator (Hypothesis's model), so no type needs shrink code and
     constraints always hold. This refines T12 and T25. Compared: QuickCheck
     (type-based shrink breaks constraints), proptest and fast-check
-    (combinator values with value trees, a large API).
+    (combinator values with value trees, a large API). Reconfirmed
+    2026-09-28: choices first (Hypothesis), with derived `Arbitrary` giving
+    sensible defaults; proptest-style strategy combinators are not the
+    API.
 36. **T36: properties register with `std.testing.it_prop`.**
     `it_prop(name, fn(x: T): ...)` for `T < Arbitrary` and
     `it_prop_with(name, gen, prop)`, allowed wherever `it` is, imported
