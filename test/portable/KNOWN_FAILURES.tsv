@@ -99,3 +99,5 @@ typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-
 typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: the shape intrinsic is unimplemented (TQ-23 TypeShape.Mut)	K1
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
+runtime/valid/test-block-propagation.hd	check fails: invalid-result-propagation at lines 25 and 29: a test block is not yet a propagation target, and the std message error for Display errors is unimplemented	EC-14
+typing/valid/entry-exit-status.hd	check fails: entry-error-not-display at line 22: main may return only Result[void, ConsoleError], so Error chains and ExitStatus exit codes are unimplemented	EC-17

@@ -51,12 +51,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           substitutions.set(signature.genericParameters[index]!, this.resolveType(argument));
       });
     }
+    // An argument's expected type may still hold the call's unsolved
+    // parameters; only its solved positions instantiate the value.
+    const pending = this.takePendingCallGenerics();
     const callable = expected ? functionParts(expected) : undefined;
     if (callable && callable.parameters.length === signature.parameters.length) {
-      signature.parameters.forEach((parameter, index) =>
-        inferGenericType(parameter, callable.parameters[index]!, substitutions),
-      );
-      inferGenericType(signature.result, callable.result, substitutions);
+      signature.parameters.forEach((parameter, index) => {
+        const actual = callable.parameters[index]!;
+        if (!pending(actual)) inferGenericType(parameter, actual, substitutions);
+      });
+      if (!pending(callable.result))
+        inferGenericType(signature.result, callable.result, substitutions);
     }
     if (!signature.genericParameters.every((parameter) => substitutions.has(parameter)))
       return undefined;

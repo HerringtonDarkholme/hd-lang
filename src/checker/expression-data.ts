@@ -2,6 +2,7 @@ import type { Expression, Statement, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirEnum, HirExpression, HirStatement, ValueType } from "../hir.ts";
 import {
+  functionParts,
   mutableInner,
   mutableType,
   nominalGenericParts,
@@ -536,6 +537,41 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
   ): HirExpression {
     const span = expression.span;
     const generic = enumType.genericParameters.length > 0 || containsGenericType(payloadType);
+    const pending = this.takePendingCallGenerics();
+    const callable = expected ? functionParts(expected) : undefined;
+    if (
+      generic &&
+      callable &&
+      (pending(callable.parameters[0] ?? "") || pending(callable.result))
+    ) {
+      // A call argument (07 Generic Function Values): the payload type comes
+      // from the call's solved parameter type, and the result is inferred.
+      const parameter = callable.parameters.length === 1 ? callable.parameters[0]! : undefined;
+      if (parameter === undefined || pending(parameter)) {
+        this.fail(
+          "unresolved-generic-placeholder",
+          `generic variant constructor '${enumType.name}.${expression.name}' needs its payload type from the call`,
+          span,
+        );
+      }
+      return this.checkExpression({
+        kind: "closure",
+        parameters: [{ name: "$payload", type: { name: parameter, span }, span }],
+        body: [
+          {
+            kind: "expression",
+            expression: {
+              kind: "call",
+              callee: expression,
+              arguments: [{ kind: "name", name: "$payload", span }],
+              span,
+            },
+            span,
+          },
+        ],
+        span,
+      });
+    }
     return this.checkExpression(
       {
         kind: "closure",

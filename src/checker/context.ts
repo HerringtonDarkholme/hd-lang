@@ -365,6 +365,21 @@ export abstract class CheckerContext {
   protected readonly unavailableBindingLocals = new Set<number>();
   protected readonly allowedConditionalBindingLocals = new Set<number>();
   protected deferDepth = 0;
+  /**
+   * The unsolved generic parameters of the call whose argument is being
+   * checked as a generic function value; positions of the expected type that
+   * mention them do not instantiate the value.
+   */
+  protected pendingCallGenerics?: ReadonlySet<string>;
+
+  /** Takes the pending call generics, as a test for types that mention them. */
+  protected takePendingCallGenerics(): (type: ValueType) => boolean {
+    const pending = this.pendingCallGenerics;
+    this.pendingCallGenerics = undefined;
+    if (!pending || pending.size === 0) return () => false;
+    const marker = new Map([...pending].map((name) => [name, "$pending"] as const));
+    return (type) => substituteGenericType(type, marker) !== type;
+  }
 
   constructor(
     declaration: FunctionDecl,

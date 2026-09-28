@@ -479,6 +479,32 @@ export abstract class CallChecker extends StatementChecker {
     };
   }
 
+  /**
+   * Whether an argument names a generic function or a generic single-payload
+   * variant constructor. Such a value receives the partly solved formal
+   * parameter type, so its type arguments are solved at the use site
+   * (07-functions.md#generic-function-values).
+   */
+  private isGenericFunctionValue(source: Expression): boolean {
+    if (source.kind === "name") {
+      if (source.typeArguments) return false;
+      if (this.resolveLocal(source.name) || this.availableCaptures.has(source.name)) return false;
+      if (this.resolveGlobal(source.name)) return false;
+      const signature = this.signatures.get(source.name);
+      return signature !== undefined && signature.genericParameters.length > 0;
+    }
+    if (source.kind === "member" && source.receiver.kind === "name") {
+      const enumType = this.enumTypes.get(source.receiver.name);
+      const variant = enumType?.variants.find((candidate) => candidate.name === source.name);
+      return (
+        enumType !== undefined &&
+        variant?.fields.length === 1 &&
+        (enumType.genericParameters.length > 0 || containsGenericType(variant.fields[0]!.type))
+      );
+    }
+    return false;
+  }
+
   protected checkSignatureArguments(
     expression: Extract<Expression, { kind: "call" | "suspend-call" }>,
     signature: Signature,
@@ -525,10 +551,21 @@ export abstract class CallChecker extends StatementChecker {
       if (entry.kind === "single") {
         const source = expression.arguments[entry.argumentIndices[0]!]!;
         const inferredFormal = substituteGenericType(formal, substitutions, rowSubstitutions);
-        const checked = this.checkExpression(
-          source,
-          containsGenericType(inferredFormal) ? undefined : inferredFormal,
-        );
+        let checked: HirExpression;
+        if (!containsGenericType(inferredFormal)) {
+          checked = this.checkExpression(source, inferredFormal);
+        } else if (this.isGenericFunctionValue(source)) {
+          this.pendingCallGenerics = new Set(
+            signature.genericParameters.filter((parameter) => !substitutions.has(parameter)),
+          );
+          try {
+            checked = this.checkExpression(source, inferredFormal);
+          } finally {
+            this.pendingCallGenerics = undefined;
+          }
+        } else {
+          checked = this.checkExpression(source);
+        }
         const formalGeneric = genericTypeName(formal);
         if (
           formalGeneric &&

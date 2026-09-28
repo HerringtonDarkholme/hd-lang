@@ -1042,3 +1042,9 @@ typing/valid/function-type-impl-target.hd	type
 typing/invalid/function-type-orphan-impl.hd	type
 runtime/valid/function-type-impl-method.hd	runtime
 typing/invalid/spelled-function-type-not-inspectable.hd	type
+typing/invalid/test-block-propagation-not-display.hd	type
+typing/invalid/test-block-propagation-optional.hd	type
+runtime/valid/generic-function-value-argument-inference.hd	runtime
+typing/invalid/generic-function-value-argument-unsolved.hd	type
+runtime/valid/generic-variant-constructor-argument.hd	runtime
+typing/invalid/generic-variant-constructor-argument-unsolved.hd	type

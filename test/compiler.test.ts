@@ -922,3 +922,35 @@ test("spelled std.function constructors are the function type sugar", async () =
       [code],
     );
 });
+
+test("generic function values passed as arguments infer their type arguments", async () => {
+  const source = [
+    "enum Box[T]:",
+    "    Full(value: T)",
+    "    Empty",
+    "",
+    "fn identity[T](value: T) -> T: value",
+    "fn apply[A, B](value: A, f: fn(A) -> B) -> B: f(value)",
+    "fn unbox(value: Box[i32]) -> i32:",
+    "    match value:",
+    "        Box.Full(inner) => inner",
+    "        Box.Empty => 0",
+    "",
+    "fn main() -> i32:",
+    "    apply(4, identity) * 10 + unbox(apply(2, Box.Full))",
+    "",
+  ].join("\n");
+  const { instance, compilation } = await instantiate(source);
+  assert.deepEqual(compilation.diagnostics, []);
+  assert.equal((instance.exports.main as CallableFunction)(), 42);
+  for (const name of [
+    "generic-function-value-argument-unsolved",
+    "generic-variant-constructor-argument-unsolved",
+  ])
+    assert.deepEqual(
+      analyze(conformance(`typing/invalid/${name}`)).diagnostics.map(
+        (diagnostic) => diagnostic.code,
+      ),
+      ["unresolved-generic-placeholder"],
+    );
+});
