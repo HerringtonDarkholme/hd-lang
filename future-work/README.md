@@ -80,6 +80,9 @@ language specification:
   decorator redesign) are applied, with nine follow-up points still open.
 - [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
   compares four `std.ops` trait shapes, with questions for the owner.
+- [Decorators](DECORATORS.md) surveys annotation systems and compares five
+  designs for general, read-only, target-checked decorators, with questions
+  for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

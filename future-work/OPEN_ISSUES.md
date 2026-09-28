@@ -405,7 +405,7 @@ its own, the test `timeout` option takes any `Duration`, and `Duration` is
 whole milliseconds with the suffixes `ms s min h`.
 
 **Open.** L11 (`@suffix fn` in place of `LiteralSuffix`) waits for the
-decorator redesign. Nine points, each with a recommendation, are in
+[decorator redesign](DECORATORS.md). Nine points, each with a recommendation, are in
 [Literal Suffixes](LITERAL_SUFFIXES.md#still-open).
 
 ### Operator Traits
@@ -421,6 +421,15 @@ output types), coherence for primitives, compound assignment, and whether
 comparison operators map to the existing comparison traits. The brainstorm
 [Operator Traits](OPERATOR_TRAITS.md) compares four trait shapes and asks
 eight questions; it recommends Rust's `Add[Rhs]` with an associated `Out`.
+
+### Decorators
+
+**Open (2026-09-28).** A general decorator design: which declarations take
+decorators, how a decorator declares its targets and signatures, and what
+the compiler must know. Literal Suffixes L11's `@suffix` is on hold until
+it is decided. The brainstorm [Decorators](DECORATORS.md) compares five
+options and asks fourteen questions; it recommends a `Decorator[Target]`
+trait with std target types.
 
 ## Runtime, Library, ABI, And Tooling Work
 
