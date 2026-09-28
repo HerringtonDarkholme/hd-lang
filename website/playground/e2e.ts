@@ -1,80 +1,52 @@
-// End-to-end check of the built playground in a headless Chromium:
+// The playground's end-to-end steps, which `npm run website:e2e` runs in a
+// headless Chromium after the website's own steps:
 //
-//   npm run playground:build && npm run playground:e2e
+//   npm run website:build && npm run website:e2e
 //
-// dist/ is served under /hd-lang/playground/, the GitHub Pages path, to prove
-// the build only uses relative URLs. Set CHROME_PATH to pick the browser;
-// otherwise a local Chrome, Edge, or Playwright Chromium is used. Set
-// E2E_SCREENSHOTS to a directory to save screenshots there.
+// The site is served under /hd-lang/, the GitHub Pages base, so the
+// playground runs under /hd-lang/playground/. That proves its build only uses
+// relative URLs.
 
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { join } from "node:path";
 
-import { chromium, type Page } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
 
-import { classify } from "../src/highlight.ts";
-import { DIST } from "./build.ts";
-import { browserPath } from "./test/chrome.ts";
+import { classify } from "../../src/highlight.ts";
 import { encodeBase64Url } from "./src/share.ts";
 
-const BASE = "/hd-lang/playground/";
-/** A directory for screenshots, when set. */
-const SCREENSHOTS = process.env.E2E_SCREENSHOTS;
-const TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
-};
+export interface PlaygroundE2e {
+  readonly browser: Browser;
+  /** The origin serving the site, such as `http://127.0.0.1:4173`. */
+  readonly origin: string;
+  /** The playground's URL path, such as `/hd-lang/playground/`. */
+  readonly base: string;
+  /** Runs one named check and reports it. */
+  readonly step: (name: string, body: () => Promise<void>) => Promise<void>;
+  /** A directory for screenshots, when set. */
+  readonly screenshots?: string;
+}
 
-const server = createServer(async (request, response) => {
-  const url = new URL(request.url ?? "/", "http://localhost");
-  if (!url.pathname.startsWith(BASE)) {
-    response.writeHead(404).end();
-    return;
-  }
-  const relative = normalize(url.pathname.slice(BASE.length) || "index.html");
-  try {
-    const body = await readFile(
-      join(DIST, relative.endsWith("/") ? `${relative}index.html` : relative),
-    );
-    response.writeHead(200, {
-      "content-type": TYPES[extname(relative)] ?? "application/octet-stream",
+/** Drives the built playground at `origin + base` through every check. */
+export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
+  const { browser, origin, base, step, screenshots } = options;
+
+  async function openPage(hash = "", colorScheme: "light" | "dark" = "light"): Promise<Page> {
+    const context = await browser.newContext({
+      colorScheme,
+      viewport: { width: 1280, height: 800 },
     });
-    response.end(body);
-  } catch {
-    response.writeHead(404).end();
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+    const page = await context.newPage();
+    page.on("pageerror", (error) => console.error("page error:", error.message));
+    await page.goto(`${origin}${base}${hash}`);
+    await page.getByText("Compiler ready").waitFor({ timeout: 60_000 });
+    return page;
   }
-});
-await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-const address = server.address();
-const origin = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
 
-const browser = await chromium.launch({ executablePath: browserPath(), headless: true });
-const results: string[] = [];
+  const code = (source: string): string => `#code=${encodeBase64Url(source)}`;
+  const outcome = (page: Page) => page.locator(".outcome").first();
 
-async function step(name: string, body: () => Promise<void>): Promise<void> {
-  await body();
-  results.push(`ok - ${name}`);
-  console.log(`ok - ${name}`);
-}
-
-async function openPage(hash = "", colorScheme: "light" | "dark" = "light"): Promise<Page> {
-  const context = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 800 } });
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
-  const page = await context.newPage();
-  page.on("pageerror", (error) => console.error("page error:", error.message));
-  await page.goto(`${origin}${BASE}${hash}`);
-  await page.getByText("Compiler ready").waitFor({ timeout: 60_000 });
-  return page;
-}
-
-const code = (source: string): string => `#code=${encodeBase64Url(source)}`;
-const outcome = (page: Page) => page.locator(".outcome").first();
-
-try {
   await step("hello world runs and prints", async () => {
     const page = await openPage(
       code('pub fn main() -> void $ Console:\n    println("hello, world")\n'),
@@ -229,7 +201,7 @@ try {
       assert.ok((await page.locator(`.wat-code .wat-${kind}`).count()) > 0, kind);
     const main = page.locator(".wat-line", { hasText: '(export "main")' }).first();
     assert.equal(await main.locator(".wat-keyword").first().textContent(), "func");
-    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "desktop-wat.png") });
+    if (screenshots) await page.screenshot({ path: join(screenshots, "desktop-wat.png") });
     await page.click("#wat-copy");
     await page.getByText("WAT copied").waitFor();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
@@ -336,7 +308,7 @@ try {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     assert.equal(overflow, 0);
-    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "phone-dark.png") });
+    if (screenshots) await page.screenshot({ path: join(screenshots, "phone-dark.png") });
     await page.click("#view-wat");
     await page.locator(".wat-code").waitFor();
     const watOverflow = await page.evaluate(
@@ -353,16 +325,12 @@ try {
         .first()
         .evaluate((node) => getComputedStyle(node).color),
     );
-    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "phone-dark-wat.png") });
+    if (screenshots) await page.screenshot({ path: join(screenshots, "phone-dark-wat.png") });
     await page.context().close();
     const light = await openPage();
     await light.click("#run");
     await light.locator(".outcome.passed").waitFor();
-    if (SCREENSHOTS) await light.screenshot({ path: join(SCREENSHOTS, "desktop-light.png") });
+    if (screenshots) await light.screenshot({ path: join(screenshots, "desktop-light.png") });
     await light.context().close();
   });
-  console.log(`${results.length} passed`);
-} finally {
-  await browser.close();
-  server.close();
 }

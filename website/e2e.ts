@@ -1,9 +1,11 @@
-// End-to-end check of the site's bottom REPL panel in a headless Chromium:
+// End-to-end check of the built site in a headless Chromium: the bottom REPL
+// panel, the spec page layout, the playground page, and then the playground
+// itself (website/playground/e2e.ts):
 //
-//   npm run playground:build && npm run website:build && npm run website:e2e
+//   npm run website:build && npm run website:e2e
 //
 // website/dist/ is served under /hd-lang/, the GitHub Pages base it is built
-// for. The panel's worker is the playground build's compiler worker. Set
+// for. The panel's worker is the playground's compiler worker. Set
 // CHROME_PATH to pick the browser, and E2E_SCREENSHOTS to a directory to save
 // screenshots there.
 
@@ -15,8 +17,11 @@ import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright-core";
 
-import { browserPath } from "../playground/test/chrome.ts";
 import { PAGES_BASE } from "./build.ts";
+import { playgroundSteps } from "./playground/e2e.ts";
+import { encodeBase64Url } from "./playground/src/share.ts";
+import { browserPath } from "./playground/test/chrome.ts";
+import { PLAYGROUND_APP_DIR, PLAYGROUND_PAGE } from "./src/pages.ts";
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), "dist");
 const SCREENSHOTS = process.env.E2E_SCREENSHOTS;
@@ -26,6 +31,7 @@ const TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json",
   ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
 };
 /** How long the first evaluation may take: it waits for the 15 MB worker. */
 const FIRST_REPLY_MS = 60_000;
@@ -337,6 +343,31 @@ try {
       assert.ok(await ref.evaluate((node) => node.matches(":target")), `${view}: back-link target`);
       await page.context().close();
     }
+  });
+  await step("the Playground link opens the playground with the code it carries", async () => {
+    const home = await openPage("index.html");
+    await home.page.locator("#sidebar a", { hasText: "Playground" }).click();
+    await home.page.waitForURL(`${origin}${PAGES_BASE}${PLAYGROUND_PAGE}`);
+    await home.page.context().close();
+    const source = 'pub fn main() -> void $ Console:\n    println("from the site")\n';
+    const hash = `#code=${encodeBase64Url(source)}`;
+    const { page } = await openPage(`${PLAYGROUND_PAGE}${hash}`);
+    const frame = page.frameLocator("#playground-frame");
+    await frame.getByText("Compiler ready").waitFor({ timeout: FIRST_REPLY_MS });
+    const app = `${PAGES_BASE}${PLAYGROUND_APP_DIR}/${hash}`;
+    assert.equal(await page.locator("#playground-open").getAttribute("href"), app);
+    await frame.locator("#run").click();
+    await frame.locator(".outcome.passed").waitFor();
+    assert.equal(await frame.locator(".stdout").textContent(), "from the site\n");
+    await page.context().close();
+  });
+
+  await playgroundSteps({
+    browser,
+    origin,
+    base: `${PAGES_BASE}${PLAYGROUND_APP_DIR}/`,
+    step,
+    screenshots: SCREENSHOTS,
   });
   console.log(`${passed} passed`);
 } finally {

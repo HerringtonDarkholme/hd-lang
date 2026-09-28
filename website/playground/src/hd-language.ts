@@ -13,7 +13,7 @@ import {
 import { keymap, type Command } from "@codemirror/view";
 import { tagHighlighter, tags, type Tag } from "@lezer/highlight";
 
-import { classify, type TokenClass } from "../../src/highlight.ts";
+import { classify, type TokenClass } from "../../../src/highlight.ts";
 
 export type StyledClass = Exclude<TokenClass, "plain">;
 

@@ -51,7 +51,7 @@ cannot see REPL bindings and suspending calls are not available. `:type EXPR`,
 commands live in `repl.ts` and its input rules in `repl-input.ts`; both run
 in a browser too. `repl-terminal.ts` adds the terminal front end. The
 website's REPL panel runs the same session in the playground's compiler
-worker ([`../playground/README.md`](../playground/README.md)).
+worker ([`../website/playground/README.md`](../website/playground/README.md)).
 In a terminal the REPL colors the line being typed, printed values, and
 `:source` output (`src/highlight.ts`), and colors errors and warnings. Set
 `NO_COLOR` or `TERM=dumb` to turn coloring off; piped input is never colored.
@@ -174,7 +174,7 @@ fixtures:
 
 These resolve a symbol by name in a project. `PATH` is one `.hd` file or a
 package directory with a `src/` tree, as in
-[the package linker](../playground/README.md#packages-and-modules); it
+[the package linker](../website/playground/README.md#packages-and-modules); it
 defaults to the current directory.
 
 - In a package, `pkg.user.User` names `User` in `src/user.hd` or
@@ -437,7 +437,7 @@ else`, `break`, `break value`, and `continue`;
   modules reachable from the entry are joined into one program in
   initialization order. Linked modules share one top-level namespace, and
   namespace or renaming uses of package declarations are not supported
-  (`../playground/README.md#packages-and-modules`);
+  (`../website/playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;

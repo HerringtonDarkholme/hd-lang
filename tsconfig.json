@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "spec/**/*.ts", "website/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "spec/**/*.ts", "website/**/*.ts"],
+  "exclude": ["website/playground"]
 }

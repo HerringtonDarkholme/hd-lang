@@ -6,13 +6,13 @@ import topLevel from "../examples/top-level.hd";
 import packageMain from "../examples/package/src/main.hd";
 import packageModels from "../examples/package/src/models/mod.hd";
 import packageUser from "../examples/package/src/models/user.hd";
-import core from "../../examples/core.hd";
-import suspension from "../../examples/suspension.hd";
-import providers from "../../spec/conformance/runtime/valid/context-values-install-providers.hd";
-import embedding from "../../spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd";
-import hello from "../../spec/conformance/runtime/valid/println-console-stdout.hd";
-import conversion from "../../spec/conformance/runtime/valid/propagation-from-two-domains.hd";
-import scopes from "../../spec/conformance/runtime/valid/println-around-suspending-provider-scope.hd";
+import core from "../../../examples/core.hd";
+import suspension from "../../../examples/suspension.hd";
+import providers from "../../../spec/conformance/runtime/valid/context-values-install-providers.hd";
+import embedding from "../../../spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd";
+import hello from "../../../spec/conformance/runtime/valid/println-console-stdout.hd";
+import conversion from "../../../spec/conformance/runtime/valid/propagation-from-two-domains.hd";
+import scopes from "../../../spec/conformance/runtime/valid/println-around-suspending-provider-scope.hd";
 import { DEFAULT_MAIN, type Project } from "./project.ts";
 
 export interface Example {

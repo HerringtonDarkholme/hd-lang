@@ -8,11 +8,11 @@
 // `watProject` gives the WebAssembly text of the module a project compiles
 // to, for the playground's WAT view.
 
-import { analyze, instantiate } from "../../src/compiler.ts";
-import type { Diagnostic } from "../../src/diagnostics.ts";
-import { emitWat } from "../../src/emitter/index.ts";
-import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../src/package.ts";
-import { parse } from "../../src/parser/index.ts";
+import { analyze, instantiate } from "../../../src/compiler.ts";
+import type { Diagnostic } from "../../../src/diagnostics.ts";
+import { emitWat } from "../../../src/emitter/index.ts";
+import { linkPackage, type LinkedPackage, type PackageDiagnostic } from "../../../src/package.ts";
+import { parse } from "../../../src/parser/index.ts";
 import {
   classifyInput,
   parseReplMessage,
@@ -20,10 +20,10 @@ import {
   splitInputs,
   type ReplMessage,
   type SourceInput,
-} from "../../src/repl.ts";
-import { RuntimePanicError } from "../../src/runtime-panic.ts";
-import { resultParts } from "../../src/types.ts";
-import { assembleWat } from "../../src/wasm.ts";
+} from "../../../src/repl.ts";
+import { RuntimePanicError } from "../../../src/runtime-panic.ts";
+import { resultParts } from "../../../src/types.ts";
+import { assembleWat } from "../../../src/wasm.ts";
 import type { Project } from "./project.ts";
 
 /** `run` runs `main` or the top-level code, `check` type-checks, `test` runs the test cases. */

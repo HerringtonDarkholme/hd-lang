@@ -5,10 +5,10 @@ import test from "node:test";
 
 import { highlightTree } from "@lezer/highlight";
 
-import { classify, type TokenClass } from "../../src/highlight.ts";
+import { classify, type TokenClass } from "../../../src/highlight.ts";
 import { cssClass, hdHighlighter, hdStreamLanguage, type StyledClass } from "../src/hd-language.ts";
 
-const root = resolve(import.meta.dirname, "../..");
+const root = resolve(import.meta.dirname, "../../..");
 
 type Run = readonly [text: string, className: string];
 

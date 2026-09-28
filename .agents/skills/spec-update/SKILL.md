@@ -36,8 +36,9 @@ the spec, and it adds exactly what the decision says, no more.
 
 1. **Read the decision and its scope.** Quote the decision text. List every
    spec section, diagnostic, fixture, and example it touches (`grep` the
-   spec, `spec/conformance/`, `guide/`, `website/`, `playground/`, `src/`,
-   and `test/`). If the text leaves a rule open, stop and ask the owner.
+   spec, `spec/conformance/`, `guide/`, `website/` (including
+   `website/playground/`), `src/`, and `test/`). If the text leaves a rule
+   open, stop and ask the owner.
    Never fill a gap with a default.
 2. **Work in a worktree** on a new branch from `origin/main`, and keep the
    main checkout untouched.
@@ -88,8 +89,6 @@ the spec, and it adds exactly what the decision says, no more.
     HD_TEST_JOBS=4 HD_SPEC_JOBS=4 npm run check
     npm run website:build
     npm run website:e2e
-    npm run playground:build
-    npm run playground:e2e
     ```
 
 11. **Integrate.** Make logical commits (spec and fixtures, prototype,

@@ -1,26 +1,28 @@
 # hd Playground
 
 A browser playground for hd-lang. It edits, checks, and runs hd programs
-entirely in the browser with the prototype compiler in [`../src`](../src),
-which emits Wasm GC through Binaryen. The build is static files, so it can be
-hosted anywhere, including GitHub Pages.
+entirely in the browser with the prototype compiler in [`../../src`](../../src),
+which emits Wasm GC through Binaryen. It is part of the website: the website
+build emits it as static files at `playground/`, and the site's
+**Playground** page (`playground.html`) frames it.
 
 ```sh
-npm run playground:build   # writes playground/dist/ (index.html + assets/)
-npm run playground:dev     # rebuilds on change and serves http://localhost:8000/
-npm run playground:e2e     # after a build: drives dist/ in headless Chromium
+npm run website:build   # writes website/dist/, with the playground at playground/
+npm run website:dev     # serves http://localhost:4173/playground/, rebuilt on change
+npm run website:e2e     # after a build: drives the site, then the playground
 ```
 
-Every URL in `dist/` is relative, so the folder works at `/` and under a
-sub-path such as `/hd-lang/playground/`. The e2e run serves it under that
-sub-path. It needs a local Chrome, Edge, or Chromium; `CHROME_PATH` selects
-one. The browser needs WebAssembly GC: Chrome 119, Firefox 120, Safari 18.2,
-or later.
+Every URL in the playground build is relative, so it works at `/` and under
+a sub-path such as `/hd-lang/playground/`. The e2e run serves the site under
+`/hd-lang/`, the GitHub Pages base. It needs a local Chrome, Edge, or
+Chromium; `CHROME_PATH` selects one. The playground steps are in
+[`e2e.ts`](e2e.ts). The browser needs WebAssembly GC: Chrome 119, Firefox
+120, Safari 18.2, or later.
 
 ## Features
 
 - CodeMirror 6 editor. Highlighting replays `classify(line)` from
-  [`src/highlight.ts`](../src/highlight.ts), the highlighter the REPL uses.
+  [`src/highlight.ts`](../../src/highlight.ts), the highlighter the REPL uses.
   There is one token classifier, and
   [`test/highlight.test.ts`](test/highlight.test.ts) checks that the editor's
   classes match it.
@@ -28,7 +30,7 @@ or later.
   - when the entry module declares `main`, Run calls `pub fn main`, as
     `hd run` does;
   - without `main`, Run evaluates the entry module with REPL semantics
-    ([`src/repl.ts`](../src/repl.ts), the session `hd repl` uses). Each
+    ([`src/repl.ts`](../../src/repl.ts), the session `hd repl` uses). Each
     top-level input runs in order: declarations join the session, statements
     run, and each expression prints its value and type as the REPL prints
     them, such as `42 : i32`. The first rejected input stops the run, and its
@@ -81,8 +83,8 @@ or later.
   base64url is RFC 4648 section 5 without padding. The page reads the hash on
   load and on `hashchange`. When there is no hash, the last project is
   restored from `localStorage`.
-- **Examples** bundles programs from [`../examples`](../examples),
-  [`../spec/conformance/runtime/valid`](../spec/conformance/runtime/valid), and
+- **Examples** bundles programs from [`../../examples`](../../examples),
+  [`../../spec/conformance/runtime/valid`](../../spec/conformance/runtime/valid), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
   run. [`examples/top-level.hd`](examples/top-level.hd) has no `main` and
   shows Run's REPL semantics.
@@ -99,7 +101,7 @@ link, `analyze`, then `instantiate` and call the entry export with a
 a run compiled, and `watProject` compiles a project's module without running
 it, for the WAT view. Without `main`, it feeds the
 entry module's top-level inputs (`splitInputs` in
-[`src/repl-input.ts`](../src/repl-input.ts)) to a `ReplSession`, whose
+[`src/repl-input.ts`](../../src/repl-input.ts)) to a `ReplSession`, whose
 `compiledModule()` gives the WAT of the last module it compiled.
 `src/compiler-client.ts` is the page side of the worker, shared with the
 website's REPL panel. The compiler's two Node
@@ -120,18 +122,18 @@ or Ctrl+\` opens it over the page; Esc or Ctrl+\` closes it. It is the same
 REPL as `hd repl`, with the same commands (`:type EXPR`, `:source`,
 `:reset`, `:help`; `:quit` and Ctrl+D on an empty line close the panel):
 
-- the panel script, [`../website/client/repl.ts`](../website/client/repl.ts),
+- the panel script, [`../client/repl.ts`](../client/repl.ts),
   reads input with `needsMoreInput` from
-  [`src/repl-input.ts`](../src/repl-input.ts): Enter evaluates, while a line
+  [`src/repl-input.ts`](../../src/repl-input.ts): Enter evaluates, while a line
   ending in `:` or an open bracket continues and an empty line ends a block.
   Shift+Enter always adds a line, Tab indents, and Up and Down recall
   history, which is kept in `localStorage`. Input, echoed input, values, and
   `:type` results are highlighted with `classify` from
-  [`src/highlight.ts`](../src/highlight.ts); errors show in red with their
+  [`src/highlight.ts`](../../src/highlight.ts); errors show in red with their
   `line:column` in the input;
 - the session runs in this playground's `worker.js`, through
   `CompilerClient`. The worker answers each input with `respond` from
-  [`src/repl.ts`](../src/repl.ts), the function the terminal REPL calls. The
+  [`src/repl.ts`](../../src/repl.ts), the function the terminal REPL calls. The
   panel script is about 13 KB. The 14.6 MB worker loads only when the panel
   first opens;
 - **Stop** ends an input that runs too long, and so does the 15-second
@@ -143,20 +145,20 @@ REPL as `hd repl`, with the same commands (`:type EXPR`, `:source`,
   is a whole program, which the REPL cannot take because it supplies its own
   `main`. Such a block gets a smaller **Open in playground** link instead.
 
-The website build bundles the panel only when `playground/dist/` exists, so
-build the playground first. `npm run website:e2e` drives the panel in a
-headless Chromium after both builds.
+`npm run website:build` builds the playground and bundles the panel together.
+`npm run website:e2e` drives the panel in a headless Chromium after the
+build.
 
 ## Packages and Modules
 
 The prototype compiler checks one module at a time. Multi-file projects go
-through the package linker, [`src/package.ts`](../src/package.ts). The linker
+through the package linker, [`src/package.ts`](../../src/package.ts). The linker
 resolves uses between the package's files, then joins the modules reachable
 from the entry into one program in initialization order. It maps each
 diagnostic back to its file and line. The same linker serves single-file
 projects.
 
-What works, relative to [10-modules.md](../spec/10-modules.md):
+What works, relative to [10-modules.md](../../spec/10-modules.md):
 
 - path-inferred modules under `src/`. `src/a/b.hd` is module `a.b`, and
   `src/a/mod.hd` is module `a`. Paths must be identifiers, and two paths may
@@ -191,7 +193,7 @@ Not supported yet:
 ## Other Limits
 
 The playground runs what the prototype compiler supports; see
-[`../src/README.md`](../src/README.md). Beyond that:
+[`../../src/README.md`](../../src/README.md). Beyond that:
 
 - Only the default runtime profile is provided, which binds `Console`. The
   CLI's test profiles (`--profile`), scenarios, trace, record, and replay are

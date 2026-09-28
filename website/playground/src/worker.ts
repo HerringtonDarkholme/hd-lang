@@ -7,7 +7,7 @@
 // can show it without compiling again. For top-level code without `main`,
 // that module is the only one the view can show.
 
-import { respond, ReplSession, type ReplReply } from "../../src/repl.ts";
+import { respond, ReplSession, type ReplReply } from "../../../src/repl.ts";
 import type { Project } from "./project.ts";
 import {
   runProject,

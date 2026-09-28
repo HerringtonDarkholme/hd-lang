@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { tokenizeWat, type WatTokenKind } from "../src/wat.ts";
 
-const root = resolve(import.meta.dirname, "../..");
+const root = resolve(import.meta.dirname, "../../..");
 
 /** The non-plain tokens of `text`, as `kind:text`. */
 function styled(text: string): string[] {

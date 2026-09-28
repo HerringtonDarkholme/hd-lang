@@ -1,9 +1,8 @@
-// Builds the browser playground into playground/dist/ with esbuild.
+// Builds the browser playground with esbuild. `npm run website:build` calls
+// `buildPlayground` to emit it as the site's playground/ directory, and
+// `npm run website:dev` keeps a `watchPlayground` build up to date.
 //
-//   node --experimental-strip-types playground/build.ts          # production build
-//   node --experimental-strip-types playground/build.ts --serve  # rebuild + serve
-//
-// Every URL in the output is relative, so dist/ works at any base path.
+// Every URL in the output is relative, so it works at any base path.
 
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -12,8 +11,7 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 
 const playground = dirname(fileURLToPath(import.meta.url));
-const root = resolve(playground, "..");
-export const DIST = join(playground, "dist");
+const root = resolve(playground, "../..");
 const RUNTIME_DIR = join(root, "src", "emitter", "runtime");
 
 /**
@@ -57,13 +55,17 @@ export function readFileSync(url) {
   };
 }
 
-export function buildOptions(overrides: esbuild.BuildOptions = {}): esbuild.BuildOptions {
+/** esbuild options for the page and worker bundles, written to `outDir/assets/`. */
+export function buildOptions(
+  overrides: esbuild.BuildOptions = {},
+  outDir?: string,
+): esbuild.BuildOptions {
   return {
     entryPoints: {
       main: join(playground, "src", "main.ts"),
       worker: join(playground, "src", "worker.ts"),
     },
-    outdir: join(DIST, "assets"),
+    outdir: outDir === undefined ? undefined : join(outDir, "assets"),
     bundle: true,
     format: "esm",
     platform: "browser",
@@ -78,23 +80,47 @@ export function buildOptions(overrides: esbuild.BuildOptions = {}): esbuild.Buil
   };
 }
 
-async function copyStatic(): Promise<void> {
-  await mkdir(DIST, { recursive: true });
-  await copyFile(join(playground, "index.html"), join(DIST, "index.html"));
+async function copyStatic(outDir: string): Promise<void> {
+  await rm(outDir, { recursive: true, force: true });
+  await mkdir(outDir, { recursive: true });
+  await copyFile(join(playground, "index.html"), join(outDir, "index.html"));
 }
 
-async function main(): Promise<void> {
-  const serve = process.argv.includes("--serve");
-  await rm(DIST, { recursive: true, force: true });
-  await copyStatic();
-  if (!serve) {
-    await esbuild.build(buildOptions());
-    return;
-  }
-  const context = await esbuild.context(buildOptions({ minify: false, sourcemap: true }));
+/** Writes a production build of the playground to `outDir`: index.html and assets/. */
+export async function buildPlayground(outDir: string): Promise<void> {
+  await copyStatic(outDir);
+  await esbuild.build(buildOptions({ logLevel: "warning" }, outDir));
+}
+
+/**
+ * Writes an unminified build with source maps to `outDir`, then rebuilds it
+ * whenever a source changes and calls `onRebuild`. Resolves after the first
+ * build.
+ */
+export async function watchPlayground(
+  outDir: string,
+  onRebuild: () => void,
+): Promise<esbuild.BuildContext> {
+  await copyStatic(outDir);
+  let first: (() => void) | undefined;
+  const built = new Promise<void>((resolve) => (first = resolve));
+  const notify: esbuild.Plugin = {
+    name: "hd-playground-rebuilt",
+    setup(build) {
+      build.onEnd(() => {
+        if (first) {
+          first();
+          first = undefined;
+        } else onRebuild();
+      });
+    },
+  };
+  const options = buildOptions({ minify: false, sourcemap: true, logLevel: "warning" }, outDir);
+  const context = await esbuild.context({
+    ...options,
+    plugins: [...(options.plugins ?? []), notify],
+  });
   await context.watch();
-  const { hosts, port } = await context.serve({ servedir: DIST, port: 8000 });
-  console.log(`playground at http://${hosts[0] ?? "localhost"}:${port}/`);
+  await built;
+  return context;
 }
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

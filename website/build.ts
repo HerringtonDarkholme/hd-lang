@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 
 import * as esbuild from "esbuild";
 
-import { buildOptions } from "../playground/build.ts";
+import { buildOptions, buildPlayground } from "./playground/build.ts";
 import { renderLayout, REPL_SCRIPT } from "./src/layout.ts";
 import { checkHdBlocksParse, LEARN_PAGE } from "./src/learn-check.ts";
 import { checkLinks } from "./src/links.ts";
@@ -37,13 +37,17 @@ export interface BuildOptions {
   readonly base: string;
   /** Output directory. */
   readonly outDir: string;
-  /** Static playground build to serve at `playground/`; defaults to `playground/dist`. */
+  /**
+   * A prebuilt playground to copy to `playground/` instead of building
+   * website/playground. A directory without an index.html leaves the
+   * playground out.
+   */
   readonly playgroundDist?: string;
 }
 
 export interface BuildResult {
   readonly pages: number;
-  /** Whether the playground build was found; it also enables the REPL panel. */
+  /** Whether the site includes the playground; it also enables the REPL panel. */
   readonly playground: boolean;
   /** The ```ebnf rule index the pages were rendered with. */
   readonly grammar: GrammarIndex;
@@ -138,7 +142,7 @@ function playgroundBody(base: string, available: boolean): string {
     return `<div class="playground-bar"><h1>Playground</h1><a id="playground-open" href="${base}${PLAYGROUND_APP_DIR}/">Open full screen</a></div>
 <div class="playground-frame"><iframe id="playground-frame" src="${base}${PLAYGROUND_APP_DIR}/" data-src="${base}${PLAYGROUND_APP_DIR}/" title="hd-lang playground"></iframe></div>`;
   return `<div class="prose"><h1>Playground</h1>
-<p class="notice">The playground is not part of this build. Build it with <code>npm run playground:build</code> before <code>npm run website:build</code>, and it will be served here.</p>
+<p class="notice">The playground is not part of this build. <code>npm run website:build</code> builds it and serves it here.</p>
 <div id="playground-code-wrap" hidden><p>The code you opened:</p><pre class="code hd"><code id="playground-code"></code></pre></div>
 <p>Until then, read <a href="${siteLink(base, "guide/learn-in-10-minutes.html")}">Learn hd-lang in 10 Minutes</a> or run examples locally with <code>npm run hd -- run examples/core.hd</code>.</p></div>`;
 }
@@ -175,8 +179,11 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   await mkdir(outDir, { recursive: true });
   await cp(join(WEBSITE_DIR, "assets"), join(outDir, "assets"), { recursive: true });
 
-  const playgroundDist = options.playgroundDist ?? join(REPO_DIR, "playground", "dist");
-  const playground = existsSync(join(playgroundDist, "index.html"));
+  const { playgroundDist } = options;
+  const playground = playgroundDist === undefined || existsSync(join(playgroundDist, "index.html"));
+  if (playgroundDist === undefined) await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
+  else if (playground)
+    await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
   if (playground) await bundleRepl(join(outDir, REPL_SCRIPT));
 
   const md = createMarkdown();
@@ -233,7 +240,6 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   }
   if (linkErrors.length > 0) throw new Error(`broken source links:\n${linkErrors.join("\n")}`);
 
-  if (playground) await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
   await write(
     PLAYGROUND_PAGE,
     renderLayout({

@@ -6,13 +6,17 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { buildSite } from "./build.ts";
+import { watchPlayground } from "./playground/build.ts";
 
 // Local preview: builds the site for base `/`, serves it, and rebuilds when a
-// Markdown source or site asset changes. Changes to the build code itself need
-// a restart.
+// Markdown source, a site asset, or a playground source changes. The
+// playground is an unminified build with source maps, kept up to date in
+// website/playground/dist/ and copied into the site. Changes to the build
+// code itself need a restart.
 
 const WEBSITE_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = resolve(WEBSITE_DIR, "..");
+const PLAYGROUND_DIST = join(WEBSITE_DIR, "playground", "dist");
 
 const TYPES: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -44,7 +48,7 @@ async function fileFor(root: string, urlPath: string): Promise<string | null> {
 async function rebuild(outDir: string): Promise<void> {
   const started = Date.now();
   try {
-    const result = await buildSite({ base: "/", outDir });
+    const result = await buildSite({ base: "/", outDir, playgroundDist: PLAYGROUND_DIST });
     console.log(`website: built ${result.pages} pages in ${Date.now() - started} ms`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
@@ -59,14 +63,15 @@ async function main(): Promise<void> {
     },
   });
   const outDir = resolve(values.out);
-  await rebuild(outDir);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const schedule = (): void => {
     clearTimeout(timer);
     timer = setTimeout(() => void rebuild(outDir), 150);
   };
-  for (const directory of ["spec", "guide", "future-work", "website/assets", "playground/dist"])
+  await watchPlayground(PLAYGROUND_DIST, schedule);
+  await rebuild(outDir);
+  for (const directory of ["spec", "guide", "future-work", "website/assets"])
     try {
       watch(join(REPO_DIR, directory), { recursive: true }, schedule);
     } catch {

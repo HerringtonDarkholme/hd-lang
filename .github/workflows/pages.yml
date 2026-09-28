@@ -35,10 +35,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
-      # The playground is optional: the site shows a placeholder without it.
-      - name: Build playground
-        run: npm run playground:build --if-present
-
+      # Builds the site and the playground it serves at playground/.
       - name: Build website
         run: npm run website:build
         env:

@@ -1,5 +1,5 @@
-// Finds a local Chromium for the end-to-end scripts (playground/e2e.ts and
-// website/e2e.ts). CHROME_PATH wins; otherwise a local Chrome, Edge, or
+// Finds a local Chromium for the end-to-end scripts (website/e2e.ts and
+// website/playground/e2e.ts). CHROME_PATH wins; otherwise a local Chrome, Edge, or
 // Playwright Chromium is used.
 
 import { existsSync } from "node:fs";

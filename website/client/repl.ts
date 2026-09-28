@@ -7,7 +7,7 @@
 // website/build.ts bundles this file to assets/repl.js when the playground
 // build exists; the layout then includes it and names the worker on <body>.
 
-import { CompilerClient, type Interrupted } from "../../playground/src/compiler-client.ts";
+import { CompilerClient, type Interrupted } from "../playground/src/compiler-client.ts";
 import { classify } from "../../src/highlight.ts";
 import { needsMoreInput, splitInputs } from "../../src/repl-input.ts";
 import type { ReplEntry, ReplReply } from "../../src/repl.ts";

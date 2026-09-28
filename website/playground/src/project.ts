@@ -1,4 +1,4 @@
-import { moduleIdentity } from "../../src/package.ts";
+import { moduleIdentity } from "../../../src/package.ts";
 
 /** A playground project: one package whose modules live under `src/`. */
 export interface Project {

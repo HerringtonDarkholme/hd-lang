@@ -4,7 +4,7 @@
 // inputs the old worker had accepted are replayed into the new one before
 // the next REPL input, so a stopped loop does not lose the session.
 
-import type { ReplReply } from "../../src/repl.ts";
+import type { ReplReply } from "../../../src/repl.ts";
 import type { Project } from "./project.ts";
 import type { RunMode, RunResult, WatResult } from "./runner.ts";
 import type { WorkerMessage, WorkerRequest } from "./worker.ts";
