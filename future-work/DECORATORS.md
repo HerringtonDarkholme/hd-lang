@@ -1,7 +1,10 @@
 # Decorators: Survey And Design Options
 
-Status: design exploration, 2026-09-28; nothing here is decided or in the
-specification.
+Status: design exploration, 2026-09-28. Owner decisions D1-D9 are below;
+they were applied to the specification on 2026-09-28 (see
+[Owner Decisions](#owner-decisions)). The survey and options after them are
+the exploration they came from, and points the apply pass left open are
+under [Still Open](#still-open).
 
 On 2026-09-28 the owner asked for one general decorator design. It puts
 decorators on most declarations and members, and each decorator declares a
@@ -107,9 +110,45 @@ The remaining questions are settled or moot:
 L11 (declaring a suffix with `@suffix fn`) can now be applied on top of
 D1-D8.
 
+**Applied 2026-09-28** in
+[Prefix Decorators](../spec/14-annotations.md#prefix-decorators)
+([`annot.decorator.targets`](../spec/14-annotations.md#r-annot.decorator.targets)
+through
+[`annot.decorator.bare-call.only`](../spec/14-annotations.md#r-annot.decorator.bare-call.only)),
+[Target Kinds](../spec/14-annotations.md#target-kinds) (`annot.target.*`),
+[`annot.metadata.any-value`](../spec/14-annotations.md#r-annot.metadata.any-value),
+the [Annotations grammar](../spec/02-grammar.md#annotations)
+([`grammar.annot.item-targets`](../spec/02-grammar.md#r-grammar.annot.item-targets),
+[`grammar.annot.member-targets`](../spec/02-grammar.md#r-grammar.annot.member-targets),
+[`grammar.fn.decorator-param-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-param-targets)),
+and [`module.prelude.annotation-targets`](../spec/10-modules.md#r-module.prelude.annotation-targets).
+`annot.decorator.function`, `grammar.fn.decorator-targets` and the
+newtype-only-`@derive` rules are retired. The kind check reuses
+`decorator-not-annotator`; no diagnostic code was added. L11 was applied
+the same day with D9's names.
+
+## Still Open
+
+Points the apply pass met (2026-09-28). Each waits for the owner; the
+specification states the reading in the Applied column, so each can change
+without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | The kind of a variant payload member, such as `reason` in `Moved(to: string, @rename("why") reason: string)` | `.Field`, since shapes and derivations see it as a field ([`annot.target.kind.field`](../spec/14-annotations.md#r-annot.target.kind.field)) | Keep `.Field`, so a field fact such as `@rename` works on payloads without also allowing function parameters. |
+| 2 | A newtype is an item (D1), but `Target` has no newtype kind | A newtype has no kind, so a value of a limited type before a newtype is always `decorator-not-annotator` ([`annot.target.newtype`](../spec/14-annotations.md#r-annot.target.newtype)) | Add a `Newtype` variant to `Target`, so a fact type can opt newtypes in. |
+| 3 | The kind of a receiverless associated function in a trait or implementation | `.Method` ([`annot.target.kind.method`](../spec/14-annotations.md#r-annot.target.kind.method)) | Keep: it is a member, and `Target` has no other member kind for functions. |
+| 4 | Which parameters take decorators now that methods do | Value parameters of module-level functions and of methods, including trait requirements; never a receiver, a closure's, or a local function's ([`grammar.fn.decorator-param-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-param-targets)) | Keep. |
+| 5 | Whether a member line of a derivation block is checked against target kinds | Yes: a limited value that a member line attaches is `decorator-not-annotator` on that line ([`annot.target.limit.error`](../spec/14-annotations.md#r-annot.target.limit.error)) | Keep: D2 limits where values "may appear", wherever they are written. |
+| 6 | Whether D5's bare call covers inline parameter decorators, as in `@flag id: i64` | Yes: every decorator, not only prefix lines ([`annot.decorator.bare-call`](../spec/14-annotations.md#r-annot.decorator.bare-call)) | Keep: the rule contrasts decorators with ordinary expressions. |
+| 7 | Whether `Target`, `Annotate` and `annotate` are prelude names | Not prelude names: code writes `use std.annotation.annotate` ([`annot.target.declarations`](../spec/14-annotations.md#r-annot.target.declarations)) | Keep: only fact-type authors need them, and prelude names cannot be shadowed. |
+| 8 | Which code the kind check reports | The existing `decorator-not-annotator` | Keep: the name says the value does not annotate that target. |
+| 9 | `@error` stays an intrinsic (D6), but Error Conversion decision 10 is not yet in the specification | A prose mention in [Prefix Decorators](../spec/14-annotations.md#prefix-decorators) only | Specify `@error` with the Error Conversion apply pass. |
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
+- [Still Open](#still-open)
 - [Problem](#problem)
 - [What hd Has Today](#what-hd-has-today)
 - [Owner Direction](#owner-direction)
@@ -146,9 +185,9 @@ intrinsics.
 | --- | --- | --- |
 | Type-level decorator | `@value` before a data type or enum attaches a type-level fact | [`annot.fact.type-level-decorator`](../spec/14-annotations.md#r-annot.fact.type-level-decorator) |
 | Member decorator | `@value` before a field, a variant, or a payload parameter attaches member metadata | [Prefix Decorators](../spec/14-annotations.md#prefix-decorators), [`annot.fact.member-metadata`](../spec/14-annotations.md#r-annot.fact.member-metadata) |
-| Parameter decorator | Only on value parameters of module-level named functions | [`grammar.fn.decorator-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-targets) |
-| Function decorator | Parses, then rejected | [`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function), `decorator-not-annotator` |
-| Newtype decorator | Only `@derive` | [`grammar.annot.newtype-derive`](../spec/02-grammar.md#r-grammar.annot.newtype-derive) |
+| Parameter decorator | Only on value parameters of module-level named functions | `grammar.fn.decorator-targets` (retired by D1) |
+| Function decorator | Parses, then rejected | `annot.decorator.function` (retired by D1), `decorator-not-annotator` |
+| Newtype decorator | Only `@derive` | `grammar.annot.newtype-derive` (retired by D1) |
 | Trait, impl, method, `use` | Not in the grammar: `syntax-error` or `decorator-not-top-level` | [Annotations grammar](../spec/02-grammar.md#annotations) |
 | Module | No module declaration exists | [`module.path.no-declaration`](../spec/10-modules.md#r-module.path.no-declaration) |
 | What a decorator value is | Any value; no marker trait | [`annot.metadata.any-value`](../spec/14-annotations.md#r-annot.metadata.any-value) |

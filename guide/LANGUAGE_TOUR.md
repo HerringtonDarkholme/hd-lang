@@ -333,9 +333,9 @@ Shared metadata that every derivation sees can also be written away from the
 declaration, in a trait-less block such as `impl User by Structure:` with the
 same member lines; see [Using Annotations](#using-annotations).
 Facts and member metadata are `List[Any]` values evaluated once at compile
-time, so they must be requirement-free and may not reach `block_on`. A
-decorator before a function is still an error. A newtype has no derivation
-block: it derives only through its base type.
+time, so they must be requirement-free and may not reach `block_on`.
+`@derive` before a function, trait, or implementation is an error. A
+newtype has no derivation block: it derives only through its base type.
 `Error` is not derived: an error type uses the `@error` intrinsic. See
 [Typed Derivation](../spec/14-annotations.md#typed-derivation).
 
@@ -2323,8 +2323,11 @@ Annotations attach typed values to declarations and expose declaration
 structure as shape values. They do not change a declaration's type,
 behavior, name, or visibility, and they register nothing.
 
-Prefix decorators attach a type-level fact to a data or enum declaration,
-and member metadata to a field, variant, or function parameter:
+A decorator is a plain value. It may precede any item (a function, data
+type, enum, trait, implementation, or newtype) or member (a field, variant,
+parameter, or method). Before a data or enum declaration it attaches a
+type-level fact, and before a field, variant, or parameter it attaches
+member metadata:
 
 ```text
 @style(prefix="user_")
@@ -2347,9 +2350,36 @@ The field decorator attaches `max_len(80)` to the metadata of
 `display_name`, visible through its field shape. The embedded-field
 decorator attaches `flatten()` to `Timestamps` and does not decorate members
 promoted from `Timestamps`. A parameter decorator attaches metadata to the
-parameter's `ParamShape`; it is the only way to give a parameter metadata. A
-decorator before a function declaration itself is an error: function
-targets, such as tool adapters, are still undecided.
+parameter's `ParamShape`; it is the only way to give a parameter metadata.
+
+A decorator before a function attaches a value that code reads through the
+function's shape. A bare name of a function with no parameters is called,
+so a marker needs no parentheses. A fact type may limit where its values
+go with `@annotate`:
+
+```text
+use std.annotation.annotate
+
+@annotate(.Fn)
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@route("/users")
+fn list_users() -> string:
+    "[]"
+
+fn users_path() -> string:
+    match shape_of(list_users).metadata[Route]():
+        .Some(found) => found.path
+        .None => ""
+```
+
+A `Route` value before anything but a function is an error. The compiler
+checks only that kind; whatever reads a value checks that it suits its
+target. See [Target Kinds](../spec/14-annotations.md#target-kinds).
 
 To write shared metadata away from a long declaration, use a trait-less
 derivation block. It names no trait, derives nothing, and holds only member
@@ -2396,7 +2426,8 @@ impl User by Structure:
 Metadata values are evaluated once, at compile time, and must be
 requirement-free. Multiple entries with the same concrete type on one member,
 or two type-level decorators of one type on a declaration, are rejected.
-Whether a value suits its member's type is not checked yet.
+Whether a value suits its member's type is checked by the code that reads
+it, not by the compiler.
 
 The compiler exposes shapes for the declarations a library can inspect:
 

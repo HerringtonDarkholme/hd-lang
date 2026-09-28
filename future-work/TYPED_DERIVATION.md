@@ -632,7 +632,8 @@ standard library. (Applied 2026-09-28: see
 [`annot.metadata.eval`](../spec/14-annotations.md#r-annot.metadata.eval),
 [`annot.fact.no-block-on`](../spec/14-annotations.md#r-annot.fact.no-block-on),
 [`annot.derive.no-use`](../spec/14-annotations.md#r-annot.derive.no-use), and
-[`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function).
+`annot.decorator.function`, which
+[Decorators D1](DECORATORS.md#owner-decisions) retired on 2026-09-28.
 Also decided 2026-09-27: the root-application orphan exception is dropped
 everywhere, so decisions 9 and 11's "plus the root-application orphan
 exception" no longer holds; a foreign type is derived through a local mirror
@@ -1260,8 +1261,10 @@ Nothing below is decided. Each item waits for the owner.
   [Still Open After M27 And M28](#still-open-after-m27-and-m28).
 - **Function targets.** Function targets wait for
   [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
-  is removed (decision 10, applied 2026-09-27), so an ordinary decorator
-  before a function is `decorator-not-annotator` until then.
+  is removed (decision 10, applied 2026-09-27). Since
+  [Decorators D1](DECORATORS.md#owner-decisions) (applied 2026-09-28), an
+  ordinary decorator before a function attaches a value; deriving for
+  functions still waits.
 
 ### Still Open After The Prototype Pass
 
@@ -1272,7 +1275,7 @@ Nothing here is decided; each item says what the prototype does and gives a
 | Question | What the spec leaves open | Prototype | Recommendation |
 | --- | --- | --- | --- |
 | A data type's variant facts | [`annot.variant.data`](../spec/14-annotations.md#r-annot.variant.data) gives the one variant the type's name and doc, but says nothing of `VariantInfo.facts`. | an empty list | An empty list, stated in the rule: type-level facts are read once, through `T::facts()`. |
-| `@derive` before a function | [`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function) rejects an ordinary decorator; the grammar also admits `@derive(...)` there. | `decorator-not-annotator` for every decorator line | `decorator-not-annotator` for `@derive` too, until function targets are decided. |
+| `@derive` before a function | `annot.decorator.function` (retired by Decorators D1) rejected an ordinary decorator; the grammar also admits `@derive(...)` there. | `decorator-not-annotator` for every decorator line | `decorator-not-annotator` for `@derive` too, until function targets are decided. |
 | Duplicate declaration facts | [Member Metadata](../spec/14-annotations.md#member-metadata) forbids two values of one concrete type on a member, but names no code; `duplicate-fact` covers only member lines. | not checked | Report it as `duplicate-fact`. |
 | Omitting an embedded part | An embedded field cannot declare a default (`embedded-field-default`), so `Part = pass` is always `omitted-member-without-default`. | reports that error | Keep it, and add the case as an example beside [`annot.omit.no-default`](../spec/14-annotations.md#r-annot.omit.no-default). |
 | Unused facts of foreign types | `annot.fact.unused` (now [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std)) keyed on the fact's package; a fact of a primitive or standard type, such as `@"note"`, has no library package. | warns for any type-level fact of a type that derives no template | Warn only when the fact's type comes from a package other than `std`. |
@@ -1291,8 +1294,10 @@ Applied 2026-09-28 in
 [`annot.decorator.function-derive`](../spec/14-annotations.md#r-annot.decorator.function-derive),
 [`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate)
 and [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std).
-The `@suffix` note in row 2 is not applied: Literal Suffixes L11 waits for
-the decorator redesign, so no decorator is allowed before a function yet.
+The `@suffix` note in row 2 was not applied then: Literal Suffixes L11
+waited for the decorator redesign. [Decorators D1](DECORATORS.md#owner-decisions)
+(applied 2026-09-28) lets every ordinary decorator precede a function, and
+`@derive` there stays `decorator-not-annotator`.
 Two readings are open for the owner:
 
 | Point | Applied | **Recommendation** |

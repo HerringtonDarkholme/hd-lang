@@ -542,12 +542,16 @@ eight questions; it recommends Rust's `Add[Rhs]` with an associated `Out`.
 
 ### Decorators
 
-**Open (2026-09-28).** A general decorator design: which declarations take
-decorators, how a decorator declares its targets and signatures, and what
-the compiler must know. Literal Suffixes L11's `@suffix` is on hold until
-it is decided. The brainstorm [Decorators](DECORATORS.md) compares five
-options and asks fourteen questions; it recommends a `Decorator[Target]`
-trait with std target types.
+**Decided and applied (2026-09-28).** Owner decisions D1-D9: a decorator
+is a plain compile-time value on any item or member, `@annotate(.Fn)` on a
+fact type limits only the target kind, readers check signatures, and a bare
+marker name such as `@num_suffix` is called
+([Prefix Decorators](../spec/14-annotations.md#prefix-decorators),
+[Target Kinds](../spec/14-annotations.md#target-kinds)).
+
+**Open.** Nine points from the apply pass, each with a recommendation, are
+in [Decorators](DECORATORS.md#still-open): among them the kind of a variant
+payload member and a newtype's missing `Target` kind.
 
 ## Runtime, Library, ABI, And Tooling Work
 
