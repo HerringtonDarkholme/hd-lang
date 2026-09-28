@@ -1,10 +1,13 @@
 # Testing Redesign
 
 Status: design record, started 2026-09-27. Owner decisions T1-T34 are
-decided. T4, T5, and T8 are applied to the specification (for the current
-`test "name":` syntax); the others are not yet. The redesign may continue with
-more issues (property testing is folded in from
-[Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
+decided. T2-T31 are applied to the specification on 2026-09-27 (T4, T5, and
+T8 earlier that day). T33 is not applied; it waits on the questions under
+[Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
+and T21 are tooling and library text, recorded in
+[Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
+[Standard Library](STDLIB.md#testing-layer). The redesign may continue with
+more issues.
 
 ## Owner Decisions
 
@@ -84,8 +87,10 @@ more issues (property testing is folded in from
     `test(...)` may appear only at the top level of a `tests:` block, not at
     module top level. A `*_test.hd` file that joins its module was considered
     and dropped: it would split one module across files, and the block
-    already groups test-only code; T13 keeps `*_test.hd` as its own module (Rust's `#[cfg(test)] mod
-    tests`).
+    already groups test-only code; T13 keeps `*_test.hd` as its own module
+    (Rust's `#[cfg(test)] mod tests`). Applied 2026-09-27 in
+    [Test Blocks](../spec/02-grammar.md#test-blocks) and
+    [Tests Blocks](../spec/03-names-and-scopes.md#tests-blocks).
 12. **T12: property testing is a `std.testing` library.** A test calls, for
     example, `testing.check(fn(order: Order): ...)`; generators come from a
     derivable `Arbitrary` trait through typed derivation, and shrinking is a
@@ -98,23 +103,30 @@ more issues (property testing is folded in from
     sibling module, may use test dependencies at top level, and holds
     `test(...)` calls at its top level with no `tests:` block. (3)
     Integration: `tests/` sees only the library's public API, as a
-    dependent does (T9).
+    dependent does (T9). Applied 2026-09-27, with T23 and T24, in
+    [Test Modules](../spec/10-modules.md#test-modules).
 14. **T14 (TS-1): a trailing block for an `fn!` parameter is suspending.**
     When the parameter's type is `fn!(...)`, the trailing block is a
     suspending closure, for every callee, not only tests; the `!` in the
     callee's signature is the visible marker (Kotlin's `suspend` lambdas).
+    Applied 2026-09-27 in
+    [Trailing Callback Blocks](../spec/07-functions.md#trailing-callback-blocks).
 15. **T15 (TS-3): a test body using `?` returns `Result[void, Error]`.**
     Its type is fixed, so every error type that implements `Error`
     converts; a body without `?` returns `void` (Zig's `anyerror!void`).
+    Applied 2026-09-27 in
+    [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks).
 16. **T16 (TS-2): the test-case call is `it`, not `test`.** `test` stays
     free for user code. `it` is a prelude name, so it cannot be shadowed,
     and every statement at the top level of a `tests:` block or a
     `_test.hd` module must be an `it(...)` call. This renames T3's
-    `test(...)` throughout.
+    `test(...)` throughout. Applied 2026-09-27, with T22, in
+    [Test Cases](../spec/10-modules.md#test-cases).
 17. **T17 (TS-4): `tests:` is an item block, like Rust's `mod tests`.** A
     top-level `tests:` block holds module items (uses, functions, data,
     and `it(...)` calls) visible only inside it; once per file, top level
-    only, never nested. `tests` becomes a keyword.
+    only, never nested. `tests` becomes a keyword. Applied 2026-09-27 in
+    [Keywords And Reserved Words](../spec/01-lexical-structure.md#keywords-and-reserved-words).
 18. **T18 (TS-12): the host prints a failed result.** `report()` only
     computes the `ExitCode`; the host or test runner prints the error
     (message and cause chain), as Entry Results words it.
@@ -154,14 +166,15 @@ more issues (property testing is folded in from
     requirement must come from `$.with` fakes, and a missing one is a
     compile error. `tests/` binds real providers from the test profile,
     and a test whose providers the profile cannot bind is skipped (T20).
-    This replaces T6 for unit tests.
+    This replaces T6 for unit tests. Applied 2026-09-27, with the language
+    part of T20, in [Test Outcomes](../spec/10-modules.md#test-outcomes).
 29. **T29: names stay freeform strings; `hd test --list` prints
     `module::name  file:line`.** Filters match substrings of the id.
 30. **T30: snapshot tests, inline and file.** `snapshot(value,
     expect="...")` keeps the expected text in the source, and
     `hd test --update` rewrites the literal (MoonBit's `inspect`, insta's
     inline snapshots). `snapshot_file(value)` stores larger output
-    in a snapshot file next to the test (named by T34), approved by a review
+    in a snapshot file (named and placed by T34), approved by a review
     command. The
     value renders with `Display`, or a derivable `Inspect` when it has
     none. The file layout, the review command, and `Inspect` are designed
@@ -173,11 +186,13 @@ more issues (property testing is folded in from
     admits a call to `it` or to `std.testing.it_each`. `it.each` was
     considered: it would need members on a function or callable values, a
     new language feature. This replaces T26's loop-only answer for per-row
-    results; a loop inside one `it` still works.
+    results; a loop inside one `it` still works. Applied 2026-09-27 in
+    [Table Tests](../spec/10-modules.md#table-tests).
 
 ```text
 # std.testing
-pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R:
+    pass
 ```
 32. **T32: a snapshot takes a string.** `snapshot(text, expect="...")` and
     `snapshot_file` compare text; the user picks the format by rendering,
@@ -214,35 +229,48 @@ The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 pub trait Termination:
     fn report(self) -> ExitCode
 
-type ExitCode(u8)
+pub type ExitCode(u8)
 
-impl Termination for void                                  # ExitCode(0)
-impl Termination for ExitCode                              # itself
-impl[T < Termination, E < Display] Termination for Result[T, E]
+impl Termination for void:
+    fn report(self) -> ExitCode: ExitCode(0)
 
-# std.testing
-pub fn test[T < Termination, R](name: string, body: fn!() -> T $ R) -> void $ R
+impl Termination for ExitCode:
+    fn report(self) -> ExitCode: self
+
+impl[T < Termination, E < Display] Termination for Result[T, E]:
+    fn report(self) -> ExitCode:
+        match self:
+            .Ok(value) => value.report()
+            .Err(_) => ExitCode(1)
+
+# std.testing: `it` is a compiler intrinsic; this is its shape without options
+pub fn it[T < Termination, R](name: string, body: fn!() -> T $ R) -> void $ R:
+    pass
 ```
 
 Whether a non-suspending block fits `fn!()` is a detail for the
-specification pass.
+specification pass. Applied 2026-09-27: T14 makes such a trailing block
+suspending, and T18 moves printing out of `report`
+([Exit Status](../spec/10-modules.md#exit-status)).
 
 ```text
-use app.billing
+use pkg.billing
+use std.testing.assert_equal
 
-fn late_fee(days: i32) -> i32: ...         # private
+fn late_fee(days: i32) -> i32:              # private
+    if days > 30: 5 else: 0
 
 tests:                                      # compiled only by `hd test`
     use dep.fake_clock.FakeClock            # test dependency
-    fn at_noon() -> mut FakeClock: FakeClock.at("12:00")
+    fn at_noon() -> mut FakeClock: FakeClock::at("12:00")
 
-    test("late fee after 30 days"):
-        assert_equal(late_fee(31), 5)       # sees the private function
+    it("late fee after 30 days"):
+        assert_equal(late_fee(31), 5, reason="the block sees the private function")
 
-    test("bills on time"):
-        $.with(Clock=at_noon()):
+    it("bills on time"):
+        $.with(Clock=at_noon()):            # unit tests get no host providers
             bill := billing.run!()?
-            assert_equal(bill.total, 100)
+            assert_equal(bill.total, 100, reason="an on-time bill has no fee")
         .Ok()
 ```
 
@@ -259,5 +287,59 @@ tests:                                      # compiled only by `hd test`
 
 ## Still Open
 
-- [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems found
-  on 21 cases against T1-T13 and lists the owner questions they raise.
+These questions came up while applying the decisions on 2026-09-27. Each
+waits for the owner; the specification states none of them as a rule.
+
+1. **`it` as an intrinsic.** Its options cannot be ordinary defaulted
+   parameters before `body`, since
+   [`fn.default.order`](../spec/07-functions.md#r-fn.default.order) puts
+   defaults last. The specification therefore states `it` as an intrinsic.
+   Confirm.
+2. **`timeout` syntax.** The duration syntax beyond the `"5s"` example is
+   not decided.
+3. **Unknown panic category.** Is an `expect_panic` value that names no
+   panic category an error?
+4. **`pub` inside `tests:`.** Is `pub` on an item inside a `tests:` block
+   an error?
+5. **`tests:` in test modules.** May a `_test.hd` module or an integration
+   test module have a `tests:` block? T13 says a test module holds `it`
+   calls at its top level.
+6. **Naming from `tests/`.** How does an integration test module name the
+   library and the other integration test modules? What does `pkg` mean
+   under `tests/`?
+7. **`it` as a value.** May code use `it` as a value? The specification
+   only rejects calls of `it` outside test code.
+8. **`it_each` details.** T31 fixes the signature; these parts are open:
+
+   | Question | Why it matters |
+   | --- | --- |
+   | Must its name be a string literal? | Listing tests without running them needs a static name. |
+   | Does it take `ignore`, `expect_panic`, and `timeout`? | `it` takes them; the signature above has no place for them. |
+   | May it be called outside the top level of test code? | `misplaced-test-case` covers `it` only. |
+   | Is `rows` evaluated in each case's own instance? | Each case runs in a fresh instance (T21). |
+   | How does `name[i]` meet `duplicate-test-name`? | An `it("name[0]")` beside `it_each("name", ...)` could clash. |
+   | What result type has its closure body when it uses `?`? | T15 covers trailing blocks only, and the body is an explicit closure. |
+
+9. **T33 is not applied.** `assert_equal[T < Eq + Debug]` needs `Debug`'s
+   module, whether it is a prelude name, its members, and where `debug`
+   lives. Eight conformance fixtures compare user types with `assert_equal`
+   and would need a `Debug` implementation: `assert-equal-nominal`,
+   `assert-equal-nominal-unequal`, `assert-equal-generic-nominal`,
+   `assert-equal-generic-nominal-unequal`, `assert-equal-generic-primitive`,
+   `assert-equal-generic-primitive-unequal`, `assert-equal-cross-check`, and
+   `partial-equality-dispatch`. The prototype cannot parse `@derive` on data
+   types either.
+   **Recommendation:** declare `Debug` beside `Display` in `std.format` and
+   put it in the prelude, since `assert_equal` bounds on it.
+10. **Fixtures for test modules.** The conformance suite has no fixture
+    environment for test modules, integration tests, or test dependencies.
+    So `test-only-use` and `cyclic-test-dependency` have no fixtures.
+11. **`hd check` and test code.** The conformance command contract now has
+    `parse` and `check` cover a fixture's `tests:` block. Confirm that
+    `hd check` type-checks test code, although only test builds compile it.
+12. **Snapshot API.** The signatures of `snapshot` and `snapshot_file`,
+    whether `expect=` must be a literal, and the `Debug` rendering format
+    are open.
+
+The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
+found on 21 cases against T1-T13; T14-T27 answer its questions.
