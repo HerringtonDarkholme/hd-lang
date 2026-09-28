@@ -21,8 +21,56 @@ options, and ends with questions. It reviews
 hold pending this record), and
 [FN_TYPE questions 9 and 10](FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data).
 
+## Owner Decisions
+
+Decided 2026-09-28, after the ranked options. The owner went with a
+simpler model than option 1: decorators stay plain values, and only the
+kind of target is checked.
+
+1. **D1: a decorator is a value attached to its target.** Any compile-time
+   value can decorate any item or member. Items are functions, data types,
+   enums, traits, impls and newtypes. Members are fields, variants,
+   parameters and methods. Locals and expressions never take decorators.
+   `annot.metadata.any-value` extends to every target, and
+   `annot.decorator.function` (which rejects decorators before functions)
+   is retired.
+2. **D2: `@annotate` checks only the kind, and it is an ordinary
+   decorator.** `std.annotation` declares:
+
+   ```text
+   pub enum Target: Fn, Data, Enum, Field, Variant, Param, Trait, Impl, Method
+   pub data Annotate:
+       pub kinds: List[Target]
+   pub fn annotate(kinds: List[Target]) -> Annotate
+   ```
+
+   Writing `@annotate([.Fn])` on a fact type limits where values of that
+   type may appear. A value placed on another kind of target is an error
+   at the decorator. The compiler recognizes `std.annotation.Annotate` by
+   its qualified name. No new syntax is needed: `annotate` is no longer
+   reserved (M26), and the kinds are enum values. Bootstrapping: std writes
+   `@annotate([.Data, .Enum])` on the `Annotate` type itself.
+3. **D3: signatures are checked by the reader, not the compiler.**
+   Whatever reads a fact validates it. `@suffix` on `fn s(x: string)` is
+   accepted at the declaration and fails as `type-mismatch` at the first
+   `5s`. A template rejects a `max_len` on an `i32` field through
+   `member[F]`. The runner rejects a test marker on the wrong signature.
+   Options 1, 4 and 5 (target types, signature patterns, a binder) are not
+   adopted.
+4. **D4: `@annotate` is optional.** A fact type without an `@annotate`
+   line may go on any target, so literal facts such as `@"note"` keep
+   working.
+
+The preview the owner approved showed `@annotate([.Data])` above
+`pub fn annotate`. The intended meaning is the bootstrap line in D2, on
+the `Annotate` type.
+
+Questions 1-4, 6 and 14 below are settled or moot under D1-D4.
+Questions 5 and 7-13 remain.
+
 ## Contents
 
+- [Owner Decisions](#owner-decisions)
 - [Problem](#problem)
 - [What hd Has Today](#what-hd-has-today)
 - [Owner Direction](#owner-direction)
