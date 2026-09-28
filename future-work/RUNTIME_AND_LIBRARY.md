@@ -111,7 +111,9 @@ Decided 2026-09-27 (owner answers to this section's questions):
    key from the recorded provider configuration identity, and a mismatch
    is rejected ([Replay Rules](#replay-rules)).
 
-Still open: which WASI version and component ABI the initial runtime uses.
+5. **WASI: the component model; the release is chosen later.** The first
+   runtime targets Wasm components. Whether it uses WASI 0.2 or 0.3 (native
+   async, which fits suspension) is chosen when the runtime is built.
 
 ## Persistence and Resumption
 
@@ -353,7 +355,7 @@ Fan-out, filtering, redaction, and sampling are provider composition strategies 
 
 Automatic observations receive stable identities derived from execution ID, boundary ID, attempt, and event kind. Deterministic replay does not re-emit observations for already completed history events. New workflow activations use new attempt identities, exporters may deduplicate by observation ID, and replay diagnostics use separate runtime events.
 
-This provider API is an initial draft. Explicit custom-span syntax, metric instruments, privacy/redaction policy, sampling details, and exporter configuration remain open and may be optimized later.
+This provider API is an initial draft. Decided 2026-09-27: custom spans, metric instruments, sampling, and exporter configuration are library API with no syntax (for example `obs.span("load users"):` with a trailing block, and `obs.counter("users.loaded").add(n)`), designed with the standard library. Trace context is carried task-locally by the runtime ([Observability Hooks](OPEN_ISSUES.md#observability-hooks)). Privacy and redaction wait for `Secret[T]`.
 
 ## Resource Lifetime Backlog
 
@@ -435,7 +437,10 @@ host-call results rather than serializing a closure or active Wasm stack.
 ## Incremental Computation
 
 Incremental computation should initially be a native-feeling
-`std.incremental` library with runtime support, not a language keyword. It is
+`std.incremental` library with runtime support, not a language keyword.
+Decided 2026-09-27: the direction below is accepted as library work, and the
+API is designed with the standard library; callback purity is documented,
+not checked. It is
 distinct from both a persistent function cache and durable replay:
 
 - an incremental node recomputes when one of its tracked inputs changes;
