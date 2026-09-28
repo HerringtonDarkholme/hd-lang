@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T51 are
+Status: design record, started 2026-09-27. Owner decisions T1-T52 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day), and the language parts of
 T33 and T39-T50 on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
@@ -321,6 +321,15 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     (Hypothesis's figure) and reports the smallest failing input so far,
     marked "shrinking stopped early". `shrink=` on `it_prop` and
     `hd test --shrink N` override it.
+52. **T52 (2026-09-28): answers to the T33/T39-T51 apply questions.**
+    Parameterized bodies are passed by name (`body=` for `it_each`,
+    `prop=` for `it_prop`); a trailing block with parameters was declined.
+    Option order is required arguments, then defaulted options, then the
+    final function (for `it_prop`: options, `cases`, `shrink`, `prop`).
+    `DebugWriter` stays imported, not a prelude name. `use tests.x` outside
+    `tests/` is `test-only-use`. `hd test --list` shows one `name[..]`
+    entry per `it_each` call. The codes `unknown-panic-category`,
+    `public-test-item`, and `misplaced-tests-block` are kept.
 
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
