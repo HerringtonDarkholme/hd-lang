@@ -22,6 +22,9 @@ language specification:
   decisions T1-T12 (a `tests:` block per file, `test("name"):` as a
   library intrinsic, a `Termination` trait and `ExitCode` shared with `main`); not yet
   in the specification.
+- [Testing Redesign: Stress Test (T1-T13)](TESTING_STRESS_TEST.md) tries the
+  test redesign on 21 cases from real suites and ranks 17 problems, with
+  questions for the owner.
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).

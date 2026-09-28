@@ -144,3 +144,6 @@ tests:                                      # compiled only by `hd test`
 | Kotest, munit, Jest | `test("name") { }` | runtime registration | separate source set |
 
 ## Still Open
+
+- [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems found
+  on 21 cases against T1-T13 and lists the owner questions they raise.
