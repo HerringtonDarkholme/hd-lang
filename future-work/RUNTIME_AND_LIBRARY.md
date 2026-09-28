@@ -4,26 +4,35 @@ This document covers standard-library, tooling, and runtime facilities built on 
 
 ## Testing
 
-Unit tests use dedicated named blocks:
+A file keeps its unit tests in one `tests:` block. Each `it(...)` call in it
+registers one test case:
 
 ```text
-use std.testing.{assert, assert_equal}
+use std.testing.assert_equal
 
-test "adds two values":
-    result := add(2, 3)
-    assert_equal(
-        result,
-        5,
-        reason="add should return the sum of both values",
-    )
+fn add(a: i32, b: i32) -> i32: a + b
+
+tests:
+    it("adds two values"):
+        result := add(2, 3)
+        assert_equal(
+            result,
+            5,
+            reason="add should return the sum of both values",
+        )
 ```
 
-A `test` block is a module-level test entry point discovered by the test runner. Its body uses normal hd-lang bindings, expressions, control flow, and function calls. It is not an annotation and does not need manual registration.
+The language-level parts are normative in the specification. This document
+describes the runner, the command line, and the testing library around them.
 
-The language-level `test` production is defined in the
-[core grammar](../spec/02-grammar.md#test-blocks). This document describes the
-runner. Assertion signatures and behavior are normative in
-[Modules and Packages](../spec/10-modules.md#standard-testing).
+| Topic | Specification |
+| --- | --- |
+| The `tests:` block and its items | [Test Blocks](../spec/02-grammar.md#test-blocks) |
+| `_test.hd` test modules, integration tests under `tests/`, test dependencies | [Test Modules](../spec/10-modules.md#test-modules) |
+| `assert` and `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
+| `it`, its options, and `it_each` | [Test Cases](../spec/10-modules.md#test-cases) |
+| Instances, fakes, providers, pass and fail | [Test Outcomes](../spec/10-modules.md#test-outcomes) |
+| A test body's result and `?` | [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks) |
 
 Assertions are ordinary functions from `std.testing`, not language syntax. Assertion functions require an explicit reason:
 
@@ -34,9 +43,95 @@ assert_equal(actual, expected, reason="both values should be equal")
 
 Specialized functions such as `assert_equal` receive the actual and expected values directly, allowing structured failure diagnostics. The mandatory `reason` is a `string` expression recording the intended behavior.
 
-Property testing is intentionally deferred because it has a much larger API and runtime surface than unit assertions. It must be implemented as a library-level facility in `std.testing`, not as dedicated property-test syntax in the language.
+### Test Runner
 
-No property-testing API has been accepted yet. Strategy representation, generated-value access, type- and annotation-based derivation, dependency injection, shrinking, replay, correlated inputs, stateful testing, and failure artifacts all remain open. General language features such as reified generics, declaration shapes, annotations, and dependency contexts may support that library, but they should be designed independently rather than around one tentative property-testing API.
+`hd test` makes a test build, which compiles the package's test code, and
+runs every test case. The runner behaves as the
+[testing redesign](TESTING.md#owner-decisions) decided:
+
+| Behavior | Rule | Decision |
+| --- | --- | --- |
+| Isolation | Each test case runs in its own fresh program instance. | T21 |
+| Parallelism | Test cases run in parallel by default. | T21 |
+| Console | Each test case writes to its own `Console` buffer. The runner shows the buffer when the case fails. | T21 |
+| Filesystem | Each test case gets a temporary filesystem, which the runner deletes afterwards. | T21 |
+| Profile | A test run compiles against the `console` profile unless `hd test --profile NAME` selects another. | T20 |
+| Unit test providers | A test case in a `tests:` block or a `_test.hd` module gets no host providers; its requirements come from `$.with` fakes. | T28 |
+| Integration test providers | A test case under `tests/` gets real providers from the profile. One whose requirements the profile cannot bind is reported as skipped. | T20, T28 |
+| Failed result | The runner prints an `.Err` result and its cause chain, as the host does for `main`. | T18 |
+| Failed assertion | It panics with category `assertion-failed`. The runner reports the case as failed and runs the next one. | T19 |
+
+A test case's id is `module::name`, and its name is any string literal
+(T29). `hd test <text>` runs the test cases whose id contains the text, as
+`cargo test` does (T10). `hd test --list` prints each id and its location
+without running anything:
+
+```console
+$ hd test --list
+billing::charges a fee after 30 days  src/billing.hd:14
+billing::doubles[0]  src/billing.hd:20
+```
+
+An `it_each` call gives one test case per row, named `name[i]`. A loop
+inside one `it` still works when one result for the whole table is enough
+(T26, T31).
+
+Hash values can shift when test code changes, because the `Hasher` seed
+follows code identity (T26). A test that compares hash values sees that
+shift.
+
+### Snapshot Tests
+
+A snapshot compares a string with expected text. The test picks the
+rendering, such as `json.pretty(x)`, `yaml.encode(x)`, or `debug(x)`; there
+is no strategy system (T32). `debug` renders the derivable `Debug` trait
+(T33), which the specification does not have yet.
+
+```text
+use std.testing.{snapshot, snapshot_file}
+
+fn greeting(name: string) -> string: "hello, " + name
+
+tests:
+    it("greets by name"):
+        snapshot(greeting("Ada"), expect="hello, Ada")
+        snapshot_file(greeting("Grace"))
+```
+
+`snapshot(text, expect="...")` keeps the expected text in the source (T30).
+`snapshot_file(text)` takes no name; the runner names its file from the
+test (T34):
+
+| Part | Rule |
+| --- | --- |
+| Folder | One `__snapshots__/` folder at the package root, beside `hd.toml`. It has no `mod.hd`, so it is never a module. |
+| Path | `__snapshots__/<module>/<test-slug>-<n>.snap`. A module under `tests/` appears as `tests.<name>`. |
+| Slug | The test name, lowercased, with each run of non-alphanumeric characters turned into `-`. |
+| Counter | `<n>` counts the `snapshot_file` calls within one test run, from 1. |
+| Table rows | An `it_each` row adds its index: `<test-slug>.<i>-<n>.snap`. |
+
+So the test above writes `__snapshots__/<module>/greets-by-name-1.snap`.
+Renaming a test, or reordering its `snapshot_file` calls, changes the file
+names; the owner accepted that cost.
+
+| Command | Effect |
+| --- | --- |
+| `hd test --update` | Rewrites changed `expect=` literals, and writes new or changed snapshot files. |
+| `hd test --review` | Shows each changed snapshot as a diff to accept or reject. It also lists snapshot files that no test wrote, for deletion. |
+
+### Property Testing
+
+Property testing is a library in `std.testing`, not language syntax (T12).
+A test calls a checker with a closure over generated values, such as
+`testing.check(fn(order: Order): ...)`. Generators come from a derivable
+`Arbitrary` trait through typed derivation, so generation is a derived
+build.
+
+The runner drives shrinking (T25). After a failure, it reruns the property
+in fresh program instances with smaller inputs, so a panic is just a failed
+run, as in Hypothesis. The API itself is designed with the standard library:
+the checker's signature, `Arbitrary`'s members, replay, stateful testing,
+and failure artifacts are open ([Testing Layer](STDLIB.md#testing-layer)).
 
 ## Capabilities and Sandbox
 
@@ -336,17 +431,18 @@ impl Observability for OTelObservability:
 Tests can inject an in-memory recorder and assert normalized observations:
 
 ```text
-test "process_user records its log":
-    recording := RecordingObservability::new()
+tests:
+    it("process_user records its log"):
+        recording := RecordingObservability::new()
 
-    $.with(Observability=recording):
-        _ := process_user!("user-1")
+        $.with(Observability=recording):
+            _ := process_user!("user-1")
 
-    assert_equal(
-        recording.log_messages(),
-        ["processing user"],
-        reason="processing should emit its structured log",
-    )
+        assert_equal(
+            recording.log_messages(),
+            ["processing user"],
+            reason="processing should emit its structured log",
+        )
 ```
 
 Fan-out, filtering, redaction, and sampling are provider composition strategies rather than language syntax.

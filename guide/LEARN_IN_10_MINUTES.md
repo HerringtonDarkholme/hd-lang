@@ -417,15 +417,18 @@ pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
     .Ok()
 ```
 
-A `test` block runs in a fresh program instance and may call suspending
-functions directly. Provider scopes replace dependencies with mocks.
+A file's tests live in one `tests:` block, compiled only by `hd test`. Each
+`it("name"):` call is a test case that runs in a fresh program instance and
+may call suspending functions directly. Unit tests get no host providers, so
+provider scopes supply every dependency as a fake.
 
 ```hd
 use std.testing.assert_equal
 
-test "stamps with the fixed clock":
-    $.with(Clock=FixedClock { at: 1 }):
-        assert_equal(stamp("go"), "1: go", reason="uses the provider")
+tests:
+    it("stamps with the fixed clock"):
+        $.with(Clock=FixedClock { at: 1 }):
+            assert_equal(stamp("go"), "1: go", reason="uses the provider")
 ```
 
 ## Annotations

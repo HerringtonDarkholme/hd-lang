@@ -197,17 +197,18 @@ use std.path.Path
 use std.testing.{assert_equal, assert_ok}
 use std.time.{Clock, ManualClock, Timestamp}
 
-test "load_stamped uses the injected clock and files":
-    start := Timestamp::from_unix_seconds(1_700_000_000)
-    files := MemoryFs::with_files({"app.toml": "port = 8080"})
-    clock := ManualClock::starting_at(start)
-    $.with(FsRead=files, Clock=clock):
-        stamped := assert_ok(
-            load_stamped!(Path::parse("app.toml")),
-            reason="the file exists in the in-memory filesystem",
-        )
-        assert_equal(stamped.text, "port = 8080", reason="text comes from MemoryFs")
-        assert_equal(stamped.loaded_at, start, reason="time comes from ManualClock")
+tests:
+    it("load_stamped uses the injected clock and files"):
+        start := Timestamp::from_unix_seconds(1_700_000_000)
+        files := MemoryFs::with_files({"app.toml": "port = 8080"})
+        clock := ManualClock::starting_at(start)
+        $.with(FsRead=files, Clock=clock):
+            stamped := assert_ok(
+                load_stamped!(Path::parse("app.toml")),
+                reason="the file exists in the in-memory filesystem",
+            )
+            assert_equal(stamped.text, "port = 8080", reason="text comes from MemoryFs")
+            assert_equal(stamped.loaded_at, start, reason="time comes from ManualClock")
 ```
 
 The entry point states the host capabilities it needs. The compiler derives
@@ -1365,7 +1366,23 @@ derivation rule, which falls under the same typed-derivation issue.
 ## Testing Layer
 
 `std.testing` keeps `assert` and `assert_equal` with their mandatory reason,
-and adds three groups.
+declares the test-case functions, and adds four groups.
+
+The test-case functions are specified in
+[Test Cases](../spec/10-modules.md#test-cases), from
+[Testing](TESTING.md#owner-decisions) T16 and T31:
+
+| Name | What it is | How code reaches it |
+| --- | --- | --- |
+| `it` | A compiler intrinsic; each call at the top level of test code registers one test case. | The prelude supplies it, so it cannot be shadowed. |
+| `it_each` | An ordinary function; one test case per row, named `name[i]`. | `use std.testing.it_each` |
+
+```text
+use std.process.Termination
+
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R:
+    pass
+```
 
 Assertion helpers, same shape:
 
@@ -1407,18 +1424,46 @@ pub fn hermetic(seed: u64 = 0) -> $.Context[$(Clock, Random, Env, FsRead, FsWrit
         Console=console,
     )
 
-test "a hermetic run can override one provider":
-    $.with(hermetic(seed=7)..., Env=MapEnv { values: {"MODE": "ci"} }):
-        pass
+tests:
+    it("a hermetic run can override one provider"):
+        $.with(hermetic(seed=7)..., Env=MapEnv { values: {"MODE": "ci"} }):
+            pass
 ```
 
 Later entries win, so a test replaces one provider after the spread. The
 stateful providers enter the context with `mut` access, so code under test
 can advance the clock, step the generator, and write files.
 
-Property testing stays a library facility, as
-[Runtime and Library Design](RUNTIME_AND_LIBRARY.md#testing) requires. The
-part that needs no derivation is a strategy type over the pure `Rng`:
+Snapshot functions compare a string with expected text (T30, T32). The
+signatures below are drafts; the exact signatures, and whether `expect` must
+be a literal, are open ([Testing](TESTING.md#still-open)):
+
+```text
+pub fn snapshot(text: string, expect: string) -> void:
+    pass
+
+pub fn snapshot_file(text: string) -> void:
+    pass
+```
+
+The caller renders the value, for example with `json.pretty(x)`,
+`yaml.encode(x)`, or `debug(x)`. `hd test --update` rewrites the `expect`
+literal in the source. `snapshot_file` takes no name: the runner names its
+file from the running test, under the package's one `__snapshots__/` folder
+(T34), as [Snapshot Tests](RUNTIME_AND_LIBRARY.md#snapshot-tests) lays out.
+
+`debug(x)` renders a derivable `Debug` trait (T33). `std` implements it for
+primitives and collections, and its output is stable, field by field, and
+multi-line. `assert_equal` is to require `T < Eq + Debug`, so a failure shows
+both values. T33 is decided but not in the specification: `Debug`'s module,
+prelude status, and members are open.
+
+Property testing stays a library facility (T12), as
+[Runtime and Library Design](RUNTIME_AND_LIBRARY.md#property-testing)
+describes. Generators come from a derivable `Arbitrary` trait through typed
+derivation. The runner drives shrinking, rerunning a failed property in
+fresh instances with smaller inputs (T25). The draft part that needs no
+derivation is a strategy type over the pure `Rng`:
 
 ```text
 pub data Strategy[T]:
@@ -1435,8 +1480,9 @@ pub fn check[T](strategy: Strategy[T], property: fn(T) -> bool, reason: string, 
     pass
 ```
 
-Deriving a `Strategy[T]` from a type's shape waits for typed derivation.
-Stateful testing and replay artifacts wait for area 3's event log.
+How a derived `Arbitrary` and this `Strategy` fit together is designed with
+the library. Stateful testing and replay artifacts wait for area 3's event
+log.
 
 ## Open Language Dependencies
 
@@ -1712,10 +1758,11 @@ fn total(prices: List[Decimal]) -> Decimal:
 `std.task` driver hook.
 
 ```text
-test "retry waits between attempts":
-    let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
-    $.with(Clock=clock):
-        pass
+tests:
+    it("retry waits between attempts"):
+        let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
+        $.with(Clock=clock):
+            pass
 ```
 
 ### 11. What is `Task[T]`?

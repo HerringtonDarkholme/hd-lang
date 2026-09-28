@@ -2027,9 +2027,15 @@ meaning to field order unless their own format explicitly does so.
 
 ## Tests
 
-Tests are named module-level blocks. Each test runs in a fresh program instance,
-and a test block is a suspension driver context, so it may bang-call directly.
-Use ordinary provider scopes for mocks and `std.testing` for assertions:
+A file keeps its tests in one `tests:` block, compiled only by `hd test`. The
+block sees the module's private names, and its own helpers are visible only
+inside it. Each `it("name"):` call registers one test case, which runs in a
+fresh program instance. Its trailing block is a suspending body, so it may
+bang-call directly.
+
+Unit tests get no host providers: every requirement comes from a `$.with`
+fake. Use ordinary provider scopes for mocks and `std.testing` for
+assertions:
 
 ```text
 use std.testing.assert_equal
@@ -2046,35 +2052,71 @@ data MockDatabase: pass
 impl Database for MockDatabase:
     fn count!(self) -> Result[i32, DbError]: .Ok(3)
 
-test "loads the count":
-    $.with(Database=MockDatabase {}):
-        result := $.use(Database).count!()
-        assert_equal(result, .Ok(3), reason="mock count is returned")
+tests:
+    it("loads the count"):
+        $.with(Database=MockDatabase {}):
+            result := $.use(Database).count!()
+            assert_equal(result, .Ok(3), reason="mock count is returned")
 ```
 
-A test passes when the block completes normally and fails on an assertion
-failure or panic. Test instances do not share top-level mutable state.
+A test case passes when its body completes, and fails on a panic, including
+a failed assertion. Test instances do not share top-level mutable state.
 
-A test block's final value is its result, and it follows the same
-`Termination` rule as `main`: `void`, `ExitCode`, or a `Result` whose error
-has `Display`, such as `Result[void, string]`. `?` in the block propagates to
-that result by the ordinary rules. A result that reports a nonzero code,
-such as an `.Err`, fails the test and prints the error chain:
+A test body has a fixed result. Without `?` it is `void`. With `?` it is
+`Result[void, Error]`, where `Error` is the erased `std.error.Error`, so the
+body ends in `.Ok()`. `?` converts any error type that implements `Error`,
+but not a plain `string`. An `.Err` fails the test, and the runner prints it
+with its cause chain:
 
 ```text
+use std.error.Error
 use std.testing.assert_equal
 
-fn parse_digit(text: string) -> Result[i32, string]:
-    if text == "7": .Ok(7) else: .Err("not a digit: " + text)
+data DigitError:
+    text: string
 
-fn check_digit(text: string) -> Result[void, string]:
-    digit := parse_digit(text)?
-    assert_equal(digit, 7, reason="the digit parses")
-    .Ok()
+impl Display for DigitError:
+    fn to_string(self) -> string: "not a digit: " + self.text
 
-test "parses a digit":
-    check_digit("7")
+impl Error for DigitError
+
+fn parse_digit(text: string) -> Result[i32, DigitError]:
+    if text == "7": .Ok(7) else: .Err(DigitError { text: text })
+
+tests:
+    it("parses a digit"):
+        digit := parse_digit("7")?
+        assert_equal(digit, 7, reason="the digit parses")
+        .Ok()
 ```
+
+Options come before the body as literal named arguments: `ignore="reason"`,
+`expect_panic="category"`, and `timeout="5s"`. For table tests,
+`std.testing.it_each` registers one test case per row, named `name[i]`. Its
+body takes the row, so it is an explicit `fn!` closure:
+
+```text
+use std.testing.{assert_equal, it_each}
+
+fn double(value: i32) -> i32: value * 2
+
+fn first(items: List[i32]) -> i32: items[0]
+
+tests:
+    it("an empty list has no first item", expect_panic="index-out-of-bounds"):
+        _ := first([])
+
+    it_each("doubles", [1, 2, 3], fn!(value: i32):
+        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
+    )
+```
+
+Larger suites get their own files. A file whose name ends in `_test.hd`,
+such as `src/billing_test.hd`, is a test module: it sees the package's
+public names and holds `it` calls at its top level. Integration tests live
+under `tests/`, see the package as a dependent does, and get real providers
+from the test profile. See [Test Modules](../spec/10-modules.md#test-modules)
+and the [test runner notes](../future-work/RUNTIME_AND_LIBRARY.md#testing).
 
 ## Requirements and Suspension
 
@@ -2130,7 +2172,7 @@ fn demo!() -> Result[User?, DbError] $ Database, Cache:
 
 `Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension. Cancelling a suspension while it or a descendant is active on the current poll stack also panics and leaves its state unchanged.
 
-The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; a test is active for its whole execution, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, `defer` suites, and non-entry module initialization.
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; the test runner drives each test body as a suspension, so a driver is active for the whole test, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, `defer` suites, and non-entry module initialization.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 

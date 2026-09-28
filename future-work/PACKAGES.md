@@ -5,9 +5,11 @@ revised to the [owner decisions](#owner-decisions) 1 to 14 of 2026-09-26.
 Nothing here is accepted language behavior. The draft sections below follow
 the decisions; details the decisions leave open are marked as open.
 Decisions that change the language go to the
-[specification](../spec/README.md): decision 5 (`use` in `test` blocks) is
-not applied there yet. The root-application orphan exception that decision 4
-restated was dropped on 2026-09-27, so no package may hold an orphan.
+[specification](../spec/README.md): decision 5's test-dependency boundary
+now follows [Testing](TESTING.md#owner-decisions) T11, T13, T23, and T24,
+applied in [Test Modules](../spec/10-modules.md#test-modules). The
+root-application orphan exception that decision 4 restated was dropped on
+2026-09-27, so no package may hold an orphan.
 
 Inputs:
 
@@ -129,8 +131,10 @@ added `/vN` module paths so majors can coexist, following Go.
    line.
 8. **Separate dependency groups for tests.** hd's use declarations are
    module-wide, so test-only dependencies need a boundary, like MoonBit's
-   `test-import` and Go's `_test.go` files. Decision 5 gives two: a `use`
-   scoped to one `test` block, and the separate `tests/` root.
+   `test-import` and Go's `_test.go` files. The testing redesign gives
+   three: a file's [`tests:` block](../spec/02-grammar.md#test-blocks), a
+   `_test.hd` test module, and the separate `tests/` root
+   ([Test Modules](../spec/10-modules.md#test-modules)).
 
 ## 2. Draft: `hd.toml`
 
@@ -251,13 +255,18 @@ root. A member depends on another member with `{ path = "..." }`.
 | Key | Default | Rule |
 | --- | --- | --- |
 | `root` | `"src"` | Source root for path-inferred modules ([Path-Inferred Modules](../spec/10-modules.md#path-inferred-modules)). `root/mod.hd`, when present, is the package root module and public index, and its presence gives the package a library. |
-| `tests` | `"tests"` if the directory exists | Test source root. Its modules are compiled only by `hd test`. They may use `pkg`, dependencies, and test dependencies anywhere, and they see only the package's public surface, as a downstream package would. |
+| `tests` | `"tests"` if the directory exists | Test source root of integration test modules ([Test Modules](../spec/10-modules.md#test-modules)). Only a test build compiles them. They may use dependencies, test dependencies, and one another, and they see only the package's public surface, built without its test code, as a dependent would. |
 
-The two roots must not overlap. Within `root`, a test-only dependency may be
-named only by a `use` declared inside a `test` block, which is scoped to that
-block (decision 5). Module-level uses in `root` may name only
-`[dependencies]`, because the module is also part of the normal build. Test
-builds include the test dependencies.
+The two roots must not overlap. Within `root`, a test dependency may be
+named only by test code: a `use` inside a file's
+[`tests:` block](../spec/02-grammar.md#test-blocks), or any `use` of a
+`_test.hd` test module. Other uses in `root` may name only `[dependencies]`,
+because those modules are also part of the normal build. Test builds include
+the test dependencies.
+
+A test dependency that itself depends on this package may be used only from
+`tests/`. From a `tests:` block or a test module it is an error, since it
+would bring in a second copy of the package ([Testing T24](TESTING.md#owner-decisions)).
 
 A package must have a library, at least one executable, or both. Only a
 package with a library can be a dependency; a dependent sees its library and
@@ -675,9 +684,9 @@ Output rules:
    an orphan implementation or derivation (decision 4).
 4. An executable selects an entry module. The entry point is that module's
    public `main` or `main!`; without one, the module must be a script.
-5. Test-root modules may use test dependencies anywhere. In the source
-   root, only a `use` inside a `test` block, scoped to that block, may name
-   one.
+5. Only test code may use a test dependency: a `tests:` block, a
+   `_test.hd` test module, or a module under `tests/`. A test dependency
+   that depends back on the package is usable only from `tests/`.
 6. A requirement is a caret range within its compatibility line.
    Resolution is a PubGrub-style solver, and `hd.lock` records the
    selection.
@@ -698,10 +707,10 @@ Output rules:
 
 Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
 Decision 4's orphan part is superseded: the root-application orphan
-exception is dropped (2026-09-27). Decision 5 is language syntax: `use` is top-level only today
-([Suites](../spec/02-grammar.md#r-grammar.suite.top-level-only),
-[Use Forms](../spec/10-modules.md#r-module.use.whole-module)), and the
-specification does not have it yet.
+exception is dropped (2026-09-27). Decision 5 is language syntax. It is
+superseded by the testing redesign, whose test-dependency rules are applied
+in [Test Modules](../spec/10-modules.md#test-modules) and
+[Test Blocks](../spec/02-grammar.md#test-blocks).
 
 1. **Question 1: one version per compatibility line.** Two majors of one
    package may coexist (`json = "acme/json@2.1.0"`,
@@ -722,8 +731,11 @@ specification does not have it yet.
    separate `tests/` root may use them anywhere. Detail decided 2026-09-27:
    the `use` lines come first in the block, and like any inner scope they
    may shadow a module-level name. Superseded 2026-09-27 by
-   [Testing T1-T2](TESTING.md#owner-decisions): no `use` inside a test;
-   test-only dependencies are named by `@test` items.
+   [Testing T2 and T11](TESTING.md#owner-decisions): no `use` inside a test
+   case; test-only dependencies are named from a file's `tests:` block.
+   Testing T13, T23, and T24 complete the rule: test dependencies are named
+   from `tests:` blocks, `_test.hd` modules, and `tests/`, and one that
+   depends back on the package is usable only from `tests/`.
 6. **Question 6: adding an implementation or annotation for a foreign trait
    or facet is a minor change;** `hd update` reports a resulting coherence
    conflict before writing.

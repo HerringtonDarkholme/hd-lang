@@ -114,8 +114,9 @@ produce repairable failures. It should support:
 6. structured, machine-readable diagnostics;
 7. source links from failures to declarations and metadata.
 
-*Mechanism:* `test` blocks, `std.testing`, and substitute providers. Invalid-input
-generation is useful for negative testing but is not an initial requirement.
+*Mechanism:* `tests:` blocks and `it(...)` test cases, `std.testing`, and
+substitute providers. Invalid-input generation is useful for negative testing
+but is not an initial requirement.
 
 ### Interactive Execution And Observability
 
@@ -198,8 +199,8 @@ Correctness tooling should be part of ordinary development:
 7. integration with mock providers;
 8. machine-readable reports that agents can use to repair code.
 
-*Mechanism:* `test` blocks, `std.testing`, and provider contexts that bind
-requirement traits to test implementations.
+*Mechanism:* `tests:` blocks and `it(...)` test cases, `std.testing`, and
+provider contexts that bind requirement traits to test implementations.
 
 ### Observability And Controlled Inspection
 
