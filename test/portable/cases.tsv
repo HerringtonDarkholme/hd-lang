@@ -1175,3 +1175,5 @@ typing/invalid/trait-less-block-newtype.hd	type
 typing/invalid/trait-less-block-local.hd	type
 typing/invalid/trait-less-block-duplicate-fact.hd	type
 typing/invalid/trait-less-delegation.hd	type
+typing/invalid/omitted-embedded-part.hd	type
+typing/valid/trait-less-block-generic.hd	type

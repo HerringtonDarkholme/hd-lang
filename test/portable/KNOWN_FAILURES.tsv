@@ -63,3 +63,9 @@ typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype 
 typing/valid/annotations.hd	check fails: unknown-name 'shape' at line 28: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1
 typing/valid/retention-metadata.hd	check fails: unknown-type at line 9 for DataShape: the shape and shape_of intrinsics are unimplemented	K1
 typing/valid/trait-less-derivation-block.hd	check fails: unknown-name 'shape' at line 23: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1
+typing/invalid/duplicate-type-level-fact.hd	check passes: two type-level decorators of one fact type are not checked for duplicate-fact; only member, variant, and parameter facts are	M27
+typing/invalid/trait-less-block-generic-argument.hd	check passes: a trait-less block header is read by its type constructor, so impl Box[i32] by Structure is not misplaced-derivation	M28
+typing/invalid/trait-less-block-generic-bound.hd	check passes: a trait-less block header is read by its type constructor, so a bound on its parameter is not misplaced-derivation	M28
+typing/invalid/trait-less-block-second.hd	check passes: several trait-less blocks for one type apply in source order instead of reporting overlapping-impl	M28
+typing/warnings/trait-less-self-line-unused-fact.hd	no unused-derivation-fact warning: only decorator facts are checked, not facts from a trait-less block Self line	M28
+runtime/valid/member-line-list-expression.hd	check fails: invalid-member-line at lines 58, 59, and 62: a member line right side must be a list literal, not a list-typed name	M28
