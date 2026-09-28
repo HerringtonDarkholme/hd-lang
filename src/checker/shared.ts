@@ -659,6 +659,25 @@ export function matchTraitImplementation(
     : undefined;
 }
 
+/**
+ * The implementation of a trait for `type`, and the type it matched. An
+ * implementation for `X` also serves `mut X` through its readonly view.
+ */
+export function findImpl<T extends TraitImplementationPattern>(
+  implementations: readonly T[],
+  traitIndex: number,
+  type: ValueType,
+  traitArguments: readonly ValueType[],
+): { readonly impl: T; readonly type: ValueType } | undefined {
+  for (const candidate of [type, readonlyType(type)]) {
+    const implementation = implementations.find((item) =>
+      matchTraitImplementation(item, traitIndex, candidate, traitArguments),
+    );
+    if (implementation) return { impl: implementation, type: candidate };
+  }
+  return undefined;
+}
+
 export function rowParameterName(requirement: string): string | undefined {
   return requirement.startsWith("row:") ? requirement.slice("row:".length) : undefined;
 }

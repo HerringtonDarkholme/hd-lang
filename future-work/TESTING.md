@@ -1,9 +1,9 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T52 are
+Status: design record, started 2026-09-27. Owner decisions T1-T53 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day), and the language parts of
-T33, T39-T50, and T52, and the `timeout` note after T52, on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
+T33, T39-T50, T52, and T53, and the `timeout` note after T52, on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
 runner parts of T20, T21, and T42 are tooling and library text, recorded in
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
 [Standard Library](STDLIB.md#testing-layer). The questions this pass raised
@@ -360,6 +360,18 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
       no pretty mode or depth limit and lets derived and hand-written
       output drift apart.
 
+    Applied 2026-09-28 in
+    [Debug Builders](../spec/09-traits.md#debug-builders),
+    [Property Tests](../spec/10-modules.md#property-tests),
+    [`module.testing.snapshot-file.path`](../spec/10-modules.md#r-module.testing.snapshot-file.path)
+    and [Test Layouts](../spec/conformance/README.md#test-layouts). The
+    prototype follows: `DebugWriter`, its builders, `debug`, and the
+    standard `Debug` implementations are hd code in `lib/std/format.hd`;
+    `Choices`, `Arbitrary`, and `snapshot_file` are hd code in
+    `lib/std/testing.hd`; and `hd test --update` records snapshot files.
+    The readings this raised are under
+    [Still Open After T53](#still-open-after-t53).
+
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
 `timeout: Duration? = .None`, written `timeout=5s` with `use std.time.s`.
@@ -459,7 +471,8 @@ questions 1, 3-9, 11, and 12 were answered by T39-T49 and applied on
 2026-09-28, and question 2 (`timeout`) by the literal-suffix decisions. The
 2026-09-28 questions 2-6 (named bodies, option order, `DebugWriter`, the
 `tests` root outside `tests/`, and listing `it_each` rows) were answered by
-T52 and applied the same day.
+T52 and applied the same day. The prototype-pass questions 1-4 below were
+answered by T53 and applied the same day; they are kept as history.
 
 1. **Fixtures for test modules.** The conformance suite has no fixture
    environment for test modules, integration tests, or test dependencies.
@@ -533,3 +546,23 @@ tests:
 
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
 found on 21 cases against T1-T13; T14-T27 answer its questions.
+
+### Still Open After T53
+
+Applying T53 on 2026-09-28 needed these readings. The spec states each as
+applied, so each can change without breaking a decision. Nothing here is
+decided:
+
+| Question | Applied | **Recommendation** |
+| --- | --- | --- |
+| Builder type names and chaining | `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`, as Rust names them; `field` and `entry` return the builder, and `finish` ends it ([`trait.debug.builder.types`](../spec/09-traits.md#r-trait.debug.builder.types)) | Keep: T53 says "like Rust's `Formatter`". |
+| Which builder a derived `Debug` uses | The spec says only that it generates builder calls. The prototype follows Rust's derive: `debug_struct` for named members, `debug_tuple` for positional ones, and `write` of the name for a variant without a payload | State that mapping in [`trait.debug.derive-builders`](../spec/09-traits.md#r-trait.debug.derive-builders). |
+| How a snapshot mismatch or a missing file fails | [`module.testing.snapshot-file.missing`](../spec/10-modules.md#r-module.testing.snapshot-file.missing) says the test case fails, with no panic category. The prototype raises an `explicit-panic` from `std` code | `assertion-failed`, since the call is an assertion on text. |
+| The synthetic package of a test layout | The package holds no other source file ([Test Layouts](../spec/conformance/README.md#test-layouts)), so no fixture can test `cyclic-test-dependency` or a `tests` root use inside `tests/` | Add a `packages/`-like fixture package when those rules need fixtures. |
+| `Choices` beyond T53 | The draft's `@derive(Arbitrary)`, its member-line facts, the `__regressions__` format, size scheduling, and the `assume` discard limit are not specified | Decide them with the property-test runner. |
+
+The prototype has no property-test runner: `it_prop` and `it_prop_with`
+still do not run, a `Choices` draws from a fixed sequence, and `std`
+implements `Arbitrary` only for the primitives and `string`. Its
+`DebugWriter` is always compact, and `Map` and tuples of more than two
+elements render no `debug` text.

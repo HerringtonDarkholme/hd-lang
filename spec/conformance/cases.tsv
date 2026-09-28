@@ -1254,3 +1254,9 @@ runtime/panic/println-under-main-driver.hd	runtime	panic:suspension-nested-drive
 runtime/panic/println-in-test-body.hd	runtime	panic:suspension-nested-driver	10-modules.md#r-module.console.println-block-on
 typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on
 typing/invalid/println-in-default.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on
+typing/invalid/test-module-tests-block.hd	type	reject:misplaced-tests-block	10-modules.md#r-module.test.no-tests-block
+typing/invalid/integration-test-tests-block.hd	type	reject:misplaced-tests-block	10-modules.md#r-module.test.no-tests-block
+typing/invalid/test-module-tests-root.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
+runtime/valid/test-module-top-level-cases.hd	runtime	accept	10-modules.md#r-module.test.module
+typing/valid/debug-writer-builders.hd	type	accept	09-traits.md#r-trait.debug.builder.struct
+typing/valid/choices-arbitrary.hd	type	accept	10-modules.md#r-module.testing.choices.declare

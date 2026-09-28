@@ -113,9 +113,12 @@ export function withStandardTraits(program: Program): Program {
       implementations.push(...respan(parsed.implementations, inspect));
     }
   }
-  // Every program declares `DebugWriter`, which the prelude `Debug` names.
+  // `DebugWriter`, which the prelude `Debug` names, is hd code in
+  // `lib/std/format.hd`, joined when a program mentions `Debug`. Any other
+  // program gets an empty declaration of the name, which nothing uses.
   const writer = debugWriterName(program.uses);
-  data.push(...respan(parse(`pub data ${writer}: pass\n`).program!.data, program.span));
+  if (!program.data.some((declaration) => declaration.name === writer))
+    data.push(...respan(parse(`pub data ${writer}: pass\n`).program!.data, program.span));
   if (traits.length === 0 && data.length === 0) return program;
   return {
     ...program,

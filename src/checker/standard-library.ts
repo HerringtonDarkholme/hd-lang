@@ -52,6 +52,12 @@ const renamedModules = new Map<string, Program>();
 /** The prelude names that a std module declares in hd, by module. */
 const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
   ["console", "println"],
+  ["format", "debug"],
+];
+
+/** std declarations that a prelude trait names, declared when a program mentions the trait. */
+const TRAIT_DECLARATIONS: readonly (readonly [StandardModule, string, string])[] = [
+  ["format", "DebugWriter", "Debug"],
 ];
 
 function isStandardModule(name: string): name is StandardModule {
@@ -268,6 +274,13 @@ export function withStandardLibrary(program: Program): Program {
   // unless it declares that name itself, which is a prelude-name-shadow error.
   const mentionedByProgram = new Set<string>();
   mentionedNames(program, mentionedByProgram);
+  // The prelude `Debug` names `DebugWriter`, so a program that mentions
+  // `Debug` declares it, with the builders and implementations it reaches.
+  for (const [module, name, trait] of TRAIT_DECLARATIONS) {
+    if (included.has(module) || !mentionedByProgram.has(trait)) continue;
+    reached.add(nameOf(module, name));
+    if (!spans.has(module)) spans.set(module, program.span);
+  }
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;
     if (program.functions.some((declaration) => declaration.name === name)) continue;
@@ -355,10 +368,13 @@ export function withStandardLibrary(program: Program): Program {
     functions.push(...keep(renamed.functions));
     implementations.push(
       ...respan(
-        renamed.implementations.filter(
-          (implementation) =>
-            !builtInTarget(implementation) && (whole || implementationDeclared(implementation)),
-        ),
+        renamed.implementations
+          .filter(
+            (implementation) =>
+              !builtInTarget(implementation) && (whole || implementationDeclared(implementation)),
+          )
+          // `std` owns its prelude traits, so its impls are never orphans.
+          .map((implementation) => ({ ...implementation, standard: true })),
         span,
       ),
     );

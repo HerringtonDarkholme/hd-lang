@@ -1,0 +1,13 @@
+# fixture-test-layout: test-module
+# test: a test module's top level is test position, so its it calls are test cases
+# Spec 10 Test Modules: module.test.module (Testing T53).
+use std.testing.assert_equal
+
+fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+it("charges after 30 days"):
+    assert_equal(late_fee(31), 5, reason="one day late")
+
+it("charges nothing on time"):
+    assert_equal(late_fee(30), 0, reason="on the last day")

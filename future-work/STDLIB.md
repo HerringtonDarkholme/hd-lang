@@ -1522,7 +1522,7 @@ pub trait Debug:
 ```
 
 `DebugWriter` is a structured writer with builder calls, like Rust's
-`debug_struct` and `field`; its API is designed with the library. The
+`debug_struct` and `field`, as [Debug Builders](../spec/09-traits.md#debug-builders) specifies (Testing T53). The
 derived implementation is a walker over the members, and `debug(x) -> string`
 prints stable, multi-line, consistently indented output. `std` implements
 `Debug` for primitives, collections, `T?`, `Result`, and tuples.

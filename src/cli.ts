@@ -19,6 +19,7 @@ import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
 import { loadSpecIndex } from "./spec-index.ts";
+import { snapshotRun } from "./snapshots.ts";
 import { runSelected } from "./test-runner.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
@@ -120,7 +121,7 @@ function runRuntimeScenario(
 function usage(): never {
   console.error(
     [
-      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] FILE",
+      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--test-layout test-module|integration] FILE",
       "       hd explain [--format text|json] CODE",
       "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
       "       hd repl",
@@ -149,6 +150,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   let format: OutputFormat = "text";
   let runOptions = false;
   let checkTests = false;
+  let testLayout: string | undefined;
+  let update = false;
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
     if (option !== "--format") runOptions = true;
@@ -161,7 +164,11 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
     else if (option === "--profile") profileName = runtimeProfile(args.shift());
     else if (option === "--tests") checkTests = true;
-    else usage();
+    else if (option === "--update") update = true;
+    else if (option === "--test-layout") {
+      testLayout = args.shift();
+      if (testLayout !== "test-module" && testLayout !== "integration") usage();
+    } else usage();
   }
   if (command === "explain") {
     const code = args.shift();
@@ -178,13 +185,17 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   if (!command || !file || args.length > 0) usage();
   if (entryName !== "main" && command !== "run") usage();
   if (checkTests && command !== "check") usage();
+  if (update && command !== "test") usage();
   if (scenario && command !== "test") usage();
   if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
   const path = resolve(file);
   const source = await readFile(path, "utf8");
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
-  // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules).
-  const parseOptions = path.endsWith("_test.hd") ? { testModule: true } : {};
+  // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules), as
+  // is a file that `--test-layout` places as one (spec/conformance, Test
+  // Layouts); the prototype has no separate integration test view.
+  const parseOptions =
+    path.endsWith("_test.hd") || testLayout !== undefined ? { testModule: true } : {};
   const compileOptions: CompileOptions = {
     hostCapabilities: profile?.hostCapabilities,
     parse: parseOptions,
@@ -269,7 +280,10 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           : undefined;
       let scenarioInstance: WebAssembly.Instance | undefined;
       let pendingFunctionIndex: number | undefined;
+      // `snapshot_file` files (spec/10-modules.md#snapshots); `--update` records them.
+      const snapshots = snapshotRun(path, update);
       const instantiateOptions: Parameters<typeof instantiate>[1] = {
+        hostFunctions: snapshots.hostFunctions,
         console: (text) => console.log(text),
         trace:
           command === "trace"
@@ -350,6 +364,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         instance.exports,
         async () =>
           (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
+        snapshots.begin,
       );
       if (outcome.kind === "exit") return outcome.code;
       if (outcome.kind === "failed") {

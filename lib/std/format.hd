@@ -1,0 +1,158 @@
+# std.format, the part written in hd (spec/09-traits.md#debug-trait).
+# `Display` and `Debug` are prelude traits that the checker declares;
+# `DebugWriter`, its builders, `debug`, and the standard `Debug`
+# implementations are declared here (Testing T48, T53).
+
+# The structured writer that `Debug.debug` writes through. An implementation
+# describes the value with builder calls, like Rust's `Formatter`; the
+# writer chooses the layout. The prototype's writer is always compact:
+# `Point { x: 1, y: 2 }`, `Some(1)`, `[1, 2]`, `{"a": 1}`.
+pub data DebugWriter:
+    text: string
+
+impl DebugWriter:
+    # Writes custom text, for a value that no builder fits.
+    pub fn write(mut self, text: string) -> void:
+        self.text = self.text + text
+
+    # A named value with named fields: `.field(name, value)`, then `.finish()`.
+    pub fn debug_struct(mut self, name: string) -> mut DebugStruct:
+        self.write(name)
+        DebugStruct { out: self, count: 0 }
+
+    # A named value with positional fields: `.field(value)`, then `.finish()`.
+    pub fn debug_tuple(mut self, name: string) -> mut DebugTuple:
+        self.write(name)
+        DebugTuple { out: self, count: 0 }
+
+    # A sequence: `.entry(value)` per item, then `.finish()`.
+    pub fn debug_list(mut self) -> mut DebugList:
+        self.write("[")
+        DebugList { out: self, count: 0 }
+
+    # Key-value pairs: `.entry(key, value)` per pair, then `.finish()`.
+    pub fn debug_map(mut self) -> mut DebugMap:
+        self.write("{")
+        DebugMap { out: self, count: 0 }
+
+pub data DebugStruct:
+    out: mut DebugWriter
+    count: i32
+
+impl DebugStruct:
+    pub fn field[T < Debug](mut self, name: string, value: T) -> mut DebugStruct:
+        self.out.write(if self.count == 0: " { " else: ", ")
+        self.out.write(name + ": ")
+        value.debug(self.out)
+        self.count = self.count + 1
+        self
+
+    pub fn finish(mut self) -> void:
+        if self.count > 0:
+            self.out.write(" }")
+
+pub data DebugTuple:
+    out: mut DebugWriter
+    count: i32
+
+impl DebugTuple:
+    pub fn field[T < Debug](mut self, value: T) -> mut DebugTuple:
+        self.out.write(if self.count == 0: "(" else: ", ")
+        value.debug(self.out)
+        self.count = self.count + 1
+        self
+
+    pub fn finish(mut self) -> void:
+        if self.count > 0:
+            self.out.write(")")
+
+pub data DebugList:
+    out: mut DebugWriter
+    count: i32
+
+impl DebugList:
+    pub fn entry[T < Debug](mut self, value: T) -> mut DebugList:
+        if self.count > 0:
+            self.out.write(", ")
+        value.debug(self.out)
+        self.count = self.count + 1
+        self
+
+    pub fn finish(mut self) -> void:
+        self.out.write("]")
+
+pub data DebugMap:
+    out: mut DebugWriter
+    count: i32
+
+impl DebugMap:
+    pub fn entry[K < Debug, V < Debug](mut self, key: K, value: V) -> mut DebugMap:
+        if self.count > 0:
+            self.out.write(", ")
+        key.debug(self.out)
+        self.out.write(": ")
+        value.debug(self.out)
+        self.count = self.count + 1
+        self
+
+    pub fn finish(mut self) -> void:
+        self.out.write("}")
+
+# The standard `Debug` implementations (spec/09-traits.md#r-trait.debug.std).
+impl Debug for i32:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for i64:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for u8:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for f64:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for bool:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for char:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("'$self'")
+
+impl Debug for string:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("\"$self\"")
+
+impl[T < Debug] Debug for List[T]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        let list: mut DebugList = out.debug_list()
+        for item in self:
+            _ := list.entry(item)
+        list.finish()
+
+impl[T < Debug] Debug for T?:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Some(value) => out.debug_tuple("Some").field(value).finish()
+            .None => out.write("None")
+
+impl[T < Debug, E < Debug] Debug for Result[T, E]:
+    fn debug(self, out: mut DebugWriter) -> void:
+        match self:
+            .Ok(value) => out.debug_tuple("Ok").field(value).finish()
+            .Err(error) => out.debug_tuple("Err").field(error).finish()
+
+# `debug(value)` (spec/10-modules.md#r-module.prelude.debug): the text that
+# `Debug` writes for `value`.
+pub fn debug[T < Debug](value: T) -> string:
+    let out: mut DebugWriter = DebugWriter { text: "" }
+    value.debug(out)
+    out.text
+
+impl[A < Debug, B < Debug] Debug for (A, B):
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_tuple("").field(self._0).field(self._1).finish()

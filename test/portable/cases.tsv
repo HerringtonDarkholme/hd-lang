@@ -1189,3 +1189,9 @@ runtime/panic/println-under-main-driver.hd	runtime
 runtime/panic/println-in-test-body.hd	runtime
 typing/invalid/println-in-defer.hd	type
 typing/invalid/println-in-default.hd	type
+typing/invalid/test-module-tests-block.hd	type
+typing/invalid/integration-test-tests-block.hd	type
+typing/invalid/test-module-tests-root.hd	type
+runtime/valid/test-module-top-level-cases.hd	runtime
+typing/valid/debug-writer-builders.hd	type
+typing/valid/choices-arbitrary.hd	type

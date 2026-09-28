@@ -22,7 +22,7 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,190 of the 1,255 conformance cases, all of
+On 2026-09-28 the prototype passes 1,196 of the 1,261 conformance cases, all of
 them selected in `test/portable/cases.tsv`. The other 65 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below; all 65 still fail.
@@ -78,18 +78,13 @@ calls run on the host console and on a program-defined provider.
 and its four fixtures pass. The prototype's `block_on` cannot wait for a
 pending host operation, so it panics there.
 
-`Debug` (Testing T33, T39, and T48) is checked: it is a prelude trait,
-`std` supplies it for the primitives and the built-in composites,
-`@derive(Debug)` generates an implementation, and `assert_equal` and
-`debug` require it. The spec leaves `DebugWriter`'s builder calls and the
-`debug` layout to the standard library, so `DebugWriter` has no members, a
-derived `debug` writes nothing and does not check its members, and the run
-commands report a `debug` call as `unsupported-debug-render`. The
-builder API is an owner question in
-[Testing Still Open](../future-work/TESTING.md#still-open).
+`Debug` (Testing T33, T39, T48, and T53) is checked and rendered: it is a
+prelude trait, and `DebugWriter`, its builders, `debug`, and the standard
+implementations are hd code in `lib/std/format.hd`. `@derive(Debug)`
+generates builder calls. `Map` and tuples longer than two render no text
+([Testing Still Open After T53](../future-work/TESTING.md#still-open-after-t53)).
 
 `snapshot` and `snapshot_file` (Testing T49) are checked. `snapshot` runs
-as a string `assert_equal`, and no update run rewrites `expect`. The spec
-does not say where the runner keeps a snapshot file, so the run commands
-report `snapshot_file` as `unsupported-snapshot-file`; Testing Still Open
-asks the owner.
+as a string `assert_equal`, and no update run rewrites `expect`.
+`snapshot_file` keeps its file under `__snapshots__/` (T53), and
+`hd test --update` records it. `it_prop` and `it_prop_with` do not run.

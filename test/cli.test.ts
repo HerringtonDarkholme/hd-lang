@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -228,6 +228,37 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       (error: { stderr: string }) => error,
     );
     assert.match(nested.stderr, /suspension-nested-driver/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// `snapshot_file` keeps `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`;
+// a missing file fails except under `hd test --update` (Testing T53).
+test("hd test compares snapshot_file text with its snapshot file", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    await writeFile(join(directory, "hd.toml"), '[package]\nname = "snap"\n');
+    await mkdir(join(directory, "src"));
+    const source = join(directory, "src", "greet.hd");
+    await writeFile(
+      source,
+      [
+        "use std.testing.snapshot_file",
+        "",
+        "tests:",
+        '    it("Greets Ada"):',
+        '        snapshot_file("hello, Ada")',
+        "",
+      ].join("\n"),
+    );
+    await assert.rejects(hd(["test", source]));
+    await hd(["test", "--update", source]);
+    const snapshot = join(directory, "__snapshots__", "greet", "greets-ada-1.snap");
+    assert.equal(await readFile(snapshot, "utf8"), "hello, Ada");
+    assert.match((await hd(["test", source])).stdout, /1 passed/);
+    await writeFile(snapshot, "changed");
+    await assert.rejects(hd(["test", source]));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

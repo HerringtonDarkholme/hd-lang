@@ -411,7 +411,8 @@ test("built-in comparison dictionaries carry their supertrait dictionaries (EQ-1
     trait("PartialOrd").supertraits.map((parent) => parent.traitName),
     ["Eq"],
   );
-  const { instance } = await instantiate(source);
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
   assert.equal((instance.exports.main as CallableFunction)(), 131);
   assert.deepEqual(
     analyze(
@@ -449,7 +450,8 @@ test("a generic inherent implementation lowers to a generic function (TQ-19)", a
   const compilation = compile(source);
   const get = compilation.hir.functions.find((item) => item.name.endsWith(".get"));
   assert.deepEqual(get?.genericParameters, ["T"]);
-  const { instance } = await instantiate(source);
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
   assert.equal((instance.exports.main as CallableFunction)(), 43);
 });
 
@@ -487,7 +489,8 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
     "fn main() -> bool: wide(1) == 6000000001",
     "",
   ].join("\n");
-  const { instance } = await instantiate(source);
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
   assert.equal((instance.exports.main as CallableFunction)(), 1);
   assert.deepEqual(
     analyze("fn narrow(value: i64) -> i32: value\n").diagnostics.map((item) => item.code),
@@ -559,10 +562,14 @@ test("println panics when its write_line! is pending on a host operation (MHP-1)
   );
 });
 
-test("Debug is checked, and debug text is not rendered (T33)", () => {
-  const source = "@derive(Debug)\ndata P:\n    x: i32\n\nfn show(p: P) -> string: debug(p)\n";
+test("Debug is checked, and derived builders render debug text (T33, T53)", async () => {
+  const source =
+    "@derive(Debug)\ndata P:\n    x: i32\n\npub fn main() -> void $ Console: println(debug(P { x: 1 }))\n";
   assert.deepEqual(analyze(source).diagnostics, []);
-  assert.throws(() => compile(source), /does not render debug text/);
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
+  (instance.exports.main as CallableFunction)({});
+  assert.deepEqual(printed, ["P { x: 1 }"]);
   assert.deepEqual(
     analyze("data Q:\n    x: i32\n\nfn show(q: Q) -> string: debug(q)\n").diagnostics.map(
       (item) => item.code,

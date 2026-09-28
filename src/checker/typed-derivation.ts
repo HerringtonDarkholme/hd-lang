@@ -25,6 +25,7 @@ import {
   declarationFacts,
   isSpreadFact,
   isTraitLess,
+  withInlinedListLines,
   lineFacts,
   type Target,
   withTraitLessBlocks,
@@ -900,32 +901,6 @@ function lintDerivations(
   // fact never occurs here.
 }
 
-/**
- * A member line whose right side names a module `let` bound to a list literal
- * uses that literal's elements. Facts are evaluated once at compile time
- * (annot.fact.eval), so this is the same list; it keeps each element's
- * concrete type, which the prototype's `Any` erasure would lose.
- */
-function withInlinedListLines(program: Program): Program {
-  const lists = new Map<string, Expression>();
-  for (const statement of program.statements)
-    if (statement.kind === "binding" && statement.value.kind === "list")
-      lists.set(statement.name, statement.value);
-  if (lists.size === 0) return program;
-  const inline = (line: MemberLine): MemberLine =>
-    line.value?.kind === "name" && lists.has(line.value.name)
-      ? { ...line, value: lists.get(line.value.name)! }
-      : line;
-  return {
-    ...program,
-    implementations: program.implementations.map((implementation) =>
-      implementation.memberLines
-        ? { ...implementation, memberLines: implementation.memberLines.map(inline) }
-        : implementation,
-    ),
-  };
-}
-
 function nonLiteral(fact: Expression): boolean {
   return !isLiteralFact(fact);
 }
@@ -1455,7 +1430,36 @@ function derivedImpl(target: Target, trait: string, out: Source_): string {
 function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl {
   const out = new Source_();
   derivedImpl(target, "Debug", out);
-  out.add(`    fn debug(self, out: mut ${writer}) -> void: pass`);
+  out.add(`    fn debug(self, out: mut ${writer}) -> void:`);
+  // One builder per value, as Rust's derive does (trait.debug.derive-builders):
+  // `debug_struct` for named members, `debug_tuple` for positional ones, and
+  // the bare name for a variant without a payload.
+  const fields = (members: readonly DataField[], name: string, value: (index: number) => string) =>
+    members.length === 0
+      ? `out.write(${out.string(name)})`
+      : members[0]!.positional
+        ? `out.debug_tuple(${out.string(name)})${members.map((_, index) => `.field(${value(index)})`).join("")}.finish()`
+        : `out.debug_struct(${out.string(name)})${members.map((member, index) => `.field(${out.string(member.name)}, ${value(index)})`).join("")}.finish()`;
+  if (target.kind === "data") {
+    const members = target.declaration.fields;
+    out.add(
+      `        ${fields(members, target.declaration.name, (index) => `self.${members[index]!.name}`)}`,
+    );
+  } else {
+    const { name, variants } = target.declaration;
+    if (variants.length === 0) out.add("        pass");
+    else out.add("        match self:");
+    for (const variant of variants) {
+      const bound = variant.fields.map((_, index) => `hd_v${index}`);
+      const pattern =
+        bound.length === 0
+          ? `${name}.${variant.name}`
+          : `${name}.${variant.name}(${bound.join(", ")})`;
+      out.add(
+        `            ${pattern} => ${fields(variant.fields, variant.name, (index) => bound[index]!)}`,
+      );
+    }
+  }
   return out.program(span).implementations[0]!;
 }
 

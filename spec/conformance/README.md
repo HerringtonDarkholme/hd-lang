@@ -70,9 +70,10 @@ Runtime results are observed with `assert` and `assert_equal` from
 `tests:` block), and console output is observed with `# expect-stdout:` (see
 [Standard Output](#standard-output)).
 
-A fixture is always a single ordinary module, never a
+A fixture is a single ordinary module, never a
 [test module](../10-modules.md#test-modules) or an integration test module,
-whatever its file name.
+whatever its file name, unless a `# fixture-test-layout:` header places it
+as one (see [Test Layouts](#test-layouts)).
 
 ## Comment Directives
 
@@ -103,6 +104,7 @@ directive not listed below.
 | `# fixture-runtime-scenario: NAME`          | header      | Replaces ordinary execution with a named driving procedure. See [Runtime Scenarios](#runtime-scenarios). |
 | `# fixture-runtime-pending-function: NAME`  | header      | Holds the named suspending function pending. Valid only with the `cancellation-cleanup` scenario. |
 | `# fixture-package-role: ROLE`              | header      | Selects the synthetic multi-package environment. See [Package Roles](#package-roles). |
+| `# fixture-test-layout: LAYOUT`             | header      | Places the fixture as a test module or an integration test module. See [Test Layouts](#test-layouts). |
 | `# expect-stdout: TEXT`                     | header      | One line of the entry point's exact standard output, in order. Valid only in a `runtime` `accept` case. See [Standard Output](#standard-output). |
 
 ## Case Index
@@ -327,6 +329,22 @@ The runner passes `--package-role ROLE` to `check` and `test`. It also
 passes `--dependency NAME=DIR` once for each package directory, in ascending
 order of `NAME`, where `DIR` is the absolute path of `packages/NAME`.
 
+### Test Layouts
+
+`# fixture-test-layout: LAYOUT` places the primary file in a synthetic
+package, as Package Roles does for the multi-package environment
+(Testing T53). `LAYOUT` is one of:
+
+| Layout | The file is compiled as | Its module |
+| --- | --- | --- |
+| `test-module` | `src/NAME_test.hd`, a [test module](../10-modules.md#test-modules) | `NAME_test` |
+| `integration` | `tests/NAME.hd`, an integration test module | `tests.NAME` |
+
+- `NAME` is the fixture's file name without `.hd`. The package holds no
+  other source file.
+- The runner passes `--test-layout LAYOUT` to `check` and `test`.
+- A fixture with this header names no package role.
+
 ### Standard Output
 
 A `runtime` `accept` case may state the exact standard output of its entry
@@ -370,8 +388,8 @@ IMPL ACTION [OPTION VALUE]... FILE
 | Action  | Options the runner may pass                                     | Used for |
 | ------- | --------------------------------------------------------------- | -------- |
 | `parse` | none                                                            | `parse` phase |
-| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `type` phase, and the first step of `runtime` |
-| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `runtime` phase |
+| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT` | `type` phase, and the first step of `runtime` |
+| `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR`, `--test-layout LAYOUT` | `runtime` phase |
 | `run`   | none                                                            | `runtime` cases with `# expect-stdout:` |
 
 `run FILE` executes only the entry point, in a fresh program instance under

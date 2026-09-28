@@ -339,3 +339,28 @@ export function withTraitLessBlocks(
     implementations: program.implementations.filter((item) => !isTraitLess(item)),
   };
 }
+/**
+ * A member line whose right side names a module `let` bound to a list literal
+ * uses that literal's elements. Facts are evaluated once at compile time
+ * (annot.fact.eval), so this is the same list; it keeps each element's
+ * concrete type, which the prototype's `Any` erasure would lose.
+ */
+export function withInlinedListLines(program: Program): Program {
+  const lists = new Map<string, Expression>();
+  for (const statement of program.statements)
+    if (statement.kind === "binding" && statement.value.kind === "list")
+      lists.set(statement.name, statement.value);
+  if (lists.size === 0) return program;
+  const inline = (line: MemberLine): MemberLine =>
+    line.value?.kind === "name" && lists.has(line.value.name)
+      ? { ...line, value: lists.get(line.value.name)! }
+      : line;
+  return {
+    ...program,
+    implementations: program.implementations.map((implementation) =>
+      implementation.memberLines
+        ? { ...implementation, memberLines: implementation.memberLines.map(inline) }
+        : implementation,
+    ),
+  };
+}

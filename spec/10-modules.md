@@ -563,6 +563,57 @@ tests:
     it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
 ```
 
+#### Property Tests
+
+A property test draws its inputs from a `Choices` source, the only
+randomness a generator sees:
+
+```text
+pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
+                                               expect_panic: string? = .None, timeout: Duration? = .None,
+                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                        expect_panic: string? = .None, timeout: Duration? = .None,
+                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+
+trait Arbitrary:
+    fn arbitrary(c: mut Choices) -> Self
+```
+
+| Rule | Member of `Choices` | Draws |
+| --- | --- | --- |
+| r[module.testing.choices.int] Integer | `fn int(mut self, lo: i64, hi: i64) -> i64` | an integer from `lo` to `hi` |
+| r[module.testing.choices.float] Float | `fn float(mut self, lo: f64, hi: f64) -> f64` | a float from `lo` to `hi` |
+| r[module.testing.choices.bool] Boolean | `fn bool(mut self) -> bool` | a `bool` |
+| r[module.testing.choices.pick] Pick | `fn pick[T](mut self, items: List[T]) -> T` | one of `items`; earlier items shrink first |
+| r[module.testing.choices.list] List | `fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]` | at most `max` items, each drawn by `item` |
+| r[module.testing.choices.string] String | `fn string(mut self, max: i32) -> string` | a string of at most `max` characters |
+| r[module.testing.choices.assume] Assume | `fn assume(mut self, ok: bool) -> void` | nothing; a false `ok` discards the case |
+| r[module.testing.choices.draw] Draw | `fn draw[T < Arbitrary](mut self) -> T` | `T::arbitrary(self)`, the type's default |
+
+1. r[module.testing.choices.declare] `std.testing` declares `Choices`, `Arbitrary`, `it_prop`, and `it_prop_with`. None is a prelude name.
+2. r[module.testing.choices.runner] The runner creates every `Choices`. It records each draw, so the runner can replay and shrink a case.
+3. r[module.testing.arbitrary] `Arbitrary` gives a type its default generator, which `it_prop` and `Choices.draw` use.
+4. r[module.testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
+
+```text
+use std.testing.{Arbitrary, Choices}
+
+data Point:
+    x: i64
+    y: i64
+
+impl Arbitrary for Point:
+    fn arbitrary(c: mut Choices) -> Point:
+        Point { x: c.int(0, 9), y: c.int(-5, 5) }
+
+fn small_counts(c: mut Choices) -> List[i64]:
+    c.list(3, fn(inner: mut Choices) -> i64: inner.int(0, 10))
+```
+
+> **Note.** How often a draw returns boundary values, and how the runner
+> shrinks a failing case, are runner behavior, not rules of this chapter.
+
 ### Test Outcomes
 
 Each test case runs alone and passes or fails by its result:
@@ -630,6 +681,16 @@ pub fn snapshot_file(text: string) -> void
 2. r[module.testing.snapshot-file] `snapshot_file` compares `text` with a snapshot file, which the test runner names from the running test case.
 3. r[module.testing.snapshot.import] Neither is a prelude name; code imports them from `std.testing`.
 4. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
+5. r[module.testing.snapshot-file.path] `snapshot_file` keeps its file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, whose parts the table below defines.
+6. r[module.testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
+
+| Rule | Part | Value |
+| --- | --- | --- |
+| r[module.testing.snapshot-file.folder] Folder | `__snapshots__/` | one folder at the package root, beside `hd.toml`; it has no `mod.hd`, so it is never a module |
+| r[module.testing.snapshot-file.module] Module | `<module>` | the test's module path, such as `billing`; a module under `tests/` is `tests.<name>` |
+| r[module.testing.snapshot-file.slug] Slug | `<test-slug>` | the test case name, lowercased, with each run of characters other than ASCII letters and digits turned into `-` |
+| r[module.testing.snapshot-file.counter] Counter | `<n>` | the count of `snapshot_file` calls within one test case run, from 1 |
+| r[module.testing.snapshot-file.row] Table row | `<test-slug>.<i>` | the slug of an `it_each` row adds the row's index |
 
 ```text
 use std.testing.snapshot
@@ -647,6 +708,8 @@ tests:
 > **Why.** A literal `expect` lets a tool rewrite it in place, so an update
 > run records a new or changed expectation, and an empty `expect` is filled
 > on the first update. The test picks the rendering, such as `debug(value)`.
+> A missing snapshot file fails outside an update run, so a test that was
+> never recorded cannot pass by accident.
 
 See also: [Debug Trait](09-traits.md#debug-trait).
 

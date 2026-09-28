@@ -4,7 +4,12 @@ import type { Diagnostic } from "./diagnostics.ts";
 import { DiagnosticError } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
 import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
-import { HOST_FUNCTIONS, HOST_PROVIDERS, UNRECORDED_PROVIDERS } from "./host-functions.ts";
+import {
+  HOST_FUNCTIONS,
+  HOST_PROVIDERS,
+  UNRECORDED_PROVIDERS,
+  type HostFunction,
+} from "./host-functions.ts";
 import { nominalGenericParts } from "./types.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
@@ -145,6 +150,8 @@ export interface InstantiateOptions {
   readonly hostSuspensionCancel?: (call: HostSuspensionCall) => void;
   readonly hostSuspensionInvoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
   readonly hostSuspensionPending?: (call: HostSuspensionCall) => boolean;
+  /** Host functions that override or add to `HOST_FUNCTIONS`, such as a runner's `snapshot_file_check`. */
+  readonly hostFunctions?: Readonly<Record<string, HostFunction>>;
   readonly parse?: ParseOptions;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
@@ -580,7 +587,7 @@ export async function instantiate(
     const name = declaration.intrinsic;
     if (!name || isRuntimePrimitive(name)) continue;
     hostImports[`host:${name}`] = (...arguments_) => {
-      const implementation = HOST_FUNCTIONS[name];
+      const implementation = options.hostFunctions?.[name] ?? HOST_FUNCTIONS[name];
       if (!implementation) throw new Error(`the host has no function '${name}'`);
       const result = implementation(
         ...declaration.parameters.map((parameter, index) =>

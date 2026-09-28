@@ -83,7 +83,7 @@ if grep -R -n -E '^# expect-(error|warning|panic):' "$spec_dir/conformance" --in
 fi
 
 if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
-    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|expect-stdout): ' |
+    grep -v -E ':# (test|expect|fixture-runtime-profile|fixture-runtime-scenario|fixture-runtime-pending-function|fixture-package-role|fixture-test-layout|expect-stdout): ' |
     grep -v -E ':# expect-stdout:$'; then
     fail "fixture uses a header directive not defined in conformance/README.md"
 fi

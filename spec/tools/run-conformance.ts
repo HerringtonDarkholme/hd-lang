@@ -50,6 +50,7 @@ interface Fixture {
   readonly expectedStdout?: string;
   readonly markerLine?: number;
   readonly packageRole?: string;
+  readonly testLayout?: string;
   readonly pendingFunction?: string;
   readonly profile?: string;
   readonly scenario?: string;
@@ -85,6 +86,7 @@ const defaultCommand = "node --experimental-strip-types bin/hd.js";
 const timeoutMs = 10_000;
 const indexHeader = "path\tphase\texpectation\tspecification";
 const packageRoles = new Set(["library", "root-application"]);
+const testLayouts = new Set(["test-module", "integration"]);
 const headerDirectives = new Set([
   "test",
   "expect",
@@ -92,6 +94,7 @@ const headerDirectives = new Set([
   "fixture-runtime-scenario",
   "fixture-runtime-pending-function",
   "fixture-package-role",
+  "fixture-test-layout",
 ]);
 
 class UsageError extends Error {}
@@ -238,6 +241,11 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   const packageRole = headers.get("fixture-package-role");
   if (packageRole !== undefined && !packageRoles.has(packageRole))
     return `unknown package role '${packageRole}'`;
+  const testLayout = headers.get("fixture-test-layout");
+  if (testLayout !== undefined && !testLayouts.has(testLayout))
+    return `unknown test layout '${testLayout}'`;
+  if (testLayout !== undefined && packageRole !== undefined)
+    return "'# fixture-test-layout' names no package role";
   const profile = headers.get("fixture-runtime-profile");
   if (stdoutLines.length > 0) {
     if (row.phase !== "runtime" || row.expectation !== "accept")
@@ -252,6 +260,7 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
       : undefined,
     markerLine: markers[0]?.line,
     packageRole,
+    testLayout,
     pendingFunction,
     profile,
     scenario,
@@ -424,6 +433,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
   const profile = [
     ...(fixture.profile ? ["--profile", fixture.profile] : []),
     ...(await packageOptions(options, fixture.packageRole)),
+    ...(fixture.testLayout ? ["--test-layout", fixture.testLayout] : []),
   ];
   const fail = (reason: string, results: readonly CommandResult[]): Verdict => ({
     output: snippet(results),

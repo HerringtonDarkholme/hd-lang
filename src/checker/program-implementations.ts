@@ -351,6 +351,8 @@ function checkImplementationOwnership(
   const argumentIsLocal =
     genericTypeName(readonlyType(targetType)) === undefined &&
     traitArguments.some(isLocalConstructor);
+  // `std` declares the prelude traits it implements, such as `Debug`.
+  if (implementation.standard) return true;
   if (traitIsLocal || isLocalConstructor(targetType) || argumentIsLocal) return true;
   context.diagnostics.push({
     code: "orphan-impl",

@@ -38,6 +38,7 @@ import { builtinDebug, implementsDebug } from "./debug.ts";
 import { varianceConversion } from "./variance.ts";
 import {
   genericTypeName,
+  findImpl,
   matchTraitImplementation,
   normalizeBoundProjections,
   normalizeRowArguments,
@@ -884,10 +885,8 @@ export abstract class CheckerContext {
         span,
       };
     }
-    const nested = this.implementations.find((candidate) =>
-      Boolean(matchTraitImplementation(candidate, bound.traitIndex, actual, traitArguments)),
-    );
-    if (!nested) {
+    const found = findImpl(this.implementations, bound.traitIndex, actual, traitArguments);
+    if (!found) {
       const builtin = this.builtinTraitDictionaryPlan(
         bound.traitIndex,
         actual,
@@ -911,7 +910,7 @@ export abstract class CheckerContext {
     return {
       kind: "trait-dictionary",
       traitIndex: bound.traitIndex,
-      dictionary: this.traitDictionaryPlan(nested, actual, traitArguments, span, seen),
+      dictionary: this.traitDictionaryPlan(found.impl, found.type, traitArguments, span, seen),
       type: `trait:${traitKey}`,
       span,
     };

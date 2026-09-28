@@ -531,11 +531,14 @@ else`, `break`, `break value`, and `continue`;
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
   and plain `Self`; `@derive(Eq)` is generated, `PartialOrd`, `Ord`, and
-  `Hash` are accepted but not generated, and `@derive(Debug)` generates an
-  implementation whose `debug` writes nothing (`Debug` is a prelude trait,
-  `std` supplies it for primitives and built-in composites, `assert_equal`
-  and `debug` require it, `DebugWriter` has no members, and a `debug` call
-  is `unsupported-debug-render` at run time); the drift and unused-fact warnings treat
+  `Hash` are accepted but not generated, and `@derive(Debug)` generates
+  builder calls (Testing T53): `debug_struct` for named members,
+  `debug_tuple` for positional ones, and `write` of a payload-free
+  variant's name. `Debug` is a prelude trait; `DebugWriter`, its
+  builders, the prelude `debug`, and `std`'s `Debug` implementations for
+  the primitives, `List`, `T?`, `Result`, and pairs are hd code in
+  `lib/std/format.hd`, whose writer is always compact. The checker still
+  accepts `Debug` for `Map` and longer tuples, which render no text; the drift and unused-fact warnings treat
   the module as one package, and a literal fact such as `@"note"` is the
   only `std`-typed fact the unused-fact warning skips (M25); function
   targets, `@derive` included, stay `decorator-not-annotator`. Trait-less
@@ -577,8 +580,16 @@ else`, `break`, `break value`, and `continue`;
   `Eq` implementations, with mandatory reasons and
   `missing-partial-eq` at unsupported types; `std.testing.snapshot` runs as
   a string `assert_equal` with a literal `expect` (no update run rewrites
-  it), and `snapshot_file` is checked but reported as
-  `unsupported-snapshot-file` by the run commands;
+  it), and `snapshot_file` is hd code in `lib/std/testing.hd` whose host
+  function (`src/snapshots.ts`) compares the text with
+  `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, failing
+  with an `explicit-panic` when it is missing or differs, except under
+  `hd test --update`, which writes it (Testing T53); `Choices` and
+  `Arbitrary` are hd code there too, with a fixed pseudo-random sequence,
+  and `it_prop` does not run;
+- `--test-layout test-module|integration` compiles a file as a test module
+  (the conformance Test Layouts); both layouts are test modules, since
+  the prototype has no separate integration view;
 - suspension CFG lowering for bang calls nested in expressions, call
   arguments, short-circuiting, branches, loops, match guards, propagation, and
   provider scopes, with scoped cleanup and cancellation;
@@ -645,8 +656,8 @@ does not implement the canonical prelude trait.
 
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
-module: `std.cmp`, `std.collections`, `std.iter`, `std.num`, `std.ops`,
-`std.option`, `std.process`, `std.result`, `std.text`, and `std.time`. It
+module: `std.cmp`, `std.collections`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
+`std.option`, `std.process`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
 specification allows; the open points are listed there under
@@ -688,6 +699,8 @@ What it provides:
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.ops` | `LiteralSuffix` |
+| `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
+| `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
 The prelude `string` methods live in `std.text` too, and `lower` and
 `upper` are backed by the host. Prototype limits: the `std.iter` adapters work on the built-in list and map cursors
@@ -728,7 +741,8 @@ declare a host function (a question in
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
-     `src/host-functions.ts` (today `string_lower` and `string_upper`).
+     `src/host-functions.ts` (today `string_lower` and `string_upper`), or
+     in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and
    [RUNTIME_AND_LIBRARY.md](../future-work/RUNTIME_AND_LIBRARY.md#capabilities-and-sandbox)).
@@ -769,9 +783,10 @@ marks what this refactor removed.
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
 | Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
-| HIR | `assert`, `assert-equal`, `snapshot-file` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
+| HIR | `assert`, `assert-equal` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
+| HIR | `snapshot-file` | `std.testing` | Done: `snapshot_file` is hd code in `lib/std/testing.hd` with a host function |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
-| HIR | `debug-render` | `std.format` | Remains: reports `unsupported-debug-render` until the `DebugWriter` layout is specified |
+| HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
 | Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics |
@@ -780,9 +795,10 @@ marks what this refactor removed.
 | Emitter | `float.wat` and the `format_f64` and `pow_f64` imports | `f64` display and `**` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
-or capability-specific. The string step removed 5 and the `println` step 1,
-leaving 86 kinds, 9 of them specific: the test-runner hooks, `std.testing`,
-`debug`, and `std.inspect` rows above. No capability has a HIR node now.
+or capability-specific. The string step removed 5, the `println` step 1,
+and the `debug` and `snapshot_file` step 2, leaving 84 kinds, 7 of them
+specific: the test-runner hooks, `assert`, `assert_equal`,
+and `std.inspect` rows above. No capability has a HIR node now.
 
 ### Console
 

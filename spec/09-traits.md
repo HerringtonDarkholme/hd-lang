@@ -464,13 +464,44 @@ fn describe(point: Point) -> string:
 7. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
 8. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
 
+#### Debug Builders
+
+`DebugWriter` describes a value through builders, like Rust's `Formatter`:
+
+```text
+use std.format.DebugWriter
+
+data Point:
+    x: i32
+    y: i32
+
+impl Debug for Point:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.debug_struct("Point").field("x", self.x).field("y", self.y).finish()
+```
+
+| Rule | Call | Describes |
+| --- | --- | --- |
+| r[trait.debug.builder.struct] Struct | `out.debug_struct(name)`, then `.field(field_name, value)` per field, then `.finish()` | a named value with named fields |
+| r[trait.debug.builder.tuple] Tuple | `out.debug_tuple(name)`, then `.field(value)` per field, then `.finish()` | a named value with positional fields |
+| r[trait.debug.builder.list] List | `out.debug_list()`, then `.entry(value)` per item, then `.finish()` | a sequence |
+| r[trait.debug.builder.map] Map | `out.debug_map()`, then `.entry(key, value)` per pair, then `.finish()` | key-value pairs |
+| r[trait.debug.builder.write] Write | `out.write(text)` | custom text, for a value that no builder fits |
+
+1. r[trait.debug.builder.types] `std.format` declares the builder types `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`, which the calls above return. None is a prelude name.
+2. r[trait.debug.builder.values] Each `field` and `entry` value, and each `entry` key, must implement `Debug`. The builder writes it through its own `debug`.
+3. r[trait.debug.builder.chain] `field` and `entry` return their builder, so calls chain, and `finish` ends the value.
+4. r[trait.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
+5. r[trait.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
+
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a
-> user-facing `Display`.
+> user-facing `Display`. Builders keep the layout in the writer: plain
+> writes would fix it in each implementation, which leaves no pretty mode
+> or depth limit and lets derived and hand-written text drift apart.
 
-> **Note.** The builder calls of `DebugWriter` and the exact layout of
-> `debug` text are standard-library API. Portable code and conformance
-> fixtures do not depend on that text.
+> **Note.** The exact layout of `debug` text is standard-library API.
+> Portable code and conformance fixtures do not depend on that text.
 
 See also: [Standard Testing](10-modules.md#standard-testing),
 [Typed Derivation](14-annotations.md#typed-derivation).

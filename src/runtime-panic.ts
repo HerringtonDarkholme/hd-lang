@@ -27,7 +27,7 @@ export class RuntimePanicError extends Error {
 
 /**
  * A checked program stopped at a feature the prototype does not run; `code`
- * is a prototype diagnostic code such as `unsupported-debug-render`.
+ * is a prototype diagnostic code.
  */
 export class UnsupportedAtRunTimeError extends Error {
   readonly code: string;

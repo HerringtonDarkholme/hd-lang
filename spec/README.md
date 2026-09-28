@@ -1142,6 +1142,18 @@ existing source. Each entry names the decision that made the change.
   pending on a host operation, or returns `.Err(ConsoleError)`, previously
   unspecified, now makes `println` panic; the panic category is not yet
   specified.
+- Testing T53 (owner decision in
+  [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-28):
+  `DebugWriter` has builders like Rust's `Formatter`: `debug_struct`,
+  `debug_tuple`, `debug_list`, `debug_map`, and `write`, with the builder
+  types `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`.
+  `@derive(Debug)` generates builder calls, and the writer chooses the
+  layout. `std.testing` declares `Choices` and `Arbitrary`, and gives
+  `it_prop` and `it_prop_with` their signatures. `snapshot_file` keeps its
+  file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, and
+  a missing file, previously unspecified, fails the test case outside an
+  update run. The conformance format gains `# fixture-test-layout:`. No
+  existing source changes meaning.
 - `println` has `block_on`'s rules (mutable host providers, MHP-1
   follow-ups, owner decision 2026-09-28): `println` is an ordinary `std`
   prelude function, and its panics are ordinary `std` panics with no

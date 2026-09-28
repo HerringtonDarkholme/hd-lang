@@ -109,6 +109,8 @@ export async function runSelected(
   selected: readonly HirFunction[],
   shared: Exports,
   fresh: () => Promise<Exports>,
+  // Called as each test case, or `it_each` row, starts (for `snapshot_file`).
+  begin?: (name: string, row: number | undefined) => void,
 ): Promise<RunOutcome> {
   let count = 0;
   let last: unknown;
@@ -126,6 +128,7 @@ export async function runSelected(
     let rows = 1;
     for (let row = 0; row < rows; row += 1) {
       const exports = await fresh();
+      begin?.(declaration.testOptions.name ?? declaration.name, table ? row : undefined);
       const { outcome, noRows } = runCase(exports, declaration, table ? row : undefined);
       if (outcome) return outcome;
       if (noRows) break;
