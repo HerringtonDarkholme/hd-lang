@@ -69,8 +69,10 @@ trait is a breaking change
 **Decided.** Owner decisions M1-M23 in
 [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md) are
 applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation).
-The prototype does not implement them yet (the `TD` rows of
-`test/portable/KNOWN_FAILURES.tsv`). Error derivation is the separate
+The prototype implements them by lowering; its gaps are the `TD` rows of
+`test/portable/KNOWN_FAILURES.tsv`, and the questions the prototype pass
+raised are in
+[Still Open](TYPED_DERIVATION.md#still-open-after-the-prototype-pass). Error derivation is the separate
 `@error` intrinsic
 ([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
 

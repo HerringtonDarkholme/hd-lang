@@ -311,7 +311,7 @@ Library traits derive the same way when their library declares a template,
 `std.structure.Structure` view of a type's members. Other decorators attach
 facts that the template reads, and a derivation block configures one
 derivation with member lines. A module that writes `by Structure` imports
-`std.structure.Structure`:
+`std.structure.Structure`; `@derive` alone needs no import:
 
 ```text
 use std.structure.Structure
@@ -329,7 +329,10 @@ impl Encode for Order by Structure:
 ```
 
 `cache = pass` leaves a member out, and `build` fills it from its default.
-A newtype has no derivation block: it derives only through its base type.
+Facts and member metadata are `List[Any]` values evaluated once at compile
+time, so they must be requirement-free and may not reach `block_on`. A
+decorator before a function is still an error. A newtype has no derivation
+block: it derives only through its base type.
 `Error` is not derived: an error type uses the `@error` intrinsic. See
 [Typed Derivation](../spec/14-annotations.md#typed-derivation).
 

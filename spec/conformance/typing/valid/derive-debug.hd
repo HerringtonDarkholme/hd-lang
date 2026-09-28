@@ -13,5 +13,5 @@ enum Shape:
 fn describe(point: Point) -> string:
     debug(point)
 
-fn describe_shape(shape: Shape) -> string:
-    debug(shape)
+fn describe_shape(value: Shape) -> string:
+    debug(value)

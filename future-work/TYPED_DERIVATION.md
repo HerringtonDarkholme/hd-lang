@@ -8,8 +8,11 @@ specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
 with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
 rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
 and [09](../spec/09-traits.md#derived-implementations). The prototype
-compiler is pending: its gaps are the `TD` rows of
-[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv). The spec is the
+compiler implements them by lowering each derivation to an ordinary
+implementation ([src/README.md](../src/README.md)); its remaining gaps are the
+`TD` rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), and
+[Still Open](#still-open-after-the-prototype-pass) lists what the pass found
+unspecified. The spec is the
 accepted behavior; this record is history and rationale.
 
 `@derive` lists the intrinsic comparison traits and traits with a `by
@@ -1251,6 +1254,20 @@ Nothing below is decided. Each item waits for the owner.
   [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
   is removed (decision 10, applied 2026-09-27), so an ordinary decorator
   before a function is `decorator-not-annotator` until then.
+
+### Still Open After The Prototype Pass
+
+The `src/` prototype pass (2026-09-28) met these gaps in the specification.
+Nothing here is decided; each item says what the prototype does and gives a
+**Recommendation** for the owner.
+
+| Question | What the spec leaves open | Prototype | Recommendation |
+| --- | --- | --- | --- |
+| A data type's variant facts | [`annot.variant.data`](../spec/14-annotations.md#r-annot.variant.data) gives the one variant the type's name and doc, but says nothing of `VariantInfo.facts`. | an empty list | An empty list, stated in the rule: type-level facts are read once, through `T::facts()`. |
+| `@derive` before a function | [`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function) rejects an ordinary decorator; the grammar also admits `@derive(...)` there. | `decorator-not-annotator` for every decorator line | `decorator-not-annotator` for `@derive` too, until function targets are decided. |
+| Duplicate declaration facts | [Member Metadata](../spec/14-annotations.md#member-metadata) forbids two values of one concrete type on a member, but names no code; `duplicate-fact` covers only member lines. | not checked | Report it as `duplicate-fact`. |
+| Omitting an embedded part | An embedded field cannot declare a default (`embedded-field-default`), so `Part = pass` is always `omitted-member-without-default`. | reports that error | Keep it, and add the case as an example beside [`annot.omit.no-default`](../spec/14-annotations.md#r-annot.omit.no-default). |
+| Unused facts of foreign types | [`annot.fact.unused`](../spec/14-annotations.md#r-annot.fact.unused) keys on the fact's package; a fact of a primitive or standard type, such as `@"note"`, has no library package. | warns for any type-level fact of a type that derives no template | Warn only when the fact's type comes from a package other than `std`. |
 
 ### Current Design: Full Example (M1-M14)
 
