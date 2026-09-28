@@ -822,8 +822,8 @@ typing/invalid/tuple-binding-arity.hd	type	reject:type-mismatch	05-expressions.m
 runtime/valid/println-console-stdout.hd	runtime	accept	10-modules.md#prelude
 typing/valid/default-reads-top-level-binding.hd	type	accept	07-functions.md#default-values
 runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	09-traits.md#dynamic-trait-values
-runtime/valid/println-suspending-call-argument.hd	runtime	accept	05-expressions.md#literals
-runtime/valid/println-around-suspending-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
+runtime/valid/write-line-suspending-call-argument.hd	runtime	accept	05-expressions.md#literals
+runtime/valid/write-line-around-suspending-provider-scope.hd	runtime	accept	11-requirements-and-suspension.md#provider-scopes
 parse/valid/closing-delimiter-ends-nested-suite.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/valid/closure-body-ends-at-comma-line.hd	parse	accept	01-lexical-structure.md#physical-and-logical-lines
 parse/invalid/closure-body-absorbs-next-argument.hd	parse	reject:syntax-error	01-lexical-structure.md#physical-and-logical-lines
@@ -1250,3 +1250,7 @@ runtime/valid/member-line-list-expression.hd	runtime	accept	14-annotations.md#r-
 typing/valid/trait-less-block-generic-rename.hd	type	accept	14-annotations.md#r-annot.traitless.generic.rename
 typing/invalid/member-line-not-list.hd	type	reject:invalid-member-line	14-annotations.md#r-annot.line.right.not-list
 typing/warnings/per-trait-self-line-unused-fact.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-self-line.per-trait
+runtime/panic/println-under-main-driver.hd	runtime	panic:suspension-nested-driver	10-modules.md#r-module.console.println-block-on
+runtime/panic/println-in-test-body.hd	runtime	panic:suspension-nested-driver	10-modules.md#r-module.console.println-block-on
+typing/invalid/println-in-defer.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on
+typing/invalid/println-in-default.hd	type	reject:suspension-forbidden-context	10-modules.md#r-module.console.println-block-on

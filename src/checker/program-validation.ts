@@ -41,14 +41,9 @@ export function validateProgram(context: ProgramCheckContext): void {
       span: call.span,
     });
   }
-  const topLevelDriverCall = findDriverCall(program.statements, driverFunctions, imports);
-  if (topLevelDriverCall) {
-    diagnostics.push({
-      code: "suspension-forbidden-context",
-      message: "module initialization cannot transitively start a suspension driver",
-      span: topLevelDriverCall.span,
-    });
-  }
+  // The compiled module is the entry module: its initialization may start a
+  // driver, since only non-entry module initialization is a forbidden
+  // context (req.drive.block-on.forbidden-contexts).
   validateResultTypes(context);
   for (const declaration of program.functions) {
     let sawDefault = false;

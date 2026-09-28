@@ -400,6 +400,10 @@ fn load_now(id: string) -> Result[User?, DbError] $ Database:
     block_on(pending)
 ```
 
+`println` drives its write the same way, so it has `block_on`'s rules: it
+panics inside `main!` or a test body, where a driver is already running.
+Suspending code writes with `$.use(Console).write_line!` instead.
+
 ## Modules, Entry Points, and Tests
 
 Each file is a module named by its path under `src/`, and `mod.hd` indexes a

@@ -21,7 +21,7 @@ import providers from "../../../spec/conformance/runtime/valid/context-values-in
 import embedding from "../../../spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd";
 import hello from "../../../spec/conformance/runtime/valid/println-console-stdout.hd";
 import conversion from "../../../spec/conformance/runtime/valid/propagation-from-two-domains.hd";
-import scopes from "../../../spec/conformance/runtime/valid/println-around-suspending-provider-scope.hd";
+import scopes from "../../../spec/conformance/runtime/valid/write-line-around-suspending-provider-scope.hd";
 import { DEFAULT_MAIN, type Project } from "./project.ts";
 
 export interface Example {

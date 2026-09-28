@@ -12,6 +12,6 @@ fn compute!() -> i32:
     $.with(Clock=FixedClock {}):
         add_two!(40)
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> Result[void, ConsoleError] $ Console:
     x := compute!()
-    println("${x}")
+    $.use(Console).write_line!("${x}")

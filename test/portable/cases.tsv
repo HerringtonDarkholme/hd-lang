@@ -702,8 +702,8 @@ typing/valid/identity-trait-value-operand.hd	type
 runtime/valid/copy-update-shallow.hd	runtime
 runtime/valid/reference-bounded-dynamic-method.hd	runtime
 runtime/valid/fieldless-data-canonical.hd	runtime
-runtime/valid/println-suspending-call-argument.hd	runtime
-runtime/valid/println-around-suspending-provider-scope.hd	runtime
+runtime/valid/write-line-suspending-call-argument.hd	runtime
+runtime/valid/write-line-around-suspending-provider-scope.hd	runtime
 typing/invalid/float-literal-map-key.hd	type
 typing/invalid/heterogeneous-map-values.hd	type
 typing/invalid/generic-data-field-type-mismatch.hd	type
@@ -1185,3 +1185,7 @@ typing/warnings/trait-less-self-line-unused-fact.hd	type
 runtime/valid/member-line-list-expression.hd	runtime
 typing/valid/trait-less-block-generic-rename.hd	type
 typing/invalid/member-line-not-list.hd	type
+runtime/panic/println-under-main-driver.hd	runtime
+runtime/panic/println-in-test-body.hd	runtime
+typing/invalid/println-in-defer.hd	type
+typing/invalid/println-in-default.hd	type

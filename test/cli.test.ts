@@ -198,25 +198,36 @@ test("hd run runs Console.write_line! on host and program providers", async () =
       "    let buffer: mut Buffer = Buffer { lines: [] }",
       "    $.with(Console=buffer):",
       "        greet!()?",
-      '    println("recorded ${buffer.lines.len()}")',
+      '    $.use(Console).write_line!("recorded ${buffer.lines.len()}")?',
     ];
     await writeFile(source, [...lines, "    .Ok()", ""].join("\n"));
     const ran = await hd(["run", source]);
     assert.equal(ran.stdout, "hi\nrecorded 1\n");
 
+    // `println` drives with `block_on`: it runs outside a driver, and
+    // panics under `main!`'s driver.
+    const printing = [
+      ...lines.slice(0, 7),
+      "pub fn main() -> void $ Console:",
+      "    let buffer: mut Buffer = Buffer { lines: [] }",
+      "    $.with(Console=buffer):",
+      '        println("kept")',
+      '    println("recorded ${buffer.lines.len()}")',
+      "",
+    ];
+    await writeFile(source, printing.join("\n"));
+    const printed = await hd(["run", source]);
+    assert.equal(printed.stdout, "recorded 1\n");
+
     await writeFile(
       source,
-      [
-        ...lines,
-        "    $.with(Console=buffer):",
-        '        println("kept")',
-        '    println("recorded ${buffer.lines.len()}")',
-        "    .Ok()",
-        "",
-      ].join("\n"),
+      [...lines, '    println("under a driver")', "    .Ok()", ""].join("\n"),
     );
-    const printed = await hd(["run", source]);
-    assert.equal(printed.stdout, "hi\nrecorded 1\nrecorded 2\n");
+    const nested = await hd(["run", source]).then(
+      () => assert.fail("println under main! must panic"),
+      (error: { stderr: string }) => error,
+    );
+    assert.match(nested.stderr, /suspension-nested-driver/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -2033,9 +2033,12 @@ both the `void` expression `pass` and the unit tuple `()`.
 `Console.write_line!` takes `mut self`, so `$.use(Console)` gives mutable
 access. A `:=` binding would expose only a readonly view, so code that keeps
 the console in a local writes `let console: mut Console`. `println` needs
-only `$ Console`. It calls the provider's `write_line!` and finishes that
-call before it returns, so a recording provider receives each line, and it
-panics when the write fails.
+only `$ Console`. It is ordinary `std` code that drives the provider's
+`write_line!` with `block_on`, so a recording provider receives each line,
+and it panics when the write fails. It also has `block_on`'s rules: it
+panics under a running driver, such as `main!` or a test body, and it is
+rejected in a `defer` suite. Suspending code writes with
+`$.use(Console).write_line!`, as `main!` does above.
 
 An entry-point row may contain only host capability traits supplied by its
 selected runtime profile, such as `Args` and `Console` above. Application

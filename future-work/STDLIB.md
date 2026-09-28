@@ -223,7 +223,8 @@ use std.time.Clock
 
 pub fn main!() -> Result[void, FsError] $ FsRead, Clock, Console:
     stamped := load_stamped!(Path::parse("app.toml"))?
-    println(stamped.text)
+    let console: mut Console = $.use(Console)
+    _ := console.write_line!(stamped.text)  # println would panic under main!'s driver
     .Ok()
 ```
 

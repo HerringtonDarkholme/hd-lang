@@ -294,10 +294,14 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   (`emitter/host-providers.ts`); its `write_line!` writes the line and is
   ready with `.Ok()` on its first poll, so direct calls run on it and on a
   program-defined provider. `println` calls `write_line!` on the covering
-  provider, the host console or a program-defined one, and polls the call
-  inside itself (MHP-1). A call that stays pending, or returns `.Err`,
-  stops the run with `unsupported-println-panic`, since the spec leaves
-  that panic's category open. A public non-suspending function with a
+  provider, the host console or a program-defined one, and drives the call
+  with `block_on` (MHP-1), so it panics with `suspension-nested-driver`
+  under `main!` or a test body and is `suspension-forbidden-context` in a
+  `defer` suite or a default expression. A call that returns `.Err`, or
+  that `block_on` finds pending on a host operation, is an
+  `explicit-panic`. The prototype drives synchronously, so its `block_on`
+  cannot wait for any pending host operation: it panics the same way
+  rather than wait. A public non-suspending function with a
   host provider in its row is exported through a wrapper that makes the
   trait value from the host's `externref`;
 - suspending host capability methods with scalar and UTF-8 string arguments
@@ -692,7 +696,7 @@ there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
 private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
 `Hash`), and no host `ConsoleInput`; a `BufferConsole` records both direct
-`write_line!` calls and `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
+`write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
 
 ## Compiler/Library Boundary
@@ -759,8 +763,8 @@ marks what this refactor removed.
 | Host glue | `string_transform_begin`, `_input`, `_output` imports, `trimWhiteSpace` | string library | Done: `trim` is hd code; case mapping goes through `host:` |
 | HIR | `console-print` (`println`) | capability | Done: `println` is hd code in `lib/std/console.hd` |
 | Checker | `println` by name | capability | Done: an ordinary std function; std may declare a prelude name (`FunctionDecl.standard`) |
-| Emitter | `emitPrintln` (`$hd.println`) | capability | Done: two runtime primitives, `suspension_poll` and `suspension_result` |
-| Host glue | `println_pending`, `println_error` imports | capability | Done: host functions `host:println_pending` and `host:println_error` |
+| Emitter | `emitPrintln` (`$hd.println`) | capability | Done: `println` drives `write_line!` with `block_on` |
+| Host glue | `println_pending`, `println_error` imports | capability | Done: removed; the panics are ordinary `std` panics |
 | Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Remains: see Console below |
 | Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
 | Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
@@ -784,14 +788,23 @@ leaving 86 kinds, 9 of them specific: the test-runner hooks, `std.testing`,
 
 `println` is hd code in `lib/std/console.hd`
 ([`module.prelude.println`](../spec/10-modules.md#r-module.prelude.println)).
-It calls `write_line` without `!`, which makes a stored suspension, polls
-it once with the `suspension_poll` primitive, and reads the result with
-`suspension_result`, so it still runs under an active driver. The owner
-has decided that `println` inherits all of `block_on`'s rules
-([MHP follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)),
-so it will panic under a running driver; a later change applies that. The
-loader adds `println` under its own name when a program mentions it,
-because `println` is a prelude name.
+It calls `write_line` without `!`, which makes a stored suspension, and
+drives it with `std.task.block_on`, so it inherits all of `block_on`'s
+rules with no checker case of its own
+([MHP follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)).
+Its `.Err` panic is an ordinary `panic` call. `std.task` is a
+compiler-provided module, not a `lib/std` file: the loader keeps a std
+module's `use std.task.block_on` line as a program `use` under a hidden
+name, so the call is an ordinary `block_on` call. The loader adds
+`println` under its own name when a program mentions it, because
+`println` is a prelude name.
+
+The compiled module is the entry module, so its top-level statements may
+call `block_on` and `println`
+([`req.drive.block-on.forbidden-contexts`](../spec/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts)
+forbids only non-entry module initialization). A linked package shares
+one namespace, so the prototype cannot reject a driver in another
+module's initialization.
 
 The host console is a built-in entry of the generic capability bridge.
 Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), so

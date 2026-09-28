@@ -138,24 +138,35 @@ The rules are
 [`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
 through
 [`module.console.println-error`](../spec/10-modules.md#r-module.console.println-error).
-The prototype runs `println` through a program-defined provider such as
-`BufferConsole`. It stops a pending or failed call with the prototype code
-`unsupported-println-panic`, because the category is open (question 1
-below).
 
-**Still open after applying MHP-1 (2026-09-28).** None of these is decided:
+The applying pass of MHP-1 raised three questions: the panic category,
+constructing a `ConsoleError`, and whether `block_on`'s restrictions
+carry over. The decided follow-ups above answer them: follow-up 1 answers
+the first, follow-up 2 defers the second to the standard library's error
+types, and follow-up 3 answers the third.
+
+**Follow-ups 1 and 3 applied (2026-09-28)** in
+[`module.console.println-std`](../spec/10-modules.md#r-module.console.println-std)
+through
+[`module.console.println-block-on.contexts`](../spec/10-modules.md#r-module.console.println-block-on.contexts).
+`lib/std/console.hd` drives `write_line!` with `std.task.block_on` and
+raises the error panic with `panic`, so the checker has no `println`
+case. Fixtures, examples, tests, and the guides that called `println`
+under a driver now write with `$.use(Console).write_line!` or run from a
+non-suspending `main`. Applying them raised these readings; nothing here
+is decided:
 
 | Question | Effect | **Recommendation** |
 | --- | --- | --- |
-| 1. The panic category | [`flow.panic.category-set`](../spec/06-control-flow.md#r-flow.panic.category-set) is closed, and neither `println` panic has a category, so no `# panic:` fixture or `expect_panic` test can name one. | One new category per cause, such as `console-write-failed` and `console-write-pending`, so a test can tell them apart. The other answer is `explicit-panic` for both, as if `println` called `panic`. |
-| 2. Constructing a `ConsoleError` | [`module.console.error`](../spec/10-modules.md#r-module.console.error) gives `ConsoleError` no variants or constructor, so a program-defined provider cannot return `.Err`, and only a host console reaches the error panic. | Decide it with the standard library's error types ([STDLIB](STDLIB.md#stdconsole)); a recording console for failure tests needs a public constructor. |
-| 3. `block_on`'s restrictions | "As `block_on` does" could carry over the [nested-driver panic](../spec/11-requirements-and-suspension.md#r-req.drive.block-on.nested) and the ban in `defer` suites and default expressions. The spec applies neither: `println` inside `main!` or a test, where a driver is active, still prints. | Confirm neither applies. The nested-driver panic would break every `println` in `main!` and in tests. |
+| The category of `println`'s own panics | Follow-up 1 says they are ordinary `std` panics with no category of their own. `std` raises a panic by calling `panic`, which is `explicit-panic`, but the spec text does not name it. | State it: both are `explicit-panic`, as any `panic` call in `std` is. |
+| The pending-host panic beside `block_on` | [`module.console.println-pending`](../spec/10-modules.md#r-module.console.println-pending) makes a pending host write panic, while `block_on` itself owns its loop until the suspension completes. The prototype drives synchronously, so its `block_on` panics on any pending host operation. | Keep `println-pending` as `println`'s own rule; `block_on`'s wait on a host operation is a runtime question for [durable replay](DURABLE_REPLAY.md) and the entry driver. |
+| Top-level `println` in an entry module | `block_on` is forbidden only in non-entry module initialization, so a script's top-level `println` stays valid. The prototype used to reject every top-level `block_on`; it now follows the rule. | Keep, as the rule reads. |
 
 ```text
 fn report!() -> void $ Console:
     defer:
-        println("done")   # valid today; question 3 asks whether it stays valid
-    println("working")
+        println("done")   # error: suspension-forbidden-context
+    println("working")    # panics: suspension-nested-driver under a driver
 ```
 
 ### Typed Derivation, Tool Adapters, And Secrets

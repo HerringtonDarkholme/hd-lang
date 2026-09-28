@@ -2,7 +2,8 @@
 # expect-stdout: [1] a
 # test: prelude / Console / println drives a provider's write_line! through its own bang calls
 # Spec 10 Console: println drives write_line! to completion inside itself and stays
-# non-suspending, so a non-suspending caller keeps its signature.
+# non-suspending, so a non-suspending caller keeps its signature. main is not
+# suspending, since println panics under a driver (module.console.println-block-on).
 
 data NumberedConsole:
     lines: mut List[string]
@@ -21,7 +22,7 @@ fn report(values: List[string]) -> void $ Console:
     for value in values:
         println(value)
 
-pub fn main!() -> void $ Console:
+pub fn main() -> void $ Console:
     let numbered: mut NumberedConsole = NumberedConsole { lines: [] }
     $.with(Console=numbered):
         report(["a", "b", "c"])

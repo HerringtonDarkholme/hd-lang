@@ -1142,3 +1142,12 @@ existing source. Each entry names the decision that made the change.
   pending on a host operation, or returns `.Err(ConsoleError)`, previously
   unspecified, now makes `println` panic; the panic category is not yet
   specified.
+- `println` has `block_on`'s rules (mutable host providers, MHP-1
+  follow-ups, owner decision 2026-09-28): `println` is an ordinary `std`
+  prelude function, and its panics are ordinary `std` panics with no
+  category of their own. It follows every rule of `block_on`. A `println`
+  call inside `main!` or a test body, previously valid, now panics with
+  `suspension-nested-driver`; write with `$.use(Console).write_line!`
+  there. A `println` call in a `defer` suite or a default expression,
+  directly or transitively, previously valid, is now
+  `suspension-forbidden-context`.

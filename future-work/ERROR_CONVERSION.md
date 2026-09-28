@@ -856,13 +856,14 @@ pub fn report!() -> Result[string, Error] $ FsRead, Http:
     .Ok("status ${response.status}")
 
 pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
+    let console: mut Console = $.use(Console)
     match report!():
-        .Ok(line) => println(line)
+        .Ok(line) => console.write_line!(line)?
         .Err(error) =>
             for part in chain(error):
                 match part.downcast[FsError]():
-                    .Some(FsError.NotFound(path)) => println("missing ${path}")
-                    _ => println(part.to_string())
+                    .Some(FsError.NotFound(path)) => console.write_line!("missing ${path}")?
+                    _ => console.write_line!(part.to_string())?
             return .Err(error)
     .Ok()
 ```
@@ -1201,7 +1202,8 @@ impl for `AnyError`, and `downcast` already works on `Inspectable` values.
 ```text
 pub fn main!() -> Result[void, Error] $ FsRead, Console:
     text := $.use(FsRead).read_text!(Path::parse("a.txt"))?
-    println(text)
+    let console: mut Console = $.use(Console)
+    console.write_line!(text)?
     .Ok()
 ```
 

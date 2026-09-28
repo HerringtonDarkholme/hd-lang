@@ -1,0 +1,7 @@
+# test: println inherits block_on's ban in a defer suite
+# Spec 10 Console: module.console.println-block-on (MHP-1 follow-up).
+
+fn report() -> void $ Console:
+    defer:
+        println("done")  # diagnostic: suspension-forbidden-context
+    pass

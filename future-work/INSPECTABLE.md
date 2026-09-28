@@ -656,12 +656,13 @@ pub fn report!() -> Result[string, Error] $ FsRead, Http:
     .Ok("status ${response.status}")
 
 pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
+    let console: mut Console = $.use(Console)
     match report!():
-        .Ok(line) => println(line)
+        .Ok(line) => console.write_line!(line)?
         .Err(error) =>
             match find[FsError](error):
-                .Some(FsError.NotFound(path)) => println("missing ${path}")
-                _ => println(error.to_string())
+                .Some(FsError.NotFound(path)) => console.write_line!("missing ${path}")?
+                _ => console.write_line!(error.to_string())?
             return .Err(error)
     .Ok()
 ```

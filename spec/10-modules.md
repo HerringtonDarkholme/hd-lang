@@ -279,17 +279,25 @@ trait Console:
 7. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
 8. r[module.console.println-pending] If a poll of that `write_line!` call returns `Pending` because a host operation is pending, `println` panics.
 9. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
+10. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+11. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+12. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its nested-driver panic.
+13. r[module.console.println-block-on.nested] So a `println` call while a driver is active, as in `main!` or a test body, panics before it writes. Panic: `suspension-nested-driver`.
+14. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
 
 ```text
 pub fn main() -> void:
     println("missing")  # error
+
+fn report() -> void $ Console:
+    defer:
+        println("done")  # error: suspension-forbidden-context
+    pass
 ```
 
 A recording provider receives each line that `println` writes:
 
 ```text
-use std.testing.assert_equal
-
 data BufferConsole:
     lines: mut List[string]
 
@@ -301,21 +309,30 @@ impl Console for BufferConsole:
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
-tests:
-    it("records the greeting"):
-        let console: mut BufferConsole = BufferConsole { lines: [] }
-        $.with(Console=console):
-            greet("Ada")
-        assert_equal(console.lines, ["hello, Ada"], "one line")
+pub fn main() -> void $ Console:
+    let console: mut BufferConsole = BufferConsole { lines: [] }
+    $.with(Console=console):
+        greet("Ada")
+    println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
+```
+
+Suspending code, such as `main!` or a test body, writes with
+`write_line!` instead:
+
+```text
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let console: mut Console = $.use(Console)
+    console.write_line!("done")
 ```
 
 > **Why.** Rust's `println!` and Go's `fmt.Println` are synchronous, so
 > every caller keeps its signature. Rust's `println!` also panics when the
-> write to standard output fails.
+> write to standard output fails. `println` is ordinary `std` code that
+> drives its write as `block_on` does, so it has `block_on`'s rules and
+> no language rule of its own.
 
 > **Note.** Code that must handle a console error calls `write_line!`
-> directly. The panic category of the two `println` panics is not yet
-> specified.
+> directly.
 
 See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension),
 [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).

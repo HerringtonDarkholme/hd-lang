@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { UnsupportedAtRunTimeError } from "../src/runtime-panic.ts";
+import { RuntimePanicError } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
@@ -529,7 +529,7 @@ test("println drives write_line! on a program-defined Console (MHP-1)", async ()
   assert.deepEqual(printed, []);
 });
 
-test("println stops when its write_line! is pending on a host operation (MHP-1)", async () => {
+test("println panics when its write_line! is pending on a host operation (MHP-1)", async () => {
   const source = [
     "pub trait Gate:",
     "    fn wait!(self) -> void",
@@ -555,8 +555,7 @@ test("println stops when its write_line! is pending on a host operation (MHP-1)"
   });
   assert.throws(
     () => (instance.exports.main as CallableFunction)({}, { name: "gate" }),
-    (error: unknown) =>
-      error instanceof UnsupportedAtRunTimeError && error.code === "unsupported-println-panic",
+    (error: unknown) => error instanceof RuntimePanicError && error.code === "explicit-panic",
   );
 });
 

@@ -1,0 +1,17 @@
+# test: println inherits block_on's ban in a default expression, transitively through a requirement-free helper
+# Spec 10 Console: module.console.println-block-on (MHP-1 follow-up).
+
+data QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok()
+
+fn announce() -> i32:
+    let console: mut QuietConsole = QuietConsole {}
+    $.with(Console=console):
+        println("default")
+    1
+
+fn count(start: i32 = announce()) -> i32:  # diagnostic: suspension-forbidden-context
+    start

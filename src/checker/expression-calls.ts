@@ -845,7 +845,9 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       if (inspection) return inspection;
     }
     if (this.imports.get(expression.callee.name) === "std.task.block_on") {
-      if (this.deferDepth > 0 || this.moduleBody) {
+      // The compiled module is the entry module, whose initialization may
+      // drive (req.drive.block-on.forbidden-contexts names non-entry modules).
+      if (this.deferDepth > 0) {
         this.fail(
           "suspension-forbidden-context",
           "block_on cannot start a suspension driver in this context",

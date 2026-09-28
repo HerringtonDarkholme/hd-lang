@@ -218,9 +218,11 @@ The playground runs what the prototype compiler supports; see
   `std.host.Args`, is `nonhost-entry-requirement`.
 - `println` and a direct `console.write_line!(...)` call run on the host
   console and on a program-defined provider such as
-  `std.console.BufferConsole`. A `println` whose `write_line!` stays
-  pending or returns `.Err` stops the run (`unsupported-println-panic`),
-  because the spec leaves that panic's category open.
+  `std.console.BufferConsole`. `println` drives its `write_line!` with
+  `block_on`, so it panics with `suspension-nested-driver` inside `main!`
+  or a test body; there, write with `$.use(Console).write_line!`. A
+  `println` whose `write_line!` stays pending or returns `.Err` is an
+  `explicit-panic`.
 - Test modules (`src/billing_test.hd`) are not supported: a test case must
   sit in a `tests:` block.
 - A suspending `main!` that returns a `Result` is not judged: its `.Err` is

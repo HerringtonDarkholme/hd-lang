@@ -1,7 +1,8 @@
+# expect-stdout: recorded: hello, Ada
 # test: prelude / Console / println writes its line through a program-defined provider
 # Spec 10 Console: println calls write_line! with the value's text on the Console
-# provider that covers the call, and drives the call to completion.
-use std.testing.assert_equal
+# provider that covers the call, and drives the call to completion. The entry
+# is a non-suspending main, since println panics under an active driver.
 
 data BufferConsole:
     lines: mut List[string]
@@ -14,9 +15,8 @@ impl Console for BufferConsole:
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
-tests:
-    it("records the greeting"):
-        let console: mut BufferConsole = BufferConsole { lines: [] }
-        $.with(Console=console):
-            greet("Ada")
-        assert_equal(console.lines, ["hello, Ada"], "one line")
+pub fn main() -> void $ Console:
+    let console: mut BufferConsole = BufferConsole { lines: [] }
+    $.with(Console=console):
+        greet("Ada")
+    println("recorded: ${console.lines[0]}")

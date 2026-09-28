@@ -23,10 +23,6 @@ const RUNTIME_PRIMITIVES: Readonly<
   string_byte_at: ([text, index]) => `(array.get_u $hd.bytes (ref.as_non_null ${text}) ${index})`,
   string_byte_slice: ([text, start, end]) =>
     `(call $hd.string_slice (ref.as_non_null ${text}) ${start} ${end})`,
-  // One poll of a stored `Suspend[T]` without a driver; 1 when it is ready.
-  suspension_poll: ([call]) => `(call $hd.suspension_poll ${call})`,
-  // The result of a ready stored `Suspend[T]`, unboxed to `T`.
-  suspension_result: ([call], unbox) => unbox(`(call $hd.suspension_result ${call})`),
 };
 
 /** Whether `name` is a runtime primitive rather than a host function. */

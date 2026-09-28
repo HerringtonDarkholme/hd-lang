@@ -126,7 +126,9 @@ function emitPoll({ trait, method }: HostMethod): string {
     `    (then`,
     ...readyResult,
     `      (struct.set ${frame} ${frame}state (local.get $frame) (i32.const 2)))`,
-    `    (else (struct.set ${frame} ${frame}state (local.get $frame) (i32.const 4))))`,
+    `    (else`,
+    `      (global.set $hd.host-pending (i32.const 1))`,
+    `      (struct.set ${frame} ${frame}state (local.get $frame) (i32.const 4))))`,
     `  (local.get $ready)`,
     `)`,
   ].join("\n");

@@ -42,9 +42,14 @@ export const STORED_SUSPENSION_RUNTIME = `(func $hd.suspension_poll (param $fram
   (if (global.get $hd.driver-active)
     (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-competing-driver")})) unreachable))
   (global.set $hd.driver-active (i32.const 1))
+  (global.set $hd.host-pending (i32.const 0))
   (block $ready
     (loop $drive
       (br_if $ready (i32.eq (call $hd.suspension_poll (local.get $frame)) (i32.const 1)))
+      ;; The prototype drives synchronously, so it cannot wait for a pending
+      ;; host operation: \`println\`'s pending-host panic (module.console.println-pending).
+      (if (global.get $hd.host-pending)
+        (then (call $hd.panic (i32.const ${runtimePanicCode("explicit-panic")})) unreachable))
       (br $drive)))
   (global.set $hd.driver-active (i32.const 0))
   (call $hd.suspension_result (local.get $frame)))`;

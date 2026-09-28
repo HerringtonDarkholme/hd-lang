@@ -37,6 +37,12 @@ interface ParsedModule {
   readonly names: readonly string[];
   /** `use std.<module>.<Name>` lines of the module itself. */
   readonly uses: readonly { readonly module: StandardModule; readonly name: string }[];
+  /**
+   * `use` lines of a std module that the compiler provides rather than
+   * `lib/std`, such as `use std.task.block_on`. The joined program imports
+   * each under its hidden name, so the name keeps its ordinary meaning.
+   */
+  readonly compilerUses: readonly { readonly module: string; readonly name: string }[];
 }
 
 const parsedModules = new Map<StandardModule, ParsedModule>();
@@ -108,13 +114,16 @@ function standardModule(name: StandardModule): ParsedModule {
     ...program.functions.map((declaration) => declaration.name),
   ];
   const uses: { module: StandardModule; name: string }[] = [];
+  const compilerUses: { module: string; name: string }[] = [];
   for (const declaration of program.uses) {
     const module = declaration.module.replace(/^std\./, "");
-    if (!declaration.module.startsWith("std.") || !isStandardModule(module))
+    if (!declaration.module.startsWith("std."))
       throw new Error(`std.${name} uses '${declaration.module}', which is not a std module`);
-    for (const imported of declaration.names) uses.push({ module, name: imported.name });
+    for (const imported of declaration.names)
+      if (isStandardModule(module)) uses.push({ module, name: imported.name });
+      else compilerUses.push({ module, name: imported.name });
   }
-  const module = { name, program, names, uses };
+  const module = { name, program, names, uses, compilerUses };
   parsedModules.set(name, module);
   return module;
 }
@@ -126,7 +135,7 @@ function escapeRegExp(text: string): string {
 /**
  * Renames whole identifiers that are not member names (`.name`) or associated
  * names (`Type::name`), nor a string literal's first word, such as the
- * name in `@intrinsic("println_pending")`. The std sources keep their
+ * name in `@intrinsic("string_lower")`. The std sources keep their
  * top-level names distinct from their fields, parameters, and locals, so a
  * textual rename is exact.
  */
@@ -234,6 +243,8 @@ export function withStandardLibrary(program: Program): Program {
     const renames = new Map<string, string>();
     for (const name of parsed.names) renames.set(name, nameOf(module, name));
     for (const used of parsed.uses) renames.set(used.name, nameOf(used.module, used.name));
+    for (const used of parsed.compilerUses)
+      renames.set(used.name, hiddenStandardName(used.module, used.name));
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
     renamed = renamedModules.get(source) ?? parseModule(module, source);
     renamedModules.set(source, renamed);
@@ -354,5 +365,22 @@ export function withStandardLibrary(program: Program): Program {
   }
   for (const [implementation, methods] of chosen)
     implementations.push(respan({ ...implementation, methods, standard: true }, program.span));
-  return { ...program, types, data, enums, traits, functions, implementations };
+  // Compiler-provided names that a joined module uses, under hidden names.
+  const uses = [...program.uses];
+  const imported = new Set<string>();
+  for (const module of STANDARD_MODULES) {
+    if (!spans.has(module)) continue;
+    for (const used of standardModule(module).compilerUses) {
+      const alias = hiddenStandardName(used.module, used.name);
+      if (imported.has(alias)) continue;
+      imported.add(alias);
+      uses.push({
+        kind: "use",
+        module: `std.${used.module}`,
+        names: [{ name: used.name, alias }],
+        span: program.span,
+      });
+    }
+  }
+  return { ...program, uses, types, data, enums, traits, functions, implementations };
 }
