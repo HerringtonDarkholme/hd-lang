@@ -96,6 +96,19 @@ fn greet() -> void $ Console:
 2. `println` panics when `write_line!` returns `.Err(ConsoleError)`. Code
    that must handle the error calls `write_line!` directly.
 
+**Decided follow-ups (owner, 2026-09-28).**
+1. `println` is an ordinary std prelude function. Its panics are ordinary
+   panics raised by std code, with a message std defines. The language adds
+   no panic category for them.
+2. `ConsoleError`'s variants and constructor are settled together with the
+   other std error types.
+3. `println` inherits all of `block_on`'s rules. That includes the panic
+   when another driver is already running, and the ban in `defer` suites
+   and default expressions. So `println` inside `main!` or a test body
+   (both run under a driver) panics. Suspending code writes with
+   `$.use(Console).write_line!` instead. The owner confirmed this
+   consequence.
+
 The rules are
 [`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
 through
