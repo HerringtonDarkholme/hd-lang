@@ -192,7 +192,10 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     the runtime type-information trait.)
 34. **T34: snapshot files are named from the test.** `snapshot_file(text)`
     takes no name; it writes `__snapshots__/<module>/<test-slug>-<n>.snap`
-    next to the test file (insta and Jest style). Details filled in with
+    under one `__snapshots__/` folder at the package root (beside
+    `hd.toml`), with `tests/` modules under `tests.<name>`; `src/` stays code
+    only. The owner chose one folder per package over the per-folder
+    default of Jest and insta. Details filled in with
     the decision, open to owner correction: the slug lowercases the test
     name and turns each run of non-alphanumeric characters into `-`; `<n>`
     counts `snapshot_file` calls within one test run, from 1; an `it_each`
