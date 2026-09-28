@@ -346,6 +346,15 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           }
           result = undefined;
         }
+        // A test fails when its Result reports `.Err`
+        // (spec/05-expressions.md#r-expr.try.test.fail-report).
+        if (!declaration.entry && resultParts(declaration.result)) {
+          if (result !== 0) {
+            reporter.entryError("a test");
+            return 1;
+          }
+          result = undefined;
+        }
       }
       replay.assertComplete();
       if (command === "record") {

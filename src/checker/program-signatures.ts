@@ -282,10 +282,12 @@ export function createProgramSignatures(
           result !== "void" &&
           !(entryResult?.ok === "void" && entryResult.error === "ConsoleError")
         ) {
+          // The result must implement std.process.Termination
+          // (spec/10-modules.md#r-module.entry.result-termination); the
+          // prototype runs only `void` and `Result[void, ConsoleError]`.
           diagnostics.push({
-            code: "entry-error-not-display",
-            message:
-              "public main must return void or Result[void, E] with a supported Display error",
+            code: "unsatisfied-trait-bound",
+            message: `the result '${result}' of public main does not implement std.process.Termination, or is not yet supported: the prototype runs void and Result[void, ConsoleError]`,
             span: declaration.result.span,
           });
         }

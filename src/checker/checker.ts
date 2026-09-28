@@ -165,6 +165,33 @@ export class FunctionChecker extends ExpressionControlChecker {
     );
   }
 
+  // While a result is being inferred, `?` converts nothing and its operand
+  // joins the inferred result (05-expressions.md#r-expr.try.convert.inferred-closure).
+  private checkInferredPropagation(expression: Expression, operand: HirExpression): HirExpression {
+    const optional = optionalInner(operand.type);
+    const parts = optional === undefined ? resultParts(operand.type) : undefined;
+    if (optional === undefined && !parts)
+      this.fail(
+        "invalid-result-propagation",
+        `? requires an optional or Result operand, found '${operand.type}'`,
+        expression.span,
+      );
+    this.inferredPropagations.push({
+      ...(parts ? { error: parts.error } : {}),
+      span: expression.span,
+    });
+    const payloadType = optional ?? parts!.ok;
+    return {
+      kind: "propagate",
+      operand,
+      payloadType,
+      successTag: optional === undefined ? 0 : 1,
+      returnType: operand.type,
+      type: payloadType,
+      span: expression.span,
+    };
+  }
+
   protected checkClosureExpression(
     expression: Expression,
     expected?: ValueType,
@@ -173,6 +200,7 @@ export class FunctionChecker extends ExpressionControlChecker {
       case "propagate": {
         const operand = this.checkExpression(expression.operand);
         const optional = optionalInner(operand.type);
+        if (this.inferResult) return this.checkInferredPropagation(expression, operand);
         if (optional !== undefined) {
           if (optionalInner(this.signature.result) === undefined) {
             this.fail(

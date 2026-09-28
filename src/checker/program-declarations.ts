@@ -18,6 +18,7 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
     genericBounds: [],
     parameters: [],
     result: { name: "void", span: test.span },
+    resultOmitted: true,
     requirements: [],
     body: test.body,
     span: test.span,

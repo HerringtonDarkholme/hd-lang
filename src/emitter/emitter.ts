@@ -286,11 +286,13 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
-      ? [
-          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
-          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
-          `)`,
-        ].join("\n")
+      ? this.emitSuspensionEntryExport(
+          declaration,
+          entryExport,
+          entryProviderParameters,
+          entryProviderArguments,
+          result,
+        )
       : "";
     const developmentDriver =
       declaration.entry || declaration.developmentEntry
@@ -496,11 +498,13 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
-      ? [
-          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
-          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
-          `)`,
-        ].join("\n")
+      ? this.emitSuspensionEntryExport(
+          declaration,
+          entryExport,
+          entryProviderParameters,
+          entryProviderArguments,
+          result,
+        )
       : "";
     const developmentDriver =
       declaration.entry || declaration.developmentEntry
@@ -887,11 +891,13 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const entryProviderParameters = this.entryProviderParameters(declaration);
     const entryProviderArguments = this.entryProviderArguments(declaration);
     const entry = entryExport
-      ? [
-          `(func $entry${suspensionIndex(declaration)} (export ${JSON.stringify(entryExport)})${entryProviderParameters.length ? " " + entryProviderParameters.join(" ") : ""}${result}`,
-          `  (call $drive${suspensionIndex(declaration)} (call ${functionName(suspensionIndex(declaration))}${entryProviderArguments.length ? " " : ""}${entryProviderArguments.join(" ")}))`,
-          `)`,
-        ].join("\n")
+      ? this.emitSuspensionEntryExport(
+          declaration,
+          entryExport,
+          entryProviderParameters,
+          entryProviderArguments,
+          result,
+        )
       : "";
     const developmentDriver =
       declaration.entry || declaration.developmentEntry
@@ -900,6 +906,28 @@ class FunctionEmitter extends FunctionBodyEmitter {
     return [constructor, poll, drive, cancel, entry, developmentDriver]
       .filter(Boolean)
       .join("\n\n");
+  }
+
+  // A test whose body returns a `Result` exports its tag (0 = Ok, 1 = Err), so
+  // the runner fails the test on `.Err` (spec/05-expressions.md#r-expr.try.test.fail-report).
+  // The prototype reads only the outer tag, so a nested `.Ok(.Err(...))` passes.
+  private emitSuspensionEntryExport(
+    declaration: HirFunction,
+    entryExport: string,
+    providerParameters: readonly string[],
+    providerArguments: readonly string[],
+    result: string,
+  ): string {
+    const index = suspensionIndex(declaration);
+    const drive = `(call $drive${index} (call ${functionName(index)}${providerArguments.length ? " " : ""}${providerArguments.join(" ")}))`;
+    const testResult =
+      testExportName(declaration.name) !== undefined &&
+      resultParts(declaration.result) !== undefined;
+    return [
+      `(func $entry${index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${testResult ? " (result i32)" : result}`,
+      testResult ? `  (struct.get $hd.variant $hd.variant-tag ${drive})` : `  ${drive}`,
+      `)`,
+    ].join("\n");
   }
 
   private emitSuspensionDevelopmentDriver(declaration: HirFunction): string {

@@ -32,6 +32,7 @@ import {
   weakenBoundedGenericActual,
 } from "./assignability.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
+import * as termination from "./termination.ts";
 import { varianceConversion } from "./variance.ts";
 import {
   genericTypeName,
@@ -345,6 +346,7 @@ export abstract class CheckerContext {
   protected pendingRecursiveClosure?: HirLocal;
   protected readonly inferredRequirements: string[] = [];
   protected inferredReturnType?: ValueType;
+  protected readonly inferredPropagations: termination.InferredPropagation[] = [];
   protected readonly closureIndex: number;
   protected readonly captures = new Map<string, HirCapture>();
   protected readonly providerScopes: Map<string, HirLocal>[] = [new Map()];
@@ -447,6 +449,7 @@ export abstract class CheckerContext {
         this.declaration.body,
         false,
         this.inferResult ? undefined : this.signature.result,
+        this.inferResult,
       );
       let result = this.signature.result;
       if (this.inferResult) {
@@ -454,8 +457,19 @@ export abstract class CheckerContext {
         if (last?.kind !== "return")
           this.recordInferredReturn(this.blockType(body), last?.span ?? this.declaration.span);
         result = this.inferredReturnType ?? "void";
+        const mismatch = termination.mismatchedPropagation(result, this.inferredPropagations);
+        if (mismatch) this.fail("no-common-type", mismatch.message, mismatch.span);
       } else {
         this.checkFallthrough(body);
+        if (
+          termination.TEST_FUNCTION.test(this.declaration.name) &&
+          !termination.terminates(result, this.traitTypes, this.implementations)
+        )
+          this.fail(
+            "unsatisfied-trait-bound",
+            `a test body's result '${result}' does not implement std.process.Termination`,
+            this.declaration.span,
+          );
       }
       for (const local of this.locals) {
         if (local.parameter || local.name.startsWith("$") || hirValueReadsLocal(body, local))

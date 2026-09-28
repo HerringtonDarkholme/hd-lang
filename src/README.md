@@ -438,18 +438,22 @@ else`, `break`, `break value`, and `continue`;
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
-- imported `std.convert.From[T]`, `std.error.Error`, and
-  `std.process.ExitStatus` as trait declarations
-  in the compiled module; `?` on a `Result` converts the error by one
-  assignability rule or one `From` call, `Type::from(x)` selects the `From`
-  instantiation by argument type, and a single-payload variant constructor
-  is a function value (a dynamic trait value does not yet satisfy a bound on
-  its own trait). A generic function or generic variant constructor passed
-  as a call argument takes its type arguments from the call. `?` in a test
-  block, entry-point chain printing, and `ExitStatus` exit codes are not
-  implemented: `main` may still return only `Result[void, ConsoleError]`.
-  Without `u8`, `std.process.StatusCode` is not declared, and `status`
-  still returns `i32`;
+- imported `std.convert.From[T]` and `std.error.Error` as trait
+  declarations in the compiled module; `?` on a `Result` converts the error
+  by one assignability rule or one `From` call, `Type::from(x)` selects the
+  `From` instantiation by argument type, and a single-payload variant
+  constructor is a function value (a dynamic trait value does not yet
+  satisfy a bound on its own trait). A generic function or generic variant
+  constructor passed as a call argument takes its type arguments from the
+  call. While a result type is inferred, `?` converts nothing and its
+  operand's error must match the inferred result;
+- test bodies (Testing T4): a `test` block's result is inferred like a
+  closure's and must be `void` or a `Result` with a `Display` error, else
+  `unsatisfied-trait-bound`; a test whose result is `.Err` fails. Only the
+  outer `Result` tag is read. Without `u8`, `std.process.ExitCode` and
+  `Termination` are not declared (Testing T8), entry-point chain printing is
+  not implemented, and `main` may still return only `void` or
+  `Result[void, ConsoleError]`;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner

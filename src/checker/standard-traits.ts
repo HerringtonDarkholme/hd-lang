@@ -3,16 +3,14 @@ import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 
 // Standard traits that a module imports rather than receiving from the
-// prelude (spec/09-traits.md#conversion-trait, #error-trait, and
-// spec/10-modules.md#exit-status). The prototype
+// prelude (spec/09-traits.md#conversion-trait and #error-trait). The prototype
 // compiles one module, so an imported standard trait is declared in it under
 // its local name, with every span pointing at the use declaration.
-// `ExitStatus.status` returns `std.process.StatusCode` in the specification;
-// the prototype has no `u8`, so it keeps an `i32` result.
+// `std.process.Termination` and `ExitCode` (spec/10-modules.md#exit-status)
+// are not declared: `ExitCode` wraps a `u8`, which the prototype lacks.
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
   "std.error.Error": (name) => `trait ${name} < Display + ${INSPECTABLE}\n`,
-  "std.process.ExitStatus": (name) => `trait ${name}:\n    fn status(self) -> i32\n`,
 };
 
 export const STANDARD_FROM = "std.convert.From";

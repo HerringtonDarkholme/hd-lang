@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-27 the prototype passes 1,055 of the 1,177 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 122 are listed in
+On 2026-09-27 the prototype passes 1,057 of the 1,158 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 101 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 122 still fail.
+decision below; all 101 still fail.
 
 ## Specification Follow-Ups
 
@@ -54,8 +54,6 @@ cases.
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
-| EC-14 | Error conversion decisions 14 and 16: a `test` block is a propagation target, as if it returned `Result[void, Error]`, and wraps any other `E < Display` in a std message error. The prototype rejects `?` in a test block, which also makes its two invalid fixtures pass. |
-| EC-17 | Error conversion decisions 13 and 17: a failing entry point prints an `Error` chain and exits with `ExitStatus.status()`. The prototype declares `std.process.ExitStatus`, but `main` may still return only `Result[void, ConsoleError]`. |
 | TD | Typed derivation (M1-M23 in `future-work/TYPED_DERIVATION.md`): `@derive` of a trait with a `by Structure` template, derivation blocks with member lines, `std.structure` handles, walkers, describers, and sources, and the `+=` token. The prototype parses no decorators and has none of these. |
-| EEF-1 | Error entry-point follow-ups question 1: `ExitStatus.status()` returns `std.process.StatusCode`, a `u8` wrapper that is never 0, built with `StatusCode::new`. The prototype has no `u8`, so it declares no `StatusCode` and keeps `status` returning `i32`. |
+| T8 | Testing T8: `std.process` declares `type ExitCode(u8)` and `Termination`, implemented by `void`, `ExitCode`, and `Result[T, E]`. The prototype has no `u8`, so it declares neither, and `main` may still return only `void` or `Result[void, ConsoleError]`. It implements Testing T4: a test body's result is inferred and must be `void` or a `Result` with a `Display` error, and an `.Err` fails the test. |
 | MHP-1 | Mutable host providers, Console question: `Console.write_line!` takes `mut self`, so `Console` is a mutable requirement trait and `$.use(Console)` yields `mut Console`. The prototype binds `Console` as an opaque host provider rather than a prelude trait, so it cannot be implemented, bound as `mut Console`, or called through `write_line!`. |

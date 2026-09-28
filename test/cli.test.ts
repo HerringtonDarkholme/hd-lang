@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { copyFile, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -85,6 +85,37 @@ test("documented CLI commands work end to end", async () => {
     const wasmPath = built.stdout.trim();
     assert.equal(basename(wasmPath), "suspension.wasm");
     assert.ok((await stat(wasmPath)).size > 8);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// A test body's `.Err` result fails the test
+// (spec/05-expressions.md#r-expr.try.test.fail-report).
+test("hd test fails a test whose result is .Err", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "failing.hd");
+    await writeFile(
+      source,
+      [
+        "fn digit(text: string) -> Result[i32, string]:",
+        '    if text == "7": .Ok(7) else: .Err("not a digit")',
+        "",
+        "fn passed() -> Result[void, string]:",
+        "    .Ok()",
+        "",
+        'test "propagates an error":',
+        '    value := digit("x")?',
+        "    passed()",
+        "",
+      ].join("\n"),
+    );
+    await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stdout + error.stderr, /a test returned Err/);
+      return true;
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
