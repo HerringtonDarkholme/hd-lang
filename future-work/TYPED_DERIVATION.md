@@ -1403,6 +1403,19 @@ today; it does not follow M28 yet:
 
 #### Still Open After M27 And M28
 
+**Owner decision M29 (2026-09-28).** All four recommendations below are
+accepted:
+1. A trait-less block's header may rename the type's parameters
+   (`impl[U] Box[U] by Structure:` for `data Box[T]`). Only the count, the
+   order and the absence of bounds are checked.
+2. A member line whose right side isn't a list, such as `name = 5`, is
+   `invalid-member-line`.
+3. A `Self` line in a per-trait derivation block also warns
+   `unused-derivation-fact`, on the line, when the fact's package doesn't
+   supply that block's trait.
+4. `duplicate-fact` is reported on the later value. This confirms M25's
+   reading.
+
 Applying M27 and M28 raised these readings. The spec text uses the
 decisions' own words, and no fixture depends on an answer. Nothing here is
 decided:
