@@ -51,6 +51,7 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
     const options = {
       name: test.name,
       ...(test.table ? { table: true } : {}),
+      ...(test.property ? { property: true } : {}),
       ...(test.ignore !== undefined ? { ignore: test.ignore } : {}),
       ...(test.expectPanic !== undefined ? { expectPanic: test.expectPanic } : {}),
     };

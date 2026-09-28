@@ -572,8 +572,17 @@ decided:
 | The synthetic package of a test layout | The package holds no other source file ([Test Layouts](../spec/conformance/README.md#test-layouts)), so no fixture can test `cyclic-test-dependency` or a `tests` root use inside `tests/` | Add a `packages/`-like fixture package when those rules need fixtures. |
 | `Choices` beyond T53 | The draft's `@derive(Arbitrary)`, its member-line facts, the `__regressions__` format, size scheduling, and the `assume` discard limit are not specified | Decide them with the property-test runner. |
 
-The prototype has no property-test runner: `it_prop` and `it_prop_with`
-still do not run, a `Choices` draws from a fixed sequence, and `std`
-implements `Arbitrary` only for the primitives and `string`. Its
+The prototype runs `it_prop` and `it_prop_with` (T35-T38, T50, T51): every
+`Choices` draw is recorded, a failing case is shrunk by replaying shorter
+or smaller choice streams, `cases` and `shrink` cap the run, and
+`hd test --seed N`, `--cases N`, and `--shrink N` override them
+(`src/property-tests.ts`). `std` implements `Arbitrary` only for the
+primitives and `string`. Three stand-ins wait on the questions below:
+
+| Question | Prototype stand-in | **Recommendation** |
+| --- | --- | --- |
+| How many discarded cases a property may have | A case that `assume` discards counts toward `cases`, so a property that discards every case passes with no checked case | Count discards apart from `cases`, and fail the property after 10 × `cases` discards, as Hypothesis's `filter_too_much` health check does ([docs](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.filter_too_much)). |
+| How a failure shows the shrunk value | T36 prints it with `Debug`, but `it_prop` bounds `T` only by `Arbitrary`, so the report shows the seed and the shrunk choice stream | Add `T < Debug` to `it_prop` and `it_prop_with`, as proptest requires `Debug` of a strategy's value ([docs](https://docs.rs/proptest/latest/proptest/strategy/trait.Strategy.html)). |
+| Where a failing case is saved (T37) | Nothing is saved; `--seed` reproduces a run | Save the shrunk choice stream, one decimal draw per line, as T37's `__regressions__/<module>/<test-slug>`. | Its
 `DebugWriter` is always compact, and `Map` and tuples of more than two
 elements render no `debug` text.

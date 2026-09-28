@@ -1,0 +1,34 @@
+# std.testing property tests: it_prop and it_prop_with run generated cases.
+use std.testing.{assert, Choices, it_prop, it_prop_with}
+
+fn small(c: mut Choices) -> i64:
+    c.int(0, 9)
+
+fn pair(c: mut Choices) -> List[i64]:
+    c.list(3, fn(inner: mut Choices) -> i64: inner.int(-5, 5))
+
+fn even(c: mut Choices) -> i64:
+    value := c.int(0, 100)
+    c.assume(value % 2 == 0)
+    value
+
+tests:
+    it_prop("addition commutes", prop=fn!(value: i64):
+        assert(value + 1 == 1 + value, reason="commutes")
+    )
+
+    it_prop_with("draws stay in range", gen=small, cases=50, prop=fn!(n: i64):
+        assert(n >= 0 && n <= 9, reason="in range")
+    )
+
+    it_prop_with("lists stay short", pair, prop=fn!(items: List[i64]):
+        assert(items.len() <= 3, reason="at most max items")
+    )
+
+    it_prop_with("assume discards odd values", gen=even, prop=fn!(n: i64):
+        assert(n % 2 == 0, reason="only even values reach the property")
+    )
+
+    it_prop("a string is at most 16 characters", prop=fn!(text: string):
+        assert(text.len() <= 16, reason="the default string size")
+    )

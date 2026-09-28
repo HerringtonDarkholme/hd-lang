@@ -593,8 +593,16 @@ else`, `break`, `break value`, and `continue`;
   `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, failing
   with an `explicit-panic` when it is missing or differs, except under
   `hd test --update`, which writes it (Testing T53); `Choices` and
-  `Arbitrary` are hd code there too, with a fixed pseudo-random sequence,
-  and `it_prop` does not run;
+  `Arbitrary` are hd code there too;
+- `it_prop` and `it_prop_with` register one property test case, which the
+  runner runs once per generated case in a fresh instance
+  (`src/property-tests.ts`). Every `Choices` draw goes through the
+  `prop_draw` host function, which records it; a failing case is shrunk
+  by replaying shorter or smaller choice streams, and the report names
+  the seed and the shrunk stream. `cases`, `shrink`, and
+  `hd test --seed N`, `--cases N`, and `--shrink N` cap the run. A case
+  that `assume` discards counts toward `cases`, and the report does not
+  print the shrunk value (future-work/TESTING.md, Still Open After T53);
 - `--test-layout test-module|integration` compiles a file as a test module
   (the conformance Test Layouts); both layouts are test modules, since
   the prototype has no separate integration view;

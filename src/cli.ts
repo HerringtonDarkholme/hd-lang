@@ -21,6 +21,7 @@ import { runRepl } from "./repl-terminal.ts";
 import { loadSpecIndex } from "./spec-index.ts";
 import { snapshotRun } from "./snapshots.ts";
 import { runSelected } from "./test-runner.ts";
+import { propertyRun } from "./property-tests.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
 type RuntimeProfileName =
@@ -121,7 +122,7 @@ function runRuntimeScenario(
 function usage(): never {
   console.error(
     [
-      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--test-layout test-module|integration] FILE",
+      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] [--update] [--seed N] [--cases N] [--shrink N] [--test-layout test-module|integration] FILE",
       "       hd explain [--format text|json] CODE",
       "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
       "       hd repl",
@@ -152,6 +153,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   let checkTests = false;
   let testLayout: string | undefined;
   let update = false;
+  // `hd test --seed N`, `--cases N`, and `--shrink N` (Testing T36, T38, T51).
+  const propertyOptions: { seed?: number; cases?: number; shrink?: number } = {};
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
     if (option !== "--format") runOptions = true;
@@ -165,7 +168,11 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     else if (option === "--profile") profileName = runtimeProfile(args.shift());
     else if (option === "--tests") checkTests = true;
     else if (option === "--update") update = true;
-    else if (option === "--test-layout") {
+    else if (option === "--seed" || option === "--cases" || option === "--shrink") {
+      const value = Number(args.shift());
+      if (!Number.isSafeInteger(value) || value < 0) usage();
+      propertyOptions[option.slice(2) as "seed" | "cases" | "shrink"] = value;
+    } else if (option === "--test-layout") {
       testLayout = args.shift();
       if (testLayout !== "test-module" && testLayout !== "integration") usage();
     } else usage();
@@ -186,6 +193,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   if (entryName !== "main" && command !== "run") usage();
   if (checkTests && command !== "check") usage();
   if (update && command !== "test") usage();
+  if (Object.keys(propertyOptions).length > 0 && command !== "test") usage();
   if (scenario && command !== "test") usage();
   if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
   const path = resolve(file);
@@ -282,8 +290,9 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       let pendingFunctionIndex: number | undefined;
       // `snapshot_file` files (spec/10-modules.md#snapshots); `--update` records them.
       const snapshots = snapshotRun(path, update);
+      const properties = propertyRun(propertyOptions);
       const instantiateOptions: Parameters<typeof instantiate>[1] = {
-        hostFunctions: snapshots.hostFunctions,
+        hostFunctions: { ...snapshots.hostFunctions, ...properties.hostFunctions },
         console: (text) => console.log(text),
         trace:
           command === "trace"
@@ -365,6 +374,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         async () =>
           (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
         snapshots.begin,
+        properties,
       );
       if (outcome.kind === "exit") return outcome.code;
       if (outcome.kind === "failed") {

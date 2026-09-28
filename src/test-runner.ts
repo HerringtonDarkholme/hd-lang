@@ -1,5 +1,12 @@
 import type { HirFunction } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
+import {
+  type CaseResult,
+  PropertyDiscard,
+  propertyRun,
+  type PropertyRun,
+  runProperty,
+} from "./property-tests.ts";
 
 // Runs the entry point and the test cases that `hd run` or `hd test`
 // selected (spec/10-modules.md#test-outcomes). An `it_each` table is one test
@@ -111,6 +118,8 @@ export async function runSelected(
   fresh: () => Promise<Exports>,
   // Called as each test case, or `it_each` row, starts (for `snapshot_file`).
   begin?: (name: string, row: number | undefined) => void,
+  // The draws of property test cases (src/property-tests.ts).
+  properties: PropertyRun = propertyRun(),
 ): Promise<RunOutcome> {
   let count = 0;
   let last: unknown;
@@ -121,6 +130,26 @@ export async function runSelected(
       if (outcome) return outcome;
       // An entry point returns its exit code, which is not printed.
       last = declaration.entry && typeof result === "number" ? undefined : result;
+      count += 1;
+      continue;
+    }
+    if (declaration.testOptions.property) {
+      const name = declaration.testOptions.name;
+      const once = async (): Promise<CaseResult> => {
+        const exports = await fresh();
+        begin?.(name, undefined);
+        try {
+          const { outcome } = runCase(exports, declaration, undefined);
+          if (outcome?.kind !== "failed") return "pass";
+          return { failure: outcome.outcome ?? outcome.subject };
+        } catch (error) {
+          if (error instanceof PropertyDiscard) return "discard";
+          if (error instanceof RuntimePanicError) return { failure: `panicked with ${error.code}` };
+          throw error;
+        }
+      };
+      const failed = await runProperty(properties, name, once);
+      if (failed) return { kind: "failed", ...failed };
       count += 1;
       continue;
     }

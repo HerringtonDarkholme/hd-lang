@@ -313,6 +313,14 @@ export function withStandardLibrary(program: Program): Program {
     reached.add(nameOf(module, name));
     if (!spans.has(module)) spans.set(module, program.span);
   }
+  // Compiler-generated code, such as a lowered `it_prop`, names a std
+  // declaration by its hidden name.
+  for (const name of mentionedByProgram) {
+    const module = owners.get(name);
+    if (module === undefined || !name.startsWith("__std_") || included.has(module)) continue;
+    reached.add(name);
+    if (!spans.has(module)) spans.set(module, program.span);
+  }
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;
     if (

@@ -1,41 +1,39 @@
 # std.testing, the part written in hd (spec/10-modules.md#standard-testing).
 # `assert`, `assert_equal`, `snapshot`, `it_each`, `it_prop`, and
 # `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
-# `snapshot_file` are declared here (Testing T53).
+# `snapshot_file` are declared here (Testing T53), with the property-test
+# runner protocol.
 
 # The only source of randomness a generator sees
-# (spec/10-modules.md#property-tests). The runner creates each one. The
-# prototype has no property-test runner: a `Choices` draws from a fixed
-# pseudo-random sequence, and `assume` of a false condition panics.
+# (spec/10-modules.md#property-tests). The runner creates each one and
+# records each draw, so it can replay and shrink a case: every member draws
+# through `prop_draw`, a host function that returns an integer from 0 to a
+# bound, and a replayed or shrunk case returns the recorded values
+# (src/property-tests.ts). Outside a property test the draws are random.
 pub data Choices:
-    wide: i64
-    narrow: i32
+    draws: i32
 
 impl Choices:
-    fn next_wide(mut self, bound: i64) -> i64:
-        self.wide = (self.wide * 1103515245 + 12345) % 2147483648
-        if bound <= 0: 0 else: self.wide % bound
-
-    fn next_narrow(mut self, bound: i32) -> i32:
-        self.narrow = (self.narrow * 75 + 74) % 65537
-        if bound <= 0: 0 else: self.narrow % bound
+    # One recorded draw from 0 to `bound`; a shrunk draw moves toward 0.
+    fn next(mut self, bound: i64) -> i64:
+        self.draws = self.draws + 1
+        prop_draw(bound)
 
     pub fn int(mut self, lo: i64, hi: i64) -> i64:
-        if hi <= lo: lo else: lo + self.next_wide(hi - lo + 1)
+        if hi <= lo: lo else: lo + self.next(hi - lo)
 
     pub fn float(mut self, lo: f64, hi: f64) -> f64:
-        steps := [0.0, 0.25, 0.5, 0.75, 1.0]
-        if hi <= lo: lo else: lo + (hi - lo) * steps[self.next_narrow(5)]
+        if hi <= lo: lo else: lo + (hi - lo) * (f64(self.next(1000000)) / 1000000.0)
 
     pub fn bool(mut self) -> bool:
-        self.next_narrow(2) == 1
+        self.next(1) == 1
 
     pub fn pick[T](mut self, items: List[T]) -> T:
-        items[self.next_narrow(items.len())]
+        items[i32(self.next(i64(items.len() - 1)))]
 
     pub fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]:
         let items: mut List[T] = []
-        let count: i32 = self.next_narrow(max + 1)
+        let count: i32 = i32(self.next(i64(max)))
         while items.len() < count:
             items.append(item(self))
         items
@@ -43,16 +41,17 @@ impl Choices:
     pub fn string(mut self, max: i32) -> string:
         letters := ["a", "b", "z", " ", "0"]
         let text: string = ""
-        let count: i32 = self.next_narrow(max + 1)
+        let count: i32 = i32(self.next(i64(max)))
         let index: i32 = 0
         while index < count:
-            text = text + letters[self.next_narrow(5)]
+            text = text + letters[i32(self.next(4))]
             index = index + 1
         text
 
+    # A false `ok` discards the case (spec/10-modules.md#property-tests).
     pub fn assume(mut self, ok: bool) -> void:
         if !ok:
-            panic("Choices.assume: the prototype has no property-test runner to discard a case")
+            prop_discard()
 
     pub fn draw[T < Arbitrary](mut self) -> T:
         T::arbitrary(self)
@@ -67,7 +66,7 @@ impl Arbitrary for i64:
     fn arbitrary(c: mut Choices) -> i64: c.int(-1000, 1000)
 
 impl Arbitrary for i32:
-    fn arbitrary(c: mut Choices) -> i32: c.next_narrow(2001) - 1000
+    fn arbitrary(c: mut Choices) -> i32: i32(c.int(-1000, 1000))
 
 impl Arbitrary for f64:
     fn arbitrary(c: mut Choices) -> f64: c.float(-1000.0, 1000.0)
@@ -77,6 +76,25 @@ impl Arbitrary for bool:
 
 impl Arbitrary for string:
     fn arbitrary(c: mut Choices) -> string: c.string(16)
+
+# The runner protocol of a lowered `it_prop` or `it_prop_with`
+# (parser/test-cases.ts): the test function reports its case and shrink
+# caps, then draws from a fresh `Choices`.
+fn prop_choices() -> mut Choices:
+    Choices { draws: 0 }
+
+@intrinsic("prop_config")
+fn prop_config(cases: i32, shrink: i32) -> void:
+    panic("intrinsic")
+
+@intrinsic("prop_draw")
+fn prop_draw(bound: i64) -> i64:
+    panic("intrinsic")
+
+# Ends the running case as discarded; the host does not return.
+@intrinsic("prop_discard")
+fn prop_discard() -> void:
+    panic("intrinsic")
 
 # `snapshot_file(text)` (spec/10-modules.md#snapshots) compares `text` with
 # the file the runner names from the running test case,

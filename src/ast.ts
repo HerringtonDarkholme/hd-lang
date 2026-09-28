@@ -247,6 +247,8 @@ export interface TestDecl {
   readonly propagates?: boolean;
   /** An `it_each` table, whose rows the runner runs as separate test cases. */
   readonly table?: boolean;
+  /** An `it_prop` or `it_prop_with` property, which the runner runs once per case. */
+  readonly property?: boolean;
   /** The written result of an explicit closure, or `Result[void, Error]` for `propagates`. */
   readonly result?: TypeRef;
   readonly ignore?: string;

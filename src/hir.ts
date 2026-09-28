@@ -322,6 +322,8 @@ export interface HirFunction {
     readonly name: string;
     /** An `it_each` table: the runner calls it once per row, as `name[i]`. */
     readonly table?: boolean;
+    /** An `it_prop` or `it_prop_with` property: the runner calls it once per case. */
+    readonly property?: boolean;
     readonly ignore?: string;
     readonly expectPanic?: string;
   };

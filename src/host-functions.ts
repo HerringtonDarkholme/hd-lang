@@ -8,6 +8,7 @@
 // its `lib/std` declaration and one entry here, nothing in the compiler.
 
 import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
+import { propertyRun } from "./property-tests.ts";
 
 export type HostFunctionValue = number | bigint | string;
 
@@ -18,6 +19,9 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // (spec/10-modules.md#string-methods).
   string_lower: (text) => String(text).toLowerCase(),
   string_upper: (text) => String(text).toUpperCase(),
+  // `Choices` outside `hd test` draws at random; the test runner replaces
+  // these with its recording draws (src/property-tests.ts).
+  ...propertyRun().hostFunctions,
 };
 
 /** What a built-in host provider may use from the embedder. */

@@ -372,3 +372,40 @@ test("hd test fails a test case that runs longer than its timeout", async () => 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// A failing property case is shrunk, and the report names the seed; the
+// shrink cap stops shrinking early (Testing T36, T51).
+test("hd test shrinks a failing property case", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "property.hd");
+    await writeFile(
+      source,
+      [
+        "use std.testing.{assert, Choices, it_prop_with}",
+        "",
+        "fn number(c: mut Choices) -> i64:",
+        "    c.int(0, 1000)",
+        "",
+        "tests:",
+        '    it_prop_with("stays small", gen=number, prop=fn!(n: i64):',
+        '        assert(n < 10, reason="small")',
+        "    )",
+        "",
+      ].join("\n"),
+    );
+    const output = (error: CommandResult) => error.stdout + error.stderr;
+    await assert.rejects(hd(["test", "--seed", "3", source]), (error: CommandResult) => {
+      assert.match(output(error), /property test "stays small" \(seed 3, case \d+\)/);
+      assert.match(output(error), /shrunk choices \[10\] after \d+ runs$/m);
+      return true;
+    });
+    const capped = hd(["test", "--seed", "3", "--shrink", "1", source]);
+    await assert.rejects(capped, (error: CommandResult) => {
+      assert.match(output(error), /after 1 runs, shrinking stopped early/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

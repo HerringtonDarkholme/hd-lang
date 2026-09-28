@@ -112,8 +112,10 @@ panic outside `expect_panic` stops the run (F-403; each test case and
 each `it_each` row otherwise runs in a fresh instance), a test body's
 `Result` reports only its outer tag, not its `.Ok` value's `ExitCode`
 (Testing T8), a `timeout` (Literal Suffixes L16) is checked only after the
-body returns, so a body that never returns is not stopped, and `it_prop`
-and `it_prop_with` (T36) are not implemented. `hd check` without `--tests` (T42) skips test cases and
+body returns, so a body that never returns is not stopped, and a
+property test does not print its shrunk value, save a regression file
+(T37), or limit discarded cases, which are open
+([Testing Still Open After T53](../future-work/TESTING.md#still-open-after-t53)). `hd check` without `--tests` (T42) skips test cases and
 test-only functions, but still reports the test-case errors its parser
 finds. A trailing block binds the final parameter (T40) only for calls
 that the checker plans, not for the built-in functions it special-cases.
@@ -135,4 +137,5 @@ generates builder calls. `Map` and tuples longer than two render no text
 `snapshot` and `snapshot_file` (Testing T49) are checked. `snapshot` runs
 as a string `assert_equal`, and no update run rewrites `expect`.
 `snapshot_file` keeps its file under `__snapshots__/` (T53), and
-`hd test --update` records it. `it_prop` and `it_prop_with` do not run.
+`hd test --update` records it. `it_prop` and `it_prop_with` run their
+cases and shrink a failing one.

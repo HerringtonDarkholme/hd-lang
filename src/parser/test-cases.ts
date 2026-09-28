@@ -96,13 +96,33 @@ interface TestArguments {
   readonly timeout?: Expression;
   /** The positional arguments after the name, such as `it_each`'s rows. */
   readonly positional: readonly Expression[];
+  /** Named arguments beyond `it`'s options, such as `it_prop`'s `cases`. */
+  readonly named: Readonly<Record<string, Expression>>;
 }
+
+/** What a test-case function takes beyond `it`'s options. */
+interface TestSignature {
+  /** The final function's parameter name: `body`, or `prop` for a property. */
+  readonly bodyName: string;
+  /** Leading arguments that may also be passed by name. */
+  readonly named: readonly string[];
+  /** Named options beyond `it`'s. */
+  readonly options?: readonly string[];
+}
+
+const IT_SIGNATURE: TestSignature = { bodyName: "body", named: [] };
 
 // Reads a test-case call as an ordinary call of `it` or `it_each`
 // (spec/10-modules.md#test-cases): the name and any other leading
 // positional arguments, then literal named options, then the body as a
 // trailing block or `body=` (07-functions.md#r-fn.default.final-function).
-function testArguments(call: Call, callee: string, positional: number, fail: Fail): TestArguments {
+function testArguments(
+  call: Call,
+  callee: string,
+  positional: number,
+  fail: Fail,
+  signature: TestSignature = IT_SIGNATURE,
+): TestArguments {
   const names = call.argumentNames ?? [];
   const nameArgument = call.arguments[0];
   if (nameArgument === undefined || names[0] !== undefined)
@@ -114,6 +134,7 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
       nameArgument.span,
     );
   const leading: Expression[] = [];
+  const named: Record<string, Expression> = {};
   const options: Record<string, string> = {};
   let timeout: Expression | undefined;
   let body: Closure | undefined;
@@ -135,7 +156,11 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
         argument.span,
       );
     }
-    if (option === "body") {
+    if (signature.named.includes(option) || signature.options?.includes(option)) {
+      named[option] = argument;
+      continue;
+    }
+    if (option === signature.bodyName) {
       if (argument.kind !== "closure")
         fail("type-mismatch", `the body of ${callee}(...) is a fn! closure`, argument.span);
       body = argument;
@@ -164,7 +189,9 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
       fail("unknown-panic-category", `'${argument.value}' is not a panic category`, argument.span);
     options[option] = argument.value;
   }
-  if (leading.length + 1 < positional)
+  // A leading argument may also be passed by name, as `it_prop_with`'s `gen=`.
+  const namedLeading = signature.named.filter((option) => named[option] !== undefined).length;
+  if (leading.length + namedLeading + 1 < positional)
     fail("argument-count", `${callee}(...) is missing an argument`, call.span);
   if (!body) fail("argument-count", `${callee}(...) needs a body as its final argument`, call.span);
   if (body.trailing !== true && body.suspending !== true)
@@ -172,6 +199,7 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
   return {
     name: nameArgument.value,
     body,
+    named,
     options,
     ...(timeout ? { timeout } : {}),
     positional: leading,
@@ -301,6 +329,119 @@ function tableTest(
   };
 }
 
+// `std.testing.it_prop(name, ..., cases=, shrink=, prop=)` and
+// `it_prop_with(name, gen, ...)` register one property test case
+// (spec/10-modules.md#property-tests). The prototype compiles one test
+// function that the runner calls once per generated case, each in a fresh
+// instance: it reports `cases` and `shrink` to the runner, takes a
+// runner-created `Choices`, draws the input with `gen` or the parameter
+// type's `Arbitrary`, and runs `prop` with it (src/property-tests.ts).
+function propertyTest(
+  statement: Statement,
+  withGenerator: boolean,
+  errorName: string,
+  fail: Fail,
+): TestDecl {
+  const call = (statement as Extract<Statement, { kind: "expression" }>).expression as Call;
+  const callee = withGenerator ? "it_prop_with" : "it_prop";
+  const signature = {
+    bodyName: "prop",
+    named: withGenerator ? ["gen"] : [],
+    options: ["cases", "shrink"],
+  };
+  const { name, body, options, timeout, positional, named } = testArguments(
+    call,
+    callee,
+    withGenerator ? 2 : 1,
+    fail,
+    signature,
+  );
+  const generator = positional[0] ?? named.gen;
+  if (withGenerator !== (generator !== undefined))
+    fail("argument-count", `${callee}(...) ${withGenerator ? "needs" : "takes no"} gen`, call.span);
+  const parameter = body.parameters[0];
+  if (body.trailing === true || body.parameters.length !== 1)
+    fail("argument-count", `a ${callee} prop is a fn! closure with one parameter`, body.span);
+  if (!withGenerator && !parameter!.type)
+    fail(
+      "closure-parameter-needs-annotation",
+      "an it_prop parameter needs a type, whose Arbitrary draws it",
+      parameter!.span,
+    );
+  const propagates = !body.result && usesPropagation(body.body);
+  const span = call.span;
+  const local = (text: string): Expression => ({ kind: "name", name: text, span });
+  const integer = (value: number): Expression => ({ kind: "integer", value: BigInt(value), span });
+  const invoke = (callee_: Expression, arguments_: Expression[] = []): Expression => ({
+    kind: "call",
+    callee: callee_,
+    arguments: arguments_,
+    span,
+  });
+  const bind = (text: string, value: Expression): Statement => ({
+    kind: "binding",
+    name: text,
+    mutable: false,
+    value,
+    span,
+  });
+  const statementOf = (expression: Expression): Statement => ({
+    kind: "expression",
+    expression,
+    span,
+  });
+  const draw: Expression = withGenerator
+    ? invoke(local("$prop.gen"), [local("$prop.choices")])
+    : {
+        kind: "call",
+        callee: { kind: "member", receiver: local("$prop.choices"), name: "draw", span },
+        typeArguments: [parameter!.type!],
+        arguments: [],
+        span,
+      };
+  const bangCall: Expression = {
+    kind: "suspend-call",
+    callee: local("$prop.body"),
+    arguments: [local("$prop.value")],
+    span,
+  };
+  const closure: Closure = propagates
+    ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
+    : body;
+  return {
+    kind: "test",
+    name,
+    body: [
+      { ...bind("$prop.body", closure), span: body.span },
+      ...(generator ? [bind("$prop.gen", generator)] : []),
+      statementOf(
+        invoke(local(PROPERTY_CONFIG), [named.cases ?? integer(100), named.shrink ?? integer(500)]),
+      ),
+      {
+        kind: "binding",
+        name: "$prop.choices",
+        mutable: true,
+        value: invoke(local(PROPERTY_CHOICES)),
+        span,
+      },
+      bind("$prop.value", draw),
+      statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
+      ...(propagates
+        ? [statementOf(invoke({ kind: "contextual-variant", name: "Ok", span }))]
+        : []),
+    ],
+    ...(body.result ? { explicit: true, result: body.result } : {}),
+    property: true,
+    ...(propagates ? { propagates: true } : {}),
+    ...optionFields(options, timeout),
+    span: statement.span,
+  };
+}
+
+/** The hidden `std.testing` functions a lowered property test calls. */
+const PROPERTY_CONFIG = "__std_testing_prop_config";
+const PROPERTY_CHOICES = "__std_testing_prop_choices";
+
 /** Resolves `it_each` calls, checks name uniqueness, and fixes `?` bodies' results. */
 export function finishTestCases(items: ModuleItems, fail: Fail): void {
   const aliases = new Set(
@@ -319,9 +460,30 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
     .flatMap((use) => use.names)
     .find((name) => name.name === "Error");
   const errorName = imported ? (imported.alias ?? imported.name) : "Error";
-  const tables = items.pendingEach.map((statement) =>
-    tableTest(statement, aliases, errorName, fail),
-  );
+  const importedAs = (name: string): Set<string> =>
+    new Set(
+      items.uses
+        .filter((use) => use.module === "std.testing")
+        .flatMap((use) => use.names)
+        .filter((entry) => entry.name === name)
+        .map((entry) => entry.alias ?? entry.name),
+    );
+  const properties = [importedAs("it_prop"), importedAs("it_prop_with")] as const;
+  const calleeOf = (statement: Statement): string | undefined =>
+    statement.kind === "expression" &&
+    statement.expression.kind === "call" &&
+    statement.expression.callee.kind === "name"
+      ? statement.expression.callee.name
+      : undefined;
+  const tables = items.pendingEach
+    .filter((statement) => !properties.some((names) => names.has(calleeOf(statement) ?? "")))
+    .map((statement) => tableTest(statement, aliases, errorName, fail));
+  const propertyTests = items.pendingEach
+    .filter((statement) => properties.some((names) => names.has(calleeOf(statement) ?? "")))
+    .map((statement) =>
+      propertyTest(statement, properties[1].has(calleeOf(statement)!), errorName, fail),
+    );
+  items.tests.push(...propertyTests);
   items.tests.push(...tables);
   const later = (left: TestDecl, right: TestDecl): TestDecl =>
     left.span.start.offset > right.span.start.offset ? left : right;
