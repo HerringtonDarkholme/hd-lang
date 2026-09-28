@@ -1,0 +1,35 @@
+# `@derive` applies a trait's derivation template to a type. `Eq` comes from
+# std; `FieldNames` is this file's own template, `impl[T] ... by Structure`.
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait FieldNames:
+    fn field_names() -> List[string]
+
+data NameLister:
+    names: mut List[string]
+
+impl[S] Describer[S] for NameLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.names.append(h.info.name)
+        .Ok()
+
+impl[T] FieldNames for T by Structure:
+    fn field_names() -> List[string]:
+        let lister: mut NameLister = NameLister { names: [] }
+        _ := T::describe(lister)
+        lister.names
+
+@derive(Eq, FieldNames)
+data Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    for name in Point::field_names():
+        println("field $name")
+    println(Point { x: 1, y: 2 } == Point { x: 1, y: 2 })

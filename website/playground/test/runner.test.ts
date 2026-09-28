@@ -14,7 +14,7 @@ import { buildOptions } from "../build.ts";
 import { createHash as shimHash } from "../src/shims/crypto.ts";
 import type { Example } from "../src/examples.ts";
 import type * as Runner from "../src/runner.ts";
-import type { RunResult } from "../src/runner.ts";
+import type { RunMode, RunResult } from "../src/runner.ts";
 
 const playground = resolve(import.meta.dirname, "..");
 let directory: string;
@@ -254,15 +254,71 @@ test("Test runs the test cases, with or without main", async () => {
   assert.equal(none.summary, "nothing to test: add a `tests:` block with `it(...)` test cases");
 });
 
+test("Test judges it_each rows, expected panics, and ignored cases as hd test does", async () => {
+  const test = async (lines: readonly string[]) => {
+    const result = await runner.runProject(single(lines.join("\n")), "test");
+    return `${result.status}: ${result.summary}`;
+  };
+  const header = ["use std.testing.{assert, it_each}", "", "tests:"];
+  assert.equal(
+    await test([
+      ...header,
+      '    it_each("positive", [1, 2, 3], body=fn!(value: i32):',
+      '        assert(value > 0, reason="rows are positive")',
+      "    )",
+      '    it("indexes past the end", expect_panic="index-out-of-bounds"):',
+      "        _ := [1][1]",
+      '    it("waits", ignore="slow"):',
+      "        pass",
+    ]),
+    "ok: 4 tests passed, 1 ignored",
+  );
+  assert.equal(
+    await test([
+      ...header,
+      '    it_each("small", [1, 5], body=fn!(value: i32):',
+      '        assert(value < 3, reason="rows are small")',
+      "    )",
+    ]),
+    'panic: assertion-failed: runtime panic in test case "small"',
+  );
+  assert.equal(
+    await test([
+      ...header,
+      '    it("panics", expect_panic="index-out-of-bounds"):',
+      "        pass",
+    ]),
+    'failure: test "panics" expecting panic index-out-of-bounds failed',
+  );
+});
+
 test("the bundled examples run", async () => {
   const { EXAMPLES } = (await import(pathToFileURL(await bundleExamples()).href)) as {
     EXAMPLES: readonly Example[];
   };
-  const expected: Record<string, RunResult["status"]> = { panic: "panic" };
+  const expected: Record<string, RunResult["status"]> = { panic: "panic", "exit-code": "failure" };
   for (const example of EXAMPLES) {
     const result = await runner.runProject(example.project, "run");
     assert.equal(result.status, expected[example.id] ?? "ok", `${example.id}: ${result.summary}`);
   }
+  const outcome = async (id: string, mode: RunMode) => {
+    const result = await runner.runProject(
+      EXAMPLES.find((example) => example.id === id)!.project,
+      mode,
+    );
+    return [result.summary, ...result.stdout];
+  };
+  assert.deepEqual(await outcome("exit-code", "run"), [
+    "main exited with code 1",
+    "2 files changed",
+  ]);
+  assert.deepEqual(await outcome("tests", "test"), ["5 tests passed"]);
+  assert.deepEqual(await outcome("derive", "run"), [
+    "exited normally",
+    "field x",
+    "field y",
+    "true",
+  ]);
   const topLevel = EXAMPLES.find(({ id }) => id === "top-level")!;
   assert.deepEqual((await runner.runProject(topLevel.project, "run")).stdout, [
     "7 : i32",

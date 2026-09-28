@@ -28,7 +28,8 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   classes match it.
 - **Run** (Ctrl+Enter or Cmd+Enter) compiles the project and runs it:
   - when the entry module declares `main`, Run calls `pub fn main`, as
-    `hd run` does;
+    `hd run` does. A `main` that returns an `ExitCode` other than 0, or an
+    `.Err`, is reported as a failure with its exit code;
   - without `main`, Run evaluates the entry module with REPL semantics
     ([`src/repl.ts`](../../src/repl.ts), the session `hd repl` uses). Each
     top-level input runs in order: declarations join the session, statements
@@ -48,9 +49,12 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   check it, without running anything. Diagnostics show `path:line:column`
   and the diagnostic code. Clicking one jumps to it, and the editor
   underlines it.
-- **Test** runs the test cases, as `hd test` does, whether or not the
-  entry module declares `main`. It checks the file as a module, so top-level
-  code must type-check as module initialization.
+- **Test** runs the test cases of the `tests:` block, as `hd test` does,
+  whether or not the entry module declares `main`. It judges them with the
+  CLI's runner, [`src/test-runner.ts`](../../src/test-runner.ts): each test
+  case, and each `it_each` row, runs in a fresh program instance, and
+  `ignore`, `expect_panic`, and `timeout` apply. It checks the file as a
+  module, so top-level code must type-check as module initialization.
 - **WAT**, beside **Output** in the output pane, shows the WebAssembly text
   of the module the project compiles to:
   - for a program, the module Run and Test instantiate. The prototype
@@ -87,7 +91,11 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
   [`../../spec/conformance/runtime/valid`](../../spec/conformance/runtime/valid), and
   [`examples/`](examples) as text, so the menu shows the files the test suites
   run. [`examples/top-level.hd`](examples/top-level.hd) has no `main` and
-  shows Run's REPL semantics.
+  shows Run's REPL semantics. The playground's own examples show recent
+  language features: closures, `i64` and `u8`, `tests:` blocks with `it`,
+  `it_each`, and `snapshot`, `ExitCode`, literal suffixes, `@derive`, and
+  mutable requirement traits.
+  [`test/runner.test.ts`](test/runner.test.ts) runs every example.
 - Light and dark themes follow `prefers-color-scheme`. The layout stacks the
   editor and output on narrow screens.
 
@@ -96,8 +104,10 @@ Chromium; `CHROME_PATH` selects one. The playground steps are in
 `src/main.ts` runs the page. `src/worker.ts` runs the compiler in a module
 Web Worker, so a long compile or an endless loop never blocks the page.
 Stopping a run terminates the worker. `src/runner.ts` holds the pipeline:
-link, `analyze`, then `instantiate` and call the entry export with a
-`Console` provider, the default runtime profile. It also reports the module
+link, `analyze`, then `instantiate` and run the entry export or the test
+cases with `runSelected` from [`src/test-runner.ts`](../../src/test-runner.ts),
+the runner `hd run` and `hd test` use, and a `Console` provider, the default
+runtime profile. It also reports the module
 a run compiled, and `watProject` compiles a project's module without running
 it, for the WAT view. Without `main`, it feeds the
 entry module's top-level inputs (`splitInputs` in
@@ -197,6 +207,15 @@ The playground runs what the prototype compiler supports; see
 
 - Only the default runtime profile is provided, which binds `Console`. The
   CLI's test profiles (`--profile`), scenarios, trace, record, and replay are
-  not exposed.
+  not exposed. A program that needs another host capability, such as
+  `std.host.Args`, is `nonhost-entry-requirement`.
+- `println` writes through the host `Console`. The prototype checks
+  `let console: mut Console = $.use(Console)` and a direct
+  `console.write_line!(...)` call but does not run them
+  (`unsupported-console-call`).
+- Test modules (`src/billing_test.hd`) are not supported: a test case must
+  sit in a `tests:` block.
+- A suspending `main!` that returns a `Result` is not judged: its `.Err` is
+  reported as a normal exit.
 - Triple-quoted multi-line strings are neither lexed by the prototype nor
   highlighted.

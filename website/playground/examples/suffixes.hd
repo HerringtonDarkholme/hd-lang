@@ -1,0 +1,22 @@
+# A number with a suffix calls its suffix type's `LiteralSuffix`
+# implementation: `12px` means `px::from_literal(12)`. `std.time` declares
+# `ms`, `s`, `min`, and `h`, so `250ms` and `5s` are both a `Duration`.
+use std.ops.LiteralSuffix
+use std.time.{Duration, ms, s}
+
+data Pixels:
+    count: i32
+
+type px(i32)
+
+impl LiteralSuffix[i32, Pixels] for px:
+    fn from_literal(n: i32) -> Pixels: Pixels { count: n }
+
+fn add(a: Pixels, b: Pixels) -> Pixels: Pixels { count: a.count + b.count }
+
+fn backoff() -> List[Duration]: [250ms, 1s, 5s]
+
+pub fn main() -> void $ Console:
+    width := add(12px, -4px)
+    println("width ${width.count}px")
+    println("${backoff().len()} retry delays")

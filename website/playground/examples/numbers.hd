@@ -1,0 +1,13 @@
+# `i64` holds values beyond `i32`, and an `i32` widens to it implicitly.
+# `u8` holds 0 to 255, and its arithmetic is checked.
+fn to_millis(seconds: i64) -> i64: seconds * 1000
+
+pub fn main() -> void $ Console:
+    let year: i64 = 31_536_000
+    println(to_millis(year))
+    let minute: i32 = 60
+    println(to_millis(minute))
+
+    let level: u8 = 250
+    println(level + 5)
+    # `level + 6` would stop the program with an integer-overflow panic.

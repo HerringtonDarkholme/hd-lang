@@ -1,0 +1,16 @@
+# A closure is `fn` without a name. With an expected function type, its
+# parameters need no annotations, and it may assign `let` bindings it captures.
+fn apply_all(values: List[i32], f: fn(i32) -> i32) -> List[i32]:
+    [for value in values => f(value)]
+
+pub fn main() -> void $ Console:
+    offset := 10
+    shifted := apply_all([1, 2, 3], fn(x): x + offset)
+    println("${shifted[0]} ${shifted[1]} ${shifted[2]}")
+
+    let calls: i32 = 0
+    bump := fn() -> void:
+        calls = calls + 1
+    bump()
+    bump()
+    println("bumped $calls times")

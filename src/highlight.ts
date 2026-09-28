@@ -48,8 +48,9 @@ const PRIMITIVE_TYPES = new Set([
   "void",
   "never",
 ]);
-// Contextual words that are keywords only in declaration or statement heads.
-const CONTEXTUAL_KEYWORDS = new Set(["with"]);
+// Contextual words directly after `$.`: the provider operations and the
+// context type (01-lexical-structure.md#contextual-words).
+const PROVIDER_WORDS = new Set(["use", "with", "context", "Context"]);
 // A use declaration: `use` or `pub use` followed by a use root.
 const USE_DECLARATION = /^\s*(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b/;
 
@@ -135,16 +136,23 @@ export function classify(line: string): Span[] {
 function wordClass(word: string, line: string, start: number, end: number): TokenClass {
   if (LITERAL_WORDS.has(word)) return "literal";
   if (KEYWORDS.has(word)) return "keyword";
-  if (CONTEXTUAL_KEYWORDS.has(word) && /^\s*(?:"|:)/.test(line.slice(end))) return "keyword";
   if (contextualKeyword(word, line, start, end)) return "keyword";
   if (PRIMITIVE_TYPES.has(word) || /^\p{Lu}/u.test(word)) return "type";
   if (/^\s*(?:\(|\[[^\]]*\]\s*\()/.test(line.slice(end))) return "function";
   return "plain";
 }
 
-// `use`, `super`, and `as` in a use declaration, and `reified` before a
-// generic parameter name, are keywords (01-lexical-structure.md#keywords-and-reserved-words).
+// `use`, `super`, and `as` in a use declaration, `reified` before a generic
+// parameter name, a provider word after `$.`, `derive` after `@`, and `by`
+// after the target of an `impl` header are keywords
+// (01-lexical-structure.md#contextual-words).
 function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
+  if (PROVIDER_WORDS.has(word) && line.slice(0, start).endsWith("$.")) return true;
+  if (word === "derive") return line[start - 1] === "@";
+  if (word === "by")
+    return (
+      /^\s*impl\b.*\bfor\s+\S.*\s$/.test(line.slice(0, start)) && /^\s+\S/.test(line.slice(end))
+    );
   if (word === "use")
     return USE_DECLARATION.test(line) && /^\s*(?:pub\s+)?$/.test(line.slice(0, start));
   if (word === "super" || word === "as") return USE_DECLARATION.test(line);

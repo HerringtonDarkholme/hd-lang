@@ -155,7 +155,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.context().close();
   });
 
-  await step("an error without main points at its line; Test runs test blocks", async () => {
+  await step("an error without main points at its line; Test and exit codes report", async () => {
     const page = await openPage(code("x := 1\ny := missing\n"));
     await page.click("#run");
     await page.locator(".outcome.failed").waitFor();
@@ -178,6 +178,14 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await page.click("#test");
     await page.locator(".outcome.passed").waitFor();
     assert.match((await outcome(page).textContent()) ?? "", /1 test passed/);
+    await page.selectOption("#examples", "tests");
+    await page.click("#test");
+    await page.locator(".outcome.passed").waitFor();
+    assert.match((await outcome(page).textContent()) ?? "", /5 tests passed/);
+    await page.selectOption("#examples", "exit-code");
+    await page.click("#run");
+    await page.locator(".outcome.failed").waitFor();
+    assert.equal(await outcome(page).textContent(), "✗ main exited with code 1");
     await page.context().close();
   });
 

@@ -1,0 +1,13 @@
+# `main` returns any `Termination` type: `void`, an `ExitCode`, or a
+# `Result` over one. `ExitCode(0)` is success; an `.Err` exits with 1.
+use std.process.ExitCode
+
+fn changed_files(paths: List[string]) -> Result[i32, string]:
+    if paths.len() == 0:
+        return .Err("no paths given")
+    .Ok(paths.len())
+
+pub fn main() -> Result[ExitCode, string] $ Console:
+    changes := changed_files(["a.hd", "b.hd"])?
+    println("$changes files changed")
+    .Ok(if changes > 0: ExitCode(1) else: ExitCode(0))

@@ -1,0 +1,23 @@
+# Press Test. A file's test cases live in one `tests:` block: `it` runs one
+# case, `it_each` one case per row, and `snapshot` compares text.
+use std.testing.{assert_equal, it_each, snapshot}
+use std.time.s
+
+fn slug(title: string) -> string:
+    title.trim().lower().replace(" ", "-")
+
+fn first(items: List[i32]) -> i32: items[0]
+
+tests:
+    it("lowers and joins words", timeout=5s):
+        assert_equal(slug(" Hello World "), "hello-world", reason="trimmed and joined")
+
+    it_each("keeps one word", ["hd", "lang"], body=fn!(word: string):
+        assert_equal(slug(word), word, reason="nothing to change")
+    )
+
+    it("renders a title"):
+        snapshot(slug("Tests And Snapshots"), expect="tests-and-snapshots")
+
+    it("an empty list has no first item", expect_panic="index-out-of-bounds"):
+        _ := first([])

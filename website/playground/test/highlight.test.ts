@@ -59,7 +59,7 @@ const TRICKY = [
   "pub use super.shared.{Email}",
   "fn make[reified T](value: T) -> List[Map[string, T]]: []",
   "use_count := as_text + super_value",
-  "let big: i64 = 1_000_000i64 + 0xFF_u8 + 3.5e10 + 2.0f32",
+  "let big: i64 = 1_000_000 + 0xFF + 3.5e10 + -250ms + 1.5kb",
   "enum Shape: Circle(radius: f64)",
   "data User:",
   '    pub name: string = "anon"',
@@ -67,6 +67,11 @@ const TRICKY = [
   '    it("works"):',
   '        assert(self.ok, reason="with Self and true")',
   "c := 'x' + '\\n'",
+  "let console: mut Console = $.use(Console)",
+  "    $.with(Clock=FixedClock {}, context...):",
+  "@derive(Eq, Debug)",
+  "impl[T] Encode for T by Structure:",
+  "by := derive + with + context",
   "",
 ].join("\n");
 
@@ -86,10 +91,21 @@ test("editor token classes match classify for the tricky cases", () => {
   assert.equal(at(9, "super"), "hd-keyword");
   assert.equal(at(10, "reified"), "hd-keyword");
   assert.equal(at(10, "List"), "hd-type");
-  assert.equal(at(12, "1_000_000i64"), "hd-number");
+  assert.equal(at(12, "1_000_000"), "hd-number");
+  assert.equal(at(12, "250ms"), "hd-number");
   assert.equal(at(16, "tests"), "hd-keyword");
   assert.equal(at(18, "self"), "hd-literal");
   assert.equal(at(18, "with Self"), "hd-string");
+  assert.equal(at(20, "use"), "hd-keyword");
+  assert.equal(at(20, "mut"), "hd-keyword");
+  assert.equal(at(21, "with"), "hd-keyword");
+  assert.equal(at(21, "context"), "");
+  assert.equal(at(22, "derive"), "hd-keyword");
+  assert.equal(at(23, "by"), "hd-keyword");
+  assert.equal(at(23, "Structure"), "hd-type");
+  assert.equal(at(24, "by"), "");
+  assert.equal(at(24, "derive"), "");
+  assert.equal(at(24, "with"), "");
 });
 
 test("editor token classes match classify on the examples and runtime fixtures", async () => {
@@ -100,6 +116,16 @@ test("editor token classes match classify on the examples and runtime fixtures",
     "spec/conformance/runtime/valid/propagation-from-two-domains.hd",
     "spec/conformance/runtime/valid/embedded-field-satisfies-trait.hd",
     "spec/conformance/runtime/valid/println-console-stdout.hd",
+    ...[
+      "closures",
+      "derive",
+      "exit-code",
+      "mutable-requirement",
+      "numbers",
+      "suffixes",
+      "tests",
+      "top-level",
+    ].map((name) => `website/playground/examples/${name}.hd`),
   ];
   for (const path of paths) {
     const source = await readFile(resolve(root, path), "utf8");

@@ -22,7 +22,7 @@ import {
   type SourceInput,
 } from "../../../src/repl.ts";
 import { RuntimePanicError } from "../../../src/runtime-panic.ts";
-import { resultParts } from "../../../src/types.ts";
+import { runSelected } from "../../../src/test-runner.ts";
 import { assembleWat } from "../../../src/wasm.ts";
 import type { Project } from "./project.ts";
 
@@ -148,36 +148,31 @@ export async function runProject(
     return finish("compile-error", diagnostics, "compilation failed");
   if (mode === "check") return finish("ok", diagnostics, "no errors");
 
-  const testNames = program?.tests.map(({ name }) => name) ?? [];
   let current = "module initialization";
   try {
-    const { instance, compilation } = await instantiate(source, {
-      console: emit,
-      providerConfigurationId: "playground",
-    });
+    const options = { console: emit, providerConfigurationId: "playground" };
+    const { instance, compilation } = await instantiate(source, options);
     onModule({ wat: compilation.wat, origin: "program", count: 1 });
+    // `hd run` and `hd test` judge outcomes with the same runner: exit codes,
+    // `it_each` rows, `expect_panic`, `timeout`, and a fresh program instance
+    // for each test case (src/test-runner.ts).
+    const fresh = async (): Promise<WebAssembly.Exports> =>
+      (await instantiate(source, { ...options, compilation })).instance.exports;
     const functions = compilation.hir.functions;
     const entry = functions.find((declaration) => declaration.entry === true);
-    const providers = (requirements: readonly string[]): unknown[] =>
-      requirements.map((requirement) => ({ requirement }));
-    const exported = (name: string): ((...values: unknown[]) => unknown) => {
-      const value = instance.exports[name];
-      if (typeof value !== "function") throw new Error(`${name} has no runnable export`);
-      return value as (...values: unknown[]) => unknown;
-    };
     if (entry && mode === "run") {
       current = entry.name;
-      const result = exported(entry.name)(...providers(entry.requirements));
-      if (resultParts(entry.result)?.ok === "void" && result !== 0)
+      const outcome = await runSelected([entry], instance.exports, fresh);
+      if (outcome.kind === "exit")
+        return finish("failure", diagnostics, `${entry.name} exited with code ${outcome.code}`);
+      if (outcome.kind === "failed")
         return finish("failure", diagnostics, `${entry.name} returned Err`);
-      const returned = typeof result === "number" && result !== 0 ? ` with ${result}` : "";
-      return finish("ok", diagnostics, `exited normally${returned}`);
+      return finish("ok", diagnostics, "exited normally");
     }
     // A test case with the `ignore` option does not run
     // (spec/10-modules.md#r-module.testing.option.ignore).
-    const tests = functions.filter(
-      ({ name, testOptions }) => /^\$test\.\d+$/.test(name) && testOptions?.ignore === undefined,
-    );
+    const cases = functions.filter(({ name }) => /^\$test\.\d+$/.test(name));
+    const tests = cases.filter(({ testOptions }) => testOptions?.ignore === undefined);
     if (tests.length === 0)
       return finish(
         "failure",
@@ -186,15 +181,21 @@ export async function runProject(
           ? "nothing to test: add a `tests:` block with `it(...)` test cases"
           : "nothing to run: declare `pub fn main()`, top-level code, or a `tests:` block",
       );
+    let passed = 0;
     for (const test of tests) {
-      const index = Number(test.name.slice("$test.".length));
-      current = `test case "${testNames[index] ?? test.name}"`;
-      exported(`__hd_test_${index}`)(...providers(test.requirements));
+      current = `test case "${test.testOptions?.name ?? test.name}"`;
+      const outcome = await runSelected([test], instance.exports, fresh);
+      if (outcome.kind !== "passed") {
+        const subject = outcome.kind === "failed" ? outcome.subject : current;
+        return finish("failure", diagnostics, `${subject} failed`);
+      }
+      passed += outcome.count;
     }
+    const ignored = cases.length - tests.length;
     return finish(
       "ok",
       diagnostics,
-      `${tests.length} ${tests.length === 1 ? "test" : "tests"} passed`,
+      `${passed} ${passed === 1 ? "test" : "tests"} passed${ignored > 0 ? `, ${ignored} ignored` : ""}`,
     );
   } catch (error) {
     if (error instanceof RuntimePanicError)
