@@ -347,7 +347,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       );
       if (outcome.kind === "exit") return outcome.code;
       if (outcome.kind === "failed") {
-        reporter.entryError(outcome.subject);
+        reporter.entryError(outcome.subject, outcome.outcome);
         return 1;
       }
       replay.assertComplete();

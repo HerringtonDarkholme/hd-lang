@@ -198,17 +198,20 @@ export class DiagnosticReporter {
     });
   }
 
-  /** A `main` or test whose `Result` is `Err`; the program ran, so no code applies. */
-  entryError(subject = "main"): void {
+  /**
+   * A `main` or test whose `Result` is `Err`, or a test that failed otherwise
+   * (`outcome`); the program ran, so no code applies.
+   */
+  entryError(subject = "main", outcome = "returned Err"): void {
     if (this.format === "text") {
-      this.write(`${this.file}: ${subject} returned Err`);
+      this.write(`${this.file}: ${subject} ${outcome}`);
       return;
     }
     this.record({
       kind: "entry-error",
       code: null,
       severity: "error",
-      message: `${subject} returned Err`,
+      message: `${subject} ${outcome}`,
       file: this.file,
       span: null,
       notes: [],

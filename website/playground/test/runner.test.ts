@@ -292,6 +292,20 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
   );
 });
 
+// A suspending `main!` is judged by `report()` on its result, as `main` is
+// (spec/10-modules.md#exit-status).
+test("a suspending main! reports its Result", async () => {
+  const run = async (body: string): Promise<string> => {
+    const result = await runner.runProject(
+      single(`pub fn main!() -> Result[void, string]:\n    ${body}\n`),
+      "run",
+    );
+    return `${result.status}: ${result.summary}`;
+  };
+  assert.equal(await run(".Ok()"), "ok: exited normally");
+  assert.equal(await run('.Err("boom")'), "failure: main returned Err");
+});
+
 test("the bundled examples run", async () => {
   const { EXAMPLES } = (await import(pathToFileURL(await bundleExamples()).href)) as {
     EXAMPLES: readonly Example[];

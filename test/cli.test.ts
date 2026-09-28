@@ -120,6 +120,59 @@ test("hd test fails a test whose result is .Err", async () => {
   }
 });
 
+// A suspending `main!` exits with the code `report()` gives for its result,
+// and a test case fails on any nonzero code (spec/10-modules.md#exit-status,
+// #r-module.testing.fail).
+test("hd run and hd test judge suspending results by Termination", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  const program = async (name: string, lines: readonly string[]): Promise<string> => {
+    const path = join(directory, name);
+    await writeFile(path, ["use std.process.ExitCode", "", ...lines, ""].join("\n"));
+    return path;
+  };
+  const failure = async (args: readonly string[]): Promise<CommandResult & { code?: number }> => {
+    let caught: (CommandResult & { code?: number }) | undefined;
+    await assert.rejects(hd(args), (error: CommandResult & { code?: number }) => {
+      caught = error;
+      return true;
+    });
+    return caught!;
+  };
+  try {
+    const ok = await program("ok.hd", ["pub fn main!() -> Result[void, string]:", "    .Ok()"]);
+    const passed = await hd(["run", ok]);
+    assert.equal(passed.stdout, "");
+
+    const err = await program("err.hd", [
+      "pub fn main!() -> Result[void, string]:",
+      '    .Err("boom")',
+    ]);
+    const erred = await failure(["run", err]);
+    assert.equal(erred.code, 1);
+    assert.match(erred.stdout + erred.stderr, /main returned Err/);
+
+    const code = await program("code.hd", [
+      "pub fn main!() -> Result[ExitCode, string]:",
+      "    .Ok(ExitCode(3))",
+    ]);
+    const exited = await failure(["run", code]);
+    assert.equal(exited.code, 3);
+    assert.equal(exited.stdout, "");
+
+    const reported = await program("reported.hd", [
+      "tests:",
+      '    it("reports a code", body=fn!() -> Result[ExitCode, string]:',
+      "        .Ok(ExitCode(2))",
+      "    )",
+    ]);
+    const failed = await failure(["test", reported]);
+    assert.equal(failed.code, 1);
+    assert.match(failed.stdout + failed.stderr, /test "reports a code" reported exit code 2/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // Each it_each row is its own test case in a fresh program instance
 // (spec/10-modules.md#table-tests and #r-module.testing.instance).
 test("hd test runs each it_each row in a fresh instance", async () => {

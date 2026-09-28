@@ -480,15 +480,16 @@ else`, `break`, `break value`, and `continue`;
   operand's error must match the inferred result;
 - test bodies (Testing T4): a `test` block's result is inferred like a
   closure's and must be `void` or a `Result` with a `Display` error, else
-  `unsatisfied-trait-bound`; a test whose result is `.Err` fails. Only the
-  outer `Result` tag is read. Importing `std.process.ExitCode` or
+  `unsatisfied-trait-bound`; a test fails when `report()` on its result
+  gives a nonzero code, as for `.Err`. Importing `std.process.ExitCode` or
   `Termination` declares both from the
   [standard library](#standard-library) (Testing T8), with the implementations for
   `ExitCode`, `void` (whose `self` is a null `anyref`), and `Result[T, E]`;
-  `main` may return `void`, `ExitCode`, or a `Result` over them (a program's
-  own `Termination` type is reported as not yet supported), and `hd run`
-  exits with the code, reporting an `.Err` as `main returned Err` with code 1. Entry-point
-  chain printing is not implemented;
+  `main` and `main!` may return `void`, `ExitCode`, or a `Result` over them
+  (a program's own `Termination` type is reported as not yet supported), and
+  `hd run` exits with the code, reporting an `.Err` as `main returned Err`
+  with code 1. Printing the error's `Display` text and cause chain is not
+  implemented;
 - typed derivation (spec/14-annotations.md#typed-derivation, Typed
   Derivation M1-M24), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function

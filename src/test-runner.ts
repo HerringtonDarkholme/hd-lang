@@ -1,6 +1,5 @@
 import type { HirFunction } from "./hir.ts";
 import { RuntimePanicError } from "./runtime-panic.ts";
-import { resultParts } from "./types.ts";
 
 // Runs the entry point and the test cases that `hd run` or `hd test`
 // selected (spec/10-modules.md#test-outcomes). An `it_each` table is one test
@@ -11,7 +10,7 @@ import { resultParts } from "./types.ts";
 export type RunOutcome =
   | { readonly kind: "passed"; readonly count: number; readonly result?: unknown }
   | { readonly kind: "exit"; readonly code: number }
-  | { readonly kind: "failed"; readonly subject: string };
+  | { readonly kind: "failed"; readonly subject: string; readonly outcome?: string };
 
 type Exports = WebAssembly.Exports;
 
@@ -40,16 +39,21 @@ function caseName(declaration: HirFunction, row: number | undefined): string {
   return row === undefined ? name : `${name}[${row}]`;
 }
 
-// The entry wrapper returns the exit code, or -1 for an `.Err`
-// (spec/10-modules.md#r-module.entry.exit-report); a test fails when its
-// Result reports `.Err` (spec/10-modules.md#r-module.testing.fail).
+// An entry point or test case with a non-void result exports the code that
+// `report()` gives for it, or -1 for an `.Err`
+// (spec/10-modules.md#r-module.entry.exit-report), whether it suspends or
+// not. A test case fails on any nonzero code
+// (spec/10-modules.md#r-module.testing.fail).
 function judge(declaration: HirFunction, result: unknown, subject: string): RunOutcome | undefined {
-  if (declaration.entry && !declaration.suspending && typeof result === "number") {
+  if (typeof result !== "number") return undefined;
+  if (declaration.entry) {
     if (result === -1) return { kind: "failed", subject: "main" };
     if (result !== 0) return { kind: "exit", code: result };
+    return undefined;
   }
-  if (!declaration.entry && resultParts(declaration.result) && result !== 0)
-    return { kind: "failed", subject };
+  if (declaration.testOptions && result === -1) return { kind: "failed", subject };
+  if (declaration.testOptions && result !== 0)
+    return { kind: "failed", subject, outcome: `reported exit code ${result}` };
   return undefined;
 }
 
@@ -113,11 +117,8 @@ export async function runSelected(
       const result = call(shared, declaration, undefined);
       const outcome = judge(declaration, result, "main");
       if (outcome) return outcome;
-      // A non-suspending entry returns its exit code, which is not printed.
-      last =
-        declaration.entry && !declaration.suspending && typeof result === "number"
-          ? undefined
-          : result;
+      // An entry point returns its exit code, which is not printed.
+      last = declaration.entry && typeof result === "number" ? undefined : result;
       count += 1;
       continue;
     }

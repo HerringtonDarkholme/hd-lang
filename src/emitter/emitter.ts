@@ -6,7 +6,7 @@ import type {
   HirProgram,
   HirStatement,
 } from "../hir.ts";
-import { contextKeys, functionParts, functionType, resultParts } from "../types.ts";
+import { contextKeys, functionParts, functionType } from "../types.ts";
 import { collectModuleTypes } from "./module-types.ts";
 import {
   buildSuspensionPlan,
@@ -926,9 +926,11 @@ class FunctionEmitter extends FunctionBodyEmitter {
       .join("\n\n");
   }
 
-  // A test whose body returns a `Result` exports its tag (0 = Ok, 1 = Err), so
-  // the runner fails the test on `.Err` (spec/10-modules.md#r-module.testing.fail).
-  // The prototype reads only the outer tag, so a nested `.Ok(.Err(...))` passes.
+  // A suspending `main!` or test case with a non-void result exports the code
+  // that `report()` gives for it (spec/10-modules.md#exit-status), or -1 for
+  // an `.Err`, as the non-suspending entry wrapper does. The runner exits with
+  // that code or fails the test case on a nonzero one
+  // (spec/10-modules.md#r-module.testing.fail).
   private emitSuspensionEntryExport(
     declaration: HirFunction,
     entryExport: string,
@@ -938,12 +940,16 @@ class FunctionEmitter extends FunctionBodyEmitter {
   ): string {
     const index = suspensionIndex(declaration);
     const drive = `(call $drive${index} (call ${functionName(index)}${providerArguments.length ? " " : ""}${providerArguments.join(" ")}))`;
-    const testResult =
-      testExportName(declaration.name) !== undefined &&
-      resultParts(declaration.result) !== undefined;
+    const reported =
+      (declaration.entry === true || testExportName(declaration.name) !== undefined) &&
+      declaration.result !== "void" &&
+      declaration.result !== "never";
+    const locals: string[] = [];
+    const body = reported ? this.emitEntryReport(drive, declaration.result, locals) : drive;
     return [
-      `(func $entry${index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${testResult ? " (result i32)" : result}`,
-      testResult ? `  (struct.get $hd.variant $hd.variant-tag ${drive})` : `  ${drive}`,
+      `(func $entry${index} (export ${JSON.stringify(entryExport)})${providerParameters.length ? " " + providerParameters.join(" ") : ""}${reported ? " (result i32)" : result}`,
+      ...locals.map((local) => `  ${local}`),
+      `  ${body}`,
       `)`,
     ].join("\n");
   }
