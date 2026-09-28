@@ -273,6 +273,27 @@ export abstract class CallChecker extends StatementChecker {
         entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
         return;
       }
+      // A trailing block always supplies the final parameter, so defaulted
+      // parameters before it may be omitted (07-functions.md#r-fn.default.final-function).
+      if (
+        argument.kind === "closure" &&
+        argument.trailing === true &&
+        !variadic &&
+        argumentIndex === expression.arguments.length - 1 &&
+        parameterNames.length > 0
+      ) {
+        const parameterIndex = parameterNames.length - 1;
+        if (assigned.has(parameterIndex)) {
+          this.fail(
+            "duplicate-argument",
+            `parameter '${parameterNames[parameterIndex]}' is supplied more than once`,
+            argument.span,
+          );
+        }
+        assigned.add(parameterIndex);
+        entries.push({ parameterIndex, argumentIndices: [argumentIndex], kind: "single" });
+        return;
+      }
       if (positionalIndex < fixedCount) {
         const parameterIndex = positionalIndex++;
         assigned.add(parameterIndex);

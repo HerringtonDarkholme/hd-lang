@@ -1,6 +1,7 @@
 import type {
   DataDecl,
   EnumDecl,
+  Expression,
   FunctionDecl,
   ImplDecl,
   Statement,
@@ -65,8 +66,113 @@ function usesPropagation(value: unknown): boolean {
   return Object.entries(node).some(([key, child]) => key !== "span" && usesPropagation(child));
 }
 
+// The stable panic categories an `expect_panic` option may name
+// (spec/06-control-flow.md#r-flow.panic.category-set).
+const PANIC_CATEGORIES: ReadonlySet<string> = new Set([
+  "assertion-failed",
+  "explicit-panic",
+  "integer-overflow",
+  "integer-division-by-zero",
+  "invalid-shift",
+  "index-out-of-bounds",
+  "iterator-invalidated",
+  "structure-variant-mismatch",
+  "suspension-competing-driver",
+  "suspension-nested-driver",
+  "suspension-reentrant-poll",
+  "suspension-invalid-state",
+  "stack-exhausted",
+]);
+
+const TEST_OPTIONS = ["ignore", "expect_panic", "timeout"];
+
+type Call = Extract<Expression, { kind: "call" }>;
+type Closure = Extract<Expression, { kind: "closure" }>;
+
+interface TestArguments {
+  readonly name: string;
+  readonly body: Closure;
+  readonly options: Readonly<Record<string, string>>;
+  /** The positional arguments after the name, such as `it_each`'s rows. */
+  readonly positional: readonly Expression[];
+}
+
+// Reads a test-case call as an ordinary call of `it` or `it_each`
+// (spec/10-modules.md#test-cases): the name and any other leading
+// positional arguments, then literal named options, then the body as a
+// trailing block or `body=` (07-functions.md#r-fn.default.final-function).
+function testArguments(call: Call, callee: string, positional: number, fail: Fail): TestArguments {
+  const names = call.argumentNames ?? [];
+  const nameArgument = call.arguments[0];
+  if (nameArgument === undefined || names[0] !== undefined)
+    fail("argument-count", `${callee}(...) needs the test name first`, call.span);
+  if (nameArgument.kind !== "string")
+    fail(
+      "non-literal-test-argument",
+      "a test name must be a string literal without interpolation",
+      nameArgument.span,
+    );
+  const leading: Expression[] = [];
+  const options: Record<string, string> = {};
+  let body: Closure | undefined;
+  for (let index = 1; index < call.arguments.length; index += 1) {
+    const argument = call.arguments[index]!;
+    const option = names[index];
+    if (option === undefined) {
+      if (argument.kind === "closure" && argument.trailing === true) {
+        body = argument;
+        continue;
+      }
+      if (leading.length + 1 < positional) {
+        leading.push(argument);
+        continue;
+      }
+      fail(
+        argument.kind === "closure" ? "type-mismatch" : "argument-count",
+        `${callee}(...) takes its options by name, and its body as a trailing block or body=`,
+        argument.span,
+      );
+    }
+    if (option === "body") {
+      if (argument.kind !== "closure")
+        fail("type-mismatch", `the body of ${callee}(...) is a fn! closure`, argument.span);
+      body = argument;
+      continue;
+    }
+    if (!TEST_OPTIONS.includes(option))
+      fail(
+        "unknown-named-argument",
+        `${callee}(...) has no option '${option}'; use ignore, expect_panic, or timeout`,
+        argument.span,
+      );
+    if (argument.kind !== "string")
+      fail(
+        "non-literal-test-argument",
+        `the ${option} option takes a string literal without interpolation`,
+        argument.span,
+      );
+    if (option === "expect_panic" && !PANIC_CATEGORIES.has(argument.value))
+      fail("unknown-panic-category", `'${argument.value}' is not a panic category`, argument.span);
+    options[option] = argument.value;
+  }
+  if (leading.length + 1 < positional)
+    fail("argument-count", `${callee}(...) is missing an argument`, call.span);
+  if (!body) fail("argument-count", `${callee}(...) needs a body as its final argument`, call.span);
+  if (body.trailing !== true && body.suspending !== true)
+    fail("type-mismatch", `the body of ${callee}(...) is a fn! closure`, body.span);
+  return { name: nameArgument.value, body, options, positional: leading };
+}
+
+function optionFields(options: Readonly<Record<string, string>>): Partial<TestDecl> {
+  return {
+    ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
+    ...(options.expect_panic !== undefined ? { expectPanic: options.expect_panic } : {}),
+    ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+  };
+}
+
 // A top-level statement of a `tests:` block must be a call of the prelude
-// intrinsic `it` with a literal name, literal options, and a body
+// function `it` with a literal name, literal options, and a body
 // (spec/10-modules.md#test-cases).
 export function testCase(statement: Statement, fail: Fail): TestDecl {
   const call = statement.kind === "expression" ? statement.expression : undefined;
@@ -76,64 +182,35 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
       "every top-level statement of a tests block must be an it(...) call",
       statement.span,
     );
-  const names = call.argumentNames ?? [];
-  const body = call.arguments.at(-1);
-  if (!body || body.kind !== "closure" || names[call.arguments.length - 1] !== undefined)
-    fail("argument-count", "it(...) needs a body as its final argument", call.span);
-  const nameArgument = call.arguments[0];
-  if (call.arguments.length < 2 || names[0] !== undefined || nameArgument === undefined)
-    fail("argument-count", "it(...) needs the test name first", call.span);
-  if (nameArgument.kind !== "string")
-    fail(
-      "non-literal-test-argument",
-      "a test name must be a string literal without interpolation",
-      nameArgument.span,
-    );
-  const options: Record<string, string> = {};
-  for (let index = 1; index < call.arguments.length - 1; index += 1) {
-    const argument = call.arguments[index]!;
-    const option = names[index];
-    if (option === undefined)
-      fail("argument-count", "it(...) takes one positional name", argument.span);
-    if (!["ignore", "expect_panic", "timeout"].includes(option))
-      fail(
-        "unknown-named-argument",
-        `it(...) has no option '${option}'; use ignore, expect_panic, or timeout`,
-        argument.span,
-      );
-    if (argument.kind !== "string")
-      fail(
-        "non-literal-test-argument",
-        `the ${option} option takes a string literal without interpolation`,
-        argument.span,
-      );
-    options[option] = argument.value;
-  }
+  const { name, body, options } = testArguments(call, "it", 1, fail);
   const explicit = body.trailing !== true;
   if (explicit && body.parameters.length > 0)
     fail("argument-count", "a test body takes no parameters", body.span);
-  if (explicit && body.suspending !== true)
-    fail("type-mismatch", "a test body has type fn!() -> T", body.span);
   return {
     kind: "test",
-    name: nameArgument.value,
+    name,
     body: body.body,
     ...(explicit
       ? { explicit: true, ...(body.result ? { result: body.result } : {}) }
       : usesPropagation(body.body)
         ? { propagates: true }
         : {}),
-    ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
-    ...(options.expect_panic !== undefined ? { expectPanic: options.expect_panic } : {}),
-    ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+    ...optionFields(options),
     span: statement.span,
   };
 }
 
-// `std.testing.it_each(name, rows, body)` registers one case per row
+// `std.testing.it_each(name, rows, ..., body=)` registers one case per row
 // (spec/10-modules.md#table-tests). The prototype runs the rows as one test
-// case, a loop that bang-calls the body with each row.
-function tableTest(statement: Statement, aliases: ReadonlySet<string>, fail: Fail): TestDecl {
+// case, a loop that bang-calls the body with each row. A body without a
+// written result that uses `?` returns `Result[void, Error]`
+// (spec/05-expressions.md#r-expr.try.test.row-body).
+function tableTest(
+  statement: Statement,
+  aliases: ReadonlySet<string>,
+  errorName: string,
+  fail: Fail,
+): TestDecl {
   const call = statement.kind === "expression" ? statement.expression : undefined;
   if (
     !call ||
@@ -146,47 +223,64 @@ function tableTest(statement: Statement, aliases: ReadonlySet<string>, fail: Fai
       "every top-level statement of a tests block must be a call of it or std.testing.it_each",
       statement.span,
     );
-  const [nameArgument, rows, body] = call.arguments;
-  const named = (call.argumentNames ?? []).some((name) => name !== undefined);
-  if (call.arguments.length !== 3 || named || !nameArgument || !rows || !body)
-    fail("argument-count", "it_each(...) takes a name, rows, and a body", call.span);
-  if (nameArgument.kind !== "string")
-    fail(
-      "non-literal-test-argument",
-      "a test name must be a string literal without interpolation",
-      nameArgument.span,
-    );
+  const { name, body, options, positional } = testArguments(call, "it_each", 2, fail);
+  const rows = positional[0]!;
+  if (body.trailing === true || body.parameters.length !== 1)
+    fail("argument-count", "an it_each body is a fn! closure with one parameter", body.span);
+  const propagates = !body.result && usesPropagation(body.body);
   const span = call.span;
   const row = "$each.row";
   const callback = "$each.body";
-  const bangCall: Statement = {
-    kind: "expression",
-    expression: {
-      kind: "suspend-call",
-      callee: { kind: "name", name: callback, span },
-      arguments: [{ kind: "name", name: row, span }],
-      span,
-    },
+  const bangCall: Expression = {
+    kind: "suspend-call",
+    callee: { kind: "name", name: callback, span },
+    arguments: [{ kind: "name", name: row, span }],
     span,
   };
+  const closure: Closure = propagates
+    ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
+    : body;
+  const done: Statement[] = propagates
+    ? [
+        {
+          kind: "expression",
+          expression: {
+            kind: "call",
+            callee: { kind: "contextual-variant", name: "Ok", span },
+            arguments: [],
+            span,
+          },
+          span,
+        },
+      ]
+    : [];
   return {
     kind: "test",
-    name: nameArgument.value,
+    name,
     body: [
-      { kind: "binding", name: callback, mutable: false, value: body, span: body.span },
+      { kind: "binding", name: callback, mutable: false, value: closure, span: body.span },
       {
         kind: "expression",
         expression: {
           kind: "for",
           bindings: [{ name: row, span: rows.span }],
           iterable: rows,
-          body: [bangCall],
+          body: [
+            {
+              kind: "expression",
+              expression: propagates ? { kind: "propagate", operand: bangCall, span } : bangCall,
+              span,
+            },
+          ],
           elseBody: [],
           span,
         },
         span,
       },
+      ...done,
     ],
+    ...(propagates ? { propagates: true } : {}),
+    ...optionFields(options),
     span: statement.span,
   };
 }
@@ -200,28 +294,44 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
       .filter((name) => name.name === "it_each")
       .map((name) => name.alias ?? name.name),
   );
-  for (const statement of items.pendingEach) items.tests.push(tableTest(statement, aliases, fail));
-  const seen = new Set<string>();
-  for (const test of items.tests) {
-    if (seen.has(test.name))
-      fail(
-        "duplicate-test-name",
-        `a test case named '${test.name}' already exists in this module`,
-        test.span,
-      );
-    seen.add(test.name);
-  }
-  // A trailing test body that uses `?` returns `Result[void, Error]`
+  // A test body that uses `?` returns `Result[void, Error]`
   // (spec/05-expressions.md#r-expr.try.test.with-try). The prototype declares
   // the erased `Error` through an implicit `use std.error.Error` when the
   // module does not import it.
-  const propagating = items.tests.filter((test) => test.propagates);
-  if (propagating.length === 0) return;
   const imported = items.uses
     .filter((use) => use.module === "std.error")
     .flatMap((use) => use.names)
     .find((name) => name.name === "Error");
   const errorName = imported ? (imported.alias ?? imported.name) : "Error";
+  const tables = items.pendingEach.map((statement) =>
+    tableTest(statement, aliases, errorName, fail),
+  );
+  items.tests.push(...tables);
+  const later = (left: TestDecl, right: TestDecl): TestDecl =>
+    left.span.start.offset > right.span.start.offset ? left : right;
+  const seen = new Map<string, TestDecl>();
+  for (const test of items.tests) {
+    const earlier = seen.get(test.name);
+    if (earlier)
+      fail(
+        "duplicate-test-name",
+        `a test case named '${test.name}' already exists in this module`,
+        later(earlier, test).span,
+      );
+    seen.set(test.name, test);
+  }
+  // An `it_each` case is named `name[i]`, so no other test case may use
+  // such a name (spec/10-modules.md#r-module.testing.it-each.name-clash).
+  for (const table of tables)
+    for (const test of items.tests)
+      if (test !== table && isRowName(test.name, table.name))
+        fail(
+          "duplicate-test-name",
+          `'${test.name}' names a row of it_each("${table.name}", ...)`,
+          later(table, test).span,
+        );
+  const propagating = items.tests.filter((test) => test.propagates);
+  if (propagating.length === 0) return;
   if (!imported)
     items.uses.push({
       kind: "use",
@@ -234,4 +344,9 @@ export function finishTestCases(items: ModuleItems, fail: Fail): void {
       ? { ...test, result: { name: `Result[void,${errorName}]`, span: test.span } }
       : test,
   );
+}
+
+function isRowName(candidate: string, table: string): boolean {
+  if (!candidate.startsWith(`${table}[`) || !candidate.endsWith("]")) return false;
+  return /^[0-9]+$/.test(candidate.slice(table.length + 1, -1));
 }

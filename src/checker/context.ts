@@ -1437,8 +1437,8 @@ export abstract class CheckerContext {
     throw new CheckFailure(message);
   }
 
-  // `it` is registered only at the top level of a `tests:` block, so any other
-  // use of the name is misplaced (spec/10-modules.md#r-module.testing.it.elsewhere).
+  // The test-case functions are used only as direct calls in test position, so
+  // any other use of their names is misplaced (spec/10-modules.md#r-module.testing.direct-call).
   // An item of a `tests:` block is visible only inside the block
   // (spec/03-names-and-scopes.md#r-names.tests.inside-only).
   protected visibleSignature(name: string): Signature | undefined {
@@ -1447,10 +1447,11 @@ export abstract class CheckerContext {
   }
 
   protected failUnknownName(name: string, message: string, span: SourceSpan): never {
-    if (name === "it")
+    const imported = this.imports.get(name);
+    if (name === "it" || (imported !== undefined && TEST_CASE_FUNCTIONS.has(imported)))
       this.fail(
         "misplaced-test-case",
-        "it(...) registers a test case only at the top level of a tests block",
+        `${name}(...) registers a test case only as a direct call at the top level of a tests block`,
         span,
       );
     if (this.declaration.defaultContext?.laterNames.includes(name))
@@ -1462,3 +1463,11 @@ export abstract class CheckerContext {
     this.fail("unknown-name", message, span);
   }
 }
+
+// The imported test-case functions besides the prelude's `it`
+// (spec/10-modules.md#r-module.testing.position-statements).
+const TEST_CASE_FUNCTIONS: ReadonlySet<string> = new Set([
+  "std.testing.it_each",
+  "std.testing.it_prop",
+  "std.testing.it_prop_with",
+]);

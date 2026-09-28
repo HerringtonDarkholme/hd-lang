@@ -120,7 +120,7 @@ function runRuntimeScenario(
 function usage(): never {
   console.error(
     [
-      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] FILE",
+      "usage: hd <parse|check|test|run|trace|record|replay|build|dump-hir|explain-requirements> [--format text|json] [--wat] [--entry NAME] [--profile NAME] [--scenario NAME] [--pending-function NAME] [--tests] FILE",
       "       hd explain [--format text|json] CODE",
       "       hd <def|doc> [--format text|json] NAME [FILE|PACKAGE-DIR]",
       "       hd repl",
@@ -148,6 +148,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   let profileName: RuntimeProfileName | undefined;
   let format: OutputFormat = "text";
   let runOptions = false;
+  let checkTests = false;
   while (args[0]?.startsWith("--")) {
     const option = args.shift();
     if (option !== "--format") runOptions = true;
@@ -159,6 +160,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     } else if (option === "--scenario") scenario = runtimeScenario(args.shift());
     else if (option === "--pending-function") pendingFunctionName = args.shift() ?? usage();
     else if (option === "--profile") profileName = runtimeProfile(args.shift());
+    else if (option === "--tests") checkTests = true;
     else usage();
   }
   if (command === "explain") {
@@ -175,6 +177,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   const file = args.shift();
   if (!command || !file || args.length > 0) usage();
   if (entryName !== "main" && command !== "run") usage();
+  if (checkTests && command !== "check") usage();
   if (scenario && command !== "test") usage();
   if (pendingFunctionName && scenario !== "cancellation-cleanup") usage();
   const path = resolve(file);
@@ -195,7 +198,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       return 0;
     }
     if (command === "check") {
-      const result = analyze(source, compileOptions);
+      // `hd check` checks test code only with `--tests` (Testing T42).
+      const result = analyze(source, { ...compileOptions, skipTestCode: !checkTests });
       if (!result.hir) throw new DiagnosticError(result.diagnostics);
       for (const diagnostic of result.diagnostics) reporter.diagnostic(diagnostic);
       console.log(`${file}: ok`);

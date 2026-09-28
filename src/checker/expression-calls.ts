@@ -1012,6 +1012,65 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         span: expression.span,
       };
     }
+    // `std.testing.snapshot(text, expect="")` compares text with a literal
+    // expectation (spec/10-modules.md#snapshots). The prototype checks it as an
+    // `assert_equal` of two strings; it has no update run to rewrite `expect`.
+    if (this.imports.get(expression.callee.name) === "std.testing.snapshot") {
+      if (expression.typeArguments?.length)
+        this.fail("unexpected-type-arguments", "snapshot has no type arguments", expression.span);
+      if (expression.argumentSpreads?.some(Boolean))
+        this.fail(
+          "positional-spread-needs-vararg",
+          "snapshot has no variadic parameter",
+          expression.span,
+        );
+      if (expression.arguments.length < 1 || expression.arguments.length > 2)
+        this.fail(
+          "argument-count",
+          "snapshot expects text and an optional expect",
+          expression.span,
+        );
+      const mapping = this.resolveArgumentMapping(expression, ["text", "expect"], "snapshot");
+      const parameterIndex = (argumentIndex: number): number =>
+        mapping?.[argumentIndex] ?? argumentIndex;
+      const textIndex = expression.arguments.findIndex((_, index) => parameterIndex(index) === 0);
+      if (textIndex < 0)
+        this.fail("argument-count", "snapshot is missing argument text", expression.span);
+      const expectIndex = expression.arguments.findIndex((_, index) => parameterIndex(index) === 1);
+      const expect: Expression =
+        expectIndex < 0
+          ? { kind: "string", value: "", span: expression.span }
+          : expression.arguments[expectIndex]!;
+      // `expect` must be a literal a tool can rewrite
+      // (spec/10-modules.md#r-module.testing.snapshot.literal).
+      if (expect.kind !== "string")
+        this.fail(
+          "non-literal-test-argument",
+          "a snapshot expect must be a string literal without interpolation",
+          expect.span,
+        );
+      const text = this.requireCoercion(
+        this.checkExpression(expression.arguments[textIndex]!, "string"),
+        "string",
+        expression.arguments[textIndex]!.span,
+      );
+      const strategy = this.equalityStrategy("string")!;
+      return {
+        kind: "assert-equal",
+        arguments: [
+          text,
+          this.checkExpression(expect, "string"),
+          this.checkExpression(
+            { kind: "string", value: "the snapshot matches", span: expression.span },
+            "string",
+          ),
+        ],
+        valueType: "string",
+        strategy,
+        type: "void",
+        span: expression.span,
+      };
+    }
     if (expression.callee.name === "panic") {
       if (expression.argumentSpreads?.some(Boolean))
         this.fail(

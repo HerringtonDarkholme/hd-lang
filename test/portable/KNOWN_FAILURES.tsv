@@ -100,3 +100,7 @@ typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
 typing/valid/entry-exit-code.hd	check fails: unknown-type Result[ExitCode,string] at line 9: the prototype has no u8, so it declares no std.process.ExitCode or Termination, and main may return only void or Result[void, ConsoleError]	T8
 runtime/valid/termination-report.hd	check fails: unknown-trait Termination at line 7 and unknown-type u8: the prototype has no u8, so it declares no std.process.ExitCode or Termination	T8
+typing/invalid/assert-equal-without-debug.hd	check passes instead of unsatisfied-trait-bound at line 13: the prototype treats every type as implementing Debug, so assert_equal never rejects a type without it	T33
+typing/valid/debug-standard-types.hd	check fails: unknown-name at line 7: the prototype declares no std.format.debug function or DebugWriter	T33
+typing/valid/derive-debug.hd	check fails: decorator-not-top-level at line 3: the prototype skips only a lone @derive(Debug) line, so @derive(Eq, Debug) and debug() are unavailable	T33
+typing/valid/snapshot-inline.hd	check fails: unknown-name at line 15: the prototype checks snapshot as a string assert_equal but has no snapshot_file, since it stores no snapshot files	T49

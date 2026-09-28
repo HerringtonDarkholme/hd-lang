@@ -229,10 +229,15 @@ async function runFixtureCase(
       directive.value === "parse" ? "parse" : directive.value === "test" ? "test" : "check";
     if (!["accept", "parse", "test"].includes(directive.value))
       return `${testCase.name}: expected '# expect: accept', '# expect: parse', or '# expect: test'`;
-    const result = await invoke(command, action, testCase.path, profileOptions);
+    const result = await invoke(
+      command,
+      action,
+      testCase.path,
+      action === "check" ? ["--tests", ...profileOptions] : profileOptions,
+    );
     return result.code === 0 ? undefined : failure(testCase.name, "expected acceptance", result);
   }
-  const checked = await invoke(command, "check", testCase.path, profileOptions);
+  const checked = await invoke(command, "check", testCase.path, ["--tests", ...profileOptions]);
   let result = checked;
   if (kind === "diagnostic" && checked.code === 0)
     return failure(testCase.name, "expected rejection", checked);

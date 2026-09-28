@@ -51,7 +51,7 @@ export function validateProgram(context: ProgramCheckContext): void {
   validateResultTypes(context);
   for (const declaration of program.functions) {
     let sawDefault = false;
-    for (const parameter of declaration.parameters) {
+    for (const [index, parameter] of declaration.parameters.entries()) {
       if (parameter.default) {
         sawDefault = true;
         const driverCall = findDriverCall(parameter.default, driverFunctions, imports);
@@ -62,7 +62,13 @@ export function validateProgram(context: ProgramCheckContext): void {
             span: driverCall.span,
           });
         }
-      } else if (sawDefault && !parameter.variadic) {
+      } else if (
+        sawDefault &&
+        !parameter.variadic &&
+        // A final function-typed parameter may follow defaults
+        // (07-functions.md#r-fn.default.order-final-function).
+        !(index === declaration.parameters.length - 1 && isFunctionTypeName(parameter.type.name))
+      ) {
         diagnostics.push({
           code: "default-order",
           message: `parameter '${parameter.name}' follows a parameter with a default`,
@@ -135,4 +141,8 @@ function validateResultTypes(context: ProgramCheckContext): void {
       if (method.resultOmitted) report("trait implementation method", method.name, method.span);
     }
   }
+}
+
+function isFunctionTypeName(name: string): boolean {
+  return /^(?:mut:)?fn!?\(/.test(name);
 }

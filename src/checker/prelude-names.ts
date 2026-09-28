@@ -25,6 +25,10 @@ export const PRELUDE_NAMES = new Set([
   "Result",
   "panic",
   "Display",
+  // std.format's Debug trait and debug function (spec/10-modules.md#prelude);
+  // the prototype reserves the names but implements neither.
+  "Debug",
+  "debug",
   "Eq",
   "PartialOrd",
   "Ord",
@@ -54,6 +58,6 @@ export const PRELUDE_NAMES = new Set([
   "ParamShape",
   "shape",
   "shape_of",
-  // std.testing's test-case intrinsic (spec/10-modules.md#r-module.prelude.it).
+  // std.testing's test-case function (spec/10-modules.md#r-module.prelude.it-function).
   "it",
 ]);

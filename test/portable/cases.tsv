@@ -1082,3 +1082,14 @@ runtime/valid/test-body-explicit-closure.hd	runtime
 typing/invalid/test-body-string-error.hd	type
 typing/invalid/unit-test-missing-requirement.hd	type
 runtime/valid/it-each-rows.hd	runtime
+typing/valid/default-before-final-function.hd	type
+runtime/valid/it-body-by-name.hd	runtime
+typing/invalid/public-test-item.hd	type
+typing/invalid/unknown-panic-category.hd	type
+typing/invalid/test-case-as-value.hd	type
+typing/invalid/it-each-outside-test-position.hd	type
+typing/invalid/it-each-name-clash.hd	type
+typing/invalid/it-each-non-literal-name.hd	type
+runtime/valid/it-each-options.hd	runtime
+runtime/valid/it-each-propagation.hd	runtime
+typing/invalid/snapshot-non-literal-expect.hd	type

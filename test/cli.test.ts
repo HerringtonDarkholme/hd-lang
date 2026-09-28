@@ -103,7 +103,7 @@ test("hd test fails a test whose result is .Err", async () => {
         '    if text == "7": .Ok(7) else: .Err("not a digit")',
         "",
         "tests:",
-        '    it("propagates an error", fn!() -> Result[void, string]:',
+        '    it("propagates an error", body=fn!() -> Result[void, string]:',
         '        value := digit("x")?',
         "        .Ok()",
         "    )",

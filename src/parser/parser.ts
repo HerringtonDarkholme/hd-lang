@@ -116,6 +116,14 @@ class Parser extends ExpressionParser {
         "'export' was replaced by 'pub use'",
         this.current().span,
       );
+    // Nothing outside a `tests:` block sees its items, so none is `pub`
+    // (spec/03-names-and-scopes.md#r-names.tests.no-pub).
+    if (inTests && this.atText("pub"))
+      this.fail(
+        "public-test-item",
+        "an item inside a tests block cannot be pub; share test helpers from a _test.hd module",
+        this.current().span,
+      );
     if (this.atUseDeclaration()) {
       if (doc)
         this.fail(
@@ -127,6 +135,21 @@ class Parser extends ExpressionParser {
       items.uses.push(use);
       if (inTests) for (const name of use.names) items.testOnlyNames.add(name.alias ?? name.name);
       return;
+    }
+    // The prototype parses no decorators, but it treats every type as
+    // implementing `Debug`, so it skips a `@derive(Debug)` line
+    // (spec/09-traits.md#r-trait.debug.derive).
+    if (
+      this.atText("@") &&
+      this.peek(1).text === "derive" &&
+      this.peek(2).text === "(" &&
+      this.peek(3).text === "Debug" &&
+      this.peek(4).text === ")" &&
+      this.peek(5).kind === "newline"
+    ) {
+      for (const text of ["@", "derive", "(", "Debug", ")"]) this.expectText(text);
+      this.expectKind("newline", "expected a declaration after @derive(Debug)");
+      return this.parseModuleItem(doc, items, inTests);
     }
     const public_ = this.matchText("pub");
     const declared = (name: string): void => {
@@ -331,13 +354,16 @@ class Parser extends ExpressionParser {
           );
         if (this.matchText("<")) {
           const bindings: AssociatedTypeBinding[] = [];
-          const traits = this.parseTraitBoundNames(bindings);
-          bounds.push({
-            parameter: parameter.text,
-            traits,
-            ...(bindings.length > 0 ? { bindings } : {}),
-            span: { start: parameter.span.start, end: this.peek(-1).span.end },
-          });
+          // The prototype treats every type as implementing the prelude trait
+          // `Debug` (spec/09-traits.md#debug-trait), so it drops that bound.
+          const traits = this.parseTraitBoundNames(bindings).filter((name) => name !== "Debug");
+          if (traits.length > 0 || bindings.length > 0)
+            bounds.push({
+              parameter: parameter.text,
+              traits,
+              ...(bindings.length > 0 ? { bindings } : {}),
+              span: { start: parameter.span.start, end: this.peek(-1).span.end },
+            });
         } else if (this.atText("...") || this.atText("=")) {
           this.fail(
             "unsupported-generic-parameter",

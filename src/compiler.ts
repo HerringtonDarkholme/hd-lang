@@ -19,7 +19,13 @@ export interface Analysis {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-export interface CompileOptions extends CheckOptions {}
+export interface CompileOptions extends CheckOptions {
+  /**
+   * Leaves the test cases and test-only functions of a `tests:` block
+   * unchecked, as `hd check` does without `--tests` (Testing T42).
+   */
+  readonly skipTestCode?: boolean;
+}
 
 export type SuspensionTraceEvent = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -204,7 +210,14 @@ function sameEncodedHostValue(left: EncodedHostValue, right: EncodedHostValue): 
 export function analyze(source: string, options: CompileOptions = {}): Analysis {
   const parsed = parse(source);
   if (!parsed.program) return { diagnostics: parsed.diagnostics };
-  const checked = check(parsed.program, options);
+  const program = options.skipTestCode
+    ? {
+        ...parsed.program,
+        tests: [],
+        functions: parsed.program.functions.filter((declaration) => !declaration.testOnly),
+      }
+    : parsed.program;
+  const checked = check(program, options);
   return { hir: checked.program, diagnostics: checked.diagnostics };
 }
 
