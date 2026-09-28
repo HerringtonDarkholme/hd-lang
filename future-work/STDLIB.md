@@ -1509,9 +1509,102 @@ pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T,
     pass
 ```
 
-`Arbitrary`'s members and the `Choices` API are designed with the library.
-This replaces the earlier `Strategy` sketch with its own `shrink` function.
-Stateful testing waits for area 3's event log.
+#### Proposal: choices first, `Arbitrary` for defaults
+
+Draft, 2026-09-28 (owner: "choices, Hypothesis first, then Arbitrary to
+give sensible defaults"). Nothing below is normative; names may change when
+the library is built.
+
+**`Choices`** is the only source of randomness a generator sees. Every draw
+is recorded as a number in one stream, and spans mark where each logical
+value (a list element, a member, a variant payload) starts and ends, so the
+shrinker can delete whole values.
+
+```text
+pub data Choices                               # opaque; created by the runner
+impl Choices:
+    pub fn int(mut self, lo: i64, hi: i64) -> i64          # biased toward lo, 0, -1, hi
+    pub fn float(mut self, lo: f64, hi: f64) -> f64         # also draws 0.0, -0.0, bounds
+    pub fn bool(mut self) -> bool
+    pub fn pick[T](mut self, items: List[T]) -> T           # earlier items shrink first
+    pub fn list[T](mut self, max: i32, item: fn(mut Choices) -> T) -> List[T]
+    pub fn string(mut self, max: i32) -> string
+    pub fn assume(mut self, ok: bool) -> void               # discards this case
+    pub fn draw[T < Arbitrary](mut self) -> T               # the type's default
+```
+
+**`Arbitrary`** gives each type a sensible default generator:
+
+```text
+pub trait Arbitrary:
+    fn arbitrary(c: mut Choices) -> Self
+```
+
+`std` implements it for primitives (boundary values drawn more often),
+`string`, `List[T]` and `Map[K, V]` (a length, then elements), `T?`
+(`.None` or `.Some`), `Result[T, E]`, and tuples. `@derive(Arbitrary)` is a
+derived `build` whose source is `Choices`: each member is drawn by its own
+`Arbitrary`, and an enum picks a variant, then its payload. Member lines
+in a derivation block tune one member:
+
+```text
+use std.structure.Structure
+
+@derive(Debug)
+data Item(name: string, price: i32)
+
+impl Arbitrary for Item by Structure:
+    price = arbitrary.range(0, 10_000)
+    name = arbitrary.len(0, 12)
+```
+
+**A generator** for anything a type cannot express is a plain function
+over `Choices`, passed to `it_prop_with`:
+
+```text
+fn sorted_prices(c: mut Choices) -> List[i32]:
+    xs := c.list(20, fn(c): i32(c.int(0, 10_000)))
+    xs.sorted()
+
+tests:
+    it_prop("total is never negative", prop=fn(order: Order):
+        assert(total(order) >= 0, reason="total")
+    )
+    it_prop_with("merge keeps order", sorted_prices, prop=fn(xs: List[i32]):
+        assert_equal(merge(xs, []), xs, reason="identity")
+    )
+```
+
+**The runner** owns generation, shrinking, and replay:
+
+1. Replay the committed streams under
+   `__regressions__/<module>/<test-slug>` first.
+2. Run `cases` fresh instances (default 100), sizes growing from small to
+   large, from a printed seed.
+3. On a failure (assertion panic, other panic, or `.Err`), shrink the
+   recorded stream. Each candidate is replayed through the same generator
+   in a fresh instance; a stream the generator rejects is discarded, and a
+   stream already tried is skipped. Passes, repeated until none helps:
+   delete spans (whole values), zero spans, lower each number by binary
+   search, sort and swap neighbours toward shortlex order, and
+   redistribute between pairs of numbers. Stop after `shrink` attempts
+   (default 500), marking the result "shrinking stopped early".
+4. Report the shrunk value with `Debug`, the seed, and the saved path, and
+   write the shrunk stream to `__regressions__/`.
+
+Because shrinking edits choices rather than values, every shrunk input is
+one the generator can produce, so constraints hold and `map`-like or
+dependent generation needs no extra code. Compared with QuickCheck
+(per-type `shrink`, breaks constraints) and proptest or fast-check (value
+trees, a combinator API), this keeps the user API to `Choices`,
+`Arbitrary`, and two registration calls, and puts the complexity in one
+runner. Coverage-guided fuzzing can later mutate the same streams, and
+stateful testing waits for area 3's event log.
+
+Still to design: the member-line facts (`arbitrary.range`, `arbitrary.len`),
+the `__regressions__` file format, size scheduling, and the discard limit
+for `assume`. This replaces the earlier `Strategy` sketch with its own
+`shrink` function.
 
 ## Open Language Dependencies
 
