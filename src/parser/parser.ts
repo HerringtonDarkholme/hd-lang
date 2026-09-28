@@ -547,9 +547,10 @@ class Parser extends DecoratorParser {
     const first = this.parseType();
     const trait = this.matchText("for") ? first : undefined;
     const target = trait ? this.parseType() : first;
-    // `by` is contextual: it delegates a trait implementation to an embedded field.
+    // `by` is contextual: it delegates to an embedded field, or, without a
+    // trait, declares a trait-less derivation block (02 grammar.impl.traitless-by).
     let delegateName: Token | undefined;
-    if (trait && this.atText("by") && this.peek(1).kind === "identifier") {
+    if (this.atText("by") && this.peek(1).kind === "identifier") {
       this.advance();
       delegateName = this.expectKind("identifier", "expected an embedded field name");
     }

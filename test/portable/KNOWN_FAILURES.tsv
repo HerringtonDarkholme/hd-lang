@@ -60,16 +60,6 @@ typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: th
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
-typing/valid/annotations.hd	check fails: syntax-error at line 25: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
-typing/invalid/unknown-annotation-member.hd	MVP reports syntax-error at line 7 instead of unknown-annotation-member at line 8: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/valid/retention-metadata.hd	check fails: syntax-error at line 22: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
-parse/valid/trait-less-derivation-block.hd	parse fails: syntax-error at line 9: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/valid/annotate-identifier.hd	check fails: syntax-error at line 2: the prototype still reserves annotate, so it cannot name a function	M26
-typing/valid/trait-less-derivation-block.hd	check fails: syntax-error at line 19: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
-runtime/valid/trait-less-block-facts.hd	check fails: syntax-error at line 53: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-block-omit.hd	MVP reports syntax-error at line 11 instead of invalid-member-line at line 12: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-block-method.hd	MVP reports syntax-error at line 7 instead of misplaced-derivation at line 9: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-block-newtype.hd	MVP reports syntax-error at line 6 instead of misplaced-derivation: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-block-local.hd	MVP reports syntax-error instead of misplaced-derivation at line 8: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-block-duplicate-fact.hd	MVP reports syntax-error at line 13 instead of duplicate-fact at line 14: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
-typing/invalid/trait-less-delegation.hd	MVP reports syntax-error instead of invalid-delegation at line 9: the prototype does not parse by after an implementation header without a trait	M26
+typing/valid/annotations.hd	check fails: unknown-name 'shape' at line 28: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1
+typing/valid/retention-metadata.hd	check fails: duplicate-fact at line 23: retention_owner and delete_when both return RetentionRule, two values of one concrete type on one member (annot.metadata.duplicate; see TYPED_DERIVATION Still Open); the shape intrinsic is also unimplemented	K1
+typing/valid/trait-less-derivation-block.hd	check fails: unknown-name 'shape' at line 23: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1

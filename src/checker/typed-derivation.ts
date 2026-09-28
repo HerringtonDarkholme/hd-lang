@@ -20,6 +20,12 @@ import { nominalGenericParts, readonlyType } from "../types.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { debugWriterName } from "./standard-traits.ts";
 import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
+import {
+  checkMemberLines,
+  declarationFacts,
+  type Target,
+  withTraitLessBlocks,
+} from "./member-lines.ts";
 
 // Typed derivation (spec/14-annotations.md#typed-derivation), lowered before
 // checking. The prototype compiles one module, so this pass rewrites every
@@ -154,10 +160,6 @@ export interface DerivationResult {
   /** Opt-in spans whose generated member calls report `member-not-derivable`. */
   readonly optInSpans: readonly SourceSpan[];
 }
-
-type Target =
-  | { readonly kind: "data"; readonly declaration: DataDecl }
-  | { readonly kind: "enum"; readonly declaration: EnumDecl };
 
 interface Derivation {
   readonly trait: string;
@@ -423,12 +425,29 @@ function protocolError(
 
 // ---------------------------------------------------------------------------
 
-export function withTypedDerivation(program: Program): DerivationResult {
+export function withTypedDerivation(source: Program): DerivationResult {
   const diagnostics: Diagnostic[] = [];
   const optInSpans: SourceSpan[] = [];
-  const imported = structureImports(program);
+  const imported = structureImports(source);
   const structureVisible = imported.has(STRUCTURE);
-  const functions = new Map(program.functions.map((item) => [item.name, item] as const));
+  const functions = new Map(source.functions.map((item) => [item.name, item] as const));
+  const error = (code: string, message: string, span: SourceSpan): void => {
+    diagnostics.push({ code, message, span });
+  };
+
+  // Decorators before a function wait for function targets (annot.decorator.function).
+  for (const declaration of source.functions)
+    if (declaration.decorators)
+      error(
+        "decorator-not-annotator",
+        "a decorator before a function is rejected until function targets are decided",
+        declaration.decorators.span,
+      );
+
+  checkDuplicateDeclarationFacts(source, (fact) => factType(fact, functions), error);
+  // Trait-less blocks edit the declaration facts (annot.traitless.declaration-facts).
+  const fact = (expression: Expression): string => factType(expression, functions);
+  const program = withTraitLessBlocks(source, structureVisible, fact, error);
   const localTraits = new Map(program.traits.map((item) => [item.name, item] as const));
   const newtypes = new Map(
     (program.types ?? [])
@@ -439,20 +458,6 @@ export function withTypedDerivation(program: Program): DerivationResult {
     ...program.data.map((item) => [item.name, { kind: "data", declaration: item }] as const),
     ...program.enums.map((item) => [item.name, { kind: "enum", declaration: item }] as const),
   ]);
-  const error = (code: string, message: string, span: SourceSpan): void => {
-    diagnostics.push({ code, message, span });
-  };
-
-  // Decorators before a function wait for function targets (annot.decorator.function).
-  for (const declaration of program.functions)
-    if (declaration.decorators)
-      error(
-        "decorator-not-annotator",
-        "a decorator before a function is rejected until function targets are decided",
-        declaration.decorators.span,
-      );
-
-  checkDuplicateDeclarationFacts(program, (fact) => factType(fact, functions), error);
 
   // Templates and derivation blocks.
   const templates = new Map<string, ImplDecl>();
@@ -625,12 +630,13 @@ export function withTypedDerivation(program: Program): DerivationResult {
       continue;
     }
     const lines = block.memberLines ?? [];
-    if (!checkMemberLines(target, lines, functions, error)) continue;
+    if (!checkMemberLines(target, lines, fact, error)) continue;
     derivations.push({ trait, target, lines, block, span: block.span });
   }
 
   // Warnings: line drift and unused type-level facts.
-  lintDerivations(program, derivations, diagnostics);
+  // Only a decorator's fact can be unused (annot.fact.unused-non-std).
+  lintDerivations(source, derivations, diagnostics);
 
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans };
@@ -889,91 +895,6 @@ function factCheckFunctions(program: Program): FunctionDecl[] {
 
 // ---------------------------------------------------------------------------
 // Member lines (annot.line.*).
-
-function directMembers(target: Target): string[] {
-  return target.kind === "data"
-    ? target.declaration.fields.map((field) => field.name)
-    : target.declaration.variants.map((variant) => variant.name);
-}
-
-function declarationFacts(target: Target, name: string): readonly Expression[] {
-  if (name === "Self") return target.declaration.decorators?.facts ?? [];
-  if (target.kind === "data")
-    return target.declaration.fields.find((field) => field.name === name)?.metadata ?? [];
-  return target.declaration.variants.find((variant) => variant.name === name)?.metadata ?? [];
-}
-
-function checkMemberLines(
-  target: Target,
-  lines: readonly MemberLine[],
-  functions: ReadonlyMap<string, FunctionDecl>,
-  error: (code: string, message: string, span: SourceSpan) => void,
-): boolean {
-  let valid = true;
-  const fail = (code: string, message: string, span: SourceSpan): void => {
-    error(code, message, span);
-    valid = false;
-  };
-  const members = new Set(directMembers(target));
-  const current = new Map<string, string[]>();
-  for (const line of lines) {
-    if (line.name !== "Self" && !members.has(line.name)) {
-      fail(
-        "unknown-annotation-member",
-        target.kind === "enum"
-          ? `'${line.name}' is not a variant of '${target.declaration.name}'; a member line names a whole variant`
-          : `'${line.name}' is not a member of '${target.declaration.name}'`,
-        line.nameSpan,
-      );
-      continue;
-    }
-    if (line.pass) {
-      if (line.operator === "+=" || line.name === "Self" || target.kind === "enum") {
-        fail(
-          "invalid-member-line",
-          line.name === "Self"
-            ? "Self takes a fact list, not pass"
-            : target.kind === "enum"
-              ? "a whole variant cannot be omitted"
-              : "pass follows only '='",
-          line.span,
-        );
-        continue;
-      }
-      if (target.kind === "data") {
-        const field = target.declaration.fields.find((item) => item.name === line.name);
-        if (field && !field.default) {
-          fail(
-            "omitted-member-without-default",
-            `member '${line.name}' has no default, so it cannot be omitted`,
-            line.span,
-          );
-          continue;
-        }
-      }
-      continue;
-    }
-    if (!line.value || line.value.kind !== "list") {
-      fail("invalid-member-line", "a member line's right side must be a list or pass", line.span);
-      continue;
-    }
-    const before =
-      current.get(line.name) ??
-      declarationFacts(target, line.name).map((fact) => factType(fact, functions));
-    const added = line.value.elements.map((fact) => factType(fact, functions));
-    const next = line.operator === "+=" ? [...before, ...added] : added;
-    if (new Set(next).size !== next.length) {
-      fail(
-        "duplicate-fact",
-        `member '${line.name}' would hold two facts of the same concrete type; use '=' to change it`,
-        line.span,
-      );
-      continue;
-    }
-    current.set(line.name, next);
-  }
-  return valid;
-}
 
 /** The facts one derivation sees for a member, variant, or `Self`. */
 function effectiveFacts(

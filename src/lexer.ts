@@ -57,7 +57,6 @@ interface InterpolationScanResult {
 
 export const KEYWORDS = new Set([
   "Self",
-  "annotate",
   "break",
   "continue",
   "data",

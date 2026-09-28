@@ -16,7 +16,8 @@ import type { Diagnostic } from "../diagnostics.ts";
 // write, `Name#n`, and renames the references in its scope; a reference
 // outside the scope still names the source spelling and so does not find
 // it. A local `impl` is hoisted as written, after the pair check of
-// 09-traits.md#local-implementations. A local data or enum type is not
+// 09-traits.md#local-implementations; a local trait-less derivation block is
+// rejected. A local data or enum type is not
 // inspectable.
 
 type Renames = ReadonlyMap<string, string>;
@@ -114,6 +115,25 @@ export function hoistLocalDeclarations(program: Program): {
         continue;
       }
       const declaration = statement.declaration;
+      // Local declarations carry no metadata (annot.traitless.local).
+      if (declaration.kind === "impl" && declaration.traitName === undefined) {
+        if (declaration.byStructure || declaration.delegate) {
+          diagnostics.push(
+            declaration.byStructure
+              ? {
+                  code: "misplaced-derivation",
+                  message: "a trait-less derivation block must be declared at module scope",
+                  span: statement.span,
+                }
+              : {
+                  code: "invalid-delegation",
+                  message: "a header without a trait never delegates",
+                  span: declaration.delegate!.span,
+                },
+          );
+          continue;
+        }
+      }
       if (declaration.kind === "impl") {
         const localTrait =
           declaration.traitName !== undefined && renames.has(headName(declaration.traitName));

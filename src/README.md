@@ -498,11 +498,14 @@ else`, `break`, `break value`, and `continue`;
   with code 1. Printing the error's `Display` text and cause chain is not
   implemented;
 - typed derivation (spec/14-annotations.md#typed-derivation, Typed
-  Derivation M1-M24), lowered before checking by `checker/typed-derivation.ts`:
+  Derivation M1-M26), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function
   parameter declarations; the `+=` token; `@derive` of a trait with a
   `by Structure` template; derivation blocks with member lines (`=`, `+=`,
-  `= pass`, `Self`); and the `std.structure` handles, facts, walkers,
+  `= pass`, `Self`); trait-less derivation blocks `impl T by Structure:`
+  (M26), which `checker/member-lines.ts` checks and folds into the
+  declaration facts of `T` before any derivation reads them, then drops;
+  and the `std.structure` handles, facts, walkers,
   describers, and sources, declared in hd when imported. Each derivation
   becomes an ordinary `impl` whose template bodies call generated `walk`,
   `describe`, `build`, and `facts` functions, specialized to the target and
@@ -530,7 +533,13 @@ else`, `break`, `break value`, and `continue`;
   is `unsupported-debug-render` at run time); the drift and unused-fact warnings treat
   the module as one package, and a literal fact such as `@"note"` is the
   only `std`-typed fact the unused-fact warning skips (M25); function
-  targets, `@derive` included, stay `decorator-not-annotator`;
+  targets, `@derive` included, stay `decorator-not-annotator`. For
+  trait-less blocks, where the spec is still open, the prototype takes a
+  generic or instantiated header by its type constructor, applies several
+  blocks for one type in source order, never warns about a `Self` line's
+  fact as unused, and accepts only a list literal on a member line's right
+  side; it cannot check `annot.traitless.module` across the modules of a
+  linked package, which share one namespace;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
@@ -616,7 +625,7 @@ accepting an arbitrary Wasm trap.
 
 The active boundary is intentionally narrower than the language specification.
 Task combinator intrinsics, strings and structural values in the host-provider
-ABI, and `annotate` blocks and shape intrinsics remain in later MVP slices. The compiler rejects syntax it
+ABI, and shape intrinsics remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type

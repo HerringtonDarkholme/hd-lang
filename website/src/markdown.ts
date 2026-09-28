@@ -71,7 +71,7 @@ export function parsesAsHd(code: string): boolean {
 // hd constructs that do not occur in the prose, diagnostics, and file
 // listings that the sources also put in ```text fences.
 const HD_MARKERS =
-  /:=|->|=>|^\s*(?:fn|pub|data|enum|trait|impl|let|use|match|type|annotate|test|for|while|if|return)\b|^\s*@[A-Za-z]|\bfn\s*\(|\$\.|\b[A-Z][A-Za-z0-9]*\[/m;
+  /:=|->|=>|^\s*(?:fn|pub|data|enum|trait|impl|let|use|match|type|test|for|while|if|return)\b|^\s*@[A-Za-z]|\bfn\s*\(|\$\.|\b[A-Z][A-Za-z0-9]*\[/m;
 
 /**
  * Whether a fenced block holds hd source. ```hd always does; a ```text block

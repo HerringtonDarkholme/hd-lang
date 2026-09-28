@@ -11,8 +11,9 @@ with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
 rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
 and [09](../spec/09-traits.md#derived-implementations). The prototype
 compiler implements them by lowering each derivation to an ordinary
-implementation ([src/README.md](../src/README.md)); its remaining gaps are the
-`TD` and `M26` rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), and
+implementation ([src/README.md](../src/README.md)); its remaining gaps are
+rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), mostly
+`K1` (the shape intrinsics) and `F-250`, and
 [Still Open](#still-open-after-the-prototype-pass) lists what the pass found
 unspecified. The spec is the
 accepted behavior; this record is history and rationale.
@@ -1331,8 +1332,9 @@ Open for the apply pass:
 [`grammar.impl.traitless-by`](../spec/02-grammar.md#r-grammar.impl.traitless-by),
 [`trait.by.trait-less.error`](../spec/09-traits.md#r-trait.by.trait-less.error)
 and [`lex.keyword.reserved-words`](../spec/01-lexical-structure.md#r-lex.keyword.reserved-words).
-The prototype does not follow yet: its gaps are the `M26` rows of
-[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv). The three open
+The prototype follows since 2026-09-28: ten of the thirteen M26 fixtures
+pass, and the other three need the shape intrinsics (`K1` rows of
+[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv)). The three open
 points are applied as their recommendations. Each is a reading for the
 owner to confirm:
 
@@ -1355,14 +1357,17 @@ pass read that as the rules below, also for the owner to confirm:
 
 **Still open after M26.** The spec lists the first three as
 [undecided parts](../spec/14-annotations.md#undecided-parts). The fourth
-asks how to read an existing rule that M26 now reaches:
+asks how to read an existing rule that M26 now reaches. The fifth came up
+in the prototype pass. The Prototype column says what `src/` does today;
+none of it is decided:
 
-| Question | Effect | **Recommendation** |
-| --- | --- | --- |
-| A generic target | `impl[T] Box[T] by Structure:` and `impl Box[i32] by Structure:` both parse; neither has a meaning. | Only the declaration's own parameters, without bounds, as `impl[T] Box[T] by Structure:`. Any other header is `misplaced-derivation`. |
-| Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | At most one per type, so shared metadata has one place; a second is `overlapping-impl`. |
-| Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | The same warning, reported on the `Self` line. |
-| A member line's right side | [`annot.line.right`](../spec/14-annotations.md#r-annot.line.right) says "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | Any expression of a list type, so a reusable list needs no spread. The tour writes `[shared_list...]` until this is settled. |
+| Question | Effect | Prototype | **Recommendation** |
+| --- | --- | --- | --- |
+| A generic target | `impl[T] Box[T] by Structure:` and `impl Box[i32] by Structure:` both parse; neither has a meaning. | Takes either header by its type constructor, `Box`. | Only the declaration's own parameters, without bounds, as `impl[T] Box[T] by Structure:`. Any other header is `misplaced-derivation`. |
+| Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | Applies them in source order; each sees the facts the earlier ones left. | At most one per type, so shared metadata has one place; a second is `overlapping-impl`. |
+| Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | No warning: only decorator facts are checked. | The same warning, reported on the `Self` line. |
+| A member line's right side | [`annot.line.right`](../spec/14-annotations.md#r-annot.line.right) says "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | A list literal only; `name = shared_list` is `invalid-member-line`. | Any expression of a list type, so a reusable list needs no spread. The tour writes `[shared_list...]` until this is settled. |
+| Two retention rules on one member | [`retention-metadata.hd`](../spec/conformance/typing/valid/retention-metadata.hd), an accept fixture, puts `retention_owner(...)` and `delete_when(...)` on `userId`. Both return `RetentionRule`, which [`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate) rejects. The `annotate` version had the same conflict. | `duplicate-fact` at line 23; the fixture stays a known failure, also for the shape intrinsics. | Fix the fixture, not the rule: give `delete_when` its own result type, such as `DeleteWhen`. |
 
 ### Current Design: Full Example (M1-M14)
 

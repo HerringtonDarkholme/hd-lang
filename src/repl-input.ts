@@ -14,7 +14,6 @@ const DECLARATION_WORDS = new Set([
   "impl",
   "use",
   "type",
-  "annotate",
   "tests",
 ]);
 const STATEMENT_WORDS = new Set([

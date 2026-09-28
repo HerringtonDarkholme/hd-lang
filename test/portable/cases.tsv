@@ -1163,3 +1163,13 @@ typing/valid/test-timeout-call.hd	type
 typing/invalid/derive-before-function.hd	type
 typing/invalid/duplicate-declaration-fact.hd	type
 runtime/valid/data-variant-facts-empty.hd	runtime
+typing/invalid/unknown-annotation-member.hd	type
+parse/valid/trait-less-derivation-block.hd	parse
+typing/valid/annotate-identifier.hd	type
+runtime/valid/trait-less-block-facts.hd	runtime
+typing/invalid/trait-less-block-omit.hd	type
+typing/invalid/trait-less-block-method.hd	type
+typing/invalid/trait-less-block-newtype.hd	type
+typing/invalid/trait-less-block-local.hd	type
+typing/invalid/trait-less-block-duplicate-fact.hd	type
+typing/invalid/trait-less-delegation.hd	type
