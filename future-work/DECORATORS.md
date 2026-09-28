@@ -65,8 +65,8 @@ The preview the owner approved showed `@annotate([.Data])` above
 `pub fn annotate`. The intended meaning is the bootstrap line in D2, on
 the `Annotate` type.
 
-5. **D5: a marker with no arguments is written bare, `@suffix`.** Reading
-   for the apply pass, for the owner to confirm: on a decorator line, a
+5. **D5: a marker with no arguments is written bare, `@suffix`.** The owner
+   confirmed this rule on 2026-09-28: on a decorator line, a
    bare name that resolves to a function with no parameters is called, so
    `@suffix` means `@suffix()`. The rule applies only to decorator lines.
    The alternative is a unit value such as `pub let suffix = Suffix {}`,
