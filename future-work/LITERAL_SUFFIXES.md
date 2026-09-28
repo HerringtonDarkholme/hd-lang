@@ -93,6 +93,38 @@ option. L5 is a direction only; no operator trait is specified.
     are not an important problem and can be renamed with `as`; the import
     should stay explicit; and resolving through a trait or the expected type
     is not wanted. Importing short names is a small cost the owner accepts.
+11. **L11 (2026-09-28): back to option 3, `@suffix fn`. This replaces L2
+    and L3.** A suffix is a function marked with the intrinsic decorator
+    `@suffix`, such as `@suffix pub fn ms(count: i64) -> Duration`.
+    `250ms` is the call `ms(250)`, and `-5s` is `s(-5)`.
+    `std.ops.LiteralSuffix` and the newtype carriers are removed. The
+    owner's reason: an impl-based suffix lets impls on one carrier return
+    different types. `@suffix` is the one decorator allowed before a
+    module-level function, an exception to M24 `annot.decorator.function`.
+    A suffix function has exactly one parameter, of a primitive integer or
+    float type, and no type parameters; it needs no providers and never
+    suspends. There is no overloading, so `1.5s` is a type error when `s`
+    takes `i64`. Lookup is unchanged from L8 and L10: the name is found at
+    module scope, locals never take part, and it is imported explicitly.
+12. **L12: only decimal and float literals take a suffix.** Radix literals
+    take none, so the `'` form (`0xff'B`, `5'ms`) is gone.
+13. **L13: a reserved word straight after digits is not a suffix.**
+    `5else` lexes as `5` followed by `else`, as before.
+14. **L14: kept as applied.** A suffixed literal in a `match` pattern is a
+    `syntax-error` until constant patterns are designed. Diagnostics reuse
+    existing codes, and the message text names the suffix; no
+    `literal-suffix` code is added.
+15. **L15: a suffix function that panics during compile-time evaluation is
+    a compile error at the literal,** in every compile-time position
+    (facts, shared enum data).
+16. **L16: `timeout=` takes any `Duration` value,** such as
+    `Duration::seconds(5)` or `5s`, because the runner runs the test code
+    anyway. This relaxes Testing T22's literal-only rule for `timeout`
+    alone.
+17. **L17: `Duration` is a whole number of milliseconds in an `i64`.**
+    Nanosecond precision isn't needed for now. std ships only the suffixes
+    `ms s min h`; `ns` and `us` are dropped from L9 until a finer
+    representation exists.
 
 ## Contents
 

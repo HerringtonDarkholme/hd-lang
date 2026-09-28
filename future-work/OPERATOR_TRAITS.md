@@ -664,6 +664,63 @@ is a `syntax-error`, so every numeric bound repeats `Out = T`. Options:
 pub trait Integer < Add[Self, Out = Self] + Sub[Self, Out = Self]  # hypothetical syntax
 ```
 
+## Owner Idea: Numeric Trait Families
+
+Logged 2026-09-28; not decided. The owner would probably want numeric
+trait families such as:
+
+```text
+i64 -> IntLike   -> Num -> AnyVal -> Any
+f64 -> FloatLike -> Num -> AnyVal -> Any
+```
+
+Here `->` means "implements" or "is a subtrait of". `Any`, `AnyVal` and
+`AnyRef` already exist:
+[`types.any`](../spec/04-type-system.md#r-types.any) and
+[`types.sealed.decl`](../spec/04-type-system.md#r-types.sealed.decl).
+`AnyVal` is sealed and covers `bool`, `char`, the integer types, `f32`,
+`f64`, `string`, `void`, tuples, and newtypes of those.
+
+Precedent: Swift's `Numeric`, `BinaryInteger`, `FixedWidthInteger` and
+`FloatingPoint`; Haskell's `Num`, `Integral` and `Fractional`; Rust's
+`num-traits` crate (outside std); Scala's `AnyVal` with `Numeric[T]` as a
+type class.
+
+Pitfalls to settle before specifying it:
+
+1. **`Num < AnyVal` locks out library numbers.** `AnyVal` is sealed and
+   `data` types are `AnyRef`, so a `BigInt`, `Decimal` or `Rational` written
+   as `data` could never implement `Num`. Swift and Haskell keep `Numeric`
+   and `Num` independent of value versus reference. Option: make `Num < Any`
+   and let `IntLike` and `FloatLike` be sealed to primitives.
+2. **Literals in generic code.** In `fn sum[T < Num](xs: List[T]) -> T`,
+   the accumulator's `0` has no type `T` today. It needs either
+   `Num::zero()` and `Num::one()` (Rust `num-traits`) or polymorphic literals
+   through `from_integer` (Haskell's `fromInteger`). The first is the
+   simpler, proven model.
+3. **What `Num` contains.** Haskell's `Num` is a known mistake: it bundles
+   `abs`, `signum` and `fromInteger`, so vectors and matrices can't be
+   `Num`. Keep `Num` to `+ - *`, zero and one.
+4. **Division differs.** Integer `/` truncates and panics on zero; float
+   `/` gives infinity or NaN. `/` and `%` belong on `IntLike` and
+   `FloatLike` separately, as in Swift, not on `Num`.
+5. **Equality and order.** Floats have NaN, so they are `PartialOrd`, not
+   `Ord`. `Num` can't require `Ord`; `IntLike` can.
+6. **Overflow behavior diverges.** i64 arithmetic panics on overflow, while
+   f64 saturates to infinity. Generic `Num` code must document both.
+7. **Widths.** `IntLike` covers i8 through u64. Operations stay same-type
+   (`Self`); width changes need explicit conversions such as `T::from_i64`
+   or `try_from`, or generic code silently narrows.
+8. **Depends on operator traits.** `trait Num < Add[Self, Out = Self] + ...`
+   needs question 1 (the trait shape) and question 8 (a supertrait binding
+   `Out`).
+9. **Performance.** Generic numeric code dispatches through trait
+   dictionaries unless the compiler specializes it; a hot loop over
+   `T < Num` would be slower than over `i64` on Wasm.
+10. **Naming.** `IntLike` and `FloatLike` read as informal. Swift uses
+    `BinaryInteger` and `FloatingPoint`; Rust `num-traits` uses `PrimInt`
+    and `Float`; `Integer` and `Float` are shorter.
+
 ## Sources
 
 - Rust `std::ops`: <https://doc.rust-lang.org/std/ops/index.html>; `Add`: <https://doc.rust-lang.org/std/ops/trait.Add.html>

@@ -1269,6 +1269,17 @@ Nothing here is decided; each item says what the prototype does and gives a
 | Omitting an embedded part | An embedded field cannot declare a default (`embedded-field-default`), so `Part = pass` is always `omitted-member-without-default`. | reports that error | Keep it, and add the case as an example beside [`annot.omit.no-default`](../spec/14-annotations.md#r-annot.omit.no-default). |
 | Unused facts of foreign types | [`annot.fact.unused`](../spec/14-annotations.md#r-annot.fact.unused) keys on the fact's package; a fact of a primitive or standard type, such as `@"note"`, has no library package. | warns for any type-level fact of a type that derives no template | Warn only when the fact's type comes from a package other than `std`. |
 
+**Owner decisions (2026-09-28, M25).** The owner accepted the recommendations
+in rows 1, 2, 3 and 5:
+- a data type's one variant has an empty `VariantInfo.facts`;
+- `@derive` before a function is `decorator-not-annotator` (`@suffix` is the
+  only decorator allowed there, per Literal Suffixes L11);
+- a duplicate declaration fact is `duplicate-fact`;
+- `unused-derivation-fact` warns only for fact types from a package other
+  than `std`.
+
+Row 4 (omitting an embedded part) is still open.
+
 ### Current Design: Full Example (M1-M14)
 
 Superseded by the [M1-M21 example](#current-design-full-example-m1-m21).
