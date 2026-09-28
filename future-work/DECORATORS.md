@@ -39,6 +39,7 @@ hold pending this record), and
 - [Pitfalls](#pitfalls)
 - [Comparison](#comparison)
 - [Ranking By Design Cost](#ranking-by-design-cost)
+- [Re-Evaluation After M26](#re-evaluation-after-m26)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
 - [Sources](#sources)
@@ -771,6 +772,49 @@ Effects on the recommendation:
 - Recognizing `std.ops.Suffix` by qualified name (question 7) stays
   preferred over an `@lang` marker. A marker would add both an intrinsic
   and a rule exception (closed to user packages).
+
+## Re-Evaluation After M26
+
+Added 2026-09-28, after Typed Derivation M26 and the design cost order.
+
+**What M26 changes.** `annotate` is no longer reserved, so option 5's
+name clash is gone. Nothing else about the options changes. M26's
+trait-less block `impl User by Structure:` writes facts through member
+lines, and those facts need the same target check as `@` facts. Under
+every option, a member line is checked as if its value were written as `@`
+on that member.
+
+**What option 5 still needs.** The decorator grammar is
+`decorator_line = "@", ( derive_decorator | closed_expression )`. So
+`@annotate(OnField[string])` needs its own production, just as `@derive`
+has `derive_decorator`: `OnField[string]` and `fn(i64) -> O` are types,
+not expressions. That production also has to accept full types (function
+types included), not only the qualified names `derive_decorator` takes,
+plus a binder such as `[O]`. So option 5 is a new syntax production of the
+same kind as `derive_decorator`, plus one intrinsic root. Its costliest
+change is still syntax, level 1. The `@name(...)` form looks the same as
+today, but its argument grammar is new.
+
+A variant that avoids the binder: `@annotate` accepts only concrete
+targets, and a decorator with a generic output uses option 2's impl form.
+Then option 5 is a partial sugar over option 2, which means two ways to
+write the same thing.
+
+**Order after M26 (unchanged):**
+
+| Order | Option | Costliest change |
+| --- | --- | --- |
+| 1st | 2. Trait with target types | intrinsic (target types built by the compiler, `std.ops.Suffix`) |
+| 2nd | 4. Check function | intrinsic, but it opens the compile-time reflection the owner ruled out |
+| 3rd | 1. Closed standard set | rule exception per std marker |
+| 4th | 5. Root `@annotate` | syntax: a `derive_decorator`-like production that takes types and a binder |
+| 5th | 3. Declaration with patterns | syntax: a keyword and a pattern language |
+
+**Recommendation (unchanged): option 2.** It needs no syntax and no rule
+exception. The owner's readability goal, having every target next to the
+type, is met by convention: write the `Decorator` impls directly under the
+decorator type, as the examples here do. That convention is style, not a
+rule, so it adds no rule exception.
 
 ## Recommendation
 
