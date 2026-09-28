@@ -341,6 +341,17 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     the `--list` rows are runner text in
     [Runtime And Library](RUNTIME_AND_LIBRARY.md#test-runner). Named
     bodies and the option order were already in the specification.
+53. **T53 (2026-09-28): answers to Still Open 1, 3 and 4.**
+    - Test-module fixtures use a `# fixture-test-layout:` header, which
+      works like the package-role fixture headers.
+    - `snapshot_file` keeps its file under the recorded `__snapshots__`
+      layout, `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`.
+      A missing file fails the test, except on `--update`.
+    - The full STDLIB draft of `Choices` and `Arbitrary` is accepted:
+      `int`, `float`, `bool`, `pick`, `list`, `string`, `assume` and `draw`
+      on `Choices`, and `fn arbitrary(c: mut Choices) -> Self`.
+    - Still Open 2 (the `DebugWriter` API) stays open. The owner asked how
+      plain write methods would work.
 
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
