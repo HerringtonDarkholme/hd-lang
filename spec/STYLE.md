@@ -791,6 +791,9 @@ style lint rejects a chapter that reuses one.
 - `module.init.test-bodies`: retired 2026-09-27. Test cases are `it` calls,
   which also sit at the top level of test modules. Replaced by
   `module.init.test-cases`.
+- `module.testing.it.statements`: retired 2026-09-27. Testing T36 admits
+  `it_prop` and `it_prop_with` calls too. Replaced by
+  `module.testing.it.statement-calls`.
 - `module.entry.termination.err`: retired 2026-09-27. Testing T18 has the
   host print the error. Replaced by `module.entry.termination.err-code` and
   `module.entry.termination.no-print`.

@@ -365,7 +365,7 @@ tests:
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 5. r[module.testing.it.options] The named options are those in the table below, and each value must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
-7. r[module.testing.it.statements] Every top-level statement of a `tests:` block or a [test module](#test-modules) must be a call of `it` or of `std.testing.it_each`. Any other statement is an error. Error: `invalid-test-statement`.
+7. r[module.testing.it.statement-calls] Every top-level statement of a `tests:` block or a [test module](#test-modules) must be a call of `it`, or of `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
 8. r[module.testing.it.elsewhere] A call of `it` anywhere else is an error. Error: `misplaced-test-case`.
 9. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
 
@@ -413,6 +413,8 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
 2. r[module.testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
 3. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
 4. r[module.testing.it-each.body] Its body has a parameter, so it is written as an explicit `fn!` closure rather than a trailing block.
+5. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
+6. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
 
 ```text
 use std.testing.{assert_equal, it_each}

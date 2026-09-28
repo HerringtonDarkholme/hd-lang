@@ -1170,7 +1170,7 @@ typing/invalid/tests-block-name-collision.hd	type	reject:duplicate-module-name	0
 runtime/valid/suspending-trailing-block.hd	runtime	accept	07-functions.md#r-fn.trailing.suspending
 runtime/valid/test-case-options.hd	runtime	accept	10-modules.md#test-cases
 runtime/valid/test-expect-panic.hd	runtime	accept	10-modules.md#r-module.testing.option.expect-panic
-typing/invalid/tests-block-binding.hd	type	reject:invalid-test-statement	10-modules.md#r-module.testing.it.statements
+typing/invalid/tests-block-binding.hd	type	reject:invalid-test-statement	10-modules.md#r-module.testing.it.statement-calls
 typing/invalid/duplicate-test-name.hd	type	reject:duplicate-test-name	10-modules.md#r-module.testing.it.unique
 typing/invalid/non-literal-test-name.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.it.name
 typing/invalid/misplaced-test-case.hd	type	reject:misplaced-test-case	10-modules.md#r-module.testing.it.elsewhere

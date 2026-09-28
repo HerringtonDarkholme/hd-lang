@@ -994,4 +994,8 @@ existing source. Each entry names the decision that made the change.
 - Table tests (Testing T31, owner decision 2026-09-27): `std.testing`
   declares `it_each(name, rows, body)`, which registers one test case per
   row, named `name[i]`. It is imported, not a prelude name, and a call of it
-  is the other statement a `tests:` block or a test module admits.
+  is another statement a `tests:` block or a test module admits.
+- Property tests (Testing T36, owner decision 2026-09-27): calls of
+  `std.testing.it_prop` and `it_prop_with`, which register property test
+  cases, are also admitted at the top level of a `tests:` block or a test
+  module. Both are imported, not prelude names.
