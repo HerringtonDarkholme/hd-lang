@@ -93,6 +93,39 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return undefined;
   }
 
+  /** The `Eq` function of each declared map key type, by function index. */
+  private readonly keyEqualityTypes = new Map<number, ValueType>();
+
+  /**
+   * A map's key equality: null for a scalar or string key (kinds 0 and 1),
+   * else a wrapper of the key type's `Eq` implementation (kind 2).
+   */
+  protected keyEquality(keyType: ValueType, keyKind: number): string {
+    if (keyKind !== 2) return `(ref.null $hd.key-eq)`;
+    const type = readonlyType(keyType);
+    const eq = this.traitsByName.get("Eq");
+    const implementation = [...this.implementationsByIndex.values()].find(
+      (candidate) => candidate.traitIndex === eq?.index && candidate.targetType === type,
+    );
+    const method = implementation?.methodFunctions.find(({ methodIndex }) => methodIndex === 0);
+    if (!method) throw new Error(`map key type '${type}' has no Eq implementation`);
+    this.keyEqualityTypes.set(method.functionIndex, type);
+    return `(ref.func $hd.keq${method.functionIndex})`;
+  }
+
+  keyEqualityNames(): string[] {
+    return [...this.keyEqualityTypes.keys()].map((index) => `$hd.keq${index}`);
+  }
+
+  emitKeyEqualities(): string {
+    return [...this.keyEqualityTypes]
+      .map(
+        ([index, type]) =>
+          `(func $hd.keq${index} (type $hd.key-eq) (param $left anyref) (param $right anyref) (result i32)\n  (call ${functionName(index)} ${this.unboxValue("(local.get $left)", type)} ${this.unboxValue("(local.get $right)", type)}))`,
+      )
+      .join("\n\n");
+  }
+
   /** Signed integer `/` or `%`, panicking on a zero divisor and on overflow. */
   protected emitCheckedDivision(
     width: "i32" | "i64",

@@ -598,7 +598,7 @@ export type HirExpression =
       readonly entries: readonly HirMapEntry[];
       readonly keyType: ValueType;
       readonly valueType: ValueType;
-      readonly keyKind: 0 | 1;
+      readonly keyKind: 0 | 1 | 2;
     })
   | (HirExpressionBase & {
       readonly kind: "map-comprehension";
@@ -607,7 +607,7 @@ export type HirExpression =
       readonly value: HirExpression;
       readonly keyType: ValueType;
       readonly valueType: ValueType;
-      readonly keyKind: 0 | 1;
+      readonly keyKind: 0 | 1 | 2;
     })
   | (HirExpressionBase & {
       readonly kind: "variant-wrap";

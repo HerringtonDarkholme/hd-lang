@@ -1257,12 +1257,14 @@ export function emitWat(source: HirProgram): string {
       (field $hd.iterator-map (ref null $hd.map))
       (field $hd.iterator-index (mut i32))
       (field $hd.iterator-version i32)))
+    (type $hd.key-eq (func (param anyref) (param anyref) (result i32)))
     (type $hd.map (struct
       (field $hd.map-key-kind i32)
       (field $hd.map-size (mut i32))
       (field $hd.map-keys (mut (ref $hd.list)))
       (field $hd.map-values (mut (ref $hd.list)))
-      (field $hd.map-version (mut i32))))
+      (field $hd.map-version (mut i32))
+      (field $hd.map-key-eq (ref null $hd.key-eq))))
     (type $hd.providers (struct
       (field $hd.provider-key i32)
       (field $hd.provider-value anyref)
@@ -1393,7 +1395,9 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
   ]
     .filter(Boolean)
     .join("\n\n");
-  const traitSuspensionHelpers = emitter.emitTraitSuspensionHelpers();
+  const traitSuspensionHelpers = [emitter.emitTraitSuspensionHelpers(), emitter.emitKeyEqualities()]
+    .filter(Boolean)
+    .join("\n\n");
   const storedSuspensionAdapters = emitStoredSuspensionAdapters(program);
   const referenceableFunctions = [
     ...program.closures.map((closure) => `$c${closure.index}`),
@@ -1421,6 +1425,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     }),
     ...hostProviders.references,
     ...storedSuspensionAdapterReferences(program),
+    ...emitter.keyEqualityNames(),
   ];
   const declarations =
     referenceableFunctions.length > 0

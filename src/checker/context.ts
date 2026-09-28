@@ -48,6 +48,7 @@ import {
   traitTypeName,
   builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
+  mapKeyKind,
   numericWidening,
 } from "./shared.ts";
 import { generalizedShape } from "./shapes.ts";
@@ -67,7 +68,7 @@ import {
   traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
-import { isNarrowInteger, narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
+import { narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
 
 export interface CheckResult {
   readonly program?: HirProgram;
@@ -155,11 +156,7 @@ export { PRELUDE_NAMES };
 
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
-export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
-  if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
-  if (type === "string") return 1;
-  return undefined;
-}
+export { mapKeyKind };
 
 export function isKnownType(
   type: ValueType,

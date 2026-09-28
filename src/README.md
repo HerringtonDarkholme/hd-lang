@@ -539,8 +539,7 @@ else`, `break`, `break value`, and `continue`;
   generated as ordinary hd implementations (`checker/derive-intrinsics.ts`),
   on a newtype through its base type, and `mixed-derived-law` checks the
   law partners; `==` uses a generic implementation such as a derived
-  `impl[T < Eq] Eq for Box[T]`, while `<` does not yet. A run-time map key is
-  still an `i32`-like value or a string. `@derive(Debug)` generates
+  `impl[T < Eq] Eq for Box[T]`, while `<` does not yet. `@derive(Debug)` generates
   builder calls (Testing T53): `debug_struct` for named members,
   `debug_tuple` for positional ones, and `write` of a payload-free
   variant's name. `Debug` is a prelude trait; `DebugWriter`, its
@@ -641,7 +640,11 @@ else`, `break`, `break value`, and `continue`;
   replacement through `mut List[T]`;
 - insertion-ordered `Map[K, V]` literals with duplicate replacement, optional
   indexed or `get()` lookup, `len()`, growable indexed insertion and
-  `remove()` through `mut Map[K, V]`, and erased Wasm GC key/value storage;
+  `remove()` through `mut Map[K, V]`, and erased Wasm GC key/value storage.
+  A key is an `i32`-like scalar, a string, or a non-generic declared type
+  with `Eq` and `Hash` implementations (trait.hash.map-key), which the map
+  compares with a wrapper of its `Eq`; a type parameter bounded by `Eq` and
+  `Hash` keys a map built elsewhere;
 - built-in list and map `iter()` values as mutable Wasm GC cursors whose
   `next()` yields `T?`; explicit and `for`-loop iteration share exhaustion,
   partly consumed cursor, replacement, and structural invalidation behavior;
@@ -726,8 +729,8 @@ The prelude `string` methods live in `std.text` too, and `lower` and
 there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
 private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait, no `Set` (the specification does not define it,
-and a run-time map key is an `i32`-like value or a string, so a generic
-`Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
+and a map built in generic code has no key equality for a type-parameter
+key, so a generic `Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
 

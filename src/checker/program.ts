@@ -22,6 +22,7 @@ import { varianceDiagnostics } from "./variance.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
 import { withShapes } from "./shapes.ts";
+import { setHashableKeyTypes } from "./shared.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 
 export interface CheckOptions {
@@ -62,6 +63,7 @@ function checkProgram(source: Program, options: CheckOptions): CheckResult {
   const hoisted = hoistLocalDeclarations(withStandardTraits(withStandardLibrary(source)));
   const declared = withTypeDeclarations(hoisted.program);
   const program = declared.program;
+  setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
     program,
     diagnostics: [...hoisted.diagnostics, ...declared.diagnostics],

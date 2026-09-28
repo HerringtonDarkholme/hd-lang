@@ -210,10 +210,31 @@ const TYPE_NAMES = new Set<ValueType>([
   "ConsoleError",
 ]);
 
-export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
+/**
+ * The map key kinds: 0 for an `i32`-like scalar, 1 for a string, and 2 for
+ * a declared type with `Eq` and `Hash` implementations, which the map
+ * compares with its `Eq` (spec/09-traits.md#r-trait.hash.map-key).
+ */
+export function mapKeyKind(type: ValueType): 0 | 1 | 2 | undefined {
   if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
+  if (hashableKeyTypes.has(readonlyType(type))) return 2;
   return undefined;
+}
+
+// The declared types that implement both `Eq` and `Hash`, set for each
+// checked program before its types resolve (checker/program.ts).
+let hashableKeyTypes: ReadonlySet<string> = new Set();
+
+export function setHashableKeyTypes(program: Program): void {
+  const implemented = (trait: string): Set<string> =>
+    new Set(
+      program.implementations
+        .filter((item) => item.traitName === trait && item.genericParameters.length === 0)
+        .map((item) => item.targetName),
+    );
+  const hash = implemented("Hash");
+  hashableKeyTypes = new Set([...implemented("Eq")].filter((name) => hash.has(name)));
 }
 
 export function isKnownType(

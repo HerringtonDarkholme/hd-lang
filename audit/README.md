@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,227 of the 1,263 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 36 are listed in
+On 2026-09-28 the prototype passes 1,229 of the 1,263 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 34 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 36 still fail.
+decision below; all 34 still fail.
 
 ## Specification Follow-Ups
 

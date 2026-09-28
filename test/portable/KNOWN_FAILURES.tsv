@@ -6,7 +6,6 @@ typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 in
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
-typing/valid/derived-hash.hd	check fails: invalid-map-key at line 16: @derive(Hash) is generated, but a run-time map key is i32-like or a string, so a data or enum key is rejected	F-250
 typing/invalid/derived-hash-field-not-hash.hd	MVP reports mixed-derived-law at line 4 instead of field-not-hash at line 6: the fixture derives Hash without Eq (trait.derive.partners.same-list), and no numbered rule defines field-not-hash	F-250
 typing/invalid/derived-total-order-float.hd	MVP reports unsatisfied-trait-bound at line 2 instead of field-not-eq at line 4: no numbered rule defines field-not-eq, and the f64 field implements Eq but not Ord	F-250
 typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
@@ -29,7 +28,6 @@ typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: t
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-runtime/valid/derived-newtype.hd	check fails: invalid-map-key at line 20: the newtype derivations are generated (TQ-11), but a run-time map key is i32-like or a string	F-250
 typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-parameter at line 4 instead of trait-not-dynamically-safe: packs and defaults are outside the current erased-generic slice (the TQ-10 row and reified exclusions are implemented)	F-250
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250

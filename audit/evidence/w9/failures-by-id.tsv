@@ -1,5 +1,5 @@
 id	count	title
-F-250	21	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-250	19	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks

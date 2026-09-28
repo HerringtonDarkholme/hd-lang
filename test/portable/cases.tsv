@@ -1226,3 +1226,5 @@ typing/invalid/derived-hash-without-eq.hd	type
 typing/invalid/hand-written-hash-beside-derived-eq.hd	type
 typing/valid/derived-ordering.hd	type
 typing/valid/derived-generic-bound.hd	type
+typing/valid/derived-hash.hd	type
+runtime/valid/derived-newtype.hd	runtime
