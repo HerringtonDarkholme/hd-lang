@@ -22,7 +22,7 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,174 of the 1,238 conformance cases, all of
+On 2026-09-28 the prototype passes 1,176 of the 1,240 conformance cases, all of
 them selected in `test/portable/cases.tsv`. The other 64 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below; all 64 still fail.
@@ -70,11 +70,11 @@ finds. A trailing block binds the final parameter (T40) only for calls
 that the checker plans, not for the built-in functions it special-cases.
 
 `Console` is checked as the prelude trait of Mutable Host Providers
-(MHP-1), and its three fixtures pass. The prototype runs only the host
-console: `hd run`, `hd test`, and `hd build` report a program-defined
-provider as `unsupported-console-provider` and a direct `write_line!` call
-as `unsupported-console-call`. How `println` calls a provider's
-`write_line!` is an owner question in
+(MHP-1), and its five fixtures pass. `println` and direct `write_line!`
+calls run on the host console and on a program-defined provider. A
+`println` whose `write_line!` stays pending or returns `.Err` stops the
+run with `unsupported-println-panic`, because the panic category is an
+owner question in
 [Mutable Host Providers](../future-work/OPEN_ISSUES.md#mutable-host-providers).
 
 `Debug` (Testing T33, T39, and T48) is checked: it is a prelude trait,

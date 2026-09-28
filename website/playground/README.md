@@ -216,11 +216,11 @@ The playground runs what the prototype compiler supports; see
   CLI's test profiles (`--profile`), scenarios, trace, record, and replay are
   not exposed. A program that needs another host capability, such as
   `std.host.Args`, is `nonhost-entry-requirement`.
-- `println` writes through the host `Console` only. A direct
-  `console.write_line!(...)` call runs on the host console and on a
-  program-defined provider such as `std.console.BufferConsole`, but
-  `println` through a program-defined provider stops the run
-  (`unsupported-console-provider`).
+- `println` and a direct `console.write_line!(...)` call run on the host
+  console and on a program-defined provider such as
+  `std.console.BufferConsole`. A `println` whose `write_line!` stays
+  pending or returns `.Err` stops the run (`unsupported-println-panic`),
+  because the spec leaves that panic's category open.
 - Test modules (`src/billing_test.hd`) are not supported: a test case must
   sit in a `tests:` block.
 - A suspending `main!` that returns a `Result` is not judged: its `.Err` is

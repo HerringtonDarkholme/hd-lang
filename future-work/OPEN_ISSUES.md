@@ -64,7 +64,7 @@ beside a second note: adding a `mut self` method to a published requirement
 trait is a breaking change
 ([Packages](PACKAGES.md#33-the-checked-compatibility-rule)).
 
-**Still open after the prototype pass (2026-09-28).** The prototype checks
+**Raised by the prototype pass (2026-09-28), now decided below.** The prototype checks
 `Console` as a prelude trait. It runs direct `write_line!` calls on the host
 console and on a program-defined provider, such as the toy
 `std.console.BufferConsole`. `println` still writes only through the host
@@ -89,12 +89,36 @@ fn greet() -> void $ Console:
     println("hello")   # which write_line! runs, and what if it fails?
 ```
 
-**Decided (owner, 2026-09-28).** Both recommendations are accepted.
+**Decided and applied (owner, 2026-09-28).** Both recommendations are accepted.
 1. `println` drives `write_line!` to completion inside itself, as
    `block_on` does, and stays non-suspending. A pending host suspension
    there is a panic.
 2. `println` panics when `write_line!` returns `.Err(ConsoleError)`. Code
    that must handle the error calls `write_line!` directly.
+
+The rules are
+[`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
+through
+[`module.console.println-error`](../spec/10-modules.md#r-module.console.println-error).
+The prototype runs `println` through a program-defined provider such as
+`BufferConsole`. It stops a pending or failed call with the prototype code
+`unsupported-println-panic`, because the category is open (question 1
+below).
+
+**Still open after applying MHP-1 (2026-09-28).** None of these is decided:
+
+| Question | Effect | **Recommendation** |
+| --- | --- | --- |
+| 1. The panic category | [`flow.panic.category-set`](../spec/06-control-flow.md#r-flow.panic.category-set) is closed, and neither `println` panic has a category, so no `# panic:` fixture or `expect_panic` test can name one. | One new category per cause, such as `console-write-failed` and `console-write-pending`, so a test can tell them apart. The other answer is `explicit-panic` for both, as if `println` called `panic`. |
+| 2. Constructing a `ConsoleError` | [`module.console.error`](../spec/10-modules.md#r-module.console.error) gives `ConsoleError` no variants or constructor, so a program-defined provider cannot return `.Err`, and only a host console reaches the error panic. | Decide it with the standard library's error types ([STDLIB](STDLIB.md#stdconsole)); a recording console for failure tests needs a public constructor. |
+| 3. `block_on`'s restrictions | "As `block_on` does" could carry over the [nested-driver panic](../spec/11-requirements-and-suspension.md#r-req.drive.block-on.nested) and the ban in `defer` suites and default expressions. The spec applies neither: `println` inside `main!` or a test, where a driver is active, still prints. | Confirm neither applies. The nested-driver panic would break every `println` in `main!` and in tests. |
+
+```text
+fn report!() -> void $ Console:
+    defer:
+        println("done")   # valid today; question 3 asks whether it stays valid
+    println("working")
+```
 
 ### Typed Derivation, Tool Adapters, And Secrets
 

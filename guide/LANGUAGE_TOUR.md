@@ -2033,7 +2033,9 @@ both the `void` expression `pass` and the unit tuple `()`.
 `Console.write_line!` takes `mut self`, so `$.use(Console)` gives mutable
 access. A `:=` binding would expose only a readonly view, so code that keeps
 the console in a local writes `let console: mut Console`. `println` needs
-only `$ Console`.
+only `$ Console`. It calls the provider's `write_line!` and finishes that
+call before it returns, so a recording provider receives each line, and it
+panics when the write fails.
 
 An entry-point row may contain only host capability traits supplied by its
 selected runtime profile, such as `Args` and `Console` above. Application
