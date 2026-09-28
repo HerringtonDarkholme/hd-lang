@@ -56,7 +56,7 @@ requirement_row = requirement_key
                 | "(", [ requirement_list ], ")"
                 ;
 requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
-requirement_key = [ "mut" ], trait_type ;
+requirement_key = trait_type ;
 ```
 
 1. r[req.row.syntax.signature] A function signature may end with `$` and an unordered list of requirement traits.
@@ -65,7 +65,7 @@ requirement_key = [ "mut" ], trait_type ;
 4. r[req.row.syntax.header-bare] A declaration or closure header may list several keys bare, because its clause ends at the header's `:`.
 5. r[req.row.syntax.type-parenthesized] Inside a type, several keys are parenthesized, as in `fn(UserId) -> User $(Database, Cache)` or `Map[string, fn() -> i32 $(Clock, Log)]`.
 6. r[req.row.syntax.empty] The clause `$()` writes the empty row explicitly.
-7. r[req.row.syntax.mut-key] A key written `mut K` requires mutable access to the provider for `K`, as in `$(R, mut Logger)`.
+7. r[req.row.syntax.no-mut] A key has no `mut` prefix; a trait's methods decide the provider's access, as [Mutable Providers](#mutable-providers) describes.
 8. r[req.row.syntax.no-operators] A row has no operators: a `+` or `-` between keys is an error. Error: `old-row-operator`.
 
 ```text
@@ -214,7 +214,7 @@ db, cache := $.use(Database, Cache)
 2. r[req.use.order] The result order matches the requested key order.
 3. r[req.use.missing] A missing provider is a compile-time error at every call site below an entry point.
 4. r[req.use.entry-row] Entry-point rows may contain only host capability traits declared by the selected runtime profile.
-5. r[req.use.registered-profile] For a registered boundary, the registration contract's explicit bindable-trait set, with the access it binds for each trait, is that boundary's profile.
+5. r[req.use.registered-profile-set] For a registered boundary, the registration contract's explicit bindable-trait set is that boundary's profile.
 6. r[req.use.host-configuration] Failure to configure one of those host providers is a pre-execution host configuration error.
 7. r[req.use.no-dynamic-search] `$.use` is non-suspending and performs no dynamic handler search that can fail at runtime below that boundary.
 
@@ -226,8 +226,8 @@ trait Clock
 
 ### Provider Values
 
-1. r[req.use.value.readonly] A provider value returned by `$.use(K)` is an ordinary readonly value of type `K`.
-2. r[req.use.value.mut] `$.use(mut K)` returns `mut K` under the rules of [Mutable Providers](#mutable-providers).
+1. r[req.use.value.ordinary] A provider value returned by `$.use(K)` is an ordinary value of type `K`.
+2. r[req.use.value.access] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: `mut K` for a mutable requirement trait, readonly `K` otherwise.
 3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
 5. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
@@ -339,8 +339,8 @@ context_entry = requirement_key, "=", expression
 
 ## Mutable Providers
 
-A provider may be installed and retrieved with mutable access, so a provider
-written in hd can change its own state through `mut self` methods:
+A requirement trait with a `mut self` method is always provided with mutable
+access, so a provider written in hd can change its own state:
 
 ```text
 trait Counter:
@@ -357,90 +357,81 @@ impl Counter for MemoryCounter:
     fn bump(mut self) -> void:
         self.value = self.value + 1
 
-fn tick() -> i32 $ mut Counter:
-    $.use(mut Counter).bump()
+fn tick() -> i32 $ Counter:
+    $.use(Counter).bump()
     $.use(Counter).count()
 
 fn demo() -> i32:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.with(mut Counter=counter):
+    $.with(Counter=counter):
         _ := tick()
         tick()   # 2
 ```
 
-1. r[req.mut.access] The `mut` in a requirement key states the access with which a provider is installed, required, or retrieved.
-2. r[req.mut.not-identity] The `mut` is not part of the key's identity: `mut Counter` and `Counter` name the same key.
-3. r[req.mut.compare] Duplicate-key normalization, nested-scope replacement, later-binding-wins for contexts, and the `generic-requirement-key-collision` check all compare keys without `mut`.
+1. r[req.mut.trait] A **mutable requirement trait** is a trait that declares or inherits at least one `mut self` method.
+2. r[req.mut.trait-access] A provider's access follows from its trait alone: mutable for a mutable requirement trait, readonly for any other trait.
+3. r[req.mut.no-spelling] Requirement syntax never writes `mut`: a row key `mut K`, `$.use(mut K)`, and a binding `mut K=expression` are errors. Error: `syntax-error`.
+
+```text
+trait Counter:
+    fn bump(mut self) -> void
+
+fn tick() -> void $ mut Counter:  # error: syntax-error
+    $.use(Counter).bump()
+```
+
+> **Why.** `mut` marks where code may change a value. A requirement is one
+> provider shared by its whole call tree, so its trait already says whether
+> the provider can change.
 
 ### Installing
 
-1. r[req.mut.install] A binding `mut K=expression` in `$.with` or `$.context` installs a provider with mutable access.
-2. r[req.mut.install.type] Its expression must have type `mut T` for a type `T` implementing `K`: a readonly expression is an error. Error: `mutable-upgrade`.
-3. r[req.mut.install.readonly] A binding written `K=expression` installs readonly access, whatever the access type of the expression.
-4. r[req.mut.install.replace] A nested binding for the same key replaces the outer binding together with its access, so a readonly inner binding hides an outer mutable one within its block.
+1. r[req.mut.install-mutable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must have type `mut T` for a type `T` implementing `K`. A readonly expression is an error. Error: `mutable-upgrade`.
+2. r[req.mut.install-readonly-trait] For any other trait, the expression may have either access, and the provider is installed with readonly access.
 
 ```text
 pub fn main() -> void:
     counter := MemoryCounter { value: 0 }
-    $.with(mut Counter=counter):  # error: mutable-upgrade
+    $.with(Counter=counter):  # error: mutable-upgrade
         _ := $.use(Counter).count()
 ```
 
+> **Note.** A fresh value such as `MemoryCounter { value: 0 }` has mutable
+> access, so it may be installed directly
+> ([Bindings And Fresh Values](04-type-system.md#bindings-and-fresh-values)).
+
 ### Retrieving
 
-1. r[req.mut.use] `$.use(mut K)` yields a value of type `mut K`, on which `mut self` methods of `K` may be called.
-2. r[req.mut.use.readonly] `$.use(K)` yields readonly `K` even when the provider was installed with mutable access.
-3. r[req.mut.use.upgrade] Requesting `mut K` where the provider in effect for `K` has only readonly access is an error. Error: `mutable-upgrade`.
-4. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding exposes a readonly view.
+1. r[req.mut.use-mutable] For a mutable requirement trait `K`, `$.use(K)` yields a value of type `mut K`, on which the `mut self` methods of `K` may be called.
+2. r[req.mut.use-readonly-trait] For any other trait, `$.use(K)` yields readonly `K`.
+3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding exposes a readonly view.
 
 ```text
-pub fn main() -> void:
-    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.with(Counter=counter):
-        $.use(mut Counter).bump()  # error: mutable-upgrade
+fn tick() -> void $ Counter:
+    counter := $.use(Counter)
+    counter.bump()  # error: mutable-receiver-required
 ```
 
 > **Note.** Code that keeps a mutable provider in a local writes
-> `let counter: mut Counter = $.use(mut Counter)`.
+> `let counter: mut Counter = $.use(Counter)`.
 
 ### Access In Rows
 
-1. r[req.mut.row.entry] A row entry `mut K` requires mutable access to `K`; an entry `K` requires either access.
-2. r[req.mut.row.normalize] A row that would contain both normalizes to `mut K`.
-3. r[req.mut.row.satisfy] Mutable access available for `K` satisfies both entries; readonly access satisfies only `K`.
-4. r[req.mut.row.upgrade] A required `mut K` that is available only with readonly access, whether from the declared row or from a lexical provider scope, is an error. Error: `mutable-upgrade`.
-5. r[req.mut.row.missing] When `K` is not available at all, the required `mut K` is an error. Error: `missing-requirement`.
-6. r[req.mut.row.inferred] An inferred row contains `mut K` when its body retrieves `mut K` or calls a callable whose row contains `mut K`.
-7. r[req.mut.row.trait] The access in a trait method's row is part of the normalized row that its implementations must match.
-
-#### Removal By Extension
-
-1. r[req.mut.removal.normalized] Removal by extension compares access after normalization.
-2. r[req.mut.removal.mut] A pattern `$(R, mut K)` removes a `mut K` entry, and the callee must supply `K` with mutable access.
-3. r[req.mut.removal.readonly] A pattern `$(R, K)` removes a readonly `K` entry.
-4. r[req.mut.removal.keeps-mut] Against a row containing `mut K`, the least solution of `$(R, K)` keeps `mut K` in `R`, because `K` and `mut K` together normalize to `mut K`.
-5. r[req.mut.removal.not-removed] That key is then not removed.
-
-### Mutable Context Entries
-
-1. r[req.mut.context.row] A `$.Context[Row]` row may contain `mut` entries.
-2. r[req.mut.context.binding] The binding `mut K=expression` in `$.context` contributes `mut K` to the created context's row.
-3. r[req.mut.context.spread] Spreading that context installs `K` with mutable access.
+1. r[req.mut.row.plain] A row entry is always the plain key `K`, and it requires the provider for `K` with its trait's access.
+2. r[req.mut.row.no-access-rules] Rows, `$.Context[Row]` rows, and removal by extension therefore compare and remove keys by trait alone.
+3. r[req.mut.row.missing-key] A required key with no available provider is an error, whatever its trait's access. Error: `missing-requirement`.
 
 ### Entry-Point Access
 
-1. r[req.mut.entry.readonly] A runtime profile binds each host provider with readonly access unless the profile marks the provider's trait mutable.
-2. r[req.mut.entry.mutable] A provider for a trait the profile marks mutable is bound with mutable access.
-3. r[req.mut.entry.row] An entry-point row may contain `mut K` when the selected runtime profile marks `K` mutable.
-4. r[req.mut.entry.registered] A registered boundary's row may contain `mut K` when its registration contract binds `K` with mutable access.
-5. r[req.mut.entry.other] Any other `mut K` entry in such a row is an error. Error: `mutable-upgrade`.
-6. r[req.mut.entry.plain] An entry `K` without `mut` accepts either binding and gives the body readonly access.
+1. r[req.mut.entry.trait-access] A runtime profile binds the host provider for a mutable requirement trait with mutable access, and every other host provider with readonly access.
+2. r[req.mut.entry.registered-access] A registration contract binds each trait it lists the same way.
+3. r[req.mut.entry.no-marking] Neither a runtime profile nor a registration contract marks a trait mutable.
 
 See also: [Wasm Boundary](10-modules.md#wasm-boundary).
 
 ### Captured Access
 
-1. r[req.mut.capture] A cold suspension captures each provider with the access its body requires.
+1. r[req.mut.capture-trait] A cold suspension captures each provider with its trait's access.
 2. r[req.mut.capture.fixed] [Construction-Time Requirement Binding](#construction-time-requirement-binding) therefore also fixes the access a stored computation later uses.
 
 ## Suspending Functions

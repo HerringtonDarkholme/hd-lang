@@ -1,47 +1,52 @@
 # test: requirements / mutable providers / rows, contexts, and removal by extension
+# Spec 11 Mutable Providers: rows list plain keys, a mutable requirement trait needs a mut
+# value when installed, and a readonly trait accepts a readonly value.
 
-fn bump_it() -> void $ mut Counter:
-    $.use(mut Counter).bump()
+fn bump_it() -> void $ Counter:
+    $.use(Counter).bump()
 
 fn read_it() -> i32 $ Counter:
     $.use(Counter).count()
 
-fn both() -> i32 $ mut Counter, Counter:
+fn both() -> i32 $ Counter:
     bump_it()
     read_it()
 
 fn inferred() -> void:
     bump_it()
 
-fn read_only() -> void $ Counter:
-    _ := read_it()
+fn label() -> string $ Name:
+    $.use(Name).text()
 
-fn counters() -> $.Context[mut Counter]:
+fn counters() -> $.Context[Counter]:
+    $.context(Counter=MemoryCounter { value: 0 })
+
+fn provide[R](callback: fn() -> void $(R, Counter)) -> void $ R:
     let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.context(mut Counter=counter)
-
-fn provide_mut[R](callback: fn() -> void $(R, mut Counter)) -> void $ R:
-    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.with(mut Counter=counter):
-        callback()
-
-fn provide_readonly[R](callback: fn() -> void $(R, Counter)) -> void $ R:
-    $.with(Counter=MemoryCounter { value: 0 }):
+    $.with(Counter=counter):
         callback()
 
 pub fn main() -> void:
     $.with(counters()...):
         _ := both()
         inferred()
-    provide_mut(bump_it)
-    provide_readonly(read_only)
+    provide(bump_it)
+    name := FixedName { value: "hd" }
+    $.with(Name=name):
+        _ := label()
 
 trait Counter:
     fn count(self) -> i32
     fn bump(mut self) -> void
 
+trait Name:
+    fn text(self) -> string
+
 data MemoryCounter:
     value: i32
+
+data FixedName:
+    value: string
 
 impl Counter for MemoryCounter:
     fn count(self) -> i32:
@@ -49,3 +54,7 @@ impl Counter for MemoryCounter:
 
     fn bump(mut self) -> void:
         self.value = self.value + 1
+
+impl Name for FixedName:
+    fn text(self) -> string:
+        self.value

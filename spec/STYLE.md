@@ -483,3 +483,108 @@ style lint rejects a chapter that reuses one.
 - `trait.own.annotate.not-impl`: retired 2026-09-27. With no orphan
   exception, it has nothing to restrict. Replaced by
   `trait.own.annotate.no-orphan`.
+- `grammar.type.row.mut-key`: retired 2026-09-27. The requirement access
+  decision removed the `mut` key prefix. Replaced by
+  `grammar.type.row.no-mut-key`.
+- `module.entry.row.mut`: retired 2026-09-27. The requirement access
+  decision removed `mut` entry-row keys. Replaced by `req.mut.no-spelling`.
+- `module.profile.access`: retired 2026-09-27. The requirement access
+  decision derives provider access from the trait. Replaced by
+  `module.profile.trait-access`.
+- `module.profile.mut-key`: retired 2026-09-27. The requirement access
+  decision removed `mut` entry-row keys. Replaced by `req.mut.no-spelling`.
+- `module.register.contract`: retired 2026-09-27. The requirement access
+  decision removed the access a contract declared. Replaced by
+  `module.register.contract-traits`.
+- `req.row.syntax.mut-key`: retired 2026-09-27. The requirement access
+  decision removed the `mut` key prefix. Replaced by
+  `req.row.syntax.no-mut`.
+- `req.use.value.readonly`: retired 2026-09-27. The requirement access
+  decision derives provider access from the trait. Replaced by
+  `req.use.value.ordinary` and `req.use.value.access`.
+- `req.use.value.mut`: retired 2026-09-27. The requirement access decision
+  removed `$.use(mut K)`. Replaced by `req.use.value.access`.
+- `req.use.registered-profile`: retired 2026-09-27. The requirement access
+  decision removed the access a contract declared. Replaced by
+  `req.use.registered-profile-set`.
+- `req.mut.access`: retired 2026-09-27. The requirement access decision
+  derives provider access from the trait. Replaced by
+  `req.mut.trait-access`.
+- `req.mut.not-identity`: retired 2026-09-27. The requirement access
+  decision removed the `mut` key prefix. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.compare`: retired 2026-09-27. The requirement access decision
+  removed the `mut` key prefix. Replaced by `req.mut.row.no-access-rules`.
+- `req.mut.install`: retired 2026-09-27. The requirement access decision
+  removed `mut K=expression` bindings. Replaced by
+  `req.mut.install-mutable`.
+- `req.mut.install.type`: retired 2026-09-27. The requirement access
+  decision ties the mutable install to the trait. Replaced by
+  `req.mut.install-mutable`.
+- `req.mut.install.readonly`: retired 2026-09-27. The requirement access
+  decision ties installed access to the trait. Replaced by
+  `req.mut.install-readonly-trait`.
+- `req.mut.install.replace`: retired 2026-09-27. The requirement access
+  decision left no per-binding access to replace. No replacement.
+- `req.mut.use`: retired 2026-09-27. The requirement access decision removed
+  `$.use(mut K)`. Replaced by `req.mut.use-mutable`.
+- `req.mut.use.readonly`: retired 2026-09-27. The requirement access
+  decision ties retrieved access to the trait. Replaced by
+  `req.mut.use-readonly-trait`.
+- `req.mut.use.upgrade`: retired 2026-09-27. The requirement access decision
+  left no readonly provider of a mutable trait. No replacement.
+- `req.mut.row.entry`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. Replaced by `req.mut.row.plain`.
+- `req.mut.row.normalize`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. Replaced by `req.mut.row.plain`.
+- `req.mut.row.satisfy`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. Replaced by `req.mut.row.plain`.
+- `req.mut.row.upgrade`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. No replacement.
+- `req.mut.row.missing`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. No replacement.
+- `req.mut.row.inferred`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. No replacement.
+- `req.mut.row.trait`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. Replaced by `req.mut.row.plain`.
+- `req.mut.removal.normalized`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.removal.mut`: retired 2026-09-27. The requirement access decision
+  removed `mut` row entries. Replaced by `req.mut.row.no-access-rules`.
+- `req.mut.removal.readonly`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.removal.keeps-mut`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.removal.not-removed`: retired 2026-09-27. The requirement access
+  decision removed `mut` row entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.context.row`: retired 2026-09-27. The requirement access decision
+  removed `mut` context entries. Replaced by `req.mut.row.no-access-rules`.
+- `req.mut.context.binding`: retired 2026-09-27. The requirement access
+  decision removed `mut` context entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.context.spread`: retired 2026-09-27. The requirement access
+  decision removed `mut` context entries. Replaced by
+  `req.mut.row.no-access-rules`.
+- `req.mut.entry.readonly`: retired 2026-09-27. The requirement access
+  decision removed profile mutable markings. Replaced by
+  `req.mut.entry.trait-access`.
+- `req.mut.entry.mutable`: retired 2026-09-27. The requirement access
+  decision removed profile mutable markings. Replaced by
+  `req.mut.entry.trait-access`.
+- `req.mut.entry.row`: retired 2026-09-27. The requirement access decision
+  removed `mut` entry-row keys. Replaced by `req.mut.no-spelling`.
+- `req.mut.entry.registered`: retired 2026-09-27. The requirement access
+  decision removed the access a contract declared. Replaced by
+  `req.mut.entry.registered-access`.
+- `req.mut.entry.other`: retired 2026-09-27. The requirement access decision
+  removed `mut` entry-row keys. Replaced by `req.mut.no-spelling`.
+- `req.mut.entry.plain`: retired 2026-09-27. The requirement access decision
+  derives provider access from the trait. Replaced by
+  `req.mut.entry.trait-access`.
+- `req.mut.capture`: retired 2026-09-27. The requirement access decision
+  derives captured access from the trait. Replaced by
+  `req.mut.capture-trait`.

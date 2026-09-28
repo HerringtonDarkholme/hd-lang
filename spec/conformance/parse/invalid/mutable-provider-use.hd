@@ -1,0 +1,5 @@
+# test: requirements / mutable providers / $.use takes no mut prefix
+# Spec 11 Mutable Providers: $.use(mut K) is an error.
+
+fn tick() -> void $ Counter:
+    $.use(mut Counter).bump()  # diagnostic: syntax-error

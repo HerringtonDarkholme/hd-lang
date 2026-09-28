@@ -1,8 +1,0 @@
-# fixture-runtime-profile: pending-gate
-# test: requirements / mutable providers / entry row requires mut for a host trait the profile binds readonly
-
-pub trait Gate:
-    fn wait!(self) -> void
-
-pub fn main!() -> void $ mut Gate:  # diagnostic: mutable-upgrade
-    $.use(Gate).wait!()

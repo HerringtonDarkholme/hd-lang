@@ -1,8 +1,9 @@
-# test: requirements / mutable providers / install readonly value as mut
+# test: requirements / mutable providers / install a readonly value for a mutable trait
+# Spec 11 Installing: a binding for a mutable requirement trait needs a mut value.
 
 pub fn main() -> void:
     counter := MemoryCounter { value: 0 }
-    $.with(mut Counter=counter):  # diagnostic: mutable-upgrade
+    $.with(Counter=counter):  # diagnostic: mutable-upgrade
         _ := $.use(Counter).count()
 
 trait Counter:

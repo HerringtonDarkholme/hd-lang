@@ -1,0 +1,6 @@
+# test: requirements / mutable providers / a provider binding takes no mut prefix
+# Spec 11 Mutable Providers: a binding mut K=expression is an error.
+
+fn run(counter: mut MemoryCounter) -> void:
+    $.with(mut Counter=counter):  # diagnostic: syntax-error
+        pass

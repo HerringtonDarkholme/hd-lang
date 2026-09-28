@@ -1,9 +1,0 @@
-# test: requirements / mutable providers / key syntax
-
-fn f[R](callback: fn() -> void $(R, mut Logger)) -> void $ R, mut Clock:
-    a, b := $.use(mut Clock, Logger)
-    $.with(mut Logger=a, Clock=b, ctx()...):
-        callback()
-
-fn ctx() -> $.Context[$(mut Clock, Logger)]:
-    $.context(mut Clock=make(), Logger=make())

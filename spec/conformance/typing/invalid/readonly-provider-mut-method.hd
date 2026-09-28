@@ -1,20 +1,10 @@
-# test: requirements / mutable providers / readonly use cannot call mut self
+# test: requirements / mutable providers / a readonly binding of a provider cannot call mut self
+# Spec 11 Retrieving: $.use(Counter) yields mut Counter, but a := binding exposes a readonly view.
 
-pub fn main() -> void:
-    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.with(Counter=counter):
-        $.use(Counter).bump()  # diagnostic: mutable-receiver-required
+fn tick() -> void $ Counter:
+    counter := $.use(Counter)
+    counter.bump()  # diagnostic: mutable-receiver-required
 
 trait Counter:
     fn count(self) -> i32
     fn bump(mut self) -> void
-
-data MemoryCounter:
-    value: i32
-
-impl Counter for MemoryCounter:
-    fn count(self) -> i32:
-        self.value
-
-    fn bump(mut self) -> void:
-        self.value = self.value + 1

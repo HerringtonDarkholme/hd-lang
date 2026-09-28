@@ -531,7 +531,7 @@ requirement_row = requirement_key
                 | "(", [ requirement_list ], ")"
                 ;
 requirement_list = requirement_key, { ",", requirement_key }, [ "," ] ;
-requirement_key = [ "mut" ], trait_type ;
+requirement_key = trait_type ;
 ```
 
 ### Requirement Clauses
@@ -541,7 +541,7 @@ requirement_key = [ "mut" ], trait_type ;
 3. r[grammar.type.row.parenthesized] Several keys are parenthesized, as in `fn(UserId) -> User $(Db, Cache)`, and `$()` is the empty row.
 4. r[grammar.type.row.header-bare] Only a `header_requirement_clause` may list several keys bare.
 5. r[grammar.type.row.header-position] A `header_requirement_clause` ends a declaration or closure header, or a bodyless trait method, as in `fn load(id: UserId) -> User $ Db, Cache:`.
-6. r[grammar.type.row.mut-key] A `mut` key keeps its prefix inside a list: `$(R, mut Logger)`.
+6. r[grammar.type.row.no-mut-key] A requirement key has no `mut` prefix, so `$(R, mut Logger)` is an error. Error: `syntax-error`.
 7. r[grammar.type.row.in-type] Every row inside a type uses the parenthesized form for several keys.
 8. r[grammar.type.row.in-type.positions] The parenthesized form covers parameter and field types, type arguments, tuple types, a result with its own row, and `$.Context[...]`.
 9. r[grammar.type.row.in-type.comma] A bare comma after a key inside a type separates the enclosing list instead, so `fn f(cb: fn() -> i32 $ A, B) -> i32:` is an error. Error: `syntax-error`.

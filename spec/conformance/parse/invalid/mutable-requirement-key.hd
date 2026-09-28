@@ -1,0 +1,8 @@
+# test: requirements / mutable providers / a row key has no mut prefix
+# Spec 11 Mutable Providers: requirement syntax never writes mut.
+
+trait Counter:
+    fn bump(mut self) -> void
+
+fn tick() -> void $ mut Counter:  # diagnostic: syntax-error
+    $.use(Counter).bump()

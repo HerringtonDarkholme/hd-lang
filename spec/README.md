@@ -176,6 +176,7 @@ links to the rule that defines the term.
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it. See [Member Lines](14-annotations.md#member-lines). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
+| **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
@@ -860,3 +861,15 @@ existing source. Each entry names the decision that made the change.
   in a library, is now `orphan-impl` in every package, and the code
   `orphan-annotation-in-library` was removed. A foreign target is annotated or
   derived through a local mirror type or a newtype.
+- Requirement access from the trait (owner decision, 2026-09-27): a
+  requirement trait that declares or inherits a `mut self` method is a
+  mutable requirement trait, and its provider always has mutable access;
+  every other provider is readonly. `$.use(K)` yields `mut K` for such a
+  trait, and a `$.with` or `$.context` binding for it needs a `mut T`
+  value, otherwise `mutable-upgrade`. The `mut` spellings `$ mut K`,
+  `$.use(mut K)`, and `mut K=expression`, previously valid, are now
+  `syntax-error`, and runtime profiles and registration contracts no longer
+  mark traits mutable. This supersedes standard-library decision 14
+  above. Calling a `mut self` method on `$.use(K)`, previously
+  `mutable-receiver-required` without `mut`, is valid for a mutable
+  requirement trait.

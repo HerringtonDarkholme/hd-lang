@@ -500,9 +500,8 @@ pub fn main() -> void:
 2. r[module.entry.result] It returns `void` or `Result[void, E]` with `E < Display`.
 3. r[module.entry.row] It may declare a requirement row.
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
-5. r[module.entry.row.mut] A key written `mut K` also requires the profile to mark `K` mutable. Otherwise the key is an error. Error: `mutable-upgrade`.
-6. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
-7. r[module.entry.suspending] A suspending entry point is spelled `main!`.
+5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
+6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
@@ -575,11 +574,10 @@ values that cross a boundary, and the official host boundary.
 ### Runtime Profiles
 
 1. r[module.profile.definition] A **runtime profile** is a named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses.
-2. r[module.profile.access] For each trait, the profile also fixes the access with which it binds the host provider. That access is readonly, or mutable when the profile marks the trait mutable.
-3. r[module.profile.mut-key] An entry-point row may contain `mut K` only for a trait `K` the profile marks mutable.
-4. r[module.profile.build] The compiler receives the selected profile as build configuration.
-5. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
-6. r[module.profile.other] Another profile may add or omit host traits explicitly.
+2. r[module.profile.trait-access] The profile binds each host provider with the access its trait gives: mutable when the trait has a `mut self` method, readonly otherwise.
+3. r[module.profile.build] The compiler receives the selected profile as build configuration.
+4. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
+5. r[module.profile.other] Another profile may add or omit host traits explicitly.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
@@ -588,7 +586,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 1. r[module.register.pub] `pub` is module visibility, not Wasm export registration.
 2. r[module.register.explicit] A tool, workflow, or other host-callable function becomes visible only through explicit registration provided by its library or annotation facet.
 3. r[module.register.entry] Every registered boundary function is an entry point for provider checking.
-4. r[module.register.contract] Its registration contract selects a runtime profile and declares which requirement traits that profile can bind, and with which access.
+4. r[module.register.contract-traits] Its registration contract selects a runtime profile and declares which requirement traits that profile can bind.
 5. r[module.register.application] That bindable set may include application traits such as `Database` when the adapter explicitly supports them.
 6. r[module.register.row] Every key in the registered function's row must be in that bindable set, and the host must bind all of them before invocation.
 7. r[module.register.failure] Otherwise registration or startup fails before user code executes.
