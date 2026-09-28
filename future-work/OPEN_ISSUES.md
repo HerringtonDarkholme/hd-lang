@@ -367,6 +367,18 @@ pub fn main() -> ExitCode:
     ExitCode(2)
 ```
 
+### Literal Suffixes
+
+**Problem.** Whether `5s`, `250ms`, or `12px` are literals, and how a suffix
+is declared and found. The test `timeout` option waits on it
+([Testing](TESTING.md#owner-decisions)).
+
+**Options.** No suffixes, a fixed standard table, imported suffix
+functions, or lookup on the expected type, compared in
+[Literal Suffixes](LITERAL_SUFFIXES.md#questions-for-the-owner).
+
+**Unblocks.** `timeout=5s` in tests, and unit literals in libraries.
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:

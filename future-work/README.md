@@ -72,6 +72,8 @@ language specification:
   references (`AnyRef`) and surveys other languages. The owner kept every
   enum `AnyRef` with identity, made enum values immutable, and turned shared
   constructor data into per-variant constants; the decisions are applied.
+- [Literal Suffixes](LITERAL_SUFFIXES.md) surveys unit literals such as
+  `5s` and `12px` and compares four designs, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
