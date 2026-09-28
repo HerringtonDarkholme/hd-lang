@@ -26,11 +26,12 @@ impl Pick[string] for Money:
     fn pick(self) -> string:
         "money"
 
-test "argument and expected types select the instantiation":
-    price := Money { cents: 10 }
-    assert_equal(price.combine(5).cents, 15, reason="i32 argument selects Combine[i32]")
-    assert_equal(price.combine(Money { cents: 3 }).cents, 30, reason="Money argument selects Combine[Money]")
-    let count: i32 = price.pick()
-    let label: string = price.pick()
-    assert_equal(count, 10, reason="expected i32 selects Pick[i32]")
-    assert_equal(label, "money", reason="expected string selects Pick[string]")
+tests:
+    it("argument and expected types select the instantiation"):
+        price := Money { cents: 10 }
+        assert_equal(price.combine(5).cents, 15, reason="i32 argument selects Combine[i32]")
+        assert_equal(price.combine(Money { cents: 3 }).cents, 30, reason="Money argument selects Combine[Money]")
+        let count: i32 = price.pick()
+        let label: string = price.pick()
+        assert_equal(count, 10, reason="expected i32 selects Pick[i32]")
+        assert_equal(label, "money", reason="expected string selects Pick[string]")

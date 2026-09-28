@@ -24,11 +24,12 @@ impl Labeled for User:
 fn make[T < Factory]() -> T:
     T::create()
 
-test "a type finds a trait associated function":
-    assert_equal(User::create().name, "made", reason="trait function through the type")
+tests:
+    it("a type finds a trait associated function"):
+        assert_equal(User::create().name, "made", reason="trait function through the type")
 
-test "an inherent associated function wins over a trait one":
-    assert_equal(User::label(), "inherent", reason="inherent first")
+    it("an inherent associated function wins over a trait one"):
+        assert_equal(User::label(), "inherent", reason="inherent first")
 
-test "a type parameter calls through its bound":
-    assert_equal(make[User]().name, "made", reason="bound evidence supplies create")
+    it("a type parameter calls through its bound"):
+        assert_equal(make[User]().name, "made", reason="bound evidence supplies create")

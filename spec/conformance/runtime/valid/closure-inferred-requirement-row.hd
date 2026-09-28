@@ -8,12 +8,13 @@ fn run() -> i32 $ Clock:
         42
     reader()
 
-test "run returns 42 with its providers":
-    $.with(Clock=FixedClock {}):
-        assert_equal(run(), 42, reason="closures / requirement inference / inferred row")
-
 trait Clock
 
 data FixedClock: pass
 
 impl Clock for FixedClock
+
+tests:
+    it("run returns 42 with its providers"):
+        $.with(Clock=FixedClock {}):
+            assert_equal(run(), 42, reason="closures / requirement inference / inferred row")

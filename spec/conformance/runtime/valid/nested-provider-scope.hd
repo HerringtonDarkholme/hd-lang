@@ -8,10 +8,6 @@ fn run() -> i32 $ Clock, Backup:
         _ := $.use(Clock)
         42
 
-test "run returns 42 with its providers":
-    $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
-        assert_equal(run(), 42, reason="requirements / provider scopes")
-
 trait Clock
 
 data FixedClock: pass
@@ -27,3 +23,8 @@ impl Clock for FixedBackup
 
 impl Backup for FixedBackup:
     fn label(self) -> i32: 0
+
+tests:
+    it("run returns 42 with its providers"):
+        $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
+            assert_equal(run(), 42, reason="requirements / provider scopes")

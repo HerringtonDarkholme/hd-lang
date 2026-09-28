@@ -1,8 +1,10 @@
-# test: a test body whose Result error type lacks Display does not implement Termination
-# Spec 05 Propagation In Test Blocks: the body's inferred result must implement Termination.
+# test: an explicit test body closure whose Result error lacks Display does not implement Termination
+# Spec 05 Propagation In Test Blocks: an explicit closure body keeps its own result, which
+# must satisfy the Termination bound on `it`.
 data Hidden: pass
 
 fn hidden() -> Result[void, Hidden]:
     .Err(Hidden {})
 
-test "an error without Display": hidden()  # diagnostic: unsatisfied-trait-bound
+tests:
+    it("an error without Display", fn!() -> Result[void, Hidden]: hidden())  # diagnostic: unsatisfied-trait-bound

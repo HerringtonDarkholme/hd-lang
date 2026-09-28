@@ -7,12 +7,13 @@ fn invoke[R](callback: fn() -> i32 $(R, Logger)) -> i32 $ R, Logger:
 fn logged() -> i32 $ Logger: 42
 fn run() -> i32 $ Logger: invoke(logged)
 
-test "run returns 42 with its providers":
-    $.with(Logger=FixedLogger {}):
-        assert_equal(run(), 42, reason="requirements / row union")
-
 trait Logger
 
 data FixedLogger: pass
 
 impl Logger for FixedLogger
+
+tests:
+    it("run returns 42 with its providers"):
+        $.with(Logger=FixedLogger {}):
+            assert_equal(run(), 42, reason="requirements / row union")

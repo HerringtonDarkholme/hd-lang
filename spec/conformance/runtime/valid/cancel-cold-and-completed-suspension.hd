@@ -11,18 +11,19 @@ fn work!(log: mut Log) -> i32:
     log.text = log.text + "body;"
     7
 
-test "cancelling a cold suspension runs neither body nor cleanup":
-    let log: mut Log = Log { text: "" }
-    let pending: mut Suspend[i32] = work(log)
-    pending.cancel()
-    pending.cancel()
-    assert_equal(log.text, "", reason="no registered suites exist before the first poll")
+tests:
+    it("cancelling a cold suspension runs neither body nor cleanup"):
+        let log: mut Log = Log { text: "" }
+        let pending: mut Suspend[i32] = work(log)
+        pending.cancel()
+        pending.cancel()
+        assert_equal(log.text, "", reason="no registered suites exist before the first poll")
 
-test "cancelling a completed suspension has no further effect":
-    let log: mut Log = Log { text: "" }
-    let pending: mut Suspend[i32] = work(log)
-    result := pending!()
-    pending.cancel()
-    pending.cancel()
-    assert_equal(result, 7, reason="completion value")
-    assert_equal(log.text, "body;cleanup;", reason="cleanup ran once, at completion")
+    it("cancelling a completed suspension has no further effect"):
+        let log: mut Log = Log { text: "" }
+        let pending: mut Suspend[i32] = work(log)
+        result := pending!()
+        pending.cancel()
+        pending.cancel()
+        assert_equal(result, 7, reason="completion value")
+        assert_equal(log.text, "body;cleanup;", reason="cleanup ran once, at completion")

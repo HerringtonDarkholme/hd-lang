@@ -23,10 +23,11 @@ impl Combine[f64] for Money:
     fn combine(self, other: f64) -> string:
         "f64"
 
-test "integer literals prefer i32 and float literals prefer f64":
-    price := Money { cents: 10 }
-    let wide: i64 = 5
-    assert_equal(price.combine(5), "i32", reason="an integer literal defaults to i32")
-    assert_equal(price.combine(-5), "i32", reason="a negated integer literal defaults to i32")
-    assert_equal(price.combine(2.5), "f64", reason="a float literal defaults to f64")
-    assert_equal(price.combine(wide), "i64", reason="a typed argument still selects exactly")
+tests:
+    it("integer literals prefer i32 and float literals prefer f64"):
+        price := Money { cents: 10 }
+        let wide: i64 = 5
+        assert_equal(price.combine(5), "i32", reason="an integer literal defaults to i32")
+        assert_equal(price.combine(-5), "i32", reason="a negated integer literal defaults to i32")
+        assert_equal(price.combine(2.5), "f64", reason="a float literal defaults to f64")
+        assert_equal(price.combine(wide), "i64", reason="a typed argument still selects exactly")

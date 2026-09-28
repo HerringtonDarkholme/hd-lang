@@ -11,5 +11,6 @@ fn main!() -> i32:
     right_value := right!(20)
     base + left_value + middle + right_value
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="sequential suspending calls")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="sequential suspending calls")

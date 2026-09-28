@@ -11,5 +11,6 @@ fn ordered(choice: Choice) -> i32:
 
 fn main() -> i32: ordered(Choice.Pair(50, 8))
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="named enum payload patterns resolve bindings by field name")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="named enum payload patterns resolve bindings by field name")

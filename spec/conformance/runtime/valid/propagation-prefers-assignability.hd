@@ -28,8 +28,9 @@ fn code(result: Result[i32, Failure]) -> i32:
         .Ok(value) => value
         .Err(failure) => failure_code(failure)
 
-test "the identical error type propagates unchanged":
-    assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
+tests:
+    it("the identical error type propagates unchanged"):
+        assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
 
-test "a direct call still uses the implementation":
-    assert_equal(code(.Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")
+    it("a direct call still uses the implementation"):
+        assert_equal(code(.Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")

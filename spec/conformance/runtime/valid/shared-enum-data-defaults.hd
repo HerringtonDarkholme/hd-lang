@@ -16,5 +16,6 @@ fn main() -> i32:
     status := Status.Unknown
     status.doubled + read_tagged(Tagged.Value(21))
 
-test "main returns 84":
-    assert_equal(main(), 84, reason="shared enum data uses per-variant factories and pure ordered defaults")
+tests:
+    it("main returns 84"):
+        assert_equal(main(), 84, reason="shared enum data uses per-variant factories and pure ordered defaults")

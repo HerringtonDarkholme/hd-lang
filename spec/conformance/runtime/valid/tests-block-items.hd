@@ -1,0 +1,16 @@
+# test: a tests block holds helpers and it calls that see the module's private names
+# Spec 02 Test Blocks and 03 Tests Blocks: the block's items are module items visible
+# only inside it, and code inside sees every module name.
+use std.testing.assert_equal
+
+fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+tests:
+    fn overdue() -> i32: 31
+
+    it("charges a fee after 30 days"):
+        assert_equal(late_fee(overdue()), 5, reason="one day late")
+
+    it("charges nothing on time"):
+        assert_equal(late_fee(30), 0, reason="thirty days is on time")

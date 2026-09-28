@@ -9,5 +9,6 @@ fn main() -> i32:
     increment := fn(value: i32) -> i32: value + 1
     apply(41, increment)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="closure as function argument")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="closure as function argument")

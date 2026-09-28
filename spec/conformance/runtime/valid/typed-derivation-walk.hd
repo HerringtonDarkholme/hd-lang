@@ -109,18 +109,19 @@ impl Encode for Order by Structure:
     total_cents = [rename("total")]
     cache = pass
 
-test "walk passes each member in declaration order with its facts":
-    user := User { id: 7, email: "ada@x" }
-    assert_equal(user.encode(), "user_id=7;mail='ada@x';user_nickname='';", reason="type-level and member facts")
+tests:
+    it("walk passes each member in declaration order with its facts"):
+        user := User { id: 7, email: "ada@x" }
+        assert_equal(user.encode(), "user_id=7;mail='ada@x';user_nickname='';", reason="type-level and member facts")
 
-test "an enum walk enters only the value's variant":
-    assert_equal(Reply.Raw("hi").encode(), "kind=Raw;_0='hi';", reason="an unnamed payload member is _0")
-    assert_equal(Reply.Busy.encode(), "kind=Busy;", reason="a payload-free variant has no members")
+    it("an enum walk enters only the value's variant"):
+        assert_equal(Reply.Raw("hi").encode(), "kind=Raw;_0='hi';", reason="an unnamed payload member is _0")
+        assert_equal(Reply.Busy.encode(), "kind=Busy;", reason="a payload-free variant has no members")
 
-test "member lines are local to their block":
-    order := Order { id: 1, total_cents: 1250 }
-    assert_equal(order.encode(), "order_id=1;total=1250;", reason="Self += and a replaced fact; cache omitted")
+    it("member lines are local to their block"):
+        order := Order { id: 1, total_cents: 1250 }
+        assert_equal(order.encode(), "order_id=1;total=1250;", reason="Self += and a replaced fact; cache omitted")
 
-test "describe visits every variant in order":
-    assert_equal(User::keys(), ["user_id", "mail", "user_nickname"], reason="one data variant")
-    assert_equal(Reply::keys(), ["id", "_0"], reason="every variant's members")
+    it("describe visits every variant in order"):
+        assert_equal(User::keys(), ["user_id", "mail", "user_nickname"], reason="one data variant")
+        assert_equal(Reply::keys(), ["id", "_0"], reason="every variant's members")

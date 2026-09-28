@@ -15,8 +15,9 @@ fn is_owner_list(value: Inspectable) -> bool:
         .Some(_) => true
         .None => false
 
-test "List[T] with T = mut User records List[mut User]":
-    let owners: List[mut User] = [User { name: "Ada" }]
-    assert(is_owner_list(erase_list(owners)), reason="the instantiation keeps the inner mut")
-    let readers: List[User] = [User { name: "Ada" }]
-    assert(!is_owner_list(erase_list(readers)), reason="T = User records List[User]")
+tests:
+    it("List[T] with T = mut User records List[mut User]"):
+        let owners: List[mut User] = [User { name: "Ada" }]
+        assert(is_owner_list(erase_list(owners)), reason="the instantiation keeps the inner mut")
+        let readers: List[User] = [User { name: "Ada" }]
+        assert(!is_owner_list(erase_list(readers)), reason="T = User records List[User]")

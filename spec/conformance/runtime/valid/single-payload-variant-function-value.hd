@@ -36,23 +36,24 @@ fn label(result: Result[string, SyncError]) -> string:
         .Ok(text) => text
         .Err(error) => sync_label(error)
 
-test "a constructor passed to a higher-order function":
-    assert_equal(label(load("a.txt")), "fs: a.txt", reason="map_err applies SyncError.Fs")
-
-test "a constructor bound to a local and called":
-    let wrap: fn(FsError) -> SyncError = SyncError.Fs
-    assert_equal(label(.Err(wrap(FsError.NotFound("b.txt")))), "fs: b.txt", reason="calling the value constructs the variant")
-
-test "a payload of a primitive type":
-    make := FsError.NotFound
-    assert_equal(label(.Err(SyncError.Fs(make("c.txt")))), "fs: c.txt", reason="FsError.NotFound has type fn(string) -> FsError")
-
 fn wrap_all(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
     [for error in errors => wrap(error)]
 
-test "a constructor applied inside a comprehension":
-    wrapped := wrap_all([FsError.NotFound("a.txt"), FsError.NotFound("b.txt")], SyncError.Fs)
-    retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
-    assert_equal(wrapped.len(), 2, reason="one wrapped error per input")
-    assert_equal(label(.Err(wrapped[1])), "fs: b.txt", reason="elements keep their order")
-    assert_equal(label(.Err(retry(FsError.NotFound("c.txt")))), "retry 1", reason="a closure adapts a two-payload constructor")
+tests:
+    it("a constructor passed to a higher-order function"):
+        assert_equal(label(load("a.txt")), "fs: a.txt", reason="map_err applies SyncError.Fs")
+
+    it("a constructor bound to a local and called"):
+        let wrap: fn(FsError) -> SyncError = SyncError.Fs
+        assert_equal(label(.Err(wrap(FsError.NotFound("b.txt")))), "fs: b.txt", reason="calling the value constructs the variant")
+
+    it("a payload of a primitive type"):
+        make := FsError.NotFound
+        assert_equal(label(.Err(SyncError.Fs(make("c.txt")))), "fs: c.txt", reason="FsError.NotFound has type fn(string) -> FsError")
+
+    it("a constructor applied inside a comprehension"):
+        wrapped := wrap_all([FsError.NotFound("a.txt"), FsError.NotFound("b.txt")], SyncError.Fs)
+        retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
+        assert_equal(wrapped.len(), 2, reason="one wrapped error per input")
+        assert_equal(label(.Err(wrapped[1])), "fs: b.txt", reason="elements keep their order")
+        assert_equal(label(.Err(retry(FsError.NotFound("c.txt")))), "retry 1", reason="a closure adapts a two-payload constructor")

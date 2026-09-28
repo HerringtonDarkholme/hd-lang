@@ -12,5 +12,6 @@ fn main() -> i32:
     point := Point { y: 22, x: 20 }
     sum(point)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="data fields named in any order")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="data fields named in any order")

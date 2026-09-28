@@ -8,10 +8,11 @@ fn ready!() -> i32:
 fn forward![T](task: mut Suspend[T]) -> T:
     task!()
 
-test "stored suspension result survives parameter passing":
-    let pending: mut Suspend[i32] = ready()
-    assert_equal(
-        forward!(pending),
-        42,
-        reason="a stored suspension passed as a parameter keeps its frame and result",
-    )
+tests:
+    it("stored suspension result survives parameter passing"):
+        let pending: mut Suspend[i32] = ready()
+        assert_equal(
+            forward!(pending),
+            42,
+            reason="a stored suspension passed as a parameter keeps its frame and result",
+        )

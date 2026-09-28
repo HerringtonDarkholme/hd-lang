@@ -8,5 +8,6 @@ fn main() -> i32:
         value = value + 10
     return value
 
-test "main returns 1":
-    assert_equal(main(), 1, reason="defer runs after a return value is evaluated")
+tests:
+    it("main returns 1"):
+        assert_equal(main(), 1, reason="defer runs after a return value is evaluated")

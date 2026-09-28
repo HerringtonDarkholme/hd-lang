@@ -18,7 +18,8 @@ impl Page:
     pub fn kind(self) -> string:
         "page"
 
-test "no overriding through embedding":
-    page := Page { Base: ...Base { name: "home" } }
-    assert_equal(page.kind(), "page", reason="own inherent method")
-    assert_equal(page.describe(), "base home", reason="Base.describe calls Base.kind")
+tests:
+    it("no overriding through embedding"):
+        page := Page { Base: ...Base { name: "home" } }
+        assert_equal(page.kind(), "page", reason="own inherent method")
+        assert_equal(page.describe(), "base home", reason="Base.describe calls Base.kind")

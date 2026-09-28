@@ -34,11 +34,12 @@ impl Convert[i32] for IntConverter:
 fn converted_value() -> i32:
     IntConverter::convert(42)
 
-test "guest_length returns 5":
-    assert_equal(guest_length(), 5, reason="trait associated functions use implementing type qualification")
+tests:
+    it("guest_length returns 5"):
+        assert_equal(guest_length(), 5, reason="trait associated functions use implementing type qualification")
 
-test "default_value returns 42":
-    assert_equal(default_value(), 42, reason="trait associated functions use implementing type qualification")
+    it("default_value returns 42"):
+        assert_equal(default_value(), 42, reason="trait associated functions use implementing type qualification")
 
-test "converted_value returns 42":
-    assert_equal(converted_value(), 42, reason="trait associated functions use implementing type qualification")
+    it("converted_value returns 42"):
+        assert_equal(converted_value(), 42, reason="trait associated functions use implementing type qualification")

@@ -10,5 +10,6 @@ fn main() -> void:
 fn answer() -> i32:
     42
 
-test "the module's test block runs":
-    assert_equal(answer(), 42, reason="ordinary function call")
+tests:
+    it("the module's test block runs"):
+        assert_equal(answer(), 42, reason="ordinary function call")

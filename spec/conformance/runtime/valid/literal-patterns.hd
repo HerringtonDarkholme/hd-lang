@@ -25,5 +25,6 @@ fn text(value: string) -> i32:
 
 fn main() -> i32: integer(42) + floating(-1.5) + character('😀') + text("hd") + integer(0)
 
-test "main returns 32":
-    assert_equal(main(), 32, reason="literal patterns")
+tests:
+    it("main returns 32"):
+        assert_equal(main(), 32, reason="literal patterns")

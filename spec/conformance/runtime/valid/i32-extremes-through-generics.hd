@@ -10,19 +10,20 @@ fn first[T](values: List[T]) -> T?:
         return value
     .None
 
-test "extremes round-trip through erased positions":
-    let maximum: i32 = 2147483647
-    let minimum: i32 = -2147483648
-    assert_equal(pass_through(maximum), 2147483647, reason="max through a generic")
-    assert_equal(pass_through(minimum), -2147483648, reason="min through a generic")
-    values := [minimum, maximum]
-    assert_equal(values[0], minimum, reason="list element")
-    let expected_min: i32? = minimum
-    assert_equal(first(values), expected_min, reason="generic optional result")
-    lookup := {"max": maximum}
-    let expected_max: i32? = maximum
-    assert_equal(lookup["max"], expected_max, reason="map value")
-    assert(pass_through(minimum) < pass_through(maximum), reason="ordering after erasure")
-    assert_equal("${pass_through(minimum)}", "-2147483648", reason="Display after erasure")
-    assert_equal(pass_through(minimum) % -1, 0, reason="MIN % -1 is zero")
-    assert_equal(pass_through(maximum) - maximum, 0, reason="subtraction stays in range")
+tests:
+    it("extremes round-trip through erased positions"):
+        let maximum: i32 = 2147483647
+        let minimum: i32 = -2147483648
+        assert_equal(pass_through(maximum), 2147483647, reason="max through a generic")
+        assert_equal(pass_through(minimum), -2147483648, reason="min through a generic")
+        values := [minimum, maximum]
+        assert_equal(values[0], minimum, reason="list element")
+        let expected_min: i32? = minimum
+        assert_equal(first(values), expected_min, reason="generic optional result")
+        lookup := {"max": maximum}
+        let expected_max: i32? = maximum
+        assert_equal(lookup["max"], expected_max, reason="map value")
+        assert(pass_through(minimum) < pass_through(maximum), reason="ordering after erasure")
+        assert_equal("${pass_through(minimum)}", "-2147483648", reason="Display after erasure")
+        assert_equal(pass_through(minimum) % -1, 0, reason="MIN % -1 is zero")
+        assert_equal(pass_through(maximum) - maximum, 0, reason="subtraction stays in range")

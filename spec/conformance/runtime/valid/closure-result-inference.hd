@@ -10,5 +10,6 @@ fn main() -> i32:
         0
     identity(40) + choose(2)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="nonrecursive closures infer result types from fallthrough and returns")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="nonrecursive closures infer result types from fallthrough and returns")

@@ -20,11 +20,12 @@ fn empty_input() -> i32:
     if "".split("").len() == 0: 1
     else: 0
 
-test "separated returns 1":
-    assert_equal(separated(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+tests:
+    it("separated returns 1"):
+        assert_equal(separated(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
 
-test "scalars returns 1":
-    assert_equal(scalars(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+    it("scalars returns 1"):
+        assert_equal(scalars(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
 
-test "empty_input returns 1":
-    assert_equal(empty_input(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+    it("empty_input returns 1"):
+        assert_equal(empty_input(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")

@@ -10,5 +10,6 @@ fn main() -> i32:
     message := "A" + "界"
     status._0 + message.len()
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="strings concatenate and unnamed enum fields use underscore selectors")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="strings concatenate and unnamed enum fields use underscore selectors")

@@ -9,5 +9,6 @@ fn main!() -> i32:
     value := child!()
     value
 
-test "main returns 2":
-    assert_equal(main!(), 2, reason="suspending call with defer")
+tests:
+    it("main returns 2"):
+        assert_equal(main!(), 2, reason="suspending call with defer")

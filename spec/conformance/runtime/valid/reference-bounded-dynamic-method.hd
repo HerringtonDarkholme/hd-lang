@@ -30,12 +30,13 @@ fn through_visitor(visitor: Visitor, user: User) -> string:
 fn through_labeler(labeler: Labeler, user: User) -> string:
     labeler.label(user)
 
-test "an AnyRef-bounded method generic is callable through a trait value":
-    tagger := Tagger { tag: "tag:" }
-    user := User { name: "Ada" }
-    assert_equal(through_visitor(tagger, user), "tag:", reason="the Visitor value dispatches to the Tagger method")
+tests:
+    it("an AnyRef-bounded method generic is callable through a trait value"):
+        tagger := Tagger { tag: "tag:" }
+        user := User { name: "Ada" }
+        assert_equal(through_visitor(tagger, user), "tag:", reason="the Visitor value dispatches to the Tagger method")
 
-test "further bounds on an AnyRef-bounded method generic are supplied per call":
-    tagger := Tagger { tag: "tag:" }
-    user := User { name: "Ada" }
-    assert_equal(through_labeler(tagger, user), "tag:Ada", reason="the Display bound reaches the dynamic call")
+    it("further bounds on an AnyRef-bounded method generic are supplied per call"):
+        tagger := Tagger { tag: "tag:" }
+        user := User { name: "Ada" }
+        assert_equal(through_labeler(tagger, user), "tag:Ada", reason="the Display bound reaches the dynamic call")

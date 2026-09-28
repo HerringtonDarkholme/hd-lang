@@ -1,0 +1,7 @@
+# test: every top-level statement of a tests block must be an it call
+# Spec 10 Test Cases: a binding at the top level of a tests block is invalid-test-statement.
+tests:
+    let shared: i32 = 0  # diagnostic: invalid-test-statement
+
+    it("counts"):
+        pass

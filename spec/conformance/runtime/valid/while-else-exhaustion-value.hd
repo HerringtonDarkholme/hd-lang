@@ -11,5 +11,6 @@ fn main() -> i32:
         40
     value + index
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="while else exhaustion value")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="while else exhaustion value")

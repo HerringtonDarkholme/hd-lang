@@ -13,5 +13,6 @@ fn through_generic() -> i32:
         .Some(value) => pass_through(value)
         .None => 0
 
-test "i32 minimum survives a generic and an optional":
-    assert_equal(through_generic(), -2147483648, reason="minimum survives a generic round trip and an optional unwrap")
+tests:
+    it("i32 minimum survives a generic and an optional"):
+        assert_equal(through_generic(), -2147483648, reason="minimum survives a generic round trip and an optional unwrap")

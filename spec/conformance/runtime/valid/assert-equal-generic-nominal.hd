@@ -11,5 +11,6 @@ impl Eq for Point:
 fn expect_same[T < Eq](actual: T, expected: T) -> void:
     assert_equal(actual, expected, reason="the bound supplies Eq")
 
-test "a generic Eq value instantiated with a nominal type passes":
-    expect_same(Point { x: 1, y: 2 }, Point { x: 1, y: 2 })
+tests:
+    it("a generic Eq value instantiated with a nominal type passes"):
+        expect_same(Point { x: 1, y: 2 }, Point { x: 1, y: 2 })

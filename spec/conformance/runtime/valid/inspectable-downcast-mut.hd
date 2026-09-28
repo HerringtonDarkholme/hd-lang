@@ -14,11 +14,12 @@ fn bump(value: mut Inspectable) -> bool:
             true
         .None => false
 
-test "a mutable erased counter is bumped in place":
-    let counter: mut Counter = Counter { count: 1 }
-    assert_equal(bump(counter), true, reason="the exact type matches")
-    assert_equal(counter.count, 2, reason="the write reaches the original object")
+tests:
+    it("a mutable erased counter is bumped in place"):
+        let counter: mut Counter = Counter { count: 1 }
+        assert_equal(bump(counter), true, reason="the exact type matches")
+        assert_equal(counter.count, 2, reason="the write reaches the original object")
 
-test "another type is left alone":
-    let other: mut List[i32] = [1]
-    assert_equal(bump(other), false, reason="List[i32] is not a Counter")
+    it("another type is left alone"):
+        let other: mut List[i32] = [1]
+        assert_equal(bump(other), false, reason="List[i32] is not a Counter")

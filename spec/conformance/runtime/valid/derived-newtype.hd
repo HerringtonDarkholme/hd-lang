@@ -11,13 +11,14 @@ type Rank(i32)
 fn same(left: Mile, right: Mile) -> bool:
     left == right
 
-test "derived newtype equality compares base values":
-    assert_equal(same(Mile(1), Mile(1)), true, reason="equal base values")
-    assert_equal(same(Mile(1), Mile(2)), false, reason="different base values")
+tests:
+    it("derived newtype equality compares base values"):
+        assert_equal(same(Mile(1), Mile(1)), true, reason="equal base values")
+        assert_equal(same(Mile(1), Mile(2)), false, reason="different base values")
 
-test "a derived newtype can be a map key":
-    distances := {Mile(5): "short"}
-    assert_equal(distances[Mile(5)], .Some("short"), reason="lookup by an equal key")
+    it("a derived newtype can be a map key"):
+        distances := {Mile(5): "short"}
+        assert_equal(distances[Mile(5)], .Some("short"), reason="lookup by an equal key")
 
-test "derived newtype ordering follows the base type":
-    assert_equal(Rank(1) < Rank(2), true, reason="ordered by base value")
+    it("derived newtype ordering follows the base type"):
+        assert_equal(Rank(1) < Rank(2), true, reason="ordered by base value")

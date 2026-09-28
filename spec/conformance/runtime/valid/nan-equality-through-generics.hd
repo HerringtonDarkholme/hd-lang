@@ -8,22 +8,23 @@ fn same[T < Eq](left: T, right: T) -> bool:
 fn pass_through[T](value: T) -> T:
     value
 
-test "NaN is unequal to itself directly and through a bound":
-    nan := 0.0 / 0.0
-    assert(nan != nan, reason="IEEE equality")
-    assert(!(nan == nan), reason="== is false")
-    assert(!same(nan, nan), reason="boxed generic equality must not compare bits or identity")
-    assert(!same(pass_through(nan), pass_through(nan)), reason="erased round trip keeps IEEE equality")
+tests:
+    it("NaN is unequal to itself directly and through a bound"):
+        nan := 0.0 / 0.0
+        assert(nan != nan, reason="IEEE equality")
+        assert(!(nan == nan), reason="== is false")
+        assert(!same(nan, nan), reason="boxed generic equality must not compare bits or identity")
+        assert(!same(pass_through(nan), pass_through(nan)), reason="erased round trip keeps IEEE equality")
 
-test "NaN inside composites is unequal":
-    nan := 0.0 / 0.0
-    values := [nan]
-    assert(values != values, reason="list equality never falls back to identity")
-    assert([nan] != [nan], reason="element equality decides")
-    assert((nan, 1) != (nan, 1), reason="tuple fields compare with IEEE equality")
-    let present: f64? = nan
-    assert(present != present, reason="optional payload compares with IEEE equality")
-    assert({"k": nan} != {"k": nan}, reason="map values compare with IEEE equality")
-    let ok: Result[f64, string] = .Ok(nan)
-    assert(ok != ok, reason="Result payload compares with IEEE equality")
-    assert(!same(values, values), reason="generic list equality keeps IEEE element equality")
+    it("NaN inside composites is unequal"):
+        nan := 0.0 / 0.0
+        values := [nan]
+        assert(values != values, reason="list equality never falls back to identity")
+        assert([nan] != [nan], reason="element equality decides")
+        assert((nan, 1) != (nan, 1), reason="tuple fields compare with IEEE equality")
+        let present: f64? = nan
+        assert(present != present, reason="optional payload compares with IEEE equality")
+        assert({"k": nan} != {"k": nan}, reason="map values compare with IEEE equality")
+        let ok: Result[f64, string] = .Ok(nan)
+        assert(ok != ok, reason="Result payload compares with IEEE equality")
+        assert(!same(values, values), reason="generic list equality keeps IEEE element equality")

@@ -39,14 +39,15 @@ impl[T] Add[T] for Keep[T]:
 fn add_blanket() -> i32:
     20 + Add[i32]::add(Keep[i32] { value: 0 }, 22)
 
-test "add_qualified returns 42":
-    assert_equal(add_qualified(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+tests:
+    it("add_qualified returns 42"):
+        assert_equal(add_qualified(), 42, reason="generic trait-qualified calls select one instantiated implementation")
 
-test "add_dynamic returns 42":
-    assert_equal(add_dynamic(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+    it("add_dynamic returns 42"):
+        assert_equal(add_dynamic(), 42, reason="generic trait-qualified calls select one instantiated implementation")
 
-test "add_bounded returns 42":
-    assert_equal(add_bounded(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+    it("add_bounded returns 42"):
+        assert_equal(add_bounded(), 42, reason="generic trait-qualified calls select one instantiated implementation")
 
-test "add_blanket returns 42":
-    assert_equal(add_blanket(), 42, reason="generic trait-qualified calls select one instantiated implementation")
+    it("add_blanket returns 42"):
+        assert_equal(add_blanket(), 42, reason="generic trait-qualified calls select one instantiated implementation")

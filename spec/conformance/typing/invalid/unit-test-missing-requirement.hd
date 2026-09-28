@@ -1,0 +1,22 @@
+# test: a unit test case gets no host providers
+# Spec 10 Test Outcomes: a requirement that no $.with scope supplies in a tests-block
+# test case is missing-requirement.
+trait Clock:
+    fn now(self) -> i32
+
+data FixedClock:
+    time: i32
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: self.time
+
+fn stamp() -> i32 $ Clock:
+    $.use(Clock).now()
+
+tests:
+    it("stamps with a fake clock"):
+        $.with(Clock=FixedClock { time: 7 }):
+            _ := stamp()
+
+    it("has no host clock"):
+        _ := stamp()  # diagnostic: missing-requirement

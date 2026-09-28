@@ -33,11 +33,12 @@ fn forwarded_score() -> i32:
     let points: List[Point] = [Point { value: 42 }]
     erase_scores(points).score()
 
-test "dynamic_score returns 42":
-    assert_equal(dynamic_score(), 42, reason="bounded blanket impl")
+tests:
+    it("dynamic_score returns 42"):
+        assert_equal(dynamic_score(), 42, reason="bounded blanket impl")
 
-test "bounded_score returns 42":
-    assert_equal(bounded_score(), 42, reason="bounded blanket impl")
+    it("bounded_score returns 42"):
+        assert_equal(bounded_score(), 42, reason="bounded blanket impl")
 
-test "forwarded_score returns 42":
-    assert_equal(forwarded_score(), 42, reason="bounded blanket impl")
+    it("forwarded_score returns 42"):
+        assert_equal(forwarded_score(), 42, reason="bounded blanket impl")

@@ -18,7 +18,8 @@ impl Describe for Page:
     fn describe(self) -> string:
         "page " + self.Base.name
 
-test "trait-qualified and path-qualified calls":
-    page := Page { Base: ...Base { name: "home" } }
-    assert_equal(Describe::describe(page), "page home", reason="trait-qualified call")
-    assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")
+tests:
+    it("trait-qualified and path-qualified calls"):
+        page := Page { Base: ...Base { name: "home" } }
+        assert_equal(Describe::describe(page), "page home", reason="trait-qualified call")
+        assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")

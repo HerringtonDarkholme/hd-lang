@@ -1,0 +1,10 @@
+# test: return inside a test body completes the body
+# Spec 06 Return: a test body is a trailing callback block, so return completes the
+# generated callback.
+use std.testing.assert
+
+tests:
+    it("returns early"):
+        if true:
+            return
+        assert(false, reason="the body returned before this line")

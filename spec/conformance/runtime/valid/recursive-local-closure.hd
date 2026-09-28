@@ -10,5 +10,6 @@ fn main() -> i32:
             value + sum(value - 1)
     sum(9) - 3
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="explicitly typed local closures recurse through their current environment")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="explicitly typed local closures recurse through their current environment")

@@ -24,5 +24,6 @@ fn main() -> i32:
     let result: Result[i32, Failure] = .Ok(2)
     inspect_optional(keep_optional(optional)) + inspect_result(keep_result(result))
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generics / option result")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generics / option result")

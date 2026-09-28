@@ -22,11 +22,12 @@ fn empty() -> i32:
     let values: Map[string, i32] = {}
     values.len()
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="collections / maps / lookup replacement")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="collections / maps / lookup replacement")
 
-test "scalar_keys returns 42":
-    assert_equal(scalar_keys(), 42, reason="collections / maps / lookup replacement")
+    it("scalar_keys returns 42"):
+        assert_equal(scalar_keys(), 42, reason="collections / maps / lookup replacement")
 
-test "empty returns 0":
-    assert_equal(empty(), 0, reason="collections / maps / lookup replacement")
+    it("empty returns 0"):
+        assert_equal(empty(), 0, reason="collections / maps / lookup replacement")

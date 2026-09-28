@@ -34,5 +34,6 @@ enum Shape:
     Circle(radius: i64)
     Square(side: i64)
 
-test "a walker that skips the holds check panics on another variant":
-    _ := Shape.Circle(1).same(Shape.Square(2))
+tests:
+    it("a walker that skips the holds check panics on another variant"):
+        _ := Shape.Circle(1).same(Shape.Square(2))

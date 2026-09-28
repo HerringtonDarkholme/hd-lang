@@ -3,7 +3,8 @@
 
 use std.testing.assert_equal
 
-test "an expected type types .None":
-    let values: List[i32?] = [1, .None]
-    assert_equal(values.len(), 2, reason="two elements")
-    assert_equal(values[1], .None, reason="the second element is absent")
+tests:
+    it("an expected type types .None"):
+        let values: List[i32?] = [1, .None]
+        assert_equal(values.len(), 2, reason="two elements")
+        assert_equal(values[1], .None, reason="the second element is absent")

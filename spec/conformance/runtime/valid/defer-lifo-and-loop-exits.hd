@@ -22,5 +22,6 @@ fn main() -> i32:
         break
     value
 
-test "main returns 1221":
-    assert_equal(main(), 1221, reason="defer is LIFO and runs on loop continue and break")
+tests:
+    it("main returns 1221"):
+        assert_equal(main(), 1221, reason="defer is LIFO and runs on loop continue and break")

@@ -13,10 +13,11 @@ fn continued(nested: ((i32, i32), i32)) -> i32:
         ._0
     value._1
 
-test "underscore members select tuple elements and shared parameters":
-    nested := ((1, 2), 3)
-    assert_equal(nested._0._1, 2, reason="nested selection")
-    assert_equal(nested._1, 3, reason="second element")
-    assert_equal(describe((7, "seven")), "7-seven", reason="interpolated elements")
-    assert_equal(continued(nested), 2, reason="leading-dot continuation")
-    assert_equal(StatusCode.NotFound._0, 404, reason="unnamed shared parameter")
+tests:
+    it("underscore members select tuple elements and shared parameters"):
+        nested := ((1, 2), 3)
+        assert_equal(nested._0._1, 2, reason="nested selection")
+        assert_equal(nested._1, 3, reason="second element")
+        assert_equal(describe((7, "seven")), "7-seven", reason="interpolated elements")
+        assert_equal(continued(nested), 2, reason="leading-dot continuation")
+        assert_equal(StatusCode.NotFound._0, 404, reason="unnamed shared parameter")

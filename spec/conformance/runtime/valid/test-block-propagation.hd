@@ -1,21 +1,30 @@
-# test: ? in a test block propagates by the ordinary rules to the block's inferred result
-# Spec 05 Propagation In Test Blocks: a test block counts as the nearest function, and its
-# result type is inferred like a closure's. Result[void, string] implements Termination,
-# so a string error needs no wrapper. A void body also passes.
+# test: ? in a trailing test body propagates into Result[void, Error]
+# Spec 05 Propagation In Test Blocks: a body that uses ? has the fixed result
+# Result[void, Error], so an error type that implements Error converts by the
+# ordinary rules. A body without ? is void.
+use std.error.Error
 use std.testing.assert_equal
 
-fn parse_digit(text: string) -> Result[i32, string]:
-    if text == "7": .Ok(7) else: .Err("not a digit: " + text)
+enum DigitError:
+    NotDigit(text: string)
 
-fn passed() -> Result[void, string]:
-    .Ok()
+impl Display for DigitError:
+    fn to_string(self) -> string:
+        match self:
+            DigitError.NotDigit(text) => "not a digit: " + text
 
-test "parses a digit":
-    digit := parse_digit("7")?
-    assert_equal(digit, 7, reason="the digit parses")
-    passed()
+impl Error for DigitError
 
-test "a void body passes":
-    match parse_digit("x"):
-        .Ok(_) => panic("x is not a digit")
-        .Err(message) => assert_equal(message, "not a digit: x", reason="the helper rejects x")
+fn parse_digit(text: string) -> Result[i32, DigitError]:
+    if text == "7": .Ok(7) else: .Err(DigitError.NotDigit(text))
+
+tests:
+    it("parses a digit"):
+        digit := parse_digit("7")?
+        assert_equal(digit, 7, reason="the digit parses")
+        .Ok()
+
+    it("a body without ? is void"):
+        match parse_digit("x"):
+            .Ok(_) => panic("x is not a digit")
+            .Err(error) => assert_equal(error.to_string(), "not a digit: x", reason="the helper rejects x")

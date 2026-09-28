@@ -1,0 +1,9 @@
+# test: a file may have at most one tests block
+# Spec 02 Test Blocks: a second tests block is duplicate-tests-block.
+tests:
+    it("first block"):
+        pass
+
+tests:  # diagnostic: duplicate-tests-block
+    it("second block"):
+        pass

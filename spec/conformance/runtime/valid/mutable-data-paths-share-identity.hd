@@ -23,5 +23,6 @@ fn main() -> i32:
     else:
         0
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="mutable data paths share identity")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="mutable data paths share identity")

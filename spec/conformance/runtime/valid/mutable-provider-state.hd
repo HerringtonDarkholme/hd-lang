@@ -13,13 +13,6 @@ fn keep() -> i32 $ Counter:
     counter.bump()
     counter.count()
 
-test "a mutable provider changes its own state":
-    let counter: mut MemoryCounter = MemoryCounter { value: 0 }
-    $.with(Counter=counter):
-        _ := tick()
-        assert_equal(keep(), 2, reason="both calls bump the installed provider")
-    assert_equal(counter.value, 2, reason="the provider is the caller's value")
-
 trait Counter:
     fn count(self) -> i32
     fn bump(mut self) -> void
@@ -33,3 +26,11 @@ impl Counter for MemoryCounter:
 
     fn bump(mut self) -> void:
         self.value = self.value + 1
+
+tests:
+    it("a mutable provider changes its own state"):
+        let counter: mut MemoryCounter = MemoryCounter { value: 0 }
+        $.with(Counter=counter):
+            _ := tick()
+            assert_equal(keep(), 2, reason="both calls bump the installed provider")
+        assert_equal(counter.value, 2, reason="the provider is the caller's value")

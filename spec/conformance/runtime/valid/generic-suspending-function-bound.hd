@@ -20,5 +20,6 @@ fn read![T < Score](value: T) -> i32:
 fn main!() -> i32:
     read!(Value { amount: 42 })
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="generic suspending function bound")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="generic suspending function bound")

@@ -1,0 +1,12 @@
+# test: a trailing test body is a suspending closure, so it may make bang calls
+# Spec 10 Test Cases and 07 Trailing Callback Blocks: the body parameter of it has an fn!
+# type, and the runner drives the body like main!.
+use std.testing.assert_equal
+
+fn load!(key: string) -> i32:
+    if key == "port": 8080 else: 0
+
+tests:
+    it("loads the port"):
+        port := load!("port")
+        assert_equal(port, 8080, reason="the suspending helper answers")

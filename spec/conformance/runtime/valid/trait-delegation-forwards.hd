@@ -29,10 +29,11 @@ impl Describe for Worker by Logger:
 fn show(value: Describe) -> string:
     value.headline()
 
-test "delegation forwards to the part":
-    service := Service { Logger: ...Logger { name: "api" }, port: 80 }
-    worker := Worker { Logger: ...Logger { name: "job" } }
-    assert_equal(service.describe(), "api", reason="generated required method")
-    assert_equal(service.headline(), "* api", reason="generated method forwards to the part's default")
-    assert_equal(worker.headline(), "worker * job", reason="the body replaces one method")
-    assert_equal(show(service), "* api", reason="dynamic trait value")
+tests:
+    it("delegation forwards to the part"):
+        service := Service { Logger: ...Logger { name: "api" }, port: 80 }
+        worker := Worker { Logger: ...Logger { name: "job" } }
+        assert_equal(service.describe(), "api", reason="generated required method")
+        assert_equal(service.headline(), "* api", reason="generated method forwards to the part's default")
+        assert_equal(worker.headline(), "worker * job", reason="the body replaces one method")
+        assert_equal(show(service), "* api", reason="dynamic trait value")

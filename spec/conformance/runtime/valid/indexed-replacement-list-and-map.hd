@@ -12,5 +12,6 @@ fn main() -> i32:
         .None => 0
     values[0] + score
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="mutable list and map roots support indexed replacement")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="mutable list and map roots support indexed replacement")

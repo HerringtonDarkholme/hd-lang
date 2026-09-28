@@ -18,8 +18,9 @@ fn sum(bag: Bag) -> i32:
 fn doubled(bag: Bag) -> List[i32]:
     [for value in bag => value * 2]
 
-test "a user Iterable drives loops and comprehensions":
-    bag := Bag { items: [1, 2, 3] }
-    assert_equal(sum(bag), 6, reason="each loop obtains a fresh iterator")
-    assert_equal(sum(bag), 6, reason="each loop obtains a fresh iterator")
-    assert_equal(doubled(bag).len(), 3, reason="a comprehension accepts an Iterable")
+tests:
+    it("a user Iterable drives loops and comprehensions"):
+        bag := Bag { items: [1, 2, 3] }
+        assert_equal(sum(bag), 6, reason="each loop obtains a fresh iterator")
+        assert_equal(sum(bag), 6, reason="each loop obtains a fresh iterator")
+        assert_equal(doubled(bag).len(), 3, reason="a comprehension accepts an Iterable")

@@ -24,6 +24,7 @@ fn failed_path(result: Result[string, TaskError[FsError]]) -> string:
         .Err(TaskError.Failed(FsError.NotFound(path))) => path
         .Err(TaskError.Cancelled) => "cancelled"
 
-test "the constructor's type argument comes from the call":
-    wrapped := wrap_error(read("a.txt"), TaskError.Failed)
-    assert(failed_path(wrapped) == "a.txt", reason="the error is wrapped in TaskError.Failed")
+tests:
+    it("the constructor's type argument comes from the call"):
+        wrapped := wrap_error(read("a.txt"), TaskError.Failed)
+        assert(failed_path(wrapped) == "a.txt", reason="the error is wrapped in TaskError.Failed")

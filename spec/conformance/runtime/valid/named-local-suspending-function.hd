@@ -22,9 +22,10 @@ fn drive_local!() -> i32:
     $.with(Increment=FixedIncrement {}):
         count!(2)
 
-test "a named local suspending function keeps its environment through recursion":
-    assert_equal(
-        drive_local!(),
-        42,
-        reason="the local frame must retain captures and its forwarded provider",
-    )
+tests:
+    it("a named local suspending function keeps its environment through recursion"):
+        assert_equal(
+            drive_local!(),
+            42,
+            reason="the local frame must retain captures and its forwarded provider",
+        )

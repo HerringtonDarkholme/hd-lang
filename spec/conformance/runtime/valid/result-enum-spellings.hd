@@ -31,11 +31,12 @@ fn finished(result: Result[void, string]) -> bool:
         .Err(_) => false
         _ => true
 
-test "contextual and qualified spellings build the same values":
-    assert_equal(contextual_ok(1), qualified_ok(1), reason=".Ok and Result.Ok agree")
-    assert_equal(contextual_err("x"), qualified_err("x"), reason=".Err and Result.Err agree")
-    assert_equal(describe(contextual_ok(2)), "ok 2", reason=".Ok matches a success")
-    assert_equal(describe(qualified_err("y")), "error y", reason="Result.Err matches a failure")
-    assert_equal(describe_qualified(qualified_ok(3)), "ok 3", reason="Result.Ok matches a success")
-    assert_equal(describe_qualified(contextual_err("z")), "error z", reason=".Err matches a failure")
-    assert_equal(finished(finish()), true, reason=".Ok() builds a void success")
+tests:
+    it("contextual and qualified spellings build the same values"):
+        assert_equal(contextual_ok(1), qualified_ok(1), reason=".Ok and Result.Ok agree")
+        assert_equal(contextual_err("x"), qualified_err("x"), reason=".Err and Result.Err agree")
+        assert_equal(describe(contextual_ok(2)), "ok 2", reason=".Ok matches a success")
+        assert_equal(describe(qualified_err("y")), "error y", reason="Result.Err matches a failure")
+        assert_equal(describe_qualified(qualified_ok(3)), "ok 3", reason="Result.Ok matches a success")
+        assert_equal(describe_qualified(contextual_err("z")), "error z", reason=".Err matches a failure")
+        assert_equal(finished(finish()), true, reason=".Ok() builds a void success")

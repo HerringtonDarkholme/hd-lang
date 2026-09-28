@@ -6,8 +6,9 @@ data User:
 fn same(view: List[User], owner: mut List[mut User]) -> bool:
     view is owner
 
-test "is compares a readonly view and a mutable alias by identity":
-    let users: mut List[mut User] = [User { name: "Ada" }]
-    let others: mut List[mut User] = [User { name: "Ada" }]
-    assert(same(users, users), reason="permissions do not affect identity")
-    assert(!same(others, users), reason="distinct lists stay distinct")
+tests:
+    it("is compares a readonly view and a mutable alias by identity"):
+        let users: mut List[mut User] = [User { name: "Ada" }]
+        let others: mut List[mut User] = [User { name: "Ada" }]
+        assert(same(users, users), reason="permissions do not affect identity")
+        assert(!same(others, users), reason="distinct lists stay distinct")

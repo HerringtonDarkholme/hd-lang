@@ -14,10 +14,11 @@ data Post:
     id: string
     title: string
 
-test "store copies":
-    let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
-    let stamps: mut Timestamps = Timestamps { created_at: 2, updated_at: 2 }
-    post.Timestamps ...= stamps
-    post.touch(9)
-    assert_equal(post.updated_at, 9, reason="the stored part changed")
-    assert_equal(stamps.updated_at, 2, reason="the stored value is a copy")
+tests:
+    it("store copies"):
+        let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        let stamps: mut Timestamps = Timestamps { created_at: 2, updated_at: 2 }
+        post.Timestamps ...= stamps
+        post.touch(9)
+        assert_equal(post.updated_at, 9, reason="the stored part changed")
+        assert_equal(stamps.updated_at, 2, reason="the stored value is a copy")

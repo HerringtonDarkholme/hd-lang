@@ -36,14 +36,15 @@ fn is_error_target(error: Error) -> bool:
         .Some(_) => true
         .None => false
 
-test "an erased FsError is recovered":
-    let error: Error = FsError.NotFound("a.txt")
-    assert_equal(missing_path(error), "a.txt", reason="the concrete error type matches")
+tests:
+    it("an erased FsError is recovered"):
+        let error: Error = FsError.NotFound("a.txt")
+        assert_equal(missing_path(error), "a.txt", reason="the concrete error type matches")
 
-test "another domain error is not":
-    let error: Error = HttpError.Status(503)
-    assert_equal(missing_path(error), "other: status 503", reason="HttpError is not FsError")
+    it("another domain error is not"):
+        let error: Error = HttpError.Status(503)
+        assert_equal(missing_path(error), "other: status 503", reason="HttpError is not FsError")
 
-test "a trait value target satisfies the bound and never matches":
-    let error: Error = FsError.NotFound("b.txt")
-    assert_equal(is_error_target(error), false, reason="a recorded type is never a trait value type")
+    it("a trait value target satisfies the bound and never matches"):
+        let error: Error = FsError.NotFound("b.txt")
+        assert_equal(is_error_target(error), false, reason="a recorded type is never a trait value type")

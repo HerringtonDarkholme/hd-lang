@@ -28,8 +28,9 @@ fn via_break(values: List[i32]) -> i32:
     else:
         0
 
-test "trailing blocks complete each right-hand side":
-    assert_equal(via_return(), 20, reason="return")
-    assert_equal(via_assignment(), 6, reason="assignment")
-    assert_equal(via_discard(), 5, reason="discard")
-    assert_equal(via_break([4, 9]), 8, reason="break")
+tests:
+    it("trailing blocks complete each right-hand side"):
+        assert_equal(via_return(), 20, reason="return")
+        assert_equal(via_assignment(), 6, reason="assignment")
+        assert_equal(via_discard(), 5, reason="discard")
+        assert_equal(via_break([4, 9]), 8, reason="break")

@@ -12,5 +12,6 @@ fn main() -> i32:
     let child: mut Child = (holder.get)()
     child.value
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="callbacks / readonly result")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="callbacks / readonly result")

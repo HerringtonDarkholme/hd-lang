@@ -10,5 +10,6 @@ fn main() -> i32:
     copied := Counter { ...original }
     copied.value
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="copy update skips defaults")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="copy update skips defaults")

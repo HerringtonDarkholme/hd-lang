@@ -27,11 +27,12 @@ fn first_post_title(items: List[Inspectable]) -> string:
         .Some(post) => post.title
         .None => "none"
 
-test "the helper finds the first value of the requested type":
-    let items: List[Inspectable] = [Post { title: "Intro" }, User { name: "Ada" }, User { name: "Grace" }]
-    assert_equal(first_user_name(items), "Ada", reason="the first User is found")
-    assert_equal(first_post_title(items), "Intro", reason="the first Post is found")
+tests:
+    it("the helper finds the first value of the requested type"):
+        let items: List[Inspectable] = [Post { title: "Intro" }, User { name: "Ada" }, User { name: "Grace" }]
+        assert_equal(first_user_name(items), "Ada", reason="the first User is found")
+        assert_equal(first_post_title(items), "Intro", reason="the first Post is found")
 
-test "an absent type yields .None":
-    let items: List[Inspectable] = [1, "two"]
-    assert_equal(first_user_name(items), "none", reason="no User is present")
+    it("an absent type yields .None"):
+        let items: List[Inspectable] = [1, "two"]
+        assert_equal(first_user_name(items), "none", reason="no User is present")

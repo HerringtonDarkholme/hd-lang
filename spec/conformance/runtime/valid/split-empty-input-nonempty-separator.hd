@@ -2,5 +2,6 @@
 # expect: test
 use std.testing.assert_equal
 
-test "empty input with a nonempty separator":
-    assert_equal("".split(","), [""], reason="one empty piece, as for any input without the separator")
+tests:
+    it("empty input with a nonempty separator"):
+        assert_equal("".split(","), [""], reason="one empty piece, as for any input without the separator")

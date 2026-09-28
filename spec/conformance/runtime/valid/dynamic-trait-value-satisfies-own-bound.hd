@@ -24,6 +24,7 @@ fn tag[T < Named](value: T) -> string:
 fn describe(named: Named, shown: Display) -> string:
     tag(named) + " " + show(named) + " " + show(shown)
 
-test "own trait and supertrait bounds":
-    user := User { handle: "ada" }
-    assert_equal(describe(user, 42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")
+tests:
+    it("own trait and supertrait bounds"):
+        user := User { handle: "ada" }
+        assert_equal(describe(user, 42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")

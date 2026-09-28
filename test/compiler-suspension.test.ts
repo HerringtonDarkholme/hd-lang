@@ -748,7 +748,7 @@ test("imported assert_equal compares supported structural values", async () => {
   const { instance } = await instantiate(source);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 
-  const failure = await instantiate(conformance("runtime/panic/assert-equal-lists-outside-test"));
+  const failure = await instantiate(conformance("runtime/panic/assert-equal-lists-in-main"));
   assert.throws(() => (failure.instance.exports.main as CallableFunction)());
 
   const unsupported = analyze(

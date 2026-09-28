@@ -17,5 +17,6 @@ fn main() -> i32:
     else:
         0
 
-test "main returns 12":
-    assert_equal(main(), 12, reason="data field defaults run per construction after explicit fields")
+tests:
+    it("main returns 12"):
+        assert_equal(main(), 12, reason="data field defaults run per construction after explicit fields")

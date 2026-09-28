@@ -20,5 +20,6 @@ fn main!() -> i32:
     suspended := dynamic.load!(right=0, left=0)
     static + direct + suspended
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="named arguments work through static and dynamic trait dispatch")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="named arguments work through static and dynamic trait dispatch")

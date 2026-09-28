@@ -9,8 +9,9 @@ fn identity[T](value: T) -> T:
 fn apply[A, B](value: A, f: fn(A) -> B) -> B:
     f(value)
 
-test "type arguments come from the call":
-    count := apply(3, identity)
-    assert_equal(count, 3, reason="T and B are solved as i32 from the first argument")
-    label := apply("hd", identity)
-    assert_equal(label, "hd", reason="each call solves its own instantiation")
+tests:
+    it("type arguments come from the call"):
+        count := apply(3, identity)
+        assert_equal(count, 3, reason="T and B are solved as i32 from the first argument")
+        label := apply("hd", identity)
+        assert_equal(label, "hd", reason="each call solves its own instantiation")

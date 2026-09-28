@@ -15,8 +15,9 @@ data Outer:
     Base
     Middle
 
-test "the shallower copy wins":
-    outer := Outer { Base: ...Base { id: "near" }, Middle: ...Middle { Base: ...Base { id: "far" } } }
-    assert_equal(outer.id, "near", reason="depth-1 field")
-    assert_equal(outer.label(), "base near", reason="depth-1 method")
-    assert_equal(outer.Middle.id, "far", reason="the deeper copy through its path")
+tests:
+    it("the shallower copy wins"):
+        outer := Outer { Base: ...Base { id: "near" }, Middle: ...Middle { Base: ...Base { id: "far" } } }
+        assert_equal(outer.id, "near", reason="depth-1 field")
+        assert_equal(outer.label(), "base near", reason="depth-1 method")
+        assert_equal(outer.Middle.id, "far", reason="the deeper copy through its path")

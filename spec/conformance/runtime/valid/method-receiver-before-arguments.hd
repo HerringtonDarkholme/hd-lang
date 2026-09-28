@@ -22,8 +22,9 @@ fn note(log: mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label
     value
 
-test "receiver, then arguments left to right":
-    let log: mut Log = Log { text: "" }
-    total := counter(log).plus(note(log, "a", 10), note(log, "b", 1))
-    assert_equal(log.text, "rab", reason="receiver first, then arguments")
-    assert_equal(total, 111, reason="receiver supplied as the first argument")
+tests:
+    it("receiver, then arguments left to right"):
+        let log: mut Log = Log { text: "" }
+        total := counter(log).plus(note(log, "a", 10), note(log, "b", 1))
+        assert_equal(log.text, "rab", reason="receiver first, then arguments")
+        assert_equal(total, 111, reason="receiver supplied as the first argument")

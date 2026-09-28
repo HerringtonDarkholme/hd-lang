@@ -15,9 +15,10 @@ impl User:
     fn Base(self) -> string:
         "base " + self.Base.id
 
-test "bare access reads the field and a call reaches the method":
-    user := User { Base: ...Base { id: "7" }, name: "ada" }
-    assert_equal(user.name, "ada", reason="field lookup")
-    assert_equal(user.name(), "user ada", reason="method lookup")
-    assert_equal(user.Base.id, "7", reason="embedded field read")
-    assert_equal(user.Base(), "base 7", reason="method named like the embedded field")
+tests:
+    it("bare access reads the field and a call reaches the method"):
+        user := User { Base: ...Base { id: "7" }, name: "ada" }
+        assert_equal(user.name, "ada", reason="field lookup")
+        assert_equal(user.name(), "user ada", reason="method lookup")
+        assert_equal(user.Base.id, "7", reason="embedded field read")
+        assert_equal(user.Base(), "base 7", reason="method named like the embedded field")

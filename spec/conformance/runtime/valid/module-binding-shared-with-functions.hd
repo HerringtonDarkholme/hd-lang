@@ -13,8 +13,9 @@ fn value() -> i32:
 
 increment()
 
-test "initialization and later calls update one module binding":
-    assert_equal(value(), 1, reason="module initialization ran increment once")
-    increment()
-    assert_equal(value(), 2, reason="a later call updates the same binding")
-    assert_equal(label, "requests", reason="an immutable module binding is readable")
+tests:
+    it("initialization and later calls update one module binding"):
+        assert_equal(value(), 1, reason="module initialization ran increment once")
+        increment()
+        assert_equal(value(), 2, reason="a later call updates the same binding")
+        assert_equal(label, "requests", reason="an immutable module binding is readable")

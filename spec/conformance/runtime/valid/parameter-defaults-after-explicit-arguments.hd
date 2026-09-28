@@ -12,5 +12,6 @@ fn load!(base: i32, extra: i32 = 2) -> i32: base + extra
 fn main!() -> i32:
     combine() + combine(third=4, first=2) + choose(40) + load!(40)
 
-test "main returns 1438":
-    assert_equal(main!(), 1438, reason="function parameter defaults evaluate after explicit arguments")
+tests:
+    it("main returns 1438"):
+        assert_equal(main!(), 1438, reason="function parameter defaults evaluate after explicit arguments")

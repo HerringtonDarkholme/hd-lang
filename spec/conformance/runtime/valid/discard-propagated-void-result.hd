@@ -8,6 +8,7 @@ fn after_close() -> Result[i32, string]:
     _ := close()?
     .Ok(1)
 
-test "a propagated .Ok(void) is discarded and execution continues":
-    let expected: Result[i32, string] = .Ok(1)
-    assert_equal(after_close(), expected, reason=".Ok() produces void and the function continues")
+tests:
+    it("a propagated .Ok(void) is discarded and execution continues"):
+        let expected: Result[i32, string] = .Ok(1)
+        assert_equal(after_close(), expected, reason=".Ok() produces void and the function continues")

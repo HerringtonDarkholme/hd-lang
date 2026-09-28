@@ -15,5 +15,6 @@ fn main() -> i32:
         .Err(ResourceError.Disposed) => 42
         _ => 0
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="Result patterns recursively match imported enum payloads")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="Result patterns recursively match imported enum payloads")

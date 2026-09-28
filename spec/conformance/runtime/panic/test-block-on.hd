@@ -6,5 +6,6 @@ fn helper() -> i32:
     let pending: mut Suspend[i32] = ready()
     block_on(pending)  # panic: suspension-nested-driver
 
-test "a test is an active driver":
-    _ := helper()
+tests:
+    it("a test is an active driver"):
+        _ := helper()

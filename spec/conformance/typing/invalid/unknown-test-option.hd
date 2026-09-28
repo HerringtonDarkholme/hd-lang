@@ -1,0 +1,5 @@
+# test: it accepts only the ignore, expect_panic, and timeout options
+# Spec 10 Test Cases: any other named argument is unknown-named-argument.
+tests:
+    it("serial", serial="true"):  # diagnostic: unknown-named-argument
+        pass

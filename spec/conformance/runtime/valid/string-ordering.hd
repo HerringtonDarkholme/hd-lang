@@ -8,5 +8,6 @@ fn main() -> i32:
     else:
         0
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="strings compare by UTF-8 value order")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="strings compare by UTF-8 value order")

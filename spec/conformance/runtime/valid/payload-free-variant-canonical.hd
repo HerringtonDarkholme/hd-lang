@@ -16,22 +16,23 @@ fn same_ref[T < AnyRef](left: T, right: T) -> bool:
 fn red() -> Color:
     .Red
 
-test "two occurrences of one payload-free variant are identical":
-    first := Color.Red
-    second := Color.Red
-    assert(first is second, reason="canonical variant identity")
-    assert(!(Color.Red is Color.Green), reason="different variants differ")
-    assert(same_ref(first, red()), reason="through a return and a generic")
-    let shorthand: Color = .Red
-    assert(shorthand is first, reason="contextual shorthand yields the same value")
-    values := [Color.Red]
-    assert(values[0] is second, reason="through a list element")
-    let dot: Shape = Shape.Dot
-    assert(dot is Shape.Dot, reason="payload-free variant of a payload enum")
+tests:
+    it("two occurrences of one payload-free variant are identical"):
+        first := Color.Red
+        second := Color.Red
+        assert(first is second, reason="canonical variant identity")
+        assert(!(Color.Red is Color.Green), reason="different variants differ")
+        assert(same_ref(first, red()), reason="through a return and a generic")
+        let shorthand: Color = .Red
+        assert(shorthand is first, reason="contextual shorthand yields the same value")
+        values := [Color.Red]
+        assert(values[0] is second, reason="through a list element")
+        let dot: Shape = Shape.Dot
+        assert(dot is Shape.Dot, reason="payload-free variant of a payload enum")
 
-test "payload variants are allocated per construction":
-    first := Shape.Circle(1)
-    second := Shape.Circle(1)
-    alias := first
-    assert(!(first is second), reason="stored payloads have allocation identity")
-    assert(first is alias, reason="alias shares identity")
+    it("payload variants are allocated per construction"):
+        first := Shape.Circle(1)
+        second := Shape.Circle(1)
+        alias := first
+        assert(!(first is second), reason="stored payloads have allocation identity")
+        assert(first is alias, reason="alias shares identity")

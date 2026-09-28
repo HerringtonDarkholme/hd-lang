@@ -2,7 +2,8 @@
 fn grow(values: mut List[i32]) -> void:
     values.append(0)
 
-test "helper growth invalidates the loop iterator":
-    let values: mut List[i32] = [1, 2]
-    for value in values:  # panic: iterator-invalidated
-        grow(values)
+tests:
+    it("helper growth invalidates the loop iterator"):
+        let values: mut List[i32] = [1, 2]
+        for value in values:  # panic: iterator-invalidated
+            grow(values)

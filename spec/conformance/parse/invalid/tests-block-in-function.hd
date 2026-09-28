@@ -1,0 +1,6 @@
+# test: a tests block may appear only at module top level
+# Spec 02 Test Blocks: tests is a reserved word, and a tests block inside a suite is a
+# syntax error.
+fn helper() -> void:
+    tests:  # diagnostic: syntax-error
+        pass

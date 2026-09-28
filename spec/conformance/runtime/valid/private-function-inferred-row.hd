@@ -12,6 +12,7 @@ fn read_clock() -> i32:
     _ := $.use(Clock)
     42
 
-test "inferred row is satisfied by the provider scope":
-    $.with(Clock=FixedClock {}):
-        assert_equal(read_clock(), 42, reason="private function infers its row")
+tests:
+    it("inferred row is satisfied by the provider scope"):
+        $.with(Clock=FixedClock {}):
+            assert_equal(read_clock(), 42, reason="private function infers its row")

@@ -17,7 +17,8 @@ fn sum(ring: Ring) -> i32:
         total = total + value
     total
 
-test "for and comprehensions call iter":
-    ring := Ring { items: [1, 2, 3] }
-    assert_equal(sum(ring), 6, reason="the loop uses Iterable on a readonly value")
-    assert_equal([for value in ring => value * 2].len(), 3, reason="the comprehension uses Iterable")
+tests:
+    it("for and comprehensions call iter"):
+        ring := Ring { items: [1, 2, 3] }
+        assert_equal(sum(ring), 6, reason="the loop uses Iterable on a readonly value")
+        assert_equal([for value in ring => value * 2].len(), 3, reason="the comprehension uses Iterable")

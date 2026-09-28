@@ -26,5 +26,6 @@ fn main() -> i32:
     bounded(counter, 22)
     counter.value
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="traits / mutable receivers")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="traits / mutable receivers")

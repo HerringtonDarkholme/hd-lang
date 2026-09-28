@@ -18,12 +18,13 @@ fn read_box(value: Inspectable) -> i32:
         .Some(found) => found.value
         .None => 0
 
-test "an erased Box[i32] is recognized":
-    boxed := erase(1)
-    assert(is_int_box(boxed), reason="the recorded type is Box[i32]")
-    assert_equal(read_box(boxed), 1, reason="downcast recovers the Box[i32]")
+tests:
+    it("an erased Box[i32] is recognized"):
+        boxed := erase(1)
+        assert(is_int_box(boxed), reason="the recorded type is Box[i32]")
+        assert_equal(read_box(boxed), 1, reason="downcast recovers the Box[i32]")
 
-test "an erased Box[string] is not":
-    boxed := erase("one")
-    assert(!is_int_box(boxed), reason="Box[string] and Box[i32] differ")
-    assert_equal(read_box(boxed), 0, reason="downcast to Box[i32] fails")
+    it("an erased Box[string] is not"):
+        boxed := erase("one")
+        assert(!is_int_box(boxed), reason="Box[string] and Box[i32] differ")
+        assert_equal(read_box(boxed), 0, reason="downcast to Box[i32] fails")

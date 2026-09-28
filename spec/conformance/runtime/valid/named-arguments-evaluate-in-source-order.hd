@@ -23,20 +23,21 @@ fn scaler(log: mut Log, factor: i32) -> Scaler:
     log.text = log.text + "r"
     Scaler { factor: factor }
 
-test "mixed positional and named arguments follow source order":
-    let log: mut Log = Log { text: "" }
-    result := combine(note(log, "a", 1), third=note(log, "c", 3), second=note(log, "b", 2))
-    assert_equal(log.text, "acb", reason="named arguments evaluate in source order")
-    assert_equal(result, 123, reason="named arguments bind by parameter name")
+tests:
+    it("mixed positional and named arguments follow source order"):
+        let log: mut Log = Log { text: "" }
+        result := combine(note(log, "a", 1), third=note(log, "c", 3), second=note(log, "b", 2))
+        assert_equal(log.text, "acb", reason="named arguments evaluate in source order")
+        assert_equal(result, 123, reason="named arguments bind by parameter name")
 
-test "all named arguments in reverse declaration order":
-    let log: mut Log = Log { text: "" }
-    result := combine(third=note(log, "3", 3), second=note(log, "2", 2), first=note(log, "1", 1))
-    assert_equal(log.text, "321", reason="evaluation follows the call site")
-    assert_equal(result, 123, reason="binding still follows parameter names")
+    it("all named arguments in reverse declaration order"):
+        let log: mut Log = Log { text: "" }
+        result := combine(third=note(log, "3", 3), second=note(log, "2", 2), first=note(log, "1", 1))
+        assert_equal(log.text, "321", reason="evaluation follows the call site")
+        assert_equal(result, 123, reason="binding still follows parameter names")
 
-test "method receiver evaluates before arguments":
-    let log: mut Log = Log { text: "" }
-    result := scaler(log, 10).apply(offset=note(log, "o", 2), value=note(log, "v", 4))
-    assert_equal(log.text, "rov", reason="receiver first, then arguments in source order")
-    assert_equal(result, 42, reason="named method arguments bind by name")
+    it("method receiver evaluates before arguments"):
+        let log: mut Log = Log { text: "" }
+        result := scaler(log, 10).apply(offset=note(log, "o", 2), value=note(log, "v", 4))
+        assert_equal(log.text, "rov", reason="receiver first, then arguments in source order")
+        assert_equal(result, 42, reason="named method arguments bind by name")

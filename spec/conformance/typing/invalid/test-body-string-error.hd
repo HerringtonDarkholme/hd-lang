@@ -1,0 +1,13 @@
+# test: ? in a trailing test body converts only errors that implement Error
+# Spec 05 Propagation In Test Blocks: a body that uses ? has result Result[void, Error],
+# and string does not implement std.error.Error.
+use std.testing.assert
+
+fn lookup(key: string) -> Result[i32, string]:
+    .Err("missing: " + key)
+
+tests:
+    it("a string error does not convert"):
+        value := lookup("port")?  # diagnostic: invalid-result-propagation
+        assert(value > 0, reason="a positive port")
+        .Ok()

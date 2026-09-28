@@ -20,5 +20,6 @@ fn main!() -> i32:
         0
     value + total - 44
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="suspending calls in loops")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="suspending calls in loops")

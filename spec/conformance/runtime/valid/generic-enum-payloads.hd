@@ -28,5 +28,6 @@ fn main() -> i32:
     tree := Tree.Branch(Tree.Leaf(1), Tree.Leaf(1))
     unwrap(keep(some)) + unwrap(none) + sum(tree)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generic enum payloads")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generic enum payloads")

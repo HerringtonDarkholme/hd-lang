@@ -16,14 +16,15 @@ fn chain(log: mut Log, value: i32?) -> i32?:
     log.text = log.text + "c"
     found + 1
 
-test ".None propagates after one evaluation and runs cleanup":
-    let log: mut Log = Log { text: "" }
-    let absent: i32? = .None
-    assert_equal(chain(log, .None), absent, reason=".None returns .None")
-    assert_equal(log.text, "ed", reason="operand once, no continuation, cleanup")
+tests:
+    it(".None propagates after one evaluation and runs cleanup"):
+        let log: mut Log = Log { text: "" }
+        let absent: i32? = .None
+        assert_equal(chain(log, .None), absent, reason=".None returns .None")
+        assert_equal(log.text, "ed", reason="operand once, no continuation, cleanup")
 
-test "present value continues":
-    let log: mut Log = Log { text: "" }
-    let two: i32? = 2
-    assert_equal(chain(log, 1), two, reason="unwrapped value continues")
-    assert_equal(log.text, "ecd", reason="operand once, continuation, cleanup")
+    it("present value continues"):
+        let log: mut Log = Log { text: "" }
+        let two: i32? = 2
+        assert_equal(chain(log, 1), two, reason="unwrapped value continues")
+        assert_equal(log.text, "ecd", reason="operand once, continuation, cleanup")

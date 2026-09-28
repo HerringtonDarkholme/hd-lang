@@ -28,5 +28,6 @@ fn main() -> i32:
         .double()
     apply(start, .Grow).value - apply(start, .Keep).value
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="leading-dot lines continue a method chain")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="leading-dot lines continue a method chain")

@@ -35,8 +35,9 @@ fn bounded_parent_dictionary() -> i32:
     let points: List[Point] = [Point { value: 42 }]
     read_parent(points)
 
-test "dynamic_parent_dictionary returns 42":
-    assert_equal(dynamic_parent_dictionary(), 42, reason="bounded blanket supertraits")
+tests:
+    it("dynamic_parent_dictionary returns 42"):
+        assert_equal(dynamic_parent_dictionary(), 42, reason="bounded blanket supertraits")
 
-test "bounded_parent_dictionary returns 42":
-    assert_equal(bounded_parent_dictionary(), 42, reason="bounded blanket supertraits")
+    it("bounded_parent_dictionary returns 42"):
+        assert_equal(bounded_parent_dictionary(), 42, reason="bounded blanket supertraits")

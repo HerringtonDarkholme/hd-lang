@@ -20,5 +20,6 @@ fn main!() -> i32:
     $.with(Clock=make_clock!(1)):
         read()
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="provider from suspending call")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="provider from suspending call")

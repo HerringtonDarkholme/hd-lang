@@ -1,0 +1,7 @@
+# test: a test case option value must be a string literal
+# Spec 10 Test Cases: a computed option value is non-literal-test-argument.
+fn reason_of() -> string: "computed"
+
+tests:
+    it("skipped", ignore=reason_of()):  # diagnostic: non-literal-test-argument
+        pass

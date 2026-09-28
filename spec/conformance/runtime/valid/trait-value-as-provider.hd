@@ -21,5 +21,6 @@ fn provide_logger[R](callback: fn() -> i32 $(R, Logger), logger: Logger) -> i32 
 fn main() -> i32:
     provide_logger(read, OffsetLogger { offset: 2 })
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="traits / providers")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="traits / providers")

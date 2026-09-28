@@ -1,12 +1,13 @@
 use std.testing.assert_equal
 
-test "equal maps pass assert_equal":
-    assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 2}, reason="same entries in the same order")
+tests:
+    it("equal maps pass assert_equal"):
+        assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 2}, reason="same entries in the same order")
 
-test "map equality is independent of entry order":
-    assert_equal({"ada": 1, "grace": 2}, {"grace": 2, "ada": 1}, reason="same entries in a different order")
+    it("map equality is independent of entry order"):
+        assert_equal({"ada": 1, "grace": 2}, {"grace": 2, "ada": 1}, reason="same entries in a different order")
 
-test "equal empty maps pass assert_equal":
-    let left: Map[string, i32] = {}
-    let right: Map[string, i32] = {}
-    assert_equal(left, right, reason="empty maps are equal")
+    it("equal empty maps pass assert_equal"):
+        let left: Map[string, i32] = {}
+        let right: Map[string, i32] = {}
+        assert_equal(left, right, reason="empty maps are equal")

@@ -9,5 +9,6 @@ fn main() -> i32:
     add := make(1)
     add(1)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="closures / nested captures")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="closures / nested captures")

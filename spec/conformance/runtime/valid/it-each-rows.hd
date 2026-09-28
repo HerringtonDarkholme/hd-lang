@@ -1,0 +1,11 @@
+# test: it_each registers one test case per row
+# Spec 10 Table Tests: std.testing.it_each runs its body once per element, as the cases
+# doubles[0], doubles[1], and doubles[2].
+use std.testing.{assert_equal, it_each}
+
+fn double(value: i32) -> i32: value * 2
+
+tests:
+    it_each("doubles", [1, 2, 3], fn!(value: i32):
+        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
+    )

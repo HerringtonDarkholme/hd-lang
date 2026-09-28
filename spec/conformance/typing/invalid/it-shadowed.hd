@@ -1,0 +1,4 @@
+# test: it is a prelude name, so a module cannot declare its own it
+# Spec 10 Prelude: declaring a function named it is prelude-name-shadow.
+fn it(name: string) -> void:  # diagnostic: prelude-name-shadow
+    pass

@@ -1,0 +1,5 @@
+# test: it may be called only at the top level of a tests block or a test module
+# Spec 10 Test Cases: a call of it inside a function is misplaced-test-case.
+fn helper() -> void:
+    it("nested"):  # diagnostic: misplaced-test-case
+        pass

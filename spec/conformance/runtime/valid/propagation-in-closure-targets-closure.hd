@@ -13,8 +13,9 @@ fn outer(input: i32?) -> i32:
         .Some(found) => found
         .None => -1
 
-test ".None propagates out of the closure only":
-    assert_equal(outer(.None), -1, reason="the enclosing function continues after the closure returns .None")
+tests:
+    it(".None propagates out of the closure only"):
+        assert_equal(outer(.None), -1, reason="the enclosing function continues after the closure returns .None")
 
-test "a present value continues inside the closure":
-    assert_equal(outer(41), 42, reason="present value is unwrapped")
+    it("a present value continues inside the closure"):
+        assert_equal(outer(41), 42, reason="present value is unwrapped")

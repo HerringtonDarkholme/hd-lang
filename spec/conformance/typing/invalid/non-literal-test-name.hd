@@ -1,0 +1,7 @@
+# test: a test case name must be a string literal
+# Spec 10 Test Cases: a computed name is non-literal-test-argument.
+fn name_of() -> string: "computed"
+
+tests:
+    it(name_of()):  # diagnostic: non-literal-test-argument
+        pass

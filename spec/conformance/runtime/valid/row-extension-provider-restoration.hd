@@ -14,10 +14,6 @@ fn read() -> i32 $ Clock, Logger:
 fn run() -> i32 $ Clock, Backup:
     provide_logger(read)
 
-test "run returns 42 with its providers":
-    $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
-        assert_equal(run(), 42, reason="requirements / row extension / provider restoration")
-
 trait Clock
 
 data FixedClock: pass
@@ -35,3 +31,8 @@ impl Logger for FixedBackup
 
 impl Backup for FixedBackup:
     fn label(self) -> i32: 0
+
+tests:
+    it("run returns 42 with its providers"):
+        $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
+            assert_equal(run(), 42, reason="requirements / row extension / provider restoration")

@@ -13,5 +13,6 @@ fn read(flag: Flag) -> i32:
 
 fn main() -> i32: read(Flag.On(42))
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="contextual variant patterns")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="contextual variant patterns")

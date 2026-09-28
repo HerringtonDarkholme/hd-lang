@@ -33,11 +33,12 @@ fn bounded_display() -> i32:
     if identity.render[Label](Label { value: "label" }) == "label": 1
     else: 0
 
-test "explicit_right returns 42":
-    assert_equal(explicit_right(), 42, reason="generic methods")
+tests:
+    it("explicit_right returns 42"):
+        assert_equal(explicit_right(), 42, reason="generic methods")
 
-test "inferred_right returns 7":
-    assert_equal(inferred_right(), 7, reason="generic methods")
+    it("inferred_right returns 7"):
+        assert_equal(inferred_right(), 7, reason="generic methods")
 
-test "bounded_display returns 1":
-    assert_equal(bounded_display(), 1, reason="generic methods")
+    it("bounded_display returns 1"):
+        assert_equal(bounded_display(), 1, reason="generic methods")

@@ -20,5 +20,6 @@ fn factorial(n: i32) -> i32:
 
 fn main() -> i32: total_with_bonus([1, 2, 3], 10) + factorial(3)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="named local functions capture enclosing values and recurse")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="named local functions capture enclosing values and recurse")

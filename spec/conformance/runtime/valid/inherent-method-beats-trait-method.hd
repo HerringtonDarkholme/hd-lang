@@ -16,7 +16,8 @@ impl Named for User:
     fn label(self) -> string:
         "trait " + self.name
 
-test "the inherent method wins and Trait::m selects the trait method":
-    user := User { name: "ada" }
-    assert_equal(user.label(), "inherent ada", reason="the inherent method wins")
-    assert_equal(Named::label(user), "trait ada", reason="Trait::m selects the trait method")
+tests:
+    it("the inherent method wins and Trait::m selects the trait method"):
+        user := User { name: "ada" }
+        assert_equal(user.label(), "inherent ada", reason="the inherent method wins")
+        assert_equal(Named::label(user), "trait ada", reason="Trait::m selects the trait method")

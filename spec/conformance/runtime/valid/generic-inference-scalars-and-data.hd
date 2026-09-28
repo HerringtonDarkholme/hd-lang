@@ -17,8 +17,9 @@ fn main() -> i32:
     box := identity(Box { value: 2 })
     choose(number + box.value, 42) + text.len() - 2
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generic inference scalars and data")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generic inference scalars and data")
 
-test "float_value returns 3.5":
-    assert_equal(float_value(), 3.5, reason="generic inference scalars and data")
+    it("float_value returns 3.5"):
+        assert_equal(float_value(), 3.5, reason="generic inference scalars and data")

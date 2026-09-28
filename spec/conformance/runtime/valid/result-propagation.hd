@@ -22,5 +22,6 @@ fn inspect(value: Result[i32, ParseError]) -> i32:
 
 fn main() -> i32: inspect(lifted(true)) + inspect(lifted(false))
 
-test "main returns 35":
-    assert_equal(main(), 35, reason="result propagation")
+tests:
+    it("main returns 35"):
+        assert_equal(main(), 35, reason="result propagation")

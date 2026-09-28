@@ -8,5 +8,6 @@ fn add!(left: i32, right: i32) -> i32: left + right
 fn main!() -> i32:
     add!(value!(20), value!(22))
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="suspending calls as arguments")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="suspending calls as arguments")

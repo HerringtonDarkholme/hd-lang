@@ -16,10 +16,11 @@ fn drive_stored_captured_closure!(base: i32) -> i32:
     let pending: mut Suspend[i32] = loader(2)
     pending!()
 
-test "captured values survive direct and stored suspension driving":
-    assert_equal(drive_captured_closure!(40), 42, reason="direct drive retains the environment")
-    assert_equal(
-        drive_stored_captured_closure!(40),
-        42,
-        reason="stored drive retains the environment",
-    )
+tests:
+    it("captured values survive direct and stored suspension driving"):
+        assert_equal(drive_captured_closure!(40), 42, reason="direct drive retains the environment")
+        assert_equal(
+            drive_stored_captured_closure!(40),
+            42,
+            reason="stored drive retains the environment",
+        )

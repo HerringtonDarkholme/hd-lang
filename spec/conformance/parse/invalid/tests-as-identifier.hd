@@ -1,0 +1,5 @@
+# test: tests is a reserved word and cannot name a binding
+# Spec 01 Keywords And Reserved Words: tests is reserved.
+fn count() -> i32:
+    tests := 3  # diagnostic: syntax-error
+    tests

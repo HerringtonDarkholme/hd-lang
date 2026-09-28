@@ -1,0 +1,9 @@
+# test: a tests block cannot nest inside another tests block
+# Spec 02 Test Blocks: the items of a tests block do not include another tests block.
+tests:
+    it("outer"):
+        pass
+
+    tests:  # diagnostic: syntax-error
+        it("inner"):
+            pass

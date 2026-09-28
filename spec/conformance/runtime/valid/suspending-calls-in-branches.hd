@@ -12,5 +12,6 @@ fn choose!(flag: bool) -> i32:
 
 fn main!() -> i32: choose!(true)
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="suspending calls in branches")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="suspending calls in branches")

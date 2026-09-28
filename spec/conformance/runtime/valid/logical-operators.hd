@@ -9,21 +9,22 @@ fn missing!(id: i32) -> bool:
 fn pick(a: bool, b: bool, c: bool) -> bool:
     a && !b || c
 
-test "prefix ! negates a bool":
-    ready := false
-    assert(!ready, reason="!false is true")
-    assert(!(1 > 2), reason="! applies to a grouped comparison")
+tests:
+    it("prefix ! negates a bool"):
+        ready := false
+        assert(!ready, reason="!false is true")
+        assert(!(1 > 2), reason="! applies to a grouped comparison")
 
-test "prefix ! binds tighter than &&, and && binds tighter than ||":
-    assert(pick(true, false, false), reason="true && !false")
-    assert(!pick(true, true, false), reason="(true && !true) || false is false")
-    assert(pick(false, true, true), reason="(false && !true) || true is true")
+    it("prefix ! binds tighter than &&, and && binds tighter than ||"):
+        assert(pick(true, false, false), reason="true && !false")
+        assert(!pick(true, true, false), reason="(true && !true) || false is false")
+        assert(pick(false, true, true), reason="(false && !true) || true is true")
 
-test "prefix ! applies to a bang call":
-    assert(missing!(0), reason="!fetch!(0) is true")
-    assert(!missing!(3), reason="!fetch!(3) is false")
+    it("prefix ! applies to a bang call"):
+        assert(missing!(0), reason="!fetch!(0) is true")
+        assert(!missing!(3), reason="!fetch!(3) is false")
 
-test "!= is one token after a name":
-    f := 1
-    g := 2
-    assert(f!=g, reason="f!=g lexes as f != g")
+    it("!= is one token after a name"):
+        f := 1
+        g := 2
+        assert(f!=g, reason="f!=g lexes as f != g")

@@ -40,14 +40,15 @@ fn widened_parent_length() -> i32:
     let value: Formattable = User { name: "Alice" }
     parent_dynamic(value)
 
-test "formatted_length returns 5":
-    assert_equal(formatted_length(), 5, reason="supertraits require and expose parent implementations")
+tests:
+    it("formatted_length returns 5"):
+        assert_equal(formatted_length(), 5, reason="supertraits require and expose parent implementations")
 
-test "bounded_parent_length returns 5":
-    assert_equal(bounded_parent_length(), 5, reason="supertraits require and expose parent implementations")
+    it("bounded_parent_length returns 5"):
+        assert_equal(bounded_parent_length(), 5, reason="supertraits require and expose parent implementations")
 
-test "dynamic_parent_length returns 5":
-    assert_equal(dynamic_parent_length(), 5, reason="supertraits require and expose parent implementations")
+    it("dynamic_parent_length returns 5"):
+        assert_equal(dynamic_parent_length(), 5, reason="supertraits require and expose parent implementations")
 
-test "widened_parent_length returns 5":
-    assert_equal(widened_parent_length(), 5, reason="supertraits require and expose parent implementations")
+    it("widened_parent_length returns 5"):
+        assert_equal(widened_parent_length(), 5, reason="supertraits require and expose parent implementations")

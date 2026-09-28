@@ -10,5 +10,6 @@ fn increment(value: i32) -> i32: value + 1
 fn main() -> i32:
     apply(40, increment) + apply(0, fn(value): value + 1)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generics / callable adapter")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generics / callable adapter")

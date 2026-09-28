@@ -33,11 +33,12 @@ fn trait_argument_only_blanket() -> i32:
     let dynamic: Accept[string] = Receiver {}
     dynamic.accept("ignored")
 
-test "blanket_dynamic returns 42":
-    assert_equal(blanket_dynamic(), 42, reason="blanket impl dynamic and bound")
+tests:
+    it("blanket_dynamic returns 42"):
+        assert_equal(blanket_dynamic(), 42, reason="blanket impl dynamic and bound")
 
-test "blanket_bound returns 42":
-    assert_equal(blanket_bound(), 42, reason="blanket impl dynamic and bound")
+    it("blanket_bound returns 42"):
+        assert_equal(blanket_bound(), 42, reason="blanket impl dynamic and bound")
 
-test "trait_argument_only_blanket returns 42":
-    assert_equal(trait_argument_only_blanket(), 42, reason="blanket impl dynamic and bound")
+    it("trait_argument_only_blanket returns 42"):
+        assert_equal(trait_argument_only_blanket(), 42, reason="blanket impl dynamic and bound")

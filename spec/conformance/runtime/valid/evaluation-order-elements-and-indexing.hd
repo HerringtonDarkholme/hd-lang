@@ -15,20 +15,21 @@ fn items(log: mut Log) -> List[i32]:
     log.text = log.text + "r"
     [10, 20, 30]
 
-test "tuple elements evaluate left to right":
-    let log: mut Log = Log { text: "" }
-    triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
-    assert_equal(log.text, "abc", reason="tuple element order")
-    assert_equal(triple._2, 3, reason="tuple element value")
+tests:
+    it("tuple elements evaluate left to right"):
+        let log: mut Log = Log { text: "" }
+        triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
+        assert_equal(log.text, "abc", reason="tuple element order")
+        assert_equal(triple._2, 3, reason="tuple element value")
 
-test "list elements evaluate left to right":
-    let log: mut Log = Log { text: "" }
-    values := [note(log, "x", 1), note(log, "y", 2), note(log, "z", 3)]
-    assert_equal(log.text, "xyz", reason="list element order")
-    assert_equal(values, [1, 2, 3], reason="list element values")
+    it("list elements evaluate left to right"):
+        let log: mut Log = Log { text: "" }
+        values := [note(log, "x", 1), note(log, "y", 2), note(log, "z", 3)]
+        assert_equal(log.text, "xyz", reason="list element order")
+        assert_equal(values, [1, 2, 3], reason="list element values")
 
-test "an index receiver evaluates before its index":
-    let log: mut Log = Log { text: "" }
-    value := items(log)[note(log, "i", 1)]
-    assert_equal(log.text, "ri", reason="receiver, then index, each once")
-    assert_equal(value, 20, reason="indexed value")
+    it("an index receiver evaluates before its index"):
+        let log: mut Log = Log { text: "" }
+        value := items(log)[note(log, "i", 1)]
+        assert_equal(log.text, "ri", reason="receiver, then index, each once")
+        assert_equal(value, 20, reason="indexed value")

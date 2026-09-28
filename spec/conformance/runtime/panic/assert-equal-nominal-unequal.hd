@@ -8,7 +8,8 @@ impl Eq for User:
     fn eq(self, other: Self) -> bool:
         self.id == other.id
 
-test "values unequal under an explicit Eq fail assert_equal":
-    ada := User { id: "ada", display_name: "Ada" }
-    grace := User { id: "grace", display_name: "Ada" }
-    assert_equal(ada, grace, reason="deliberately unequal ids")  # panic: assertion-failed
+tests:
+    it("values unequal under an explicit Eq fail assert_equal"):
+        ada := User { id: "ada", display_name: "Ada" }
+        grace := User { id: "grace", display_name: "Ada" }
+        assert_equal(ada, grace, reason="deliberately unequal ids")  # panic: assertion-failed

@@ -33,8 +33,9 @@ fn label(error: SyncError) -> string:
         SyncError.Fs(inner) => "fs: " + fs_path(inner)
         SyncError.Http(inner) => "http: " + http_url(inner)
 
-test "a file error selects From[FsError]":
-    assert_equal(label(SyncError::from(FsError.NotFound("a.txt"))), "fs: a.txt", reason="argument type FsError")
+tests:
+    it("a file error selects From[FsError]"):
+        assert_equal(label(SyncError::from(FsError.NotFound("a.txt"))), "fs: a.txt", reason="argument type FsError")
 
-test "a network error selects From[HttpError]":
-    assert_equal(label(SyncError::from(HttpError.Timeout("x.test"))), "http: x.test", reason="argument type HttpError")
+    it("a network error selects From[HttpError]"):
+        assert_equal(label(SyncError::from(HttpError.Timeout("x.test"))), "http: x.test", reason="argument type HttpError")

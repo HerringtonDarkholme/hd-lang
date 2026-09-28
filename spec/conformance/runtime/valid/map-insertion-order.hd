@@ -6,6 +6,7 @@ fn keys(values: Map[string, i32]) -> List[string]:
         result.append(key)
     result
 
-test "map insertion order":
-    values := {"first": 1, "second": 2, "third": 3}
-    assert_equal(keys(values), ["first", "second", "third"], reason="maps iterate by insertion")
+tests:
+    it("map insertion order"):
+        values := {"first": 1, "second": 2, "third": 3}
+        assert_equal(keys(values), ["first", "second", "third"], reason="maps iterate by insertion")

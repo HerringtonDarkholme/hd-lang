@@ -12,9 +12,10 @@ fn qualified(value: Option[string]) -> string:
         Option.Some(text) => text
         Option.None => "missing"
 
-test "contextual and qualified variant patterns":
-    assert_equal(describe(0), "zero", reason="a literal payload pattern")
-    assert_equal(describe(7), "some 7", reason="a binding payload pattern")
-    assert_equal(describe(.None), "none", reason="the absent case")
-    assert_equal(qualified("ada"), "ada", reason="qualified Some pattern")
-    assert_equal(qualified(.None), "missing", reason="qualified None pattern")
+tests:
+    it("contextual and qualified variant patterns"):
+        assert_equal(describe(0), "zero", reason="a literal payload pattern")
+        assert_equal(describe(7), "some 7", reason="a binding payload pattern")
+        assert_equal(describe(.None), "none", reason="the absent case")
+        assert_equal(qualified("ada"), "ada", reason="qualified Some pattern")
+        assert_equal(qualified(.None), "missing", reason="qualified None pattern")

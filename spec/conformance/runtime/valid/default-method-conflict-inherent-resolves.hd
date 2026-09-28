@@ -22,11 +22,12 @@ impl Speaker:
     fn describe(self) -> string:
         "inherent"
 
-test "dot call uses the inherent method":
-    speaker := Speaker { name: "Ada" }
-    assert_equal(speaker.describe(), "inherent", reason="inherent method provides dot-call behavior")
+tests:
+    it("dot call uses the inherent method"):
+        speaker := Speaker { name: "Ada" }
+        assert_equal(speaker.describe(), "inherent", reason="inherent method provides dot-call behavior")
 
-test "qualified calls select each trait default":
-    speaker := Speaker { name: "Ada" }
-    assert_equal(Loud::describe(speaker), "loud", reason="Loud default")
-    assert_equal(Quiet::describe(speaker), "quiet", reason="Quiet default")
+    it("qualified calls select each trait default"):
+        speaker := Speaker { name: "Ada" }
+        assert_equal(Loud::describe(speaker), "loud", reason="Loud default")
+        assert_equal(Quiet::describe(speaker), "quiet", reason="Quiet default")

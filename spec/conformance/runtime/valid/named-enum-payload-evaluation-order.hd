@@ -12,5 +12,6 @@ fn main!() -> i32:
     match pair:
         Pair.Value(first, second) => first * 10 + second
 
-test "main returns 21":
-    assert_equal(main!(), 21, reason="named enum payloads preserve source evaluation order")
+tests:
+    it("main returns 21"):
+        assert_equal(main!(), 21, reason="named enum payloads preserve source evaluation order")

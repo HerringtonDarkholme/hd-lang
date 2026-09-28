@@ -24,5 +24,6 @@ fn main!() -> i32:
     generic := bounded!(value)
     static + stored + direct + generic
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="traits / suspending dispatch")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="traits / suspending dispatch")

@@ -12,5 +12,6 @@ fn label(score: i32) -> i32:
 
 fn main() -> i32: label(95) + label(75)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="else if chains preserve value typing and selection order")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="else if chains preserve value typing and selection order")

@@ -20,5 +20,6 @@ impl Named for User:
 impl Greeter for User:
     fn greeting(self) -> string: "hi"
 
-test "a default body reaches the supertrait method":
-    assert_equal(User { value: "Ada" }.greet(), "hi Ada", reason="default uses trait members")
+tests:
+    it("a default body reaches the supertrait method"):
+        assert_equal(User { value: "Ada" }.greet(), "hi Ada", reason="default uses trait members")

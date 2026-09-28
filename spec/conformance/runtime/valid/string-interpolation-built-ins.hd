@@ -9,5 +9,6 @@ fn main() -> i32:
     else:
         0
 
-test "main returns 29":
-    assert_equal(main(), 29, reason="string interpolation displays built-ins from left to right")
+tests:
+    it("main returns 29"):
+        assert_equal(main(), 29, reason="string interpolation displays built-ins from left to right")

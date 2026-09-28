@@ -24,8 +24,9 @@ fn pick(flag: bool) -> i32:
         ),
     )
 
-test "the first closure runs when the flag is true":
-    assert_equal(pick(true), 42, reason="first multiline closure")
+tests:
+    it("the first closure runs when the flag is true"):
+        assert_equal(pick(true), 42, reason="first multiline closure")
 
-test "the second closure runs when the flag is false":
-    assert_equal(pick(false), 0, reason="second multiline closure")
+    it("the second closure runs when the flag is false"):
+        assert_equal(pick(false), 0, reason="second multiline closure")

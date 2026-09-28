@@ -21,5 +21,6 @@ fn main() -> i32:
     returned := identity(Number { value: 22 })
     show(Number { value: 20 }) + returned.value
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generic bound dispatch")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generic bound dispatch")

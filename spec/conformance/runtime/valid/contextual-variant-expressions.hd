@@ -15,5 +15,6 @@ fn unwrap(status: Status) -> i32:
 fn accept(status: Status) -> i32: unwrap(status)
 fn main() -> i32: unwrap(queued()) + accept(.Ready(42))
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="contextual variant expressions")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="contextual variant expressions")

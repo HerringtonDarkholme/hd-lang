@@ -10,11 +10,12 @@ fn make_readers(values: List[i32]) -> List[fn() -> i32]:
         readers.append(fn() -> i32: value + doubled)
     readers
 
-test "each closure observes its own iteration":
-    readers := make_readers([1, 2, 3])
-    first := readers[0]
-    second := readers[1]
-    third := readers[2]
-    assert_equal(first(), 3, reason="first iteration binding")
-    assert_equal(second(), 6, reason="second iteration binding")
-    assert_equal(third(), 9, reason="third iteration binding")
+tests:
+    it("each closure observes its own iteration"):
+        readers := make_readers([1, 2, 3])
+        first := readers[0]
+        second := readers[1]
+        third := readers[2]
+        assert_equal(first(), 3, reason="first iteration binding")
+        assert_equal(second(), 6, reason="second iteration binding")
+        assert_equal(third(), 9, reason="third iteration binding")

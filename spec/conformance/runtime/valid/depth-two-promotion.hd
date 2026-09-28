@@ -14,7 +14,8 @@ data Middle:
 data Outer:
     Middle
 
-test "depth-two field and method":
-    outer := Outer { Middle: ...Middle { Core: ...Core { value: 21 } } }
-    assert_equal(outer.value, 21, reason="depth-two field")
-    assert_equal(outer.doubled(), 42, reason="depth-two method")
+tests:
+    it("depth-two field and method"):
+        outer := Outer { Middle: ...Middle { Core: ...Core { value: 21 } } }
+        assert_equal(outer.value, 21, reason="depth-two field")
+        assert_equal(outer.doubled(), 42, reason="depth-two method")

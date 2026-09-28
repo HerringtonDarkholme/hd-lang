@@ -1,4 +1,5 @@
 # test: a same-line test body cannot hold a multi-name let
 fn pair() -> (i32, i32): (1, 2)
 
-test "pair": let a, b = pair()  # diagnostic: syntax-error
+tests:
+    it("pair"): let a, b = pair()  # diagnostic: syntax-error

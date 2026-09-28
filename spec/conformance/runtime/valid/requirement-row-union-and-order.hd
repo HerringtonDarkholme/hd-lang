@@ -43,17 +43,18 @@ fn with_tag[R](callback: fn() -> string $(R, Tag)) -> string $ R:
 fn relay[R](callback: fn() -> string $(R, Tag)) -> string $ R, Tag:
     callback()
 
-test "union row satisfied by an outer and a local provider":
-    $.with(Tag=FixedTag { value: "t" }):
-        assert_equal(provide_clock(both), "t@7", reason="Tag from outside, Clock from the callee")
+tests:
+    it("union row satisfied by an outer and a local provider"):
+        $.with(Tag=FixedTag { value: "t" }):
+            assert_equal(provide_clock(both), "t@7", reason="Tag from outside, Clock from the callee")
 
-test "row order does not matter":
-    $.with(Clock=FixedClock { value: 3 }, Tag=FixedTag { value: "u" }):
-        assert_equal(reordered(), "u@3", reason="Clock + Tag equals Tag + Clock")
+    it("row order does not matter"):
+        $.with(Clock=FixedClock { value: 3 }, Tag=FixedTag { value: "u" }):
+            assert_equal(reordered(), "u@3", reason="Clock + Tag equals Tag + Clock")
 
-test "least solution for R + Tag is the empty row":
-    assert_equal(with_tag(current), "local", reason="R is inferred empty")
+    it("least solution for R + Tag is the empty row"):
+        assert_equal(with_tag(current), "local", reason="R is inferred empty")
 
-test "removing a key by extension and re-adding it entails the callback row":
-    $.with(Tag=FixedTag { value: "outer" }):
-        assert_equal(relay(current), "outer", reason="R, Tag entails the pattern R, Tag")
+    it("removing a key by extension and re-adding it entails the callback row"):
+        $.with(Tag=FixedTag { value: "outer" }):
+            assert_equal(relay(current), "outer", reason="R, Tag entails the pattern R, Tag")

@@ -1,4 +1,5 @@
 use std.testing.assert_equal
 
-test "unequal char values fail assert_equal":
-    assert_equal('a', 'b', reason="deliberately unequal characters")  # panic: assertion-failed
+tests:
+    it("unequal char values fail assert_equal"):
+        assert_equal('a', 'b', reason="deliberately unequal characters")  # panic: assertion-failed

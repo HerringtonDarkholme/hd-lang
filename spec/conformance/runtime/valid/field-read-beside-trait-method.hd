@@ -11,7 +11,8 @@ impl Named for User:
     fn name(self) -> string:
         "user " + self.name
 
-test "field read and trait-qualified call":
-    user := User { name: "ada" }
-    assert_equal(user.name, "ada", reason="bare access reads the field")
-    assert_equal(Named::name(user), "user ada", reason="Trait::m selects the trait method")
+tests:
+    it("field read and trait-qualified call"):
+        user := User { name: "ada" }
+        assert_equal(user.name, "ada", reason="bare access reads the field")
+        assert_equal(Named::name(user), "user ada", reason="Trait::m selects the trait method")

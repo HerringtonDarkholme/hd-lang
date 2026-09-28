@@ -18,14 +18,15 @@ fn doubled(log: mut Log, value: i32) -> Result[i32, string]:
     log.text = log.text + "d"
     .Ok(checked * 2)
 
-test "Ok continues with the payload":
-    let log: mut Log = Log { text: "" }
-    let expected: Result[i32, string] = .Ok(42)
-    assert_equal(doubled(log, 21), expected, reason="payload continues")
-    assert_equal(log.text, "cd", reason="operand evaluated once, then the continuation")
+tests:
+    it("Ok continues with the payload"):
+        let log: mut Log = Log { text: "" }
+        let expected: Result[i32, string] = .Ok(42)
+        assert_equal(doubled(log, 21), expected, reason="payload continues")
+        assert_equal(log.text, "cd", reason="operand evaluated once, then the continuation")
 
-test "Err returns early":
-    let log: mut Log = Log { text: "" }
-    let expected: Result[i32, string] = .Err("negative")
-    assert_equal(doubled(log, -1), expected, reason="the error is returned")
-    assert_equal(log.text, "c", reason="operand evaluated once, continuation skipped")
+    it("Err returns early"):
+        let log: mut Log = Log { text: "" }
+        let expected: Result[i32, string] = .Err("negative")
+        assert_equal(doubled(log, -1), expected, reason="the error is returned")
+        assert_equal(log.text, "c", reason="operand evaluated once, continuation skipped")

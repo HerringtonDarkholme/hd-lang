@@ -1,0 +1,8 @@
+# test: test case names are unique within a module
+# Spec 10 Test Cases: a second test case with the same name is duplicate-test-name.
+tests:
+    it("counts"):
+        pass
+
+    it("counts"):  # diagnostic: duplicate-test-name
+        pass

@@ -14,7 +14,8 @@ fn size(figure: Shape) -> i32:
         Shape.Circle(n) => n * 2
         Shape.Square(n) => n * 4
 
-test "each arm binds its own n":
-    assert_equal(size(Shape.Circle(20)), 60, reason="guarded arm sees its binding")
-    assert_equal(size(Shape.Circle(5)), 10, reason="second arm rebinds n")
-    assert_equal(size(Shape.Square(3)), 12, reason="third arm rebinds n")
+tests:
+    it("each arm binds its own n"):
+        assert_equal(size(Shape.Circle(20)), 60, reason="guarded arm sees its binding")
+        assert_equal(size(Shape.Circle(5)), 10, reason="second arm rebinds n")
+        assert_equal(size(Shape.Square(3)), 12, reason="third arm rebinds n")

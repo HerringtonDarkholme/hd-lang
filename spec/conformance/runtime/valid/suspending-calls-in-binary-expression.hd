@@ -7,5 +7,6 @@ fn value!(input: i32) -> i32: input
 fn main!() -> i32:
     value!(20) + value!(22)
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="suspending calls in binary expression")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="suspending calls in binary expression")

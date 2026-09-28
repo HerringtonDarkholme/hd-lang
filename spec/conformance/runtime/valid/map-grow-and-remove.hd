@@ -22,5 +22,6 @@ fn main() -> i32:
         remaining = remaining + value
     removed + missing + remaining
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="map grow and remove")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="map grow and remove")

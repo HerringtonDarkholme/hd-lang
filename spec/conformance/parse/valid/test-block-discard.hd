@@ -1,4 +1,5 @@
 # test: parser retains named test blocks
 
-test "checks a value":
-    _ := 42
+tests:
+    it("checks a value"):
+        _ := 42

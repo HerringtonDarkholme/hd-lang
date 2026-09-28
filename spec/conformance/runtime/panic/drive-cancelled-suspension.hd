@@ -6,5 +6,6 @@ fn main!() -> i32:
     pending.cancel()
     pending!()  # panic: suspension-invalid-state
 
-test "a cancelled suspension cannot be driven":
-    _ := main!()
+tests:
+    it("a cancelled suspension cannot be driven"):
+        _ := main!()

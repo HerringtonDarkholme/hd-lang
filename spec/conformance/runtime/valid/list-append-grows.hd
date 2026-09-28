@@ -12,5 +12,6 @@ fn main() -> i32:
     values.append(36)
     values.len() + values[5]
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="list append grows")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="list append grows")

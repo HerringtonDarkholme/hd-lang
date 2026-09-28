@@ -6,5 +6,6 @@ fn main!() -> i32:
     _ := pending!()
     pending!()  # panic: suspension-invalid-state
 
-test "a completed suspension cannot be driven again":
-    _ := main!()
+tests:
+    it("a completed suspension cannot be driven again"):
+        _ := main!()

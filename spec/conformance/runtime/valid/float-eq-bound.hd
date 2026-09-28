@@ -5,10 +5,11 @@ use std.testing.assert_equal
 fn same[T < Eq](left: T, right: T) -> bool:
     left == right
 
-test "floats satisfy an Eq bound":
-    assert_equal(same(1.5, 1.5), true, reason="equal floats")
-    assert_equal(same(1.5, 2.5), false, reason="different floats")
+tests:
+    it("floats satisfy an Eq bound"):
+        assert_equal(same(1.5, 1.5), true, reason="equal floats")
+        assert_equal(same(1.5, 2.5), false, reason="different floats")
 
-test "NaN is unequal to itself through Eq":
-    nan := 0.0 / 0.0
-    assert_equal(same(nan, nan), false, reason="IEEE equality")
+    it("NaN is unequal to itself through Eq"):
+        nan := 0.0 / 0.0
+        assert_equal(same(nan, nan), false, reason="IEEE equality")

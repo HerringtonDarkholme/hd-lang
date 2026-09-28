@@ -8,10 +8,11 @@ impl Identity:
     fn echo![Value](self, value: Value) -> Value:
         value
 
-test "a generic method constructs and drives its erased suspension frame":
-    identity := Identity {}
-    assert_equal(
-        identity.echo![i32](42),
-        42,
-        reason="the explicit method type argument reaches suspension construction",
-    )
+tests:
+    it("a generic method constructs and drives its erased suspension frame"):
+        identity := Identity {}
+        assert_equal(
+            identity.echo![i32](42),
+            42,
+            reason="the explicit method type argument reaches suspension construction",
+        )

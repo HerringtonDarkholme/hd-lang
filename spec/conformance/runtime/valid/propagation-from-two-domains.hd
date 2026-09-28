@@ -55,11 +55,12 @@ fn describe(result: Result[string, SyncError]) -> string:
         .Ok(body) => body
         .Err(error) => label(error)
 
-test "both steps succeed":
-    assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")
+tests:
+    it("both steps succeed"):
+        assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")
 
-test "a file error converts to SyncError.Fs":
-    assert_equal(describe(sync("missing.txt", true)), "fs: missing.txt", reason="From[FsError]")
+    it("a file error converts to SyncError.Fs"):
+        assert_equal(describe(sync("missing.txt", true)), "fs: missing.txt", reason="From[FsError]")
 
-test "a network error converts to SyncError.Http":
-    assert_equal(describe(sync("config.txt", false)), "http: https://example.test", reason="From[HttpError]")
+    it("a network error converts to SyncError.Http"):
+        assert_equal(describe(sync("config.txt", false)), "http: https://example.test", reason="From[HttpError]")

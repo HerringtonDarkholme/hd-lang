@@ -25,25 +25,26 @@ fn number(value: Inspectable) -> i32:
         .Some(found) => found
         .None => -1
 
-test "a data value comes back as itself":
-    user := User { name: "Ada" }
-    let erased: Inspectable = user
-    assert_equal(user_name(erased), "Ada", reason="the exact type matches")
-    assert_equal(post_title(erased), "not a post", reason="another type does not")
-    match erased.downcast[User]():
-        .Some(found) => assert(found is user, reason="the same reference is recovered")
-        .None => assert(false, reason="the downcast must succeed")
+tests:
+    it("a data value comes back as itself"):
+        user := User { name: "Ada" }
+        let erased: Inspectable = user
+        assert_equal(user_name(erased), "Ada", reason="the exact type matches")
+        assert_equal(post_title(erased), "not a post", reason="another type does not")
+        match erased.downcast[User]():
+            .Some(found) => assert(found is user, reason="the same reference is recovered")
+            .None => assert(false, reason="the downcast must succeed")
 
-test "a scalar is boxed on erasure and unboxed by downcast_val":
-    let erased: Inspectable = 42
-    assert_equal(number(erased), 42, reason="i32 recovers its value")
-    assert_equal(user_name(erased), "not a user", reason="i32 is not a User")
-    let text: Inspectable = "42"
-    assert_equal(number(text), -1, reason="string is not i32")
+    it("a scalar is boxed on erasure and unboxed by downcast_val"):
+        let erased: Inspectable = 42
+        assert_equal(number(erased), 42, reason="i32 recovers its value")
+        assert_equal(user_name(erased), "not a user", reason="i32 is not a User")
+        let text: Inspectable = "42"
+        assert_equal(number(text), -1, reason="string is not i32")
 
-test "a concrete value is erased at the call or uses its own implementation":
-    user := User { name: "Grace" }
-    assert_equal(user_name(user), "Grace", reason="User converts to Inspectable by assignability")
-    match user.downcast[User]():
-        .Some(found) => assert(found is user, reason="a concrete receiver recovers itself")
-        .None => assert(false, reason="the downcast must succeed")
+    it("a concrete value is erased at the call or uses its own implementation"):
+        user := User { name: "Grace" }
+        assert_equal(user_name(user), "Grace", reason="User converts to Inspectable by assignability")
+        match user.downcast[User]():
+            .Some(found) => assert(found is user, reason="a concrete receiver recovers itself")
+            .None => assert(false, reason="the downcast must succeed")

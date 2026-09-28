@@ -35,6 +35,7 @@ fn contexts(
     none: $.Context[$()],
 ) -> void: pass
 
-test "a closure header lists its keys bare":
-    run := fn() -> i32 $ Clock, Logger: 5
-    pass
+tests:
+    it("a closure header lists its keys bare"):
+        run := fn() -> i32 $ Clock, Logger: 5
+        pass

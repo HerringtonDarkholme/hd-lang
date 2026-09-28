@@ -17,6 +17,7 @@ impl Point:
     fn sum(self) -> i32:
         self.x + self.y
 
-test "associated functions construct values":
-    assert_equal(Point::origin().sum(), 0, reason="zero-argument associated function")
-    assert_equal(Point::at(40, 2).sum(), 42, reason="associated function with arguments")
+tests:
+    it("associated functions construct values"):
+        assert_equal(Point::origin().sum(), 0, reason="zero-argument associated function")
+        assert_equal(Point::at(40, 2).sum(), 42, reason="associated function with arguments")

@@ -29,8 +29,9 @@ fn describe(result: Result[string, Error]) -> string:
         .Ok(text) => text
         .Err(error) => "error: " + error.to_string()
 
-test "the success value continues":
-    assert_equal(describe(load("a.txt", true)), "https://example.test", reason="Ok passes through ?")
+tests:
+    it("the success value continues"):
+        assert_equal(describe(load("a.txt", true)), "https://example.test", reason="Ok passes through ?")
 
-test "the domain error becomes an erased Error":
-    assert_equal(describe(load("a.txt", false)), "error: not found: a.txt", reason="Err is wrapped as a dynamic Error value")
+    it("the domain error becomes an erased Error"):
+        assert_equal(describe(load("a.txt", false)), "error: not found: a.txt", reason="Err is wrapped as a dynamic Error value")

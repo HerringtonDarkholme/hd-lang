@@ -1,0 +1,15 @@
+# test: an item of a tests block is not visible outside the block
+# Spec 03 Tests Blocks: naming a tests-block item outside the block is unknown-name.
+use std.testing.assert_equal
+
+fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+tests:
+    fn overdue() -> i32: 31
+
+    it("uses a private function"):
+        assert_equal(late_fee(overdue()), 5, reason="the block sees late_fee")
+
+fn report() -> i32:
+    overdue()  # diagnostic: unknown-name

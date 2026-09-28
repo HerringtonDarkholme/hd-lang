@@ -26,5 +26,6 @@ fn main() -> i32:
     else:
         0
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="generic Iterator traits drive for loops and comprehensions")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="generic Iterator traits drive for loops and comprehensions")

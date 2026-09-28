@@ -13,7 +13,8 @@ impl Named for User:
 
 fn field_value() -> string: "field"
 
-test "method call and parenthesized field call":
-    user := User { name: field_value }
-    assert_equal(user.name(), "trait", reason="x.name() is a method call")
-    assert_equal((user.name)(), "field", reason="(x.name)() calls the stored function")
+tests:
+    it("method call and parenthesized field call"):
+        user := User { name: field_value }
+        assert_equal(user.name(), "trait", reason="x.name() is a method call")
+        assert_equal((user.name)(), "field", reason="(x.name)() calls the stored function")

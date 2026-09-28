@@ -7,9 +7,10 @@ fn layer(value: i32??) -> string:
         .Some(.None) => "inner none"
         .Some(.Some(number)) => "value $number"
 
-test "each layer is distinct":
-    let inner_absent: i32? = .None
-    assert_equal(layer(.None), "outer none", reason=".None is the outer absent value")
-    assert_equal(layer(.Some(.None)), "inner none", reason=".Some(.None) is present outside")
-    assert_equal(layer(inner_absent), "inner none", reason="an i32? value wraps one layer")
-    assert_equal(layer(.Some(5)), "value 5", reason=".Some supplies the inner layer")
+tests:
+    it("each layer is distinct"):
+        let inner_absent: i32? = .None
+        assert_equal(layer(.None), "outer none", reason=".None is the outer absent value")
+        assert_equal(layer(.Some(.None)), "inner none", reason=".Some(.None) is present outside")
+        assert_equal(layer(inner_absent), "inner none", reason="an i32? value wraps one layer")
+        assert_equal(layer(.Some(5)), "value 5", reason=".Some supplies the inner layer")

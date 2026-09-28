@@ -10,8 +10,9 @@ fn ordered_reason() -> string:
     order = order + 1
     "condition should run after this named reason"
 
-test "assert accepts a true condition":
-    assert(1 + 1 == 2, reason="integer addition remains consistent")
+tests:
+    it("assert accepts a true condition"):
+        assert(1 + 1 == 2, reason="integer addition remains consistent")
 
-test "assert preserves source evaluation order":
-    assert(reason=ordered_reason(), condition=ordered_condition())
+    it("assert preserves source evaluation order"):
+        assert(reason=ordered_reason(), condition=ordered_condition())

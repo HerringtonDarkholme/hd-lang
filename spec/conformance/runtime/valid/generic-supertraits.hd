@@ -50,17 +50,18 @@ fn concrete_child_uses_blanket_parent() -> i32:
     let child: Specialized[i32] = Box[i32] { item: 42 }
     child.source()[0]
 
-test "generic_supertrait_direct returns 42":
-    assert_equal(generic_supertrait_direct(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+tests:
+    it("generic_supertrait_direct returns 42"):
+        assert_equal(generic_supertrait_direct(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
 
-test "generic_supertrait_bound returns 42":
-    assert_equal(generic_supertrait_bound(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+    it("generic_supertrait_bound returns 42"):
+        assert_equal(generic_supertrait_bound(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
 
-test "generic_supertrait_dynamic returns 42":
-    assert_equal(generic_supertrait_dynamic(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+    it("generic_supertrait_dynamic returns 42"):
+        assert_equal(generic_supertrait_dynamic(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
 
-test "generic_supertrait_widened returns 42":
-    assert_equal(generic_supertrait_widened(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+    it("generic_supertrait_widened returns 42"):
+        assert_equal(generic_supertrait_widened(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
 
-test "concrete_child_uses_blanket_parent returns 42":
-    assert_equal(concrete_child_uses_blanket_parent(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+    it("concrete_child_uses_blanket_parent returns 42"):
+        assert_equal(concrete_child_uses_blanket_parent(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")

@@ -12,5 +12,6 @@ fn main!() -> i32:
     pair := Pair { second: first!(), first: second!() }
     pair.first * 10 + pair.second
 
-test "main returns 21":
-    assert_equal(main!(), 21, reason="data field initializers preserve source evaluation order")
+tests:
+    it("main returns 21"):
+        assert_equal(main!(), 21, reason="data field initializers preserve source evaluation order")

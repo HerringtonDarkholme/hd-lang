@@ -10,5 +10,6 @@ fn main() -> i32:
         value := 2
         value
 
-test "main returns 1":
-    assert_equal(main(), 1, reason="branch scopes shadow")
+tests:
+    it("main returns 1"):
+        assert_equal(main(), 1, reason="branch scopes shadow")

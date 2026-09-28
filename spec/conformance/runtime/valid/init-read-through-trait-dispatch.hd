@@ -18,6 +18,7 @@ impl Reader for Box:
     fn read(self) -> i32:
         later + self.value
 
-test "trait dispatch during module initialization reads initialized bindings":
-    assert_equal(bounded, 7, reason="the bounded generic call read later after it was initialized")
-    assert_equal(dynamic, 8, reason="the trait value call read later after it was initialized")
+tests:
+    it("trait dispatch during module initialization reads initialized bindings"):
+        assert_equal(bounded, 7, reason="the bounded generic call read later after it was initialized")
+        assert_equal(dynamic, 8, reason="the trait value call read later after it was initialized")

@@ -9,5 +9,6 @@ fn name_length(user: User) -> i32: user.name.len()
 
 fn main() -> i32: name_length(User { name: "A界😀" })
 
-test "main returns 3":
-    assert_equal(main(), 3, reason="string length counts scalars")
+tests:
+    it("main returns 3"):
+        assert_equal(main(), 3, reason="string length counts scalars")

@@ -9,8 +9,9 @@ data Button:
 data Panel:
     Button
 
-test "own and promoted function-typed fields are called through a field read":
-    button := Button { on_click: add_one }
-    panel := Panel { Button: ...button }
-    assert_equal((button.on_click)(41), 42, reason="own field call")
-    assert_equal((panel.on_click)(1), 2, reason="promoted field call")
+tests:
+    it("own and promoted function-typed fields are called through a field read"):
+        button := Button { on_click: add_one }
+        panel := Panel { Button: ...button }
+        assert_equal((button.on_click)(41), 42, reason="own field call")
+        assert_equal((panel.on_click)(1), 2, reason="promoted field call")

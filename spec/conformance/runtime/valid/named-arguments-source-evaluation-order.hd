@@ -8,5 +8,6 @@ fn combine(first: i32, second: i32) -> i32: first * 10 + second
 fn main!() -> i32:
     combine(second=first!(), first=second!())
 
-test "main returns 21":
-    assert_equal(main!(), 21, reason="named arguments source evaluation order")
+tests:
+    it("main returns 21"):
+        assert_equal(main!(), 21, reason="named arguments source evaluation order")

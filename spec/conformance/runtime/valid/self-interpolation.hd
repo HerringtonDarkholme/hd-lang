@@ -14,5 +14,6 @@ impl Money:
     fn label(self) -> string:
         "value: $self"
 
-test "self interpolates through Display":
-    assert_equal(Money { cents: 5 }.label(), "value: 5c", reason="the receiver's Display")
+tests:
+    it("self interpolates through Display"):
+        assert_equal(Money { cents: 5 }.label(), "value: 5c", reason="the receiver's Display")

@@ -16,10 +16,6 @@ fn read() -> i32 $ Clock, Logger:
 fn run() -> i32 $ Clock, Logger:
     forward(read)
 
-test "run returns 42 with its providers":
-    $.with(Clock=FixedClock {}, Logger=FixedLogger {}):
-        assert_equal(run(), 42, reason="requirements / row forwarding")
-
 trait Clock
 
 data FixedClock: pass
@@ -31,3 +27,8 @@ trait Logger
 data FixedLogger: pass
 
 impl Logger for FixedLogger
+
+tests:
+    it("run returns 42 with its providers"):
+        $.with(Clock=FixedClock {}, Logger=FixedLogger {}):
+            assert_equal(run(), 42, reason="requirements / row forwarding")

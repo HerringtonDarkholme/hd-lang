@@ -1,0 +1,18 @@
+# test: a trailing block passed for an fn! parameter is a suspending closure
+# Spec 07 Trailing Callback Blocks: fn.trailing.suspending holds for every callee, so the
+# block may make bang calls.
+use std.testing.assert_equal
+
+fn fetch_count!() -> i32: 3
+
+fn twice!(body: fn!() -> i32) -> i32:
+    body!() + body!()
+
+fn total!() -> i32:
+    count := twice!():
+        fetch_count!()
+    count
+
+tests:
+    it("the trailing block suspends"):
+        assert_equal(total!(), 6, reason="the block ran twice")

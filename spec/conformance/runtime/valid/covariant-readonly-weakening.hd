@@ -23,22 +23,23 @@ fn value_length(users: Map[string, User]) -> i32:
 fn as_readonly(users: List[User]) -> List[User]:
     users
 
-test "readonly List[mut User] weakens to List[User] and aliases the same list":
-    let users: mut List[mut User] = [User { name: "ab" }]
-    let view: List[mut User] = users
-    assert_equal(total_length(view), 2, reason="weakened view reads elements")
-    let first: mut User = users[0]
-    first.name = "abcd"
-    assert_equal(total_length(view), 4, reason="the view observes later mutation")
-    assert(as_readonly(view) is users, reason="weakening preserves identity")
+tests:
+    it("readonly List[mut User] weakens to List[User] and aliases the same list"):
+        let users: mut List[mut User] = [User { name: "ab" }]
+        let view: List[mut User] = users
+        assert_equal(total_length(view), 2, reason="weakened view reads elements")
+        let first: mut User = users[0]
+        first.name = "abcd"
+        assert_equal(total_length(view), 4, reason="the view observes later mutation")
+        assert(as_readonly(view) is users, reason="weakening preserves identity")
 
-test "readonly Map[string, mut User] weakens to Map[string, User]":
-    let users: mut Map[string, mut User] = {"k": User { name: "abc" }}
-    let view: Map[string, mut User] = users
-    assert_equal(value_length(view), 4, reason="covariant value weakening")
+    it("readonly Map[string, mut User] weakens to Map[string, User]"):
+        let users: mut Map[string, mut User] = {"k": User { name: "abc" }}
+        let view: Map[string, mut User] = users
+        assert_equal(value_length(view), 4, reason="covariant value weakening")
 
-test "Producer[mut User] weakens to Producer[User]":
-    let producer: Producer[mut User] = Producer[mut User] { produce: fn() -> mut User: User { name: "p" } }
-    let readonly: Producer[User] = producer
-    make := readonly.produce
-    assert_equal(make().name, "p", reason="field read through the converted view")
+    it("Producer[mut User] weakens to Producer[User]"):
+        let producer: Producer[mut User] = Producer[mut User] { produce: fn() -> mut User: User { name: "p" } }
+        let readonly: Producer[User] = producer
+        make := readonly.produce
+        assert_equal(make().name, "p", reason="field read through the converted view")

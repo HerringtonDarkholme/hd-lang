@@ -9,5 +9,6 @@ fn apply(value: i32, transform: fn(i32) -> i32) -> i32:
 
 fn main() -> i32: apply(41, increment)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="callbacks / function values")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="callbacks / function values")

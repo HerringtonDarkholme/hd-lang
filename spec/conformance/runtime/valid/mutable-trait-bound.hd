@@ -20,5 +20,6 @@ fn cleared_value() -> i32:
     clear_value(counter)
     counter.value
 
-test "cleared_value returns 0":
-    assert_equal(cleared_value(), 0, reason="mutable trait bound")
+tests:
+    it("cleared_value returns 0"):
+        assert_equal(cleared_value(), 0, reason="mutable trait bound")

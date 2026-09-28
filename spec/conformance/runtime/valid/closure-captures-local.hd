@@ -7,5 +7,6 @@ fn main() -> i32:
     add := fn(value: i32) -> i32: base + value
     add(2)
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="closures / captures")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="closures / captures")

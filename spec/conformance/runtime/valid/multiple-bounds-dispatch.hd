@@ -34,5 +34,6 @@ fn main() -> i32:
     number := identity(Number { value: 20, extra: 2 })
     inspect(number) + inspect_first([Number { value: 20, extra: 0 }])
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="multiple bounds dispatch")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="multiple bounds dispatch")

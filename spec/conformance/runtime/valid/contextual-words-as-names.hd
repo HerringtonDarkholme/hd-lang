@@ -13,7 +13,8 @@ impl Resource:
     fn use(self, step: i32) -> i32:
         self.as + step
 
-test "contextual words name functions, fields, methods, and bindings":
-    super := Resource { as: 40 }
-    reified := super.use(use(0))
-    assert_equal(reified, 41, reason="a method and a function named use")
+tests:
+    it("contextual words name functions, fields, methods, and bindings"):
+        super := Resource { as: 40 }
+        reified := super.use(use(0))
+        assert_equal(reified, 41, reason="a method and a function named use")

@@ -18,9 +18,10 @@ impl Display for Label:
 data Page:
     Label
 
-test "the part reaches the trait method and the deeper inherent method":
-    page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
-    assert_equal(Display::to_string(page.Label), "label", reason="Label's own Display method, trait-qualified because Base's to_string is promoted into Label")
-    assert_equal(page.Label.Base.to_string(), "base home", reason="Base's inherent method")
-    assert_equal(page.name, "home", reason="fields are still promoted")
-    assert_equal(page.to_string(), "base home", reason="Label's trait method is ignored, so Base's method is promoted")
+tests:
+    it("the part reaches the trait method and the deeper inherent method"):
+        page := Page { Label: ...Label { Base: ...Base { name: "home" } } }
+        assert_equal(Display::to_string(page.Label), "label", reason="Label's own Display method, trait-qualified because Base's to_string is promoted into Label")
+        assert_equal(page.Label.Base.to_string(), "base home", reason="Base's inherent method")
+        assert_equal(page.name, "home", reason="fields are still promoted")
+        assert_equal(page.to_string(), "base home", reason="Label's trait method is ignored, so Base's method is promoted")

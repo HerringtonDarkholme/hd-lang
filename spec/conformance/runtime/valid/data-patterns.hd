@@ -21,5 +21,6 @@ fn nested(envelope: Envelope) -> i32:
 fn main() -> i32:
     label(User { age: 40, active: true }) + label(User { age: 1, active: false }) + nested(Envelope { user: User { age: 1, active: false } })
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="data patterns destructure nested fields and test literals")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="data patterns destructure nested fields and test literals")

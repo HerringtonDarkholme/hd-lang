@@ -17,5 +17,6 @@ fn main!() -> i32:
     let named: Named = Number { value: 42 }
     named.load!()
 
-test "main returns 42":
-    assert_equal(main!(), 42, reason="traits / suspending defaults")
+tests:
+    it("main returns 42"):
+        assert_equal(main!(), 42, reason="traits / suspending defaults")

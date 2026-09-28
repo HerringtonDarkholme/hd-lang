@@ -19,5 +19,6 @@ fn show(value: Named) -> i32:
 fn main() -> i32:
     show(Number { value: 40 })
 
-test "main returns 42":
-    assert_equal(main(), 42, reason="traits / defaults / inherited method")
+tests:
+    it("main returns 42"):
+        assert_equal(main(), 42, reason="traits / defaults / inherited method")

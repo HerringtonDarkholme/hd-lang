@@ -22,5 +22,6 @@ impl[Item < Score] Score for List[Item]:
 fn total_score() -> i32:
     [Point { value: 20 }, Point { value: 22 }].score()
 
-test "total_score returns 42":
-    assert_equal(total_score(), 42, reason="blanket impl for list")
+tests:
+    it("total_score returns 42"):
+        assert_equal(total_score(), 42, reason="blanket impl for list")

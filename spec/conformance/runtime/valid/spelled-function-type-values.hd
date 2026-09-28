@@ -27,8 +27,9 @@ fn apply_row(callback: Fn[(i32,), i32, Scale], value: i32) -> i32 $ Scale:
 fn spread(callback: Fn[(string, Rest[i32]), i32, $()]) -> i32:
     callback("n", 1, 2, 3)
 
-test "spelled function types call like the sugar":
-    assert_equal(apply(inc, 1), 2, reason="the spelled type is the sugar type")
-    assert_equal(spread(count), 3, reason="Rest[i32] is a vararg element")
-    $.with(Scale=Triple { value: 0 }):
-        assert_equal(apply_row(scaled, 2), 6, reason="the row argument is the requirement row")
+tests:
+    it("spelled function types call like the sugar"):
+        assert_equal(apply(inc, 1), 2, reason="the spelled type is the sugar type")
+        assert_equal(spread(count), 3, reason="Rest[i32] is a vararg element")
+        $.with(Scale=Triple { value: 0 }):
+            assert_equal(apply_row(scaled, 2), 6, reason="the row argument is the requirement row")

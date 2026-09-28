@@ -22,12 +22,13 @@ fn edit(post: mut Post, stamps: Timestamps) -> void:
     let copy: mut Post = Post { Timestamps: ...stamps, id: "p", title: "t" }
     copy.touch(1700000300)            # changes copy's part, never stamps
 
-test "access follows the container":
-    let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
-    stamps := Timestamps { created_at: 5, updated_at: 5 }
-    edit(post, stamps)
-    assert_equal(post.updated_at, 1700000200, reason="promoted field assignment")
-    assert_equal(post.created_at, 1700000000, reason="mutation through the alias is seen in post")
-    assert_equal(stamps.updated_at, 5, reason="the copy never changes stamps")
-    post.Timestamps.updated_at = 7
-    assert_equal(post.updated_at, 7, reason="explicit path through a mut root")
+tests:
+    it("access follows the container"):
+        let post: mut Post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        stamps := Timestamps { created_at: 5, updated_at: 5 }
+        edit(post, stamps)
+        assert_equal(post.updated_at, 1700000200, reason="promoted field assignment")
+        assert_equal(post.created_at, 1700000000, reason="mutation through the alias is seen in post")
+        assert_equal(stamps.updated_at, 5, reason="the copy never changes stamps")
+        post.Timestamps.updated_at = 7
+        assert_equal(post.updated_at, 7, reason="explicit path through a mut root")
