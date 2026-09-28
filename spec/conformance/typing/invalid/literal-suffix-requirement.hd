@@ -1,0 +1,12 @@
+# test: from_literal needs no providers
+# Spec 09 Literal Suffix Trait: an implementation with a requirement clause is trait-method-signature.
+use std.ops.LiteralSuffix
+
+data Pixels:
+    count: i32
+
+type px(i32)
+
+impl LiteralSuffix[i32, Pixels] for px:
+    fn from_literal(n: i32) -> Pixels $ Console:  # diagnostic: trait-method-signature
+        Pixels { count: n }

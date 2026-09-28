@@ -1,0 +1,7 @@
+# test: a timeout option is a Duration written as a suffixed literal
+# Spec 10 Test Cases: `timeout=5s` with `use std.time.s`.
+use std.time.s
+
+tests:
+    it("fetches the index", timeout=5s):
+        pass

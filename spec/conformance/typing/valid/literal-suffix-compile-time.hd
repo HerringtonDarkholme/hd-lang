@@ -1,0 +1,7 @@
+# test: a suffixed literal is accepted in shared enum data
+# Spec 05 Literal Suffixes: a compile-time position evaluates the call at compile time.
+use std.time.{Duration, ms, s}
+
+enum Tier(limit: Duration):
+    Fast -> Tier(limit=250ms)
+    Slow -> Tier(limit=5s)

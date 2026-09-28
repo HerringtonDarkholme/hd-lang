@@ -90,10 +90,15 @@ tests/common.hd        # tests.common, shared by integration test modules
 6. r[module.test.integration.uses] Integration test modules may use one another.
 7. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
 8. r[module.test.integration.tests-root] The `tests` root names the integration test modules, so an integration test module uses `tests/common.hd` as `use tests.common`.
-9. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
-10. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
-11. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
-12. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
+9. r[module.test.tests-root-elsewhere] A use of the `tests` root anywhere but an integration test module, including a test module, is an error. Error: `test-only-use`.
+10. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
+11. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
+12. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
+13. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
+
+```text
+use tests.common  # error: test-only-use
+```
 
 > **Why.** A test dependency that depends back would give a unit test a
 > second copy of the package, whose types differ from the ones under test.
@@ -222,10 +227,14 @@ fn main() -> i32:
 6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
 7. r[module.prelude.function] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the vararg marker `Rest`, which code imports where it writes them, as in `use std.function.{Fn, SuspendFn}`.
 8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
+9. r[module.prelude.ops] `std.ops` declares `LiteralSuffix`, which code imports to declare a literal suffix.
+10. r[module.prelude.time] `std.time` declares `Duration` and the duration suffixes `ns`, `us`, `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+11. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),
 [Error Trait](09-traits.md#error-trait),
+[Literal Suffixes](05-expressions.md#literal-suffixes),
 [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 ### Collection Type Names
@@ -373,14 +382,14 @@ tests:
 
 ```text
 pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_panic: string? = .None,
-                             timeout: string? = .None, body: fn!() -> T $ R) -> void $ R
+                             timeout: Duration? = .None, body: fn!() -> T $ R) -> void $ R
 ```
 
 1. r[module.testing.it-function] `it` is an ordinary function with the signature above, which `std.testing` declares and the prelude supplies. Each call in test position registers one **test case**.
 2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-5. r[module.testing.it.options] The named options are those in the table below, and each value must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
+5. r[module.testing.it.options-literal] The named options are those in the table below. An `ignore` or `expect_panic` value must be a string literal without interpolation, and a `timeout` value must be a suffixed literal. Any other value is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
 8. r[module.testing.position-statements] Every statement in test position must be a call of `it`, `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
@@ -391,9 +400,19 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 | --- | --- | --- | --- |
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
-| r[module.testing.option.timeout] Timeout | `timeout` | a duration, such as `"5s"` | The runner fails the test case when its body runs longer than the duration. |
+| r[module.testing.option.timeout-duration] Timeout | `timeout` | a `std.time.Duration`, written as a suffixed literal such as `5s` | The runner fails the test case when its body runs longer than the duration. |
 
 1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-set) is an error. Error: `unknown-panic-category`.
+2. r[module.testing.option.timeout-compile-time] A `timeout` literal is evaluated at compile time, so the runner reads the duration without running test code.
+3. r[module.testing.option.timeout-import] Its suffix is imported like any other, as in `use std.time.s`; `it` adds no suffix of its own.
+
+```text
+use std.time.s
+
+tests:
+    it("fetches the index", timeout=5s):
+        pass
+```
 
 ```text
 fn name_of() -> string: "computed"
@@ -411,6 +430,9 @@ tests:
         pass
 
     it("rejects a category", expect_panic="index-out-of-range"):  # error: unknown-panic-category
+        pass
+
+    it("waits", timeout="5s"):  # error: non-literal-test-argument
         pass
 
 fn helper() -> void:
@@ -438,7 +460,7 @@ row:
 
 ```text
 pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
-                                      expect_panic: string? = .None, timeout: string? = .None,
+                                      expect_panic: string? = .None, timeout: Duration? = .None,
                                       body: fn!(A) -> T $ R) -> void $ R
 ```
 

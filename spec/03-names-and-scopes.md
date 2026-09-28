@@ -194,6 +194,36 @@ use dep.billing.types.{UserId as BillingUserId}
 2. r[names.use.pub.source] The source declaration must already be public.
 3. r[names.use.pub.binding] A `pub use` introduces the same local binding as an ordinary `use`; it additionally exposes that binding without creating a new declaration identity.
 
+### Literal Suffix Names
+
+The suffix of a [suffixed literal](01-lexical-structure.md#literal-suffixes)
+names a type in module scope, usually one brought in by `use`:
+
+```text
+use std.time.s
+
+fn retry_after(s: i32) -> i32:
+    limit := 5s  # std.time.s, not the parameter
+    s
+```
+
+1. r[names.suffix.module] A literal suffix is resolved as a module name: a type declared at module scope, or a name that a use declaration or the prelude introduces.
+2. r[names.suffix.ordinary] It follows the ordinary rules for module names, so a suffix is brought in, renamed with `as`, or found in conflict exactly as other used names are.
+3. r[names.suffix.no-local] Parameters, local bindings, and local type declarations never take part, so a local named `s` does not change what `5s` calls.
+4. r[names.suffix.unknown] A suffix that names no type in module scope is an error. Error: `unknown-type`.
+
+```text
+fn margin() -> i32:
+    width := 12px  # error: unknown-type
+    0
+```
+
+> **Why.** Resolving through `use` tells a reader where `ms` comes from, and
+> clashes such as two libraries' `m` use the existing `as` renaming. Module
+> scope alone keeps a local name from changing what a literal means.
+
+See also: [Literal Suffixes](05-expressions.md#literal-suffixes).
+
 ## Local Bindings
 
 `:=` and `let` introduce local names:

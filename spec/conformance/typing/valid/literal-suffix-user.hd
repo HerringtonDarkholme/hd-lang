@@ -1,0 +1,18 @@
+# test: a library declares a suffix by implementing LiteralSuffix on a newtype
+# Spec 05 Literal Suffixes and 09 Literal Suffix Trait: `-12px` calls px::from_literal(-12).
+use std.ops.LiteralSuffix
+
+data Pixels:
+    count: i32
+
+type px(i32)
+
+impl LiteralSuffix[i32, Pixels] for px:
+    fn from_literal(n: i32) -> Pixels:
+        Pixels { count: n }
+
+fn indent() -> Pixels:
+    -12px  # px::from_literal(-12)
+
+fn margin() -> Pixels:
+    12px

@@ -118,11 +118,12 @@ Conformance fixtures place their marker on that line.
 Note (normative): `unsatisfied-trait-bound` covers several trait
 requirements: a generic bound (including `T < AnyVal`, `T < AnyRef`, and
 `T < mut Trait` given readonly access), `Display` for string interpolation,
-`Iterable` or `Iterator` for a `for` loop, and `std.process.Termination` for
-an entry point's or a test body's result. Because one code covers these
-origins, its message must name the type, the missing trait, and where the
-requirement comes from (the bound, the interpolation, the loop, the entry
-point, or the test).
+`Iterable` or `Iterator` for a `for` loop, `std.process.Termination` for
+an entry point's or a test body's result, and `std.ops.LiteralSuffix` for a
+suffixed literal. Because one code covers these origins, its message must
+name the type, the missing trait, and where the requirement comes from (the
+bound, the interpolation, the loop, the entry point, the test, or the
+literal).
 
 Identifier-security warnings use Unicode confusable skeletons and a
 moderately-restrictive mixed-script profile. They do not change identifier
@@ -177,11 +178,13 @@ links to the rule that defines the term.
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
+| **literal suffix** | A name written directly after a numeric literal's digits, which names a type implementing `std.ops.LiteralSuffix`. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it. See [Member Lines](14-annotations.md#member-lines). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
+| **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix's `from_literal`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
 | **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](10-modules.md#r-module.test.code). |
@@ -1035,3 +1038,22 @@ existing source. Each entry names the decision that made the change.
 - Snapshots (Testing T49, owner decision 2026-09-27): `std.testing` declares
   `snapshot(text, expect="")` and `snapshot_file(text)`. A non-literal
   `expect` is `non-literal-test-argument`.
+- Literal suffixes (Literal Suffixes L1-L9, owner decisions 2026-09-28): a
+  numeric literal may end in a suffix, as in `250ms`, `1.5kb`, or `0xff'B`,
+  which calls `from_literal` of the suffix type's `std.ops.LiteralSuffix`
+  implementation and has that implementation's `Out` type. The suffix is a
+  module name, brought in by `use`; `std.time` declares `ns`, `us`, `ms`,
+  `s`, `min`, and `h` for `Duration`, and the prelude declares none. A
+  number directly followed by a letter, as in `5s`, previously a
+  `syntax-error`, is now a suffixed literal; one followed by a reserved
+  word, as in `5else`, previously two tokens, is now one suffixed literal
+  whose suffix is unknown.
+- Test timeouts (Testing, the note after T52, owner decision 2026-09-28):
+  the `timeout` option of `it`, `it_each`, `it_prop`, and `it_prop_with` is
+  a `Duration?`, written as a suffixed literal such as `timeout=5s` with
+  `use std.time.s`. `timeout="5s"`, previously valid, is now
+  `non-literal-test-argument`.
+- The `tests` root outside `tests/` (Testing T52, owner decision
+  2026-09-28): a use of the `tests` root outside an integration test module,
+  including in a test module, is `test-only-use`. `DebugWriter` stays an
+  imported name, not a prelude name.

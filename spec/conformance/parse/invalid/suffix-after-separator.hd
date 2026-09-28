@@ -1,0 +1,3 @@
+# test: a literal suffix cannot follow a digit separator
+# Spec 01 Literal Suffixes: `5_ms` forms no token.
+wait := 5_ms  # diagnostic: invalid-token

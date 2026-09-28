@@ -462,6 +462,7 @@ fn describe(point: Point) -> string:
 5. r[trait.debug.std] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples, each when its type arguments implement `Debug`.
 6. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
 7. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
+8. r[trait.debug.writer-import] `DebugWriter` is not a prelude name, so a hand-written implementation imports it, as in `use std.format.DebugWriter`.
 
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a
@@ -473,6 +474,41 @@ fn describe(point: Point) -> string:
 
 See also: [Standard Testing](10-modules.md#standard-testing),
 [Typed Derivation](14-annotations.md#typed-derivation).
+
+### Literal Suffix Trait
+
+The standard library declares `LiteralSuffix` in `std.ops`. A library
+declares a literal suffix by implementing it:
+
+```text
+trait LiteralSuffix[In, Out]:
+    fn from_literal(n: In) -> Out
+```
+
+1. r[trait.suffix.module] `std.ops` declares `LiteralSuffix`. It is not a prelude name, so an implementation imports it, as in `use std.ops.LiteralSuffix`.
+2. r[trait.suffix.declare] A suffix is declared by implementing `LiteralSuffix` on a newtype whose name is the suffix, as `impl LiteralSuffix[i64, Duration] for ms` declares `ms`.
+3. r[trait.suffix.carrier] The newtype only names the suffix. A suffixed literal has the type `Out`, not the newtype's type.
+4. r[trait.suffix.row] `from_literal` has the empty requirement row and is not suspending, and an implementation method must agree on both. Error: `trait-method-signature`.
+5. r[trait.suffix.coherence] `LiteralSuffix` implementations follow the ordinary rules for implementation targets, ownership, and overlap.
+
+```text
+use std.ops.LiteralSuffix
+
+data Pixels:
+    count: i32
+
+type px(i32)
+
+impl LiteralSuffix[i32, Pixels] for px:
+    fn from_literal(n: i32) -> Pixels $ Console:  # error: trait-method-signature
+        Pixels { count: n }
+```
+
+> **Why.** A requirement-free, non-suspending `from_literal` can run in any
+> position that is evaluated at compile time, such as a test option.
+
+See also: [Literal Suffixes](05-expressions.md#literal-suffixes),
+[Requirement Rows](11-requirements-and-suspension.md#requirement-rows).
 
 ### Implementation Declarations
 

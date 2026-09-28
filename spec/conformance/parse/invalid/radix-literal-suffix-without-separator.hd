@@ -1,0 +1,3 @@
+# test: a radix literal takes a suffix only after a quote
+# Spec 01 Literal Suffixes: without the quote, a letter outside the radix is an error.
+mask := 0b101s  # diagnostic: syntax-error

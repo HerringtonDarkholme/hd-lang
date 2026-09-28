@@ -815,3 +815,9 @@ style lint rejects a chapter that reuses one.
 - `module.testing.it-each.body`: retired 2026-09-28. Testing T41 puts the
   options before the body, so the body is passed by name. Replaced by
   `module.testing.it-each.body-closure`.
+- `module.testing.it.options`: retired 2026-09-28. With literal suffixes
+  (L1-L9), `timeout` takes a suffixed literal instead of a string. Replaced
+  by `module.testing.it.options-literal`.
+- `module.testing.option.timeout`: retired 2026-09-28. The timeout value is
+  a `Duration` written as a suffixed literal, such as `5s`, instead of the
+  string `"5s"`. Replaced by `module.testing.option.timeout-duration`.

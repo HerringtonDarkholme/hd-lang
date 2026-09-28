@@ -893,6 +893,7 @@ grouped_binding_expression = "(", identifier, ",", identifier,
                              binding_expression, ")" ;
 
 literal = boolean_literal
+        | suffixed_literal
         | float_literal
         | integer_literal
         | char_literal
@@ -965,6 +966,20 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
 1. r[grammar.primary.no-reflection-syntax] Declaration reflection has no dedicated syntax.
 2. r[grammar.primary.shape-intrinsics] `shape[User]()` and `shape_of(get_user)` are ordinary calls to prelude intrinsics specified in [Shape Intrinsics](14-annotations.md#shape-intrinsics).
+
+#### Suffixed Literals
+
+1. r[grammar.primary.suffixed-literal] A `suffixed_literal` token is a primary expression, which stands for a call as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+2. r[grammar.pattern.no-suffixed-literal] `literal_pattern` does not admit a suffixed literal, so `5s` in a pattern is an error. Error: `syntax-error`.
+
+```text
+fn describe(count: i32) -> string:
+    match count:
+        5px => "five"  # error: syntax-error
+        _ => "other"
+```
+
+See also: [Literal Suffixes](01-lexical-structure.md#literal-suffixes).
 
 #### Forms Resolved By Name
 

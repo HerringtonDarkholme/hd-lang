@@ -1,6 +1,7 @@
 # test: an ignored test case does not run, and options take literal values
 # Spec 10 Test Cases: the ignore option skips the test case, and timeout bounds its run.
 use std.testing.assert_equal
+use std.time.s
 
 fn add(a: i32, b: i32) -> i32: a + b
 
@@ -14,5 +15,5 @@ tests:
     it("an ignored case never runs", ignore="demonstrates ignore"):
         panic("an ignored test case must not run")
 
-    it("finishes quickly", timeout="5s"):
+    it("finishes quickly", timeout=5s):
         assert_equal(add(1, 1), 2, reason="well within the limit")

@@ -1,0 +1,6 @@
+# test: a suffixed literal is not a pattern
+# Spec 02 Suffixed Literals: literal_pattern does not admit a suffixed literal.
+fn describe(count: i32) -> string:
+    match count:
+        5px => "five"  # diagnostic: syntax-error
+        _ => "other"

@@ -1,0 +1,3 @@
+# test: string literals take no suffix
+# Spec 01 Literal Suffixes: string suffixes are out of scope.
+name := "abc"u  # diagnostic: syntax-error

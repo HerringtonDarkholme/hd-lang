@@ -1,0 +1,13 @@
+# test: numeric literals take suffixes, radix literals after a quote
+# Spec 01 Literal Suffixes: the forms a suffixed literal takes.
+use std.time.{ms, s}
+
+timeout := 5s
+delay := 1_500ms
+size := 1.5kb
+scaled := 1e3ms
+indent := 5em
+mask := 0xff'B
+bits := 0b1010'flags
+back := -5s
+plain := 1e3

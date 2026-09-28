@@ -1,0 +1,7 @@
+# test: a literal suffix resolves in module scope only
+# Spec 03 Literal Suffix Names: a parameter named `s` does not change what `5s` calls.
+use std.time.s
+
+fn retry_after(s: i32) -> i32:
+    limit := 5s  # std.time.s, not the parameter
+    s

@@ -65,6 +65,8 @@ interface StringScan {
 interface NumberScan {
   readonly end: number;
   readonly floating: boolean;
+  /** Where the literal suffix begins, including a radix literal's `'`. */
+  readonly suffix?: number;
 }
 
 interface DepthEntry {
@@ -287,7 +289,34 @@ function validNumber(text: string): boolean {
 // Chapter 01 and 02 (owner decision TUP-1): digits after `.` are an ordinary
 // number, so `t.0.1` lexes `0.1` as one floating-point token; tuple members
 // are identifiers such as `_0`.
+// Chapter 01 literal suffixes: a letter directly after decimal digits, or `'`
+// and a letter after radix digits, starts a suffix of identifier characters.
+function suffixEnd(source: string, start: number): number {
+  let end = start;
+  while (end < source.length && /^[\p{XID_Continue}_]$/u.test(source[end]!)) end += 1;
+  return end;
+}
+
+function startsSuffix(character: string | undefined): boolean {
+  return character !== undefined && /^\p{XID_Start}$/u.test(character);
+}
+
 function numberEnd(source: string, start: number): NumberScan {
+  const scan = unsuffixedNumberEnd(source, start);
+  const radix = /^0[xXbBoO]/.test(source.slice(start, start + 2));
+  if (radix && source[scan.end] === "'" && startsSuffix(source[scan.end + 1]))
+    return { ...scan, end: suffixEnd(source, scan.end + 1), suffix: scan.end };
+  if (!radix && startsSuffix(source[scan.end]))
+    return { ...scan, end: suffixEnd(source, scan.end), suffix: scan.end };
+  return scan;
+}
+
+function numberKind(found: NumberScan): string {
+  if (found.suffix !== undefined) return "suffixed_literal";
+  return found.floating ? "float_literal" : "integer_literal";
+}
+
+function unsuffixedNumberEnd(source: string, start: number): NumberScan {
   const rest = source.slice(start);
   const based = /^(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|0[oO][0-7_]+)/.exec(rest);
   if (based) return { end: start + based[0].length, floating: false };
@@ -376,6 +405,7 @@ function endsOperand(previous: GrammarToken | undefined): boolean {
     "identifier",
     "integer_literal",
     "float_literal",
+    "suffixed_literal",
     "string_literal",
     "char_literal",
     "boolean_literal",
@@ -646,8 +676,9 @@ export function lexSource(source: string): LexResult {
     if (isDigit(character)) {
       const found = numberEnd(source, index);
       const text = source.slice(index, found.end);
-      if (!validNumber(text)) diagnostics.push(diagnostic("invalid-token", line));
-      tokens.push(token(found.floating ? "float_literal" : "integer_literal", line, text));
+      if (!validNumber(source.slice(index, found.suffix ?? found.end)))
+        diagnostics.push(diagnostic("invalid-token", line));
+      tokens.push(token(numberKind(found), line, text));
       index = found.end;
       lineHasToken = true;
       lastTokenLine = line;

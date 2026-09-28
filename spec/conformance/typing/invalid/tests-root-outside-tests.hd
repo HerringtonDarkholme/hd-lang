@@ -1,0 +1,3 @@
+# test: the tests use root outside an integration test module
+# Spec 10 Test Modules: `use tests.common` in an ordinary module is test-only-use.
+use tests.common  # diagnostic: test-only-use

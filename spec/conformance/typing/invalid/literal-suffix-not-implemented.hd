@@ -1,0 +1,7 @@
+# test: a suffix type must implement LiteralSuffix
+# Spec 05 Literal Suffixes: a newtype without the trait is not a suffix.
+type px(i32)
+
+fn layout() -> void:
+    size := 12px  # diagnostic: unsatisfied-trait-bound
+    pass
