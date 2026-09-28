@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T31 are
+Status: design record, started 2026-09-27. Owner decisions T1-T33 are
 decided. T4, T5, and T8 are applied to the specification (for the current
 `test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
@@ -178,6 +178,17 @@ more issues (property testing is folded in from
 # std.testing
 pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R
 ```
+32. **T32: a snapshot takes a string.** `snapshot(text, expect="...")` and
+    `snapshot_file` compare text; the user picks the format by rendering,
+    for example `json.pretty(x)`, `yaml.encode(x)`, or `debug(x)`. There is
+    no strategy system. This refines T30's rendering sentence.
+33. **T33: a derivable `Debug` trait is the default rendering.** `std`
+    declares `Debug` (derivable through typed derivation, implemented by
+    `std` for primitives and collections) with stable, field-by-field,
+    multi-line output via `debug(x)`. `assert_equal` requires
+    `T < Eq + Debug`, so a failure shows both values. `Display` stays
+    user-facing text. (The name avoids `Inspect`, since `Inspectable` is
+    the runtime type-information trait.)
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
