@@ -1044,7 +1044,7 @@ pub enum Tree:
    member shrunk in turn with the others kept, and each variant moved toward
    a simpler one. That needs "rebuild `self` with member `m` replaced", a
    value-to-value traversal (P1).
-3. The generator must be a pure `mut Rng` value. A `$ mut Random` provider
+3. The generator must be a pure `mut Rng` value. A `$ Random` provider
    cannot be used inside `member`, which has the empty row (P8). This matches
    the STDLIB `Strategy` design, so it is only a note.
 

@@ -25,42 +25,40 @@ of resuming.
 
 ### Mutable Host Providers
 
-**Decided.** A runtime profile may bind a host provider with `mut` access for
-a trait it marks mutable, and an entry-point row may then contain `$ mut K`
-for that trait; a `mut K` entry for a trait the profile does not mark mutable
-stays `mutable-upgrade` ([STDLIB decision 14](STDLIB.md#owner-decisions)).
-The rules are in
-[Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)
-and [Wasm Boundary](../spec/10-modules.md#wasm-boundary).
+**Decided and applied 2026-09-27: access follows from the trait.** A
+requirement is one provider shared by its whole call tree, so no row or call
+tracks its access with `mut`. A requirement trait that declares or inherits a
+`mut self` method is a mutable requirement trait: `$.use(K)` yields `mut K`,
+a `$.with` or `$.context` binding for it needs a `mut` value
+(`mutable-upgrade` otherwise), and a runtime profile binds its host provider
+mutable. Every other provider is readonly. `$ mut K`, `$.use(mut K)`, and
+`mut K=value` are `syntax-error`, and profiles no longer mark traits. The
+rules are in
+[Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
+This supersedes the `$ mut K` rows of [STDLIB decision 14](STDLIB.md#owner-decisions)
+and the same-day "always mutable" answer.
 
-**Problem.** Two questions remain:
+**Problem.** One question remains: whether the prelude
+`Console.write_line!` takes `mut self`. A recording `BufferConsole` needs it
+to append. Rows would still say `$ Console`, but `Console` would become a
+mutable requirement trait, and a `:=` binding exposes a readonly view, so
+`console := $.use(Console)` followed by `console.write_line!(...)` would be
+`mutable-receiver-required`.
 
-- which traits each toolchain profile marks mutable. The decision names
-  `Clock`, `Random`, `FsWrite`, and `Console`, but the standard capability
-  catalog is not fixed, and the conformance profiles mark only `Console`
-  ([Runtime Profiles](../spec/conformance/README.md#runtime-profiles));
-- whether the prelude `Console.write_line!` takes `mut self`. A recording
-  `BufferConsole` needs it to append, but it would put `mut Console` in the
-  row of `println` and of every caller.
+**Options.** (1) Keep `self`, so a recording console is not expressible
+through `Console`. (2) Take `mut self`, and code that keeps the console in a
+local writes `let console: mut Console = $.use(Console)`. (3) Take
+`mut self`, and let a `:=` binding of `$.use(K)` keep mutable access.
+**Recommendation:** 2, since it needs no new rule; the guide's examples
+would change to the `let` form or call `$.use(Console)` directly.
 
-**Options.** For `write_line!`: (1) keep `self`, so a recording console is
-not expressible through `Console`; (2) take `mut self`, so printing code
-requires `mut Console`.
+```text
+fn greet!() -> void $ Console:
+    let console: mut Console = $.use(Console)    # option 2
+    _ := console.write_line!("hi")
+```
 
-**Unblocks.** The `std.time`, `std.random`, and `std.fs` host providers once
-their profiles are named, and a recording
-[`BufferConsole`](STDLIB.md#stdconsole).
-
-**Decided 2026-09-27, not yet applied: requirements are always mutable.**
-A requirement is one provider shared by the whole call tree, so it is
-conceptually exclusive; `$.use(K)` always gives mutable access, and there
-is no readonly/mutable split for requirements. Rows say `$ K`, never
-`$ mut K`, and runtime profiles no longer mark mutable traits. A
-requirement trait may declare `mut self` methods freely, so
-`Console.write_line!` takes `mut self` and a recording `BufferConsole`
-works, while code that prints still writes only `$ Console`. This
-supersedes the earlier same-day answer (a `$ mut K` row only for traits
-with a `mut self` method) and the `$ mut K` rows of STDLIB decision 14.
+**Unblocks.** A recording [`BufferConsole`](STDLIB.md#stdconsole).
 
 ### Typed Derivation, Tool Adapters, And Secrets
 

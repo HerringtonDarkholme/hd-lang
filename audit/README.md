@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-27 the prototype passes 1,049 of the 1,151 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 102 are listed in
+On 2026-09-27 the prototype passes 1,055 of the 1,169 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 114 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 102 still fail.
+decision below; all 114 still fail.
 
 ## Specification Follow-Ups
 
@@ -52,7 +52,6 @@ cases.
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; two fixtures need package roles (`--package-role`, `--dependency`), which the prototype CLI lacks, and `trait-argument-owner-impl.hd` builds `mut Word` comprehension elements where its result type asks for `Word`. |
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
-| R-MUT | A provider installed with `$.with(mut K=value)` may be retrieved as `$.use(mut K)`, and rows carry `mut K`; retrieving or requiring `mut K` where only readonly access is installed is `mutable-upgrade`; a runtime profile binds a host provider `mut` only for a trait it marks mutable. The prototype parser rejects a `mut` requirement key. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |

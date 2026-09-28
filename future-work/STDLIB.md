@@ -75,11 +75,11 @@ Other facts the library must respect:
   identity and runtime profile
   ([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); persisted
   identity uses `std.fingerprint`.
-- `$.use(K)` returns a readonly value of the trait type. `$.use(mut K)`
-  returns `mut K` when the provider was installed with `$.with(mut K=value)`
+- `$.use(K)` returns `mut K` when the trait `K` declares or inherits a
+  `mut self` method, and a readonly `K` otherwise; rows and provider
+  bindings never write `mut`
   ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
-  A runtime profile binds a host provider with `mut` access for a trait it
-  marks mutable, and readonly otherwise (decision 14).
+  A runtime profile binds each host provider with that same access.
 
 ## Survey
 
@@ -146,7 +146,7 @@ Other facts the library must respect:
    `BufferConsole`, `ScriptedHttp`, `ScriptedProcess`. They serve tests,
    replay debugging, and simulation, not only unit tests. A provider that
    changes its own state does so through `mut self` methods, and is installed
-   with `$.with(mut K=value)` (decision 1).
+   with `$.with(K=value)` from a `mut` value (decision 1).
 4. **Host providers cannot be constructed in hd code.** A real clock or
    filesystem reaches a program only through an entry-point row bound by the
    runtime profile. The standard library exposes the trait and the
@@ -294,7 +294,7 @@ built-ins `List` and `Map`. Only primitive types such as `i32`, `bool`, and
 
 Arbitrary-precision integers are not in `std`; `BigInt` is an ordinary
 package (decision 9). `std.cell` is gone: a provider changes its own state
-through `mut self` methods and `$.use(mut K)` (decision 1). `std.secret`,
+through `mut self` methods, which `$.use(K)` can call (decision 1). `std.secret`,
 `Secret[T]`, and `Redact` are parked with typed derivation in
 [Open Issues](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets)
 (decision 12).
@@ -721,18 +721,16 @@ Every trait below is a requirement key. Each module has the same shape:
 Deterministic providers keep state: `ManualClock` advances, `MemoryFs`
 stores writes, `SeededRandom` steps its generator. Decision 1 gives them
 ordinary `mut self` methods. A trait method that changes provider state takes
-`mut self`; callers require `mut K` in their row and retrieve the provider
-with `$.use(mut K)`; a test installs a mutable value with
-`$.with(mut K=value)` and may keep its own `mut` alias to inspect the state
+`mut self`, which makes the trait a mutable requirement trait; callers write
+`$ K` and get `mut K` from `$.use(K)`; a test installs a mutable value with
+`$.with(K=value)` and may keep its own `mut` alias to inspect the state
 afterwards
 ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
 
 A host provider for a trait whose methods take `mut self` (`Clock.sleep!`,
-`Random`, `FsWrite` below) is bound by a runtime profile that marks the trait
-mutable (decision 14). An entry point then requires it as `$ mut K`; a
-`mut K` entry for a trait the profile does not mark mutable is a
-`mutable-upgrade` error. Which traits each toolchain profile marks is open in
-[Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
+`Random`, `FsWrite` below) is bound with mutable access because of those
+methods, and an entry point requires it as a plain `$ K`
+([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
 
 ### `std.time`
 
@@ -801,12 +799,12 @@ test installs a manual clock with mutable access, so `sleep!` can advance it:
 ```text
 use std.time.{Clock, Duration, ManualClock, Timestamp}
 
-fn pause!(step: Duration) -> void $ mut Clock:
-    $.use(mut Clock).sleep!(step)
+fn pause!(step: Duration) -> void $ Clock:
+    $.use(Clock).sleep!(step)
 
 fn simulate!() -> Timestamp:
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
-    $.with(mut Clock=clock):
+    $.with(Clock=clock):
         pause!(Duration::seconds(5))
     clock.now()
 ```
@@ -843,8 +841,8 @@ pub trait Random:
     fn next_u64(mut self) -> u64
     fn fill(mut self, count: i32) -> List[u8]
 
-pub fn rng() -> mut Rng $ mut Random:
-    Rng::from_seed($.use(mut Random).next_u64())
+pub fn rng() -> mut Rng $ Random:
+    Rng::from_seed($.use(Random).next_u64())
 
 pub data SeededRandom:
     generator: mut Rng
@@ -919,7 +917,7 @@ impl Console for BufferConsole:
         pass
 ```
 
-A test installs the buffer with `$.with(mut Console=console)` and reads
+A test installs the buffer with `$.with(Console=console)` and reads
 `console.output()` through its own `mut` alias. The fixed
 `Console.write_line!` takes `self`, so the buffer cannot append through it
 yet. Recording needs `write_line!` to take `mut self`, a change to the
@@ -1128,7 +1126,7 @@ pub enum Timeout[T]:
     Completed(value: T)
     Elapsed
 
-pub fn timeout![T](limit: Duration, task: mut Suspend[T]) -> Timeout[T] $ mut Clock:
+pub fn timeout![T](limit: Duration, task: mut Suspend[T]) -> Timeout[T] $ Clock:
     pass
 
 pub data RetryPolicy:
@@ -1139,12 +1137,13 @@ pub data RetryPolicy:
 pub fn retry![T, E](
     policy: RetryPolicy,
     attempt: fn() -> mut Suspend[Result[T, E]],
-) -> Result[T, E] $ mut Clock:
+) -> Result[T, E] $ Clock:
     pass
 ```
 
-`timeout!` and `retry!` sleep, so they require `mut Clock`. A test installs a
-`ManualClock` with `$.with(mut Clock=clock)`, and the retry schedule becomes
+`timeout!` and `retry!` sleep, so they require `Clock`, a mutable requirement
+trait. A test installs a `ManualClock` with `$.with(Clock=clock)`, and the
+retry schedule becomes
 deterministic. `retry!` takes a constructor, not
 a suspension, because a `Suspend[T]` runs once. `race!` takes a homogeneous
 list; a heterogeneous race returns an enum the caller defines.
@@ -1359,18 +1358,18 @@ use std.host.{Env, MapEnv}
 use std.random.{Random, SeededRandom}
 use std.time.{Clock, ManualClock, Timestamp}
 
-pub fn hermetic(seed: u64 = 0) -> $.Context[$(mut Clock, mut Random, Env, FsRead, mut FsWrite, mut Console)]:
+pub fn hermetic(seed: u64 = 0) -> $.Context[$(Clock, Random, Env, FsRead, FsWrite, Console)]:
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
     let random: mut SeededRandom = SeededRandom::new(seed)
     let files: mut MemoryFs = MemoryFs::new()
     let console: mut BufferConsole = BufferConsole::new()
     $.context(
-        mut Clock=clock,
-        mut Random=random,
+        Clock=clock,
+        Random=random,
         Env=MapEnv { values: {} },
         FsRead=files,
-        mut FsWrite=files,
-        mut Console=console,
+        FsWrite=files,
+        Console=console,
     )
 
 test "a hermetic run can override one provider":
@@ -1408,7 +1407,7 @@ Stateful testing and replay artifacts wait for area 3's event log.
 
 | Module | Depends on | Open item |
 | --- | --- | --- |
-| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | which traits each profile marks mutable; `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
+| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](DURABLE_REPLAY.md#owner-decisions)) | none |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std) | none |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |
@@ -1431,7 +1430,9 @@ Decided 2026-09-26:
    `mut self` methods. Applied 2026-09-26: the access rules are in
    [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
    A provider is installed with `$.with(mut Clock=clock)`, requested in rows
-   as `$ mut Clock`, and retrieved with `$.use(mut Clock)`.
+   as `$ mut Clock`, and retrieved with `$.use(mut Clock)`. Superseded
+   2026-09-27: access now follows from the trait, and no `mut` is written
+   ([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
 
 2. **Question 2: I/O suspends; clock, random, and environment reads do not.**
    Filesystem and network reads are `!` calls; `clock.now()`,
@@ -1485,6 +1486,8 @@ Decided 2026-09-26:
     and [Wasm Boundary](../spec/10-modules.md#wasm-boundary). Which traits
     each toolchain profile marks mutable stays open in
     [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
+    Superseded 2026-09-27: profiles no longer mark traits; a trait with a
+    `mut self` method is always bound mutable.
 
 ## Questions For The Owner
 
@@ -1506,21 +1509,22 @@ examples follow the decided design.
 - **C. Runtime-backed test providers.** Deterministic providers are host
   objects created by an intrinsic, like real ones.
 
-**Decided: B** (decision 1). `$.use(mut K)` returns `mut K` for a provider
-installed with `$.with(mut K=value)`; there is no `std.cell`. The rules are in
+**Decided: B** (decision 1). `$.use(K)` returns `mut K` when `K` has a
+`mut self` method (revised 2026-09-27; the `mut K` spellings are gone);
+there is no `std.cell`. The rules are in
 [Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers).
 Binding a host provider with `mut` access is decision 14.
 
 ```text
 use std.time.{Clock, Duration, ManualClock, Timestamp}
 
-fn wait_twice!(step: Duration) -> void $ mut Clock:
-    $.use(mut Clock).sleep!(step)
-    $.use(mut Clock).sleep!(step)
+fn wait_twice!(step: Duration) -> void $ Clock:
+    $.use(Clock).sleep!(step)
+    $.use(Clock).sleep!(step)
 
 fn elapsed!() -> Timestamp:
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
-    $.with(mut Clock=clock):
+    $.with(Clock=clock):
         wait_twice!(Duration::seconds(1))
     clock.now()
 ```
@@ -1558,7 +1562,7 @@ disk. The same split applies to `Console` and `ConsoleInput`. Writes take
 ```text
 fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead, mut FsWrite:
     text := $.use(FsRead).read_text!(input)?
-    $.use(mut FsWrite).write_text!(output, text.upper())
+    $.use(FsWrite).write_text!(output, text.upper())
 ```
 
 ### 4. Where do deterministic providers live?
@@ -1674,7 +1678,7 @@ fn total(prices: List[Decimal]) -> Decimal:
 ```text
 test "retry waits between attempts":
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
-    $.with(mut Clock=clock):
+    $.with(Clock=clock):
         pass
 ```
 

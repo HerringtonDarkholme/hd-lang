@@ -89,7 +89,7 @@ This design deliberately gives capabilities no special language semantics. Sandb
 
 Open questions from this section:
 
-1. Which standard capability traits ship, and which of them each toolchain profile marks mutable.
+1. Which standard capability traits ship. Their access follows from their methods ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
 2. Which WASI version and component ABI the initial runtime uses.
 3. The configuration syntax for granting and binding host providers to derived entry-point requirements.
 4. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
