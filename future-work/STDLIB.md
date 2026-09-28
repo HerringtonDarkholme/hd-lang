@@ -813,8 +813,8 @@ impl Duration:
     pub fn as_milliseconds(self) -> i64:
         pass
 
-pub data Timestamp:
-    unix_nanos: i64
+pub data Timestamp:                    # whole milliseconds, like Duration (Literal Suffixes L18)
+    unix_millis: i64
 
 impl Timestamp:
     pub fn from_unix_seconds(seconds: i64) -> Timestamp:

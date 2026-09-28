@@ -1260,3 +1260,5 @@ typing/invalid/test-module-tests-root.hd	type	reject:test-only-use	10-modules.md
 runtime/valid/test-module-top-level-cases.hd	runtime	accept	10-modules.md#r-module.test.module
 typing/valid/debug-writer-builders.hd	type	accept	09-traits.md#r-trait.debug.builder.struct
 typing/valid/choices-arbitrary.hd	type	accept	10-modules.md#r-module.testing.choices.declare
+runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	05-expressions.md#r-expr.suffix.std.overflow
+runtime/valid/duration-api.hd	runtime	accept	05-expressions.md#r-expr.suffix.std.duration-api

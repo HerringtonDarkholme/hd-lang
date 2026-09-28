@@ -1142,6 +1142,13 @@ existing source. Each entry names the decision that made the change.
   pending on a host operation, or returns `.Err(ConsoleError)`, previously
   unspecified, now makes `println` panic; the panic category is not yet
   specified.
+- Literal suffixes L18 (owner decision in
+  [Literal Suffixes](../future-work/LITERAL_SUFFIXES.md#owner-decisions),
+  2026-09-28): `Duration`'s public API is `Duration::milliseconds`,
+  `Duration::seconds`, and `as_milliseconds`. A standard suffix whose
+  `Duration` overflows `i64` milliseconds, previously unspecified, panics
+  at run time with `integer-overflow`; a warning for it is optional. No
+  existing source changes meaning.
 - Testing T53 (owner decision in
   [Testing](../future-work/TESTING.md#owner-decisions), 2026-09-28):
   `DebugWriter` has builders like Rust's `Formatter`: `debug_struct`,

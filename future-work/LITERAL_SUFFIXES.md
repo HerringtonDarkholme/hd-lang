@@ -1,9 +1,9 @@
 # Literal Suffixes: Survey And Design Options
 
-Status: design exploration, 2026-09-27; owner decisions L1-L17 (2026-09-28)
+Status: design exploration, 2026-09-27; owner decisions L1-L18 (2026-09-28)
 are below. L1-L9 were applied to the specification on 2026-09-28 (L5's
-operator traits excepted, which are designed separately), and L12, L13 and
-L15-L17 the same day. L11 (`@suffix fn`) is not applied: the owner is
+operator traits excepted, which are designed separately), and L12, L13,
+L15-L17 and L18 the same day. L11 (`@suffix fn`) is not applied: the owner is
 rethinking decorators, so the `LiteralSuffix` mechanism stays in the
 specification for now. The survey and options before the decisions are the
 exploration they came from. Questions raised while applying them are under
@@ -166,6 +166,14 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
     - L13 stays reserved-words-only: `5true` and `5self` are
       `invalid-token`, and contextual words such as `as` can still be
       suffixes.
+
+    Applied 2026-09-28 in
+    [`expr.suffix.std.duration-api`](../spec/05-expressions.md#r-expr.suffix.std.duration-api)
+    and [`expr.suffix.std.overflow`](../spec/05-expressions.md#r-expr.suffix.std.overflow),
+    with the optional lint as a note. `Timestamp` is whole milliseconds
+    (`unix_millis`) in the [STDLIB draft](STDLIB.md#stdtime); the spec
+    names no `Timestamp`. The `timeout` and L13 points needed no change.
+    The prototype already follows all of it.
 
 ## Contents
 
@@ -687,7 +695,9 @@ form (points 1 and 2), L13 made `5else` an `invalid-token` (point 3), L16
 lets `timeout=` take any `Duration` (point 8), L15 makes a panic in a suffix
 behave as in any other call (point 9), and L17 fixes `Duration` as whole
 milliseconds (point 10). L14 kept points 4 and 5 as applied. Points 6 and 7
-concern the `LiteralSuffix` mechanism, which L11 would replace.
+concern the `LiteralSuffix` mechanism, which L11 would replace. L18 answered
+the second pass's points 4-9 below (applied 2026-09-28); only points 1-3
+remain open.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |

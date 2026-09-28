@@ -170,6 +170,8 @@ The standard library declares these suffixes in `std.time`:
 2. r[expr.suffix.std.duration] A `std.time.Duration` is a whole number of milliseconds, held in an `i64`.
 3. r[expr.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 4. r[expr.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
+5. r[expr.suffix.std.duration-api] The public API of `Duration` is `Duration::milliseconds(n: i64)`, `Duration::seconds(n: i64)`, and `d.as_milliseconds() -> i64`.
+6. r[expr.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds, as in `10_000_000_000_000_000h`, panics at run time, as checked `i64` arithmetic does. Panic: `integer-overflow`.
 
 ```text
 use std.time.{Duration, ms, s}
@@ -182,6 +184,9 @@ enum Tier(limit: Duration):
 > **Why.** A suffix is an ordinary type found through `use`, so libraries
 > can add `12px` without new syntax. The literal's type is the trait's
 > `Out`, so `5s` and `250ms` are both `Duration` and mix freely.
+
+> **Note.** A compiler may warn when a suffixed literal always overflows,
+> as Rust's `unconditional_panic` lint does, but none is required.
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names).

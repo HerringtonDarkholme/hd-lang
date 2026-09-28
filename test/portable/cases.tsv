@@ -1195,3 +1195,5 @@ typing/invalid/test-module-tests-root.hd	type
 runtime/valid/test-module-top-level-cases.hd	runtime
 typing/valid/debug-writer-builders.hd	type
 typing/valid/choices-arbitrary.hd	type
+runtime/panic/duration-suffix-overflow.hd	runtime
+runtime/valid/duration-api.hd	runtime

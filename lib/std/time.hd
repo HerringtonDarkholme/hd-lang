@@ -1,8 +1,9 @@
 # std.time: `Duration` and its literal suffixes (spec/05-expressions.md#literal-suffixes,
 # future-work/STDLIB.md#stdtime). A `Duration` is a whole number of
-# milliseconds in an `i64` (r-expr.suffix.std.duration); the spec names no
-# member, so `millis` is the prototype's own. Each suffix scales its literal by
-# checked `i64` multiplication.
+# milliseconds in an `i64` (r-expr.suffix.std.duration), and its public API is
+# `milliseconds`, `seconds`, and `as_milliseconds` (r-expr.suffix.std.duration-api);
+# the `millis` field is the prototype's own. Each suffix scales its literal by
+# checked `i64` multiplication, so an overflow panics (r-expr.suffix.std.overflow).
 use std.ops.LiteralSuffix
 
 pub data Duration:
