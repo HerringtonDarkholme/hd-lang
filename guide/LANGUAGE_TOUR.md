@@ -1978,7 +1978,8 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 use std.host.Args
 
 pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
-    args, console := $.use(Args, Console)
+    args := $.use(Args)
+    let console: mut Console = $.use(Console)
     console.write_line!("starting " + args.program_name())?
     .Ok()
 ```
@@ -1986,6 +1987,11 @@ pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
 `.Ok()` is the success constructor for `Result[void, E]`; it is distinct from
 both the `void` expression `pass` and the unit tuple `()`.
 `ConsoleError` implements `Display`, as required for an entry-point error type.
+
+`Console.write_line!` takes `mut self`, so `$.use(Console)` gives mutable
+access. A `:=` binding would expose only a readonly view, so code that keeps
+the console in a local writes `let console: mut Console`. `println` needs
+only `$ Console`.
 
 An entry-point row may contain only host capability traits supplied by its
 selected runtime profile, such as `Args` and `Console` above. Application

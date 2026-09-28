@@ -925,18 +925,15 @@ impl BufferConsole:
         self.lines
 
 impl Console for BufferConsole:
-    fn write_line!(self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         pass
 ```
 
 A test installs the buffer with `$.with(Console=console)` and reads
-`console.output()` through its own `mut` alias. The fixed
-`Console.write_line!` takes `self`, so the buffer cannot append through it
-yet. Recording needs `write_line!` to take `mut self`, a change to the
-[prelude trait](../spec/10-modules.md#prelude). A profile may now bind the
-host console with `mut` access (decision 14), so the host binding no longer
-blocks it. Whether the change is worth `mut Console` in every printing row is
-open in [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers).
+`console.output()` through its own `mut` alias. The prelude
+[`Console.write_line!`](../spec/10-modules.md#console) takes `mut self`, so
+the buffer appends through it, and printing code still writes only
+`$ Console` ([Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers)).
 
 ### `std.fs`
 
@@ -1436,7 +1433,7 @@ Stateful testing and replay artifacts wait for area 3's event log.
 
 | Module | Depends on | Open item |
 | --- | --- | --- |
-| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self` | [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers) |
+| host providers for `Clock.sleep!`, `Random`, `FsWrite`; a recording `Console` | `write_line!` taking `mut self`: applied, [Console](../spec/10-modules.md#console) | none |
 | `std.time`, `std.random`, `std.host` | replay recording of non-suspending host calls (decision 2): answered, every host method is marked input or output by its runtime profile, suspending or not ([Durable Replay decision 7](DURABLE_REPLAY.md#owner-decisions)) | none |
 | inherent methods on `string`, `T?`, `List`, `Map`, integers (decision 8) | a `std` exception to the inherent-target rule: applied, [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std) | none |
 | `std.json` typed codecs, `std.fingerprint` derive, property generators | typed derivation protocol | [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets) |

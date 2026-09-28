@@ -38,27 +38,21 @@ rules are in
 This supersedes the `$ mut K` rows of [STDLIB decision 14](STDLIB.md#owner-decisions)
 and the same-day "always mutable" answer.
 
-**Problem.** One question remains: whether the prelude
-`Console.write_line!` takes `mut self`. A recording `BufferConsole` needs it
-to append. Rows would still say `$ Console`, but `Console` would become a
-mutable requirement trait, and a `:=` binding exposes a readonly view, so
-`console := $.use(Console)` followed by `console.write_line!(...)` would be
-`mutable-receiver-required`.
-
-**Options.** (1) Keep `self`, so a recording console is not expressible
-through `Console`. (2) Take `mut self`, and code that keeps the console in a
-local writes `let console: mut Console = $.use(Console)`. (3) Take
-`mut self`, and let a `:=` binding of `$.use(K)` keep mutable access.
-**Recommendation:** 2, since it needs no new rule; the guide's examples
-would change to the `let` form or call `$.use(Console)` directly.
+**Decided and applied 2026-09-27: `Console.write_line!` takes `mut self`**
+(option 2 of the former question). `Console` is therefore a mutable
+requirement trait, and a recording [`BufferConsole`](STDLIB.md#stdconsole)
+appends through it. `println` and its `$ Console` row are unchanged. Code
+that keeps the console in a local writes `let console: mut Console`, since a
+`:=` binding stays readonly; no new rule was added. The rule is
+[`module.console.write-line-mut`](../spec/10-modules.md#r-module.console.write-line-mut).
+The other options were keeping `self`, so a recording console was not
+expressible, and letting a `:=` binding of `$.use(K)` keep mutable access.
 
 ```text
 fn greet!() -> void $ Console:
-    let console: mut Console = $.use(Console)    # option 2
+    let console: mut Console = $.use(Console)
     _ := console.write_line!("hi")
 ```
-
-**Unblocks.** A recording [`BufferConsole`](STDLIB.md#stdconsole).
 
 ### Typed Derivation, Tool Adapters, And Secrets
 

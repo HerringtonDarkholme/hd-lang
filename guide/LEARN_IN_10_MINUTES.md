@@ -411,7 +411,8 @@ use pkg.user.types.{User, UserId}
 use std.host.Args
 
 pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
-    args, console := $.use(Args, Console)
+    args := $.use(Args)
+    let console: mut Console = $.use(Console)
     console.write_line!("starting " + args.program_name())?
     .Ok()
 ```
