@@ -193,7 +193,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
   private emitValueExpression(expression: HirExpression): string | undefined {
     switch (expression.kind) {
       case "integer":
-        return `(i32.const ${expression.value})`;
+        return expression.type === "i64"
+          ? `(i64.const ${expression.wide ?? expression.value})`
+          : `(i32.const ${expression.value})`;
       case "float":
         return `(f64.const ${expression.value})`;
       case "string":
@@ -389,7 +391,12 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const operand = this.emitExpression(expression.operand);
         if (expression.operator === "+") return operand;
         if (expression.operator === "not") return `(i32.eqz ${operand})`;
-        if (expression.operator === "~") return `(i32.xor ${operand} (i32.const -1))`;
+        if (expression.operator === "widen") return `(i64.extend_i32_s ${operand})`;
+        if (expression.operator === "~")
+          return expression.type === "i64"
+            ? `(i64.xor ${operand} (i64.const -1))`
+            : `(i32.xor ${operand} (i32.const -1))`;
+        if (expression.type === "i64") return `(call $hd.neg_i64 ${operand})`;
         return expression.type === "f64" ? `(f64.neg ${operand})` : `(call $hd.neg_i32 ${operand})`;
       }
       case "binary": {
@@ -409,6 +416,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             this.floatPower = true;
             return `(call $hd.pow_f64 ${left} ${right})`;
           }
+          if (expression.type === "i64") return `(call $hd.pow_i64 ${left} ${right})`;
           return `(call $hd.pow_i32 ${left} ${right})`;
         }
         if (expression.operator === "==" || expression.operator === "!=") {
@@ -440,33 +448,21 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         if (expression.left.type === "i32" && checked[expression.operator]) {
           return `(call ${checked[expression.operator]} ${left} ${right})`;
         }
-        if (
-          expression.left.type === "i32" &&
-          (expression.operator === "/" || expression.operator === "%")
-        ) {
-          const leftTemporary = this.allocateTemporary("i32");
-          const rightTemporary = this.allocateTemporary("i32");
-          const overflow =
-            expression.operator === "/"
-              ? [
-                  `  (if (i32.and`,
-                  `    (i32.eq (local.get ${leftTemporary}) (i32.const -2147483648))`,
-                  `    (i32.eq (local.get ${rightTemporary}) (i32.const -1)))`,
-                  `    (then ${this.emitRuntimePanic("integer-overflow")}))`,
-                ]
-              : [];
-          return [
-            `(block (result i32)`,
-            `  (local.set ${leftTemporary} ${left})`,
-            `  (local.set ${rightTemporary} ${right})`,
-            `  (if (i32.eqz (local.get ${rightTemporary}))`,
-            `    (then ${this.emitRuntimePanic("integer-division-by-zero")}))`,
-            ...overflow,
-            `  (i32.${expression.operator === "/" ? "div_s" : "rem_s"} (local.get ${leftTemporary}) (local.get ${rightTemporary}))`,
-            `)`,
-          ].join("\n");
+        const checkedWide: Readonly<Record<string, string>> = {
+          "+": "$hd.add_i64",
+          "-": "$hd.sub_i64",
+          "*": "$hd.mul_i64",
+        };
+        if (expression.left.type === "i64" && checkedWide[expression.operator]) {
+          return `(call ${checkedWide[expression.operator]} ${left} ${right})`;
         }
-        const prefix = expression.left.type === "f64" ? "f64" : "i32";
+        if (
+          (expression.left.type === "i32" || expression.left.type === "i64") &&
+          (expression.operator === "/" || expression.operator === "%")
+        )
+          return this.emitCheckedDivision(expression.left.type, expression.operator, left, right);
+        const prefix =
+          expression.left.type === "f64" ? "f64" : expression.left.type === "i64" ? "i64" : "i32";
         const suffixes: Readonly<Record<string, string>> = {
           "+": "add",
           "-": "sub",
@@ -1389,8 +1385,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       condition =
         arm.literal.type === "string"
           ? `(i32.eq (call $hd.string_compare (local.get ${subject}) ${value}) (i32.const 0))`
-          : arm.literal.type === "f64"
-            ? `(f64.eq (local.get ${subject}) ${value})`
+          : arm.literal.type === "f64" || arm.literal.type === "i64"
+            ? `(${arm.literal.type}.eq (local.get ${subject}) ${value})`
             : `(i32.eq (local.get ${subject}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
@@ -1408,8 +1404,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
             ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
-            : test.literal!.type === "f64"
-              ? `(f64.eq ${actual} ${expected})`
+            : test.literal!.type === "f64" || test.literal!.type === "i64"
+              ? `(${test.literal!.type}.eq ${actual} ${expected})`
               : `(i32.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, testCondition) : testCondition;
     }

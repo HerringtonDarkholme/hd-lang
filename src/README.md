@@ -261,16 +261,19 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   suspension boundary, including retention through ordinary functions;
 - named local functions lowered through typed closure bindings, including
   enclosing captures, recursion, suspension, and requirement forwarding;
-- `i32`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8 `string` values;
+- `i32`, `i64`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8 `string`
+  values; an integer literal takes `i64` from an expected `i64`, an `i32`
+  widens implicitly to `i64`, and `i64` never narrows implicitly to `i32`
+  (the other sized numeric types are F-253);
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed `._0` selection, stored in erased Wasm GC arrays;
-- checked `i32` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
+- checked `i32` and `i64` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
 - interpreted `$name` and `${expression}` string segments with left-to-right
   canonical `Display` dispatch for concrete implementations, generic bounds,
-  dynamic trait values, and the standard `string`, `i32`, `f64`, `bool`, and
-  `char` implementations;
+  dynamic trait values, and the standard `string`, `i32`, `i64`, `f64`,
+  `bool`, and `char` implementations;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
   the narrow host byte callback. `Console` is an opaque host provider, not a

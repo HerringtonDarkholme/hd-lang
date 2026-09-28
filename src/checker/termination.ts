@@ -59,7 +59,7 @@ function implementsDisplay(
   implementations: readonly HirTraitImplementation[],
 ): boolean {
   const target = readonlyType(type);
-  if (["i32", "f64", "bool", "char", "string"].includes(target)) return true;
+  if (["i32", "i64", "f64", "bool", "char", "string"].includes(target)) return true;
   const display = traitTypes.get("Display")!;
   if (
     implementations.some((implementation) =>

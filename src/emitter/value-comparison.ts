@@ -26,9 +26,41 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     return `$tmp${index}`;
   }
 
+  /** Signed integer `/` or `%`, panicking on a zero divisor and on overflow. */
+  protected emitCheckedDivision(
+    width: "i32" | "i64",
+    operator: "/" | "%",
+    left: string,
+    right: string,
+  ): string {
+    const minimum = width === "i64" ? "-9223372036854775808" : "-2147483648";
+    const leftTemporary = this.allocateTemporary(width);
+    const rightTemporary = this.allocateTemporary(width);
+    const overflow =
+      operator === "/"
+        ? [
+            `  (if (i32.and`,
+            `    (${width}.eq (local.get ${leftTemporary}) (${width}.const ${minimum}))`,
+            `    (${width}.eq (local.get ${rightTemporary}) (${width}.const -1)))`,
+            `    (then ${this.emitRuntimePanic("integer-overflow")}))`,
+          ]
+        : [];
+    return [
+      `(block (result ${width})`,
+      `  (local.set ${leftTemporary} ${left})`,
+      `  (local.set ${rightTemporary} ${right})`,
+      `  (if (${width}.eqz (local.get ${rightTemporary}))`,
+      `    (then ${this.emitRuntimePanic("integer-division-by-zero")}))`,
+      ...overflow,
+      `  (${width}.${operator === "/" ? "div_s" : "rem_s"} (local.get ${leftTemporary}) (local.get ${rightTemporary}))`,
+      `)`,
+    ].join("\n");
+  }
+
   protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
     if (type === "string") return operand;
     if (type === "i32") return `(call $hd.i32_to_string ${operand})`;
+    if (type === "i64") return `(call $hd.i64_to_string ${operand})`;
     if (type === "f64") {
       this.floatDisplay = true;
       return `(call $hd.f64_to_string ${operand})`;
@@ -302,6 +334,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const readonly = readonlyType(type);
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
     if (readonly === "f64") return `(f64.eq ${left} ${right})`;
+    if (readonly === "i64") return `(i64.eq ${left} ${right})`;
     if (readonly === "i32" || readonly === "bool" || readonly === "char")
       return `(i32.eq ${left} ${right})`;
     const tuple = tupleParts(readonly);
@@ -367,6 +400,13 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     }
     if (readonly === "i32" || readonly === "char")
       return `(if (result i32) (i32.lt_s ${left} ${right}) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${left} ${right}) (then (i32.const 1)) (else (i32.const 0)))))`;
+    if (readonly === "i64") {
+      const leftTemporary = this.allocateTemporary("i64");
+      const rightTemporary = this.allocateTemporary("i64");
+      const a = `(local.get ${leftTemporary})`;
+      const b = `(local.get ${rightTemporary})`;
+      return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (i64.lt_s ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (i64.gt_s ${a} ${b}) (then (i32.const 1)) (else (i32.const 0))))))`;
+    }
     if (readonly === "f64") {
       // 2 marks an unordered pair (a NaN operand); every relational operator is false for it.
       const leftTemporary = this.allocateTemporary("f64");

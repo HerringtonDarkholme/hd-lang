@@ -1,7 +1,6 @@
 id	count	title
-F-250	33	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-F-253	14	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
-TD	7	Typed derivation (owner decisions M1-M24) is implemented by lowering; its fixtures with i64 members fail on sized numeric types (F-253)
+F-250	32	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-253	13	Sized numeric types other than i64 (i8, i16, u8-u64, f32) are unimplemented and not listed as deferred
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles

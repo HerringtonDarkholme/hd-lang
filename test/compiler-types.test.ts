@@ -475,3 +475,24 @@ test("a marker implementation's bounds are proven (TQ-20)", () => {
     [["unsatisfied-trait-bound", 15]],
   );
 });
+
+test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async () => {
+  const source = [
+    "fn wide(small: i32) -> i64:",
+    "    let big: i64 = 3000000000",
+    "    big * 2 + small",
+    "",
+    "fn main() -> bool: wide(1) == 6000000001",
+    "",
+  ].join("\n");
+  const { instance } = await instantiate(source);
+  assert.equal((instance.exports.main as CallableFunction)(), 1);
+  assert.deepEqual(
+    analyze("fn narrow(value: i64) -> i32: value\n").diagnostics.map((item) => item.code),
+    ["implicit-narrowing"],
+  );
+  assert.deepEqual(
+    analyze("fn huge() -> i64: 9223372036854775808\n").diagnostics.map((item) => item.code),
+    ["integer-literal-range"],
+  );
+});

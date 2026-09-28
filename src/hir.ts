@@ -494,7 +494,12 @@ export interface HirComprehensionIfClause {
 export type HirComprehensionClause = HirComprehensionForClause | HirComprehensionIfClause;
 
 export type HirExpression =
-  | (HirExpressionBase & { readonly kind: "integer"; readonly value: number })
+  | (HirExpressionBase & {
+      readonly kind: "integer";
+      readonly value: number;
+      /** An `i64` literal's exact decimal value; `value` may round it. */
+      readonly wide?: string;
+    })
   | (HirExpressionBase & { readonly kind: "float"; readonly value: number })
   | (HirExpressionBase & { readonly kind: "string"; readonly bytes: readonly number[] })
   | (HirExpressionBase & {

@@ -1131,3 +1131,12 @@ typing/invalid/decorator-before-function.hd	type
 typing/invalid/block-on-in-fact.hd	type
 typing/invalid/block-on-in-metadata.hd	type
 typing/invalid/strengthened-missing-bound.hd	type
+runtime/panic/structure-variant-mismatch.hd	runtime
+runtime/valid/embedded-part-follows-container.hd	runtime
+runtime/valid/typed-derivation-walk.hd	runtime
+typing/invalid/derive-member-not-derivable.hd	type
+typing/valid/derived-equality.hd	type
+typing/valid/typed-derivation-build.hd	type
+typing/valid/typed-derivation.hd	type
+typing/warnings/derivation-line-drift.hd	type
+typing/warnings/unused-derivation-fact.hd	type

@@ -693,8 +693,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
       condition =
         arm.literal.type === "string"
           ? `(i32.eq (call $hd.string_compare (local.get ${source}) ${value}) (i32.const 0))`
-          : arm.literal.type === "f64"
-            ? `(f64.eq (local.get ${source}) ${value})`
+          : arm.literal.type === "f64" || arm.literal.type === "i64"
+            ? `(${arm.literal.type}.eq (local.get ${source}) ${value})`
             : `(i32.eq (local.get ${source}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
@@ -712,8 +712,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
             ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
-            : test.literal!.type === "f64"
-              ? `(f64.eq ${actual} ${expected})`
+            : test.literal!.type === "f64" || test.literal!.type === "i64"
+              ? `(${test.literal!.type}.eq ${actual} ${expected})`
               : `(i32.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, next) : next;
     }
@@ -1265,6 +1265,8 @@ export function emitWat(program: HirProgram): string {
       (field $hd.box-i32-value i32)))
     (type $hd.box-f64 (struct
       (field $hd.box-f64-value f64)))
+    (type $hd.box-i64 (struct
+      (field $hd.box-i64-value i64)))
     (type $hd.box-extern (struct
       (field $hd.box-extern-value externref)))
 ${hostProviders.types ? hostProviders.types + "\n" : ""}    (type $hd.variant (struct

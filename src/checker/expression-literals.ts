@@ -6,6 +6,7 @@ import {
   mutableType,
   nominalGenericParts,
   nominalGenericType,
+  optionalInner,
   readonlyType,
   tupleParts,
   tupleType,
@@ -74,26 +75,41 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     );
   }
 
+  /**
+   * An integer literal, typed `i64` under an expected `i64` (or `i64?`) and
+   * `i32` otherwise, and range-checked against that type
+   * (04-type-system.md#integer-literals). `value` is the mathematical value,
+   * already negated for a negated literal.
+   */
+  protected integerLiteral(
+    value: bigint,
+    expected: ValueType | undefined,
+    span: SourceSpan,
+  ): HirExpression {
+    const wide = integerLiteralTarget(expected) === "i64";
+    const [minimum, maximum] = wide
+      ? [-(2n ** 63n), 2n ** 63n - 1n]
+      : [-2_147_483_648n, 2_147_483_647n];
+    if (value < minimum || value > maximum)
+      this.fail(
+        "integer-literal-range",
+        wide
+          ? "integer literal is outside the i64 range"
+          : "integer literal is outside the i32 range; declare it i64 for a wider range",
+        span,
+      );
+    return wide
+      ? { kind: "integer", value: Number(value), wide: value.toString(), type: "i64", span }
+      : { kind: "integer", value: Number(value), type: "i32", span };
+  }
+
   protected checkLiteralExpression(
     expression: Expression,
     expected?: ValueType,
   ): HirExpression | undefined {
     switch (expression.kind) {
-      case "integer": {
-        if (expression.value < -2_147_483_648n || expression.value > 2_147_483_647n) {
-          this.fail(
-            "integer-literal-range",
-            "integer literal is outside the i32 range",
-            expression.span,
-          );
-        }
-        return {
-          kind: "integer",
-          value: Number(expression.value),
-          type: "i32",
-          span: expression.span,
-        };
-      }
+      case "integer":
+        return this.integerLiteral(expression.value, expected, expression.span);
       case "float":
         if (!Number.isFinite(expression.value))
           this.fail("float-literal-range", "floating-point literal is not finite", expression.span);
@@ -278,4 +294,12 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
         return undefined;
     }
   }
+}
+
+/** The integer type an expected type asks an unsuffixed integer literal to take. */
+export function integerLiteralTarget(expected: ValueType | undefined): ValueType | undefined {
+  if (!expected) return undefined;
+  const type = readonlyType(expected);
+  if (type === "i64" || optionalInner(type) === "i64") return "i64";
+  return undefined;
 }

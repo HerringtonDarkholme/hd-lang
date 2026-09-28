@@ -159,6 +159,107 @@
       (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.sub (i32.const 0) (local.get $value)))
 
+  ;; Checked i64 arithmetic: a sum or difference overflows when its sign
+  ;; differs from both operands' (for a sum) or from the left one's.
+  (func $hd.add_i64 (param $left i64) (param $right i64) (result i64)
+    (local $sum i64)
+    (local.set $sum (i64.add (local.get $left) (local.get $right)))
+    (if (i64.lt_s
+      (i64.and
+        (i64.xor (local.get $left) (local.get $sum))
+        (i64.xor (local.get $right) (local.get $sum)))
+      (i64.const 0))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $sum))
+
+  (func $hd.sub_i64 (param $left i64) (param $right i64) (result i64)
+    (local $difference i64)
+    (local.set $difference (i64.sub (local.get $left) (local.get $right)))
+    (if (i64.lt_s
+      (i64.and
+        (i64.xor (local.get $left) (local.get $right))
+        (i64.xor (local.get $left) (local.get $difference)))
+      (i64.const 0))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $difference))
+
+  (func $hd.mul_i64 (param $left i64) (param $right i64) (result i64)
+    (local $product i64)
+    (if (i32.or
+      (i32.and
+        (i64.eq (local.get $left) (i64.const -1))
+        (i64.eq (local.get $right) (i64.const -9223372036854775808)))
+      (i32.and
+        (i64.eq (local.get $right) (i64.const -1))
+        (i64.eq (local.get $left) (i64.const -9223372036854775808))))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.set $product (i64.mul (local.get $left) (local.get $right)))
+    (if (i32.and
+      (i64.ne (local.get $left) (i64.const 0))
+      (i64.ne (i64.div_s (local.get $product) (local.get $left)) (local.get $right)))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $product))
+
+  (func $hd.pow_i64 (param $base i64) (param $exponent i32) (result i64)
+    (local $result i64)
+    (if (i32.lt_s (local.get $exponent) (i32.const 0)) (then unreachable))
+    (local.set $result (i64.const 1))
+    (block $done
+      (loop $next
+        (br_if $done (i32.eqz (local.get $exponent)))
+        (if (i32.and (local.get $exponent) (i32.const 1))
+          (then (local.set $result (call $hd.mul_i64 (local.get $result) (local.get $base)))))
+        (local.set $exponent (i32.shr_u (local.get $exponent) (i32.const 1)))
+        (if (local.get $exponent)
+          (then (local.set $base (call $hd.mul_i64 (local.get $base) (local.get $base)))))
+        (br $next)))
+    (local.get $result))
+
+  (func $hd.neg_i64 (param $value i64) (result i64)
+    (if (i64.eq (local.get $value) (i64.const -9223372036854775808))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (i64.sub (i64.const 0) (local.get $value)))
+
+  ;; Base-ten digits of an i64. The magnitude is read as unsigned, so the
+  ;; minimum value's magnitude 2^63 is exact.
+  (func $hd.i64_to_string (param $value i64) (result (ref null $hd.bytes))
+    (local $magnitude i64)
+    (local $remaining i64)
+    (local $negative i32)
+    (local $digits i32)
+    (local $length i32)
+    (local $index i32)
+    (local $result (ref $hd.bytes))
+    (local.set $magnitude (local.get $value))
+    (if (i64.lt_s (local.get $value) (i64.const 0))
+      (then
+        (local.set $negative (i32.const 1))
+        (local.set $magnitude (i64.sub (i64.const 0) (local.get $value)))))
+    (local.set $remaining (local.get $magnitude))
+    (local.set $digits (i32.const 1))
+    (block $counted
+      (loop $count
+        (br_if $counted (i64.lt_u (local.get $remaining) (i64.const 10)))
+        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
+        (local.set $digits (i32.add (local.get $digits) (i32.const 1)))
+        (br $count)))
+    (local.set $length (i32.add (local.get $digits) (local.get $negative)))
+    (local.set $index (local.get $length))
+    (local.set $result (array.new_default $hd.bytes (local.get $length)))
+    (local.set $remaining (local.get $magnitude))
+    (block $written
+      (loop $write
+        (local.set $index (i32.sub (local.get $index) (i32.const 1)))
+        (array.set $hd.bytes
+          (local.get $result)
+          (local.get $index)
+          (i32.add (i32.wrap_i64 (i64.rem_u (local.get $remaining) (i64.const 10))) (i32.const 48)))
+        (local.set $remaining (i64.div_u (local.get $remaining) (i64.const 10)))
+        (br_if $write (i32.gt_u (local.get $index) (local.get $negative)))))
+    (if (local.get $negative)
+      (then (array.set $hd.bytes (local.get $result) (i32.const 0) (i32.const 45))))
+    (local.get $result))
+
   (func $hd.shl_i32 (param $value i32) (param $count i32) (result i32)
     (if (i32.ge_u (local.get $count) (i32.const 32))
       (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))

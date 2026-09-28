@@ -192,6 +192,7 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
 
 const TYPE_NAMES = new Set<ValueType>([
   "i32",
+  "i64",
   "bool",
   "f64",
   "char",
@@ -1073,7 +1074,7 @@ export const MAX_BOUND_DEPTH = 64;
  */
 export function builtinTotallyOrdered(type: ValueType): boolean {
   const compared = readonlyType(type);
-  if (["i32", "char", "string"].includes(compared)) return true;
+  if (["i32", "i64", "char", "string"].includes(compared)) return true;
   const tuple = tupleParts(compared);
   if (tuple !== undefined) return tuple.every(builtinTotallyOrdered);
   const optional = optionalInner(compared);

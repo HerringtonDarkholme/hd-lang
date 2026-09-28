@@ -55,6 +55,7 @@ function boxResult(value: string, type: ValueType): string {
   if (type === "i32" || type === "bool" || type === "char")
     return `(struct.new $hd.box-i32 ${value})`;
   if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
+  if (type === "i64") return `(struct.new $hd.box-i64 ${value})`;
   if (type === "void") return `(ref.null any)`;
   return value;
 }

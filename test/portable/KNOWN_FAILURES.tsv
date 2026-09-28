@@ -1,12 +1,12 @@
 path	reason	finding
 typing/invalid/nondisplay-entry-error.hd	extra error: MVP also reports private-type-leak at line 3	F-150
 typing/invalid/nonhost-entry-requirement.hd	extra error: MVP also reports private-type-leak at line 3	F-150
-runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type i64 (sized numeric types unimplemented)	F-253
+runtime/valid/i64-u64-precision-through-generics.hd	check fails: unknown-type u64 at line 13; i64 is implemented	F-253
 runtime/valid/f32-display-width-through-generics.hd	check fails: unknown-type f32 (sized numeric types unimplemented)	F-253
 typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown trait 'Hash'	F-255
-typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 and i64 (sized numeric types unimplemented); the newtype and its unwrap are implemented	F-253
+typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 at line 5; i64 and the newtype unwrap are implemented	F-253
 typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
-typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i64'	F-253
+typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i16'	F-253
 typing/invalid/integer-literal-range.hd	MVP reports unknown-type at line 2 instead of integer-literal-range: unknown or unsupported type 'u8'	F-253
 typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Hash'	F-255
 typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
@@ -18,16 +18,15 @@ typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at 
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
 typing/valid/annotations.hd	check fails: expected-expression at line 23: expected an expression, found 'annotate'	F-250
 typing/valid/data-decorator.hd	check fails: unknown-name at line 16: decorators parse and attach facts, but the shape intrinsic is unimplemented	F-250
-typing/valid/embedded-field-decorator.hd	check fails: unknown-type at line 2 for i64 (F-253); member decorators parse	F-250
-typing/valid/derived-equality.hd	check fails: unknown-type at line 10 for i64 (F-253); @derive(Eq) is generated	F-250
+typing/valid/embedded-field-decorator.hd	check fails: unknown-name 'shape' at line 13 (K1); member decorators parse	F-250
 typing/valid/derived-hash.hd	check fails: invalid-map-key at line 16: @derive(Hash) is accepted but not generated, and the prototype has no Hash trait (F-255)	F-250
 typing/invalid/derived-hash-field-not-hash.hd	check passes instead of field-not-hash at line 4: @derive(Hash) is accepted but not generated (F-255)	F-250
 typing/valid/derived-ordering.hd	check fails: missing-partial-ord at line 22: @derive(PartialOrd) and @derive(Ord) are accepted but not generated	F-250
 typing/invalid/derived-total-order-float.hd	check passes instead of field-not-eq at line 2: @derive(Ord) is accepted but not generated	F-250
 typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
-typing/invalid/impossible-gadt-pattern.hd	MVP reports unknown-type at line 3 instead of impossible-gadt-pattern: unknown or unsupported type 'i64'	F-250
+typing/invalid/impossible-gadt-pattern.hd	MVP reports unsupported-gadt-result at line 3 instead of impossible-gadt-pattern	F-250
 typing/invalid/unknown-annotation-member.hd	MVP reports expected-expression at line 5 instead of unknown-annotation-member: expected an expression, found 'annotate'	F-250
-typing/valid/parameter-decorator.hd	check fails: unknown-type at line 3 for i64 (F-253); parameter decorators parse, but shape_of is unimplemented	F-250
+typing/valid/parameter-decorator.hd	check fails: unknown-name 'shape_of' at line 17 (K1); parameter decorators parse	F-250
 typing/valid/retention-metadata.hd	check fails: expected-expression at line 20: expected an expression, found 'annotate'	F-250
 typing/invalid/retention-missing-field.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
@@ -52,13 +51,12 @@ typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usag
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
 parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 7: the prototype has no annotate declarations	GQ14
-runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type i64 (sized numeric types unimplemented); the TQ-4 literal-default preference is implemented but needs a second integer or float type to exercise	F-253
-typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type i64 and u8 (sized numeric types unimplemented) instead of ambiguous-method	F-253
+runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type f32 at line 18; the TQ-4 literal-default preference is implemented, and i64 is	F-253
+typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type u8 at line 12 instead of ambiguous-method; i64 is implemented	F-253
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-runtime/valid/embedded-part-follows-container.hd	check fails: unknown-type i64 (sized numeric types unimplemented); value embedding itself is implemented, and the case passes with i32 fields	F-253
 runtime/valid/unsigned-exponent.hd	check fails: unknown-type u32 (sized numeric types unimplemented); the L2 signed-exponent check is implemented	F-253
 typing/invalid/mixed-derived-law.hd	check passes instead of mixed-derived-law at line 3: the TQ-12 law-partner check is not implemented	F-250
 typing/invalid/derived-hash-without-eq.hd	check passes instead of mixed-derived-law at line 3: the TQ-12 law-partner check is not implemented, and @derive(Hash) is not generated	F-250
@@ -68,10 +66,6 @@ typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-
 typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: the shape intrinsic is unimplemented (TQ-23 TypeShape.Mut)	K1
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
-typing/valid/typed-derivation.hd	check fails: unknown-type at line 91 for i64 (F-253); the derivation passes with i32 members (test/typed-derivation.test.ts)	TD
-typing/valid/typed-derivation-build.hd	check fails: unknown-type at line 37 for i64 (F-253); the derivation passes with i32 members (test/typed-derivation.test.ts)	TD
-runtime/valid/typed-derivation-walk.hd	check fails: unknown-type at line 88 for i64 (F-253); the walk passes with i32 members (test/typed-derivation.test.ts)	TD
-typing/invalid/derive-member-not-derivable.hd	MVP reports unknown-type at line 7 for i64 (F-253) instead of member-not-derivable; the check works with i32 members (test/typed-derivation.test.ts)	TD
 typing/valid/console-recording-provider.hd	check fails: unknown-trait Console at line 8: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/valid/console-host-provider-mutable.hd	check fails: unknown-type mut:Console at line 4: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
@@ -87,6 +81,3 @@ typing/valid/literal-suffix-local-shadow.hd	check fails: unknown-type s at line 
 typing/valid/literal-suffix-compile-time.hd	check fails: unknown-type Duration at line 5: the prototype declares no std.time, whose Duration and suffix newtypes need i64	LS
 typing/invalid/literal-suffix-float-into-integer.hd	MVP reports unknown-type s at line 6 instead of type-mismatch: the prototype declares no std.time suffix types, which need i64	LS
 typing/valid/derive-without-structure-use.hd	check fails: unknown-name at line 14: @derive(Debug) is accepted, but the prototype declares no std.format.debug function	T33
-typing/warnings/derivation-line-drift.hd	check fails: unknown-type at line 53 for i64 (F-253) after the derivation-line-drift warning at line 59; the warning works with i32 members	TD
-typing/warnings/unused-derivation-fact.hd	check fails: unknown-type at line 38 for i64 (F-253) after the unused-derivation-fact warning at line 36; the warning works with i32 members	TD
-runtime/panic/structure-variant-mismatch.hd	check fails: unknown-type at line 34 for i64 (F-253); the structure-variant-mismatch panic works with i32 members	TD

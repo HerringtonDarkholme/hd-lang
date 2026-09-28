@@ -242,7 +242,9 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const result = resultParts(subject.type);
     const tuple = tupleParts(subject.type) !== undefined;
     const boolean = subject.type === "bool";
-    const scalar = new Set<ValueType>(["bool", "i32", "f64", "char", "string"]).has(subject.type);
+    const scalar = new Set<ValueType>(["bool", "i32", "i64", "f64", "char", "string"]).has(
+      subject.type,
+    );
     if (
       !declaration &&
       !dataDeclaration &&
@@ -460,12 +462,15 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
             Expression,
             { kind: "boolean" | "integer" | "float" | "string" | "character" }
           >,
+          context.subject.type,
         );
         this.requireType(literal.type, context.subject.type, arm.pattern.span);
         const key =
           literal.kind === "string"
             ? `string:${literal.bytes.join(",")}`
-            : `${literal.type}:${"value" in literal ? literal.value : ""}`;
+            : literal.kind === "integer" && literal.wide !== undefined
+              ? `${literal.type}:${literal.wide}`
+              : `${literal.type}:${"value" in literal ? literal.value : ""}`;
         if (context.covered.has(key))
           this.fail(
             "unreachable-match-arm",

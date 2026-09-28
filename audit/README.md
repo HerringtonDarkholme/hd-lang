@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,132 of the 1,223 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 91 are listed in
+On 2026-09-28 the prototype passes 1,141 of the 1,223 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 82 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 91 still fail.
+decision below; all 82 still fail.
 
 ## Specification Follow-Ups
 
@@ -54,7 +54,6 @@ cases.
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
-| TD | Typed derivation (M1-M24 in `future-work/TYPED_DERIVATION.md`) is implemented by lowering each derivation to an ordinary implementation (`src/checker/typed-derivation.ts`). The seven fixtures left fail only because their members are `i64` (F-253); `test/typed-derivation.test.ts` runs the same derivations with `i32` members. |
 | T8 | Testing T8: `std.process` declares `type ExitCode(u8)` and `Termination`, implemented by `void`, `ExitCode`, and `Result[T, E]`. The prototype has no `u8`, so it declares neither, and `main` may still return only `void` or `Result[void, ConsoleError]`. It implements Testing T15: a trailing test body's result is `void`, or `Result[void, Error]` when it uses `?`; an explicit closure body's result must be `void` or a `Result` with a `Display` error, and an `.Err` fails the test. |
 | T33 | Testing T33, T39, and T48: `std.format` declares the prelude trait `Debug` (`fn debug(self, out: mut DebugWriter) -> void`), derivable through its template, and the prelude function `debug`; `assert_equal` requires `T < Eq + Debug`. The prototype treats every type as implementing `Debug`: it accepts `@derive(Debug)` and drops `Debug` bounds, so it never rejects a missing `Debug`, and it has no `debug` function or `DebugWriter`. |
 | T49 | Testing T49: `std.testing` declares `snapshot(text, expect="")` and `snapshot_file(text)`. The prototype checks `snapshot` as a string `assert_equal`, with the literal `expect` rule, and has no `snapshot_file`. |

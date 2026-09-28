@@ -139,6 +139,7 @@ function hirValueReadsLocal(value: unknown, local: HirLocal): boolean {
 
 const TYPE_NAMES = new Set<ValueType>([
   "i32",
+  "i64",
   "bool",
   "f64",
   "char",
@@ -517,6 +518,12 @@ export abstract class CheckerContext {
     wrapOptional = true,
   ): HirExpression {
     if (!expected || value.type === expected || value.type === "never") return value;
+    // 04 Numeric Conversions: `i32` widens implicitly to `i64`.
+    if (value.type === "i32" && readonlyType(expected) === "i64") {
+      if (value.kind === "integer")
+        return { ...value, wide: String(value.value), type: "i64", span: value.span };
+      return { kind: "unary", operator: "widen", operand: value, type: "i64", span };
+    }
     if (isPermissionWeakening(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
@@ -986,7 +993,7 @@ export abstract class CheckerContext {
       );
     }
     if (traitName === "Display") {
-      return ["i32", "f64", "bool", "char", "string"].includes(type)
+      return ["i32", "i64", "f64", "bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })
         : undefined;
     }
@@ -1064,7 +1071,7 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    if (["i32", "f64", "bool", "char"].includes(type)) {
+    if (["i32", "i64", "f64", "bool", "char"].includes(type)) {
       return { kind: "display", operand: value, type: "string", span };
     }
     const trait = this.traitTypes.get("Display")!;
@@ -1137,7 +1144,8 @@ export abstract class CheckerContext {
 
   protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "bool", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
+    if (["i32", "i64", "bool", "f64", "char", "string"].includes(comparedType))
+      return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
       const elements = tuple.map((element) => this.equalityStrategy(element));
@@ -1194,7 +1202,7 @@ export abstract class CheckerContext {
 
   protected orderingStrategy(type: ValueType): HirOrderingStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
+    if (["i32", "i64", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
       const elements = tuple.map((element) => this.orderingStrategy(element));
@@ -1401,6 +1409,12 @@ export abstract class CheckerContext {
       this.fail(
         "mutable-upgrade",
         `readonly type '${actual}' cannot be upgraded to '${expected}'`,
+        span,
+      );
+    if (actual === "i64" && expected === "i32")
+      this.fail(
+        "implicit-narrowing",
+        `'i64' does not convert implicitly to 'i32'; write an explicit cast`,
         span,
       );
     this.fail("type-mismatch", `expected ${expected}, found ${actual}`, span);
