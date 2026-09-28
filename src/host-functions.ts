@@ -7,6 +7,7 @@
 // JavaScript strings for `string`. Adding a host-backed std function needs
 // its `lib/std` declaration and one entry here, nothing in the compiler.
 
+import type { HostSuspensionCall, HostSuspensionOutcome } from "./compiler.ts";
 import { UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 
 export type HostFunctionValue = number | bigint | string;
@@ -24,6 +25,36 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   println_pending: () => printlnPanic("its write_line! call is pending on a host operation"),
   println_error: () => printlnPanic("write_line! returned .Err(ConsoleError)"),
 };
+
+/** What a built-in host provider may use from the embedder. */
+export interface HostProviderContext {
+  readonly console?: (text: string, provider: unknown) => void;
+}
+
+/**
+ * Built-in implementations of host capability methods, keyed
+ * `Trait.method`. Each call arrives through the generic per-method bridge
+ * (emitter/host-providers.ts) like any host capability's.
+ */
+export const HOST_PROVIDERS: Readonly<
+  Record<string, (call: HostSuspensionCall, host: HostProviderContext) => HostSuspensionOutcome>
+> = {
+  // The host console (spec/10-modules.md#console): `write_line!` writes its
+  // line when first polled and is then ready with `.Ok()`. The host reports
+  // no write failure, so it never builds a `ConsoleError`.
+  "Console.write_line": (call, host) => {
+    host.console?.(String(call.arguments[0]), call.provider);
+    return { pending: false, value: { tag: "ok" } };
+  },
+};
+
+/**
+ * Host capabilities whose calls are neither recorded nor replayed: `hd
+ * replay` writes console lines again rather than reading them back. Whether
+ * a replay should capture them is an owner question
+ * (future-work/OPEN_ISSUES.md, Mutable Host Providers).
+ */
+export const UNRECORDED_PROVIDERS: ReadonlySet<string> = new Set(["Console"]);
 
 function printlnPanic(cause: string): never {
   throw new UnsupportedAtRunTimeError(

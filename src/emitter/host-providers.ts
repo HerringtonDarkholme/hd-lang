@@ -1,13 +1,12 @@
 import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
+import { nominalGenericParts } from "../types.ts";
 
 export interface HostProviderEmission {
   readonly functions: string;
   readonly imports: string;
   readonly references: readonly string[];
   readonly types: string;
-  /** Whether the host console is emitted, which prints through `$hd.console_print`. */
-  readonly console: boolean;
 }
 
 interface HostMethod {
@@ -15,10 +14,29 @@ interface HostMethod {
   readonly trait: HirTrait;
 }
 
+/**
+ * The two sides of a `Result[T, E]` boundary result. Each side crosses like a
+ * plain boundary result; `void`, and an error type the bridge cannot build
+ * (such as `ConsoleError`, which has no specified members), carry no payload.
+ */
+function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefined {
+  const parts = nominalGenericParts(type);
+  if (parts?.name !== "Result" || parts.arguments.length !== 2) return undefined;
+  return [parts.arguments[0]!, parts.arguments[1]!];
+}
+
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32"]);
+
 function watType(type: ValueType): string {
   if (type === "f64") return "f64";
   if (type === "string") return "(ref null $hd.bytes)";
+  if (resultSides(type)) return "(ref null $hd.variant)";
   return "i32";
+}
+
+/** Whether `type`'s value crosses as UTF-8 bytes, alone or as a result side. */
+function crossesAsString(type: ValueType): boolean {
+  return type === "string" || (resultSides(type)?.includes("string") ?? false);
 }
 
 function boundaryWatType(type: ValueType): string {
@@ -55,13 +73,20 @@ function importName(
     | "poll"
     | "result"
     | "result_byte"
-    | "result_length",
+    | "result_err"
+    | "result_length"
+    | "result_ok"
+    | "result_tag",
 ): string {
   return `host_${trait.index}_${method.index}_${operation}`;
 }
 
 function stringResultName(trait: HirTrait, method: HirTraitMethod): string {
   return `${methodName(trait, method)}_decode_string`;
+}
+
+function variantResultName(trait: HirTrait, method: HirTraitMethod): string {
+  return `${methodName(trait, method)}_decode_result`;
 }
 
 function callField(trait: HirTrait, method: HirTraitMethod): string {
@@ -79,7 +104,9 @@ function emitPoll({ trait, method }: HostMethod): string {
           `        ${
             method.result === "string"
               ? `(call ${stringResultName(trait, method)} ${callField(trait, method)})`
-              : `(call $hd.${importName(trait, method, "result")} ${callField(trait, method)})`
+              : resultSides(method.result)
+                ? `(call ${variantResultName(trait, method)} ${callField(trait, method)})`
+                : `(call $hd.${importName(trait, method, "result")} ${callField(trait, method)})`
           })`,
         ];
   return [
@@ -105,8 +132,32 @@ function emitPoll({ trait, method }: HostMethod): string {
   ].join("\n");
 }
 
+// A `Result[T, E]` boundary result: the host reports the tag, then the
+// active side's payload, boxed as the erased variant payload.
+function emitVariantResult({ trait, method }: HostMethod): string {
+  const sides = resultSides(method.result);
+  if (!sides) return "";
+  const payload = (type: ValueType, side: "result_ok" | "result_err"): string => {
+    const value = `(call $hd.${importName(trait, method, side)} (local.get $call))`;
+    if (type === "string") return `(call ${stringResultName(trait, method)} (local.get $call))`;
+    if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
+    if (SCALAR_BOUNDARY.has(type)) return `(struct.new $hd.box-i32 ${value})`;
+    return "(ref.null any)";
+  };
+  return [
+    `(func ${variantResultName(trait, method)} (param $call externref) (result (ref null $hd.variant))`,
+    `  (local $tag i32)`,
+    `  (local.set $tag (call $hd.${importName(trait, method, "result_tag")} (local.get $call)))`,
+    `  (struct.new $hd.variant (local.get $tag)`,
+    `    (if (result anyref) (local.get $tag)`,
+    `      (then ${payload(sides[1], "result_err")})`,
+    `      (else ${payload(sides[0], "result_ok")})))`,
+    `)`,
+  ].join("\n");
+}
+
 function emitStringResult({ trait, method }: HostMethod): string {
-  if (method.result !== "string") return "";
+  if (!crossesAsString(method.result)) return "";
   const lengthImport = importName(trait, method, "result_length");
   const byteImport = importName(trait, method, "result_byte");
   return [
@@ -195,7 +246,9 @@ function emitMethod({ trait, method }: HostMethod): string {
         ? " (f64.const 0)"
         : method.result === "string"
           ? " (ref.null $hd.bytes)"
-          : " (i32.const 0)";
+          : resultSides(method.result)
+            ? " (ref.null $hd.variant)"
+            : " (i32.const 0)";
   return [
     `(func ${methodName(trait, method)} (type $tsig${trait.index}_${method.index}) (param $receiver anyref) (param $dictionary anyref)${parameters.length ? " " + parameters.join(" ") : ""} (result (ref null $ts${trait.index}_${method.index}))`,
     `  (local $call externref)`,
@@ -236,17 +289,29 @@ function emitImports({ trait, method }: HostMethod): readonly string[] {
         `  (import "hd" "${importName(trait, method, "argument_byte")}" (func $hd.${importName(trait, method, "argument_byte")} (param externref i32 i32 i32)))`,
       ]
     : [];
-  const resultImport =
-    method.result === "void"
-      ? []
-      : method.result === "string"
-        ? [
-            `  (import "hd" "${importName(trait, method, "result_length")}" (func $hd.${importName(trait, method, "result_length")} (param externref) (result i32)))`,
-            `  (import "hd" "${importName(trait, method, "result_byte")}" (func $hd.${importName(trait, method, "result_byte")} (param externref i32) (result i32)))`,
-          ]
-        : [
-            `  (import "hd" "${importName(trait, method, "result")}" (func $hd.${importName(trait, method, "result")} (param externref) (result ${boundaryWatType(method.result)})))`,
-          ];
+  const scalarImport = (
+    operation: "result" | "result_err" | "result_ok" | "result_tag",
+    type: ValueType,
+  ): string =>
+    `  (import "hd" "${importName(trait, method, operation)}" (func $hd.${importName(trait, method, operation)} (param externref) (result ${boundaryWatType(type)})))`;
+  const sides = resultSides(method.result);
+  const resultImport = [
+    ...(crossesAsString(method.result)
+      ? [
+          `  (import "hd" "${importName(trait, method, "result_length")}" (func $hd.${importName(trait, method, "result_length")} (param externref) (result i32)))`,
+          `  (import "hd" "${importName(trait, method, "result_byte")}" (func $hd.${importName(trait, method, "result_byte")} (param externref i32) (result i32)))`,
+        ]
+      : []),
+    ...(sides
+      ? [
+          scalarImport("result_tag", "i32"),
+          ...(SCALAR_BOUNDARY.has(sides[0]) ? [scalarImport("result_ok", sides[0])] : []),
+          ...(SCALAR_BOUNDARY.has(sides[1]) ? [scalarImport("result_err", sides[1])] : []),
+        ]
+      : method.result === "void" || method.result === "string"
+        ? []
+        : [scalarImport("result", method.result)]),
+  ];
   return [
     `  (import "hd" "${importName(trait, method, "begin")}" (func $hd.${importName(trait, method, "begin")} (param externref i32)${parameters.length ? " " + parameters.join(" ") : ""} (result externref)))`,
     `  (import "hd" "${importName(trait, method, "poll")}" (func $hd.${importName(trait, method, "poll")} (param externref) (result i32)))`,
@@ -267,111 +332,35 @@ function emitFrameType({ trait, method }: HostMethod): string {
       (field ${frame}state (mut i32))${result}))`;
 }
 
-// The host console (spec/10-modules.md#console). The host binds `Console`
-// through its console import, not a boundary adapter: `write_line!` writes
-// its line when first polled and is then ready with `.Ok()`. The host reports
-// no write failure, so no `ConsoleError` is produced.
-const CONSOLE_FRAME = "$hd.host_console_frame";
-
-function emitConsoleType(): string {
-  return `    (type ${CONSOLE_FRAME} (struct
-      (field ${CONSOLE_FRAME}provider externref)
-      (field ${CONSOLE_FRAME}text (ref null $hd.bytes))
-      (field ${CONSOLE_FRAME}state (mut i32))))`;
-}
-
-function emitConsole(trait: HirTrait): { functions: string; references: string[] } {
-  const method = trait.methods[0]!;
-  const ids = `${trait.index}_${method.index}`;
-  const frame = `(ref.cast (ref ${CONSOLE_FRAME}) (local.get $inner))`;
-  const state = `(struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame))`;
-  const functions = [
-    `(func ${methodName(trait, method)} (type $tsig${ids}) (param $receiver anyref) (param $dictionary anyref) (param $text (ref null $hd.bytes)) (result (ref null $ts${ids}))`,
-    `  (struct.new $ts${ids}`,
-    `    (struct.new ${CONSOLE_FRAME}`,
-    `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
-    `      (local.get $text)`,
-    `      (i32.const 0))`,
-    `    (ref.func ${pollName(trait, method)})`,
-    `    (ref.func ${cancelName(trait, method)})`,
-    `    (ref.func ${resultName(trait, method)}))`,
-    `)`,
-    ``,
-    `(func ${pollName(trait, method)} (type $tspollsig${ids}) (param $inner anyref) (result i32)`,
-    `  (local $frame (ref ${CONSOLE_FRAME}))`,
-    `  (local.set $frame ${frame})`,
-    `  (if (i32.eq ${state} (i32.const 1))`,
-    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-reentrant-poll")})) unreachable))`,
-    `  (if (i32.or (i32.eq ${state} (i32.const 2)) (i32.eq ${state} (i32.const 3)))`,
-    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-invalid-state")})) unreachable))`,
-    `  (call $hd.console_print`,
-    `    (struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}provider (local.get $frame))`,
-    `    (struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}text (local.get $frame)))`,
-    `  (struct.set ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame) (i32.const 2))`,
-    `  (i32.const 1)`,
-    `)`,
-    ``,
-    `(func ${cancelName(trait, method)} (type $tscancelsig${ids}) (param $inner anyref)`,
-    `  (local $frame (ref ${CONSOLE_FRAME}))`,
-    `  (local.set $frame ${frame})`,
-    `  (if (i32.eq ${state} (i32.const 1))`,
-    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-reentrant-poll")})) unreachable))`,
-    `  (if (i32.eqz ${state})`,
-    `    (then (struct.set ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame) (i32.const 3))))`,
-    `)`,
-    ``,
-    `(func ${resultName(trait, method)} (type $tsresultsig${ids}) (param $inner anyref) (result (ref null $hd.variant))`,
-    `  (struct.new $hd.variant (i32.const 0) (ref.null any))`,
-    `)`,
-    ``,
-    emitTraitFactory(trait),
-  ].join("\n");
-  return {
-    functions,
-    references: [
-      methodName(trait, method),
-      pollName(trait, method),
-      cancelName(trait, method),
-      resultName(trait, method),
-    ],
-  };
-}
-
+/**
+ * Host-bound capability traits, the prelude `Console` among them
+ * (spec/10-modules.md#console): each method call goes out through its own
+ * generic imports, and the host answers through one callback keyed by trait
+ * and method name (src/compiler.ts, src/host-functions.ts).
+ */
 export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
-  const console = program.traits.find(
-    (trait) => trait.name === "Console" && capabilities.has(trait.name),
-  );
-  const consoleEmission = console ? emitConsole(console) : undefined;
-  const traits = program.traits.filter(
-    (trait) => capabilities.has(trait.name) && trait !== console,
-  );
+  const traits = program.traits.filter((trait) => capabilities.has(trait.name));
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
-  if (methods.length === 0 && !consoleEmission)
-    return { functions: "", imports: "", references: [], types: "", console: false };
+  if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
   const imports = methods.flatMap(emitImports).join("\n");
   const functions = [
-    ...(consoleEmission ? [consoleEmission.functions] : []),
     ...methods.flatMap((hostMethod) => [
       emitPoll(hostMethod),
       emitCancel(hostMethod),
       emitStringResult(hostMethod),
+      emitVariantResult(hostMethod),
       emitResult(hostMethod),
       emitMethod(hostMethod),
     ]),
     ...traits.map(emitTraitFactory),
   ].join("\n\n");
-  const references = [
-    ...(consoleEmission?.references ?? []),
-    ...methods.flatMap(({ trait, method }) => [
-      methodName(trait, method),
-      pollName(trait, method),
-      cancelName(trait, method),
-      resultName(trait, method),
-    ]),
-  ];
-  const types = [...(consoleEmission ? [emitConsoleType()] : []), ...methods.map(emitFrameType)]
-    .filter(Boolean)
-    .join("\n");
-  return { functions, imports, references, types, console: consoleEmission !== undefined };
+  const references = methods.flatMap(({ trait, method }) => [
+    methodName(trait, method),
+    pollName(trait, method),
+    cancelName(trait, method),
+    resultName(trait, method),
+  ]);
+  const types = methods.map(emitFrameType).filter(Boolean).join("\n");
+  return { functions, imports, references, types };
 }

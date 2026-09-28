@@ -4,7 +4,8 @@ import type { Diagnostic } from "./diagnostics.ts";
 import { DiagnosticError } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
 import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
-import { HOST_FUNCTIONS } from "./host-functions.ts";
+import { HOST_FUNCTIONS, HOST_PROVIDERS, UNRECORDED_PROVIDERS } from "./host-functions.ts";
+import { nominalGenericParts } from "./types.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
@@ -69,9 +70,25 @@ export interface EncodedHostString {
   readonly utf8: string;
 }
 
-export type EncodedHostValue = EncodedHostFloat | EncodedHostInteger | EncodedHostString;
+/** A `Result[T, E]` boundary result: its tag, and the active side's payload unless `void`. */
+export interface EncodedHostResult {
+  readonly kind: "ok" | "err";
+  readonly value?: EncodedHostScalar;
+}
+
+export type EncodedHostScalar = EncodedHostFloat | EncodedHostInteger | EncodedHostString;
+
+export type EncodedHostValue = EncodedHostScalar | EncodedHostResult;
 
 export type HostSuspensionValue = number | string;
+
+/** A host's `Result[T, E]` answer; `value` is absent for a `void` side. */
+export interface HostResultValue {
+  readonly tag: "ok" | "err";
+  readonly value?: HostSuspensionValue;
+}
+
+export type HostSuspensionResult = HostSuspensionValue | HostResultValue;
 
 export type ReplayEvent = HostPollReplayEvent | RuntimePollReplayEvent;
 
@@ -93,7 +110,7 @@ export interface HostSuspensionCall {
 
 export interface HostSuspensionOutcome {
   readonly pending: boolean;
-  readonly value?: HostSuspensionValue;
+  readonly value?: HostSuspensionResult;
 }
 
 interface MutableHostSuspensionCall extends HostSuspensionCall {
@@ -148,6 +165,66 @@ function displayF64(value: number): string {
   return !rendered.includes(".") && !rendered.includes("e") ? `${rendered}.0` : rendered;
 }
 
+/** The `[T, E]` of a `Result[T, E]` boundary result. */
+function resultSides(type: ValueType): readonly [ValueType, ValueType] | undefined {
+  const parts = nominalGenericParts(type);
+  return parts?.name === "Result" && parts.arguments.length === 2
+    ? [parts.arguments[0]!, parts.arguments[1]!]
+    : undefined;
+}
+
+const SCALAR_BOUNDARY = new Set<ValueType>(["bool", "char", "f64", "i32", "string"]);
+
+function canonicalHostResult(type: ValueType, value: HostSuspensionResult): HostSuspensionResult {
+  const sides = resultSides(type);
+  if (!sides) {
+    if (typeof value === "object") throw new Error(`host ${type} boundary value must be a scalar`);
+    return canonicalHostValue(type, value);
+  }
+  if (typeof value !== "object" || (value.tag !== "ok" && value.tag !== "err"))
+    throw new Error(`host ${type} boundary value must be { tag: "ok" | "err" }`);
+  const side = value.tag === "ok" ? sides[0] : sides[1];
+  if (side === "void") return { tag: value.tag };
+  // An error type the bridge cannot build, such as `ConsoleError`, has no payload.
+  if (!SCALAR_BOUNDARY.has(side)) throw new Error(`the host cannot build a '${side}' for ${type}`);
+  if (value.value === undefined) throw new Error(`host ${type} result has no '${side}' payload`);
+  return { tag: value.tag, value: canonicalHostValue(side, value.value) };
+}
+
+/** The UTF-8 text a ready result crosses as, if its active side is a `string`. */
+function hostResultText(
+  type: ValueType,
+  value: HostSuspensionResult | undefined,
+): string | undefined {
+  if (type === "string") return value as string;
+  const sides = resultSides(type);
+  if (!sides || typeof value !== "object") return undefined;
+  return (value.tag === "ok" ? sides[0] : sides[1]) === "string"
+    ? (value.value as string)
+    : undefined;
+}
+
+function encodeHostResult(type: ValueType, value: HostSuspensionResult): EncodedHostValue {
+  const sides = resultSides(type);
+  if (!sides) return encodeHostValue(type, value as HostSuspensionValue);
+  const result = canonicalHostResult(type, value) as HostResultValue;
+  const side = result.tag === "ok" ? sides[0] : sides[1];
+  return result.value === undefined
+    ? { kind: result.tag }
+    : { kind: result.tag, value: encodeHostValue(side, result.value) as EncodedHostScalar };
+}
+
+function decodeHostResult(type: ValueType, encoded: EncodedHostValue): HostSuspensionResult {
+  const sides = resultSides(type);
+  if (!sides) return decodeHostValue(type, encoded);
+  if (encoded.kind !== "ok" && encoded.kind !== "err")
+    throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
+  const side = encoded.kind === "ok" ? sides[0] : sides[1];
+  return encoded.value === undefined
+    ? { tag: encoded.kind }
+    : { tag: encoded.kind, value: decodeHostValue(side, encoded.value) };
+}
+
 function canonicalHostValue(type: ValueType, value: HostSuspensionValue): HostSuspensionValue {
   if (type === "string") {
     if (typeof value !== "string") throw new Error("host string boundary value must be a string");
@@ -184,9 +261,10 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
   return { bits: view.getBigUint64(0, false).toString(16).padStart(16, "0"), kind: "f64" };
 }
 
-function decodeHostValue(type: ValueType, encoded: EncodedHostValue): HostSuspensionValue {
-  if (encoded.kind !== type)
-    throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
+function decodeHostValue(type: ValueType, value: EncodedHostValue): HostSuspensionValue {
+  if (value.kind !== type || value.kind === "ok" || value.kind === "err")
+    throw new Error(`replay boundary type '${value.kind}' does not match '${type}'`);
+  const encoded = value as EncodedHostScalar;
   if (encoded.kind === "string")
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       bytesFromHex(encoded.utf8),
@@ -202,6 +280,8 @@ function decodeHostValue(type: ValueType, encoded: EncodedHostValue): HostSuspen
 
 function sameEncodedHostValue(left: EncodedHostValue, right: EncodedHostValue): boolean {
   if (left.kind !== right.kind) return false;
+  if (left.kind === "ok" || left.kind === "err" || right.kind === "ok" || right.kind === "err")
+    return JSON.stringify(left) === JSON.stringify(right);
   if (left.kind === "f64") return right.kind === "f64" && left.bits === right.bits;
   if (left.kind === "string") return right.kind === "string" && left.utf8 === right.utf8;
   return right.kind !== "f64" && right.kind !== "string" && left.value === right.value;
@@ -228,6 +308,43 @@ export function compile(source: string, options: CompileOptions = {}): Compilati
   return { ...artifact, hir: analysis.hir, diagnostics: analysis.diagnostics };
 }
 
+/**
+ * The imports that read a ready host capability result (emitter/host-providers.ts):
+ * a scalar, a string's UTF-8 bytes, or a `Result[T, E]`'s tag and payload.
+ */
+function hostResultImports(
+  prefix: string,
+  name: string,
+  type: ValueType,
+): Record<string, HostImport> {
+  const imports: Record<string, HostImport> = {};
+  const sides = resultSides(type);
+  const ready = (value: unknown): HostSuspensionResult => {
+    const state = value as HostCallState;
+    if (!state.outcome || state.outcome.pending || state.outcome.value === undefined)
+      throw new Error(`host provider ${name} has no ready result`);
+    return state.outcome.value;
+  };
+  const bytes = (value: unknown): Uint8Array => {
+    const state = value as HostCallState;
+    if (!state.resultBytes) throw new Error(`host provider ${name} has no ready result`);
+    return state.resultBytes;
+  };
+  if (sides) {
+    imports[`${prefix}_result_tag`] = (value) =>
+      (ready(value) as HostResultValue).tag === "ok" ? 0 : 1;
+    imports[`${prefix}_result_ok`] = (value) => (ready(value) as HostResultValue).value;
+    imports[`${prefix}_result_err`] = (value) => (ready(value) as HostResultValue).value;
+  }
+  if (type === "string" || sides?.includes("string")) {
+    imports[`${prefix}_result_length`] = (value) => bytes(value).length;
+    imports[`${prefix}_result_byte`] = (value, index) => bytes(value)[Number(index)];
+  }
+  if (!sides && type !== "void" && type !== "string")
+    imports[`${prefix}_result`] = (value) => ready(value);
+  return imports;
+}
+
 export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
@@ -249,22 +366,10 @@ export async function instantiate(
   const functionIdentity = (index: number): FunctionIdentity | undefined =>
     functionIdentities.find((identity) => identity.index === index);
   const configurationId = options.providerConfigurationId ?? "default";
-  const consoleBytes: number[] = [];
   const textEncoder = new TextEncoder();
   // Strings are UTF-8 at every host boundary, so a leading U+FEFF is text, not
   // a byte order mark to drop.
   const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
-  const consoleByte = (provider: unknown, byte: number): void => {
-    if (byte !== -1) {
-      consoleBytes.push(byte);
-      return;
-    }
-    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(
-      Uint8Array.from(consoleBytes),
-    );
-    consoleBytes.length = 0;
-    options.console?.(text, provider);
-  };
   let replayIndex = 0;
   const pending = (functionIndex: number, pollCount: number): number => {
     const identity = functionIdentity(functionIndex);
@@ -337,8 +442,13 @@ export async function instantiate(
   };
   for (const trait of compilation.hir.traits) {
     if (!hostCapabilities.has(trait.name)) continue;
+    // A built-in host implementation, such as the host console, answers
+    // before the embedder's callbacks; an unrecorded provider's calls are
+    // neither recorded nor replayed (host-functions.ts).
+    const recorded = !UNRECORDED_PROVIDERS.has(trait.name);
     for (const method of trait.methods) {
       const prefix = `host_${trait.index}_${method.index}`;
+      const builtIn = HOST_PROVIDERS[`${trait.name}.${method.name}`];
       hostImports[`${prefix}_begin`] = (provider, siteOffset, ...arguments_) => ({
         argumentBytes: new Map(
           method.parameters.flatMap((parameter, index) =>
@@ -369,8 +479,8 @@ export async function instantiate(
         const { call } = state;
         for (const [index, bytes] of state.argumentBytes)
           call.arguments[index] = textDecoder.decode(bytes);
-        const expected = options.replay?.[replayIndex];
-        if (options.replay) {
+        const expected = recorded ? options.replay?.[replayIndex] : undefined;
+        if (options.replay && recorded) {
           if (!expected) throw new Error(`replay exhausted before provider site ${call.siteId}`);
           if (
             expected.operation !== "provider-poll" ||
@@ -398,29 +508,35 @@ export async function instantiate(
           state.outcome = {
             pending: expected.encodedResult === "pending",
             ...(expected.encodedValue
-              ? { value: decodeHostValue(method.result, expected.encodedValue) }
+              ? { value: decodeHostResult(method.result, expected.encodedValue) }
               : {}),
           };
           if (!state.outcome.pending && method.result !== "void" && !expected.encodedValue)
             throw new Error(`replay provider ${trait.name}.${method.name} has no boundary result`);
-          if (!state.outcome.pending && method.result === "string")
-            state.resultBytes = textEncoder.encode(state.outcome.value as string);
+          const text = state.outcome.pending
+            ? undefined
+            : hostResultText(method.result, state.outcome.value);
+          if (text !== undefined) state.resultBytes = textEncoder.encode(text);
           replayIndex += 1;
           return state.outcome.pending ? 0 : 1;
         }
-        state.outcome = options.hostSuspensionInvoke?.(call) ?? {
-          pending: options.hostSuspensionPending?.(call) ?? false,
-        };
+        state.outcome = builtIn
+          ? builtIn(call, { console: options.console })
+          : (options.hostSuspensionInvoke?.(call) ?? {
+              pending: options.hostSuspensionPending?.(call) ?? false,
+            });
         if (!state.outcome.pending && method.result !== "void" && state.outcome.value === undefined)
           throw new Error(`host provider ${trait.name}.${method.name} returned no boundary result`);
         if (state.outcome.pending) state.outcome = { pending: true };
         else if (method.result !== "void")
           state.outcome = {
             pending: false,
-            value: canonicalHostValue(method.result, state.outcome.value!),
+            value: canonicalHostResult(method.result, state.outcome.value!),
           };
-        if (!state.outcome.pending && method.result === "string")
-          state.resultBytes = textEncoder.encode(state.outcome.value as string);
+        const text = state.outcome.pending
+          ? undefined
+          : hostResultText(method.result, state.outcome.value);
+        if (text !== undefined) state.resultBytes = textEncoder.encode(text);
         const event: HostPollReplayEvent = {
           siteId: call.siteId,
           functionName: call.functionName,
@@ -434,35 +550,19 @@ export async function instantiate(
           encodedResult: state.outcome.pending ? "pending" : "ready",
           ...(state.outcome.value === undefined
             ? {}
-            : { encodedValue: encodeHostValue(method.result, state.outcome.value) }),
+            : { encodedValue: encodeHostResult(method.result, state.outcome.value) }),
           providerConfigurationId: configurationId,
         };
-        options.record?.(event);
+        if (recorded) options.record?.(event);
         return state.outcome.pending ? 0 : 1;
       };
-      hostImports[`${prefix}_cancel`] = (value) =>
-        options.hostSuspensionCancel?.((value as HostCallState).call);
-      if (method.result === "string") {
-        hostImports[`${prefix}_result_length`] = (value) => {
-          const state = value as HostCallState;
-          if (!state.resultBytes)
-            throw new Error(`host provider ${trait.name}.${method.name} has no ready result`);
-          return state.resultBytes.length;
-        };
-        hostImports[`${prefix}_result_byte`] = (value, index) => {
-          const state = value as HostCallState;
-          if (!state.resultBytes)
-            throw new Error(`host provider ${trait.name}.${method.name} has no ready result`);
-          return state.resultBytes[Number(index)];
-        };
-      } else if (method.result !== "void") {
-        hostImports[`${prefix}_result`] = (value) => {
-          const state = value as HostCallState;
-          if (!state.outcome || state.outcome.pending || state.outcome.value === undefined)
-            throw new Error(`host provider ${trait.name}.${method.name} has no ready result`);
-          return state.outcome.value;
-        };
-      }
+      hostImports[`${prefix}_cancel`] = (value) => {
+        if (!builtIn) options.hostSuspensionCancel?.((value as HostCallState).call);
+      };
+      Object.assign(
+        hostImports,
+        hostResultImports(prefix, `${trait.name}.${method.name}`, method.result),
+      );
     }
   }
   // The generic host-function boundary (host-functions.ts): a `string`
@@ -508,7 +608,6 @@ export async function instantiate(
       panic: (code: number) => {
         throw new RuntimePanicError(runtimePanicName(code));
       },
-      console_byte: consoleByte,
     },
   });
   const replay: ReplaySession = {

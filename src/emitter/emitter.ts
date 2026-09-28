@@ -1165,7 +1165,6 @@ class FunctionEmitter extends FunctionBodyEmitter {
 
 import {
   BOUNDARY_RUNTIME_WAT,
-  CONSOLE_RUNTIME_WAT,
   FLOAT_RUNTIME_WAT,
   MAP_RUNTIME_WAT,
   RUNTIME_WAT,
@@ -1447,16 +1446,12 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       : "",
     hostFunctions.imports,
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,
-    hostProviders.console
-      ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
-      : "",
   ]
     .filter(Boolean)
     .join("\n");
   const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
   const optionalRuntime = [
     emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
-    hostProviders.console ? CONSOLE_RUNTIME_WAT : "",
     hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : "",
   ]
     .filter(Boolean)

@@ -656,6 +656,73 @@ test("host provider string arguments and results use durable UTF-8 replay encodi
   replayed.replay.assertComplete();
 });
 
+test("a Result[T, E] host result crosses the bridge and replays", async () => {
+  const source = [
+    "use std.testing.assert_equal",
+    "",
+    "pub trait Lookup:",
+    "    fn find!(self, key: string) -> Result[i32, string]",
+    "",
+    "pub fn main!() -> void $ Lookup:",
+    "    lookup := $.use(Lookup)",
+    '    let found = match lookup.find!("a"):',
+    "        .Ok(value) => value",
+    "        .Err(_) => 0",
+    '    let missing = match lookup.find!("b"):',
+    "        .Ok(_) => 0",
+    "        .Err(message) => message.len()",
+    '    assert_equal(found * 10 + missing, 44, reason="both sides cross the bridge")',
+    "",
+  ].join("\n");
+  const events: ReplayEvent[] = [];
+  const recorded = await instantiate(source, {
+    hostCapabilities: ["Lookup"],
+    hostSuspensionInvoke: (call) => ({
+      pending: false,
+      value: call.arguments[0] === "a" ? { tag: "ok", value: 4 } : { tag: "err", value: "gone" },
+    }),
+    providerConfigurationId: "lookup",
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "lookup" });
+  assert.deepEqual(
+    events.flatMap((event) => (event.operation === "provider-poll" ? [event.encodedValue] : [])),
+    [
+      { kind: "ok", value: { kind: "i32", value: 4 } },
+      { kind: "err", value: { kind: "string", utf8: "676f6e65" } },
+    ],
+  );
+  const replayed = await instantiate(source, {
+    hostCapabilities: ["Lookup"],
+    hostSuspensionInvoke: () => {
+      throw new Error("live host provider must not run during replay");
+    },
+    providerConfigurationId: "lookup",
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "lookup" });
+  replayed.replay.assertComplete();
+});
+
+test("host console lines are neither recorded nor replayed", async () => {
+  const source = 'pub fn main() -> void $ Console:\n    println("hi")\n';
+  const events: ReplayEvent[] = [];
+  const lines: string[] = [];
+  const recorded = await instantiate(source, {
+    console: (text) => lines.push(text),
+    record: (event) => events.push(event),
+  });
+  (recorded.instance.exports.main as CallableFunction)({ name: "console" });
+  assert.deepEqual(events, []);
+  const replayed = await instantiate(source, {
+    console: (text) => lines.push(text),
+    replay: events,
+  });
+  (replayed.instance.exports.main as CallableFunction)({ name: "console" });
+  replayed.replay.assertComplete();
+  assert.deepEqual(lines, ["hi", "hi"]);
+});
+
 test("a leading U+FEFF host string is text on the live and replayed boundary", async () => {
   const source = [
     "use std.testing.assert_equal",
@@ -709,8 +776,9 @@ test("println requires Console and streams displayed UTF-8 through the host boun
   assert.equal((instance.exports.main as CallableFunction)(provider), 42);
   assert.deepEqual(lines, ["value 42", "true", "λ"]);
   assert.deepEqual(providers, [provider, provider, provider]);
-  assert.match(compilation.wat, /import "hd" "console_byte"/);
-  assert.match(compilation.wat, /func \$hd\.console_print/);
+  // The host console goes through the generic per-method bridge.
+  assert.doesNotMatch(compilation.wat, /console_byte|\$hd\.console_print/);
+  assert.match(compilation.wat, /_result_tag/);
 
   assert.ok(
     analyze(conformance("typing/invalid/println-without-console")).diagnostics.some(

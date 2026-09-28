@@ -286,11 +286,11 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   dynamic trait values, and the standard `string`, `i32`, `i64`, `u8`,
   `f64`, `bool`, and `char` implementations;
 - `println` with the same display surface, statically requiring a
-  lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
-  the narrow host byte callback. `Console` is a prelude trait with
+  lexical `Console` provider. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
   `$.use(Console)` is `mut Console` and a program may implement it. The
   host console is a `Console` trait value that boxes the host's `externref`
+  and goes through the generic host capability bridge
   (`emitter/host-providers.ts`); its `write_line!` writes the line and is
   ready with `.Ok()` on its first poll, so direct calls run on it and on a
   program-defined provider. `println` calls `write_line!` on the covering
@@ -726,7 +726,13 @@ declare a host function (a question in
    generic per-method `host_<trait>_<method>_*` imports with the same
    boundary values, and the host answers through one
    `hostSuspensionInvoke` callback keyed by trait and method name, with
-   record and replay.
+   record and replay. A method may also return `Result[T, E]` with a
+   boundary or `void` `T`: the tag crosses first, then the active side's
+   payload. An `E` that is not a boundary type, such as `ConsoleError`,
+   can be named but not built, so the host may not report `.Err` for it.
+   The host console is a built-in entry, `Console.write_line`, in
+   `HOST_PROVIDERS` (`src/host-functions.ts`); `UNRECORDED_PROVIDERS`
+   keeps its calls out of record and replay, as before.
 
 Adding a pure host-backed std function needs its `lib/std` declaration and
 one entry in `src/host-functions.ts`. Adding a capability such as `FsRead`
@@ -748,9 +754,10 @@ marks what this refactor removed.
 | Checker | `println` by name | capability | Done: an ordinary std function; std may declare a prelude name (`FunctionDecl.standard`) |
 | Emitter | `emitPrintln` (`$hd.println`) | capability | Done: two runtime primitives, `suspension_poll` and `suspension_result` |
 | Host glue | `println_pending`, `println_error` imports | capability | Done: host functions `host:println_pending` and `host:println_error` |
-| Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Plan below |
-| Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Plan below |
-| Host glue | `console_byte` import | capability | Plan below |
+| Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Remains: see Console below |
+| Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Done: the generic capability bridge, with `Result` results |
+| Host glue | `console_byte` import | capability | Done: `Console.write_line` in `HOST_PROVIDERS`, left out of record and replay |
+| Checker | `validateHostCapabilities` skipped `Console` | capability | Done: `Console` passes the same boundary check as any host capability |
 | HIR | `assert`, `assert-equal`, `snapshot-file` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
 | HIR | `debug-render` | `std.format` | Remains: reports `unsupported-debug-render` until the `DebugWriter` layout is specified |
@@ -772,25 +779,26 @@ leaving 86 kinds, 9 of them specific: the test-runner hooks, `std.testing`,
 ([`module.prelude.println`](../spec/10-modules.md#r-module.prelude.println)).
 It calls `write_line` without `!`, which makes a stored suspension, polls
 it once with the `suspension_poll` primitive, and reads the result with
-`suspension_result`. It does not use `block_on`, which refuses to run under
-an active driver, while `println` must work inside `main!`. The loader adds
-`println` under its own name when a program mentions it, because
-`println` is a prelude name.
+`suspension_result`, so it still runs under an active driver. The owner
+has decided that `println` inherits all of `block_on`'s rules
+([MHP follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)),
+so it will panic under a running driver; a later change applies that. The
+loader adds `println` under its own name when a program mentions it,
+because `println` is a prelude name.
 
-What remains, in order:
+The host console is a built-in entry of the generic capability bridge.
+Its calls stay out of record and replay (`UNRECORDED_PROVIDERS`), so
+`hd replay` prints console lines again rather than reading them back.
+Whether a replay should capture them is an owner question in
+[OPEN_ISSUES.md](../future-work/OPEN_ISSUES.md#mutable-host-providers).
+
+What remains:
 
 1. Declare the `Console` trait in `lib/std/console.hd` instead of
    `program-types.ts`. Its trait index is fixed today (the last built-in
    trait), which `lowerRunTimeGaps` relies on to drop an unused `Console`.
-2. Give the host console to the generic capability bridge. That needs the
-   bridge to marshal `write_line!`'s `Result[void, ConsoleError]` result,
-   and the host table to implement `Console.write_line`. It drops
-   `emitConsole`, `console.wat`, and `console_byte`. One behavior to
-   decide first: the bridge records every host call for replay, so
-   `hd record` would start recording console lines, and `hd replay` would
-   stop printing them.
-3. `ConsoleError` stays a TypeScript type name until the specification
-   gives it members; the spec only says it is boundary-safe and `Display`.
+2. `ConsoleError` stays a TypeScript type name until its variants and
+   constructor are settled with the other std error types.
 
 ## Layout
 

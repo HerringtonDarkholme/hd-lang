@@ -109,6 +109,31 @@ fn greet() -> void $ Console:
    `$.use(Console).write_line!` instead. The owner confirmed this
    consequence.
 
+**Open (raised by the prototype, 2026-09-28): should a replay capture
+console output?** The host console now goes through the same host
+capability bridge as every other host provider, and that bridge records
+each host call for replay. The prototype leaves `Console` out of
+recording, which keeps today's behavior: `hd record` stores no console
+lines, and `hd replay` writes each line again to the live console.
+
+1. Keep console calls out of the record, so a replay prints again.
+2. Record console calls like any provider, so a replay checks the written
+   text against the record and prints nothing.
+3. Record them and also print during replay, so a replay both checks and
+   shows the output.
+
+**Recommendation:** option 1 for now. Console output is an effect the
+replayed program repeats rather than an input it reads, and `write_line!`
+returns no data the program depends on. A mismatch check (option 3) can be
+added when [durable replay](DURABLE_REPLAY.md) specifies effect logging.
+
+```text
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    let console: mut Console = $.use(Console)
+    console.write_line!("step 1")?  # recorded, or written again on replay?
+    .Ok()
+```
+
 The rules are
 [`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
 through
