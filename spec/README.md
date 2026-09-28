@@ -885,3 +885,11 @@ existing source. Each entry names the decision that made the change.
   `misplaced-derivation`: a newtype derives only through its base with
   `@derive`. `Clone` is a standard-library trait, listed in
   [STDLIB](../future-work/STDLIB.md#clone).
+- Exit status code type (error entry-point follow-ups question 1,
+  2026-09-27): `ExitStatus.status()` returns `std.process.StatusCode`, a
+  wrapper of a `u8` that is never 0, built with
+  `StatusCode::new(code: u8) -> StatusCode?`. An implementation that returned
+  `i32` is now `trait-method-signature`.
+- Exit status of erased errors (error entry-point follow-ups question 2,
+  2026-09-27): no behavior changed. Chapter 10 now states that the rule reads
+  the static error type, so `main() -> Result[void, Error]` exits with 1.

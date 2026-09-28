@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-27 the prototype passes 1,055 of the 1,169 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 114 are listed in
+On 2026-09-27 the prototype passes 1,055 of the 1,174 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 119 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 114 still fail.
+decision below; all 119 still fail.
 
 ## Specification Follow-Ups
 
@@ -58,3 +58,4 @@ cases.
 | EC-14 | Error conversion decisions 14 and 16: a `test` block is a propagation target, as if it returned `Result[void, Error]`, and wraps any other `E < Display` in a std message error. The prototype rejects `?` in a test block, which also makes its two invalid fixtures pass. |
 | EC-17 | Error conversion decisions 13 and 17: a failing entry point prints an `Error` chain and exits with `ExitStatus.status()`. The prototype declares `std.process.ExitStatus`, but `main` may still return only `Result[void, ConsoleError]`. |
 | TD | Typed derivation (M1-M23 in `future-work/TYPED_DERIVATION.md`): `@derive` of a trait with a `by Structure` template, derivation blocks with member lines, `std.structure` handles, walkers, describers, and sources, and the `+=` token. The prototype parses no decorators and has none of these. |
+| EEF-1 | Error entry-point follow-ups question 1: `ExitStatus.status()` returns `std.process.StatusCode`, a `u8` wrapper that is never 0, built with `StatusCode::new`. The prototype has no `u8`, so it declares no `StatusCode` and keeps `status` returning `i32`. |

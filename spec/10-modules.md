@@ -531,6 +531,7 @@ The standard trait `ExitStatus` lets an error type choose the exit status:
 
 ```text
 use std.process.ExitStatus
+use std.process.StatusCode
 
 pub enum CliError:
     Usage
@@ -543,20 +544,33 @@ impl Display for CliError:
             CliError.Missing(path) => "missing: " + path
 
 impl ExitStatus for CliError:
-    fn status(self) -> i32:
-        match self:
+    fn status(self) -> StatusCode:
+        let code: u8 = match self:
             CliError.Usage => 2
             CliError.Missing(_) => 1
+        match StatusCode::new(code):
+            .Some(status) => status
+            .None => panic("a CliError status is never 0")
 
 pub fn main() -> Result[void, CliError]:
     .Err(CliError.Usage)
 ```
 
-1. r[module.entry.exit-status.trait] `std.process` declares the trait `ExitStatus`, whose one method is `fn status(self) -> i32`.
-2. r[module.entry.exit-status] When an entry point returns `.Err(error)` and `E` implements `ExitStatus`, the process exits with `error.status()`.
-3. r[module.entry.exit-status.default] Otherwise an `.Err` result exits with status 1.
-4. r[module.entry.exit-status.code-only] `ExitStatus` chooses only the exit status: the host still prints the error as [Entry Results](#entry-results) describes.
-5. r[module.entry.exit-status.import] `ExitStatus` is not a prelude name; code imports it with `use std.process.ExitStatus`.
+1. r[module.entry.exit-status.trait-code] `std.process` declares the trait `ExitStatus`, whose one method is `fn status(self) -> StatusCode`.
+2. r[module.entry.status-code] `std.process` declares `StatusCode`, a nominal wrapper of a `u8` exit status that never holds 0.
+3. r[module.entry.status-code.new] `StatusCode::new(code: u8) -> StatusCode?` returns `.None` when `code` is 0, and otherwise a `StatusCode` holding `code`.
+4. r[module.entry.exit-status.code] When an entry point returns `.Err(error)` and `E` implements `ExitStatus`, the process exits with the `u8` held by `error.status()`.
+5. r[module.entry.exit-status.static] That rule reads the static type `E`. When `E` is a dynamic trait value type, such as the erased `Error`, the concrete error's `ExitStatus` is not consulted.
+6. r[module.entry.exit-status.default] Otherwise an `.Err` result exits with status 1.
+7. r[module.entry.exit-status.code-only] `ExitStatus` chooses only the exit status: the host still prints the error as [Entry Results](#entry-results) describes.
+8. r[module.entry.exit-status.import] `ExitStatus` is not a prelude name; code imports it with `use std.process.ExitStatus`.
+9. r[module.entry.status-code.import] `StatusCode` is not a prelude name either; code imports it with `use std.process.StatusCode`.
+
+> **Why.** A status that cannot be 0 means a failed run never reports
+> success, and a `u8` cannot fall outside the 1 to 255 that POSIX hosts keep.
+
+> **Note.** `main() -> Result[void, Error]` therefore always exits with 1
+> on `.Err`. A tool that needs its own codes returns its own error type.
 
 > **Note.** A tool that must exit without printing, such as one that stops
 > quietly on a closed pipe, prints what it needs and exits by hand.

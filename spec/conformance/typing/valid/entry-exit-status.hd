@@ -1,7 +1,9 @@
 # test: an entry point's error type may implement std.process.ExitStatus
-# Spec 10 Exit Status: std.process declares ExitStatus with fn status(self) -> i32; when
-# main returns .Err(error) and E implements it, the process exits with error.status().
+# Spec 10 Exit Status: std.process declares ExitStatus with fn status(self) -> StatusCode;
+# when main returns .Err(error) and E implements it, the process exits with the u8 that
+# error.status() holds. StatusCode::new rejects 0, so the status is never 0.
 use std.process.ExitStatus
+use std.process.StatusCode
 
 pub enum CliError:
     Usage
@@ -14,10 +16,13 @@ impl Display for CliError:
             CliError.Missing(path) => "missing: " + path
 
 impl ExitStatus for CliError:
-    fn status(self) -> i32:
-        match self:
+    fn status(self) -> StatusCode:
+        let code: u8 = match self:
             CliError.Usage => 2
             CliError.Missing(_) => 1
+        match StatusCode::new(code):
+            .Some(status) => status
+            .None => panic("a CliError status is never 0")
 
 pub fn main() -> Result[void, CliError]:
     .Err(CliError.Usage)

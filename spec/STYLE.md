@@ -603,3 +603,10 @@ style lint rejects a chapter that reuses one.
 - `annot.walker.generic-call`: retired 2026-09-27. Typed derivation (M23)
   lets source code call `missing` through a generic source. Replaced by
   `annot.walker.generic-member-call` and `annot.walker.generic-missing`.
+- `module.entry.exit-status.trait`: retired 2026-09-27. Error entry-point
+  follow-ups question 1 made `status()` return `StatusCode`. Replaced by
+  `module.entry.exit-status.trait-code`, `module.entry.status-code`, and
+  `module.entry.status-code.new`.
+- `module.entry.exit-status`: retired 2026-09-27. Error entry-point
+  follow-ups question 1 exits with the `u8` a `StatusCode` holds. Replaced by
+  `module.entry.exit-status.code`.

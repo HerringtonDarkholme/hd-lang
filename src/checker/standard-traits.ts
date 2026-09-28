@@ -7,6 +7,8 @@ import { parse } from "../parser/index.ts";
 // spec/10-modules.md#exit-status). The prototype
 // compiles one module, so an imported standard trait is declared in it under
 // its local name, with every span pointing at the use declaration.
+// `ExitStatus.status` returns `std.process.StatusCode` in the specification;
+// the prototype has no `u8`, so it keeps an `i32` result.
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
   "std.error.Error": (name) => `trait ${name} < Display + ${INSPECTABLE}\n`,

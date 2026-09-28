@@ -9,6 +9,7 @@ TQ-2	3	Trait-argument ownership fixtures need the `Iterable` trait or package ro
 F-255	2	Prelude names `Hash` and `Hasher` are unknown
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
 GQ11	2	`annotate` declarations do not parse, so the fixtures for `[` directly after `annotate` fail
+EEF-1	2	`std.process.StatusCode` is not declared and `ExitStatus.status` still returns `i32`, because the prototype has no `u8` (error entry-point follow-ups question 1)
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails

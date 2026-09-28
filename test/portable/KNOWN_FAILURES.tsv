@@ -91,7 +91,7 @@ typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: th
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 runtime/valid/test-block-propagation.hd	check fails: invalid-result-propagation at lines 25 and 29: a test block is not yet a propagation target, and the std message error for Display errors is unimplemented	EC-14
-typing/valid/entry-exit-status.hd	check fails: entry-error-not-display at line 22: main may return only Result[void, ConsoleError], so Error chains and ExitStatus exit codes are unimplemented	EC-17
+typing/valid/entry-exit-status.hd	check fails: unknown-type StatusCode at line 19 (the prototype has no u8 and declares ExitStatus.status returning i32), and entry-error-not-display at line 27: main may return only Result[void, ConsoleError], so Error chains and ExitStatus exit codes are unimplemented	EC-17
 typing/valid/typed-derivation.hd	check fails: decorator-not-top-level at line 90: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/valid/typed-derivation-build.hd	check fails: decorator-not-top-level at line 39: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 runtime/valid/typed-derivation-walk.hd	test fails: decorator-not-top-level at line 87: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
@@ -116,3 +116,5 @@ parse/valid/derivation-member-lines.hd	parse fails: doc-comment-without-target a
 typing/invalid/structure-without-use.hd	MVP reports unknown-type at line 6 instead of unknown-trait: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
 typing/invalid/newtype-derivation-block.hd	MVP reports unknown-type at line 30 instead of misplaced-derivation: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
 typing/valid/generic-missing-call.hd	check fails: unknown-trait at line 4: unknown trait 'Source'; the prototype has no typed derivation	TD
+typing/invalid/exit-status-i32-result.hd	check exits 0: the prototype has no u8, so it declares ExitStatus.status returning i32 instead of StatusCode	EEF-1
+runtime/valid/status-code-rejects-zero.hd	check fails: unknown-type u8 at line 5, and the prototype does not declare std.process.StatusCode	EEF-1

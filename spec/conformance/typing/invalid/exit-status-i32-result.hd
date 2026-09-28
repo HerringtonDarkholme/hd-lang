@@ -1,0 +1,12 @@
+# test: ExitStatus.status returns StatusCode, so an i32 result does not match the trait
+use std.process.ExitStatus
+
+pub enum CliError:
+    Usage
+
+impl Display for CliError:
+    fn to_string(self) -> string:
+        "usage: tool PATH"
+
+impl ExitStatus for CliError:
+    fn status(self) -> i32: 2  # diagnostic: trait-method-signature

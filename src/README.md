@@ -445,7 +445,9 @@ else`, `break`, `break value`, and `continue`;
   its own trait). A generic function or generic variant constructor passed
   as a call argument takes its type arguments from the call. `?` in a test
   block, entry-point chain printing, and `ExitStatus` exit codes are not
-  implemented: `main` may still return only `Result[void, ConsoleError]`;
+  implemented: `main` may still return only `Result[void, ConsoleError]`.
+  Without `u8`, `std.process.StatusCode` is not declared, and `status`
+  still returns `i32`;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
