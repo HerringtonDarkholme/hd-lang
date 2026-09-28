@@ -37,7 +37,7 @@ export interface Parameter {
 export interface Decorators {
   /** Trait names listed by `@derive(...)` lines, in order. */
   readonly derives: readonly TypeRef[];
-  /** Every other decorator: a type-level fact. */
+  /** Every other decorator: the attached value. */
   readonly facts: readonly Expression[];
   readonly span: SourceSpan;
 }
@@ -80,7 +80,7 @@ export interface FunctionDecl {
   readonly testOnly?: boolean;
   /** Runner options of a test body (spec/10-modules.md#test-cases). */
   readonly testOptions?: HirFunction["testOptions"];
-  /** Decorator lines before the declaration; rejected until function targets are decided. */
+  /** Decorator lines before the declaration (14 Prefix Decorators). */
   readonly decorators?: Decorators;
   /**
    * A `lib/std` primitive whose body the compiler supplies: the standard-library
@@ -108,6 +108,8 @@ export interface MethodDecl {
   readonly requirementsOmitted?: boolean;
   readonly body?: readonly Statement[];
   readonly doc?: string;
+  /** Decorator lines before the method (14 Prefix Decorators). */
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 
@@ -134,6 +136,8 @@ export interface TraitDecl {
   readonly strengthenableMembers?: readonly string[];
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
   readonly standard?: boolean;
+  /** Decorator lines before the trait (14 Prefix Decorators). */
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 
@@ -156,6 +160,8 @@ export interface ImplDecl {
    */
   readonly standard?: boolean;
   readonly doc?: string;
+  /** Decorator lines before the implementation (14 Prefix Decorators). */
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 
@@ -193,6 +199,12 @@ export interface DataDecl {
   readonly decorators?: Decorators;
   /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
   readonly standard?: boolean;
+  /**
+   * The qualified name of a `lib/std` declaration, such as
+   * `std.annotation.Annotate`, which the compiler recognizes by name
+   * (14 Target Kinds). The loader sets it; user code cannot.
+   */
+  readonly standardName?: string;
   readonly span: SourceSpan;
 }
 

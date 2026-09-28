@@ -75,10 +75,12 @@ test("println is the std.console declaration, under its prelude name", () => {
 });
 
 test("only lib/std can declare an intrinsic", () => {
+  // In user code the line is an ordinary decorator whose value calls an
+  // unknown function (spec/14-annotations.md#prefix-decorators).
   const analysis = analyze('@intrinsic("string_byte_len")\nfn size(text: string) -> i32: 0\n');
   assert.deepEqual(
     analysis.diagnostics.map((diagnostic) => diagnostic.code),
-    ["decorator-not-annotator"],
+    ["unknown-name"],
   );
 });
 

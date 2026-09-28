@@ -141,9 +141,9 @@ class Parser extends DecoratorParser {
       if (inTests) for (const name of use.names) items.testOnlyNames.add(name.alias ?? name.name);
       return;
     }
-    // Decorator lines before a data, enum, newtype, or function declaration
-    // (spec/02-grammar.md#annotations). Anything else falls through to the
-    // statement parser, which rejects the decorator.
+    // Decorator lines before a data, enum, function, trait, newtype, or
+    // implementation declaration (spec/02-grammar.md#annotations). Anything
+    // else falls through to the statement parser, which rejects the decorator.
     let decorators: Decorators | undefined;
     if (this.atText("@") && this.decoratedDeclarationFollows()) {
       decorators = this.parseDecoratorLines();
@@ -167,7 +167,7 @@ class Parser extends DecoratorParser {
       declared(declaration.name);
       items.enums.push(declaration);
     } else if (this.atText("trait")) {
-      const declaration = this.parseTrait(doc, public_);
+      const declaration = { ...this.parseTrait(doc, public_), ...decorated };
       declared(declaration.name);
       items.traits.push(declaration);
     } else if (this.atText("type") && this.peek(1).kind === "identifier") {
@@ -176,7 +176,8 @@ class Parser extends DecoratorParser {
       this.checkTypeDecorators(declaration, typeStart);
       declared(declaration.name);
       items.types.push(declaration);
-    } else if (this.atText("impl")) items.implementations.push(this.parseImpl(doc));
+    } else if (this.atText("impl"))
+      items.implementations.push({ ...this.parseImpl(doc), ...decorated });
     else {
       // Top-level bindings cannot be public (10 Name Resolution Across Packages).
       if (public_)
@@ -484,8 +485,8 @@ class Parser extends DecoratorParser {
       const associatedTypes: AssociatedTypeDecl[] = [];
       while (!this.atKind("dedent") && !this.atKind("eof")) {
         if (this.matchKind("newline")) continue;
-        const methodDoc = this.parseDocComments();
-        if (this.matchText("type")) {
+        const { doc: methodDoc, decorators: methodDecorators } = this.parseMethodPrefix();
+        if (!methodDecorators && this.matchText("type")) {
           const associatedName = this.expectKind("identifier", "expected an associated type name");
           const end = this.expectKind("newline", "expected a line ending after an associated type")
             .span.end;
@@ -508,7 +509,8 @@ class Parser extends DecoratorParser {
             "trait methods inherit the trait's visibility and cannot be declared pub",
             this.current().span,
           );
-        methods.push(this.parseMethod(false, methodDoc));
+        const method = this.parseMethod(false, methodDoc);
+        methods.push(methodDecorators ? { ...method, decorators: methodDecorators } : method);
       }
       const close = this.expectKind("dedent", "expected the end of the trait body");
       return {
@@ -586,13 +588,13 @@ class Parser extends DecoratorParser {
     const associatedTypes: AssociatedTypeDecl[] = [];
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
-      const methodDoc = this.parseDocComments();
-      const memberLine = this.parseMemberLine();
+      const { doc: methodDoc, decorators: methodDecorators } = this.parseMethodPrefix();
+      const memberLine = methodDecorators ? undefined : this.parseMemberLine();
       if (memberLine) {
         memberLines.push(memberLine);
         continue;
       }
-      if (this.matchText("type")) {
+      if (!methodDecorators && this.matchText("type")) {
         const associatedName = this.expectKind("identifier", "expected an associated type name");
         this.expectText("=");
         const value = this.parseType();
@@ -622,7 +624,8 @@ class Parser extends DecoratorParser {
           this.current().span,
         );
       const publicMethod = this.matchText("pub");
-      const method = this.parseMethod(true, methodDoc);
+      const parsed = this.parseMethod(true, methodDoc);
+      const method = methodDecorators ? { ...parsed, decorators: methodDecorators } : parsed;
       methods.push(publicMethod ? { public: true, ...method } : method);
     }
     const close = this.expectKind("dedent", "expected the end of the implementation body");
@@ -657,6 +660,7 @@ class Parser extends DecoratorParser {
     if (!this.atText(")")) {
       do {
         const parameterDoc = this.parseDocComments();
+        const parameterMetadata = this.parseMethodParameterDecorators();
         const mutableReceiver = this.matchText("mut");
         const mutableStart = mutableReceiver ? this.peek(-1).span.start : undefined;
         const parameterName = this.atText("self")
@@ -689,6 +693,7 @@ class Parser extends DecoratorParser {
             type,
             variadic: variadic || undefined,
             doc: parameterDoc,
+            ...(parameterMetadata.length > 0 ? { metadata: parameterMetadata } : {}),
             span: { start: parameterName.span.start, end: this.peek(-1).span.end },
           });
         }
@@ -1466,14 +1471,7 @@ class Parser extends DecoratorParser {
     if (this.matchKind("newline")) return previous.span.end;
     if (this.atKind("dedent") || this.atKind("eof")) return previous.span.end;
     // A same-line suite also ends before the `else` of its conditional or loop.
-    if (
-      _topOrInline &&
-      (this.atText(")") ||
-        this.atText(",") ||
-        this.atText("]") ||
-        this.atText("}") ||
-        this.atText("else"))
-    )
+    if (_topOrInline && [")", ",", "]", "}", "else"].some((text) => this.atText(text)))
       return previous.span.end;
     this.fail(
       "syntax-error",

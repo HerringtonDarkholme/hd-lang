@@ -123,9 +123,18 @@ export function validateProgram(context: ProgramCheckContext): void {
         ...variant.fields.flatMap((field) => field.metadata ?? []),
       ]),
     ),
-    ...program.functions.flatMap((declaration) =>
-      declaration.parameters.flatMap((parameter) => parameter.metadata ?? []),
-    ),
+    ...program.functions.flatMap((declaration) => [
+      ...(declaration.decorators?.facts ?? []),
+      ...declaration.parameters.flatMap((parameter) => parameter.metadata ?? []),
+    ]),
+    ...[...program.traits, ...program.implementations].flatMap((declaration) => [
+      ...(declaration.decorators?.facts ?? []),
+      ...declaration.methods.flatMap((method) => [
+        ...(method.decorators?.facts ?? []),
+        ...method.parameters.flatMap((parameter) => parameter.metadata ?? []),
+      ]),
+    ]),
+    ...(program.types ?? []).flatMap((declaration) => declaration.decorators?.facts ?? []),
   ];
   for (const fact of facts) {
     const driverCall = findDriverCall(fact, driverFunctions, imports);

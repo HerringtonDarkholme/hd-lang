@@ -5,8 +5,9 @@ import { ExpressionParser } from "./expression.ts";
 // Decorators and member lines (spec/02-grammar.md#annotations and
 // #r-grammar.impl.derivation-line), shared by the declaration parser.
 export abstract class DecoratorParser extends ExpressionParser {
-  // Whether the decorator lines here precede a data, enum, newtype, alias,
-  // or function declaration (spec/02-grammar.md#annotations).
+  // Whether the decorator lines here precede a data, enum, function, trait,
+  // newtype, alias, or implementation declaration
+  // (spec/02-grammar.md#r-grammar.annot.item-targets).
   protected decoratedDeclarationFollows(): boolean {
     let offset = 0;
     while (this.peek(offset).text === "@") {
@@ -27,7 +28,7 @@ export abstract class DecoratorParser extends ExpressionParser {
     if (this.peek(offset).text === "pub") offset += 1;
     const keyword = this.peek(offset).text;
     return (
-      ["data", "enum", "fn"].includes(keyword) ||
+      ["data", "enum", "fn", "trait", "impl"].includes(keyword) ||
       (keyword === "type" && this.peek(offset + 1).kind === "identifier")
     );
   }
@@ -94,18 +95,42 @@ export abstract class DecoratorParser extends ExpressionParser {
     return { doc, metadata: metadata.length > 0 ? { metadata } : {} };
   }
 
-  // A newtype takes only `@derive` lines, and an alias none
-  // (spec/02-grammar.md#r-grammar.annot.newtype-derive.error).
+  // A transparent alias takes no decorator
+  // (spec/02-grammar.md#r-grammar.annot.alias-no-decorator).
   protected checkTypeDecorators(declaration: TypeDecl, typeStart: SourceSpan): void {
-    const decorators = declaration.decorators;
-    if (!decorators || (!declaration.alias && decorators.facts.length === 0)) return;
+    if (!declaration.decorators || !declaration.alias) return;
     this.fail(
       "syntax-error",
-      declaration.alias
-        ? "a transparent alias takes no derive decorator; derive on a data, enum, or newtype declaration"
-        : "a newtype takes only @derive decorators",
-      declaration.alias ? typeStart : decorators.span,
+      "a transparent alias takes no decorator; decorate a data, enum, or newtype declaration",
+      typeStart,
     );
+  }
+
+  // Doc comments and decorator lines before a member of a trait or
+  // implementation body. Decorators precede only a method, `fn` or `pub fn`
+  // (spec/02-grammar.md#r-grammar.annot.member-targets).
+  protected parseMethodPrefix(): { doc?: string; decorators?: Decorators } {
+    const before = this.parseDocComments();
+    if (!this.atText("@")) return { doc: before };
+    const decorators = this.parseDecoratorLines();
+    const doc = this.parseDocComments() ?? before;
+    if (!this.atText("fn") && !this.atText("pub"))
+      this.fail(
+        "syntax-error",
+        "a decorator in a trait or implementation body must precede a method",
+        this.current().span,
+      );
+    return { doc, decorators };
+  }
+
+  // Decorators on a method's value parameter; a receiver takes none
+  // (spec/02-grammar.md#r-grammar.fn.decorator-param-targets).
+  protected parseMethodParameterDecorators(): Expression[] {
+    const metadata = this.parseMemberDecorators(true);
+    const receiver = this.atText("self") || (this.atText("mut") && this.peek(1).text === "self");
+    if (metadata.length > 0 && receiver)
+      this.fail("syntax-error", "a receiver parameter takes no decorator", this.current().span);
+    return metadata;
   }
 
   // A member line `f = [...]`, `f += [...]`, `f = pass`, or a `Self` line

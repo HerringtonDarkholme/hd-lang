@@ -1,8 +1,8 @@
 import type { Expression, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 
-// Declaration facts: the decorators on members, variants, and parameters
-// (spec/14-annotations.md#member-metadata), and the literal facts that the
+// Declaration facts: the decorators on items, members, variants, and
+// parameters (spec/14-annotations.md#member-metadata), and the literal facts that the
 // unused-fact warning skips (#r-annot.fact.unused-std).
 
 /**
@@ -33,8 +33,21 @@ export function checkDuplicateDeclarationFacts(
       check(variant.metadata);
       for (const field of variant.fields) check(field.metadata);
     }
-  for (const declaration of program.functions)
+  for (const declaration of program.functions) {
+    // Two values of one type before a function, trait, implementation,
+    // newtype, or method (annot.decorator.duplicate).
+    check(declaration.decorators?.facts, "declaration");
     for (const parameter of declaration.parameters) check(parameter.metadata);
+  }
+  for (const declaration of [...program.traits, ...program.implementations]) {
+    check(declaration.decorators?.facts, "declaration");
+    for (const method of declaration.methods) {
+      check(method.decorators?.facts, "method");
+      for (const parameter of method.parameters) check(parameter.metadata);
+    }
+  }
+  for (const declaration of program.types ?? [])
+    check(declaration.decorators?.facts, "declaration");
 }
 
 /** A literal fact has a primitive type, so it never warns as unused. */

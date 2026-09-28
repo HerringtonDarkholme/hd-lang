@@ -1,5 +1,7 @@
-# std.annotation: the shape surface (spec/14-annotations.md#common-shape-representation).
-# Every name here is a prelude name. `shape` and `shape_of` are compiler
+# std.annotation: the shape surface (spec/14-annotations.md#common-shape-representation)
+# and the target kinds (#target-kinds). Every shape name here is a prelude
+# name; `Target`, `Annotate`, and `annotate` are imported
+# (r-annot.target.declarations). `shape` and `shape_of` are compiler
 # intrinsics: the checker lowers `shape[T]()` and `shape_of(f)` to generated
 # builders over these declarations (src/checker/shapes.ts), so they are not
 # declared here. `ShapeMetadata` is sealed; the generated code gives each
@@ -115,3 +117,26 @@ impl TypeShape:
         match self:
             .Optional(_) => true
             _ => false
+
+# The kinds of target a decorator value attaches to (r-annot.target.kind.fn
+# and the rows after it). A newtype has no kind.
+pub enum Target:
+    Fn
+    Data
+    Enum
+    Field
+    Variant
+    Param
+    Trait
+    Impl
+    Method
+
+# A fact on a fact type that limits its values to the listed kinds
+# (r-annot.target.limit). The compiler recognizes this type by its qualified
+# name, and it limits itself to data types and enums (r-annot.target.bootstrap).
+@annotate(.Data, .Enum)
+pub data Annotate:
+    pub kinds: List[Target]
+
+pub fn annotate(kinds: Target...) -> Annotate:
+    Annotate { kinds: kinds }

@@ -1,6 +1,7 @@
 import type {
   DataDecl,
   DataField,
+  Decorators,
   EnumDecl,
   Expression,
   FunctionDecl,
@@ -373,14 +374,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
     diagnostics.push({ code, message, span });
   };
 
-  // Decorators before a function wait for function targets (annot.decorator.function).
-  for (const declaration of source.functions)
-    if (declaration.decorators)
-      error(
-        "decorator-not-annotator",
-        "a decorator before a function is rejected until function targets are decided",
-        declaration.decorators.span,
-      );
+  checkUnderivableTargets(source, error);
 
   checkDuplicateDeclarationFacts(source, (fact) => factType(fact, functions), error);
   // Trait-less blocks edit the declaration facts (annot.traitless.declaration-facts).
@@ -806,12 +800,21 @@ function lintDerivations(
     });
   }
   // Only a fact whose type comes from a package other than `std` warns
-  // (annot.fact.unused-non-std).
+  // (annot.fact.unused-non-std). A fact built by a name imported from `std`,
+  // such as `@annotate(.Field)`, has a standard type (annot.fact.unused-std).
+  const standardNames = new Set(
+    program.uses
+      .filter((use) => use.module.startsWith("std."))
+      .flatMap((use) => use.names.map((name) => name.alias ?? name.name)),
+  );
+  const standardFact = (fact: Expression): boolean =>
+    (fact.kind === "call" && fact.callee.kind === "name" && standardNames.has(fact.callee.name)) ||
+    (fact.kind === "data" && standardNames.has(fact.name));
   for (const declaration of [...program.data, ...program.enums]) {
     const facts = declaration.decorators?.facts ?? [];
     if (facts.length === 0 || byTarget.has(declaration.name)) continue;
     for (const fact of facts)
-      if (!isLiteralFact(fact))
+      if (!isLiteralFact(fact) && !standardFact(fact))
         warn(
           "unused-derivation-fact",
           `type '${declaration.name}' derives no template that could read this fact`,
@@ -835,6 +838,34 @@ function lintDerivations(
   // not supply the block's trait (annot.fact.unused-self-line.per-trait).
   // The prototype compiles one package, whose templates are local, so such a
   // fact never occurs here.
+}
+
+/**
+ * `@derive` stays an intrinsic for data types, enums, and newtypes; before a
+ * function, trait, implementation, or method it is rejected
+ * (annot.decorator.function-derive, annot.decorator.derive-targets).
+ */
+function checkUnderivableTargets(
+  source: Program,
+  error: (code: string, message: string, span: SourceSpan) => void,
+): void {
+  const underivable = (decorators: Decorators | undefined, what: string): void => {
+    if (decorators && decorators.derives.length > 0)
+      error(
+        "decorator-not-annotator",
+        `@derive applies to a data type, enum, or newtype, not to ${what}`,
+        decorators.span,
+      );
+  };
+  for (const declaration of source.functions) underivable(declaration.decorators, "a function");
+  for (const declaration of source.traits) {
+    underivable(declaration.decorators, "a trait");
+    for (const method of declaration.methods) underivable(method.decorators, "a method");
+  }
+  for (const declaration of source.implementations) {
+    underivable(declaration.decorators, "an implementation");
+    for (const method of declaration.methods) underivable(method.decorators, "a method");
+  }
 }
 
 function nonLiteral(fact: Expression): boolean {
@@ -866,8 +897,27 @@ function factCheckFunctions(program: Program): FunctionDecl[] {
       for (const field of variant.fields) checkFacts(field.metadata);
     }
   }
-  for (const declaration of program.functions)
+  for (const declaration of program.functions) {
+    checkFacts(declaration.decorators?.facts);
     for (const parameter of declaration.parameters) checkFacts(parameter.metadata);
+  }
+  // Values before a trait, implementation, newtype, or method
+  // (annot.decorator.attach), and a method's parameter metadata.
+  const methods = (list: readonly MethodDecl[]): void => {
+    for (const method of list) {
+      checkFacts(method.decorators?.facts);
+      for (const parameter of method.parameters) checkFacts(parameter.metadata);
+    }
+  };
+  for (const declaration of program.traits) {
+    checkFacts(declaration.decorators?.facts);
+    methods(declaration.methods);
+  }
+  for (const declaration of program.implementations) {
+    checkFacts(declaration.decorators?.facts);
+    methods(declaration.methods);
+  }
+  for (const declaration of program.types ?? []) checkFacts(declaration.decorators?.facts);
   const factProgram = factCount > 0 ? factChecks.program(ZERO_SPAN) : undefined;
   return (factProgram?.functions ?? []).map((declaration): FunctionDecl => ({
     ...declaration,

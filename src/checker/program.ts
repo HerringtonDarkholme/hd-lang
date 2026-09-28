@@ -14,7 +14,8 @@ import {
 import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
-import { withStandardLibrary } from "./standard-library.ts";
+import { importedMarkerFunctions, withStandardLibrary } from "./standard-library.ts";
+import { checkDecoratorTargets, markerFunctions, withBareMarkerCalls } from "./decorators.ts";
 import { withStandardTraits } from "./standard-traits.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
@@ -30,7 +31,13 @@ export interface CheckOptions {
 }
 
 export function check(source: Program, options: CheckOptions = {}): CheckResult {
-  const spelled = withFunctionTypeConstructors(source);
+  // A bare decorator name of a function with no parameters is a call
+  // (spec/14-annotations.md#r-annot.decorator.bare-call).
+  const markers = new Set([
+    ...markerFunctions(source.functions),
+    ...importedMarkerFunctions(source),
+  ]);
+  const spelled = withFunctionTypeConstructors(withBareMarkerCalls(source, markers));
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
   // Typed derivation is lowered to ordinary implementations first
@@ -60,13 +67,19 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
-  const hoisted = hoistLocalDeclarations(withStandardTraits(withStandardLibrary(source)));
+  const joined = withStandardLibrary(source);
+  const hoisted = hoistLocalDeclarations(
+    withStandardTraits(withBareMarkerCalls(joined, markerFunctions(joined.functions))),
+  );
+  // Target kinds are checked before newtypes are lowered to data types
+  // (spec/14-annotations.md#target-kinds).
+  const targetDiagnostics = checkDecoratorTargets(hoisted.program);
   const declared = withTypeDeclarations(hoisted.program);
   const program = declared.program;
   setHashableKeyTypes(program);
   const context: ProgramCheckContext = {
     program,
-    diagnostics: [...hoisted.diagnostics, ...declared.diagnostics],
+    diagnostics: [...hoisted.diagnostics, ...targetDiagnostics, ...declared.diagnostics],
     imports: new Map(),
     dataTypes: new Map(),
     enumTypes: new Map(),

@@ -551,9 +551,10 @@ else`, `break`, `break value`, and `continue`;
   the primitives, `List`, `T?`, `Result`, and pairs are hd code in
   `lib/std/format.hd`, whose writer is always compact. The checker still
   accepts `Debug` for `Map` and longer tuples, which render no text; the drift and unused-fact warnings treat
-  the module as one package, and a literal fact such as `@"note"` is the
-  only `std`-typed fact the unused-fact warning skips (M25); function
-  targets, `@derive` included, stay `decorator-not-annotator`. Trait-less
+  the module as one package, and the unused-fact warning skips a literal
+  fact such as `@"note"` and a fact built by a name imported from `std`,
+  such as `@annotate(.Field)` (M25). `@derive` before a function, trait,
+  implementation, or method is `decorator-not-annotator`. Trait-less
   blocks follow M27-M29: the header must bind the declaration's parameters
   in order, under any names and without bounds; a second block for one type
   is `overlapping-impl`; a `Self` line's fact warns as unused when the type
@@ -567,6 +568,20 @@ else`, `break`, `break value`, and `continue`;
   line warning needs a second package, which the prototype CLI cannot
   load. The prototype cannot check `annot.traitless.module` across the
   modules of a linked package, which share one namespace;
+- decorators as plain values (spec/14-annotations.md#prefix-decorators,
+  Decorators D1-D9), in `checker/decorators.ts`: a decorator before a
+  function, trait, implementation, newtype, method, or method parameter
+  attaches its value, which is checked as a compile-time expression like
+  any fact, counted by `duplicate-fact`, and, on a module-level function,
+  read by `shape_of(f).metadata[M]()`. A bare decorator name of a function
+  with no parameters is rewritten to a call, before typed derivation for
+  the program's own and imported functions and after the standard library
+  is joined for `std`'s own decorators. The target-kind check runs after
+  the join: it finds a fact type's `@annotate(...)` fact, recognizes
+  `std.annotation.Annotate` by the qualified name the loader records
+  (`DataDecl.standardName`), and reads the listed kinds from the written
+  arguments, as the other fact passes read types from syntax. A value
+  that a member line attaches is checked on that line;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
@@ -711,7 +726,7 @@ What it provides:
 
 | Module | Contents |
 | --- | --- |
-| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape[T]()` and `shape_of(f)` call |
+| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape[T]()` and `shape_of(f)` call. `Target`, `Annotate`, and `annotate`, which limit a fact type's target kinds |
 | `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, and every integer type; no standard hasher, which the specification does not name |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
@@ -757,8 +772,8 @@ declare a host function (a question in
    `@intrinsic("name")` is an ordinary declaration whose body the compiler
    supplies. The standard-library loader turns the line into
    `FunctionDecl.intrinsic` (`checker/standard-library.ts`). The same line in
-   user code stays a rejected function decorator (`decorator-not-annotator`),
-   so only `lib/std` can use it. The written body (`panic("intrinsic")`)
+   user code is an ordinary decorator whose value calls an undeclared
+   `intrinsic` (`unknown-name`), so only `lib/std` can use it. The written body (`panic("intrinsic")`)
    type-checks and is never emitted. Calls are ordinary calls.
    - A **runtime primitive** is a few Wasm instructions over the runtime's
      own value layout, listed in `emitter/intrinsics.ts`: today

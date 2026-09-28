@@ -373,9 +373,12 @@ class ShapeSource {
           add(`${qualified}.${field.positional ? `_${field.name}` : field.name}`, field.metadata);
       }
     }
-    for (const declaration of program.functions)
+    for (const declaration of program.functions) {
+      // A function's decorator values (annot.decorator.fn-read).
+      add(declaration.name, declaration.decorators?.facts);
       for (const parameter of declaration.parameters)
         add(`${declaration.name}.${parameter.name}`, parameter.metadata);
+    }
     return result;
   }
 

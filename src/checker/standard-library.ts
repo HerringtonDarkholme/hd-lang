@@ -241,6 +241,40 @@ function baseName(type: string): string {
   return type.split("[")[0] ?? type;
 }
 
+/**
+ * Records each data type's qualified name, such as `std.annotation.Annotate`,
+ * which the compiler recognizes whatever local name it has
+ * (spec/14-annotations.md#r-annot.target.recognized). A rename keeps the
+ * declaration order.
+ */
+function withStandardNames(renamed: Program, original: ParsedModule): Program {
+  return {
+    ...renamed,
+    data: renamed.data.map((declaration, index) => ({
+      ...declaration,
+      standardName: `std.${original.name}.${original.program.data[index]!.name}`,
+    })),
+  };
+}
+
+/**
+ * The local names of the program's `std` imports that name a function with
+ * no parameters, which a bare decorator calls
+ * (spec/14-annotations.md#r-annot.decorator.bare-call).
+ */
+export function importedMarkerFunctions(program: Program): Set<string> {
+  const markers = new Set<string>();
+  for (const declaration of program.uses) {
+    const module = declaration.module.replace(/^std\./, "");
+    if (!declaration.module.startsWith("std.") || !isStandardModule(module)) continue;
+    const functions = standardModule(module).program.functions;
+    for (const imported of declaration.names)
+      if (functions.some((item) => item.name === imported.name && item.parameters.length === 0))
+        markers.add(imported.alias ?? imported.name);
+  }
+  return markers;
+}
+
 /** Declares the `std` modules and built-in methods that the program uses. */
 export function withStandardLibrary(program: Program): Program {
   // Local names of the program's own std imports, and where each module came in.
@@ -287,7 +321,7 @@ export function withStandardLibrary(program: Program): Program {
     for (const used of parsed.compilerUses)
       renames.set(used.name, hiddenStandardName(used.module, used.name));
     const source = renameSource(standardSource(module).replace(/^use .*$/gm, ""), renames);
-    renamed = renamedModules.get(source) ?? parseModule(module, source);
+    renamed = renamedModules.get(source) ?? withStandardNames(parseModule(module, source), parsed);
     renamedModules.set(source, renamed);
     modules.set(module, renamed);
     return renamed;

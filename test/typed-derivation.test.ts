@@ -226,7 +226,7 @@ test("typed derivation reports its diagnostics at the opt-in", () => {
     codes("data Flag:\n    on: i32\n\nimpl Show for Flag by Structure:\n    on = pass\n"),
     ["omitted-member-without-default"],
   );
-  assert.deepEqual(codes("@tool()\nfn run() -> void:\n    pass\n\nfn tool() -> i32: 1\n"), [
+  assert.deepEqual(codes("@derive(Show)\nfn run() -> void:\n    pass\n"), [
     "decorator-not-annotator",
   ]);
 });

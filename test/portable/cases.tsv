@@ -1109,7 +1109,6 @@ typing/invalid/test-timeout-string.hd	type
 typing/invalid/tests-root-outside-tests.hd	type
 runtime/valid/literal-suffix-call.hd	runtime
 parse/valid/decorators.hd	parse
-typing/invalid/configured-facet-not-annotator.hd	type
 typing/invalid/derive-error-trait.hd	type
 typing/invalid/derive-and-block-overlap.hd	type
 typing/invalid/structure-implementation.hd	type
@@ -1127,7 +1126,7 @@ parse/valid/derivation-member-lines.hd	parse
 typing/invalid/structure-without-use.hd	type
 typing/invalid/newtype-derivation-block.hd	type
 typing/valid/generic-missing-call.hd	type
-typing/invalid/decorator-before-function.hd	type
+typing/valid/decorator-targets.hd	type
 typing/invalid/block-on-in-fact.hd	type
 typing/invalid/block-on-in-metadata.hd	type
 typing/invalid/strengthened-missing-bound.hd	type
@@ -1231,3 +1230,12 @@ runtime/valid/derived-newtype.hd	runtime
 runtime/panic/snapshot-mismatch.hd	runtime
 runtime/panic/snapshot-file-missing.hd	runtime
 typing/valid/derive-debug-shapes.hd	type
+typing/invalid/derive-before-trait.hd	type
+typing/invalid/duplicate-function-fact.hd	type
+runtime/valid/bare-marker-decorator.hd	runtime
+runtime/valid/function-fact-read.hd	runtime
+typing/valid/decorator-target-kinds.hd	type
+typing/invalid/decorator-target-kind.hd	type
+typing/invalid/decorator-target-newtype.hd	type
+typing/invalid/annotate-before-function.hd	type
+typing/invalid/decorator-target-member-line.hd	type
