@@ -147,6 +147,25 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
     `ms s min h`; `ns` and `us` are dropped from L9 until a finer
     representation exists.
 
+18. **L18 (2026-09-28): answers to the apply-pass questions.**
+    - `timeout=` is an ordinary named argument of type `Duration` in a
+      plain call to `it` or `it_each`. It is evaluated when the call runs,
+      under the ordinary provider and suspension rules. No timeout-specific
+      evaluation rule exists. The runner only enforces the limit on the
+      body. The applied rules such as `module.testing.option.timeout-at-run`
+      should shrink to that.
+    - A suffix call that overflows `i64` milliseconds panics at run time,
+      like any checked arithmetic. A general compile-time lint for certain
+      panics, similar to Rust's `unconditional_panic`, is nice to have but
+      not required.
+    - `Timestamp` switches to whole milliseconds, to match `Duration`.
+    - The `std.time` API for `Duration` is the small set:
+      `Duration::milliseconds(n)`, `Duration::seconds(n)` and
+      `d.as_milliseconds()`. The nanosecond functions are dropped.
+    - L13 stays reserved-words-only: `5true` and `5self` are
+      `invalid-token`, and contextual words such as `as` can still be
+      suffixes.
+
 ## Contents
 
 - [Problem](#problem)
