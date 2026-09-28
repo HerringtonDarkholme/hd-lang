@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T45 are
+Status: design record, started 2026-09-27. Owner decisions T1-T49 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
@@ -277,6 +277,23 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
 45. **T45: a `_test.hd` module or a `tests/` file may not contain a
     `tests:` block.** The whole file is already test-only, with `it(...)`
     at its top level (T13).
+46. **T46: under `tests/`, `pkg.<module>` names the library's modules with
+    only their public API,** as a dependent sees them; other integration
+    modules are `tests.<name>` (shared helpers in `tests/common.hd` are
+    `use tests.common`), like Rust's `tests/common/`.
+47. **T47: `it`, `it_each`, `it_prop`, and `it_prop_with` are only called
+    directly in test position;** any other use, including as a value, is
+    `misplaced-test-case`, so tests stay statically listable.
+48. **T48: `Debug` is a structured writer.**
+    `trait Debug: fn debug(self, out: mut DebugWriter) -> void`, with
+    builder calls like Rust's `debug_struct` and `field`; the derived impl
+    is a walker, and `debug(x) -> string` prints stable, multi-line,
+    consistently indented output.
+49. **T49: the snapshot API lives in `std.testing`, imported.**
+    `snapshot(text: string, expect: string = "")` and
+    `snapshot_file(text: string)`. `expect=` must be a string literal so
+    `hd test --update` can rewrite it; an empty or missing `expect` is
+    recorded on the first `--update`.
 
 The `timeout=` value waits on the literal-suffix design (owner: design
 now, so `timeout=5s` may replace the `"5s"` string).
@@ -362,8 +379,8 @@ tests:                                      # compiled only by `hd test`
 
 These questions came up while applying the decisions on 2026-09-27. Each
 waits for the owner; the specification states none of them as a rule.
-Items 1, 3, 4, 5, 8, 9 (home only), and 11 are answered by T39-T45; item 2
-waits on the literal-suffix design.
+Items 1, 3-9, 11, and 12 are answered by T39-T49; item 2 waits on the
+literal-suffix design; item 10 (fixture environments) is implementation work.
 
 1. **`it` as an intrinsic.** Its options cannot be ordinary defaulted
    parameters before `body`, since
