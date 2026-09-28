@@ -445,7 +445,12 @@ T52 and applied the same day.
    So `cyclic-test-dependency`, `misplaced-tests-block` (T45), and the
    `tests` use root inside `tests/` (T46) have no fixtures. `test-only-use`
    has one, for `use tests.common` in an ordinary module, since every
-   fixture is one.
+   fixture is one. The prototype pass on 2026-09-28 left this unbuilt,
+   because the spec owns the fixture format. **Recommendation:** a header
+   like `# fixture-package-role`, such as `# fixture-test-layout: test-module`
+   or `integration`, that places the fixture as `src/<name>_test.hd` or
+   `tests/<name>.hd` in a synthetic package, with `--test-layout` passed to
+   `check` and `test`. It reuses the Package Roles mechanism.
 2. **The `DebugWriter` builder calls (prototype pass, 2026-09-28).** T33
    gives `debug(self, out: mut DebugWriter)`, and the spec leaves the
    builder calls and the `debug` layout to the standard library. Without
@@ -481,6 +486,26 @@ use std.testing.snapshot_file
 tests:
     it("renders the report"):
         snapshot_file("total: 3")  # which file, and what if it is missing?
+```
+
+4. **The `Choices` and `Arbitrary` API (prototype pass, 2026-09-28).** T35
+   and T36 decide the model, but `Choices`' members, `Arbitrary`, and the
+   `it_prop` signatures exist only in the
+   [non-normative STDLIB draft](STDLIB.md#proposal-choices-first-arbitrary-for-defaults),
+   and the spec gives no signature. So the prototype does not implement
+   `it_prop`, `it_prop_with`, or a shrinker yet. **Recommendation:** accept
+   the draft's core as the first API: `Choices.int`, `bool`, `pick`,
+   `list`, and `assume`, `Arbitrary` for the primitives, and the draft's
+   `it_prop` signatures. Hypothesis ships the same core
+   (`integers`, `booleans`, `sampled_from`, `lists`, `assume`).
+
+```text
+use std.testing.{Choices, it_prop_with}
+
+fn small(c: mut Choices) -> i64: c.int(0, 9)
+
+tests:
+    it_prop_with("is small", gen=small, prop=fn!(n: i64): assert(n < 10))
 ```
 
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
