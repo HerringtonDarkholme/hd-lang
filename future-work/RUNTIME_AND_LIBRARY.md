@@ -87,15 +87,31 @@ Every host-backed standard-library service is exposed as a trait requirement rat
 
 This design deliberately gives capabilities no special language semantics. Sandboxing is enforced by the runtime and host-provider boundary.
 
-Open questions from this section:
+Decided 2026-09-27 (owner answers to this section's questions):
 
-1. Which standard capability traits ship. Their access follows from their methods ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
-2. Which WASI version and component ABI the initial runtime uses.
-3. The configuration syntax for granting and binding host providers to derived entry-point requirements.
-4. How path, host, secret-name, and subprocess restrictions are represented inside provider values.
-5. How capability contexts are preserved or rejected during serialization and resumption.
+1. **Narrow capability traits, Deno style.** One trait per kind of
+   authority, for example `FsRead`, `FsWrite`, `Net`, `Clock`, `Random`,
+   `Env`, `Console`, and `Process`, so a read-only tool asks only for
+   `$ FsRead`. Access follows from each trait's methods
+   ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)).
+   The exact list and method sets are still to be written.
+2. **Grants: CLI flags and a manifest run profile, binding only.** Both bind
+   each derived requirement key to a compatible host implementation, for
+   example `hd run --grant FsRead=<host impl>` or an `hd.toml` run section.
+   They do not carry scopes such as roots or host lists: the injected host
+   implementation defines its own scope and configuration. The spelling is
+   still to be written.
+3. **Restrictions are attenuated provider values.** The host sets the
+   starting scope; code narrows it further with ordinary library methods
+   that return a new provider (object-capability style, like WASI
+   preopens), for example `$.with(FsRead=fs.under("./data/users"))`. No
+   language feature is needed.
+4. **Resumption rebinds by key.** Providers are never serialized, because
+   they are not boundary-safe. On resume the host rebinds each requirement
+   key from the recorded provider configuration identity, and a mismatch
+   is rejected ([Replay Rules](#replay-rules)).
 
-The granularity of standard capability traits is intentionally deferred until the standard library is implemented. For example, the design does not yet choose between one `FileSystem` trait and narrower `FileRead`, `FileWrite`, and `DirectoryList` traits.
+Still open: which WASI version and component ABI the initial runtime uses.
 
 ## Persistence and Resumption
 
