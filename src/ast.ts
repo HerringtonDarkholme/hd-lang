@@ -460,6 +460,9 @@ export type Expression =
       readonly arguments: readonly Expression[];
       readonly argumentNames?: readonly (string | undefined)[];
       readonly argumentSpreads?: readonly boolean[];
+      // Set when a suffixed literal such as `250ms` desugared to this call of
+      // `ms::from_literal(250)` (05-expressions.md#literal-suffixes).
+      readonly literalSuffix?: string;
       readonly span: SourceSpan;
     }
   | {

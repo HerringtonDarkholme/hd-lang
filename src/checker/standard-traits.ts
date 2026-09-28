@@ -11,6 +11,8 @@ import { parse } from "../parser/index.ts";
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
   "std.error.Error": (name) => `trait ${name} < Display + ${INSPECTABLE}\n`,
+  // 09-traits.md#literal-suffix-trait
+  "std.ops.LiteralSuffix": (name) => `trait ${name}[In, Out]:\n    fn from_literal(n: In) -> Out\n`,
 };
 
 export const STANDARD_FROM = "std.convert.From";

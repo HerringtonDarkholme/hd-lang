@@ -5,6 +5,7 @@ F-253	14	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not lis
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
+LS	4	Literal suffixes (L1-L9) work for library suffix types, but `std.time` is not declared, because its `Duration` and suffix newtypes need `i64`
 MHP-1	3	The prototype binds `Console` as an opaque host provider, not a prelude trait, so `Console.write_line!(mut self)` cannot be called on `mut Console` or implemented
 T33	3	`std.format.Debug` is not implemented: the prototype treats every type as `Debug` (skipping a lone `@derive(Debug)` and `Debug` bounds) and has no `debug` function (Testing T33, T39, T48)
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks

@@ -88,8 +88,10 @@ export function classify(line: string): Span[] {
       continue;
     }
     if (/[0-9]/.test(character)) {
+      // A literal suffix such as `250ms`, or `0xff'B` after a radix literal,
+      // stays part of the number (01-lexical-structure.md#literal-suffixes).
       const match =
-        /^(?:0[xob][0-9a-fA-F_]+|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9]+)?)(?:[iuf](?:8|16|32|64))?/.exec(
+        /^(?:0[xob][0-9a-fA-F_]+|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9]+)?)(?:'?\p{XID_Start}[\p{XID_Continue}_]*)?/u.exec(
           line.slice(index),
         )!;
       push(match[0], "number");

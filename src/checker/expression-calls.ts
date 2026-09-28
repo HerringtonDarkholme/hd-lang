@@ -1218,7 +1218,11 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       const inspection = this.checkInspectFunctionCall(expression, "of", expected);
       if (inspection) return inspection;
     }
+    // A literal suffix resolves in module scope only, so a local or a
+    // top-level binding of the same name never changes what `5s` calls
+    // (03-names-and-scopes.md#r-names.suffix.no-local).
     if (
+      !expression.literalSuffix &&
       !this.traitTypes.has(owner) &&
       (this.resolveLocal(owner) || this.availableCaptures.has(owner) || this.resolveGlobal(owner))
     )
@@ -1382,6 +1386,14 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         this.fail(
           "unknown-type",
           `unknown associated-function owner '${ownerType}'`,
+          expression.callee.span,
+        );
+      // A suffix type must implement LiteralSuffix
+      // (05-expressions.md#r-expr.suffix.not-implemented).
+      if (expression.literalSuffix)
+        this.fail(
+          "unsatisfied-trait-bound",
+          `literal suffix '${expression.literalSuffix}' names a type that does not implement std.ops.LiteralSuffix`,
           expression.callee.span,
         );
       this.fail(

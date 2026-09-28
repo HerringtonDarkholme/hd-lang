@@ -33,6 +33,9 @@ export interface Token {
   readonly raw?: boolean;
   // The `.` that starts a leading-dot continuation line.
   readonly continuation?: boolean;
+  // A numeric literal's suffix (01-lexical-structure.md#literal-suffixes),
+  // as in `250ms`; `text` still holds the whole token.
+  readonly suffix?: { readonly name: string; readonly span: SourceSpan };
 }
 
 export interface LexResult {
@@ -105,6 +108,7 @@ const CLOSE_TO_OPEN: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}
 
 const isIdentifierStart = (value: string): boolean => /^(?:_|\p{ID_Start})$/u.test(value);
 const isIdentifierContinue = (value: string): boolean => /^(?:_|\p{ID_Continue})$/u.test(value);
+const isSuffixStart = (value: string): boolean => /^\p{XID_Start}$/u.test(value);
 const isDigit = (value: string): boolean => value >= "0" && value <= "9";
 
 class Scanner {
@@ -374,11 +378,17 @@ class Scanner {
         );
         return;
       }
+      let value: bigint;
       try {
-        this.emit("integer", text, start, this.position(), BigInt(clean));
+        value = BigInt(clean);
       } catch {
         this.report("syntax-error", `invalid integer literal '${text}'`, start);
+        return;
       }
+      // A radix literal takes a suffix only after `'`, as in `0xff'B`.
+      const suffix =
+        this.peek() === "'" && isSuffixStart(this.peek(1)) ? this.scanSuffix(true) : undefined;
+      this.emitNumber("integer", text + (suffix?.text ?? ""), start, value, suffix);
       return;
     }
     while (isDigit(this.peek()) || this.peek() === "_") text += this.advance();
@@ -388,7 +398,17 @@ class Scanner {
       text += this.advance();
       while (isDigit(this.peek()) || this.peek() === "_") text += this.advance();
     }
-    if (/[eE]/.test(this.peek())) {
+    // An `e` starts an exponent only when digits follow it, after an optional
+    // sign; otherwise it starts a suffix, as in `5em`. Separators stay in the
+    // exponent so that `1e_5` is an invalid token.
+    const sign = this.peek(1) === "+" || this.peek(1) === "-" ? 1 : 0;
+    let exponentDigit = false;
+    for (let distance = 1 + sign; ; distance += 1) {
+      const next = this.peek(distance);
+      if (isDigit(next)) exponentDigit = true;
+      if (!isDigit(next) && next !== "_") break;
+    }
+    if (/[eE]/.test(this.peek()) && exponentDigit) {
       floating = true;
       text += this.advance();
       if (this.peek() === "+" || this.peek() === "-") text += this.advance();
@@ -400,17 +420,44 @@ class Scanner {
       text.includes("__") ||
       /_\.|\._|_[eE]|[eE]_|[+-]_/.test(text)
     ) {
+      if (isSuffixStart(this.peek())) this.scanSuffix(false);
       this.report("invalid-token", `invalid numeric literal '${text}'`, start);
       return;
     }
     const clean = text.replaceAll("_", "");
-    this.emit(
+    const suffix = isSuffixStart(this.peek()) ? this.scanSuffix(false) : undefined;
+    this.emitNumber(
       floating ? "float" : "integer",
-      text,
+      text + (suffix?.text ?? ""),
       start,
-      this.position(),
       floating ? Number(clean) : BigInt(clean),
+      suffix,
     );
+  }
+
+  // A literal suffix: identifier characters directly after the digits, or
+  // after `'` for a radix literal (01-lexical-structure.md#literal-suffixes).
+  private scanSuffix(quoted: boolean): { text: string; name: string; span: SourceSpan } {
+    let text = quoted ? this.advance() : "";
+    const start = this.position();
+    let name = "";
+    while (!this.done() && isIdentifierContinue(this.peek())) name += this.advance();
+    text += name;
+    return { text, name, span: { start, end: this.position() } };
+  }
+
+  private emitNumber(
+    kind: TokenKind,
+    text: string,
+    start: SourcePosition,
+    value: number | bigint,
+    suffix: { name: string; span: SourceSpan } | undefined,
+  ): void {
+    this.emit(kind, text, start, this.position(), value);
+    if (suffix) {
+      const token = this.tokens.pop()!;
+      this.tokens.push({ ...token, suffix: { name: suffix.name, span: suffix.span } });
+    }
   }
 
   private scanQuoted(): void {

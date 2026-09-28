@@ -145,6 +145,22 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
         `${callee}(...) has no option '${option}'; use ignore, expect_panic, or timeout`,
         argument.span,
       );
+    // `timeout` takes a Duration written as a suffixed literal, such as `5s`
+    // (10-modules.md#r-module.testing.it.options-literal). The prototype keeps
+    // only the suffix name and does not check the literal; its runner does not
+    // enforce timeouts.
+    if (option === "timeout") {
+      const literal =
+        argument.kind === "call" && argument.literalSuffix !== undefined ? argument : undefined;
+      if (!literal)
+        fail(
+          "non-literal-test-argument",
+          "the timeout option takes a suffixed literal such as 5s",
+          argument.span,
+        );
+      options[option] = literal.literalSuffix!;
+      continue;
+    }
     if (argument.kind !== "string")
       fail(
         "non-literal-test-argument",

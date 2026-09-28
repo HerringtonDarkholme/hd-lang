@@ -431,13 +431,22 @@ export abstract class ParserBase {
       word.text === "use" &&
       !word.raw &&
       !root.raw &&
-      ["pkg", "std", "dep", "self", "super"].includes(root.text)
+      ["pkg", "std", "dep", "self", "super", "tests"].includes(root.text)
     );
   }
 
   protected parseUse(): UseDecl {
     const public_ = this.matchText("pub");
     const start = this.expectText("use").span.start;
+    // The `tests` root names integration test modules. The prototype compiles
+    // one ordinary module, never one under `tests/`, so every such use is
+    // test-only-use (10-modules.md#r-module.test.tests-root-elsewhere).
+    if (this.atText("tests"))
+      this.fail(
+        "test-only-use",
+        "the tests use root is available only in an integration test module under tests/",
+        this.current().span,
+      );
     // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`.
     const parts = [
       this.atText("self")

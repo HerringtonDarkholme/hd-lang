@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,094 of the 1,199 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 105 are listed in
+On 2026-09-28 the prototype passes 1,109 of the 1,218 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 109 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 105 still fail.
+decision below; all 109 still fail.
 
 ## Specification Follow-Ups
 
@@ -58,12 +58,14 @@ cases.
 | T8 | Testing T8: `std.process` declares `type ExitCode(u8)` and `Termination`, implemented by `void`, `ExitCode`, and `Result[T, E]`. The prototype has no `u8`, so it declares neither, and `main` may still return only `void` or `Result[void, ConsoleError]`. It implements Testing T15: a trailing test body's result is `void`, or `Result[void, Error]` when it uses `?`; an explicit closure body's result must be `void` or a `Result` with a `Display` error, and an `.Err` fails the test. |
 | T33 | Testing T33, T39, and T48: `std.format` declares the prelude trait `Debug` (`fn debug(self, out: mut DebugWriter) -> void`), derivable through its template, and the prelude function `debug`; `assert_equal` requires `T < Eq + Debug`. The prototype treats every type as implementing `Debug`: it skips a lone `@derive(Debug)` line and drops `Debug` bounds, so it never rejects a missing `Debug`, and it has no `debug` function or `DebugWriter`. |
 | T49 | Testing T49: `std.testing` declares `snapshot(text, expect="")` and `snapshot_file(text)`. The prototype checks `snapshot` as a string `assert_equal`, with the literal `expect` rule, and has no `snapshot_file`. |
+| LS | Literal suffixes L1-L9 (`future-work/LITERAL_SUFFIXES.md`): `250ms` calls `ms::from_literal(250)` of the suffix type's `std.ops.LiteralSuffix` implementation, and `std.time` declares `ns`, `us`, `ms`, `s`, `min`, and `h` for `Duration`. The prototype lexes suffixes, desugars them to that call, and declares `std.ops.LiteralSuffix` when imported, so library suffixes work. It declares no `std.time`, whose `Duration` and suffix newtypes need `i64`, and it does not check a `timeout=` literal. |
 | MHP-1 | Mutable host providers, Console question: `Console.write_line!` takes `mut self`, so `Console` is a mutable requirement trait and `$.use(Console)` yields `mut Console`. The prototype binds `Console` as an opaque host provider rather than a prelude trait, so it cannot be implemented, bound as `mut Console`, or called through `write_line!`. |
 
 The testing redesign (Testing T2-T31 and T40-T47) passes its fixtures, with
 gaps that no fixture reaches: only functions of a `tests:` block are hidden
-from code outside it, test modules, integration tests, the `tests` use root,
-and test dependencies are not implemented, every test case shares one
+from code outside it, test modules, integration tests, and test
+dependencies are not implemented (a `tests` use root is always
+`test-only-use`, since the prototype compiles no integration test module), every test case shares one
 instance (F-403), `timeout` is parsed but not enforced, `it_each` runs its
 rows as one test case, and `it_prop` and `it_prop_with` (T36) are not
 implemented. `hd check` without `--tests` (T42) skips test cases and

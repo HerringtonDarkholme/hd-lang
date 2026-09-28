@@ -18,6 +18,41 @@ test("lexer emits layout tokens and source positions", () => {
   assert.deepEqual(choose?.span.start, { offset: 3, line: 1, column: 4 });
 });
 
+test("lexer keeps literal suffixes on numbers, after a quote for radix literals", () => {
+  const result = lex("a := 250ms\nb := 1e3ms\nc := 5em\nd := 0xff'B\ne := 1e3\n");
+  assert.deepEqual(result.diagnostics, []);
+  const numbers = result.tokens.filter(
+    (token) => token.kind === "integer" || token.kind === "float",
+  );
+  assert.deepEqual(
+    numbers.map((token) => [token.text, token.suffix?.name]),
+    [
+      ["250ms", "ms"],
+      ["1e3ms", "ms"],
+      ["5em", "em"],
+      ["0xff'B", "B"],
+      ["1e3", undefined],
+    ],
+  );
+  assert.deepEqual(
+    lex("f := 5_ms\n").diagnostics.map((diagnostic) => diagnostic.code),
+    ["invalid-token"],
+  );
+});
+
+test("parser desugars a suffixed literal to a from_literal call, folding a minus", () => {
+  const program = parse("fn f() -> i32:\n    -5px\n").program!;
+  const expression = program.functions[0]!.body.at(-1);
+  assert.ok(expression?.kind === "expression");
+  const call = expression.expression;
+  assert.ok(call.kind === "call" && call.literalSuffix === "px");
+  assert.deepEqual(call.callee.kind === "qualified-name" && [call.callee.owner, call.callee.name], [
+    "px",
+    "from_literal",
+  ]);
+  assert.equal(call.arguments[0]?.kind, "unary");
+});
+
 test("parser builds functions, bindings, calls, and value-producing if", () => {
   const result = parse(CORE_PROGRAM);
   assert.deepEqual(result.diagnostics, []);

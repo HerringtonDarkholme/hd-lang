@@ -286,11 +286,45 @@ export abstract class ExpressionParser extends ParserBase {
     }
   }
 
+  // A suffixed literal `Nx` is the call `x::from_literal(N)` of the suffix
+  // type's `std.ops.LiteralSuffix` implementation
+  // (05-expressions.md#literal-suffixes).
+  private suffixedLiteral(token: Token, suffix: NonNullable<Token["suffix"]>): Expression {
+    const numberSpan = { start: token.span.start, end: suffix.span.start };
+    const literal: Expression =
+      token.kind === "integer"
+        ? { kind: "integer", value: token.value as bigint, span: numberSpan }
+        : { kind: "float", value: token.value as number, span: numberSpan };
+    return {
+      kind: "call",
+      callee: {
+        kind: "qualified-name",
+        owner: suffix.name,
+        name: "from_literal",
+        span: token.span,
+      },
+      arguments: [literal],
+      literalSuffix: suffix.name,
+      span: token.span,
+    };
+  }
+
   protected parsePrefix(): Expression {
     const token = this.current();
     if (["+", "-", "~", "!"].includes(token.text)) {
       this.advance();
       const operand = this.parseExpression(11);
+      // `-5s` negates the literal before the suffix applies: it is
+      // `s::from_literal(-5)` (04-type-system.md#suffixed-literals).
+      if (token.text === "-" && operand.kind === "call" && operand.literalSuffix) {
+        const literal = operand.arguments[0]!;
+        const span = { start: token.span.start, end: operand.span.end };
+        return {
+          ...operand,
+          arguments: [{ kind: "unary", operator: "-", operand: literal, span }],
+          span,
+        };
+      }
       return {
         kind: "unary",
         operator: LOGICAL_OPERATOR_NAMES[token.text] ?? token.text,
@@ -325,6 +359,10 @@ export abstract class ExpressionParser extends ParserBase {
         name: variant.text,
         span: { start: token.span.start, end: variant.span.end },
       };
+    }
+    if ((token.kind === "integer" || token.kind === "float") && token.suffix) {
+      this.advance();
+      return this.suffixedLiteral(token, token.suffix);
     }
     if (token.kind === "integer") {
       this.advance();
@@ -1084,6 +1122,10 @@ export abstract class ExpressionParser extends ParserBase {
       return { kind: "boolean", value: false, span: { start, end: this.peek(-1).span.end } };
     const negative = this.matchText("-");
     const literal = this.current();
+    // A suffixed literal is a call, not a pattern
+    // (02-grammar.md#r-grammar.pattern.no-suffixed-literal).
+    if (literal.suffix)
+      this.fail("syntax-error", "a suffixed literal cannot be a pattern", literal.span);
     if (literal.kind === "integer") {
       this.advance();
       const value = literal.value as bigint;
