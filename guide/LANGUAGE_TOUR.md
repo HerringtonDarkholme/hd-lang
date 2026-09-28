@@ -285,6 +285,29 @@ hand-written partner is `mixed-derived-law`. A newtype may also derive, as in
 `@derive(Eq, Hash)` before `type Mile(i32)`, reusing the base type's
 implementations.
 
+Library traits derive the same way when their library declares a template,
+`impl[T] Encode for T by Structure:`, over the compiler-generated
+`std.structure.Structure` view of a type's members. Other decorators attach
+facts that the template reads, and a derivation block configures one
+derivation with member lines:
+
+```text
+@derive(Encode)
+@style(prefix="user_")
+data User:
+    id: i64
+    @rename("mail")
+    email: string
+
+impl Encode for Order by Structure:
+    total_cents = [rename("total")]
+    cache = pass
+```
+
+`cache = pass` leaves a member out, and `build` fills it from its default.
+`Error` is not derived: an error type uses the `@error` intrinsic. See
+[Typed Derivation](../spec/14-annotations.md#typed-derivation).
+
 Use parentheses when a binding expression appears inside a larger expression.
 A nested multi-name binding is written `(a, b := value)` and is never parsed as
 a tuple; to put a binding in a tuple, parenthesize that element separately, as
@@ -2470,7 +2493,7 @@ function targets. A newtype does not automatically derive from its underlying
 type; its annotation must provide an explicit `build` or direct `Annotate`
 implementation.
 
-Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same coherence slot. `@derive` is the compiler-intrinsic exception.
+Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same coherence slot. `@derive` is the exception: it creates trait implementations, through a compiler intrinsic or a trait's typed-derivation template.
 
 A local `build` in `annotate Facet for Target` replaces only aggregate assembly;
 child resolution and member mapping still happen first. To replace the entire

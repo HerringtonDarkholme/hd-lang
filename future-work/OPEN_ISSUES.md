@@ -64,12 +64,30 @@ with a `mut self` method) and the `$ mut K` rows of STDLIB decision 14.
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Pointer.** The design lives in
-[Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md), where
-owner decisions M1-M20 are recorded and the
-[round 3 stress test](DERIVATION_STRESS_TEST_3.md) questions are being
-answered. Error derivation is the separate `@error` intrinsic
+**Decided.** Owner decisions M1-M22 in
+[Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md) are
+applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation).
+The prototype does not implement them yet (the `TD` rows of
+`test/portable/KNOWN_FAILURES.tsv`). Error derivation is the separate
+`@error` intrinsic
 ([Error Conversion decision 10](ERROR_CONVERSION.md#owner-decisions)).
+
+**Open questions.** The spec lists these as
+[undecided parts](../spec/14-annotations.md#undecided-parts); each waits
+for the owner:
+
+| Question | What is undecided |
+| --- | --- |
+| Fact check hook (M15) | The form of a fact type's compile-time `check`, and whether it covers cross-member and type-level checks (round 2 R8). |
+| Non-escaping handles (M18 R5) | Whether the parked NonEscapable design (TQ-24 to TQ-26) makes handles non-escaping. |
+| Plan constants (M21 R3-4) | The declaration and reference syntax of a template's compile-time constant, and the evaluator's limits. |
+| Typed shared constants (M21 R3-7) | Typed handles for shared constructor data, beyond `(name, Any)` pairs. |
+| `T -> U` mapping (M14) | Whether derivation between two types is in scope. |
+| Name clashes (round 2 R13) | How `walk`, `describe`, and `build` interact with trait methods of the same name. |
+| Derived bound (round 2 R14) | Whether a derived bound names the trait or the walker's strengthened bound, where they differ. |
+| `default()` allocation (round 2 R15) | Whether `h.default()` may allocate for every member type. |
+| Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
+| Function targets | Deriving for functions ([FN_TYPE](FN_TYPE.md)), and how chapter 14's facets and annotators relate to typed derivation. |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early

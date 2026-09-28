@@ -309,7 +309,8 @@ fn print_all(items: List[Describe]) -> void $ Console:
 ```
 
 Inherent methods live in `impl Type` blocks. `@derive` generates standard
-trait implementations, and `by` delegates a trait to an embedded field.
+and library trait implementations, and `by` delegates a trait to an embedded
+field (`by Structure` instead applies a derivation template).
 
 ```hd
 @derive(Eq, Hash)

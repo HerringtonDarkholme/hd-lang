@@ -3,9 +3,14 @@
 Status: design record for roadmap area 2. Typed derivation is fully
 decided by owner decisions M1-M22 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
-[round 3](DERIVATION_STRESS_TEST_3.md)). Nothing here is accepted language
-behavior yet: the specification and the prototype compiler are unchanged
-until the decisions are applied.
+[round 3](DERIVATION_STRESS_TEST_3.md)). M1-M22 are applied to the
+specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
+with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
+rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
+and [09](../spec/09-traits.md#derived-implementations). The prototype
+compiler is pending: its gaps are the `TD` rows of
+[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv). The spec is the
+accepted behavior; this record is history and rationale.
 
 `@derive` lists the intrinsic comparison traits and traits with a `by
 Structure` template (M18). It does not include `Error`: an error type uses
@@ -591,7 +596,12 @@ declared types, so a derived `clone_mut` can clone `mut` members as `mut`.
 `= pass` keeps M3: walk and describe skip the member, build fills it from
 its declared default, and a `= pass` member with no default is a compile
 error. The design is applied to the specification now; the `src/`
-prototype is a later, separate pass.
+prototype is a later, separate pass. (Applied 2026-09-27: see
+[Typed Derivation](../spec/14-annotations.md#typed-derivation). Also
+decided 2026-09-27: the root-application orphan exception is dropped
+everywhere, so decisions 9 and 11's "plus the root-application orphan
+exception" no longer holds; a foreign type is derived through a local mirror
+type or a newtype.)
 
 ### Current Design: Full Example (M1-M21)
 

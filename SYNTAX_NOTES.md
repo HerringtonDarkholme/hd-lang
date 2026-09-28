@@ -634,8 +634,10 @@ comparisons use `PartialOrd`, and `Ord` is the total-order refinement. Floats
 implement `Eq` with IEEE 754 semantics (NaN is unequal to itself) and
 `PartialOrd`, but not `Ord` or `Hash`.
 User-defined data and enums do not receive implicit equality or ordering.
-Explicit trait implementation and compiler-intrinsic `@derive(Trait, ...)` are
-available. Derived equality compares every declared data field, including
+Explicit trait implementation and `@derive(Trait, ...)` are available.
+`@derive` covers the intrinsic comparison traits and any trait whose library
+declares a typed-derivation template (`impl[T] Trait for T by Structure:`);
+see [Typed Derivation](spec/14-annotations.md#typed-derivation). Derived equality compares every declared data field, including
 embedded fields, and every enum payload field; different variants are unequal.
 Derived ordering compares data fields lexicographically and enum variants by
 declaration order, then shared data and payload fields. No field is implicitly
