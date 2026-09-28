@@ -219,6 +219,32 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     methods: [],
     span: program.span,
   });
+  // The prelude host capability trait `Console` (10-modules.md#console):
+  // `write_line!` takes `mut self`, so it is a mutable requirement trait.
+  traitTypes.set("Console", {
+    name: "Console",
+    index: program.traits.length + 8,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "write_line",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: true,
+        receiverMutable: true,
+        parameters: ["string"],
+        parameterNames: ["text"],
+        variadic: false,
+        result: "Result[void,ConsoleError]",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
   let nextEnumIndex = program.enums.length;
   enumTypes.set("Ordering", {
     name: "Ordering",

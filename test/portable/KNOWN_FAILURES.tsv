@@ -63,9 +63,6 @@ typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-
 typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: the shape intrinsic is unimplemented (TQ-23 TypeShape.Mut)	K1
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
-typing/valid/console-recording-provider.hd	check fails: unknown-trait Console at line 8: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
-typing/valid/console-host-provider-mutable.hd	check fails: unknown-type mut:Console at line 4: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
-typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
 typing/invalid/assert-equal-without-debug.hd	check passes instead of unsatisfied-trait-bound at line 13: the prototype treats every type as implementing Debug, so assert_equal never rejects a type without it	T33
 typing/valid/debug-standard-types.hd	check fails: unknown-name at line 7: the prototype declares no std.format.debug function or DebugWriter	T33

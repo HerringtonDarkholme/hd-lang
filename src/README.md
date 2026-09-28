@@ -279,9 +279,13 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   `f64`, `bool`, and `char` implementations;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
-  the narrow host byte callback. `Console` is an opaque host provider, not a
-  prelude trait, so `write_line!(mut self)`, `mut Console`, and user
-  implementations of `Console` are not supported;
+  the narrow host byte callback. `Console` is a prelude trait with
+  `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
+  `$.use(Console)` is `mut Console` and a program may implement it; the
+  emitter runs only the host console, an opaque `externref`
+  (`emitter/host-console.ts`), and reports a program-defined provider or a
+  direct `write_line!` call as `unsupported-console-provider` or
+  `unsupported-console-call`;
 - suspending host capability methods with scalar and UTF-8 string arguments
   and results, using opaque per-call tokens and a byte-stream bridge that keeps
   Wasm GC references inside Wasm;

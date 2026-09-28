@@ -4,7 +4,8 @@ export function validateHostCapabilities(context: ProgramCheckContext): void {
   const boundaryTypes = new Set(["bool", "char", "f64", "i32", "string"]);
   for (const capability of context.hostCapabilities) {
     const trait = context.traitTypes.get(capability);
-    if (!trait) continue;
+    // The host binds the prelude `Console` through its own console import.
+    if (!trait || capability === "Console") continue;
     const supported =
       trait.genericParameters.length === 0 &&
       trait.methods.every(

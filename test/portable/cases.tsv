@@ -1149,3 +1149,6 @@ typing/invalid/unsigned-negation.hd	type
 typing/invalid/generic-trait-literal-without-default.hd	type
 typing/valid/entry-exit-code.hd	type
 runtime/valid/termination-report.hd	runtime
+typing/valid/console-recording-provider.hd	type
+typing/valid/console-host-provider-mutable.hd	type
+typing/invalid/console-readonly-binding-write-line.hd	type

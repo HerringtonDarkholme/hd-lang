@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,150 of the 1,223 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 73 are listed in
+On 2026-09-28 the prototype passes 1,153 of the 1,223 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 70 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 73 still fail.
+decision below; all 70 still fail.
 
 ## Specification Follow-Ups
 
@@ -56,7 +56,6 @@ sized numeric types: L2's `unsigned-exponent.hd` and TQ-4's
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
 | T33 | Testing T33, T39, and T48: `std.format` declares the prelude trait `Debug` (`fn debug(self, out: mut DebugWriter) -> void`), derivable through its template, and the prelude function `debug`; `assert_equal` requires `T < Eq + Debug`. The prototype treats every type as implementing `Debug`: it accepts `@derive(Debug)` and drops `Debug` bounds, so it never rejects a missing `Debug`, and it has no `debug` function or `DebugWriter`. |
 | T49 | Testing T49: `std.testing` declares `snapshot(text, expect="")` and `snapshot_file(text)`. The prototype checks `snapshot` as a string `assert_equal`, with the literal `expect` rule, and has no `snapshot_file`. |
-| MHP-1 | Mutable host providers, Console question: `Console.write_line!` takes `mut self`, so `Console` is a mutable requirement trait and `$.use(Console)` yields `mut Console`. The prototype binds `Console` as an opaque host provider rather than a prelude trait, so it cannot be implemented, bound as `mut Console`, or called through `write_line!`. |
 
 The testing redesign (Testing T2-T31 and T40-T47) passes its fixtures, with
 gaps that no fixture reaches: only functions of a `tests:` block are hidden
@@ -70,3 +69,11 @@ implemented. `hd check` without `--tests` (T42) skips test cases and
 test-only functions, but still reports the test-case errors its parser
 finds. A trailing block binds the final parameter (T40) only for calls
 that the checker plans, not for the built-in functions it special-cases.
+
+`Console` is checked as the prelude trait of Mutable Host Providers
+(MHP-1), and its three fixtures pass. The prototype runs only the host
+console: `hd run`, `hd test`, and `hd build` report a program-defined
+provider as `unsupported-console-provider` and a direct `write_line!` call
+as `unsupported-console-call`. How `println` calls a provider's
+`write_line!` is an owner question in
+[Mutable Host Providers](../future-work/OPEN_ISSUES.md#mutable-host-providers).

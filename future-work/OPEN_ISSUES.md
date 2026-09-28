@@ -64,6 +64,29 @@ beside a second note: adding a `mut self` method to a published requirement
 trait is a breaking change
 ([Packages](PACKAGES.md#33-the-checked-compatibility-rule)).
 
+**Still open after the prototype pass (2026-09-28).** The prototype now
+checks `Console` as a prelude trait, but it runs only the host console. A
+program-defined provider and a direct `write_line!` call are reported as
+not supported at run time, because the spec leaves two questions open.
+
+1. **How `println` calls `write_line!`.** `println` is non-suspending
+   (`-> void $ Console`), but `write_line!` suspends, so a recording
+   `BufferConsole` has no specified way to receive the line. Options: drive
+   the call to completion inside `println`, as `block_on` does, with a
+   pending host suspension a panic; or make `println` suspending
+   (`println!`). **Recommendation:** drive it to completion, since Rust's
+   `println!` and Go's `fmt.Println` are synchronous and every caller keeps
+   its signature.
+2. **What `println` does with `.Err(ConsoleError)`.** The result is dropped
+   today. Options: ignore it, or panic. **Recommendation:** panic, as Rust's
+   `println!` does when writing to stdout fails; code that must handle the
+   error calls `write_line!` itself.
+
+```text
+fn greet() -> void $ Console:
+    println("hello")   # which write_line! runs, and what if it fails?
+```
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Decided.** Owner decisions M1-M23 in

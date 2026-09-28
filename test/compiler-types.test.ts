@@ -497,6 +497,18 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
   );
 });
 
+test("Console is a prelude trait, but only the host console runs (MHP-1)", () => {
+  const source = [
+    "data Quiet: pass",
+    "",
+    "impl Console for Quiet:",
+    "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]: .Ok()",
+    "",
+  ].join("\n");
+  assert.deepEqual(analyze(source).diagnostics, []);
+  assert.throws(() => compile(source), /program-defined Console provider/);
+});
+
 test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {
   const add = "fn add(a: u8, b: u8) -> u8: a + b\n\nfn main() -> u8: add(200, 55)\n";
   const { instance } = await instantiate(add);
