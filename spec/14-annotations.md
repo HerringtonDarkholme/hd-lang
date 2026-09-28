@@ -932,7 +932,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 1. r[annot.derive.opt-in] `@derive(...)` is the only form that creates a derived implementation from a declaration.
 2. r[annot.derive.accepted] It accepts the intrinsic comparison traits of [Derived Implementations](09-traits.md#derived-implementations) and any trait that has a [template](#templates).
-3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before `T` means exactly the derivation block `impl X for T by Structure` with an empty body.
+3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before a data type or enum `T` means exactly the derivation block `impl X for T by Structure` with an empty body. A newtype derives through its base type instead, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 4. r[annot.derive.other] Any other trait in a `@derive` list is an error, reported on the `@derive` line. Error: `underivable-trait`.
 5. r[annot.derive.error-trait] `Error` has neither a template nor an intrinsic derivation, so `@derive(Error)` is an error. Error: `underivable-trait`.
 6. r[annot.derive.facts-only] Every other decorator only attaches information: a configuration decorator such as `@style(prefix="user_")` attaches a fact and creates no implementation.
@@ -1049,7 +1049,7 @@ pub trait Source[S]:
 1. r[annot.structure.sealed] `Structure` is a sealed trait: an `impl Structure for T` outside the standard library is an error. Error: `sealed-trait-implementation`.
 2. r[annot.structure.generated] The compiler generates `Structure` for a target only while it instantiates a template for that target. No type has it otherwise.
 3. r[annot.structure.per-derivation] Each derivation sees its own `Structure` for the target, which reflects that derivation's facts and omitted members.
-4. r[annot.structure.template-only] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template.
+4. r[annot.structure.template-only] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only after `by` in a derivation block's header.
 5. r[annot.structure.template-only.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
 6. r[annot.structure.receivers] `walk` takes the value as a readonly `self`. `facts`, `describe`, and `build` are receiverless.
 7. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
