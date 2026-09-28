@@ -342,37 +342,53 @@ reports: provider values are ordinary values that may escape today, and a
 error chain, and `std.process.ExitStatus` chooses the exit status
 ([Entry Results](../spec/10-modules.md#entry-results)). The printer walks
 the library's `chain`, which stops at a part it already visited
-([STDLIB](STDLIB.md#stderror)). Two details stay open; the spec says
-nothing about them yet.
+([STDLIB](STDLIB.md#stderror)). The two follow-up questions below are
+decided and applied in [Exit Status](../spec/10-modules.md#exit-status).
 
-**Question 1: status 0 and out-of-range statuses.** `status()` returning 0
-reports success for a failed run, and POSIX hosts keep only the low 8 bits.
-Candidates: (A) 0 and values outside 1 to 255 exit with 1; (B) the runtime
-profile maps them; (C) pass the value through unchanged.
-**Recommendation:** A, so a failure never exits with 0.
+**Question 1, decided and applied (2026-09-27): a checked status type.**
+`status()` returns a `std.process.StatusCode`, a nominal wrapper of `u8` that
+cannot hold 0, like Rust's `NonZeroU8`. Its constructor
+`StatusCode::new(code: u8) -> StatusCode?` rejects 0, so a failed run never
+exits 0 and no value falls outside 1 to 255. The earlier candidates (map 0
+and out-of-range values to 1, let the profile map them, or pass them
+through) are superseded.
 
-**Decided 2026-09-27, not yet applied: a checked status type.** `status()`
-returns a `std.process.StatusCode`, a newtype over `u8` that cannot hold 0,
-like Rust's `NonZeroU8`. Its constructor rejects 0 (for example
-`StatusCode.new(n: u8) -> StatusCode?`), so a failed run can never exit 0
-and no value falls outside 1 to 255. The exact constructor spelling is left
-to the library.
-
-```text
-impl ExitStatus for CliError:
-    fn status(self) -> i32: 256    # exits with 0 on POSIX under C
-```
-
-**Question 2: `ExitStatus` behind the erased `Error`.** The rule reads the
-static error type, so `main() -> Result[void, Error]` always exits with 1,
-even when the concrete error implements `ExitStatus`. Candidates: (A) keep
-the static rule; (B) the runtime also checks the concrete type.
-**Recommendation:** A, as decision 17 is worded; a tool that needs codes
-returns its own error type.
+**Question 2, decided and applied (2026-09-27): keep the static rule.** The
+rule reads the static error type, so `main() -> Result[void, Error]` always
+exits with 1, even when the concrete error implements `ExitStatus`. A tool
+that needs codes returns its own error type.
 
 ```text
 pub fn main() -> Result[void, Error]:
     .Err(CliError.Usage)    # exits with 1, not CliError's status 2
+```
+
+**Question 3: how `StatusCode` keeps out 0.** A newtype's constructor is
+public ([Newtypes](../spec/04-type-system.md#newtypes)), so
+`type StatusCode(u8)` would let `StatusCode(0)` through. Candidates: (A)
+declare it as data with a private `u8` field; (B) keep a newtype and let the
+compiler reject a zero argument; (C) add private newtype constructors to the
+language. **Recommendation:** A. It needs no new language rule, and the
+spec already states the invariant without naming the declaration form.
+
+```text
+pub data StatusCode:
+    code: u8    # private, never 0
+```
+
+**Question 4: spelling a constant status.** A literal status such as 2 needs
+a `match` on `StatusCode::new(2)` with a `panic` arm, because the prelude has
+no optional unwrap. Candidates: (A) accept the `match`; (B) add library
+functions such as `StatusCode::failure()` for 1; (C) check a literal argument at
+compile time and return `StatusCode` directly. **Recommendation:** B for
+common codes, with the `match` for the rest; C waits for compile-time
+evaluation.
+
+```text
+fn usage() -> StatusCode:
+    match StatusCode::new(2):
+        .Some(code) => code
+        .None => panic("2 is not 0")
 ```
 
 ## Runtime, Library, ABI, And Tooling Work
