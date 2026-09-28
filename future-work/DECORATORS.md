@@ -38,6 +38,7 @@ hold pending this record), and
 - [Option 5: A Root Meta-Decorator, `@annotate`](#option-5-a-root-meta-decorator-annotate)
 - [Pitfalls](#pitfalls)
 - [Comparison](#comparison)
+- [Ranking By Design Cost](#ranking-by-design-cost)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
 - [Sources](#sources)
@@ -737,6 +738,40 @@ is resolved like any expression. Rust instead ignores unknown names in its
 | Implementation cost | Lowest | Low: target construction plus resolution | Medium: parser, patterns, generated types | High: evaluator on shapes | Low, plus a grammar exception for type arguments and the binder |
 | Evolution | Every std marker is a compiler change | Visible in interfaces | Visible in declarations | Invisible | Visible in declarations |
 
+## Ranking By Design Cost
+
+Added 2026-09-28. The owner set a general design cost order, now in
+[AGENTS.md](../AGENTS.md#design-cost-order). From least favored to most
+favored: (1) new syntax, (2) a semantic rule exception, (3) a compiler
+intrinsic, (4) a core library addition. The table lists each option's
+changes by kind. Every option shares two changes: decorator positions
+before traits, impls and methods need a grammar change, and `@derive` and
+`@error` stay intrinsics.
+
+| Order | Option | 1. Syntax | 2. Rule exceptions | 3. Intrinsics | 4. Library | Costliest kind |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1st | 2. Trait with target types | none | none, if question 14's placement rule is dropped | one lang decorator (`std.ops.Suffix`), and the compiler builds target types | the `Decorator` trait and about ten target types | 3 |
+| 2nd | 4. Check function | none | none | a compile-time evaluator over shapes, and one lang decorator | three new shape types and `check` functions | 3, but it opens the compile-time reflection the owner ruled out |
+| 3rd | 1. Closed standard set | none | one target rule in the spec for each std marker | one intrinsic for each std marker | none | 2, and it grows with each marker |
+| 4th | 5. Root `@annotate` | a type binder `@annotate[O](...)`, and `annotate` is reserved | type arguments in a decorator line, like `@derive` | the `@annotate` root, and one lang decorator | the target types | 1 |
+| 5th | 3. Declaration with patterns | a `decorator` keyword and a pattern language | a new matching relation | one lang decorator | none | 1 |
+
+Effects on the recommendation:
+
+- Option 2 stays first. It is the only option whose costliest change is a
+  single intrinsic, and it adds no syntax and no rule exception.
+- Question 14's recommended placement rule (target impls must sit in the
+  decorator type's module) is a rule exception. Under the cost order it
+  should be dropped: the ordinary impl ownership rules already decide
+  where a `Decorator` impl may live.
+- Option 5 drops from next best to fourth, because it needs new syntax.
+  Option 4 ranks second by cost, but it conflicts with the owner's "no
+  full compile-time reflection" direction. So in practice the next best
+  is option 1, and only if user decorators need no checks.
+- Recognizing `std.ops.Suffix` by qualified name (question 7) stays
+  preferred over an `@lang` marker. A marker would add both an intrinsic
+  and a rule exception (closed to user packages).
+
 ## Recommendation
 
 **Recommendation: option 2, a decorator trait with target types,** with
@@ -766,7 +801,7 @@ Why:
 It gives up value-level and cross-member checks, which stay with the fact
 check hook, and Java-style bare markers, which question 10 asks about.
 
-The next best is option 5. It checks exactly what option 2 checks and
+Before the design cost order (see [Ranking By Design Cost](#ranking-by-design-cost)), the next best was option 5. It checks exactly what option 2 checks and
 keeps every target beside the type. But it adds an intrinsic with type
 arguments, a binder syntax, and a clash with the reserved word `annotate`.
 Option 2 can get the same locality from one placement rule (question 14).
