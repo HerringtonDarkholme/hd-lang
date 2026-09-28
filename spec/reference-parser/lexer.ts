@@ -367,42 +367,6 @@ function badClosureEnd(level: NestedLevel, indent: number, next: string | undefi
   return reference !== undefined && (indent > reference || !",)]}".includes(next ?? ""));
 }
 
-// Chapter 02: `[` directly after `annotate` always opens generic parameters.
-// True when that bracket cannot be generic parameters, or when what follows it
-// can only continue a facet expression that began with the bracket.
-function annotateBracketError(source: string, start: number): boolean {
-  let open = start;
-  while (source[open] === " ") open += 1;
-  if (source[open] !== "[") return false;
-  const parts: string[] = [];
-  let depth = 0;
-  let partStart = open + 1;
-  let close = open;
-  for (; close < source.length; close += 1) {
-    if (startsString(source, close)) {
-      close = scanString(source, close, 1).end - 1;
-      continue;
-    }
-    const character = source[close]!;
-    if (openToClose.has(character)) depth += 1;
-    else if (closeToOpen.has(character)) {
-      depth -= 1;
-      if (depth === 0) break;
-    } else if (character === "," && depth === 1) {
-      parts.push(source.slice(partStart, close));
-      partStart = close + 1;
-    }
-  }
-  if (close >= source.length) return false;
-  const last = source.slice(partStart, close);
-  if (last.trim() !== "" || parts.length === 0) parts.push(last);
-  const parameter = /^\s*(?:reified\s+)?[\p{L}_][\p{L}\p{N}_]*\s*(?:\.\.\.)?\s*(?:<[^]*)?$/u;
-  if (!parts.every((part) => parameter.test(part))) return true;
-  // After valid parameters, only a token that cannot begin a facet shows that
-  // the bracket started one: `for`, `is`, `?`, `:`, or a binary-only operator.
-  return /^\s*(?:(?:for|is)(?![\p{L}\p{N}_])|!=|[*/%=<>&|^?:])/u.test(source.slice(close + 1));
-}
-
 // A token that can end an operand, so that a following `(`, `[`, `{`, or `!`
 // on the same line would be a suffix.
 function endsOperand(previous: GrammarToken | undefined): boolean {
@@ -656,8 +620,6 @@ export function lexSource(source: string): LexResult {
         tokens.push(token("SUITE_END", line, "<suite-end>"));
       }
       tokens.push(token(wordKinds(word, source, end), line, word));
-      if (word === "annotate" && annotateBracketError(source, end))
-        diagnostics.push(diagnostic("syntax-error", line));
       let suiteWord = suiteWords.has(word);
       // A function type in a closure's result position never takes a `:`.
       if (word === "fn" && typeResultStart(tokens)) suiteWord = false;

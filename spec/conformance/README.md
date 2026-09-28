@@ -301,9 +301,6 @@ of a package in the named role. That package depends on every package under
 - Each directory `packages/NAME/` is the source root of one package, used as
   `dep.NAME` ([Use Roots](../10-modules.md#use-roots)). Its `mod.hd` is the
   package's root module.
-- [`dep.validation`](packages/validation/mod.hd) declares the facet
-  `Validation`, with its `Annotation`, `TypeAnnotator`, and `DataAnnotator`
-  implementations, and annotates `string`.
 - [`dep.models`](packages/models/mod.hd) declares `data User` with one
   public `name: string` field.
 - [`dep.members`](packages/members/mod.hd) declares the public traits
@@ -314,8 +311,6 @@ of a package in the named role. That package depends on every package under
   implements `Tagged` and `Stamped`. `Inner` has a public field `note`, a
   private field `serial`, public inherent methods `tag` and `code`, and a
   private inherent method `audit`.
-- Neither package annotates `User`, so no library in the graph owns the pair
-  `(Validation, User)`.
 
 Package files are not cases. They have no row in `cases.tsv`, carry no
 directives, and are never judged on their own.

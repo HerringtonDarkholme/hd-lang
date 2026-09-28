@@ -1,46 +1,16 @@
-data Validation: pass
-data Validator: pass
-data FieldValidator: pass
+# test: decorators before a data type and its field attach a type-level fact and member metadata
+data Checked: pass
 
+fn checked() -> Checked: Checked {}
 
 data MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
-impl FieldMetadata[string] for MaxLen
-
-impl Annotation for Validation:
-    type Info = Validator
-
-impl TypeAnnotator for Validation:
-    fn build(self, target: TypeShape) -> Validator:
-        panic("exact annotation supplies build")
-
-impl DataAnnotator for Validation:
-    type FieldTarget = FieldValidator
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Validator],
-    ) -> FieldValidator:
-        FieldValidator {}
-
-    fn build(
-        self,
-        target: DataShape,
-        fields: List[(string, FieldValidator)],
-    ) -> Validator:
-        Validator {}
-
-annotate Validation for string:
-    fn build(self, target: TypeShape) -> Validator:
-        Validator {}
-
-@Validation
+@checked()
 data User:
     @max_len(80)
     name: string
 
-validator := Validation::annotation(User)
+user_shape := shape[User]()

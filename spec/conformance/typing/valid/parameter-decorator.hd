@@ -1,6 +1,4 @@
-data Tool: pass
-data ToolSpec: pass
-data ToolParam: pass
+# test: a parameter decorator attaches parameter metadata visible through the parameter's shape
 data User: pass
 type UserId(i64)
 
@@ -10,29 +8,10 @@ data Description:
 fn description(text: string) -> Description:
     Description { text: text }
 
-impl[T] ParamMetadata[T] for Description
-
-impl Annotation for Tool:
-    type Info = ToolSpec
-
-impl FuncAnnotator for Tool:
-    type ParamTarget = ToolParam
-
-    fn map_param(self, param: ParamShape) -> ToolParam:
-        ToolParam {}
-
-    fn build(
-        self,
-        target: FnShape,
-        params: List[(string, ToolParam)],
-    ) -> ToolSpec:
-        ToolSpec {}
-
-@Tool
 fn get_user(
     @description("User identifier")
     id: UserId,
 ) -> User:
     User {}
 
-tool := Tool::annotation(get_user)
+params := shape_of(get_user).params

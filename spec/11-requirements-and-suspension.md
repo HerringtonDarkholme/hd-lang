@@ -524,7 +524,7 @@ fn main() -> i32: work!()  # error
 2. r[req.drive.once] The expression `s` is evaluated once.
 3. r[req.drive.not-method] This is the same postfix bang suffix used for a direct `fn!` call; it is not a method lookup.
 4. r[req.drive.block-on] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> T`, which owns the driver loop until the suspension completes or panics.
-5. r[req.drive.block-on.forbidden] `block_on` is forbidden in an annotation builder, a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
+5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
 6. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
 7. r[req.drive.block-on.unprovable] If a call through a function value or dynamic trait method prevents the compiler from proving that `block_on` is unreachable, the call is rejected in one of these contexts.
 8. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.

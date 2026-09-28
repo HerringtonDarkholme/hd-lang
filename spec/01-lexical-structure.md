@@ -419,7 +419,6 @@ only in fixed positions:
 | r[lex.contextual.use] Use | `use` | at the start of a module-level item, alone or after `pub`, when a use root (`pkg`, `std`, `dep`, `self`, or `super`) follows it; and as the operation name in the dedicated `$.use(...)` provider expression |
 | r[lex.contextual.reified] Reified | `reified` | first in a generic parameter, directly before the parameter name, as in `fn pick[reified T]() -> T` |
 | r[lex.contextual.test] Test | `test` | at the beginning of a module-level test block |
-| r[lex.contextual.annotation] Annotation | `annotation`, `annotation_ref` | after `::` in annotation materialization |
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
 | r[lex.contextual.pack] Pack | `pack`, `map`, `map_list` | in the `pack.map(...)` and `pack.map_list(...)` forms |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |

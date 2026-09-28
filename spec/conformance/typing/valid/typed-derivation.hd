@@ -17,8 +17,6 @@ data Rename:
 fn rename(name: string) -> Rename:
     Rename { name: name }
 
-impl[T] FieldMetadata[T] for Rename
-
 trait Encode:
     fn encode(self) -> string
 

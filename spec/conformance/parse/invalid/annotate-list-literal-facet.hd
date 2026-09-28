@@ -1,9 +1,0 @@
-# test: '[' after annotate always opens generic parameters, so a facet cannot begin with a list literal
-
-data Tag:
-    name: string
-
-data Point:
-    x: i32
-
-annotate [Tag { name: "a" }] for Point: pass  # diagnostic: syntax-error

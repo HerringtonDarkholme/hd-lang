@@ -610,3 +610,48 @@ style lint rejects a chapter that reuses one.
 - `module.entry.exit-status`: retired 2026-09-27. Error entry-point
   follow-ups question 1 exits with the `u8` a `StatusCode` holds. Replaced by
   `module.entry.exit-status.code`.
+- `lex.contextual.annotation`: retired 2026-09-27. Typed derivation decision
+  10 removed the facet protocol, so `annotation` and `annotation_ref` are no
+  longer contextual words. No replacement.
+- `grammar.primary.annotation-access`: retired 2026-09-27. Typed derivation
+  decision 10 removed the facet protocol and `annotation_runtime_access`. No
+  replacement.
+- `grammar.closed.headers`: retired 2026-09-27. Typed derivation decision 10
+  removed the facet protocol, so no annotation facet precedes `for`.
+  Replaced by `grammar.closed.header-positions`.
+- `grammar.annot.facet-type`: retired 2026-09-27. Typed derivation decision
+  10 removed the facet protocol and its facet operand. No replacement.
+- `grammar.annot.facet-expression`: retired 2026-09-27. Typed derivation
+  decision 10 removed the facet protocol and its facet operand. No
+  replacement.
+- `grammar.annot.facet-resolution`: retired 2026-09-27. Typed derivation
+  decision 10 removed the facet protocol and its facet operand. No
+  replacement.
+- `grammar.annot.generic-bracket`: retired 2026-09-27. Only member metadata
+  blocks remain, and they take no generic parameters. No replacement.
+- `grammar.annot.generic`: retired 2026-09-27. Only member metadata blocks
+  remain, and they take no generic parameters. No replacement.
+- `grammar.annot.generic-target`: retired 2026-09-27. Only member metadata
+  blocks remain, and they take no generic parameters. No replacement.
+- `grammar.annot.coherence`: retired 2026-09-27. Only member metadata blocks
+  remain, and they take no generic parameters. No replacement.
+- `flow.panic.category-list`: retired 2026-09-27. Typed derivation decision
+  10 removed the facet protocol and its two annotation panic categories.
+  Replaced by `flow.panic.category-set`.
+- `trait.derive.no-annotate`: retired 2026-09-27. Typed derivation decision
+  10 removed the facet protocol, so there is no `Annotate` conformance to
+  exclude. No replacement.
+- `trait.own.annotate`: retired 2026-09-27. Typed derivation decision 10
+  removed the facet protocol and `annotate Facet for Target`. No
+  replacement.
+- `trait.own.annotate.owners`: retired 2026-09-27. Typed derivation decision
+  10 removed the facet protocol and `annotate Facet for Target`. No
+  replacement.
+- `trait.own.annotate.no-orphan`: retired 2026-09-27. No annotations remain
+  to own. Replaced by `trait.own.no-orphan-exception`.
+- `annot.fact.type-level`: retired 2026-09-27. With no facets, every
+  decorator before a data or enum declaration attaches a fact. Replaced by
+  `annot.fact.type-level-decorator`.
+- `req.drive.block-on.forbidden`: retired 2026-09-27. Typed derivation
+  decision 10 removed annotation builders, one of its contexts. Replaced by
+  `req.drive.block-on.forbidden-contexts`.

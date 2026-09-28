@@ -193,7 +193,7 @@ fn release(flag: bool) -> void:
 5. r[grammar.continued.indented-suite] A `continued_expression` may end in an indented suite, except a closure body.
 6. r[grammar.continued.no-closure] After an indented closure body inside brackets, the next line must start with `,` or a closing delimiter, so `indented_suite_expression` has no closure alternative.
 7. r[grammar.closed.outside-brackets] Outside brackets, an expression followed by another token cannot end in any suite.
-8. r[grammar.closed.headers] A control-flow header in a statement, a match guard, and an annotation facet before `for` therefore take a `closed_expression`.
+8. r[grammar.closed.header-positions] A control-flow header in a statement and a match guard therefore take a `closed_expression`.
 9. r[grammar.closed.bracketed-suite] A suite may still appear inside brackets within the header, as in `if check(fn(x): ...):`.
 10. r[grammar.closed.indented-header] But a statement `if fn() -> bool:`, followed by the closure's indented body and then a line beginning `: 1 else: 2`, is a syntax error: its header ends in an indented suite.
 11. r[grammar.closed.nested-statements] The statements of a suite nested inside brackets follow the same rule, because they are statements too.
@@ -825,7 +825,6 @@ primary_expression = literal
                    | trait_qualified_call
                    | context_use
                    | context_create
-                   | annotation_runtime_access
                    | pack_map_expression
                    | grouped_binding_expression
                    | tuple_or_group_expression
@@ -843,12 +842,6 @@ contextual_variant_expression = ".", identifier ;
 trait_qualified_call = trait_type, "::", identifier,
                        ( [ function_type_arguments ], argument_clause
                        | suspension_call_suffix ) ;
-
-annotation_runtime_access = qualified_name, "::", "annotation", "(",
-                            annotation_target, ")"
-                          | qualified_name, "::", "annotation_ref", "(",
-                            annotation_target, ")"
-                          ;
 
 pack_map_expression = "pack", ".", ( "map" | "map_list" ), "(",
                       expression, ",", qualified_name,
@@ -942,8 +935,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 6. r[grammar.primary.qualified-type-arguments] In a qualified call such as `Type::name[T](...)`, `Trait::name[T](...)`, or `Type::name![T](...)`, type arguments of the qualifying type or trait stay before `::`, as in `Add[Money]::add`.
 7. r[grammar.primary.member-type-arguments] Method-level type arguments follow the member name, as in the dot call `parser.parse[User](text)`.
 8. r[grammar.primary.member-type-arguments.rules] Name resolution treats that bracket like any other generic reference: it is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
-9. r[grammar.primary.annotation-access] After `::`, the contextual words `annotation` and `annotation_ref` always select `annotation_runtime_access`, not an ordinary trait-qualified call.
-10. r[grammar.primary.pack-map] Likewise, the token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
+9. r[grammar.primary.pack-map] The token sequences `pack . map (` and `pack . map_list (` always select `pack_map_expression`, even when a local or parameter named `pack` is in scope; a raw identifier `` `pack` `` never does.
 
 #### Prefix And Suffix `...`
 
@@ -1269,18 +1261,10 @@ newtype_decl = "type", identifier, [ type_params ], "(", type, ")", NEWLINE ;
 derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
 
-annotation_decl = member_metadata_decl | facet_annotation_decl ;
+annotation_decl = member_metadata_decl ;
 
 member_metadata_decl = "annotate", qualified_name, ":",
                        annotation_member_suite ;
-
-facet_annotation_decl = "annotate", [ generic_params ], annotation_facet,
-                        "for", annotation_target, ":",
-                        facet_annotation_suite ;
-
-annotation_facet = type | closed_expression ;
-
-annotation_target = type ;
 
 annotation_member_suite = "pass", SUITE_END
                         | NEWLINE, INDENT,
@@ -1290,27 +1274,12 @@ annotation_member_suite = "pass", SUITE_END
                         ;
 
 metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
-
-facet_annotation_suite = "pass", SUITE_END
-                       | NEWLINE, INDENT,
-                         ( "pass", NEWLINE
-                         | facet_override, { facet_override } ), DEDENT
-                       ;
-
-facet_override = metadata_assignment | function_decl ;
 ```
 
-1. r[grammar.annot.facet-type] An `annotation_facet` that resolves as a type requests that stateless facet's default empty value and is valid only when the type has no required fields.
-2. r[grammar.annot.facet-expression] An expression form is evaluated as a configured facet value; its static type is the facet type used for coherence and `Annotate[Facet]` generation.
-3. r[grammar.annot.facet-resolution] The syntactic overlap between a named type and a name expression is resolved by ordinary name and type resolution.
-4. r[grammar.annot.generic-bracket] `[` directly after `annotate` always opens generic parameters, as after `impl`, so a facet expression cannot begin with `[`; parenthesize one that would.
-5. r[grammar.annot.pass] Every annotation body, like a data body, accepts `pass` either after the header's `:` or alone on an indented line.
-6. r[grammar.annot.generic] Generic parameters and their bounds follow the same rules as a generic `impl`.
-7. r[grammar.annot.generic-target] A generic annotation target denotes a family of concrete targets.
-8. r[grammar.annot.coherence] Coherence and overlap are checked as if the generic annotation were the lowered generic `impl Annotate[Facet] for Target`.
-9. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
-10. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
-11. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
+1. r[grammar.annot.pass] Every annotation body, like a data body, accepts `pass` either after the header's `:` or alone on an indented line.
+2. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
+3. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
+4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
 
 See also: [Typed Derivation](14-annotations.md#typed-derivation).
 

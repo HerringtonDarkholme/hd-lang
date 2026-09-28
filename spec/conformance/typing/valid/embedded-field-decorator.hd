@@ -6,8 +6,6 @@ data Flatten: pass
 fn flatten() -> Flatten:
     Flatten {}
 
-impl FieldMetadata[Timestamps] for Flatten
-
 data Post:
     @flatten()
     Timestamps

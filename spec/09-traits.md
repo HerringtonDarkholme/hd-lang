@@ -227,15 +227,14 @@ trait Hash:
 1. r[trait.derive.no-automatic] There is no automatic conformance for user-defined data or enum types.
 2. r[trait.derive.explicit-impl] An explicit implementation may choose domain-specific equality or ordering.
 3. r[trait.derive.intrinsic-decl] `@derive(Eq, Hash)` is an explicit compiler intrinsic on a data, enum, or newtype declaration.
-4. r[trait.derive.arguments] Its arguments name traits, not annotator values.
+4. r[trait.derive.arguments] Its arguments name traits, not metadata values.
 5. r[trait.derive.generate] The compiler generates ordinary implementations of the named traits from the declaration's shape.
 6. r[trait.derive.check] The compiler checks trait requirements and coherence, and rejects traits for which it has no derivation rule.
-7. r[trait.derive.no-annotate] It does not generate `Annotate[A]` conformance or run a `DataAnnotator`.
-8. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
-9. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
-10. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
-11. r[trait.derive.intrinsic-set] The intrinsic derivations are exactly `Eq`, `PartialOrd`, `Ord`, and `Hash`. Each covers every member, and no member line or derivation block configures it.
-12. r[trait.derive.templated] `@derive` also accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
+7. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
+8. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
+9. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
+10. r[trait.derive.intrinsic-set] The intrinsic derivations are exactly `Eq`, `PartialOrd`, `Ord`, and `Hash`. Each covers every member, and no member line or derivation block configures it.
+11. r[trait.derive.templated] `@derive` also accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
 
 #### Law Partners
 
@@ -509,7 +508,7 @@ constructor.
 1. r[trait.target.constructor] The target of every implementation, trait or inherent, starts with a type constructor from the table above.
 2. r[trait.target.tuple.valid] `impl Display for (i32, string)` is a valid target.
 3. r[trait.target.tuple.arity] Tuples of different arity never share a constructor.
-4. r[trait.target.option] An optional target is the prelude enum `Option` applied to its contained type. `annotate Validation for string?` targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an implementation for `i32?`.
+4. r[trait.target.option] An optional target is the prelude enum `Option` applied to its contained type. `impl Validate for string?` targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an implementation for `i32?`.
 5. r[trait.target.arguments] The constructor's arguments may be any types, including implementation parameters, as in `impl[T < Display] Printable for Box[T]`.
 6. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
 7. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
@@ -573,18 +572,19 @@ one of these declarations:
 
 1. r[trait.own.rule] An `impl Trait[Args] for Target` may be declared only in a package that owns one of the declarations in the table above.
 2. r[trait.own.orphan] Any other trait implementation is an error. Error: `orphan-impl`.
-3. r[trait.own.argument.example] For example, the package that declares `Money` may write `impl Add[Money] for i32`, because it owns the trait argument `Money`.
-4. r[trait.own.bare-parameter] The trait-argument case never applies to a target that is a bare type parameter.
-5. r[trait.own.aliases] Transparent aliases do not create ownership; nominal newtypes do.
-6. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enums `Option` and `Result`.
-7. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `annotate Validation for string?` in the package that owns `Validation`.
-8. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
-9. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
-10. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
-11. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
-12. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
-13. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations.
-14. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
+3. r[trait.own.no-orphan-exception] No package, including the root application package, has an orphan exception.
+4. r[trait.own.argument.example] For example, the package that declares `Money` may write `impl Add[Money] for i32`, because it owns the trait argument `Money`.
+5. r[trait.own.bare-parameter] The trait-argument case never applies to a target that is a bare type parameter.
+6. r[trait.own.aliases] Transparent aliases do not create ownership; nominal newtypes do.
+7. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enums `Option` and `Result`.
+8. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `impl Validate for string?` in the package that owns `Validate`.
+9. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
+10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type.
+11. r[trait.own.inherent.target-kinds] An inherent implementation cannot target a trait value, tuple, transparent alias, or type owned by another package.
+12. r[trait.own.inherent.std] The standard library, which owns them, may declare inherent implementations for primitives, built-in collection type constructors, and the prelude enums `Option` and `Result`.
+13. r[trait.own.inherent.std.no-use] Their `pub` members are found by ordinary member lookup on the receiver's type, so calling one needs no `use`.
+14. r[trait.own.inherent.std.no-tuple] Tuples have no inherent members, including from the standard library; they get only trait implementations.
+15. r[trait.own.graph] The compiler must also reject a resolved dependency graph containing duplicate exact implementations. This includes the possible conflict where two owning packages each provide the same pair.
 
 ```text
 impl Display for i32:  # error: orphan-impl
@@ -610,14 +610,6 @@ impl Display for fn() -> i32:  # error: orphan-impl
 > **Why.** A reader of the type's or the trait's module sees every
 > implementation that can answer a call, and no distant module of the package
 > can add one.
-
-#### Annotation Ownership
-
-1. r[trait.own.annotate] `annotate Facet for Target` lowers to `impl Annotate[Facet] for Target` and follows the same rule.
-2. r[trait.own.annotate.owners] The package owning the facet type, which is the trait argument, or the target's type constructor may declare it.
-3. r[trait.own.annotate.no-orphan] No orphan exception exists for annotations or implementations, including in the root application package. An orphan annotation is an error. Error: `orphan-impl`.
-
-See also: [Coherence And Package Rules](14-annotations.md#coherence-and-package-rules).
 
 ### Overlap
 

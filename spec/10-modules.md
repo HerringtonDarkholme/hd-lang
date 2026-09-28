@@ -156,7 +156,7 @@ every module has:
 | `std.iter` | `Iterator`, `Iterable` |
 | `std.console` | `Console`, `ConsoleError`, `println` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
-| `std.annotation` | `Annotation`, `Annotate`, `TypeAnnotator`, `DataAnnotator`, `EnumAnnotator`, `FuncAnnotator`, `FieldMetadata`, `VariantMetadata`, `ParamMetadata`, `AnnotationRef`, `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
+| `std.annotation` | `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
 1. r[module.prelude.names] Every module implicitly has the public standard-library names in the table in scope.
 2. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
@@ -599,7 +599,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 ### Registration
 
 1. r[module.register.pub] `pub` is module visibility, not Wasm export registration.
-2. r[module.register.explicit] A tool, workflow, or other host-callable function becomes visible only through explicit registration provided by its library or annotation facet.
+2. r[module.register.explicit] A tool, workflow, or other host-callable function becomes visible only through explicit registration provided by its library.
 3. r[module.register.entry] Every registered boundary function is an entry point for provider checking.
 4. r[module.register.contract-traits] Its registration contract selects a runtime profile and declares which requirement traits that profile can bind.
 5. r[module.register.application] That bindable set may include application traits such as `Database` when the adapter explicitly supports them.

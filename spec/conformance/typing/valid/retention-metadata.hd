@@ -9,8 +9,6 @@ fn retention_owner(target: DataShape) -> RetentionRule:
 fn delete_when(target: FieldShape) -> RetentionRule:
     RetentionRule {}
 
-impl FieldMetadata[UserId] for RetentionRule
-
 data User:
     id: UserId
     deleted: bool

@@ -84,13 +84,13 @@ See also: [Member Resolution](03-names-and-scopes.md#member-resolution),
 A data type with no fields is written with `pass`:
 
 ```text
-data Validation: pass
+data Unit: pass
 
-facet := Validation {}
+unit := Unit {}
 ```
 
 1. r[data.empty.pass] An empty nominal data type uses `pass` as its body.
-2. r[data.empty.canonical] A value of a fieldless data type is canonical: every `Validation {}` is the same value with the same identity.
+2. r[data.empty.canonical] A value of a fieldless data type is canonical: every `Unit {}` is the same value with the same identity.
 3. r[data.empty.no-allocation] Constructing a value of a fieldless data type allocates nothing.
 
 See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators).

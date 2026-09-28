@@ -1,0 +1,8 @@
+# fixture-package-role: root-application
+# test: the root application package has no orphan exception
+use dep.members.{Tagged}
+use dep.models.{User}
+
+impl Tagged for User:  # diagnostic: orphan-impl
+    fn tag(self) -> string:
+        "user"

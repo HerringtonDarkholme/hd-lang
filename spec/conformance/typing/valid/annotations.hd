@@ -1,52 +1,27 @@
-data Validation: pass
-
-
-data Validator: pass
-
-data FieldValidator: pass
+# test: an annotate block attaches member metadata of any type, read through the shape
+data MinLen:
+    value: i32
 
 data MaxLen:
     value: i32
 
+data Contains:
+    text: string
+
+fn min_len(value: i32) -> MinLen: MinLen { value: value }
+
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
-impl FieldMetadata[string] for MaxLen
+fn contains(text: string) -> Contains: Contains { text: text }
 
-impl Annotation for Validation:
-    type Info = Validator
-
-impl TypeAnnotator for Validation:
-    fn build(self, target: TypeShape) -> Validator:
-        panic("exact annotation supplies build")
-
-impl DataAnnotator for Validation:
-    type FieldTarget = FieldValidator
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Validator],
-    ) -> FieldValidator:
-        FieldValidator {}
-
-    fn build(
-        self,
-        target: DataShape,
-        fields: List[(string, FieldValidator)],
-    ) -> Validator:
-        Validator {}
-
-annotate Validation for string:
-    fn build(self, target: TypeShape) -> Validator:
-        Validator {}
+fn email_metadata() -> List[Any]:
+    [min_len(3), max_len(320), contains("@")]
 
 data User:
     name: string
 
 annotate User:
-    name = [max_len(80)]
+    name = [min_len(1), max_len(80)]
 
-annotate Validation for User: pass
-
-validator := Validation::annotation(User)
 user_shape := shape[User]()
+limit := user_shape.fields.name.metadata[MaxLen]()

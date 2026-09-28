@@ -33,8 +33,6 @@ data Rename:
 fn rename(name: string) -> Rename:
     Rename { name: name }
 
-impl[T] FieldMetadata[T] for Rename
-
 data Pair:
     left: i64
     right: i64

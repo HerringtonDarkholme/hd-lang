@@ -16,13 +16,9 @@ typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of
 typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
-typing/valid/annotations.hd	check fails: expected-expression at line 39: expected an expression, found 'annotate'	F-250
-typing/valid/full-validation.hd	check fails: expected-expression at line 71: expected an expression, found 'annotate'	F-250
-typing/valid/missing-child-override.hd	check fails: expected-expression at line 30: expected an expression, found 'annotate'	F-250
-typing/invalid/missing-child-annotation.hd	MVP reports expected-expression at line 29 instead of missing-child-annotation: expected an expression, found 'annotate'	F-250
-typing/valid/data-decorator.hd	check fails: expected-expression at line 37: expected an expression, found 'annotate'	F-250
-typing/valid/embedded-field-decorator.hd	check fails: syntax-error at line 12: expected a data field name	F-250
-typing/invalid/embedded-field-decorator-type.hd	MVP reports syntax-error at line 14 instead of invalid-field-metadata: expected a data field name	F-250
+typing/valid/annotations.hd	check fails: expected-expression at line 23: expected an expression, found 'annotate'	F-250
+typing/valid/data-decorator.hd	check fails: decorator-not-top-level at line 11: decorators are only valid on top-level declarations	F-250
+typing/valid/embedded-field-decorator.hd	check fails: syntax-error at line 10: expected a data field name	F-250
 typing/valid/derived-equality.hd	check fails: decorator-not-top-level at line 3: decorators are only valid on top-level declarations	F-250
 typing/valid/derived-hash.hd	check fails: decorator-not-top-level at line 2: decorators are only valid on top-level declarations	F-250
 typing/invalid/derived-hash-field-not-hash.hd	MVP reports decorator-not-top-level at line 4 instead of field-not-hash: decorators are only valid on top-level declarations	F-250
@@ -32,30 +28,17 @@ parse/valid/decorators.hd	parse fails: decorator-not-top-level at line 1: decora
 typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/impossible-gadt-pattern.hd	MVP reports unknown-type at line 3 instead of impossible-gadt-pattern: unknown or unsupported type 'i64'	F-250
 typing/invalid/unknown-annotation-member.hd	MVP reports expected-expression at line 5 instead of unknown-annotation-member: expected an expression, found 'annotate'	F-250
-typing/valid/parameter-decorator.hd	check fails: expected-expression at line 5: expected an expression, found 'type'	F-250
-typing/valid/retention-metadata.hd	check fails: expected-expression at line 1: expected an expression, found 'type'	F-250
-typing/invalid/parameter-decorator-type.hd	MVP reports syntax-error at line 10 instead of invalid-parameter-metadata: expected a parameter name	F-250
+typing/valid/parameter-decorator.hd	check fails: syntax-error at line 12: expected a parameter name	F-250
+typing/valid/retention-metadata.hd	check fails: expected-expression at line 20: expected an expression, found 'annotate'	F-250
 typing/invalid/retention-missing-field.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
-typing/valid/configured-facet.hd	check fails: decorator-not-top-level at line 28: decorators are only valid on top-level declarations	F-250
 typing/invalid/configured-facet-not-annotator.hd	MVP reports decorator-not-top-level at line 4 instead of decorator-not-annotator: decorators are only valid on top-level declarations	F-250
-typing/valid/generic-annotation-family.hd	check fails: expected-expression at line 11: expected an expression, found 'annotate'	F-250
-typing/invalid/overlapping-generic-annotation.hd	MVP reports expected-expression at line 11 instead of overlapping-annotation-impl: expected an expression, found 'annotate'	F-250
-typing/valid/direct-annotation-impl.hd	check fails: unknown-trait at line 8: unknown trait 'Annotation'	F-250
-typing/invalid/duplicate-direct-annotation-impl.hd	MVP reports expected-expression at line 30 instead of duplicate-annotation-impl: expected an expression, found 'annotate'	F-250
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
-typing/invalid/library-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
-typing/invalid/root-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
-typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at line 12 instead of annotation-resolution-reentry: expected an expression, found 'annotate'	F-250
-typing/valid/annotation-reference.hd	check fails: expected-expression at line 12: expected an expression, found 'annotate'	F-250
 typing/invalid/derived-generic-bound.hd	MVP reports decorator-not-top-level at line 1 instead of missing-derived-bound: decorators are only valid on top-level declarations	F-250
 typing/valid/derived-generic-bound.hd	check fails: decorator-not-top-level at line 1: decorators are only valid on top-level declarations	F-250
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/numeric-widening-and-display-list.hd	check fails: unknown-type at line 1: unknown or unsupported type 'i16'	F-253
 typing/valid/numeric-corners.hd	check fails: unknown-type at line 4: unknown or unsupported type 'f32'	F-253
-typing/invalid/data-annotator-map-build.hd	MVP reports unknown-trait at line 5 instead of annotation-build-signature: unknown trait 'Annotation'	F-250
-typing/invalid/annotation-top-level-read.hd	MVP reports expected-expression at line 12 instead of annotation-top-level-read: expected an expression, found 'annotate'	F-250
-typing/valid/lazy-annotation-build.hd	check fails: expected-expression at line 10: expected an expression, found 'annotate'	F-250
 typing/valid/shape-api.hd	check fails: unknown-type at line 10 for TypeShape; the shape and shape_of intrinsics are unimplemented	K1
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-type at line 4 instead of type-used-as-value: unknown or unsupported type 'FieldShape'	F-250
 typing/invalid/shape-of-local-binding.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape_of intrinsic is unimplemented	K1
@@ -65,15 +48,12 @@ runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the dis
 typing/invalid/nonfinal-positional-value-pack.hd	MVP reports unsupported-generic-parameter at line 1 instead of nonfinal-positional-value-pack: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/trait-argument-owner-impl.hd	check reports type-mismatch at line 8: the comprehension element Word { ... } is a fresh mut Word, so .iter() gives mut Iterator[mut Word], not the declared mut Iterator[Word]; no rule states that the expected result weakens the element (Iterable itself is implemented)	TQ-2
 typing/invalid/orphan-impl-foreign-trait-argument.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	TQ-2
-typing/valid/facet-package-annotates-primitive.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option; annotate blocks do not parse	TQ-2
 runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
-parse/invalid/annotate-list-literal-facet.hd	parse reports expected-expression at line 9 instead of syntax-error: the prototype has no annotate declarations	GQ11
-parse/valid/annotate-generic-parameters-before-facet.hd	parse fails: expected-expression at line 10: the prototype has no annotate declarations	GQ11
-parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 9: the prototype has no annotate declarations	GQ14
+parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 7: the prototype has no annotate declarations	GQ14
 runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type i64 (sized numeric types unimplemented); the TQ-4 literal-default preference is implemented but needs a second integer or float type to exercise	F-253
 typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type i64 and u8 (sized numeric types unimplemented) instead of ambiguous-method	F-253
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
@@ -92,16 +72,16 @@ typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-paramet
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 runtime/valid/test-block-propagation.hd	check fails: invalid-result-propagation at lines 25 and 29: a test block is not yet a propagation target, and the std message error for Display errors is unimplemented	EC-14
 typing/valid/entry-exit-status.hd	check fails: unknown-type StatusCode at line 19 (the prototype has no u8 and declares ExitStatus.status returning i32), and entry-error-not-display at line 27: main may return only Result[void, ConsoleError], so Error chains and ExitStatus exit codes are unimplemented	EC-17
-typing/valid/typed-derivation.hd	check fails: decorator-not-top-level at line 90: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/valid/typed-derivation.hd	check fails: decorator-not-top-level at line 88: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/valid/typed-derivation-build.hd	check fails: decorator-not-top-level at line 39: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
-runtime/valid/typed-derivation-walk.hd	test fails: decorator-not-top-level at line 87: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+runtime/valid/typed-derivation-walk.hd	test fails: decorator-not-top-level at line 85: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/invalid/derive-error-trait.hd	MVP reports decorator-not-top-level at line 4 instead of underivable-trait: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/invalid/derive-and-block-overlap.hd	MVP reports decorator-not-top-level at line 30 instead of overlapping-impl: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/invalid/structure-implementation.hd	MVP reports unknown-type at line 5 instead of sealed-trait-implementation: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
 typing/invalid/structure-outside-template.hd	MVP reports unknown-trait at line 4 instead of structure-outside-template: unknown trait 'Structure'; the prototype has no typed derivation	TD
 typing/invalid/marker-template.hd	MVP reports bare-parameter-impl-target at line 8 instead of marker-template: implementation target 'T' is a bare type parameter; a target must start with a type constructor; the prototype has no typed derivation	TD
-typing/invalid/duplicate-fact.hd	MVP reports doc-comment-without-target at line 43 instead of duplicate-fact: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
-typing/invalid/member-line-payload-member.hd	MVP reports doc-comment-without-target at line 43 instead of unknown-annotation-member: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/duplicate-fact.hd	MVP reports doc-comment-without-target at line 41 instead of duplicate-fact: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/member-line-payload-member.hd	MVP reports doc-comment-without-target at line 41 instead of unknown-annotation-member: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/invalid/invalid-member-line.hd	MVP reports doc-comment-without-target at line 35 instead of invalid-member-line: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/invalid/member-line-outside-block.hd	MVP reports doc-comment-without-target at line 9 instead of misplaced-derivation: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/invalid/omitted-member-without-default.hd	MVP reports doc-comment-without-target at line 38 instead of omitted-member-without-default: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
@@ -121,3 +101,4 @@ runtime/valid/status-code-rejects-zero.hd	check fails: unknown-type u8 at line 5
 typing/valid/console-recording-provider.hd	check fails: unknown-trait Console at line 8: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/valid/console-host-provider-mutable.hd	check fails: unknown-type mut:Console at line 4: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
+typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
