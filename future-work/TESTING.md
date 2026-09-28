@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T13 are
+Status: design record, started 2026-09-27. Owner decisions T1-T17 are
 decided. T4, T5, and T8 are applied to the specification (for the current
 `test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
@@ -99,6 +99,22 @@ more issues (property testing is folded in from
     `test(...)` calls at its top level with no `tests:` block. (3)
     Integration: `tests/` sees only the library's public API, as a
     dependent does (T9).
+14. **T14 (TS-1): a trailing block for an `fn!` parameter is suspending.**
+    When the parameter's type is `fn!(...)`, the trailing block is a
+    suspending closure, for every callee, not only tests; the `!` in the
+    callee's signature is the visible marker (Kotlin's `suspend` lambdas).
+15. **T15 (TS-3): a test body using `?` returns `Result[void, Error]`.**
+    Its type is fixed, so every error type that implements `Error`
+    converts; a body without `?` returns `void` (Zig's `anyerror!void`).
+16. **T16 (TS-2): the test-case call is `it`, not `test`.** `test` stays
+    free for user code. `it` is a prelude name, so it cannot be shadowed,
+    and every statement at the top level of a `tests:` block or a
+    `_test.hd` module must be an `it(...)` call. This renames T3's
+    `test(...)` throughout.
+17. **T17 (TS-4): `tests:` is an item block, like Rust's `mod tests`.** A
+    top-level `tests:` block holds module items (uses, functions, data,
+    and `it(...)` calls) visible only inside it; once per file, top level
+    only, never nested. `tests` becomes a keyword.
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
