@@ -386,6 +386,7 @@ coherence rules:
 | Add an enum variant | breaking | `match` is exhaustive and hd has no marker for open enums (decision 7). |
 | Add a trait method with a default | compatible | Subject to area 2's default-method conflict rules. |
 | Add a trait method without a default | breaking | Existing implementations fail. |
+| Add a `mut self` method, even with a default, to a requirement trait that had none, directly or through a supertrait | breaking | `$.use` then yields `mut K`, so installing a readonly provider becomes `mutable-upgrade` ([Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers)). |
 | Add an inherent method | compatible, pending area 2 | Safe only if inherent lookup cannot change which method an existing call selects. |
 | Add an implementation whose trait and target the package both own | compatible | No other package can hold that slot. |
 | Add a generic (blanket) implementation | breaking | It can overlap an implementation in a downstream package. |

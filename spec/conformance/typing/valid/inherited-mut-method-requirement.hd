@@ -1,0 +1,26 @@
+# test: requirements / mutable providers / a trait that inherits a mut self method is a mutable requirement trait
+
+fn fill() -> i32 $ Cache:
+    $.use(Cache).put(1)
+    $.use(Cache).peek()
+
+pub fn main() -> void:
+    $.with(Cache=MemoryCache { value: 0 }):
+        _ := fill()
+
+trait Store:
+    fn put(mut self, value: i32) -> void
+
+trait Cache < Store:
+    fn peek(self) -> i32
+
+data MemoryCache:
+    value: i32
+
+impl Store for MemoryCache:
+    fn put(mut self, value: i32) -> void:
+        self.value = value
+
+impl Cache for MemoryCache:
+    fn peek(self) -> i32:
+        self.value

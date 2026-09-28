@@ -1056,3 +1056,6 @@ typing/invalid/mutable-provider-install-readonly-value.hd	type
 parse/invalid/mutable-requirement-key.hd	parse
 parse/invalid/mutable-provider-use.hd	parse
 parse/invalid/mutable-provider-binding.hd	parse
+typing/valid/inherited-mut-method-requirement.hd	type
+typing/invalid/mutable-provider-install-readonly-field.hd	type
+typing/invalid/readonly-requirement-trait-mut-use.hd	type

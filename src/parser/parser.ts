@@ -765,6 +765,14 @@ class Parser extends ExpressionParser {
   }
 
   protected parseRequirementKey(): string {
+    // A requirement key has no `mut` prefix: the trait's `mut self` methods
+    // decide the access (spec/11-requirements-and-suspension.md#r-req.mut.no-spelling).
+    if (this.atText("mut"))
+      this.fail(
+        "syntax-error",
+        "a requirement key has no `mut` prefix; drop `mut`, since the trait's `mut self` methods decide the access",
+        this.current().span,
+      );
     const name = this.expectKind("identifier", "expected a concrete requirement name");
     if (!this.matchText("[")) return name.text;
     const arguments_: TypeRef[] = [];

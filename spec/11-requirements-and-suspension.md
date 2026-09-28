@@ -384,6 +384,17 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 > provider shared by its whole call tree, so its trait already says whether
 > the provider can change.
 
+> **Note.** Adding a `mut self` method, even one with a default, to a
+> published requirement trait that had none is a breaking change: `$.use`
+> then yields `mut K`, and installing a readonly value becomes
+> `mutable-upgrade`.
+
+> **Note.** Two tasks in one provider scope, such as the children of
+> `std.task.all!`, share one mutable provider. Each sees the other's changes
+> between its `!` calls, which are the only yield points
+> ([Cooperative Scheduling](#cooperative-scheduling)). Code that needs
+> isolation installs a provider per task with `$.with`.
+
 ### Installing
 
 1. r[req.mut.install-mutable] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must have type `mut T` for a type `T` implementing `K`. A readonly expression is an error. Error: `mutable-upgrade`.

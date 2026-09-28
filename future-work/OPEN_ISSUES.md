@@ -54,6 +54,16 @@ fn greet!() -> void $ Console:
     _ := console.write_line!("hi")
 ```
 
+**Decided and applied 2026-09-27: two tasks may share one mutable
+provider,** with no new rule. Children of `std.task.all!` in one provider
+scope retrieve the same `mut K`, and each sees the others' changes between
+its `!` calls; code that needs isolation installs a provider per task. The
+spec states this as a note in
+[Mutable Providers](../spec/11-requirements-and-suspension.md#mutable-providers),
+beside a second note: adding a `mut self` method to a published requirement
+trait is a breaking change
+([Packages](PACKAGES.md#33-the-checked-compatibility-rule)).
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Decided.** Owner decisions M1-M23 in

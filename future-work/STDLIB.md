@@ -948,8 +948,8 @@ the buffer appends through it, and printing code still writes only
 
 ### `std.fs`
 
-The traits are a read/write split (decision 3). Writes take `mut self`, so a
-writer requires `mut FsWrite` and `MemoryFs` stores what it is given.
+The traits are a read/write split (decision 3). Writes take `mut self`, so
+`$.use(FsWrite)` is mutable and `MemoryFs` stores what it is given.
 Whole-file operations come first; streaming handles wait for
 [Resource Non-Escape](OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy):
 
@@ -1068,8 +1068,9 @@ pub data ScriptedHttp:
 ```
 
 `ScriptedHttp` answers from a route table. Recording the requests it receives
-would need `send!` to take `mut self`, which would put `mut Http` in every
-caller's row; the sketch keeps `Http` readonly until a test needs the record.
+would need `send!` to take `mut self`, which would make `Http` a mutable
+requirement trait, so every installed provider would need a `mut` value; the
+sketch keeps `Http` readonly until a test needs the record.
 `std.net` (TCP, UDP, DNS) waits for resource non-escape, since a socket is a
 live handle.
 
@@ -1133,8 +1134,9 @@ These take the draft in
 `Observability` with `sample` and `emit`, the `Observation` enum, and
 `log.info`, `log.warn`, `log.error` helpers with a `$ Observability` row.
 `RecordingObservability` is the deterministic provider. It records through
-`mut self` methods like the other stateful providers, and its host provider
-needs a profile that marks `Observability` mutable (decision 14).
+`mut self` methods like the other stateful providers, so `Observability` is
+a mutable requirement trait and its host provider is bound mutable without
+any profile marking.
 
 ## Task Layer
 
@@ -1590,10 +1592,11 @@ fn deadline(budget: Duration) -> Timestamp $ Clock, Env:
 
 **Decided: B** (decision 3). The row shows whether a function can change the
 disk. The same split applies to `Console` and `ConsoleInput`. Writes take
-`mut self`, so a writer requires `mut FsWrite`.
+`mut self`, so `$.use(FsWrite)` is mutable; the row still names plain
+`FsWrite`.
 
 ```text
-fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead, mut FsWrite:
+fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead, FsWrite:
     text := $.use(FsRead).read_text!(input)?
     $.use(FsWrite).write_text!(output, text.upper())
 ```

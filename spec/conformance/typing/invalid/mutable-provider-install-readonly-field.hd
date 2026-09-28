@@ -1,0 +1,22 @@
+# test: requirements / mutable providers / a provider read from a field through a readonly view cannot be installed for a mutable trait
+
+data Holder:
+    counter: mut MemoryCounter
+
+fn run(holder: Holder) -> void:
+    $.with(Counter=holder.counter):  # diagnostic: mutable-upgrade
+        _ := $.use(Counter).count()
+
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
+data MemoryCounter:
+    value: i32
+
+impl Counter for MemoryCounter:
+    fn count(self) -> i32:
+        self.value
+
+    fn bump(mut self) -> void:
+        self.value = self.value + 1

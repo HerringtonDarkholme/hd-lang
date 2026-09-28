@@ -450,3 +450,11 @@ test("parser retains single and grouped use declarations", () => {
     ],
   );
 });
+
+// A `mut` requirement key suggests dropping `mut`
+// (spec/11-requirements-and-suspension.md#r-req.mut.no-spelling).
+test("parser suggests dropping mut from a requirement key", () => {
+  const [diagnostic] = parse(conformanceBody("parse/invalid/mutable-requirement-key")).diagnostics;
+  assert.equal(diagnostic?.code, "syntax-error");
+  assert.match(diagnostic?.message ?? "", /drop `mut`/);
+});
