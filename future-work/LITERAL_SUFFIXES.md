@@ -23,30 +23,36 @@ Decided 2026-09-28; not yet in the specification.
    (`use std.time.ms`), and libraries may declare their own (`12px`,
    `50Gb`).
 2. **L2: a suffix is declared by implementing `std.ops.LiteralSuffix`** on
-   a zero-field type whose name is the suffix, not by a keyword or a
-   decorator:
+   a newtype whose name is the suffix, not by a keyword or a decorator.
+   The newtype only holds the suffix's name; the literal's value has the
+   trait's output type, so `5s` and `250ms` are both `Duration` and mix
+   freely:
 
    ```text
    # std.ops
    pub trait LiteralSuffix[In, Out]:
-       fn apply(n: In) -> Out
+       fn from_literal(n: In) -> Out
 
    # std.time
-   pub data ms()
+   pub type ms(i64)
    impl LiteralSuffix[i64, Duration] for ms:
-       fn apply(n: i64) -> Duration: Duration.millis(n)
+       fn from_literal(n: i64) -> Duration: Duration.millis(n)
 
    # user code
-   use std.time.ms
-   delay := 250ms              # means ms::apply(250)
+   use std.time.{s, ms}
+   delay := 250ms              # means ms::from_literal(250): Duration
+   t := 1s.plus(250ms)
    ```
 
-   Implementing the trait on the function's own item type was preferred
-   in principle but waits on function item types (FN_TYPE questions 9 and
-   10); a `suffix fn` keyword was rejected in favour of the trait.
+   Rejected on 2026-09-28: a literal whose type is the newtype itself
+   (`-> Self`, units as distinct types), because `Duration` APIs would
+   then need conversions; a zero-field `data ms()` carrier; the method
+   names `apply` and `make`. Implementing the trait on the function's own
+   item type waits on function item types (FN_TYPE questions 9 and 10); a
+   `suffix fn` keyword was rejected in favour of the trait.
 3. **L3: `In` is one numeric type.** `impl LiteralSuffix[i64, Duration]`
    makes `1.5s` a type error (write `1500ms`).
-4. **L4: `-5s` means `s::apply(-5)`.** The `-` folds into the literal
+4. **L4: `-5s` means `s::from_literal(-5)`.** The `-` folds into the literal
    before the suffix applies, checked like `-128` for `i8`.
 5. **L5: operator traits in `std.ops` are planned** (`Add`, `Sub`, `Neg`,
    `Mul`, and so on, Rust's model), so `5s + 3s` and `-d` can work on
@@ -60,9 +66,9 @@ Decided 2026-09-28; not yet in the specification.
    a digit separator and letters such as `B` are hex digits. (The owner
    chose "all numeric"; the `'` spelling is filled in here, open to owner
    correction.)
-7. **L7: a suffixed literal is a plain call** to `apply`. It is evaluated at
+7. **L7: a suffixed literal is a plain call** to `from_literal`. It is evaluated at
    compile time only where the position already requires that (facts,
-   shared enum data, test options), and there `apply` must need no
+   shared enum data, test options), and there `from_literal` must need no
    providers and never suspend.
 8. **L8: suffixes are imported normally,** with no special case for tests:
    `timeout=5s` needs `use std.time.s`.
