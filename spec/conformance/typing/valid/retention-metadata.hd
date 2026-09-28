@@ -4,12 +4,13 @@ type UserId(string)
 type PostId(string)
 
 data RetentionRule: pass
+data DeleteWhen: pass
 
 fn retention_owner(target: DataShape) -> RetentionRule:
     RetentionRule {}
 
-fn delete_when(target: FieldShape) -> RetentionRule:
-    RetentionRule {}
+fn delete_when(target: FieldShape) -> DeleteWhen:
+    DeleteWhen {}
 
 data User:
     id: UserId

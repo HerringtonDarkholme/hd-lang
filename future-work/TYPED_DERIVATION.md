@@ -1375,7 +1375,7 @@ pass read that as the rules below, also for the owner to confirm:
 **Still open after M26.** The spec lists the first three as
 [undecided parts](../spec/14-annotations.md#undecided-parts). The fourth
 asks how to read an existing rule that M26 now reaches. The fifth came up
-in the prototype pass. The Prototype column says what `src/` does today;
+in the prototype pass and is now fixed. The Prototype column says what `src/` does today;
 none of it is decided:
 
 | Question | Effect | Prototype | **Recommendation** |
@@ -1384,7 +1384,7 @@ none of it is decided:
 | Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | Applies them in source order; each sees the facts the earlier ones left. | At most one per type, so shared metadata has one place; a second is `overlapping-impl`. |
 | Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | No warning: only decorator facts are checked. | The same warning, reported on the `Self` line. |
 | A member line's right side | [`annot.line.right`](../spec/14-annotations.md#r-annot.line.right) says "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | A list literal only; `name = shared_list` is `invalid-member-line`. | Any expression of a list type, so a reusable list needs no spread. The tour writes `[shared_list...]` until this is settled. |
-| Two retention rules on one member | [`retention-metadata.hd`](../spec/conformance/typing/valid/retention-metadata.hd), an accept fixture, puts `retention_owner(...)` and `delete_when(...)` on `userId`. Both return `RetentionRule`, which [`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate) rejects. The `annotate` version had the same conflict. | `duplicate-fact` at line 23; the fixture stays a known failure, also for the shape intrinsics. | Fix the fixture, not the rule: give `delete_when` its own result type, such as `DeleteWhen`. |
+| Two retention rules on one member | [`retention-metadata.hd`](../spec/conformance/typing/valid/retention-metadata.hd), an accept fixture, put `retention_owner(...)` and `delete_when(...)` on `userId`. Both returned `RetentionRule`, which [`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate) rejects. | **Fixed 2026-09-28** in the fixture, not the rule: `delete_when` now returns its own `DeleteWhen`. The fixture stays a known failure only for the shape intrinsics (`K1`). | Applied as recommended: give `delete_when` its own result type. |
 
 ### Current Design: Full Example (M1-M14)
 

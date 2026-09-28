@@ -61,5 +61,5 @@ typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-paramet
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
 typing/valid/annotations.hd	check fails: unknown-name 'shape' at line 28: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1
-typing/valid/retention-metadata.hd	check fails: duplicate-fact at line 23: retention_owner and delete_when both return RetentionRule, two values of one concrete type on one member (annot.metadata.duplicate; see TYPED_DERIVATION Still Open); the shape intrinsic is also unimplemented	K1
+typing/valid/retention-metadata.hd	check fails: unknown-type at line 9 for DataShape: the shape and shape_of intrinsics are unimplemented	K1
 typing/valid/trait-less-derivation-block.hd	check fails: unknown-name 'shape' at line 23: the shape intrinsic is unimplemented; the trait-less derivation block checks	K1
