@@ -774,6 +774,11 @@ Effects on the recommendation:
 
 ## Recommendation
 
+> **Update 2026-09-28.** Typed Derivation M26 removes the `annotate
+> Target:` block, so `annotate` is no longer reserved and a root
+> `@annotate` has no clash with a keyword.
+
+
 **Recommendation: option 2, a decorator trait with target types,** with
 these refinements:
 

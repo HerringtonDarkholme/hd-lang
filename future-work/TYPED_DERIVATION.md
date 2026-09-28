@@ -1295,6 +1295,32 @@ Two readings are open for the owner:
 
 Row 4 (omitting an embedded part) is still open.
 
+**Owner decision M26 (2026-09-28): the `annotate Target:` block is removed.**
+`annotate` is no longer a reserved word. Metadata is written three ways:
+
+1. With `@value` on the declaration, a field, a variant or a parameter, as
+   today.
+2. Shared metadata written away from the declaration goes in a trait-less
+   derivation block, `impl User by Structure:`, with member lines such as
+   `name = [max_len(80)]`. These facts apply to every derivation, like
+   `@` facts. The only grammar change is to allow the existing
+   `[ "by", identifier ]` clause after the inherent `impl Type` form. There
+   is no new keyword or token, and the body reuses `derivation_line`.
+3. Per-trait member lines stay in `impl Trait for User by Structure:` (M3).
+
+A trait-less block is only for writing shared metadata. It is not the only
+place metadata can be declared.
+
+Open for the apply pass:
+- Which scope may write the trait-less block. The recommendation is the
+  same orphan rule as other impls.
+- How parameter metadata, which `annotate get_user` wrote, is written away
+  from the function. The recommendation is `@` on the parameter only, since
+  functions have no derivation block.
+- How a trait-less block's `+=` and `=` combine with the declaration's `@`
+  facts. The recommendation is the member-line rules, with the declaration
+  facts coming first.
+
 ### Current Design: Full Example (M1-M14)
 
 Superseded by the [M1-M21 example](#current-design-full-example-m1-m21).
