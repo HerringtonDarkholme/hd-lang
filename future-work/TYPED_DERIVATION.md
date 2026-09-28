@@ -1298,7 +1298,12 @@ Two readings are open for the owner:
 | Two type-level facts of one concrete type from decorators, as in two `@style(...)` lines | Not covered: `annot.metadata.duplicate` names members, variants and parameters; [`annot.line.duplicate`](../spec/14-annotations.md#r-annot.line.duplicate) covers `Self` lines | `duplicate-fact` on the later decorator, as for members. |
 | Where `duplicate-fact` is reported for declaration facts | On the later value | Keep. |
 
-Row 4 (omitting an embedded part) is still open.
+**Owner decision M27 (2026-09-28).**
+- Row 4 is kept: `Part = pass` on an embedded part is
+  `omitted-member-without-default`. Add the case as an example next to
+  `annot.omit.no-default`.
+- Two type-level decorators of the same fact type on one declaration (two
+  `@style(...)` lines): the later one is `duplicate-fact`, as for members.
 
 **Owner decision M26 (2026-09-28): the `annotate Target:` block is removed.**
 `annotate` is no longer a reserved word. Metadata is written three ways:
