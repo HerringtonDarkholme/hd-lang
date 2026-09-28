@@ -150,6 +150,9 @@ becomes a separate language issue.
 **Unblocks.** Multi-tenant tools, least-privilege review, delegated authority,
 and access-control testing.
 
+**Status.** Deferred 2026-09-27 until the core specification settles; the
+redacted-output part also waits for `Secret[T]`.
+
 ### Scope Reduction And Distinctive Requirements
 
 **Problem.** GADTs, declared variance,
@@ -174,10 +177,11 @@ expanding other chapters.
 **Unblocks.** A smaller compiler, clearer teaching material, faster
 conformance, and evidence that complexity serves the language thesis.
 
-**Status.** Still open. The first
+**Status.** Closed 2026-09-27: every feature stays. The first
 [Wasm GC compiler plan](../src/MVP_IMPLEMENTATION_PLAN.md) deliberately does
-not implement these features, but they are planned for implementation soon
-after it rather than treated as removed.
+not implement these features, and they are implemented soon after it rather
+than removed. The recommendation above relied on per-tool requirement
+reports, which the owner dropped.
 
 ### Annotation Locality And Inspection
 
@@ -322,6 +326,13 @@ reports success for a failed run, and POSIX hosts keep only the low 8 bits.
 Candidates: (A) 0 and values outside 1 to 255 exit with 1; (B) the runtime
 profile maps them; (C) pass the value through unchanged.
 **Recommendation:** A, so a failure never exits with 0.
+
+**Decided 2026-09-27, not yet applied: a checked status type.** `status()`
+returns a `std.process.StatusCode`, a newtype over `u8` that cannot hold 0,
+like Rust's `NonZeroU8`. Its constructor rejects 0 (for example
+`StatusCode.new(n: u8) -> StatusCode?`), so a failed run can never exit 0
+and no value falls outside 1 to 255. The exact constructor spelling is left
+to the library.
 
 ```text
 impl ExitStatus for CliError:
