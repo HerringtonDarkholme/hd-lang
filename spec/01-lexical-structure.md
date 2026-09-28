@@ -694,20 +694,21 @@ r[lex.punct.tokens] The lexer recognizes these punctuation tokens:
 name := "Ada";  # error
 ```
 
-r[lex.op.tokens] The lexer recognizes these operators and compound
+r[lex.op.token-list] The lexer recognizes these operators and compound
 punctuation tokens:
 
 ```text
 +  -  *  /  %  **
 &  |  ^  ~  <<  >>  &&  ||
 =  ==  !=  <  <=  >  >=
-:=  ->  =>  ?  !  $  @  ...  ...=  ::
+:=  ->  =>  ?  !  $  @  ...  ...=  ::  +=
 ```
 
 1. r[lex.op.longest] When two tokens share a prefix, the lexer uses the longest valid token.
 2. r[lex.op.longest.examples] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. Likewise `...=` is one token rather than `...` and `=`, and `&&` and `||` are single tokens.
 3. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
 4. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
+5. r[lex.op.plus-equals] `+=` is one token. Only a member line of a derivation block uses it, as [Member Lines](14-annotations.md#member-lines) defines; hd has no compound assignment.
 
 See also: [Expressions](05-expressions.md), which defines operator
 precedence and semantics, including prefix `!` as logical not;

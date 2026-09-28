@@ -2,4 +2,4 @@
 use dep.validation.{Validation}
 use dep.models.{User}
 
-annotate Validation for User: pass  # diagnostic: orphan-annotation-in-library
+annotate Validation for User: pass  # diagnostic: orphan-impl

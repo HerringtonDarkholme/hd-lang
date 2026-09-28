@@ -1,0 +1,5 @@
+# test: only generated code may call member through a generic walker
+use std.structure.{Field, Walker}
+
+fn forward[S, W < Walker[S]](w: mut W, h: Field[S, i64], value: i64) -> void:
+    _ := w.member(h, value)  # diagnostic: generic-member-call

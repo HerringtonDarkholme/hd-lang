@@ -1,0 +1,5 @@
+# test: Structure may be named only inside a derivation template
+use std.structure.Structure
+
+fn fields[X < Structure]() -> void:  # diagnostic: structure-outside-template
+    pass

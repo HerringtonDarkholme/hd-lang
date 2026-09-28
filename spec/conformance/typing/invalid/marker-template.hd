@@ -1,0 +1,6 @@
+# test: a template must have a body that walks, describes, or builds
+trait Tagged:
+    fn tag(self) -> string:
+        "tagged"
+
+impl[T] Tagged for T by Structure  # diagnostic: marker-template

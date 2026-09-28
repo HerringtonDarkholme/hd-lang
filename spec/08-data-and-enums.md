@@ -835,6 +835,20 @@ or fallible cleanup policy remain deferred in
 
 See also: [Generalized Algebraic Data Types](13-gadts.md).
 
+## Typed Derivation Of Data And Enums
+
+Data types and enums derive library traits with `@derive` or a derivation
+block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
+
+1. r[data.derive.members] For typed derivation, a data type's members are its fields in declaration order, embedded fields included. An enum's members are each variant's payload parameters.
+2. r[data.derive.embedded] An embedded field is one member, and its value is the part itself, per `data.part.alias`. The language never flattens it.
+3. r[data.derive.payload-names] An unnamed payload parameter is the member `_0`, `_1`, and so on, by position.
+4. r[data.derive.shared] Shared constructor data is not a member. A derivation reads it from the variant's information, and `build` never reads it.
+5. r[data.derive.gadt] A GADT enum cannot be derived through a template. Error: `gadt-derivation`.
+6. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+
+See also: [Members And Variants](14-annotations.md#members-and-variants).
+
 ## Unsupported Aggregate Extensions
 
 1. r[data.unsupported.mut-embedded] hd-lang has no `mut` embedded-field shorthand, because access to an embedded part already follows its container.

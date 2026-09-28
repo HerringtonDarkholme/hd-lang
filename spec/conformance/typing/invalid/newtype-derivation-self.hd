@@ -1,0 +1,31 @@
+# test: a newtype forwards a derived trait only where Self is in an allowed position
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Pairing:
+    fn pair(self) -> (Self, i32)
+
+impl Pairing for string:
+    fn pair(self) -> (string, i32):
+        (self, 0)
+
+data Count:
+    total: i32
+
+impl[S] Describer[S] for Count:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.total = self.total + 1
+        .Ok()
+
+impl[T] Pairing for T by Structure:
+    fn pair(self) -> (T, i32):
+        let d: mut Count = Count { total: 0 }
+        _ := T::describe(d)
+        (self, d.total)
+
+@derive(Pairing)  # diagnostic: newtype-derivation-self
+type Tag(string)

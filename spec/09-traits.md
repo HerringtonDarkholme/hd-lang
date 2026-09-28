@@ -234,6 +234,8 @@ trait Hash:
 8. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for every declaration type parameter `T` that occurs in a field compared, ordered, or hashed by that derivation.
 9. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
 10. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
+11. r[trait.derive.intrinsic-set] The intrinsic derivations are exactly `Eq`, `PartialOrd`, `Ord`, and `Hash`. Each covers every member, and no member line or derivation block configures it.
+12. r[trait.derive.templated] `@derive` also accepts a trait that has a derivation template, as [Typed Derivation](14-annotations.md#typed-derivation) defines. Any other trait is an error. Error: `underivable-trait`.
 
 #### Law Partners
 
@@ -267,6 +269,9 @@ impl Eq for Session:
 2. r[trait.derive.newtype.base] The generated method applies the base type's method to the wrapped values, as in `Mile(1) == Mile(1)` comparing the two `i32` values.
 3. r[trait.derive.newtype.requires] The base type must implement each derived trait, as a derived field must.
 4. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
+5. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
+6. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
+7. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Set[Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
 
 ```text
 @derive(Eq, Hash)
@@ -275,6 +280,18 @@ type Mile(i32)
 fn same(left: Mile, right: Mile) -> bool:
     left == right
 ```
+
+```text
+trait Pairing:
+    fn pair(self) -> (Self, i32)
+
+@derive(Pairing)  # error: newtype-derivation-self
+type Tag(string)
+```
+
+> **Why.** A `Map[Self, V]` result depends on the key's own `Hash` and `Eq`,
+> which a rewrapped base value would not use. The allowed positions rewrap
+> each value one at a time.
 
 See also: [Newtypes](04-type-system.md#newtypes).
 
@@ -450,7 +467,7 @@ impl Named for User  # error: missing-trait-method
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
 3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` and pack markers and the same bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
-5. r[trait.impl.generics.no-change] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound.
+5. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen`](14-annotations.md#r-annot.walker.strengthen) allows.
 6. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
 
 ```text
@@ -508,6 +525,7 @@ constructor.
 17. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
 18. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
 19. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
+20. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
 ```text
 trait Describe:
@@ -597,8 +615,7 @@ impl Display for fn() -> i32:  # error: orphan-impl
 
 1. r[trait.own.annotate] `annotate Facet for Target` lowers to `impl Annotate[Facet] for Target` and follows the same rule.
 2. r[trait.own.annotate.owners] The package owning the facet type, which is the trait argument, or the target's type constructor may declare it.
-3. r[trait.own.annotate.root] The annotation chapter defines one further exception, for a root application's orphan annotation when no library annotation exists.
-4. r[trait.own.annotate.not-impl] That exception does not apply to ordinary `impl`.
+3. r[trait.own.annotate.no-orphan] No orphan exception exists for annotations or implementations, including in the root application package. An orphan annotation is an error. Error: `orphan-impl`.
 
 See also: [Coherence And Package Rules](14-annotations.md#coherence-and-package-rules).
 
@@ -1112,10 +1129,11 @@ compiler and the standard library supply.
 | r[trait.sealed.suspend] Suspend | `Suspend[T]` | compiler-generated suspension frames and `std.task` types ([`Suspend[T]` Protocol](11-requirements-and-suspension.md#suspendt-protocol)) |
 | r[trait.sealed.shape-metadata] ShapeMetadata | `ShapeMetadata` | the concrete shape types ([Common Shape Representation](14-annotations.md#common-shape-representation)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
+| r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
-3. r[trait.sealed.use] User code may name a sealed trait in a bound, as a supertrait, and, where the trait is dynamically safe, as a value type.
+3. r[trait.sealed.use-positions] User code may name a sealed trait in a bound, as a supertrait, and, where the trait is dynamically safe, as a value type. `Structure` is the exception: only a derivation template may name it.
 4. r[trait.sealed.no-user-impl] User code cannot implement a sealed trait.
 5. r[trait.sealed.user-impl] An `impl` of a sealed trait outside the standard library is an error, reported on the `impl` line, whatever its target. Error: `sealed-trait-implementation`.
 
@@ -1467,10 +1485,11 @@ impl Describe for Worker by Logger:
 ```
 
 1. r[trait.by.form] A trait implementation may delegate the trait to an embedded field of its target by naming the field after `by`.
-2. r[trait.by.valid] In `impl Trait for C by E`, `C` must be a data type, and `E` must name one of its embedded fields.
+2. r[trait.by.valid-part] In `impl Trait for C by E`, where `E` is not `Structure`, `C` must be a data type, and `E` must name one of its embedded fields.
 3. r[trait.by.part-impl] The type of that field, with `C`'s type arguments substituted, must implement the same instantiation of `Trait`.
 4. r[trait.by.invalid] Otherwise the implementation is an error, reported on the line of `by`. Error: `invalid-delegation`.
 5. r[trait.by.direct] `E` names a direct embedded field; a deeper part is reached by delegating to the field that contains it.
+6. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 
 ```text
 trait Describe:

@@ -1,0 +1,128 @@
+# test: generated walk and describe visit members in declaration order with their facts
+
+use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
+use std.testing.assert_equal
+
+data Style:
+    prefix: string = ""
+    tag: string = "type"
+
+fn style(prefix: string = "", tag: string = "type") -> Style:
+    Style { prefix: prefix, tag: tag }
+
+data Rename:
+    name: string
+
+fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+impl[T] FieldMetadata[T] for Rename
+
+trait Encode:
+    fn encode(self) -> string
+
+trait Keys:
+    fn keys() -> List[string]
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+impl Encode for string:
+    fn encode(self) -> string:
+        "'$self'"
+
+fn style_of(facts: Facts) -> Style:
+    match facts.find[Style]():
+        .Some(found) => found
+        .None => Style {}
+
+fn key_for(style: Style, m: Member) -> string:
+    match m.facts.find[Rename]():
+        .Some(r) => r.name
+        .None => style.prefix + m.name
+
+data Encoder:
+    style: Style
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        if !v.info.of_data:
+            self.out = self.out + self.style.tag + "=" + v.info.name + ";"
+        .Ok()
+
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
+        .Ok()
+
+data KeyLister:
+    style: Style
+    keys: mut List[string]
+
+impl[S] Describer[S] for KeyLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.keys.append(key_for(self.style, h.info))
+        .Ok()
+
+impl[T] Encode for T by Structure:
+    fn encode(self) -> string:
+        let w: mut Encoder = Encoder { style: style_of(T::facts()), out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+impl[T] Keys for T by Structure:
+    fn keys() -> List[string]:
+        let d: mut KeyLister = KeyLister { style: style_of(T::facts()), keys: [] }
+        _ := T::describe(d)
+        d.keys
+
+@derive(Encode, Keys)
+@style(prefix="user_")
+data User:
+    id: i64
+    @rename("mail")
+    email: string
+    nickname: string = ""
+
+@derive(Encode, Keys)
+@style(tag="kind")
+enum Reply:
+    Sent(id: i64)
+    Raw(string)
+    Busy
+
+data Cache: pass
+
+data Order:
+    id: i64
+    total_cents: i64
+    cache: Cache = Cache {}
+
+impl Encode for Order by Structure:
+    Self += [style(prefix="order_")]
+    total_cents = [rename("total")]
+    cache = pass
+
+test "walk passes each member in declaration order with its facts":
+    user := User { id: 7, email: "ada@x" }
+    assert_equal(user.encode(), "user_id=7;mail='ada@x';user_nickname='';", reason="type-level and member facts")
+
+test "an enum walk enters only the value's variant":
+    assert_equal(Reply.Raw("hi").encode(), "kind=Raw;_0='hi';", reason="an unnamed payload member is _0")
+    assert_equal(Reply.Busy.encode(), "kind=Busy;", reason="a payload-free variant has no members")
+
+test "member lines are local to their block":
+    order := Order { id: 1, total_cents: 1250 }
+    assert_equal(order.encode(), "order_id=1;total=1250;", reason="Self += and a replaced fact; cache omitted")
+
+test "describe visits every variant in order":
+    assert_equal(User::keys(), ["user_id", "mail", "user_nickname"], reason="one data variant")
+    assert_equal(Reply::keys(), ["id", "_0"], reason="every variant's members")

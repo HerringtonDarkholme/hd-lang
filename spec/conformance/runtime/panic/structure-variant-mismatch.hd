@@ -1,0 +1,38 @@
+# test: get on a payload handle of another variant panics
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Same:
+    fn same(self, other: Self) -> bool
+
+impl Same for i64:
+    fn same(self, other: i64) -> bool:
+        self == other
+
+data SameWalker[S]:
+    other: S
+    equal: bool
+
+impl[S] Walker[S] for SameWalker[S]:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Same](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        other := h.get(self.other)  # panic: structure-variant-mismatch
+        self.equal = self.equal && value.same(other)
+        .Ok()
+
+impl[T] Same for T by Structure:
+    fn same(self, other: T) -> bool:
+        let w: mut SameWalker[T] = SameWalker { other: other, equal: true }
+        _ := Structure::walk(self, w)
+        w.equal
+
+@derive(Same)
+enum Shape:
+    Circle(radius: i64)
+    Square(side: i64)
+
+test "a walker that skips the holds check panics on another variant":
+    _ := Shape.Circle(1).same(Shape.Square(2))

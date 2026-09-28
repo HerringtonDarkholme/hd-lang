@@ -1,0 +1,121 @@
+# test: templates over Structure derive traits for data and enum types, configured by facts and member lines
+
+use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
+
+# Library: facts, two traits, their templates, a walker, and a describer.
+
+data Style:
+    prefix: string = ""
+    tag: string = "type"
+
+fn style(prefix: string = "", tag: string = "type") -> Style:
+    Style { prefix: prefix, tag: tag }
+
+data Rename:
+    name: string
+
+fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+impl[T] FieldMetadata[T] for Rename
+
+trait Encode:
+    fn encode(self) -> string
+
+trait Keys:
+    fn keys() -> List[string]
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+impl Encode for string:
+    fn encode(self) -> string:
+        "'$self'"
+
+fn style_of(facts: Facts) -> Style:
+    match facts.find[Style]():
+        .Some(found) => found
+        .None => Style {}
+
+fn key_for(style: Style, m: Member) -> string:
+    match m.facts.find[Rename]():
+        .Some(r) => r.name
+        .None => style.prefix + m.name
+
+data Encoder:
+    style: Style
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        if !v.info.of_data:
+            self.out = self.out + self.style.tag + "=" + v.info.name + ";"
+        .Ok()
+
+    fn member[F < Encode](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + key_for(self.style, h.info) + "=" + value.encode() + ";"
+        .Ok()
+
+data KeyLister:
+    style: Style
+    keys: mut List[string]
+
+impl[S] Describer[S] for KeyLister:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.keys.append(key_for(self.style, h.info))
+        .Ok()
+
+impl[T] Encode for T by Structure:
+    fn encode(self) -> string:
+        let w: mut Encoder = Encoder { style: style_of(T::facts()), out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+impl[T] Keys for T by Structure:
+    fn keys() -> List[string]:
+        let d: mut KeyLister = KeyLister { style: style_of(T::facts()), keys: [] }
+        _ := T::describe(d)
+        d.keys
+
+# Application: tier-1 opt-ins with facts, and a tier-2 derivation block.
+
+@derive(Encode, Keys)
+@style(prefix="user_")
+data User:
+    id: i64
+    @rename("mail")
+    email: string
+    nickname: string = ""
+
+@derive(Encode, Keys)
+@style(tag="kind")
+enum Reply:
+    Sent(id: i64)
+    Moved(to: string, @rename("why") reason: string)
+    Raw(string)
+    Busy
+
+data Cache: pass
+
+data Order:
+    id: i64
+    total_cents: i64
+    cache: Cache = Cache {}
+
+impl Encode for Order by Structure:
+    Self += [style(prefix="order_")]
+    total_cents = [rename("total")]
+    cache = pass
+
+fn show_all(user: User, reply: Reply, order: Order) -> List[string]:
+    [user.encode(), reply.encode(), order.encode()]
+
+user_keys := User::keys()

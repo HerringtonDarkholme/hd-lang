@@ -1,0 +1,16 @@
+# test: derivation blocks accept member lines with =, +=, and pass
+impl Encode for Order by Structure:
+    Self += [style(prefix="order_")]
+    Self = [style()]
+    total_cents = [rename("total")]
+    id += [rename("order_id")]
+    cache = pass
+
+impl[T] Encode for T by Structure:
+    fn encode(self) -> string:
+        _ := Structure::walk(self, Encoder {})
+        ""
+
+enum Reply:
+    Sent(id: i64)
+    Moved(to: string, @rename("why") reason: string)

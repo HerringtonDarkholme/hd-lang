@@ -456,3 +456,30 @@ style lint rejects a chapter that reuses one.
   decision 19 lets a call argument infer its type arguments. Replaced by
   `data.enum.fn-value.generic-rule` and
   `data.enum.fn-value.generic-argument`.
+- `lex.op.tokens`: retired 2026-09-27. Typed derivation (M3) adds the
+  `+=` token for member lines. Replaced by `lex.op.token-list` and
+  `lex.op.plus-equals`.
+- `grammar.impl.delegation`: retired 2026-09-27. Typed derivation (M8)
+  makes `by Structure` a derivation, not a delegation. Replaced by
+  `grammar.impl.delegation-field` and `grammar.impl.by-structure`.
+- `grammar.fn.decorator`: retired 2026-09-27. Typed derivation (M20 R3-9)
+  and Error Conversion decision 12 let payload parameters carry decorators.
+  Replaced by `grammar.fn.decorator-targets` and
+  `grammar.enum.payload-decorator`.
+- `trait.impl.generics.no-change`: retired 2026-09-27. Typed derivation
+  (M9) lets walkers, describers, and sources strengthen their member bound.
+  Replaced by `trait.impl.generics.fixed-bounds`.
+- `trait.sealed.use`: retired 2026-09-27. Typed derivation (M8) lets only a
+  template name `Structure`. Replaced by `trait.sealed.use-positions`.
+- `trait.by.valid`: retired 2026-09-27. Typed derivation (M8) makes
+  `by Structure` a derivation. Replaced by `trait.by.valid-part` and
+  `trait.by.structure`.
+- `flow.panic.categories`: retired 2026-09-27. Typed derivation (M14) adds
+  the `structure-variant-mismatch` category. Replaced by
+  `flow.panic.category-list`.
+- `trait.own.annotate.root`: retired 2026-09-27. The owner dropped the
+  root-application orphan exception. Replaced by
+  `trait.own.annotate.no-orphan`.
+- `trait.own.annotate.not-impl`: retired 2026-09-27. With no orphan
+  exception, it has nothing to restrict. Replaced by
+  `trait.own.annotate.no-orphan`.

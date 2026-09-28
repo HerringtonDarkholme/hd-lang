@@ -50,6 +50,7 @@ const multiOperators = [
   "**",
   "&&",
   "||",
+  "+=",
 ];
 const simpleEscapes = new Set(`\\"'nrt0$`);
 

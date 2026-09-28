@@ -1,0 +1,6 @@
+# test: Error has no template and is not intrinsic, so @derive(Error) is rejected
+use std.error.Error
+
+@derive(Error)  # diagnostic: underivable-trait
+enum LoadError:
+    Missing

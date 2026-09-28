@@ -267,7 +267,7 @@ receiver_parameter = "self" | "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
-2. r[grammar.fn.decorator] Parameter decorators are valid only on value parameters of module-level named functions.
+2. r[grammar.fn.decorator-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions. Variant payload parameters also accept them, as [Enums](#enums) states.
 3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
 4. r[grammar.fn.vararg] A vararg parameter ends in `...`; it must be the final positional parameter.
 5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
@@ -333,7 +333,7 @@ enum_parameter_list = enum_parameter, { ",", enum_parameter }, [ "," ] ;
 enum_parameter = [ identifier, ":" ], type, [ "=", expression ] ;
 variant_parameter_clause = "(", [ data_parameter_list ], ")" ;
 data_parameter_list = data_parameter, { ",", data_parameter }, [ "," ] ;
-data_parameter = [ identifier, ":" ], type ;
+data_parameter = { parameter_decorator }, [ identifier, ":" ], type ;
 
 variant_result = named_type, [ argument_clause ] ;
 ```
@@ -342,6 +342,7 @@ variant_result = named_type, [ argument_clause ] ;
 2. r[grammar.enum.variant-result.refine] The optional variant result may refine the enclosing enum type as specified by the GADT rules.
 3. r[grammar.enum.defaults] Only shared enum constructor parameters may declare defaults.
 4. r[grammar.enum.defaults.rules] Their ordering and requirement-free constraints follow function-parameter defaults.
+5. r[grammar.enum.payload-decorator] A variant payload parameter may carry parameter decorators, as in `Moved(to: string, @rename("why") reason: string)`. They attach [facts](14-annotations.md#facts) to that payload member.
 
 ### Traits And Implementations
 
@@ -368,7 +369,10 @@ impl_decl = "impl", [ generic_params ], type,
               impl_member, { impl_member }, DEDENT )
             ;
 
-impl_member = associated_type_decl | method_decl ;
+impl_member = associated_type_decl | method_decl | derivation_line ;
+
+derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
+                  NEWLINE ;
 
 method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
               parameter_clause, [ "->", result_type ],
@@ -379,7 +383,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 
 1. r[grammar.impl.inherent] `impl T:` is an inherent implementation.
 2. r[grammar.impl.trait] `impl Trait for T:` is a trait implementation.
-3. r[grammar.impl.delegation] `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
+3. r[grammar.impl.delegation-field] Except when `E` is `Structure`, `impl Trait for T by E` delegates the trait to the embedded field `E` of `T` and may omit its body.
 4. r[grammar.trait.marker] A trait declaration without a body is a marker trait.
 5. r[grammar.impl.bodyless] A trait implementation may omit its body when the trait is a marker or when every trait method has a default.
 6. r[grammar.impl.promoted] A method promoted from an embedded field never fills a trait method.
@@ -390,6 +394,9 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 11. r[grammar.trait.method-kind] A function member whose first parameter is `self` or `mut self` is a method; a receiverless member is an associated function.
 12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
+14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
+15. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
+16. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
 
 ```text
 pub trait Display:
@@ -1303,6 +1310,9 @@ facet_override = metadata_assignment | function_decl ;
 8. r[grammar.annot.coherence] Coherence and overlap are checked as if the generic annotation were the lowered generic `impl Annotate[Facet] for Target`.
 9. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
 10. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
+11. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
+
+See also: [Typed Derivation](14-annotations.md#typed-derivation).
 
 ## Pack Expansion
 

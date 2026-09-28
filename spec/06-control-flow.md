@@ -550,7 +550,7 @@ This section defines runtime panics.
 
 ### Panic Categories
 
-1. r[flow.panic.categories] Stable panic categories are exactly `annotation-reference-unresolved`, `annotation-resolution-reentry`, `assertion-failed`, `explicit-panic`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `suspension-competing-driver`, `suspension-nested-driver`, `suspension-reentrant-poll`, `suspension-invalid-state`, and `stack-exhausted`.
+1. r[flow.panic.category-list] Stable panic categories are exactly `annotation-reference-unresolved`, `annotation-resolution-reentry`, `assertion-failed`, `explicit-panic`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-nested-driver`, `suspension-reentrant-poll`, `suspension-invalid-state`, and `stack-exhausted`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
 

@@ -1,0 +1,60 @@
+# test: blocks for traits of one package with different member lines get a warning
+use std.structure.{Structure, Field, Variant, Walker, Describer}
+
+trait Show:
+    fn show(self) -> string
+
+trait Count:
+    fn count() -> i32
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok()
+
+data Counter:
+    total: i32
+
+impl[S] Describer[S] for Counter:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F]) -> Result[void, never]:
+        self.total = self.total + 1
+        .Ok()
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+impl[T] Count for T by Structure:
+    fn count() -> i32:
+        let d: mut Counter = Counter { total: 0 }
+        _ := T::describe(d)
+        d.total
+
+data Session:
+    id: i64
+    cache: i64 = 0
+
+impl Show for Session by Structure:
+    cache = pass
+
+impl Count for Session by Structure:  # warning: derivation-line-drift
+    id = []

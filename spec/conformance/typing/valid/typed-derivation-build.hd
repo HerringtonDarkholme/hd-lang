@@ -1,0 +1,53 @@
+# test: generated build fills members through a source; get on a mut value returns the declared type
+
+use std.structure.{Structure, Field, Variant, Members, Key, Source}
+
+trait Duplicate:
+    fn duplicate_mut(mut self) -> mut Self
+
+data CopySource[S]:
+    old: mut S
+
+impl[S] Source[S] for CopySource[S]:
+    type Error = never
+
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        for v in choices:
+            if v.holds(self.old):
+                return .Ok(v)
+        panic("no variant holds the value")
+
+    fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
+        .Ok(members.end())
+
+    fn member[F](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(h.get(self.old))
+
+    fn missing[F](mut self, h: Field[S, F]) -> Result[F, never]:
+        .Ok(h.get(self.old))
+
+impl[T] Duplicate for T by Structure:
+    fn duplicate_mut(mut self) -> mut Self:
+        let s: mut CopySource[T] = CopySource { old: self }
+        match T::build(s):
+            .Ok(value) => value
+            .Err(_) => panic("a copy source never fails")
+
+data Counter:
+    count: i64
+
+@derive(Duplicate)
+data Stats:
+    hits: mut Counter
+    label: string
+
+@derive(Duplicate)
+enum Slot:
+    Empty
+    Held(item: mut Counter)
+
+fn copy_stats(stats: mut Stats) -> mut Stats:
+    stats.duplicate_mut()
+
+fn copy_slot(slot: mut Slot) -> mut Slot:
+    slot.duplicate_mut()

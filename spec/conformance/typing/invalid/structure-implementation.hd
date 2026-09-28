@@ -1,0 +1,7 @@
+# test: Structure is sealed; user code cannot implement it
+use std.structure.Structure
+
+data Point:
+    x: i64
+
+impl Structure for Point  # diagnostic: sealed-trait-implementation

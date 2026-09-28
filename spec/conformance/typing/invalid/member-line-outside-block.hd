@@ -1,0 +1,11 @@
+# test: a member line is valid only in a derivation block
+trait Describe:
+    fn describe(self) -> string
+
+data Point:
+    x: i64
+
+impl Describe for Point:
+    x = pass  # diagnostic: misplaced-derivation
+    fn describe(self) -> string:
+        "point"
