@@ -45,7 +45,7 @@ typing/invalid/duplicate-direct-annotation-impl.hd	MVP reports expected-expressi
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
 typing/invalid/library-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
-typing/valid/root-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
+typing/invalid/root-orphan-annotation.hd	check exits 2 with usage text: the MVP CLI has no --package-role or --dependency option; it also reports expected-expression for 'annotate'	F-250
 typing/invalid/annotation-direct-reentry.hd	MVP reports expected-expression at line 12 instead of annotation-resolution-reentry: expected an expression, found 'annotate'	F-250
 typing/valid/annotation-reference.hd	check fails: expected-expression at line 12: expected an expression, found 'annotate'	F-250
 typing/invalid/derived-generic-bound.hd	MVP reports decorator-not-top-level at line 1 instead of missing-derived-bound: decorators are only valid on top-level declarations	F-250
@@ -101,3 +101,24 @@ typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-paramet
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 runtime/valid/test-block-propagation.hd	check fails: invalid-result-propagation at lines 25 and 29: a test block is not yet a propagation target, and the std message error for Display errors is unimplemented	EC-14
 typing/valid/entry-exit-status.hd	check fails: entry-error-not-display at line 22: main may return only Result[void, ConsoleError], so Error chains and ExitStatus exit codes are unimplemented	EC-17
+typing/valid/typed-derivation.hd	check fails: decorator-not-top-level at line 90: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/valid/typed-derivation-build.hd	check fails: decorator-not-top-level at line 39: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+runtime/valid/typed-derivation-walk.hd	test fails: decorator-not-top-level at line 87: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/invalid/derive-error-trait.hd	MVP reports decorator-not-top-level at line 4 instead of underivable-trait: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/invalid/derive-and-block-overlap.hd	MVP reports decorator-not-top-level at line 30 instead of overlapping-impl: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/invalid/structure-implementation.hd	MVP reports unknown-type at line 5 instead of sealed-trait-implementation: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
+typing/invalid/structure-outside-template.hd	MVP reports unknown-trait at line 4 instead of structure-outside-template: unknown trait 'Structure'; the prototype has no typed derivation	TD
+typing/invalid/marker-template.hd	MVP reports bare-parameter-impl-target at line 6 instead of marker-template: implementation target 'T' is a bare type parameter; a target must start with a type constructor; the prototype has no typed derivation	TD
+typing/invalid/duplicate-fact.hd	MVP reports doc-comment-without-target at line 43 instead of duplicate-fact: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/member-line-payload-member.hd	MVP reports doc-comment-without-target at line 43 instead of unknown-annotation-member: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/invalid-member-line.hd	MVP reports doc-comment-without-target at line 35 instead of invalid-member-line: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/member-line-outside-block.hd	MVP reports doc-comment-without-target at line 9 instead of misplaced-derivation: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/omitted-member-without-default.hd	MVP reports doc-comment-without-target at line 38 instead of omitted-member-without-default: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/derive-member-not-derivable.hd	MVP reports decorator-not-top-level at line 30 instead of member-not-derivable: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/invalid/generic-member-call.hd	MVP reports unknown-trait at line 4 instead of generic-member-call: unknown trait 'Walker'; the prototype has no typed derivation	TD
+typing/invalid/newtype-derivation-self.hd	MVP reports decorator-not-top-level at line 30 instead of newtype-derivation-self: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/invalid/gadt-derivation.hd	MVP reports decorator-not-top-level at line 30 instead of gadt-derivation: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+typing/warnings/derivation-line-drift.hd	MVP reports doc-comment-without-target at line 57 instead of derivation-line-drift: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/warnings/unused-derivation-fact.hd	MVP reports decorator-not-top-level at line 36 instead of unused-derivation-fact: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+runtime/panic/structure-variant-mismatch.hd	MVP reports decorator-not-top-level at line 32 instead of structure-variant-mismatch: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
+parse/valid/derivation-member-lines.hd	parse fails: doc-comment-without-target at line 3: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
