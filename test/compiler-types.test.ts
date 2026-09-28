@@ -509,6 +509,18 @@ test("Console is a prelude trait, but only the host console runs (MHP-1)", () =>
   assert.throws(() => compile(source), /program-defined Console provider/);
 });
 
+test("Debug is checked, and debug text is not rendered (T33)", () => {
+  const source = "@derive(Debug)\ndata P:\n    x: i32\n\nfn show(p: P) -> string: debug(p)\n";
+  assert.deepEqual(analyze(source).diagnostics, []);
+  assert.throws(() => compile(source), /does not render debug text/);
+  assert.deepEqual(
+    analyze("data Q:\n    x: i32\n\nfn show(q: Q) -> string: debug(q)\n").diagnostics.map(
+      (item) => item.code,
+    ),
+    ["unsatisfied-trait-bound"],
+  );
+});
+
 test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {
   const add = "fn add(a: u8, b: u8) -> u8: a + b\n\nfn main() -> u8: add(200, 55)\n";
   const { instance } = await instantiate(add);

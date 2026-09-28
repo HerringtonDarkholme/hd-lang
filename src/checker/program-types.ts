@@ -1,5 +1,5 @@
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
-import { INSPECTABLE_MEMBERS } from "./standard-traits.ts";
+import { debugWriterName, INSPECTABLE_MEMBERS } from "./standard-traits.ts";
 import type { HirData, HirTrait } from "../hir.ts";
 import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES } from "./context.ts";
@@ -223,7 +223,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
   // `write_line!` takes `mut self`, so it is a mutable requirement trait.
   traitTypes.set("Console", {
     name: "Console",
-    index: program.traits.length + 8,
+    index: program.traits.length + 9,
     genericParameters: [],
     supertraits: [],
     associatedTypes: [],
@@ -239,6 +239,31 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
         parameterNames: ["text"],
         variadic: false,
         result: "Result[void,ConsoleError]",
+        requirements: [],
+        span: program.span,
+      },
+    ],
+    span: program.span,
+  });
+  // `std.format.Debug` (09-traits.md#debug-trait), a prelude trait.
+  traitTypes.set("Debug", {
+    name: "Debug",
+    index: program.traits.length + 8,
+    genericParameters: [],
+    supertraits: [],
+    associatedTypes: [],
+    methods: [
+      {
+        name: "debug",
+        index: 0,
+        associated: false,
+        genericParameters: [],
+        suspending: false,
+        receiverMutable: false,
+        parameters: [`mut:${debugWriterName(program.uses)}`],
+        parameterNames: ["out"],
+        variadic: false,
+        result: "void",
         requirements: [],
         span: program.span,
       },

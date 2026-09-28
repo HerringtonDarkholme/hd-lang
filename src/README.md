@@ -283,7 +283,7 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
   `$.use(Console)` is `mut Console` and a program may implement it; the
   emitter runs only the host console, an opaque `externref`
-  (`emitter/host-console.ts`), and reports a program-defined provider or a
+  (`emitter/run-time-gaps.ts`), and reports a program-defined provider or a
   direct `write_line!` call as `unsupported-console-provider` or
   `unsupported-console-call`;
 - suspending host capability methods with scalar and UTF-8 string arguments
@@ -504,8 +504,11 @@ else`, `break`, `break value`, and `continue`;
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
   and plain `Self`; `@derive(Eq)` is generated, `PartialOrd`, `Ord`, and
-  `Hash` are accepted but not generated, and `Debug` is a no-op because
-  every type counts as `Debug`; the drift and unused-fact warnings treat
+  `Hash` are accepted but not generated, and `@derive(Debug)` generates an
+  implementation whose `debug` writes nothing (`Debug` is a prelude trait,
+  `std` supplies it for primitives and built-in composites, `assert_equal`
+  and `debug` require it, `DebugWriter` has no members, and a `debug` call
+  is `unsupported-debug-render` at run time); the drift and unused-fact warnings treat
   the module as one package; function targets stay `decorator-not-annotator`;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and

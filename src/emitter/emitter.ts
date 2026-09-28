@@ -43,7 +43,7 @@ import {
 
 import { FunctionBodyEmitter } from "./function-body.ts";
 import { emitHostProviders } from "./host-providers.ts";
-import { lowerHostConsole } from "./host-console.ts";
+import { lowerRunTimeGaps } from "./run-time-gaps.ts";
 import {
   emitStoredSuspensionAdapters,
   STORED_SUSPENSION_RUNTIME,
@@ -1182,7 +1182,7 @@ import {
 } from "./runtime/index.ts";
 
 export function emitWat(source: HirProgram): string {
-  const program = lowerHostConsole(source);
+  const program = lowerRunTimeGaps(source);
   const { signatureNames, contextNames } = collectModuleTypes(program);
   const traitsByName = new Map(program.traits.map((trait) => [trait.name, trait]));
   const suspensionPlans = new Map(

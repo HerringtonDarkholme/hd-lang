@@ -987,6 +987,13 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       if (!strategy) {
         this.fail("missing-partial-eq", `type '${actual.type}' does not implement Eq`, actual.span);
       }
+      // spec/10-modules.md#r-module.testing.assert-equal-debug
+      if (!this.implementsDebug(actual.type))
+        this.fail(
+          "unsatisfied-trait-bound",
+          `type '${actual.type}' does not implement Debug, required by assert_equal`,
+          actual.span,
+        );
       const checkedByParameter = [
         actual,
         this.requireCoercion(
@@ -1104,6 +1111,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       this.requireAssignable(message.type, "string", message.span);
       return { kind: "panic", message, type: "never", span: expression.span };
     }
+    if (expression.callee.name === "debug") return this.checkDebugCall(expression);
     if (expression.callee.name === "println") {
       if (expression.typeArguments)
         this.fail("unexpected-type-arguments", "println infers its Display type", expression.span);

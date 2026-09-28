@@ -18,6 +18,7 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
+import { debugWriterName } from "./standard-traits.ts";
 
 // Typed derivation (spec/14-annotations.md#typed-derivation), lowered before
 // checking. The prototype compiles one module, so this pass rewrites every
@@ -653,8 +654,9 @@ export function withTypedDerivation(program: Program): DerivationResult {
     if (result) implementations.push(result);
   }
   for (const item of intrinsic) {
-    if (item.trait !== "Eq") continue;
-    implementations.push(deriveEq(item.target, item.span));
+    if (item.trait === "Eq") implementations.push(deriveEq(item.target, item.span));
+    if (item.trait === "Debug")
+      implementations.push(deriveDebug(item.target, debugWriterName(program.uses), item.span));
   }
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans };
@@ -1438,20 +1440,30 @@ function forwardNewtype(
 }
 
 // ---------------------------------------------------------------------------
-// The intrinsic `@derive(Eq)` (spec/09-traits.md#comparison-traits).
+// The intrinsic `@derive(Eq)` (spec/09-traits.md#comparison-traits) and
+// `@derive(Debug)` (#debug-trait). The spec leaves `DebugWriter`'s builder
+// calls to the standard library, so a derived `debug` writes nothing.
+
+/** Starts `impl[T < Trait] Trait for Target:` and returns the target's placeholder. */
+function derivedImpl(target: Target, trait: string, out: Source_): string {
+  const { name, genericParameters: parameters } = target.declaration;
+  const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
+  const bounds = parameters.map((parameter) => `${parameter} < ${trait}`).join(", ");
+  out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${trait} for ${T}:`);
+  return T;
+}
+
+function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl {
+  const out = new Source_();
+  derivedImpl(target, "Debug", out);
+  out.add(`    fn debug(self, out: mut ${writer}) -> void: pass`);
+  return out.program(span).implementations[0]!;
+}
 
 function deriveEq(target: Target, span: SourceSpan): ImplDecl {
   const declaration = target.declaration;
-  const parameters = declaration.genericParameters;
-  const targetType =
-    parameters.length > 0 ? `${declaration.name}[${parameters.join(",")}]` : declaration.name;
   const out = new Source_();
-  const T = out.type(targetType);
-  const generics =
-    parameters.length > 0
-      ? `[${parameters.map((parameter) => `${parameter} < Eq`).join(", ")}]`
-      : "";
-  out.add(`impl${generics} Eq for ${T}:`);
+  const T = derivedImpl(target, "Eq", out);
   out.add(`    fn eq(self, other: ${T}) -> bool:`);
   if (target.kind === "data") {
     const fields = target.declaration.fields;

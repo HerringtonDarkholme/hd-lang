@@ -4,7 +4,6 @@ F-253	10	Sized numeric types other than i64 and u8 (i8, i16, u16-u64, f32) are u
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
-T33	4	`std.format.Debug` is not implemented: `@derive(Debug)` is accepted and every type counts as `Debug`, but there is no `debug` function or `DebugWriter` (Testing T33, T39, T48)
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks
 F-255	2	Prelude names `Hash` and `Hasher` are unknown
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`

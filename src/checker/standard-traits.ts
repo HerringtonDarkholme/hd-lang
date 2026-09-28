@@ -76,6 +76,20 @@ impl[T < ${termination}, E < Display] ${termination} for Result[T, E]:
 `;
 }
 
+// `std.format.DebugWriter` (spec/09-traits.md#debug-trait): the spec leaves
+// its builder calls to the standard library, so the prototype declares it
+// with no members, under its imported name or a hidden one.
+export const HIDDEN_DEBUG_WRITER = "__std_format_DebugWriter";
+
+/** The local name of `std.format.DebugWriter`, or its hidden name. */
+export function debugWriterName(uses: Program["uses"]): string {
+  for (const declaration of uses)
+    for (const imported of declaration.names)
+      if (declaration.module === "std.format" && imported.name === "DebugWriter")
+        return imported.alias ?? imported.name;
+  return HIDDEN_DEBUG_WRITER;
+}
+
 // Runtime type identity (spec/09-traits.md#runtime-type-identity). Importing
 // any `std.inspect` name, or `std.error.Error`, declares the sealed trait and
 // `TypeId` under their standard names; aliases are not supported. `TypeId` is
@@ -187,6 +201,9 @@ export function withStandardTraits(program: Program): Program {
       implementations.push(...respan(parsed.implementations, process));
     }
   }
+  // Every program declares `DebugWriter`, which the prelude `Debug` names.
+  const writer = debugWriterName(program.uses);
+  data.push(...respan(parse(`pub data ${writer}: pass\n`).program!.data, program.span));
   if (traits.length === 0 && data.length === 0) return program;
   return {
     ...program,

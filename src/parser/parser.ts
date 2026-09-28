@@ -354,9 +354,7 @@ class Parser extends DecoratorParser {
           );
         if (this.matchText("<")) {
           const bindings: AssociatedTypeBinding[] = [];
-          // The prototype treats every type as implementing the prelude trait
-          // `Debug` (spec/09-traits.md#debug-trait), so it drops that bound.
-          const traits = this.parseTraitBoundNames(bindings).filter((name) => name !== "Debug");
+          const traits = this.parseTraitBoundNames(bindings);
           if (traits.length > 0 || bindings.length > 0)
             bounds.push({
               parameter: parameter.text,

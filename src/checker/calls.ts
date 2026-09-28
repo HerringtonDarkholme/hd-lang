@@ -8,6 +8,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
+import { implementsDebug } from "./debug.ts";
 import {
   contextKeys,
   mutableInner,
@@ -63,6 +64,26 @@ interface CheckedProviderEntries {
 }
 
 export abstract class CallChecker extends StatementChecker {
+  protected implementsDebug(type: ValueType): boolean {
+    const bounds = this.signature.genericBounds;
+    return implementsDebug(type, this.traitTypes, this.implementations, bounds);
+  }
+
+  /** The prelude `debug[T < Debug](value: T) -> string` (10-modules.md#prelude). */
+  protected checkDebugCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
+    if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))
+      this.fail("argument-count", "debug expects one value argument", expression.span);
+    this.resolveArgumentMapping(expression, ["value"], "debug");
+    const operand = this.checkExpression(expression.arguments[0]!);
+    if (!this.implementsDebug(operand.type))
+      this.fail(
+        "unsatisfied-trait-bound",
+        `type '${operand.type}' does not implement Debug, required by debug`,
+        operand.span,
+      );
+    return { kind: "debug-render", operand, type: "string", span: expression.span };
+  }
+
   protected resolveProvider(key: string, span: SourceSpan): HirExpression | undefined {
     for (let index = this.providerScopes.length - 1; index >= 0; index -= 1) {
       const local = this.providerScopes[index]!.get(key);

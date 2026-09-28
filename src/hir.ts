@@ -171,6 +171,12 @@ export type HirBuiltinTraitImplementation =
       readonly path: readonly { readonly traitIndex: number; readonly fieldIndex: number }[];
     }
   | {
+      // `std`'s `Debug` on a primitive or composite; its `debug` writes nothing.
+      readonly kind: "debug";
+      readonly traitIndex: number;
+      readonly targetType: ValueType;
+    }
+  | {
       // The compiler-supplied `Any`: a dictionary with no methods.
       readonly kind: "marker";
       readonly traitIndex: number;
@@ -516,6 +522,11 @@ export type HirExpression =
       readonly kind: "string-split";
       readonly receiver: HirExpression;
       readonly separator: HirExpression;
+    })
+  | (HirExpressionBase & {
+      // The prelude `debug(value)` (spec/09-traits.md#debug-trait).
+      readonly kind: "debug-render";
+      readonly operand: HirExpression;
     })
   | (HirExpressionBase & {
       readonly kind: "console-print";

@@ -446,6 +446,26 @@ T52 and applied the same day.
    `tests` use root inside `tests/` (T46) have no fixtures. `test-only-use`
    has one, for `use tests.common` in an ordinary module, since every
    fixture is one.
+2. **The `DebugWriter` builder calls (prototype pass, 2026-09-28).** T33
+   gives `debug(self, out: mut DebugWriter)`, and the spec leaves the
+   builder calls and the `debug` layout to the standard library. Without
+   them a hand-written `Debug` cannot write anything, and the prototype
+   renders no `debug` text. Options: Rust's `Formatter` builders
+   (`debug_struct`, `debug_tuple`, `debug_list`, `debug_map`), or one
+   `field(name, value)` call plus `item(value)`. **Recommendation:** the
+   Rust builders, a proven model that the derived `Debug` maps onto one
+   builder per declaration kind.
+
+```text
+use std.format.DebugWriter
+
+data Point:
+    x: i32
+
+impl Debug for Point:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.field("x", self.x)  # a hypothetical builder call
+```
 
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
 found on 21 cases against T1-T13; T14-T27 answer its questions.

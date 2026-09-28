@@ -34,6 +34,7 @@ import {
 } from "./assignability.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
+import { builtinDebug, implementsDebug } from "./debug.ts";
 import { varianceConversion } from "./variance.ts";
 import {
   genericTypeName,
@@ -995,6 +996,11 @@ export abstract class CheckerContext {
         bounds,
       );
     }
+    if (traitName === "Debug")
+      return builtinDebug(type) &&
+        implementsDebug(type, this.traitTypes, this.implementations, this.signature.genericBounds)
+        ? plan({ kind: "debug", traitIndex, targetType: type })
+        : undefined;
     if (traitName === "Display") {
       return ["i32", "i64", "u8", "f64", "bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })
