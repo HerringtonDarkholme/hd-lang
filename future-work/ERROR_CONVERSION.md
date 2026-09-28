@@ -164,7 +164,13 @@ Decided 2026-09-26:
 12. **Annotations on enum payload parameters** (2026-09-27, review F1):
     the grammar accepts annotations before a payload parameter,
     `Parse(path: string, @source error: SyntaxError)`, as it already does
-    on data field lines. Not yet applied to 02 or 08.
+    on data field lines. Applied 2026-09-27 with typed derivation: the
+    grammar in 02
+    ([`grammar.enum.payload-decorator`](../spec/02-grammar.md#r-grammar.enum.payload-decorator))
+    and payload facts in 14
+    ([`annot.fact.payload`](../spec/14-annotations.md#r-annot.fact.payload));
+    08 needed no change. What `@from` and `@source` mean there comes with
+    `@error` (decision 10), which is not yet applied.
 13. **A failing entry point prints the error chain** (2026-09-27, review
     R2) when its error type implements `Error`; otherwise it prints
     `Display.to_string` as today. Applied 2026-09-27 (see below).
@@ -286,9 +292,8 @@ The prototype implements decision 19 and declares `ExitStatus`; test-block
 
 The whole error design as decided on 2026-09-27, in one place. When a
 decision changes it, update this section in the same change. The example
-parses with the [reference parser](../spec/reference-parser/index.ts)
-except the lines marked hypothetical, which need decision 12's grammar
-extension (annotations on enum payload parameters).
+parses with the [reference parser](../spec/reference-parser/index.ts),
+including the annotations on enum payload parameters (decision 12).
 
 ```text
 use std.error.Error
@@ -303,22 +308,22 @@ pub enum FsError:
 @error
 pub enum RuleCoreError:
     @error("Fail to parse yaml as RuleConfig")
-    Yaml(@from error: YamlError)                        # hypothetical syntax: decision 12
+    Yaml(@from error: YamlError)
     @error("`utils` is not configured correctly.")
-    Utils(@source error: RuleSerializeError)            # hypothetical syntax: decision 12
+    Utils(@source error: RuleSerializeError)
     @error("`rule` is not configured correctly.")
-    Rule(@from error: RuleSerializeError)               # hypothetical syntax: decision 12
+    Rule(@from error: RuleSerializeError)
     @error("Undefined meta var `$var` used in `$context`.")
     UndefinedMetaVar(var: string, context: string)
 
 @error
 pub enum LoadError:
     @error("$path:$line: invalid rule")
-    Parse(path: string, line: i64, @source error: SyntaxError)   # hypothetical syntax: decision 12
+    Parse(path: string, line: i64, @source error: SyntaxError)
     @error("cannot read $path")
-    Read(path: string, @source error: FsError?)                  # hypothetical syntax: decision 12
+    Read(path: string, @source error: FsError?)
     @error(transparent)
-    Rules(@from error: RuleCoreError)                            # hypothetical syntax: decision 12
+    Rules(@from error: RuleCoreError)
 
 @error(transparent)
 pub data PublicError:
@@ -400,8 +405,8 @@ fn run(path: string) -> Result[void, Error]:
 
 Not decided, and deliberately not specified:
 
-- **`@error`** (decision 10) and decision 12 (payload-parameter
-  annotations) are decided but not yet in the specification (02, 08, 09).
+- **`@error`** (decision 10) is decided but not yet in the specification.
+  Decision 12's payload-parameter grammar is applied (02 and 14).
 - **The std message error** of decision 16 has no name yet; it is
   library API for [STDLIB](STDLIB.md#stderror).
 - **Open follow-ups** from decision 17 (out-of-range or zero exit statuses,

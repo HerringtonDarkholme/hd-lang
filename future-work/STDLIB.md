@@ -681,6 +681,18 @@ explicitly chosen keyed hasher for hash-flooding defense
 ([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); padding, radix, and precision formatting in `std.format`. None is
 blocked; none needs a question.
 
+### `Clone`
+
+`Clone` is a standard-library trait
+([Typed Derivation M22 and M23](TYPED_DERIVATION.md#owner-decisions)). It
+has two methods: `clone(self)` copies from a readonly value through the
+readonly views, and `clone_mut(mut self) -> mut Self` reads the declared
+member types, so a derived `clone_mut` clones `mut` members as `mut`. It is
+derived through its `by Structure` template with a source that reads the old
+value, as the specification's
+[`CopySource`](../spec/14-annotations.md#handles) example shows. Its module
+is not yet chosen.
+
 ### `std.path`
 
 `Path` is a pure, platform-neutral value (WASI paths are relative to a

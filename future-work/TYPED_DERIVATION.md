@@ -3,7 +3,7 @@
 Status: design record for roadmap area 2. Typed derivation is fully
 decided by owner decisions M1-M23 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
-[round 3](DERIVATION_STRESS_TEST_3.md)). M1-M22 are applied to the
+[round 3](DERIVATION_STRESS_TEST_3.md)). M1-M23 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
 with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
 rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)

@@ -21,7 +21,7 @@ language specification:
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
-  Owner decisions M1-M22 fully decide the design, and they are applied in
+  Owner decisions M1-M23 fully decide the design, and they are applied in
   [Typed Derivation](../spec/14-annotations.md#typed-derivation); the
   prototype is pending. The few remaining open points are listed.
 - [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)

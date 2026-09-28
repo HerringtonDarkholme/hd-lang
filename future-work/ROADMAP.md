@@ -72,7 +72,7 @@ Goal: state trait behavior as normative rules rather than prose.
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
     with a survey, candidate designs, and owner questions in
     [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-    (owner decisions M1-M22 applied in
+    (owner decisions M1-M23 applied in
     [Typed Derivation](../spec/14-annotations.md#typed-derivation); error
     derivation is the separate `@error` intrinsic);
   - the propagation rules and dependent-return provenance from

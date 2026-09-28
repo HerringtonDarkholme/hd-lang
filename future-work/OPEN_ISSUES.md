@@ -62,7 +62,7 @@ fn greet!() -> void $ Console:
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Decided.** Owner decisions M1-M22 in
+**Decided.** Owner decisions M1-M23 in
 [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md) are
 applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation).
 The prototype does not implement them yet (the `TD` rows of
@@ -85,6 +85,7 @@ for the owner:
 | Derived bound (round 2 R14) | Whether a derived bound names the trait or the walker's strengthened bound, where they differ. |
 | `default()` allocation (round 2 R15) | Whether `h.default()` may allocate for every member type. |
 | Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
+| Generic `missing` calls (M23) | M23 lets source code call `missing[F]` through a generic source, and M9 lets a source strengthen `missing[F]`'s bound. Which bound such a call checks, and where, is undecided. |
 | Function targets | Deriving for functions ([FN_TYPE](FN_TYPE.md)), and how chapter 14's facets and annotators relate to typed derivation. |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed

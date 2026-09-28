@@ -289,9 +289,12 @@ Library traits derive the same way when their library declares a template,
 `impl[T] Encode for T by Structure:`, over the compiler-generated
 `std.structure.Structure` view of a type's members. Other decorators attach
 facts that the template reads, and a derivation block configures one
-derivation with member lines:
+derivation with member lines. A module that writes `by Structure` imports
+`std.structure.Structure`:
 
 ```text
+use std.structure.Structure
+
 @derive(Encode)
 @style(prefix="user_")
 data User:
@@ -305,6 +308,7 @@ impl Encode for Order by Structure:
 ```
 
 `cache = pass` leaves a member out, and `build` fills it from its default.
+A newtype has no derivation block: it derives only through its base type.
 `Error` is not derived: an error type uses the `@error` intrinsic. See
 [Typed Derivation](../spec/14-annotations.md#typed-derivation).
 
