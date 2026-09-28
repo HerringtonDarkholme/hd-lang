@@ -58,7 +58,6 @@ data i32:  # error: prelude-name-shadow
 2. r[names.scope.constructs] The following constructs introduce a local scope:
 
 - a function or closure body;
-- a module-level `test` body;
 - each indented or same-line suite of `if`, `else if`, and `else`;
 - the body and `else` suite of a `for` or `while` loop;
 - each `match` arm;
@@ -68,8 +67,6 @@ data i32:  # error: prelude-name-shadow
 1. r[names.scope.shadow] A name declared in an inner scope may shadow a name from an outer scope.
 2. r[names.scope.duplicate] Two bindings with the same name in one scope are a compile-time error.
 3. r[names.scope.reassign] Reassignment uses `=` and does not introduce another binding.
-4. r[names.scope.test] Each `test` block has an independent local scope.
-5. r[names.scope.test.isolated] The bindings of a `test` block do not become module execution bindings and are not visible to another test block.
 
 ### Binding Start
 
@@ -127,6 +124,36 @@ let count: i32 = 0
 2. r[names.block-decl.impl] `impl` declarations may occur at module scope or inside an executable block suite; they do not introduce an independently referencable name.
 
 See also: [Function And Closure Scopes](#function-and-closure-scopes).
+
+### Tests Blocks
+
+The items of a `tests:` block are module items that only the block sees:
+
+```text
+use std.testing.assert_equal
+
+fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+tests:
+    fn overdue() -> i32: 31
+
+    it("uses a private function"):
+        assert_equal(late_fee(overdue()), 5, reason="the block sees late_fee")
+
+fn report() -> i32:
+    overdue()  # error: unknown-name
+```
+
+1. r[names.tests.module-items] The items of a [`tests:` block](02-grammar.md#test-blocks) are module items of the file's module.
+2. r[names.tests.sees-module] Code inside the block sees every module name, including private declarations and uses outside the block.
+3. r[names.tests.inside-only] A name that an item of the block declares or uses is visible only inside the block. Naming it outside the block is an error. Error: `unknown-name`.
+4. r[names.tests.unique] Because they are module items, a name declared in the block must not repeat a module name declared outside it. Error: `duplicate-module-name`.
+
+> **Why.** Module items, rather than local declarations, let the block hold
+> implementations and derivation blocks, as Rust's `mod tests` can.
+
+See also: [Test Cases](10-modules.md#test-cases).
 
 ### Module Privacy
 

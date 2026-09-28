@@ -583,6 +583,8 @@ transaction:
 6. r[fn.trailing.one] Only one trailing block is permitted, and only for a zero-argument final parameter.
 7. r[fn.trailing.parameterized] Parameterized callbacks use explicit closure syntax.
 8. r[fn.trailing.return] `return` inside the block returns from the generated callback, not from the enclosing function.
+9. r[fn.trailing.suspending] When the final parameter has a suspending function type, as in `body: fn!() -> T`, the trailing block is a suspending closure. This holds for every callee.
+10. r[fn.trailing.suspending.body] Such a block is a suspending body, so it may make bang calls.
 
 ```text
 transaction:
@@ -590,6 +592,24 @@ transaction:
 :  # error
     save_again()
 ```
+
+A trailing block for an `fn!` parameter may make bang calls:
+
+```text
+fn fetch_count!() -> i32: 3
+
+fn twice!(body: fn!() -> i32) -> i32:
+    body!() + body!()
+
+fn total!() -> i32:
+    count := twice!():
+        fetch_count!()
+    count
+```
+
+> **Why.** The `!` in the callee's parameter type marks the block as
+> suspending, as a Kotlin `suspend` function-type parameter does for its
+> trailing lambda.
 
 ## Generic Functions
 

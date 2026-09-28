@@ -723,3 +723,74 @@ style lint rejects a chapter that reuses one.
   body's final expression its result, so it is no longer discarded.
   Replaced by `flow.must-use.discarded-suite` and
   `flow.must-use.test-result`.
+- `lex.keyword.reserved`: retired 2026-09-27. Testing T17 adds `tests` to
+  the reserved words. Replaced by `lex.keyword.reserved-list` and
+  `lex.keyword.tests`.
+- `lex.contextual.test`: retired 2026-09-27. Testing T3 and T16 removed the
+  `test "name":` item, so `test` is an ordinary identifier. Replaced by
+  `lex.keyword.tests`.
+- `grammar.test.name`: retired 2026-09-27. Testing T3, T16, and T17 replace
+  the `test "name":` item with a `tests:` block and `it(...)` calls.
+  Replaced by `grammar.tests.block` and `module.testing.it.name`.
+- `grammar.test.body`: retired 2026-09-27. Replaced by
+  `module.testing.it.body`.
+- `grammar.test.tooling`: retired 2026-09-27. Replaced by
+  `module.testing.it`.
+- `grammar.test.contextual`: retired 2026-09-27. Replaced by
+  `grammar.tests.keyword`.
+- `grammar.test.not-in-suites`: retired 2026-09-27. Replaced by
+  `grammar.tests.top-level` and `module.testing.it.elsewhere`.
+- `grammar.test.instance`: retired 2026-09-27. Moved to Standard Testing as
+  `module.testing.instance` and `module.testing.driven`.
+- `grammar.test.no-reuse`: retired 2026-09-27. Moved to Standard Testing as
+  `module.testing.no-reuse`.
+- `grammar.test.outcome-report`: retired 2026-09-27. Testing T19 makes a
+  failed assertion a panic. Replaced by `module.testing.pass` and
+  `module.testing.fail`.
+- `names.scope.test`: retired 2026-09-27. A test body is now a closure with
+  an ordinary local scope. Replaced by the `names.tests` rules for `tests:`
+  blocks.
+- `names.scope.test.isolated`: retired 2026-09-27. Replaced by
+  `names.tests.inside-only`.
+- `expr.try.target.nearest`: retired 2026-09-27. Testing T16 removed the
+  `test` block as a propagation target. Replaced by
+  `expr.try.target.nearest-function`.
+- `expr.try.target.test`: retired 2026-09-27. Replaced by
+  `expr.try.target.test-body`.
+- `expr.try.test.nearest`: retired 2026-09-27. A test body is a closure, so
+  it is the nearest function by the ordinary rules.
+- `expr.try.test.inferred`: retired 2026-09-27. Testing T15 fixes a trailing
+  test body's result instead of inferring it. Replaced by
+  `expr.try.test.fixed-result`, `expr.try.test.with-try`, and
+  `expr.try.test.without-try`.
+- `expr.try.test.termination`: retired 2026-09-27. Replaced by
+  `expr.try.test.explicit-closure`.
+- `expr.try.test.fail-report`: retired 2026-09-27. Testing T18 moves the
+  printing to the runner. Replaced by `module.testing.fail` and
+  `module.testing.err-print`.
+- `flow.must-use.test-result`: retired 2026-09-27. A test body is now a
+  closure, whose final value is its result by the ordinary rules.
+- `flow.return.script`: retired 2026-09-27. A test body is now a closure, so
+  `return` inside it completes the body. Replaced by
+  `flow.return.script-only`.
+- `req.suspend.closure.inference`: retired 2026-09-27. Testing T14 makes a
+  trailing block for an `fn!` parameter suspending. Replaced by
+  `req.suspend.closure.row-inference`, `req.suspend.closure.trailing-only`,
+  and `fn.trailing.suspending`.
+- `req.bang.driver-context`: retired 2026-09-27. The `test` block is no
+  longer its own driver context. Replaced by `req.bang.driver-contexts`.
+- `req.bang.test-active`: retired 2026-09-27. Replaced by
+  `req.bang.test-driven`.
+- `module.testing.failure`: retired 2026-09-27. Testing T19 makes every
+  failed assertion an `assertion-failed` panic. Replaced by
+  `module.testing.assert-panic`.
+- `module.testing.panic`: retired 2026-09-27. Replaced by
+  `module.testing.assert-panic`.
+- `module.testing.result-report`: retired 2026-09-27. Replaced by
+  `module.testing.pass` and `module.testing.fail`.
+- `module.init.test-bodies`: retired 2026-09-27. Test cases are `it` calls,
+  which also sit at the top level of test modules. Replaced by
+  `module.init.test-cases`.
+- `module.entry.termination.err`: retired 2026-09-27. Testing T18 has the
+  host print the error. Replaced by `module.entry.termination.err-code` and
+  `module.entry.termination.no-print`.

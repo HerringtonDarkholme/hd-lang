@@ -397,15 +397,17 @@ fn kind(token: Token) -> string:
 
 ## Keywords And Reserved Words
 
-r[lex.keyword.reserved] The grammar uses these reserved words:
+r[lex.keyword.reserved-list] The grammar uses these reserved words:
 
 ```text
 Self      annotate  break     continue  data      defer
 else      enum      false     fn        for       if
 impl      in        is        let       match     mut
-pass      pub       return    self      trait     true
-type      while
+pass      pub       return    self      tests     trait
+true      type      while
 ```
+
+1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).
 
 ### Contextual Words
 
@@ -418,7 +420,6 @@ only in fixed positions:
 | r[lex.contextual.as] Alias | `as` | directly after a use path or use item, before its alias |
 | r[lex.contextual.use] Use | `use` | at the start of a module-level item, alone or after `pub`, when a use root (`pkg`, `std`, `dep`, `self`, or `super`) follows it; and as the operation name in the dedicated `$.use(...)` provider expression |
 | r[lex.contextual.reified] Reified | `reified` | first in a generic parameter, directly before the parameter name, as in `fn pick[reified T]() -> T` |
-| r[lex.contextual.test] Test | `test` | at the beginning of a module-level test block |
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
 | r[lex.contextual.pack] Pack | `pack`, `map`, `map_list` | in the `pack.map(...)` and `pack.map_list(...)` forms |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |
@@ -429,7 +430,7 @@ only in fixed positions:
 3. r[lex.contextual.reified.raw] A parameter named reified is written `` [`reified`] ``.
 4. r[lex.contextual.pack.always] The token sequences `pack . map (` and `pack . map_list (` always form the pack operation, even when a local or parameter named `pack` is in scope.
 5. r[lex.contextual.pack.ordinary] Every other use of such a `pack`, as in `pack.size()`, is ordinary.
-6. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn test() -> void`, `fn map_list() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
+6. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn map_list() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
 7. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
 
 ```text

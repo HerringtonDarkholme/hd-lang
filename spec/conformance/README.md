@@ -66,8 +66,13 @@ A fixture must not depend on:
 - any value rendering the specification does not define.
 
 Runtime results are observed with `assert` and `assert_equal` from
-`std.testing`, inside named test blocks, and console output is observed with
-`# expect-stdout:` (see [Standard Output](#standard-output)).
+`std.testing`, inside test cases (`it("name"):` calls in the fixture's
+`tests:` block), and console output is observed with `# expect-stdout:` (see
+[Standard Output](#standard-output)).
+
+A fixture is always a single ordinary module, never a
+[test module](../10-modules.md#test-modules) or an integration test module,
+whatever its file name.
 
 ## Comment Directives
 
@@ -182,14 +187,17 @@ Rules that apply to every case:
    runs in a fresh program instance, after module initialization, with its
    requirement row supplied by the selected runtime profile. Its return value
    is not judged.
-2. Each `test "..."` block runs in its own fresh program instance, after
-   module initialization. `main` does not run in that instance.
-3. The command succeeds when nothing panicked, no `std.testing` assertion
-   failed, and every test block's result reported `ExitCode(0)`
-   ([Propagation In Test Blocks](../05-expressions.md#propagation-in-test-blocks)).
+2. Each test case of its `tests:` block runs in its own fresh program
+   instance, after module initialization, as
+   [Test Outcomes](../10-modules.md#test-outcomes) describes. `main` does not
+   run in that instance. A test case with the `ignore` option does not run.
+3. The command succeeds when every test case that ran passed: nothing
+   panicked except as a case's `expect_panic` option expects, and every
+   result reported `ExitCode(0)`. A failed `std.testing` assertion is a
+   panic.
 
-Only entry points and test blocks execute. A fixture that needs to observe a
-function's result calls it from a test block and checks the result with
+Only entry points and test cases execute. A fixture that needs to observe a
+function's result calls it from a test case and checks the result with
 `assert_equal`.
 
 A fixture with a `# fixture-runtime-scenario:` directive replaces steps 1
@@ -352,6 +360,8 @@ IMPL ACTION [OPTION VALUE]... FILE
 ```
 
 - `FILE` is the path to the fixture, and is always the last argument.
+- `parse` and `check` also cover the fixture's `tests:` block, as a test
+  build does.
 - The working directory is not part of the contract.
 - stdin is closed. stdout and stderr are both read.
 

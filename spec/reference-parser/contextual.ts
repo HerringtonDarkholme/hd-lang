@@ -98,7 +98,7 @@ function declarationContext(clean: string): string | undefined {
   if (/^(?:pub\s+)?trait\b/.test(clean)) return "trait";
   if (/^(?:pub\s+)?impl\b/.test(clean)) return "impl";
   if (/^(?:pub\s+)?fn\b/.test(clean)) return "function";
-  if (clean.startsWith("test ")) return "test";
+  if (clean === "tests:") return "tests";
   return undefined;
 }
 

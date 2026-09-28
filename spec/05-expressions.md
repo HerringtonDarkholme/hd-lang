@@ -452,9 +452,9 @@ See also: [Error Trait](09-traits.md#error-trait),
 
 #### Propagation Targets
 
-1. r[expr.try.target.nearest] Postfix `?` is invalid when its nearest enclosing named function, closure, or `test` block does not provide the required optional or `Result` return type.
+1. r[expr.try.target.nearest-function] Postfix `?` is invalid when its nearest enclosing named function or closure does not provide the required optional or `Result` return type.
 2. r[expr.try.target.module-top-level] Module top-level statements do not provide an implicit propagation target.
-3. r[expr.try.target.test] A `test` block is a propagation target, as [Propagation In Test Blocks](#propagation-in-test-blocks) describes.
+3. r[expr.try.target.test-body] A test body is a closure, so it is the propagation target of its `?`, with the result type [Propagation In Test Blocks](#propagation-in-test-blocks) gives it.
 4. r[expr.try.misuse] Every misuse of `?` is an error. Error: `invalid-result-propagation`.
 5. r[expr.try.misuse.operand] An operand that is neither optional nor a `Result` is a misuse.
 6. r[expr.try.misuse.target] A `?` whose enclosing function or closure does not return a compatible optional or a `Result` is a misuse.
@@ -467,31 +467,49 @@ fn first(value: i32?) -> i32:
 
 #### Propagation In Test Blocks
 
-A `test` block's body has a result type inferred like a closure's, and `?`
+A test body written as a trailing block has a fixed result type, and `?`
 propagates to it by the ordinary rules:
 
 ```text
+use std.error.Error
 use std.testing.assert_equal
 
-fn parse_digit(text: string) -> Result[i32, string]:
-    if text == "7": .Ok(7) else: .Err("not a digit: " + text)
+enum DigitError:
+    NotDigit(text: string)
 
-fn passed() -> Result[void, string]:
-    .Ok()
+impl Display for DigitError:
+    fn to_string(self) -> string:
+        match self:
+            DigitError.NotDigit(text) => "not a digit: " + text
 
-test "parses a digit":
-    digit := parse_digit("7")?
-    assert_equal(digit, 7, reason="the digit parses")
-    passed()
+impl Error for DigitError
+
+fn parse_digit(text: string) -> Result[i32, DigitError]:
+    if text == "7": .Ok(7) else: .Err(DigitError.NotDigit(text))
+
+tests:
+    it("parses a digit"):
+        digit := parse_digit("7")?
+        assert_equal(digit, 7, reason="the digit parses")
+        .Ok()
+
+    it("a body without ? is void"):
+        match parse_digit("x"):
+            .Ok(_) => panic("x is not a digit")
+            .Err(error) => assert_equal(error.to_string(), "not a digit: x", reason="the helper rejects x")
 ```
 
-1. r[expr.try.test.nearest] For each `?` in its body outside any closure, a `test` block counts as the nearest function.
-2. r[expr.try.test.inferred] The block's result type is inferred from its body, as for a closure whose result type is neither written nor supplied by an expected function type ([Closure Annotations](07-functions.md#closure-annotations)). `?` therefore performs no conversion there.
-3. r[expr.try.test.termination] That result type must implement `std.process.Termination` ([Exit Status](10-modules.md#exit-status)), so it may be `void`, `ExitCode`, or `Result[T, E]` with `T < Termination` and `E < Display`. Any other result type is an error. Error: `unsatisfied-trait-bound`.
-4. r[expr.try.test.fail-report] The test fails when `report()` on the block's result returns an `ExitCode` other than 0. For an `.Err`, the runner prints the error as [Entry Results](10-modules.md#entry-results) describes.
-5. r[expr.try.test.closure] Inside a closure in a `test` block, the closure is the nearest function, and these rules do not apply.
+1. r[expr.try.test.fixed-result] When a trailing block is the body of an [`it` call](10-modules.md#test-cases), its result type is fixed rather than inferred.
+2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, Error]`, where `Error` is the erased `std.error.Error`.
+3. r[expr.try.test.without-try] Otherwise its result type is `void`.
+4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
+5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body, so a block that uses `?` usually ends in `.Ok()`.
+6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
+7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
 ```text
+use std.testing.assert
+
 data Hidden: pass
 
 fn hidden() -> Result[void, Hidden]:
@@ -500,12 +518,21 @@ fn hidden() -> Result[void, Hidden]:
 fn maybe() -> i32?:
     .None
 
-test "an error without Display": hidden()  # error: unsatisfied-trait-bound
-test "an optional result": maybe()         # error: unsatisfied-trait-bound
+fn lookup(key: string) -> Result[i32, string]:
+    .Err("missing: " + key)
+
+tests:
+    it("an error without Display", fn!() -> Result[void, Hidden]: hidden())  # error: unsatisfied-trait-bound
+    it("an optional result", fn!() -> i32?: maybe())                         # error: unsatisfied-trait-bound
+
+    it("a string error does not convert"):
+        value := lookup("port")?  # error: invalid-result-propagation
+        assert(value > 0, reason="a positive port")
+        .Ok()
 ```
 
-> **Why.** A test body and `main` share one rule, so a helper's own error
-> type, such as `string`, fails a test without a wrapper.
+> **Why.** A fixed `Result[void, Error]` lets one test body use `?` on
+> several error types, as Zig's inferred `anyerror!void` test bodies do.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Standard Testing](10-modules.md#standard-testing).

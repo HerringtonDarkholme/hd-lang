@@ -70,6 +70,34 @@ src/user/types.hd    # user.types
 > **Why.** Checking paths this way rejects ambiguous module names before
 > host filesystem case behavior can change the module graph.
 
+### Test Modules
+
+A file whose name ends in `_test.hd` is a test module, and the test root
+holds integration tests:
+
+```text
+src/billing.hd         # billing
+src/billing_test.hd    # billing_test, a test module
+tests/checkout.hd      # an integration test module
+```
+
+1. r[module.test.module] A source file whose name ends in `_test.hd` is a **test module**, such as `src/billing_test.hd`, whose module is `billing_test`.
+2. r[module.test.integration] An **integration test module** is a module under the package's test root, which is `tests` by default.
+3. r[module.test.code] **Test code** is a package's `tests:` blocks, test modules, and integration test modules. Only a test build, such as `hd test` makes, compiles it.
+4. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
+5. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
+6. r[module.test.integration.uses] Integration test modules may use one another.
+7. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
+8. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
+9. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
+
+> **Why.** A test dependency that depends back would give a unit test a
+> second copy of the package, whose types differ from the ones under test.
+> An integration test sees only the one normal build.
+
+See also: [Test Blocks](02-grammar.md#test-blocks),
+[Standard Testing](#standard-testing).
+
 ## Use Roots
 
 Every absolute use path begins with one of these roots:
@@ -155,6 +183,7 @@ every module has:
 | `std.hash` | `Hash`, `Hasher` |
 | `std.iter` | `Iterator`, `Iterable` |
 | `std.console` | `Console`, `ConsoleError`, `println` |
+| `std.testing` | `it` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 | `std.annotation` | `ShapeMetadata`, `DeclarationId`, `DeclarationKind`, `PrimitiveKind`, `SourcePosition`, `TypeShape`, `DataShape`, `FieldShape`, `EnumShape`, `VariantShape`, `FnShape`, `ParamShape`, `shape`, `shape_of` |
 
@@ -210,6 +239,7 @@ fn count() -> i32:
 1. r[module.prelude.panic] The prelude function `panic` has the signature `panic(message: string) -> never`.
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
 3. r[module.prelude.shape] `shape` and `shape_of` are compiler intrinsics whose result types depend on their arguments.
+4. r[module.prelude.it] `it` is the test-case intrinsic that [Test Cases](#test-cases) specifies.
 
 See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics), which
 specifies `shape` and `shape_of`.
@@ -296,11 +326,9 @@ fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
 
 1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
-3. r[module.testing.failure] A failed assertion reports test failure when called from a test.
-4. r[module.testing.panic] Otherwise a failed assertion causes a runtime panic. Panic: `assertion-failed`.
-5. r[module.testing.result-report] A test also fails when its body's result reports an `ExitCode` other than 0, such as an `.Err` propagated out of its block, as [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks) describes.
-6. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-7. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
+3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
+4. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
+5. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
 
 ```text
 use std.testing.assert_equal
@@ -308,10 +336,148 @@ use std.testing.assert_equal
 data Error:
     message: string
 
-test "result equality needs Eq":
-    let actual: Result[i32, Error] = .Ok(1)
-    assert_equal(actual, .Ok(1), reason="values match")  # error
+tests:
+    it("result equality needs Eq"):
+        let actual: Result[i32, Error] = .Ok(1)
+        assert_equal(actual, .Ok(1), reason="values match")  # error
 ```
+
+### Test Cases
+
+A call of the prelude intrinsic `it` registers one test case:
+
+```text
+use std.testing.assert_equal
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+tests:
+    it("adds two values"):
+        assert_equal(add(2, 3), 5, reason="small sums")
+
+    it("adds large values", ignore="slow on shared runners"):
+        assert_equal(add(1000, 2000), 3000, reason="large sums")
+```
+
+1. r[module.testing.it] `it` is a compiler intrinsic that `std.testing` declares and the prelude supplies. Each call registers one **test case**.
+2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
+3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
+4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+5. r[module.testing.it.options] The named options are those in the table below, and each value must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
+6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
+7. r[module.testing.it.statements] Every top-level statement of a `tests:` block or a [test module](#test-modules) must be a call of `it` or of `std.testing.it_each`. Any other statement is an error. Error: `invalid-test-statement`.
+8. r[module.testing.it.elsewhere] A call of `it` anywhere else is an error. Error: `misplaced-test-case`.
+9. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
+
+| Rule | Option | Value | Effect |
+| --- | --- | --- | --- |
+| r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
+| r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
+| r[module.testing.option.timeout] Timeout | `timeout` | a duration, such as `"5s"` | The runner fails the test case when its body runs longer than the duration. |
+
+```text
+fn name_of() -> string: "computed"
+
+tests:
+    let shared: i32 = 0  # error: invalid-test-statement
+
+    it("counts"):
+        pass
+
+    it("counts"):  # error: duplicate-test-name
+        pass
+
+    it(name_of()):  # error: non-literal-test-argument
+        pass
+
+fn helper() -> void:
+    it("nested"):  # error: misplaced-test-case
+        pass
+```
+
+> **Note.** `it` is a prelude name, so a module cannot declare, use, or bind
+> another `it` ([Prelude](#prelude)). A call spelled `it(...)` always
+> registers a test case, and a tool can list test cases without running
+> them.
+
+#### Table Tests
+
+`std.testing` also declares `it_each`, which registers one test case per
+row:
+
+```text
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R
+```
+
+1. r[module.testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
+2. r[module.testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
+3. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
+4. r[module.testing.it-each.body] Its body has a parameter, so it is written as an explicit `fn!` closure rather than a trailing block.
+
+```text
+use std.testing.{assert_equal, it_each}
+
+fn double(value: i32) -> i32: value * 2
+
+tests:
+    it_each("doubles", [1, 2, 3], fn!(value: i32):
+        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
+    )
+```
+
+### Test Outcomes
+
+Each test case runs alone and passes or fails by its result:
+
+```text
+fn first(items: List[i32]) -> i32: items[0]
+
+tests:
+    it("an empty list has no first item", expect_panic="index-out-of-bounds"):
+        _ := first([])
+```
+
+1. r[module.testing.instance] Each test case runs in its own fresh program instance, after module initialization.
+2. r[module.testing.no-reuse] Instances are not reused between test cases.
+3. r[module.testing.driven] The runner drives the body's suspension to completion, as the host drives `main!`.
+4. r[module.testing.unit-row] A test case in a `tests:` block or a test module gets no host providers. Its body's requirement row must be empty, so every requirement comes from a `$.with` provider scope. Error: `missing-requirement`.
+5. r[module.testing.profile] A test run compiles against one [runtime profile](#runtime-profiles), the default profile unless the run selects another.
+6. r[module.testing.integration-row] For a test case in an integration test module, the runner binds the body's requirement row from that profile, as the host binds the row of `main`.
+7. r[module.testing.skipped] An integration test case whose row names a trait that the profile does not bind is not run. It is reported as skipped, and it is not an error.
+8. r[module.testing.pass] A test case passes when its body completes and `report()` on its result returns `ExitCode(0)`.
+9. r[module.testing.fail] It fails when `report()` returns another code or when its body panics, including by a failed assertion.
+10. r[module.testing.err-print] When the result holds an `.Err`, the runner prints the error as [Entry Results](#entry-results) describes.
+11. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
+
+```text
+trait Clock:
+    fn now(self) -> i32
+
+data FixedClock:
+    time: i32
+
+impl Clock for FixedClock:
+    fn now(self) -> i32: self.time
+
+fn stamp() -> i32 $ Clock:
+    $.use(Clock).now()
+
+tests:
+    it("stamps with a fake clock"):
+        $.with(Clock=FixedClock { time: 7 }):
+            _ := stamp()
+
+    it("has no host clock"):
+        _ := stamp()  # error: missing-requirement
+```
+
+> **Why.** Source cannot catch a panic, so only the runner can judge an
+> expected one, from the panic's stable category. Unit tests run on fakes
+> alone, so they pass on every machine; only integration tests reach real
+> providers.
+
+See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks),
+[Exit Status](#exit-status).
 
 ## Module Initialization
 
@@ -369,8 +535,8 @@ fn first_name() -> string:
 
 1. r[module.init.script-body] After dependency initialization, a script executes its top-level statements as that module's initialization.
 2. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
-3. r[module.init.tests] Test runners initialize the test module and the modules it uses before invoking discovered test blocks.
-4. r[module.init.test-bodies] Test block bodies are not part of module initialization.
+3. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
+4. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
 
 ### Requirement-Free Initialization
 
@@ -509,11 +675,12 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 ### Entry Results
 
 1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.
-2. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the `E < Display` bound.
-3. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
-4. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
-5. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
-6. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
+2. r[module.entry.err-host-prints] When the result holds an `.Err`, the host prints that error by the rules below before it exits.
+3. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the `E < Display` bound.
+4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
+5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
+6. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
+7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
 data HiddenError: pass
@@ -542,8 +709,9 @@ pub trait Termination:
 4. r[module.entry.termination.exit-code] `ExitCode` implements `Termination`; its `report` returns the code itself.
 5. r[module.entry.termination.result] `Result[T, E]` implements `Termination` when `T < Termination` and `E < Display`.
 6. r[module.entry.termination.ok] For `.Ok(value)`, its `report` returns `value.report()`.
-7. r[module.entry.termination.err] For `.Err(error)`, its `report` prints the error as [Entry Results](#entry-results) describes and returns `ExitCode(1)`.
-8. r[module.entry.process-import] `ExitCode` and `Termination` are not prelude names; code imports them from `std.process`, as in `use std.process.ExitCode`.
+7. r[module.entry.termination.err-code] For `.Err(error)`, its `report` returns `ExitCode(1)`.
+8. r[module.entry.termination.no-print] `report` only computes the code. The host or test runner prints the error, as [Entry Results](#entry-results) describes.
+9. r[module.entry.process-import] `ExitCode` and `Termination` are not prelude names; code imports them from `std.process`, as in `use std.process.ExitCode`.
 
 A program that picks its own code returns an `ExitCode`:
 

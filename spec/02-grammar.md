@@ -18,7 +18,7 @@ A source file is a sequence of top-level items:
 source_file = { NEWLINE | top_level_item }, EOF ;
 
 top_level_item = use_decl
-               | test_decl
+               | tests_block
                | annotation_decl
                | decorated_decl
                | declaration
@@ -39,20 +39,59 @@ top_level_statement = suite_statement
 
 ## Test Blocks
 
-Unit-test entry points use a module-level named block:
+A file may hold one `tests:` block, whose items are compiled only for tests:
 
 ```ebnf
-test_decl = "test", string_literal, ":", suite_body ;
+tests_block = "tests", ":", NEWLINE, INDENT, tests_item, { tests_item },
+              DEDENT ;
+
+tests_item = use_decl
+           | annotation_decl
+           | decorated_decl
+           | declaration
+           | top_level_statement
+           ;
 ```
 
-1. r[grammar.test.name] The string is the test's human-readable name.
-2. r[grammar.test.body] A test body is an ordinary suite.
-3. r[grammar.test.tooling] Its discovery and assertion APIs are standard-library and tooling behavior.
-4. r[grammar.test.instance] Each test runs in its own program instance and is a driver context.
-5. r[grammar.test.outcome-report] A test passes when its body completes normally with a result whose `report()` returns `ExitCode(0)`. It fails when the body panics, an assertion reports failure, or the result reports another code ([Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks)).
-6. r[grammar.test.no-reuse] Instances are not reused between tests.
-7. r[grammar.test.not-in-suites] `test` blocks are not permitted inside executable suites.
-8. r[grammar.test.contextual] `test` is contextual: at module level it begins a test block only when followed by a string literal; otherwise it remains an ordinary identifier.
+```text
+use std.testing.assert_equal
+
+fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+tests:
+    fn overdue() -> i32: 31
+
+    it("charges a fee after 30 days"):
+        assert_equal(late_fee(overdue()), 5, reason="one day late")
+```
+
+1. r[grammar.tests.block] A `tests:` block is a top-level item that holds its module's test-only items.
+2. r[grammar.tests.items] Its items take the forms of top-level items: use declarations, annotation declarations, decorated declarations, declarations, and statements.
+3. r[grammar.tests.top-level] A `tests:` block may appear only at module top level. A `tests:` block inside a suite or inside another `tests:` block is an error. Error: `syntax-error`.
+4. r[grammar.tests.once] A file may have at most one `tests:` block. A second block is an error. Error: `duplicate-tests-block`.
+5. r[grammar.tests.statements] Each statement of the block must be a call of the prelude function `it`, as [Test Cases](10-modules.md#test-cases) specifies.
+6. r[grammar.tests.keyword] `tests` is a reserved word, so it never names a declaration or binding.
+
+```text
+fn helper() -> void:
+    tests:  # error: syntax-error
+        pass
+
+tests:
+    it("first block"):
+        pass
+
+tests:  # error: duplicate-tests-block
+    it("second block"):
+        pass
+```
+
+> **Why.** Like Rust's `#[cfg(test)] mod tests`, one block groups a file's
+> test-only code, and the normal build never sees it.
+
+See also: [Tests Blocks](03-names-and-scopes.md#tests-blocks),
+[Standard Testing](10-modules.md#standard-testing).
 
 ## Statements
 

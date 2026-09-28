@@ -76,7 +76,7 @@ maps each exercised code to its fixture.
 
 | Severity | Stable diagnostic codes |
 | --- | --- |
-| Error | `ambiguous-method`, `ambiguous-promoted-member`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-variance`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
+| Error | `ambiguous-method`, `ambiguous-promoted-member`, `argument-order`, `bang-call-outside-suspension`, `bare-parameter-impl-target`, `bare-variant-pattern`, `binding-not-yet-visible`, `break-value-context`, `closure-parameter-needs-annotation`, `comparison-chaining`, `copy-into-ordinary-field`, `cyclic-test-dependency`, `decorator-not-annotator`, `decorator-not-top-level`, `default-order`, `deferred-method-value`, `direct-variant-use`, `discarded-must-use-value`, `doc-comment-without-target`, `duplicate-argument`, `duplicate-associated-binding`, `duplicate-data-pattern-field`, `duplicate-embedded-field`, `duplicate-fact`, `duplicate-field`, `duplicate-inherent-member`, `duplicate-module-name`, `duplicate-test-name`, `duplicate-tests-block`, `duplicate-trait-member`, `embedded-copy-required`, `embedded-non-data`, `embedding-too-deep`, `field-not-eq`, `field-not-hash`, `float-literal-range`, `gadt-derivation`, `generic-kind-mismatch`, `generic-member-call`, `generic-requirement-key-collision`, `identity-needs-reference-bound`, `identity-requires-references`, `implicit-narrowing`, `impossible-gadt-pattern`, `incompatible-identity-operands`, `inspectable-requirement`, `integer-literal-range`, `invalid-assignment-target`, `invalid-delegation`, `invalid-escape`, `invalid-map-key`, `invalid-member-line`, `invalid-result-propagation`, `invalid-test-statement`, `invalid-variance`, `local-impl-nonlocal-pair`, `marker-template`, `member-not-derivable`, `misplaced-derivation`, `misplaced-test-case`, `missing-contextual-enum-type`, `missing-derived-bound`, `missing-let`, `missing-partial-eq`, `missing-partial-ord`, `missing-required-field`, `missing-requirement`, `missing-result-type`, `missing-return-value`, `missing-supertrait-implementation`, `missing-trait-method`, `mixed-derived-law`, `mixed-numeric-types`, `mixed-signedness`, `multi-binding-needs-parentheses`, `multiple-positional-value-packs`, `mutable-embedded-field`, `mutable-field-modifier`, `mutable-impl-target`, `mutable-receiver-required`, `mutable-upgrade`, `newtype-derivation-self`, `no-common-type`, `no-least-common-type`, `non-literal-test-argument`, `non-reassignable-binding`, `non-reassignable-parameter-binding`, `nonexhaustive-match`, `nonfinal-positional-spread`, `nonfinal-positional-value-pack`, `nonfinal-vararg`, `nonhost-entry-requirement`, `nonlocal-impl`, `nonnumeric-unary-plus`, `not-suspending`, `old-export-declaration`, `old-import-declaration`, `old-row-operator`, `old-struct-declaration`, `omitted-member-without-default`, `orphan-impl`, `overlapping-impl`, `pack-length-mismatch`, `pack-map-mapper-mismatch`, `partial-generic-arguments`, `pattern-arity`, `pattern-order`, `positional-spread-needs-vararg`, `possibly-uninitialized-binding`, `prelude-name-shadow`, `private-member`, `private-type-leak`, `readonly-argument-to-mutable-parameter`, `readonly-edge`, `readonly-root`, `recursive-closure-needs-result-type`, `recursive-function-needs-result-type`, `requirement-in-default`, `reserved-semicolon`, `return-outside-function`, `sealed-trait-implementation`, `structure-outside-template`, `supertrait-cycle`, `suspension-forbidden-context`, `tab-whitespace`, `test-only-use`, `too-many-embedded-fields`, `top-level-read-before-initialization`, `trailing-block-position`, `trait-method-signature`, `trait-method-visibility`, `trait-not-dynamically-safe`, `trait-resolution-depth`, `trait-value-impl-target`, `type-used-as-value`, `underivable-trait`, `unexpected-bom`, `unknown-annotation-member`, `unknown-associated-type`, `unknown-named-argument`, `unknown-shape-target`, `unreachable-match-arm`, `unresolved-generic-placeholder`, `unsatisfied-trait-bound`, `unsaturated-enum-constructor`, `unsigned-negation`, `unsupported-equality`, `unsupported-function-identity`, `unsupported-string-indexing`, `variance-representation-change`, `variant-result-owner` |
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope`, `suspending-defer` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-data-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Warning | `confusable-identifier`, `derivation-line-drift`, `mixed-script-identifier`, `unreachable-code`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
@@ -175,6 +175,7 @@ links to the rule that defines the term.
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
+| **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it. See [Member Lines](14-annotations.md#member-lines). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
@@ -182,6 +183,10 @@ links to the rule that defines the term.
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
+| **test case** | One test, registered by a call of the prelude intrinsic `it`. See [Test Cases](10-modules.md#test-cases). |
+| **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](10-modules.md#r-module.test.code). |
+| **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
+| **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](10-modules.md#test-modules). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
 
 ## Revision Notes
@@ -948,3 +953,45 @@ existing source. Each entry names the decision that made the change.
   test body's final `Result` or optional expression, previously
   `discarded-must-use-value`, is now the test's result. This supersedes
   error conversion decision 16.
+- Tests blocks and `it` (Testing T2, T3, T7, T10, T11, T13, T16, T17, T22,
+  and T23, owner decisions 2026-09-27): the `test "name":` item is removed,
+  and `test` is an ordinary identifier again. A file holds at most one
+  top-level `tests:` block, whose items are module items visible only inside
+  it; `tests` is a reserved word. A test case is the call
+  `it("name", ...):` of the prelude intrinsic `it`, with the literal options
+  `ignore`, `expect_panic`, and `timeout`. Every top-level statement of a
+  `tests:` block or a `_test.hd` test module must be such a call. A former
+  `test "name":` block becomes `it("name"):` inside `tests:`, and code that
+  named something `tests` or `it` must rename it. New codes:
+  `duplicate-tests-block`, `invalid-test-statement`, `misplaced-test-case`,
+  `non-literal-test-argument`, `duplicate-test-name`, `test-only-use`, and
+  `cyclic-test-dependency`. The test-block `use` of Packages decision 5
+  never reached this specification.
+- Suspending trailing blocks (Testing T14, owner decision 2026-09-27): a
+  trailing block passed for a parameter of type `fn!(...)` is a suspending
+  closure, for every callee. A bang call in such a block, previously
+  `bang-call-outside-suspension`, is now valid. The test block is no longer
+  a separate driver context.
+- Test body results (Testing T15, owner decision 2026-09-27): a trailing
+  block given to `it` has result `Result[void, Error]` when it uses `?`, and
+  `void` otherwise, instead of an inferred result. `?` on an error type that
+  implements `Error` now converts into the erased `Error`. A body that
+  propagated a `string` or other non-`Error` error, previously valid, is now
+  `invalid-result-propagation`, and a body without `?` that ended in a
+  `Result` value must end in a `void` statement. An explicit closure body
+  keeps its own result, bounded by `Termination`. This supersedes the
+  inferred result of Testing T4.
+- Test outcomes (Testing T18, T19, T20, T21, and T28, owner decisions
+  2026-09-27): `Termination.report` only computes the exit code, and the
+  host or test runner prints an `.Err`. A failed assertion is always an
+  `assertion-failed` panic, which ends the test case. A test case in a
+  `tests:` block or a test module gets no host providers, so a requirement
+  not supplied by `$.with` is `missing-requirement`. An integration test
+  case's row is bound from the test run's one runtime profile, and one whose
+  row that profile cannot bind is reported as skipped rather than rejected.
+  Each test case still runs in its own fresh program instance, driven like
+  `main!`.
+- Table tests (Testing T31, owner decision 2026-09-27): `std.testing`
+  declares `it_each(name, rows, body)`, which registers one test case per
+  row, named `name[i]`. It is imported, not a prelude name, and a call of it
+  is the other statement a `tests:` block or a test module admits.

@@ -23,6 +23,7 @@ const reserved = new Set([
   "pub",
   "return",
   "self",
+  "tests",
   "trait",
   "true",
   "type",
@@ -394,7 +395,7 @@ const suiteWords = new Set([
   "match",
   "else",
   "data",
-  "test",
+  "tests",
   "annotate",
   "with",
 ]);

@@ -507,7 +507,8 @@ loader := fn!(id: UserId) -> Result[User, DbError] $ Database:
 
 1. r[req.suspend.closure.marker] Anonymous suspending callables use the same marker after `fn`.
 2. r[req.suspend.closure.requirements] Requirement-bearing non-suspending closures omit `!` and place `$` after their result type.
-3. r[req.suspend.closure.inference] Closure inference may infer a requirement row from an expected function type, but it never silently makes a closure suspending.
+3. r[req.suspend.closure.row-inference] Closure inference may infer a requirement row from an expected function type.
+4. r[req.suspend.closure.trailing-only] Inference makes a closure suspending only for a trailing block passed for a suspending parameter, whose `fn!` type is the visible marker ([Trailing Callback Blocks](07-functions.md#trailing-callback-blocks)). Every other suspending closure is written `fn!`.
 
 ### Bang Calls And Driver Contexts
 
@@ -517,11 +518,11 @@ suspension_call_suffix = "!", argument_clause ;
 
 1. r[req.bang.suffix] This suffix is part of `postfix_suffix` at ordinary call precedence.
 2. r[req.bang.not-negation] It follows a completed operand, so it never collides with prefix logical `!` at the start of an operand: `!fetch!(id)` is a legal negation of a bang call's `bool` result.
-3. r[req.bang.driver-context] A bang call is valid only in a **driver context**, which is exactly one of: a suspending function or closure body, a `test` block, or the host executor driving `main!`.
+3. r[req.bang.driver-contexts] A bang call is valid only in a **driver context**, which is exactly one of: a suspending function or closure body, or the host executor driving `main!`. A test body is a suspending closure.
 4. r[req.bang.top-level] Module top level is not a driver context.
 5. r[req.bang.active] A driver is **active** while its executor is evaluating or polling that driver context on the current program-instance call stack.
 6. r[req.bang.pending-not-active] A pending invocation retained by the host between polls is unfinished but not active.
-7. r[req.bang.test-active] A test block counts as active throughout its execution, including calls through non-suspending helpers.
+7. r[req.bang.test-driven] The test runner drives each test body as a suspension, so a driver is active throughout the test, including calls through non-suspending helpers.
 8. r[req.bang.requirements-not-suspending] Merely using requirements does not make a function suspending; a non-suspending function may have a `$` row.
 
 ```text

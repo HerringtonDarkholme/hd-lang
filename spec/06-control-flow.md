@@ -32,9 +32,8 @@ it a value.
    - a statement-position `match` arm;
    - a `defer` suite;
    - a module's top-level script.
-4. r[flow.must-use.test-result] A test body's final expression is not discarded: it is the test's result ([Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks)).
-5. r[flow.must-use.handle] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression`.
-6. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
+4. r[flow.must-use.handle] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression`.
+5. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
 
 ```text
 fn save() -> Result[i32, SaveError]:
@@ -201,7 +200,7 @@ produces a value.
 1. r[flow.continue] `continue` skips the remainder of the current loop body and begins the next iteration.
 2. r[flow.break] `break` exits the nearest enclosing loop.
 3. r[flow.break.boundary] Neither operation targets a loop across a function or closure boundary.
-4. r[flow.break.outside-loop] `break` and `continue` outside a loop are compile-time errors, including at module top level and directly in a test block.
+4. r[flow.break.outside-loop] `break` and `continue` outside a loop are compile-time errors, including at module top level and directly in a test body.
 
 ```text
 fn main() -> void: break  # error
@@ -439,7 +438,7 @@ pattern refinement.
 2. r[flow.return.type] The value must be assignable to the declared or inferred return type.
 3. r[flow.return.bare] Bare `return` is valid only for a `void`-returning function or closure.
 4. r[flow.return.outside] `return` outside a named function or closure is a compile-time error.
-5. r[flow.return.script] A module script and a `test` block are not implicit return targets.
+5. r[flow.return.script-only] A module script is not an implicit return target.
 6. r[flow.return.fallthrough] Falling through a function body evaluates its final expression as the return value.
 7. r[flow.return.void-fallthrough] A function declared `-> void` may fall through after a statement whose result is `void`.
 8. r[flow.return.callback] Inside a trailing callback block, `return` completes the generated callback, not the function containing the call.
@@ -473,7 +472,7 @@ fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files
 
 ### Cleanup Scopes
 
-1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, match arms, provider scopes, trailing callback blocks, and test bodies.
+1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, match arms, provider scopes, and trailing callback blocks, including test bodies.
 2. r[flow.defer.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
 3. r[flow.defer.outside] A `defer` there is an error. Error: `defer-outside-cleanup-scope`.
 
