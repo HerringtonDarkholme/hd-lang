@@ -5,8 +5,9 @@ revised to the [owner decisions](#owner-decisions) 1 to 14 of 2026-09-26.
 Nothing here is accepted language behavior. The draft sections below follow
 the decisions; details the decisions leave open are marked as open.
 Decisions that change the language go to the
-[specification](../spec/README.md): decision 4 (the root-application orphan
-exception) and decision 5 (`use` in `test` blocks) are not applied there yet.
+[specification](../spec/README.md): decision 5 (`use` in `test` blocks) is
+not applied there yet. The root-application orphan exception that decision 4
+restated was dropped on 2026-09-27, so no package may hold an orphan.
 
 Inputs:
 
@@ -17,7 +18,8 @@ Inputs:
   [Executable Entry Point](../spec/10-modules.md#executable-entry-point).
 - The orphan and overlap rules in [Traits](../spec/09-traits.md) and
   [Coherence And Package Rules](../spec/14-annotations.md#coherence-and-package-rules)
-  for annotations, including the root-application orphan exception.
+  for annotations. The root-application orphan exception is dropped
+  (decision 4).
 - The package bullet in
   [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work).
 
@@ -259,8 +261,7 @@ builds include the test dependencies.
 
 A package must have a library, at least one executable, or both. Only a
 package with a library can be a dependency; a dependent sees its library and
-never builds its executables. For the orphan annotation exception, only
-modules that the library root does not reach count as the root application
+never builds its executables. No target has an orphan exception
 (decision 4).
 
 `[[executable]]`, zero or more:
@@ -388,7 +389,7 @@ coherence rules:
 | Add an inherent method | compatible, pending area 2 | Safe only if inherent lookup cannot change which method an existing call selects. |
 | Add an implementation whose trait and target the package both own | compatible | No other package can hold that slot. |
 | Add a generic (blanket) implementation | breaking | It can overlap an implementation in a downstream package. |
-| Add an implementation or annotation whose trait or facet another package owns | compatible (decision 6) | It can take a slot that a root application filled with an orphan annotation, so `hd update` reports the resulting coherence conflict before writing. |
+| Add an implementation or annotation whose trait or facet another package owns | compatible (decision 6) | With no orphan exception, only the owning packages can fill such a slot, so no dependent can already hold it. `hd update` still reports any coherence conflict before writing. |
 
 The registry runs `hd api diff` against the highest published version of the
 same line below the new one, and refuses a publish whose declared version is
@@ -437,26 +438,18 @@ The link-time check runs over the complete set of resolved interface files
 
 - At most one implementation per instantiated trait and target, with overlap
   checked across packages ([Traits](../spec/09-traits.md)).
-- At most one annotation per `(facet, target)` slot, and only the root
-  application may hold an orphan slot
-  ([Coherence And Package Rules](../spec/14-annotations.md#coherence-and-package-rules)).
+- No orphan implementations or derivations in any package; a foreign type
+  is derived through a local mirror type or newtype (decision 4).
 
 Because interface files contain every implementation head, `hd resolve`
 runs this check before compiling any function body. A registry that serves
 interface files lets `hd resolve` report a conflict before sources are
 downloaded.
 
-The lockfile makes the annotation rule predictable. The spec says that if a
-dependency version later supplies a pair the root annotated, resolution
-fails. A locked dependency version changes only when a command re-resolves.
-So the failure appears on the `hd add` or `hd update` that selected the new
-version, and names both annotations; `hd update` reports it before writing
-(decision 6). It never appears on a later unrelated build.
-
-In a package with both a library and executables, only modules that the
-library root does not reach count as the root application (decision 4). A package used
-as a dependency is never the root, so its library cannot contain an orphan
-annotation.
+A locked dependency version changes only when a command re-resolves, so
+any coherence failure appears on the `hd add` or `hd update` that selected
+the new version, and `hd update` reports it before writing (decision 6). It
+never appears on a later unrelated build.
 
 ### 4.3 Coexistence
 
@@ -677,9 +670,8 @@ Output rules:
    a library, executables, or both. Unknown manifest keys are errors.
 2. A dependency key is the `NAME` of `dep.NAME`. A key cannot be `std`, `pkg`,
    or `dep`.
-3. Only a package with a library can be a dependency. Only modules that
-   the library root does not reach may hold an orphan annotation
-   (decision 4).
+3. Only a package with a library can be a dependency. No package may hold
+   an orphan implementation or derivation (decision 4).
 4. An executable selects an entry module. The entry point is that module's
    public `main` or `main!`; without one, the module must be a script.
 5. Test-root modules may use test dependencies anywhere. In the source
@@ -704,8 +696,8 @@ Output rules:
 ## Owner Decisions
 
 Decided 2026-09-26. Applied to the draft sections above on 2026-09-27.
-Decision 4's restatement of the root-application orphan exception is
-decided but not yet in the specification. Decision 5 is language syntax: `use` is top-level only today
+Decision 4's orphan part is superseded: the root-application orphan
+exception is dropped (2026-09-27). Decision 5 is language syntax: `use` is top-level only today
 ([Suites](../spec/02-grammar.md#r-grammar.suite.top-level-only),
 [Use Forms](../spec/10-modules.md#r-module.use.whole-module)), and the
 specification does not have it yet.
@@ -719,10 +711,10 @@ specification does not have it yet.
 4. **Question 4: Cargo style.** One package may have a library root and
    executables. The root-application orphan exception must be restated for
    this shape (which targets count as the root application). Decided
-   2026-09-27: an orphan annotation may appear only in a module that the
-   library root (`root/mod.hd`) does not reach, such as an executable's
-   entry module and the modules only it uses. A module the library reaches
-   gets `orphan-annotation-in-library`.
+   2026-09-27, then superseded the same day: with `Annotate` removed by
+   typed derivation, the root-application orphan exception is dropped
+   entirely. No package may hold an orphan; a foreign type is derived
+   through a local mirror type or a newtype.
 5. **Question 5: `use` inside `test` blocks.** A `test` block may contain
    `use` declarations scoped to that block, and only those may name
    test-only dependencies; test builds include test dependencies, and the

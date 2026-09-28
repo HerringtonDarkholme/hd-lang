@@ -24,9 +24,9 @@ the specification yet.
 - **TQ-18** (settles Annotation Locality). A foreign-target annotation may
   appear in the facet's defining module without a marker, and in the root
   application package under the existing exception with an explicit marker;
-  an explicit `impl Annotate[F] for X` obeys the same rule. The spelling of
-  the root-application marker is undecided, and chapter 14 is being
-  replaced, so this waits.
+  an explicit `impl Annotate[F] for X` obeys the same rule. Superseded
+  2026-09-27: typed derivation removes `Annotate`, and the root-application
+  orphan exception is dropped, so there is no marker to spell.
 - **TUP-1, `@message` part**, decided 2026-09-27. Inside a variant's
   `@message`, unnamed payload parameters are in scope as `_0`, `_1`, ...
   (ERROR_CONVERSION gap 3), so `"$_0"` interpolates one. This part waits

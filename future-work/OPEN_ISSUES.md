@@ -51,11 +51,16 @@ requires `mut Console`.
 their profiles are named, and a recording
 [`BufferConsole`](STDLIB.md#stdconsole).
 
-**Decided 2026-09-27, not yet applied.** (a) No per-profile list: an entry
-row may contain `$ mut K` exactly when trait `K` has a method taking
-`mut self`; otherwise it stays `mutable-upgrade`. (b) `Console.write_line!`
-takes `mut self`, so a recording `BufferConsole` is expressible, and code
-that prints (including `println`) needs `$ mut Console` in its row.
+**Decided 2026-09-27, not yet applied: requirements are always mutable.**
+A requirement is one provider shared by the whole call tree, so it is
+conceptually exclusive; `$.use(K)` always gives mutable access, and there
+is no readonly/mutable split for requirements. Rows say `$ K`, never
+`$ mut K`, and runtime profiles no longer mark mutable traits. A
+requirement trait may declare `mut self` methods freely, so
+`Console.write_line!` takes `mut self` and a recording `BufferConsole`
+works, while code that prints still writes only `$ Console`. This
+supersedes the earlier same-day answer (a `$ mut K` row only for traits
+with a `mut self` method) and the `$ mut K` rows of STDLIB decision 14.
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
@@ -185,10 +190,12 @@ reports, which the owner dropped.
 
 ### Annotation Locality And Inspection
 
-**Status.** Owner decision TQ-18
-([audit/types/QUESTIONS.md](../audit/types/QUESTIONS.md)) answers the three
-questions below, except the spelling of the root-application marker. It is
-not applied: that spelling is undecided, and chapter 14 is being replaced.
+**Status.** Superseded 2026-09-27. Typed derivation removes `Annotation` and
+`Annotate` ([TYPED_DERIVATION](TYPED_DERIVATION.md) rule 10), derivation
+blocks live in the type's module, a foreign type is derived through a local
+mirror type or newtype, and the root-application orphan exception is
+dropped. So there are no foreign-target annotations to place or mark, and
+TQ-18's marker question is moot. The text below is kept as history.
 
 **Problem.** The effective annotation for a target can be assembled
 across distant files and dependencies, making review and provenance difficult
