@@ -46,28 +46,39 @@ function consoleCalls(value: unknown, consoleIndex: number, found: Diagnostic[])
 
 // `debug(value)` (spec/09-traits.md#debug-trait): the spec leaves the builder
 // calls of `DebugWriter` and the text layout to the standard library, so the
-// prototype renders no `debug` text.
-function debugCalls(value: unknown, found: Diagnostic[]): void {
+// prototype renders no `debug` text. `snapshot_file(text)`
+// (spec/10-modules.md#snapshots): the spec does not say where the runner keeps
+// the snapshot file or what a missing one means.
+const UNSUPPORTED: Readonly<Record<string, readonly [string, string]>> = {
+  "debug-render": [
+    "unsupported-debug-render",
+    "the prototype does not render debug text; the DebugWriter layout is unspecified",
+  ],
+  "snapshot-file": [
+    "unsupported-snapshot-file",
+    "the prototype does not run snapshot_file; the snapshot file's location is unspecified",
+  ],
+};
+
+function unsupportedCalls(value: unknown, found: Diagnostic[]): void {
   if (Array.isArray(value)) {
-    for (const child of value) debugCalls(child, found);
+    for (const child of value) unsupportedCalls(child, found);
     return;
   }
   if (!value || typeof value !== "object") return;
   const node = value as { kind?: unknown; span?: Diagnostic["span"] };
-  if (node.kind === "debug-render" && node.span)
-    found.push({
-      code: "unsupported-debug-render",
-      message: "the prototype does not render debug text; the DebugWriter layout is unspecified",
-      span: node.span,
-    });
-  for (const [key, child] of Object.entries(value)) if (key !== "span") debugCalls(child, found);
+  const unsupported = typeof node.kind === "string" ? UNSUPPORTED[node.kind] : undefined;
+  if (unsupported && node.span)
+    found.push({ code: unsupported[0], message: unsupported[1], span: node.span });
+  for (const [key, child] of Object.entries(value))
+    if (key !== "span") unsupportedCalls(child, found);
 }
 
 /** The program with Console providers made opaque; throws when it cannot run yet. */
 export function lowerRunTimeGaps(program: HirProgram): HirProgram {
-  const debugDiagnostics: Diagnostic[] = [];
-  debugCalls([program.functions, program.closures], debugDiagnostics);
-  if (debugDiagnostics.length > 0) throw new DiagnosticError(debugDiagnostics);
+  const unsupported: Diagnostic[] = [];
+  unsupportedCalls([program.functions, program.closures], unsupported);
+  if (unsupported.length > 0) throw new DiagnosticError(unsupported);
   const console = program.traits.find((trait) => trait.name === "Console");
   if (!console) return program;
   const diagnostics: Diagnostic[] = program.implementations

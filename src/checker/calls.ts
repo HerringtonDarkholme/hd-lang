@@ -69,6 +69,27 @@ export abstract class CallChecker extends StatementChecker {
     return implementsDebug(type, this.traitTypes, this.implementations, bounds);
   }
 
+  /** `std.testing.snapshot_file(text: string) -> void` (10-modules.md#snapshots). */
+  protected checkSnapshotFileCall(
+    expression: Extract<Expression, { kind: "call" }>,
+  ): HirExpression {
+    if (expression.typeArguments?.length)
+      this.fail(
+        "unexpected-type-arguments",
+        "snapshot_file has no type arguments",
+        expression.span,
+      );
+    if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))
+      this.fail("argument-count", "snapshot_file expects one text argument", expression.span);
+    this.resolveArgumentMapping(expression, ["text"], "snapshot_file");
+    const text = this.requireCoercion(
+      this.checkExpression(expression.arguments[0]!, "string"),
+      "string",
+      expression.arguments[0]!.span,
+    );
+    return { kind: "snapshot-file", text, type: "void", span: expression.span };
+  }
+
   /** The prelude `debug[T < Debug](value: T) -> string` (10-modules.md#prelude). */
   protected checkDebugCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
     if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))

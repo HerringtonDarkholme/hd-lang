@@ -10,4 +10,3 @@ F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they al
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
 GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
-T49	1	`std.testing.snapshot_file` is not implemented; `snapshot` is checked as a string `assert_equal` (Testing T49)

@@ -1023,6 +1023,8 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     // `std.testing.snapshot(text, expect="")` compares text with a literal
     // expectation (spec/10-modules.md#snapshots). The prototype checks it as an
     // `assert_equal` of two strings; it has no update run to rewrite `expect`.
+    if (this.imports.get(expression.callee.name) === "std.testing.snapshot_file")
+      return this.checkSnapshotFileCall(expression);
     if (this.imports.get(expression.callee.name) === "std.testing.snapshot") {
       if (expression.typeArguments?.length)
         this.fail("unexpected-type-arguments", "snapshot has no type arguments", expression.span);

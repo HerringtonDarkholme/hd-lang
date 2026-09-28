@@ -1156,3 +1156,4 @@ typing/invalid/assert-equal-without-debug.hd	type
 typing/valid/debug-standard-types.hd	type
 typing/valid/derive-debug.hd	type
 typing/valid/derive-without-structure-use.hd	type
+typing/valid/snapshot-inline.hd	type

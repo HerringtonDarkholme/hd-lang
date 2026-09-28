@@ -524,6 +524,11 @@ export type HirExpression =
       readonly separator: HirExpression;
     })
   | (HirExpressionBase & {
+      // `std.testing.snapshot_file(text)` (spec/10-modules.md#snapshots).
+      readonly kind: "snapshot-file";
+      readonly text: HirExpression;
+    })
+  | (HirExpressionBase & {
       // The prelude `debug(value)` (spec/09-traits.md#debug-trait).
       readonly kind: "debug-render";
       readonly operand: HirExpression;

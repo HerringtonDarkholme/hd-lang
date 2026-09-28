@@ -467,5 +467,21 @@ impl Debug for Point:
         out.field("x", self.x)  # a hypothetical builder call
 ```
 
+3. **Where `snapshot_file` keeps its file (prototype pass, 2026-09-28).**
+   T49 says the runner names the file from the running test case, but not
+   its directory, its name, or what a missing file means outside an update
+   run. Options: a `snapshots/` folder beside the module, one file per test
+   named `<module>__<test name>.snap`, as Rust's `insta` does; or one file
+   per module holding every case. **Recommendation:** the `insta` layout,
+   with a missing file failing the test unless the run updates snapshots.
+
+```text
+use std.testing.snapshot_file
+
+tests:
+    it("renders the report"):
+        snapshot_file("total: 3")  # which file, and what if it is missing?
+```
+
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
 found on 21 cases against T1-T13; T14-T27 answer its questions.

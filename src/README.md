@@ -533,7 +533,10 @@ else`, `break`, `break value`, and `continue`;
   `assert_equal` for supported scalar, string, tuple, list, optional, `Result`,
   and order-independent map values and for explicit nominal or bounded generic
   `Eq` implementations, with mandatory reasons and
-  `missing-partial-eq` at unsupported types;
+  `missing-partial-eq` at unsupported types; `std.testing.snapshot` runs as
+  a string `assert_equal` with a literal `expect` (no update run rewrites
+  it), and `snapshot_file` is checked but reported as
+  `unsupported-snapshot-file` by the run commands;
 - suspension CFG lowering for bang calls nested in expressions, call
   arguments, short-circuiting, branches, loops, match guards, propagation, and
   provider scopes, with scoped cleanup and cancellation;
