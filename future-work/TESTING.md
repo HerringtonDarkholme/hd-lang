@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T38 are
+Status: design record, started 2026-09-27. Owner decisions T1-T42 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
@@ -247,6 +247,35 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     growing from small to large, overridable by `cases=` and
     `hd test --cases N`.
 
+39. **T39: `Debug` lives in `std.format` as a prelude name,** beside
+    `Display`, so `@derive(Debug)` and `debug(x)` need no `use`. `std`
+    implements it for primitives, collections, `T?`, `Result`, and tuples.
+    This settles T33's home.
+40. **T40: a final function parameter may follow defaulted parameters**
+    (Kotlin's and Swift's rule). This relaxes
+    [`fn.default.order`](../spec/07-functions.md#r-fn.default.order) for
+    the last parameter when its type is a function type, since a trailing
+    block or a named argument always supplies it. So `it` is an ordinary
+    function, not an intrinsic; only its registration (T7, T16) is special.
+    The rule is general: `retry(3, backoff=...):` works too. Returning a
+    function from `it(name, options)` was considered and rejected: it
+    needs a new trailing-block rule, and a bare call would register
+    nothing.
+41. **T41: `it_each`, `it_prop`, and `it_prop_with` follow `it`'s rules:**
+    a string-literal name, the same options, top level of a `tests:` block
+    or test module only. `it_each` rows are evaluated when that test runs,
+    its body follows T15, and a `name[i]` may not equal another test's
+    name.
+42. **T42: `hd check` checks test code only with `--tests`,** like
+    `cargo check`; `hd test` always compiles it.
+
+```text
+# std.testing (T40)
+pub fn it[T < Termination, R](name: string, ignore: string? = .None,
+                             expect_panic: string? = .None, timeout: string? = .None,
+                             body: fn!() -> T $ R) -> void $ R
+```
+
 ```text
 # std.testing
 pub fn it_prop[T < Arbitrary](name: string, prop: fn!(T) -> void, cases: i32 = 100) -> void
@@ -321,6 +350,7 @@ tests:                                      # compiled only by `hd test`
 
 These questions came up while applying the decisions on 2026-09-27. Each
 waits for the owner; the specification states none of them as a rule.
+Items 1 and 8 are answered by T40 and T41.
 
 1. **`it` as an intrinsic.** Its options cannot be ordinary defaulted
    parameters before `body`, since
