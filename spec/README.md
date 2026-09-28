@@ -944,5 +944,7 @@ existing source. Each entry names the decision that made the change.
   longer wraps other `E < Display` errors, so a block that uses `?` now ends
   in a `Result[void, E]` value instead of a `void` statement. A result that
   does not implement `Termination`, such as an optional, is now
-  `unsatisfied-trait-bound` instead of `invalid-result-propagation`. This
-  supersedes error conversion decision 16.
+  `unsatisfied-trait-bound` instead of `invalid-result-propagation`. A
+  test body's final `Result` or optional expression, previously
+  `discarded-must-use-value`, is now the test's result. This supersedes
+  error conversion decision 16.

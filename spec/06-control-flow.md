@@ -26,15 +26,15 @@ it a value.
 
 1. r[flow.must-use.discard] An expression whose value is discarded and whose type is `Result[T, E]`, `T?`, or `mut Suspend[T]` is a compile-time error. Error: `discarded-must-use-value`.
 2. r[flow.must-use.statement] This includes a non-final expression statement.
-3. r[flow.must-use.suite-final] It also includes the final expression of any suite whose value is discarded:
+3. r[flow.must-use.discarded-suite] It also includes the final expression of any suite whose value is discarded:
    - a loop body;
    - an `if` without `else`;
    - a statement-position `match` arm;
    - a `defer` suite;
-   - a test body;
    - a module's top-level script.
-4. r[flow.must-use.handle] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression`.
-5. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
+4. r[flow.must-use.test-result] A test body's final expression is not discarded: it is the test's result ([Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks)).
+5. r[flow.must-use.handle] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression`.
+6. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
 
 ```text
 fn save() -> Result[i32, SaveError]:

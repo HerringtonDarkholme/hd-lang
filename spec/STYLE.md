@@ -719,3 +719,7 @@ style lint rejects a chapter that reuses one.
   follow the `Termination` rule. Replaced by `expr.try.test.fail-report`.
 - `grammar.test.outcome`: retired 2026-09-27. Testing T4 makes a test body
   follow the `Termination` rule. Replaced by `grammar.test.outcome-report`.
+- `flow.must-use.suite-final`: retired 2026-09-27. Testing T4 makes a test
+  body's final expression its result, so it is no longer discarded.
+  Replaced by `flow.must-use.discarded-suite` and
+  `flow.must-use.test-result`.
