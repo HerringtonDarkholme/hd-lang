@@ -84,6 +84,15 @@ option. L5 is a direction only; no operator trait is specified.
 9. **L9: std ships only duration suffixes at first,** `ns us ms s min h`
    for `Duration` (no `m`, no `d`). Byte sizes wait for a byte-size type.
    String suffixes are out of scope.
+10. **L10 (2026-09-28): suffix lookup stays as decided in L8.** A suffix is
+    an ordinary module name you import explicitly, as in
+    `use std.time.{Duration, ms, s}`. The owner considered and rejected three
+    alternatives: lookup on the expected type (like `.None`), expected type
+    with an import fallback, and a separate suffix namespace (C++
+    `chrono_literals`). The owner's reasons: clashes with other module names
+    are not an important problem and can be renamed with `as`; the import
+    should stay explicit; and resolving through a trait or the expected type
+    is not wanted. Importing short names is a small cost the owner accepts.
 
 ## Contents
 
