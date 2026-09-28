@@ -6,8 +6,6 @@ import { parse } from "../parser/index.ts";
 // prelude (spec/09-traits.md#conversion-trait and #error-trait). The prototype
 // compiles one module, so an imported standard trait is declared in it under
 // its local name, with every span pointing at the use declaration.
-// `std.process.Termination` and `ExitCode` (spec/10-modules.md#exit-status)
-// are not declared: `ExitCode` wraps a `u8`, which the prototype lacks.
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
   "std.error.Error": (name) => `trait ${name} < Display + ${INSPECTABLE}\n`,
@@ -50,6 +48,32 @@ function timeSource(
     );
   }
   return lines.join("\n");
+}
+
+// `std.process` (spec/10-modules.md#exit-status): importing `ExitCode` or
+// `Termination` declares both, with the implementations for `ExitCode`,
+// `void`, and `Result[T, E]`; a name not imported gets a hidden name.
+export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
+export const HIDDEN_TERMINATION = "__std_process_Termination";
+
+function processSource(exitCode: string, termination: string): string {
+  return `pub type ${exitCode}(u8)
+
+pub trait ${termination}:
+    fn report(self) -> ${exitCode}
+
+impl ${termination} for ${exitCode}:
+    fn report(self) -> ${exitCode}: self
+
+impl ${termination} for void:
+    fn report(self) -> ${exitCode}: ${exitCode}(0)
+
+impl[T < ${termination}, E < Display] ${termination} for Result[T, E]:
+    fn report(self) -> ${exitCode}:
+        match self:
+            .Ok(value) => value.report()
+            .Err(_) => ${exitCode}(1)
+`;
 }
 
 // Runtime type identity (spec/09-traits.md#runtime-type-identity). Importing
@@ -106,9 +130,15 @@ export function withStandardTraits(program: Program): Program {
   let time: SourceSpan | undefined;
   const timeNames = new Map<string, string>();
   let suffixTrait: string | undefined;
+  let process: SourceSpan | undefined;
+  const processNames = new Map<string, string>();
   for (const declaration of program.uses) {
     for (const imported of declaration.names) {
       const qualified = `${declaration.module}.${imported.name}`;
+      if (qualified === "std.process.ExitCode" || qualified === "std.process.Termination") {
+        process ??= declaration.span;
+        processNames.set(imported.name, imported.alias ?? imported.name);
+      }
       if (
         declaration.module === "std.time" &&
         (imported.name === "Duration" || imported.name in TIME_UNITS)
@@ -142,6 +172,19 @@ export function withStandardTraits(program: Program): Program {
       data.push(...respan(parsed.data, time));
       types.push(...respan(parsed.types ?? [], time));
       implementations.push(...respan(parsed.implementations, time));
+    }
+  }
+  if (process) {
+    const parsed = parse(
+      processSource(
+        processNames.get("ExitCode") ?? HIDDEN_EXIT_CODE,
+        processNames.get("Termination") ?? HIDDEN_TERMINATION,
+      ),
+    ).program;
+    if (parsed) {
+      traits.push(...respan(parsed.traits, process));
+      types.push(...respan(parsed.types ?? [], process));
+      implementations.push(...respan(parsed.implementations, process));
     }
   }
   if (traits.length === 0 && data.length === 0) return program;

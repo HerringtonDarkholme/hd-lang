@@ -119,6 +119,12 @@
       (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
     (i32.wrap_i64 (local.get $wide)))
 
+  ;; A u8 result computed as an i32: panics unless it is in 0..255.
+  (func $hd.check_u8 (param $value i32) (result i32)
+    (if (i32.gt_u (local.get $value) (i32.const 255))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $value))
+
   (func $hd.sub_i32 (param $left i32) (param $right i32) (result i32)
     (local $wide i64)
     (local.set $wide

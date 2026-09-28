@@ -496,3 +496,22 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
     ["integer-literal-range"],
   );
 });
+
+test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {
+  const add = "fn add(a: u8, b: u8) -> u8: a + b\n\nfn main() -> u8: add(200, 55)\n";
+  const { instance } = await instantiate(add);
+  assert.equal((instance.exports.main as CallableFunction)(), 255);
+  const overflow = await instantiate(add.replace("55", "56"));
+  assert.throws(() => (overflow.instance.exports.main as CallableFunction)());
+  const exit = [
+    "use std.process.ExitCode",
+    "",
+    "pub fn main() -> Result[ExitCode, string]:",
+    "    .Ok(ExitCode(7))",
+    "",
+  ].join("\n");
+  const entry = await instantiate(exit);
+  assert.equal((entry.instance.exports.main as CallableFunction)(), 7);
+  const failed = await instantiate(exit.replace(".Ok(ExitCode(7))", '.Err("no")'));
+  assert.equal((failed.instance.exports.main as CallableFunction)(), -1);
+});

@@ -7,13 +7,11 @@ typing/valid/prelude-surface.hd	check fails: unknown-trait at line 7: unknown tr
 typing/valid/newtypes-and-widening.hd	check fails: unknown-type i16 at line 5; i64 and the newtype unwrap are implemented	F-253
 typing/valid/numeric-types.hd	check fails: unknown-type at line 17: unknown or unsupported type 'i16'	F-253
 typing/invalid/integer-narrowing.hd	MVP reports unknown-type at line 2 instead of implicit-narrowing: unknown or unsupported type 'i16'	F-253
-typing/invalid/integer-literal-range.hd	MVP reports unknown-type at line 2 instead of integer-literal-range: unknown or unsupported type 'u8'	F-253
 typing/valid/generic-map-key.hd	check fails: unknown-trait at line 2: unknown trait 'Hash'	F-255
 typing/valid/pack-map.hd	check fails: unsupported-generic-parameter at line 10: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 instead of pack-map-mapper-mismatch: unknown name 'pack'	F-250
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
-typing/invalid/unsigned-negation.hd	MVP reports unknown-type at line 2 instead of unsigned-negation: unknown or unsupported type 'u8'	F-253
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
 typing/valid/annotations.hd	check fails: expected-expression at line 23: expected an expression, found 'annotate'	F-250
@@ -52,7 +50,6 @@ runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage
 typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
 parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 7: the prototype has no annotate declarations	GQ14
 runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type f32 at line 18; the TQ-4 literal-default preference is implemented, and i64 is	F-253
-typing/invalid/generic-trait-literal-without-default.hd	check fails: unknown-type u8 at line 12 instead of ambiguous-method; i64 is implemented	F-253
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
@@ -70,8 +67,6 @@ typing/valid/console-recording-provider.hd	check fails: unknown-trait Console at
 typing/valid/console-host-provider-mutable.hd	check fails: unknown-type mut:Console at line 4: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
-typing/valid/entry-exit-code.hd	check fails: unknown-type Result[ExitCode,string] at line 9: the prototype has no u8, so it declares no std.process.ExitCode or Termination, and main may return only void or Result[void, ConsoleError]	T8
-runtime/valid/termination-report.hd	check fails: unknown-trait Termination at line 7 and unknown-type u8: the prototype has no u8, so it declares no std.process.ExitCode or Termination	T8
 typing/invalid/assert-equal-without-debug.hd	check passes instead of unsatisfied-trait-bound at line 13: the prototype treats every type as implementing Debug, so assert_equal never rejects a type without it	T33
 typing/valid/debug-standard-types.hd	check fails: unknown-name at line 7: the prototype declares no std.format.debug function or DebugWriter	T33
 typing/valid/derive-debug.hd	check fails: unknown-name at line 14: @derive(Debug) is accepted, but the prototype declares no std.format.debug function or DebugWriter	T33

@@ -242,7 +242,7 @@ export abstract class ExpressionControlChecker extends ExpressionComprehensionCh
     const result = resultParts(subject.type);
     const tuple = tupleParts(subject.type) !== undefined;
     const boolean = subject.type === "bool";
-    const scalar = new Set<ValueType>(["bool", "i32", "i64", "f64", "char", "string"]).has(
+    const scalar = new Set<ValueType>(["bool", "i32", "i64", "u8", "f64", "char", "string"]).has(
       subject.type,
     );
     if (

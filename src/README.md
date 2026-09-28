@@ -261,19 +261,22 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   suspension boundary, including retention through ordinary functions;
 - named local functions lowered through typed closure bindings, including
   enclosing captures, recursion, suspension, and requirement forwarding;
-- `i32`, `i64`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8 `string`
-  values; an integer literal takes `i64` from an expected `i64`, an `i32`
-  widens implicitly to `i64`, and `i64` never narrows implicitly to `i32`
-  (the other sized numeric types are F-253);
+- `i32`, `i64`, `u8`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8
+  `string` values; an integer literal takes `i64` or `u8` from that expected
+  type and is range-checked, an `i32` widens implicitly to `i64`, and `i64`
+  never narrows implicitly to `i32`; `u8` is an `i32` at run time, its `+`,
+  `-`, and `*` check the 0..255 range, and unary `-` on it is
+  `unsigned-negation` (the other sized numeric types and numeric casts are
+  F-253);
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed `._0` selection, stored in erased Wasm GC arrays;
-- checked `i32` and `i64` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
+- checked `i32`, `i64`, and `u8` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
 - interpreted `$name` and `${expression}` string segments with left-to-right
   canonical `Display` dispatch for concrete implementations, generic bounds,
-  dynamic trait values, and the standard `string`, `i32`, `i64`, `f64`,
-  `bool`, and `char` implementations;
+  dynamic trait values, and the standard `string`, `i32`, `i64`, `u8`,
+  `f64`, `bool`, and `char` implementations;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
   the narrow host byte callback. `Console` is an opaque host provider, not a
@@ -465,10 +468,13 @@ else`, `break`, `break value`, and `continue`;
 - test bodies (Testing T4): a `test` block's result is inferred like a
   closure's and must be `void` or a `Result` with a `Display` error, else
   `unsatisfied-trait-bound`; a test whose result is `.Err` fails. Only the
-  outer `Result` tag is read. Without `u8`, `std.process.ExitCode` and
-  `Termination` are not declared (Testing T8), entry-point chain printing is
-  not implemented, and `main` may still return only `void` or
-  `Result[void, ConsoleError]`;
+  outer `Result` tag is read. Importing `std.process.ExitCode` or
+  `Termination` declares both (Testing T8), with the implementations for
+  `ExitCode`, `void` (whose `self` is a null `anyref`), and `Result[T, E]`;
+  `main` may return `void`, `ExitCode`, or a `Result` over them (a program's
+  own `Termination` type is reported as not yet supported), and `hd run`
+  exits with the code, reporting an `.Err` as `main returned Err` with code 1. Entry-point
+  chain printing is not implemented;
 - typed derivation (spec/14-annotations.md#typed-derivation, Typed
   Derivation M1-M24), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function

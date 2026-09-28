@@ -193,6 +193,7 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
 const TYPE_NAMES = new Set<ValueType>([
   "i32",
   "i64",
+  "u8",
   "bool",
   "f64",
   "char",
@@ -203,7 +204,7 @@ const TYPE_NAMES = new Set<ValueType>([
 ]);
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
-  if (type === "i32" || type === "bool" || type === "char") return 0;
+  if (type === "i32" || type === "u8" || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
 }
@@ -1074,7 +1075,7 @@ export const MAX_BOUND_DEPTH = 64;
  */
 export function builtinTotallyOrdered(type: ValueType): boolean {
   const compared = readonlyType(type);
-  if (["i32", "i64", "char", "string"].includes(compared)) return true;
+  if (["i32", "i64", "u8", "char", "string"].includes(compared)) return true;
   const tuple = tupleParts(compared);
   if (tuple !== undefined) return tuple.every(builtinTotallyOrdered);
   const optional = optionalInner(compared);

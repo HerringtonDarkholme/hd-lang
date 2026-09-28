@@ -17,7 +17,11 @@ import {
   traitTypeName,
 } from "./shared.ts";
 
-import { ExpressionLiteralChecker, integerLiteralTarget } from "./expression-literals.ts";
+import {
+  ExpressionLiteralChecker,
+  integerLiteralTarget,
+  integerTarget,
+} from "./expression-literals.ts";
 type NameExpression = Extract<Expression, { kind: "name" }>;
 
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
@@ -318,14 +322,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
         if (
           bitwise &&
           left.type !== "i32" &&
-          !(left.type === "i64" && ["&", "|", "^"].includes(expression.operator))
+          !(integerTarget(left.type) && ["&", "|", "^"].includes(expression.operator))
         )
           this.fail(
             "type-mismatch",
             `operator '${expression.operator}' requires i32 operands`,
             expression.span,
           );
-        if (remainder && left.type !== "i32" && left.type !== "i64")
+        if (remainder && left.type !== "i32" && !integerTarget(left.type))
           this.fail("type-mismatch", "operator '%' requires integer operands", expression.span);
         if (
           comparison &&
@@ -344,7 +348,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           !remainder &&
           !stringConcatenation &&
           left.type !== "i32" &&
-          left.type !== "i64" &&
+          !integerTarget(left.type) &&
           left.type !== "f64" &&
           !(comparison && (left.type === "bool" || left.type === "char" || left.type === "string"))
         ) {
@@ -395,7 +399,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       if (operand.type !== "i64") this.requireType(operand.type, "i32", expression.operand.span);
       type = operand.type;
     } else {
-      if (operand.type !== "i32" && operand.type !== "i64" && operand.type !== "f64") {
+      // 05 Arithmetic: unary `-` does not accept an unsigned integer.
+      if (expression.operator === "-" && operand.type === "u8")
+        this.fail(
+          "unsigned-negation",
+          "unary '-' does not accept the unsigned type 'u8'",
+          expression.span,
+        );
+      if (operand.type !== "i32" && !integerTarget(operand.type) && operand.type !== "f64") {
         const code =
           expression.operator === "+" ? "nonnumeric-unary-plus" : "invalid-unary-operand";
         this.fail(
@@ -416,8 +427,8 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
   }
 
   /**
-   * 04 Binary Numeric Operators: an untyped integer literal adopts `i64` from
-   * the other operand (or from an expected `i64` result of arithmetic), and
+   * 04 Binary Numeric Operators: an untyped integer literal adopts `i64` or
+   * `u8` from the other operand (or from an expected result of arithmetic), and
    * otherwise an `i32` operand widens to an `i64` one. An exponent keeps its
    * own type.
    */
@@ -433,13 +444,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const rightLiteral = isIntegerLiteral(expression.right);
     let left = this.checkExpression(expression.left, leftLiteral ? outer : undefined);
     const rightTarget =
-      rightLiteral && expression.operator !== "**" && (outer === "i64" || left.type === "i64")
-        ? "i64"
+      rightLiteral && expression.operator !== "**"
+        ? (integerTarget(left.type) ?? outer)
         : undefined;
     let right = this.checkExpression(expression.right, rightTarget);
     if (!numeric || expression.operator === "**") return { left, right };
-    if (leftLiteral && left.type === "i32" && right.type === "i64")
-      left = this.checkExpression(expression.left, "i64");
+    if (leftLiteral && left.type === "i32" && integerTarget(right.type))
+      left = this.checkExpression(expression.left, right.type);
     const widen = (value: HirExpression): HirExpression =>
       value.type === "i32" ? this.coerce(value, "i64", value.span) : value;
     if (left.type === "i64" && right.type === "i32") right = widen(right);

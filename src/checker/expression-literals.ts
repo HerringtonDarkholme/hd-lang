@@ -76,8 +76,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
   }
 
   /**
-   * An integer literal, typed `i64` under an expected `i64` (or `i64?`) and
-   * `i32` otherwise, and range-checked against that type
+   * An integer literal, typed `i64` or `u8` under that expected type (or its
+   * optional) and `i32` otherwise, and range-checked against that type
    * (04-type-system.md#integer-literals). `value` is the mathematical value,
    * already negated for a negated literal.
    */
@@ -86,21 +86,23 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     expected: ValueType | undefined,
     span: SourceSpan,
   ): HirExpression {
-    const wide = integerLiteralTarget(expected) === "i64";
-    const [minimum, maximum] = wide
-      ? [-(2n ** 63n), 2n ** 63n - 1n]
-      : [-2_147_483_648n, 2_147_483_647n];
+    const target = integerLiteralTarget(expected) ?? "i32";
+    const ranges: Readonly<Record<string, readonly [bigint, bigint, string?]>> = {
+      i64: [-(2n ** 63n), 2n ** 63n - 1n],
+      u8: [0n, 255n, "u16"],
+      i32: [-2_147_483_648n, 2_147_483_647n, "i64"],
+    };
+    const [minimum, maximum, wider] = ranges[target]!;
     if (value < minimum || value > maximum)
       this.fail(
         "integer-literal-range",
-        wide
-          ? "integer literal is outside the i64 range"
-          : "integer literal is outside the i32 range; declare it i64 for a wider range",
+        `integer literal is outside the ${target} range ${minimum}..${maximum}` +
+          (wider ? `; declare it ${wider} for a wider range` : ""),
         span,
       );
-    return wide
+    return target === "i64"
       ? { kind: "integer", value: Number(value), wide: value.toString(), type: "i64", span }
-      : { kind: "integer", value: Number(value), type: "i32", span };
+      : { kind: "integer", value: Number(value), type: target, span };
   }
 
   protected checkLiteralExpression(
@@ -297,9 +299,13 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
 }
 
 /** The integer type an expected type asks an unsuffixed integer literal to take. */
-export function integerLiteralTarget(expected: ValueType | undefined): ValueType | undefined {
+export function integerLiteralTarget(expected: ValueType | undefined): "i64" | "u8" | undefined {
   if (!expected) return undefined;
   const type = readonlyType(expected);
-  if (type === "i64" || optionalInner(type) === "i64") return "i64";
-  return undefined;
+  return integerTarget(type) ?? integerTarget(optionalInner(type));
+}
+
+/** `i64` or `u8`: the integer types other than the default `i32`. */
+export function integerTarget(type: ValueType | undefined): "i64" | "u8" | undefined {
+  return type === "i64" || type === "u8" ? type : undefined;
 }

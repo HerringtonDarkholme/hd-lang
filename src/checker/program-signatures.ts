@@ -2,7 +2,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import type { FunctionDecl } from "../ast.ts";
 import type { HirAssociatedBinding } from "../hir.ts";
-import { mutableInner, nominalGenericParts, nominalGenericType, resultParts } from "../types.ts";
+import { mutableInner, nominalGenericParts, nominalGenericType } from "../types.ts";
 import { PRELUDE_NAMES, type Signature } from "./context.ts";
 import {
   collectRowParameterReferences,
@@ -277,20 +277,7 @@ export function createProgramSignatures(
             span: declaration.span,
           });
         }
-        const entryResult = resultParts(result);
-        if (
-          result !== "void" &&
-          !(entryResult?.ok === "void" && entryResult.error === "ConsoleError")
-        ) {
-          // The result must implement std.process.Termination
-          // (spec/10-modules.md#r-module.entry.result-termination); the
-          // prototype runs only `void` and `Result[void, ConsoleError]`.
-          diagnostics.push({
-            code: "unsatisfied-trait-bound",
-            message: `the result '${result}' of public main does not implement std.process.Termination, or is not yet supported: the prototype runs void and Result[void, ConsoleError]`,
-            span: declaration.result.span,
-          });
-        }
+        // The result's `Termination` bound is checked with the body.
         if (declaration.parameters.length > 0) {
           diagnostics.push({
             code: "entry-point-parameters",

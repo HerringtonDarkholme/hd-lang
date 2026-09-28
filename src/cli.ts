@@ -358,11 +358,14 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         if (typeof entry !== "function")
           throw new Error(`${declaration.name} has no runnable export`);
         result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
-        if (declaration.entry && resultParts(declaration.result)?.ok === "void") {
-          if (result !== 0) {
+        // The entry wrapper returns the exit code, or -1 for an `.Err`
+        // (spec/10-modules.md#r-module.entry.exit-report).
+        if (declaration.entry && !declaration.suspending && typeof result === "number") {
+          if (result === -1) {
             reporter.entryError();
             return 1;
           }
+          if (result !== 0) return result;
           result = undefined;
         }
         // A test fails when its Result reports `.Err`

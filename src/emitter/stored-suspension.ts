@@ -52,7 +52,7 @@ export const STORED_SUSPENSION_RUNTIME = `(func $hd.suspension_poll (param $fram
 function boxResult(value: string, type: ValueType): string {
   const mutable = mutableInner(type);
   if (mutable !== undefined) return boxResult(value, mutable);
-  if (type === "i32" || type === "bool" || type === "char")
+  if (type === "i32" || type === "u8" || type === "bool" || type === "char")
     return `(struct.new $hd.box-i32 ${value})`;
   if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
   if (type === "i64") return `(struct.new $hd.box-i64 ${value})`;

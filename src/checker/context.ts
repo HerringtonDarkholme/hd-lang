@@ -140,6 +140,7 @@ function hirValueReadsLocal(value: unknown, local: HirLocal): boolean {
 const TYPE_NAMES = new Set<ValueType>([
   "i32",
   "i64",
+  "u8",
   "bool",
   "f64",
   "char",
@@ -153,7 +154,7 @@ export { PRELUDE_NAMES };
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
-  if (type === "i32" || type === "bool" || type === "char") return 0;
+  if (type === "i32" || type === "u8" || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
 }
@@ -379,7 +380,9 @@ export abstract class CheckerContext {
           );
         }
         const type = this.signature.parameters[index] ?? this.resolveType(parameter.type);
-        if (type === "void")
+        // `self` of an `impl ... for void` method, such as std.process's
+        // `Termination` implementation (10-modules.md#exit-status), is void.
+        if (type === "void" && !(parameter.name === "self" && index === 0))
           this.fail("void-parameter", "a parameter cannot have type void", parameter.span);
         if (this.currentScope().has(parameter.name))
           this.fail("duplicate-binding", `duplicate parameter '${parameter.name}'`, parameter.span);
@@ -411,15 +414,15 @@ export abstract class CheckerContext {
         if (mismatch) this.fail("no-common-type", mismatch.message, mismatch.span);
       } else {
         this.checkFallthrough(body);
-        if (
-          termination.TEST_FUNCTION.test(this.declaration.name) &&
-          !termination.terminates(result, this.traitTypes, this.implementations)
-        )
-          this.fail(
-            "unsatisfied-trait-bound",
-            `a test body's result '${result}' does not implement std.process.Termination`,
-            this.declaration.span,
-          );
+        const failure = termination.resultFailure(
+          this.declaration,
+          this.synthetic,
+          result,
+          this.traitTypes,
+          this.implementations,
+          this.imports,
+        );
+        if (failure) this.fail("unsatisfied-trait-bound", failure.message, failure.span);
       }
       for (const local of this.locals) {
         if (local.parameter || local.name.startsWith("$") || hirValueReadsLocal(body, local))
@@ -993,7 +996,7 @@ export abstract class CheckerContext {
       );
     }
     if (traitName === "Display") {
-      return ["i32", "i64", "f64", "bool", "char", "string"].includes(type)
+      return ["i32", "i64", "u8", "f64", "bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })
         : undefined;
     }
@@ -1071,7 +1074,7 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    if (["i32", "i64", "f64", "bool", "char"].includes(type)) {
+    if (["i32", "i64", "u8", "f64", "bool", "char"].includes(type)) {
       return { kind: "display", operand: value, type: "string", span };
     }
     const trait = this.traitTypes.get("Display")!;
@@ -1144,7 +1147,7 @@ export abstract class CheckerContext {
 
   protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "i64", "bool", "f64", "char", "string"].includes(comparedType))
+    if (["i32", "i64", "u8", "bool", "f64", "char", "string"].includes(comparedType))
       return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
@@ -1202,7 +1205,8 @@ export abstract class CheckerContext {
 
   protected orderingStrategy(type: ValueType): HirOrderingStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "i64", "f64", "char", "string"].includes(comparedType)) return { kind: "builtin" };
+    if (["i32", "i64", "u8", "f64", "char", "string"].includes(comparedType))
+      return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
       const elements = tuple.map((element) => this.orderingStrategy(element));

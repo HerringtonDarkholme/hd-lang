@@ -1144,3 +1144,8 @@ typing/valid/literal-suffix-duration.hd	type
 typing/valid/literal-suffix-local-shadow.hd	type
 typing/valid/literal-suffix-compile-time.hd	type
 typing/invalid/literal-suffix-float-into-integer.hd	type
+typing/invalid/integer-literal-range.hd	type
+typing/invalid/unsigned-negation.hd	type
+typing/invalid/generic-trait-literal-without-default.hd	type
+typing/valid/entry-exit-code.hd	type
+runtime/valid/termination-report.hd	runtime

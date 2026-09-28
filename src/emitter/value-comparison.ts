@@ -59,7 +59,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
 
   protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
     if (type === "string") return operand;
-    if (type === "i32") return `(call $hd.i32_to_string ${operand})`;
+    if (type === "i32" || type === "u8") return `(call $hd.i32_to_string ${operand})`;
     if (type === "i64") return `(call $hd.i64_to_string ${operand})`;
     if (type === "f64") {
       this.floatDisplay = true;
@@ -204,7 +204,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         );
         return trait.methods.map((method) => {
           const parameters = method.parameters.map(
-            (parameter, parameterIndex) => `(param $a${parameterIndex} ${this.watType(parameter)})`,
+            (parameter, parameterIndex) =>
+              `(param $a${parameterIndex} ${this.parameterWatType(parameter)})`,
           );
           const bounds = methodBoundParameters(method, "b");
           const providers = method.requirements.map(
@@ -291,7 +292,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
             : `(block (result ${resultType}) (local.set ${code} ${compared}) (if (result ${resultType}) (i32.eq (local.get ${code}) (i32.const 2)) (then (struct.new $hd.variant (i32.const 0) (ref.null any))) (else (struct.new $hd.variant (i32.const 1) ${ordering}))))`;
       }
       const parameters = method.parameters.map(
-        (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
+        (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
       );
       const result = method.result === "void" ? "" : ` (result ${this.watType(method.result)})`;
       const boundPack = `(ref.as_non_null (struct.get $trait${trait.index} $trait${trait.index}bounds (ref.cast (ref $trait${trait.index}) (local.get $dictionary))))`;
@@ -335,7 +336,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
     if (readonly === "f64") return `(f64.eq ${left} ${right})`;
     if (readonly === "i64") return `(i64.eq ${left} ${right})`;
-    if (readonly === "i32" || readonly === "bool" || readonly === "char")
+    if (readonly === "i32" || readonly === "u8" || readonly === "bool" || readonly === "char")
       return `(i32.eq ${left} ${right})`;
     const tuple = tupleParts(readonly);
     if (tuple !== undefined)
@@ -398,7 +399,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const compared = `(call $hd.string_compare ${left} ${right})`;
       return `(if (result i32) (i32.lt_s ${compared} (i32.const 0)) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${compared} (i32.const 0)) (then (i32.const 1)) (else (i32.const 0)))))`;
     }
-    if (readonly === "i32" || readonly === "char")
+    if (readonly === "i32" || readonly === "u8" || readonly === "char")
       return `(if (result i32) (i32.lt_s ${left} ${right}) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${left} ${right}) (then (i32.const 1)) (else (i32.const 0)))))`;
     if (readonly === "i64") {
       const leftTemporary = this.allocateTemporary("i64");

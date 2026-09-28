@@ -456,13 +456,10 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         if (expression.left.type === "i64" && checkedWide[expression.operator]) {
           return `(call ${checkedWide[expression.operator]} ${left} ${right})`;
         }
-        if (
-          (expression.left.type === "i32" || expression.left.type === "i64") &&
-          (expression.operator === "/" || expression.operator === "%")
-        )
-          return this.emitCheckedDivision(expression.left.type, expression.operator, left, right);
         const prefix =
           expression.left.type === "f64" ? "f64" : expression.left.type === "i64" ? "i64" : "i32";
+        if (prefix !== "f64" && (expression.operator === "/" || expression.operator === "%"))
+          return this.emitCheckedDivision(prefix, expression.operator, left, right);
         const suffixes: Readonly<Record<string, string>> = {
           "+": "add",
           "-": "sub",
@@ -477,7 +474,11 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           ">": prefix === "f64" ? "gt" : "gt_s",
           ">=": prefix === "f64" ? "ge" : "ge_s",
         };
-        return `(${prefix}.${suffixes[expression.operator]} ${left} ${right})`;
+        const operation = `(${prefix}.${suffixes[expression.operator]} ${left} ${right})`;
+        // `u8` is an i32 at run time; `+`, `-`, and `*` check its range.
+        return expression.left.type === "u8" && ["+", "-", "*"].includes(expression.operator)
+          ? `(call $hd.check_u8 ${operation})`
+          : operation;
       }
       default:
         return undefined;
@@ -1106,7 +1107,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const formalSignature = this.functionSignatures.get(adapter.formalType);
         const actualSignature = this.functionSignatures.get(adapter.actualType);
         const parameters = formal.parameters.map(
-          (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
+          (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
         );
         const providers = formal.requirements.map(
           (requirement, index) => `(param $p${index} ${this.providerType(requirement)})`,
@@ -1200,7 +1201,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         return implementation.methodFunctions.flatMap((mapping) => {
           const method = trait.methods[mapping.methodIndex]!;
           const parameters = method.parameters.map(
-            (parameter, index) => `(param $a${index} ${this.watType(parameter)})`,
+            (parameter, index) => `(param $a${index} ${this.parameterWatType(parameter)})`,
           );
           const methodBounds = methodBoundParameters(method, "b");
           const providers = method.requirements.map(

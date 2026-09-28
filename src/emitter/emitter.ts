@@ -74,7 +74,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
   emit(declaration: HirFunction): string {
     this.currentRequirements = declaration.requirements;
     const parameters = declaration.parameters
-      .map((parameter) => `(param ${localName(parameter.index)} ${this.watType(parameter.type)})`)
+      .map(
+        (parameter) =>
+          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
       (bound, index) => `(param $bound${index} (ref null $trait${bound.traitIndex}))`,
@@ -152,8 +155,9 @@ class FunctionEmitter extends FunctionBodyEmitter {
     ].join("\n");
   }
 
-  // A `main` returning `Result[void, E]` is exported through a wrapper that
-  // returns the Result tag (0 = Ok, 1 = Err) so the host can report failure.
+  // A `main` with a non-void result is exported through a wrapper that
+  // returns its exit code (10-modules.md#exit-status), or -1 for an `.Err`,
+  // which the host reports as an error before it exits with 1.
   private emitResultEntryExport(declaration: HirFunction, internalName: string): string[] {
     if (
       !declaration.entry ||
@@ -161,16 +165,20 @@ class FunctionEmitter extends FunctionBodyEmitter {
       declaration.suspending ||
       declaration.parameters.length > 0 ||
       declaration.genericBounds.length > 0 ||
-      resultParts(declaration.result)?.ok !== "void"
+      declaration.result === "void" ||
+      declaration.result === "never"
     )
       return [];
     const providers = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
     );
     const call = `(call ${internalName}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")})`;
+    const locals: string[] = [];
+    const report = this.emitEntryReport(call, declaration.result, locals);
     return [
       `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
-      `  (struct.get $hd.variant $hd.variant-tag ${call}))`,
+      ...locals.map((local) => `  ${local}`),
+      `  ${report})`,
     ];
   }
 
@@ -181,7 +189,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
     if (resumableSites.length > 0)
       return this.emitLinearSuspensionSupport(declaration, resumableSites);
     const parameters = declaration.parameters
-      .map((parameter) => `(param ${localName(parameter.index)} ${this.watType(parameter.type)})`)
+      .map(
+        (parameter) =>
+          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
       (bound, index) => `(param $bound${index} (ref null $trait${bound.traitIndex}))`,
@@ -308,7 +319,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const parameters = declaration.parameters
-      .map((parameter) => `(param ${localName(parameter.index)} ${this.watType(parameter.type)})`)
+      .map(
+        (parameter) =>
+          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
       (bound, index) => `(param $bound${index} (ref null $trait${bound.traitIndex}))`,
@@ -728,7 +742,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const parameters = declaration.parameters
-      .map((parameter) => `(param ${localName(parameter.index)} ${this.watType(parameter.type)})`)
+      .map(
+        (parameter) =>
+          `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+      )
       .join(" ");
     const boundParameters = declaration.genericBounds.map(
       (bound, index) => `(param $bound${index} (ref null $trait${bound.traitIndex}))`,
@@ -1125,7 +1142,8 @@ class FunctionEmitter extends FunctionBodyEmitter {
     );
     const signature = this.functionSignatures.get(type);
     const parameters = declaration.parameters.map(
-      (parameter) => `(param ${localName(parameter.index)} ${this.watType(parameter.type)})`,
+      (parameter) =>
+        `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
     );
     const providers = declaration.requirements.map(
       (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
@@ -1189,7 +1207,7 @@ export function emitWat(program: HirProgram): string {
       const callable = functionParts(type)!;
       const parameters = [
         `(param anyref)`,
-        ...callable.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
+        ...callable.parameters.map((parameter) => `(param ${emitter.parameterWatType(parameter)})`),
         ...callable.requirements.map(
           (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
         ),
@@ -1208,7 +1226,7 @@ export function emitWat(program: HirProgram): string {
         const parameters = [
           `(param anyref)`,
           `(param anyref)`,
-          ...method.parameters.map((parameter) => `(param ${emitter.watType(parameter)})`),
+          ...method.parameters.map((parameter) => `(param ${emitter.parameterWatType(parameter)})`),
           ...methodBoundParameters(method),
           ...method.requirements.map(
             (requirement) => `(param ${providerWatType(requirement, traitsByName)})`,
