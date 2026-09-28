@@ -63,6 +63,7 @@ runs every test case. `hd check` checks test code only with `--tests`, as
 | Integration test providers | A test case under `tests/` gets real providers from the profile. One whose requirements the profile cannot bind is reported as skipped. | T20, T28 |
 | Failed result | The runner prints an `.Err` result and its cause chain, as the host does for `main`. | T18 |
 | Failed assertion | It panics with category `assertion-failed`. The runner reports the case as failed and runs the next one. | T19 |
+| Timeout | `timeout=5s` is a `Duration`, evaluated at compile time, so the runner reads it without running test code. A case that runs longer fails. | T22, the note after T52 |
 
 A test case's id is `module::name`, and its name is any string literal
 (T29). `hd test <text>` runs the test cases whose id contains the text, as
@@ -72,12 +73,14 @@ without running anything:
 ```console
 $ hd test --list
 billing::charges a fee after 30 days  src/billing.hd:14
-billing::doubles[0]  src/billing.hd:20
+billing::doubles[..]  src/billing.hd:20
 ```
 
-An `it_each` call gives one test case per row, named `name[i]`. A loop
-inside one `it` still works when one result for the whole table is enough
-(T26, T31).
+An `it_each` call gives one test case per row, named `name[i]`. Its rows
+are evaluated only when the test runs, so `--list` shows one `name[..]`
+entry per `it_each` call, and the rows appear in a run's results (T52). A
+loop inside one `it` still works when one result for the whole table is
+enough (T26, T31).
 
 Hash values can shift when test code changes, because the `Hasher` seed
 follows code identity (T26). A test that compares hash values sees that
@@ -157,12 +160,12 @@ defaulted options, so a call passes it as `prop=`:
 
 ```text
 pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
-                                               expect_panic: string? = .None, timeout: string? = .None,
+                                               expect_panic: string? = .None, timeout: Duration? = .None,
                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 
 pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                        expect_panic: string? = .None, timeout: string? = .None,
+                                        expect_panic: string? = .None, timeout: Duration? = .None,
                                         cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 ```

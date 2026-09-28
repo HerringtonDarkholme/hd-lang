@@ -74,7 +74,9 @@ language specification:
   enum `AnyRef` with identity, made enum values immutable, and turned shared
   constructor data into per-variant constants; the decisions are applied.
 - [Literal Suffixes](LITERAL_SUFFIXES.md) surveys unit literals such as
-  `5s` and `12px` and compares four designs, with questions for the owner.
+  `5s` and `12px` and compares four designs. The owner chose imported
+  suffix types that implement `std.ops.LiteralSuffix` (L1-L9); the
+  decisions are applied, with nine follow-up points still open.
 - [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
   compares four `std.ops` trait shapes, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the

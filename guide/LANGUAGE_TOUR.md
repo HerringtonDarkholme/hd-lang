@@ -156,6 +156,25 @@ million := 1_000_000
 mask := 0x_FF_FF_00
 ```
 
+A numeric literal may end in a suffix that a library declares, such as
+`250ms`. The suffix is a type brought in with `use`, and the literal calls
+its `std.ops.LiteralSuffix` implementation: `250ms` means
+`ms::from_literal(250)`, a `std.time.Duration`. A radix literal takes its
+suffix after `'`, as in `0xff'B`, and `-5s` negates the literal before the
+call. The standard library declares only `ns`, `us`, `ms`, `s`, `min`, and
+`h`:
+
+```text
+use std.time.{Duration, ms, s}
+
+timeout := 5s
+let backoff: Duration = 1_500ms
+```
+
+A library declares its own suffix by implementing the trait on a newtype
+named after it, as in `impl LiteralSuffix[i32, Pixels] for px`; see
+[Literal Suffixes](../spec/05-expressions.md#literal-suffixes).
+
 Python-style raw strings preserve backslashes and escape-looking text. Their
 multiline form uses three double quotes:
 
@@ -2112,7 +2131,8 @@ tests:
 
 `it` is an ordinary function whose defaulted options come before its final
 `body` parameter. Options are literal named arguments: `ignore="reason"`,
-`expect_panic="category"` with a panic category, and `timeout="5s"`. For
+`expect_panic="category"` with a panic category, and `timeout=5s`, a
+`Duration` whose suffix comes from `use std.time.s`. For
 table tests, `std.testing.it_each` registers one test case per row, named
 `name[i]`, and takes the same options. Its body takes the row, so it is an
 explicit `fn!` closure passed as `body=`:
@@ -2144,7 +2164,8 @@ such as `src/billing_test.hd`, is a test module: it sees the package's
 public names and holds `it` calls at its top level, with no `tests:` block.
 Integration tests live under `tests/`, see the package as a dependent does,
 and get real providers from the test profile. There, `pkg.billing` names the
-library's public API, and `use tests.common` reaches `tests/common.hd`. See [Test Modules](../spec/10-modules.md#test-modules)
+library's public API, and `use tests.common` reaches `tests/common.hd`; the
+`tests` root is an error anywhere else. See [Test Modules](../spec/10-modules.md#test-modules)
 and the [test runner notes](../future-work/RUNTIME_AND_LIBRARY.md#testing).
 
 ## Requirements and Suspension

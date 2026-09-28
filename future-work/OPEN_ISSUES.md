@@ -369,15 +369,14 @@ pub fn main() -> ExitCode:
 
 ### Literal Suffixes
 
-**Problem.** Whether `5s`, `250ms`, or `12px` are literals, and how a suffix
-is declared and found. The test `timeout` option waits on it
-([Testing](TESTING.md#owner-decisions)).
+**Decided and applied (2026-09-28).** Owner decisions L1-L9: a suffix is a
+newtype implementing `std.ops.LiteralSuffix`, imported by `use`, and
+`250ms` calls its `from_literal`
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). The test
+`timeout` option takes a `Duration`, as in `timeout=5s`.
 
-**Options.** No suffixes, a fixed standard table, imported suffix
-functions, or lookup on the expected type, compared in
-[Literal Suffixes](LITERAL_SUFFIXES.md#questions-for-the-owner).
-
-**Unblocks.** `timeout=5s` in tests, and unit literals in libraries.
+**Open.** Nine points raised while applying them, each with a
+recommendation, in [Literal Suffixes](LITERAL_SUFFIXES.md#still-open).
 
 ### Operator Traits
 

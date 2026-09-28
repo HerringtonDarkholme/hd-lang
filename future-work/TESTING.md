@@ -3,7 +3,7 @@
 Status: design record, started 2026-09-27. Owner decisions T1-T52 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day), and the language parts of
-T33 and T39-T50 on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
+T33, T39-T50, and T52, and the `timeout` note after T52, on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
 runner parts of T20, T21, and T42 are tooling and library text, recorded in
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
 [Standard Library](STDLIB.md#testing-layer). The questions this pass raised
@@ -142,7 +142,8 @@ are under [Still Open](#still-open).
     temporary filesystem the runner deletes afterwards.
 22. **T22 (TS-7): `it` takes literal named options** `ignore="reason"`,
     `expect_panic="category"`, and `timeout="5s"`, read statically by the
-    runner.
+    runner. The note after T52 changes `timeout` to a suffixed literal,
+    `timeout=5s`.
 23. **T23 (TS-9): shared helpers follow Rust and Go.** `_test.hd` modules
     may `use` each other, `tests/` modules may `use` each other, and
     `tests/` sees the library without its test code.
@@ -332,28 +333,36 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     `DebugWriter` stays imported, not a prelude name. `use tests.x` outside
     `tests/` is `test-only-use`. `hd test --list` shows one `name[..]`
     entry per `it_each` call. The codes `unknown-panic-category`,
-    `public-test-item`, and `misplaced-tests-block` are kept.
+    `public-test-item`, and `misplaced-tests-block` are kept. Applied
+    2026-09-28 in
+    [`module.test.tests-root-elsewhere`](../spec/10-modules.md#r-module.test.tests-root-elsewhere)
+    and [`trait.debug.writer-import`](../spec/09-traits.md#r-trait.debug.writer-import);
+    the `--list` rows are runner text in
+    [Runtime And Library](RUNTIME_AND_LIBRARY.md#test-runner). Named
+    bodies and the option order were already in the specification.
 
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
 `timeout: Duration? = .None`, written `timeout=5s` with `use std.time.s`;
 the suffixed literal is evaluated at compile time in this option position
-(L7). This replaces the `"5s"` string once literal suffixes are applied.
+(L7). Applied 2026-09-28 in
+[`module.testing.option.timeout-duration`](../spec/10-modules.md#r-module.testing.option.timeout-duration),
+replacing the `"5s"` string.
 
 ```text
 # std.testing (T40)
 pub fn it[T < Termination, R](name: string, ignore: string? = .None,
-                             expect_panic: string? = .None, timeout: string? = .None,
+                             expect_panic: string? = .None, timeout: Duration? = .None,
                              body: fn!() -> T $ R) -> void $ R
 ```
 
 ```text
 # std.testing (T50, T51; T41 adds it's options, placed as applied)
 pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
-                                               expect_panic: string? = .None, timeout: string? = .None,
+                                               expect_panic: string? = .None, timeout: Duration? = .None,
                                                cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
 pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
-                                        expect_panic: string? = .None, timeout: string? = .None,
+                                        expect_panic: string? = .None, timeout: Duration? = .None,
                                         cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
 ```
 
@@ -426,56 +435,17 @@ tests:                                      # compiled only by `hd test`
 These questions came up while applying the decisions. Each waits for the
 owner; the specification states none of them as a rule. The 2026-09-27
 questions 1, 3-9, 11, and 12 were answered by T39-T49 and applied on
-2026-09-28; question 2 (`timeout`) waits for literal suffixes to be applied.
+2026-09-28, and question 2 (`timeout`) by the literal-suffix decisions. The
+2026-09-28 questions 2-6 (named bodies, option order, `DebugWriter`, the
+`tests` root outside `tests/`, and listing `it_each` rows) were answered by
+T52 and applied the same day.
 
 1. **Fixtures for test modules.** The conformance suite has no fixture
    environment for test modules, integration tests, or test dependencies.
-   So `test-only-use`, `cyclic-test-dependency`, `misplaced-tests-block`
-   (T45), and the `tests` use root (T46) have no fixtures.
-2. **A parameterized body after options must be named.** Under T40 a
-   positional argument still binds the next parameter, and a trailing
-   block takes no parameters. So `it_each(name, rows, fn!(x: A): ...)` and
-   `it_prop(name, fn!(x: T): ...)` now bind the closure to an option and
-   fail to type-check; the body is written `body=` or `prop=`. The `it_each`
-   and `it_prop` examples in the specification, the guide, and the library
-   records changed accordingly, as did three fixtures that passed an
-   explicit `it` body by position.
-
-   | Option | Effect |
-   | --- | --- |
-   | Keep `body=` and `prop=` | No new rule; calls name the body. |
-   | Put the options after `body` for `it_each` and `it_prop` | Positional bodies work again; the options trail the closure. |
-   | Let a trailing block take parameters | A new trailing-block form, for every callee. |
-
-   **Recommendation:** keep `body=` and `prop=`; it follows T40 as decided
-   and adds no rule.
-
-   ```text
-   tests:
-       it_each("doubles", [1, 2, 3], body=fn!(value: i32):
-           assert_equal(double(value), value + value, reason="doubling adds the value")
-       )
-   ```
-
-3. **Where `it_each`, `it_prop`, and `it_prop_with` take their options.**
-   T41 gives them `it`'s options without a position. The specification puts
-   them after the leading arguments (`name`, `rows`, or `gen`) and before the
-   body, as `it` does; `cases=` and `shrink=` follow them.
-   **Recommendation:** confirm this order.
-4. **`DebugWriter` in the prelude.** T39 puts `Debug` and `debug` in the
-   prelude, but not `DebugWriter`. A hand-written `impl Debug` names it, so
-   it needs `use std.format.DebugWriter`. **Recommendation:** leave it
-   imported; derived implementations, the common case, never name it.
-5. **The `tests` root outside `tests/`.** T46 defines `tests.<name>` for
-   integration test modules only. What does `use tests.common` mean in a
-   library module or a `_test.hd` module? **Recommendation:** an error in
-   both, reusing `test-only-use` for library code; a `_test.hd` module
-   sees package names only (T13).
-6. **Listing `it_each` rows.** T41 evaluates `rows` when the test runs,
-   but T29's `hd test --list` shows ids such as `billing::doubles[0]`
-   without running anything. The runner cannot list rows it has not
-   evaluated. **Recommendation:** `--list` shows one `name[..]` entry per
-   `it_each` call, and the rows appear when the test runs.
+   So `cyclic-test-dependency`, `misplaced-tests-block` (T45), and the
+   `tests` use root inside `tests/` (T46) have no fixtures. `test-only-use`
+   has one, for `use tests.common` in an ordinary module, since every
+   fixture is one.
 
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
 found on 21 cases against T1-T13; T14-T27 answer its questions.

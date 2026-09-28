@@ -1,8 +1,10 @@
 # Literal Suffixes: Survey And Design Options
 
 Status: design exploration, 2026-09-27; owner decisions L1-L9 (2026-09-28)
-are below, none in the specification yet. Before them, nothing here was decided or in the
-specification.
+are below, applied to the specification on 2026-09-28 (L5's operator traits
+excepted, which are designed separately). The survey and options before the
+decisions are the exploration they came from. Questions raised while
+applying them are under [Still Open](#still-open).
 
 The owner asked for this while designing tests: `it("fetch", timeout=5s):`
 instead of `timeout="5s"`, and the design should be general enough for
@@ -16,7 +18,14 @@ literals, gives four options, and ends with questions. It reviews
 
 ## Owner Decisions
 
-Decided 2026-09-28; not yet in the specification.
+Decided 2026-09-28. Applied 2026-09-28 in
+[Literal Suffixes](../spec/01-lexical-structure.md#literal-suffixes) (lexing),
+[Literal Suffix Names](../spec/03-names-and-scopes.md#literal-suffix-names),
+[Suffixed Literals](../spec/04-type-system.md#suffixed-literals) (typing),
+[Literal Suffixes](../spec/05-expressions.md#literal-suffixes) (the call and
+`std.time`), [Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait),
+and the test [`timeout`](../spec/10-modules.md#r-module.testing.option.timeout-duration)
+option. L5 is a direction only; no operator trait is specified.
 
 1. **L1: suffixes are imported library declarations** (option 3's
    resolution): `250ms` resolves the suffix `ms` through ordinary `use`
@@ -92,6 +101,7 @@ Decided 2026-09-28; not yet in the specification.
 - [Comparison](#comparison)
 - [Recommendation](#recommendation)
 - [Questions For The Owner](#questions-for-the-owner)
+- [Still Open](#still-open)
 - [Sources](#sources)
 - [Parse Log](#parse-log)
 
@@ -117,7 +127,7 @@ as a literal in positions that accept only literals, such as test options.
 | Methods on `i32` | Only std declares inherent ones; any package may implement its own trait for `i32` | [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std), [`trait.own.orphan`](../spec/09-traits.md#r-trait.own.orphan) |
 | `5.seconds()` | Parses today: a method call on the literal `5` | [Member Access](../spec/05-expressions.md#member-access) |
 | `.Queued` | Resolved on the expected enum type; an error without one | [`data.enum.shorthand`](../spec/08-data-and-enums.md#r-data.enum.shorthand) |
-| Test options | String literals only, read statically by the runner | [`module.testing.it.options`](../spec/10-modules.md#r-module.testing.it.options) |
+| Test options | String literals only, read statically by the runner (before L1-L9) | [`module.testing.it.options-literal`](../spec/10-modules.md#r-module.testing.it.options-literal) |
 | Facts, shared enum data | Any requirement-free expression, evaluated once at compile time | [`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval), [`data.shared.compile-time`](../spec/08-data-and-enums.md#r-data.shared.compile-time) |
 | `Duration` | Drafted as `data Duration: nanos: i64` with `Duration::seconds(5)` | [STDLIB `std.time`](STDLIB.md#stdtime) |
 
@@ -584,6 +594,34 @@ fn pattern() -> string:
     "a+"
 ```
 
+## Still Open
+
+These points came up while applying L1-L9 on 2026-09-28. Each waits for
+the owner. The specification states the reading in the Applied column, so
+each can change without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | L6's `'` spelling for radix suffixes, filled in by the record | `0xff'B`, `0b1010'flags` ([`lex.suffix.radix`](../spec/01-lexical-structure.md#r-lex.suffix.radix)) | Keep. |
+| 2 | `5'ms`, the `'` form on a decimal literal | Not a suffixed literal: it stays an error, as before | Keep: one spelling per literal kind. |
+| 3 | A reserved word after digits, as in `5else` | Lexed as a suffix, by longest match ([`lex.suffix.longest`](../spec/01-lexical-structure.md#r-lex.suffix.longest)) | Keep: lexing stays context-free. |
+| 4 | A suffixed literal in a `match` pattern | A `syntax-error`: a call is not a pattern ([`grammar.pattern.no-suffixed-literal`](../spec/02-grammar.md#r-grammar.pattern.no-suffixed-literal)) | Keep until constant patterns are designed. |
+| 5 | Diagnostic codes | Unknown suffix `unknown-type`; no `LiteralSuffix` impl `unsatisfied-trait-bound`; `1.5s` `type-mismatch` | Keep the existing codes; no new code. |
+| 6 | One suffix type with two `LiteralSuffix` impls, such as `[i64, Duration]` and `[f64, Duration]` (L3) | Chosen by the ordinary rule for instantiations of one generic trait ([`expr.suffix.instantiations`](../spec/05-expressions.md#r-expr.suffix.instantiations)) | Keep; std ships only the `i64` impls. |
+| 7 | A `LiteralSuffix` impl on a data type rather than a newtype (L2) | No diagnostic; the newtype is the documented form | Keep: no rule is needed. |
+| 8 | `timeout=` with a non-literal `Duration`, such as `Duration::seconds(5)` | `non-literal-test-argument`: test options stay literal (T22) | Keep. |
+| 9 | A `from_literal` that panics during compile-time evaluation, as in a fact or `timeout=` | Not specified: no chapter says what a panic in a compile-time position does | Make it a compile error at the literal, for every compile-time position. |
+
+Point 9 is general: facts and shared enum data share it
+([`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval)).
+
+```text
+use std.time.{Duration, h}
+
+enum Budget(limit: Duration):
+    Forever -> Budget(limit=10_000_000h)  # overflows i64 nanoseconds
+```
+
 ## Sources
 
 - C++ user-defined literals: <https://en.cppreference.com/w/cpp/language/user_literal>
@@ -636,3 +674,9 @@ on the marked line.
 | 13 | Question 6 | parses |
 | 14 | Question 7 | parses |
 | 15 | Question 8 | parses |
+
+Every block was parsed again on 2026-09-28, after the reference parser
+learned suffixed literals. The table above numbers blocks as they stood on
+2026-09-27; the L2 example and the Still Open example were added later, so
+the file now has 16 blocks. All 16 parse except option 4's declaration,
+now block 6, which still reports `decorator-not-top-level` at line 2.
