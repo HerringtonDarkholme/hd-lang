@@ -2,12 +2,7 @@ import type { Expression, FunctionDecl, TypeRef } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
-import {
-  mutableInner,
-  mutableType,
-  nominalGenericParts,
-  readonlyType,
-} from "../types.ts";
+import { mutableInner, mutableType, nominalGenericParts, readonlyType } from "../types.ts";
 import {
   containsGenericType,
   genericTypeName,

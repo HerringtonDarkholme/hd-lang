@@ -1114,24 +1114,6 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     if (expression.callee.name === "debug") return this.checkDebugCall(expression);
     if (expression.callee.name.startsWith("$each-row-")) return this.checkEachRowCall(expression);
     if (expression.callee.name === "$test-timeout") return this.checkTestTimeoutCall(expression);
-    if (expression.callee.name === "println") {
-      if (expression.typeArguments)
-        this.fail("unexpected-type-arguments", "println infers its Display type", expression.span);
-      if (expression.argumentSpreads?.some(Boolean))
-        this.fail(
-          "positional-spread-needs-vararg",
-          "println has no variadic parameter",
-          expression.span,
-        );
-      if (expression.arguments.length !== 1)
-        this.fail("argument-count", "println expects one value argument", expression.span);
-      this.resolveArgumentMapping(expression, ["value"], "println");
-      const operand = this.checkExpression(expression.arguments[0]!);
-      const value = this.displayValue(operand, operand.span, "println");
-      const provider = this.resolveProvider("Console", expression.span);
-      if (!provider) this.fail("missing-requirement", "println requires Console", expression.span);
-      return { kind: "console-print", provider, value, type: "void", span: expression.span };
-    }
     if (
       expression.callee.name.startsWith("$enum-literal.") ||
       expression.callee.name.startsWith("$enum-template.")

@@ -14,11 +14,19 @@ import { localName } from "./shared.ts";
 //   copies byte by byte. The host looks the name up in its function table
 //   (src/host-functions.ts).
 
-const RUNTIME_PRIMITIVES: Readonly<Record<string, (arguments_: readonly string[]) => string>> = {
+type Unbox = (value: string, type: ValueType) => string;
+
+const RUNTIME_PRIMITIVES: Readonly<
+  Record<string, (arguments_: readonly string[], unbox: (value: string) => string) => string>
+> = {
   string_byte_len: ([text]) => `(array.len (ref.as_non_null ${text}))`,
   string_byte_at: ([text, index]) => `(array.get_u $hd.bytes (ref.as_non_null ${text}) ${index})`,
   string_byte_slice: ([text, start, end]) =>
     `(call $hd.string_slice (ref.as_non_null ${text}) ${start} ${end})`,
+  // One poll of a stored `Suspend[T]` without a driver; 1 when it is ready.
+  suspension_poll: ([call]) => `(call $hd.suspension_poll ${call})`,
+  // The result of a ready stored `Suspend[T]`, unboxed to `T`.
+  suspension_result: ([call], unbox) => unbox(`(call $hd.suspension_result ${call})`),
 };
 
 /** Whether `name` is a runtime primitive rather than a host function. */
@@ -70,13 +78,13 @@ function hostSignature(declaration: HirFunction): string {
 }
 
 /** The body of a `lib/std` primitive. */
-export function emitIntrinsicBody(declaration: HirFunction): string {
+export function emitIntrinsicBody(declaration: HirFunction, unbox: Unbox): string {
   const name = declaration.intrinsic!;
   const arguments_ = declaration.parameters.map(
     (parameter) => `(local.get ${localName(parameter.index)})`,
   );
   const primitive = RUNTIME_PRIMITIVES[name];
-  if (primitive) return primitive(arguments_);
+  if (primitive) return primitive(arguments_, (value) => unbox(value, declaration.result));
   const lowered = declaration.parameters.map((parameter, index) =>
     parameter.type === "string"
       ? `(call $hd.string_to_host ${arguments_[index]})`

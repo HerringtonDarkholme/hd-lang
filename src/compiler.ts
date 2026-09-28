@@ -8,7 +8,7 @@ import { HOST_FUNCTIONS } from "./host-functions.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
-import { RuntimePanicError, runtimePanicName, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
+import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
 
 export interface Compilation extends WasmArtifact {
   readonly hir: HirProgram;
@@ -226,18 +226,6 @@ export function compile(source: string, options: CompileOptions = {}): Compilati
   if (!analysis.hir) throw new DiagnosticError(analysis.diagnostics);
   const artifact = assembleWat(emitWat(analysis.hir));
   return { ...artifact, hir: analysis.hir, diagnostics: analysis.diagnostics };
-}
-
-// `println` panics when its `write_line!` stays pending or returns `.Err`
-// (spec/10-modules.md#console). The spec leaves the panic category open
-// (MHP-1), so the run stops with a prototype code.
-function printlnPanic(cause: string): () => never {
-  return () => {
-    throw new UnsupportedAtRunTimeError(
-      "unsupported-println-panic",
-      `println panics because ${cause}; the spec leaves this panic's category open (MHP-1)`,
-    );
-  };
 }
 
 export async function instantiate(
@@ -521,8 +509,6 @@ export async function instantiate(
         throw new RuntimePanicError(runtimePanicName(code));
       },
       console_byte: consoleByte,
-      println_pending: printlnPanic("its write_line! call is pending on a host operation"),
-      println_error: printlnPanic("write_line! returned .Err(ConsoleError)"),
     },
   });
   const replay: ReplaySession = {

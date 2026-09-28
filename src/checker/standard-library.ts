@@ -43,6 +43,11 @@ const parsedModules = new Map<StandardModule, ParsedModule>();
 /** Renamed module sources, parsed once each; most programs rename nothing they import. */
 const renamedModules = new Map<string, Program>();
 
+/** The prelude names that a std module declares in hd, by module. */
+const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
+  ["console", "println"],
+];
+
 function isStandardModule(name: string): name is StandardModule {
   return (STANDARD_MODULES as readonly string[]).includes(name);
 }
@@ -84,9 +89,9 @@ function parseModule(name: StandardModule, source: string): Program {
     );
   const functions = parsed.program.functions.map((declaration) => {
     const intrinsic = intrinsicName(declaration);
-    if (!intrinsic) return declaration;
+    if (!intrinsic) return { ...declaration, standard: true };
     const { decorators: _decorators, ...rest } = declaration;
-    return { ...rest, intrinsic };
+    return { ...rest, intrinsic, standard: true };
   });
   return { ...parsed.program, functions };
 }
@@ -120,13 +125,15 @@ function escapeRegExp(text: string): string {
 
 /**
  * Renames whole identifiers that are not member names (`.name`) or associated
- * names (`Type::name`). The std sources keep their top-level names distinct
- * from their fields, parameters, and locals, so a textual rename is exact.
+ * names (`Type::name`), nor a string literal's first word, such as the
+ * name in `@intrinsic("println_pending")`. The std sources keep their
+ * top-level names distinct from their fields, parameters, and locals, so a
+ * textual rename is exact.
  */
 function renameSource(source: string, renames: ReadonlyMap<string, string>): string {
   if (renames.size === 0) return source;
   const pattern = new RegExp(
-    `(?<![\\w.]|::)(${[...renames.keys()].map(escapeRegExp).join("|")})(?!\\w)`,
+    `(?<![\\w."]|::)(${[...renames.keys()].map(escapeRegExp).join("|")})(?!\\w)`,
     "g",
   );
   return source.replace(pattern, (name) => renames.get(name) ?? name);
@@ -214,6 +221,9 @@ export function withStandardLibrary(program: Program): Program {
   const timed = program.tests.find((test) => test.timeout);
   if (timed) include("time", timed.span);
 
+  // Prelude names that std declares keep their names
+  // (spec/10-modules.md#prelude).
+  for (const [module, name] of PRELUDE_DECLARATIONS) localNames.set(`${module}.${name}`, name);
   const nameOf = (module: StandardModule, name: string): string =>
     localNames.get(`${module}.${name}`) ?? hiddenStandardName(module, name);
   const modules = new Map<StandardModule, Program>();
@@ -242,6 +252,17 @@ export function withStandardLibrary(program: Program): Program {
   const implementationDeclared = (implementation: ImplDecl): boolean =>
     declared(baseName(implementation.targetName)) &&
     (implementation.traitName === undefined || declared(baseName(implementation.traitName)));
+
+  // A program that mentions a std-declared prelude name gets its declaration,
+  // unless it declares that name itself, which is a prelude-name-shadow error.
+  const mentionedByProgram = new Set<string>();
+  mentionedNames(program, mentionedByProgram);
+  for (const [module, name] of PRELUDE_DECLARATIONS) {
+    if (!mentionedByProgram.has(name) || included.has(module)) continue;
+    if (program.functions.some((declaration) => declaration.name === name)) continue;
+    reached.add(name);
+    if (!spans.has(module)) spans.set(module, program.span);
+  }
 
   // Built-in methods: the methods of `impl` blocks on built-in types whose
   // names are selected, to a fixed point. A selected method reaches the std

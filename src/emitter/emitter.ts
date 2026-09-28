@@ -42,7 +42,7 @@ import {
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
-import { emitHostProviders, emitPrintln } from "./host-providers.ts";
+import { emitHostProviders } from "./host-providers.ts";
 import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
 import { lowerRunTimeGaps } from "./run-time-gaps.ts";
 import {
@@ -112,7 +112,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.cleanupFrames.length = 0;
     const cache = enumSharedCache(declaration);
     const body = declaration.intrinsic
-      ? emitIntrinsicBody(declaration)
+      ? emitIntrinsicBody(declaration, (value, type) => this.unboxValue(value, type))
       : cache
         ? [
             `(if (ref.is_null (global.get ${cache}))`,
@@ -1430,10 +1430,9 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     referenceableFunctions.length > 0
       ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
       : "";
-  const println = emitter.requiresConsoleOutput ? emitPrintln(program) : undefined;
   const hostFunctions = emitHostFunctionImports(program);
   const imports = [
-    [hostProviders.imports, println?.imports ?? ""].filter(Boolean).join("\n"),
+    hostProviders.imports,
     [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
       ? `  (import "hd" "trace" (func $hd.trace (param i32 i32)))`
       : "",
@@ -1448,7 +1447,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       : "",
     hostFunctions.imports,
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,
-    emitter.requiresConsoleOutput || hostProviders.console
+    hostProviders.console
       ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
       : "",
   ]
@@ -1457,11 +1456,11 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
   const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
   const optionalRuntime = [
     emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
-    emitter.requiresConsoleOutput || hostProviders.console ? CONSOLE_RUNTIME_WAT : "",
+    hostProviders.console ? CONSOLE_RUNTIME_WAT : "",
     hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : "",
   ]
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${println ? "\n\n" + indent(println.functions) : ""}${start}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
 }

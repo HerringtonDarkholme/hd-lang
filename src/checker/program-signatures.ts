@@ -24,7 +24,7 @@ export function createProgramSignatures(
   const { program, diagnostics, dataTypes, enumTypes, traitTypes, hostCapabilities } = context;
   const signatures = new Map<string, Signature>();
   declarations.forEach((declaration, index) => {
-    if (PRELUDE_NAMES.has(declaration.name)) {
+    if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
         code: "prelude-name-shadow",
         message: `function '${declaration.name}' shadows a prelude name`,

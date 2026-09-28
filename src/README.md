@@ -744,10 +744,13 @@ marks what this refactor removed.
 | Checker | `checkStringMemberCall`: `len`, `trim`, `lower`, `upper`, `split`, `replace`, `starts_with` by name | string library | Done: ordinary `impl string:` methods |
 | WAT runtime | `string-split.wat`, `string-transform.wat`, `$hd.string_len`, `$hd.string_starts_with` | string library | Done: removed; `$hd.string_slice` stays as the slice primitive |
 | Host glue | `string_transform_begin`, `_input`, `_output` imports, `trimWhiteSpace` | string library | Done: `trim` is hd code; case mapping goes through `host:` |
-| HIR | `console-print` (`println`) | capability | Plan below |
-| Checker | `println` by name; `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | capability, std declarations | Plan below |
-| Emitter | `emitConsole` (a hand-written `Console` provider), `emitPrintln`, `console.wat` (`$hd.console_print`) | capability | Plan below |
-| Host glue | `console_byte`, `println_pending`, `println_error` imports | capability | Plan below |
+| HIR | `console-print` (`println`) | capability | Done: `println` is hd code in `lib/std/console.hd` |
+| Checker | `println` by name | capability | Done: an ordinary std function; std may declare a prelude name (`FunctionDecl.standard`) |
+| Emitter | `emitPrintln` (`$hd.println`) | capability | Done: two runtime primitives, `suspension_poll` and `suspension_result` |
+| Host glue | `println_pending`, `println_error` imports | capability | Done: host functions `host:println_pending` and `host:println_error` |
+| Checker | `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | std declarations | Plan below |
+| Emitter | `emitConsole` (a hand-written host `Console` provider), `console.wat` (`$hd.console_print`) | capability | Plan below |
+| Host glue | `console_byte` import | capability | Plan below |
 | HIR | `assert`, `assert-equal`, `snapshot-file` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
 | HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
 | HIR | `debug-render` | `std.format` | Remains: reports `unsupported-debug-render` until the `DebugWriter` layout is specified |
@@ -759,25 +762,34 @@ marks what this refactor removed.
 | Emitter | `float.wat` and the `format_f64` and `pow_f64` imports | `f64` display and `**` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
-or capability-specific. The string step removed 5 (87 kinds, 10 specific).
+or capability-specific. The string step removed 5 and the `println` step 1,
+leaving 86 kinds, 9 of them specific: the test-runner hooks, `std.testing`,
+`debug`, and `std.inspect` rows above. No capability has a HIR node now.
 
-### Console Plan
+### Console
 
-`println` and the host console are the last capability that the compiler
-names. The plan, in order:
+`println` is hd code in `lib/std/console.hd`
+([`module.prelude.println`](../spec/10-modules.md#r-module.prelude.println)).
+It calls `write_line` without `!`, which makes a stored suspension, polls
+it once with the `suspension_poll` primitive, and reads the result with
+`suspension_result`. It does not use `block_on`, which refuses to run under
+an active driver, while `println` must work inside `main!`. The loader adds
+`println` under its own name when a program mentions it, because
+`println` is a prelude name.
 
-1. Declare `Console` and `println` in `lib/std/console.hd`, as prelude
-   names the loader adds when a program mentions them.
-2. Give the host console to the generic capability bridge: marshal the
-   `Result[void, ConsoleError]` result of `write_line!` as a tagged boundary
-   value, and implement `Console.write_line` in the host table. This drops
-   `emitConsole`, `console.wat`, and `console_byte`.
-3. Write `println` as hd code that calls `write_line` and drives it inside
-   itself. That needs one generic, std-only suspension primitive (poll once
-   without a driver guard, panic if pending), since `block_on` refuses to
-   run under an active driver. This drops `console-print` and
-   `emitPrintln`.
-4. `ConsoleError` stays a TypeScript type name until the specification
+What remains, in order:
+
+1. Declare the `Console` trait in `lib/std/console.hd` instead of
+   `program-types.ts`. Its trait index is fixed today (the last built-in
+   trait), which `lowerRunTimeGaps` relies on to drop an unused `Console`.
+2. Give the host console to the generic capability bridge. That needs the
+   bridge to marshal `write_line!`'s `Result[void, ConsoleError]` result,
+   and the host table to implement `Console.write_line`. It drops
+   `emitConsole`, `console.wat`, and `console_byte`. One behavior to
+   decide first: the bridge records every host call for replay, so
+   `hd record` would start recording console lines, and `hd replay` would
+   stop printing them.
+3. `ConsoleError` stays a TypeScript type name until the specification
    gives it members; the spec only says it is boundary-safe and `Display`.
 
 ## Layout

@@ -64,6 +64,16 @@ test("a string method declares only the std helpers it reaches", () => {
   );
 });
 
+test("println is the std.console declaration, under its prelude name", () => {
+  const program = parse('fn greet() -> void $ Console: println("hi")\n').program!;
+  const println = withStandardLibrary(program).functions.find(
+    (declaration) => declaration.name === "println",
+  );
+  assert.equal(println?.standard, true);
+  const own = parse("fn println() -> void: pass\n").program!;
+  assert.equal(withStandardLibrary(own), own);
+});
+
 test("only lib/std can declare an intrinsic", () => {
   const analysis = analyze('@intrinsic("string_byte_len")\nfn size(text: string) -> i32: 0\n');
   assert.deepEqual(

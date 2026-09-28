@@ -1,10 +1,5 @@
 import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
-import {
-  traitSuspensionName,
-  traitSuspensionPollName,
-  traitSuspensionResultName,
-} from "./shared.ts";
 
 export interface HostProviderEmission {
   readonly functions: string;
@@ -379,43 +374,4 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
     .filter(Boolean)
     .join("\n");
   return { functions, imports, references, types, console: consoleEmission !== undefined };
-}
-
-/**
- * `println` (spec/10-modules.md#console): calls `write_line!` on the covering
- * `Console` provider, the host console or a program-defined one, and drives
- * the call inside itself (r[module.console.println-drive]). A poll that stays
- * pending (r[module.console.println-pending]) and an `.Err` result
- * (r[module.console.println-error]) are panics whose category the spec leaves
- * open (MHP-1), so they stop the run through the `println_pending` and
- * `println_error` imports.
- */
-export function emitPrintln(
-  program: HirProgram,
-): { functions: string; imports: string } | undefined {
-  const console = program.traits.find((trait) => trait.name === "Console");
-  if (!console) return undefined;
-  const method = console.methods[0]!;
-  const ids = `${console.index}_${method.index}`;
-  const trait = `$trait${console.index}`;
-  const wrapper = traitSuspensionName(console.index, method.index);
-  const functions = [
-    `(func $hd.println (param $console (ref null ${trait})) (param $text (ref null $hd.bytes))`,
-    `  (local $call (ref null ${wrapper}))`,
-    `  (local.set $call (call_ref $tsig${ids}`,
-    `    (struct.get ${trait} ${trait}value (ref.as_non_null (local.get $console)))`,
-    `    (local.get $console)`,
-    `    (local.get $text)`,
-    `    (struct.get ${trait} ${trait}m${method.index} (local.get $console))))`,
-    `  (if (i32.ne (call ${traitSuspensionPollName(console.index, method.index)} (local.get $call)) (i32.const 1))`,
-    `    (then (call $hd.println_pending) unreachable))`,
-    `  (if (struct.get $hd.variant $hd.variant-tag (call ${traitSuspensionResultName(console.index, method.index)} (local.get $call)))`,
-    `    (then (call $hd.println_error) unreachable))`,
-    `)`,
-  ].join("\n");
-  const imports = [
-    `  (import "hd" "println_pending" (func $hd.println_pending))`,
-    `  (import "hd" "println_error" (func $hd.println_error))`,
-  ].join("\n");
-  return { functions, imports };
 }

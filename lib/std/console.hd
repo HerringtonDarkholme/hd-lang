@@ -1,8 +1,9 @@
-# std.console: console input and the recording `BufferConsole`
+# std.console: `println`, console input, and the recording `BufferConsole`
 # (future-work/STDLIB.md#stdconsole). `Console`, `ConsoleError`, and `println`
-# are prelude names (spec/10-modules.md#console). No prototype runtime profile
-# binds a host `ConsoleInput`. `println` drives the covering provider's
-# `write_line!` (MHP-1), so a `BufferConsole` records `println` lines too.
+# are prelude names (spec/10-modules.md#console); `println` is declared here
+# and the other two by the checker. No prototype runtime profile binds a host
+# `ConsoleInput`. `println` drives the covering provider's `write_line!`
+# (MHP-1), so a `BufferConsole` records `println` lines too.
 
 pub trait ConsoleInput:
     fn read_line!(self) -> Result[string?, ConsoleError]
@@ -21,3 +22,39 @@ impl Console for BufferConsole:
     fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.append(text)
         .Ok()
+
+# `println` (spec/10-modules.md#console): writes `value` through the covering
+# provider's `write_line!` and drives that call inside itself, so `println`
+# stays non-suspending. A call left pending, or an `.Err`, panics; the spec
+# leaves that panic's category open (MHP-1), so the host reports
+# `unsupported-println-panic`.
+pub fn println[T < Display](value: T) -> void $ Console:
+    let console = $.use(Console)
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
+    if !poll_once(call):
+        println_pending()
+    match ready_result(call):
+        .Ok() => pass
+        .Err(_) => println_error()
+
+# Primitives. The compiler supplies each body: the suspension primitives
+# come from the Wasm runtime and the panics from the host. `@intrinsic` is
+# prototype-internal and accepted only in lib/std.
+
+# Polls `call` once, without a driver, and says whether it is ready.
+@intrinsic("suspension_poll")
+fn poll_once(call: mut Suspend[Result[void, ConsoleError]]) -> bool:
+    panic("intrinsic")
+
+# The result of a ready `call`.
+@intrinsic("suspension_result")
+fn ready_result(call: mut Suspend[Result[void, ConsoleError]]) -> Result[void, ConsoleError]:
+    panic("intrinsic")
+
+@intrinsic("println_pending")
+fn println_pending() -> void:
+    panic("intrinsic")
+
+@intrinsic("println_error")
+fn println_error() -> void:
+    panic("intrinsic")

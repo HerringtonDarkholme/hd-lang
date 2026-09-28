@@ -550,11 +550,6 @@ export type HirExpression =
       readonly operand: HirExpression;
     })
   | (HirExpressionBase & {
-      readonly kind: "console-print";
-      readonly provider: HirExpression;
-      readonly value: HirExpression;
-    })
-  | (HirExpressionBase & {
       readonly kind: "assert-equal";
       readonly arguments: readonly HirExpression[];
       readonly argumentParameterIndices?: readonly number[];

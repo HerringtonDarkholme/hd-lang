@@ -85,7 +85,6 @@ export class EmitterContext {
   protected readonly temporaryTypes: ValueType[] = [];
   protected floatPower = false;
   protected floatDisplay = false;
-  protected consoleOutput = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
   protected readonly builtinTraitAdapters = new Map<string, BuiltinTraitAdapter>();
@@ -231,10 +230,6 @@ export class EmitterContext {
 
   protected emitRuntimePanic(name: RuntimePanicName): string {
     return `(call $hd.panic (i32.const ${runtimePanicCode(name)})) unreachable`;
-  }
-
-  get requiresConsoleOutput(): boolean {
-    return this.consoleOutput;
   }
 
   get adapters(): readonly CallableAdapter[] {

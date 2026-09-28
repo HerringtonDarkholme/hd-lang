@@ -88,6 +88,8 @@ export interface FunctionDecl {
    * Compiler/library boundary). User code cannot set it.
    */
   readonly intrinsic?: string;
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `println`. */
+  readonly standard?: boolean;
 }
 
 export interface MethodDecl {

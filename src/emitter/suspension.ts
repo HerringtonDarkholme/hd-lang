@@ -414,12 +414,6 @@ class SuspensionPlanBuilder {
         return lowerValues([expression.count], ([count]) => ({ ...expression, count: count! }));
       case "test-timeout":
         return lowerValues([expression.millis], ([millis]) => ({ ...expression, millis: millis! }));
-      case "console-print":
-        return lowerValues([expression.provider, expression.value], ([provider, value]) => ({
-          ...expression,
-          provider: provider!,
-          value: value!,
-        }));
       case "value-equality":
       case "value-ordering":
         return lowerValues([expression.left, expression.right], ([left, right]) => ({
