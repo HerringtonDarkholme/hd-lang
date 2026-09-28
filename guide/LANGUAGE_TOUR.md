@@ -2367,7 +2367,9 @@ impl User by Structure:
 A `+=` line appends after the member's decorator values, and a `=` line
 replaces them. A per-trait derivation block, such as
 `impl Encode for User by Structure:`, then edits the result for that one
-derivation. The block lives in the type's module. Decorators and trait-less
+derivation. The block lives in the type's module, and a type has at most
+one. For a generic type it declares the type's own parameters, without
+bounds, as `impl[T] Box[T] by Structure:`. Decorators and trait-less
 blocks are module-level, so local declarations cannot carry member metadata.
 
 Metadata is contextually typed as `List[Any]`, so any value may be
@@ -2385,12 +2387,13 @@ data User:
     display_name: string
 
 impl User by Structure:
-    display_name = [display_name_metadata...]
+    display_name = display_name_metadata
 ```
 
 Metadata values are evaluated once, at compile time, and must be
-requirement-free. Multiple entries with the same concrete type on one member
-are rejected. Whether a value suits its member's type is not checked yet.
+requirement-free. Multiple entries with the same concrete type on one member,
+or two type-level decorators of one type on a declaration, are rejected.
+Whether a value suits its member's type is not checked yet.
 
 The compiler exposes shapes for the declarations a library can inspect:
 

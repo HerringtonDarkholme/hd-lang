@@ -2,8 +2,9 @@
 
 Status: design record for roadmap area 2. Typed derivation is fully
 decided by owner decisions M1-M24 (2026-09-27), M25 (2026-09-28, applied
-the same day, row 4 of its table still open) and M26 (2026-09-28, applied
-the same day, its readings awaiting confirmation), tested by three stress tests
+the same day), M26 (2026-09-28, applied the same day, its readings awaiting
+confirmation), and M27 and M28 (2026-09-28, applied to the spec the same
+day, not yet in the prototype), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M24 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -13,8 +14,8 @@ and [09](../spec/09-traits.md#derived-implementations). The prototype
 compiler implements them by lowering each derivation to an ordinary
 implementation ([src/README.md](../src/README.md)); its remaining gaps are
 rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), mostly
-`K1` (the shape intrinsics) and `F-250`, and
-[Still Open](#still-open-after-the-prototype-pass) lists what the pass found
+`K1` (the shape intrinsics), `F-250`, and the `M27` and `M28` fixtures,
+and [Still Open](#still-open-after-the-prototype-pass) lists what the pass found
 unspecified. The spec is the
 accepted behavior; this record is history and rationale.
 
@@ -1253,9 +1254,10 @@ Nothing below is decided. Each item waits for the owner.
   ([STDLIB](STDLIB.md#clone)).
 - **Derived-function cache** (M24). Its API and module are chosen with the
   standard library ([STDLIB](STDLIB.md#derived-function-cache)).
-- **Trait-less blocks** (M26). A generic target, several blocks for one
-  type, unused facts from a `Self` line, and a member line's right side;
-  see [Still Open After M26](#still-open-after-the-prototype-pass).
+- **Trait-less blocks** (M26). Decided by M28: a generic target, several
+  blocks for one type, unused facts from a `Self` line, and a member line's
+  right side. What its apply pass left open is in
+  [Still Open After M27 And M28](#still-open-after-m27-and-m28).
 - **Function targets.** Function targets wait for
   [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
   is removed (decision 10, applied 2026-09-27), so an ordinary decorator
@@ -1295,7 +1297,7 @@ Two readings are open for the owner:
 
 | Point | Applied | **Recommendation** |
 | --- | --- | --- |
-| Two type-level facts of one concrete type from decorators, as in two `@style(...)` lines | Not covered: `annot.metadata.duplicate` names members, variants and parameters; [`annot.line.duplicate`](../spec/14-annotations.md#r-annot.line.duplicate) covers `Self` lines | `duplicate-fact` on the later decorator, as for members. |
+| Two type-level facts of one concrete type from decorators, as in two `@style(...)` lines | **Decided by M27**: `duplicate-fact` on the later decorator, [`annot.fact.duplicate-decorator`](../spec/14-annotations.md#r-annot.fact.duplicate-decorator) | `duplicate-fact` on the later decorator, as for members. |
 | Where `duplicate-fact` is reported for declaration facts | On the later value | Keep. |
 
 **Owner decision M28 (2026-09-28), the M26 open points.** The owner
@@ -1316,6 +1318,20 @@ accepted all four recommendations:
   `annot.omit.no-default`.
 - Two type-level decorators of the same fact type on one declaration (two
   `@style(...)` lines): the later one is `duplicate-fact`, as for members.
+
+**Applied 2026-09-28 (M27 and M28)** in
+[`annot.omit.no-default`](../spec/14-annotations.md#r-annot.omit.no-default)
+(the embedded-part example),
+[`annot.fact.duplicate-decorator`](../spec/14-annotations.md#r-annot.fact.duplicate-decorator),
+[`annot.traitless.generic`](../spec/14-annotations.md#r-annot.traitless.generic),
+[`annot.traitless.generic.error`](../spec/14-annotations.md#r-annot.traitless.generic.error),
+[`annot.traitless.unique`](../spec/14-annotations.md#r-annot.traitless.unique),
+[`annot.fact.unused-self-line`](../spec/14-annotations.md#r-annot.fact.unused-self-line)
+and [`annot.line.right-typed`](../spec/14-annotations.md#r-annot.line.right-typed),
+which replaces the retired `annot.line.right`. The prototype waits for its
+refactor: of the eight new fixtures, the omitted embedded part and the
+generic block pass, and the other six are `M27` and `M28` rows of
+[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv).
 
 **Owner decision M26 (2026-09-28): the `annotate Target:` block is removed.**
 `annotate` is no longer a reserved word. Metadata is written three ways:
@@ -1372,19 +1388,31 @@ pass read that as the rules below, also for the owner to confirm:
 | Target kinds | A data type or enum only; a newtype, like any other target, is `misplaced-derivation`. A GADT enum is allowed, since the block derives nothing | [`annot.traitless.target`](../spec/14-annotations.md#r-annot.traitless.target) |
 | `impl C by E` without a trait, where `E` is not `Structure` | `invalid-delegation`, as for a bad delegation | [`trait.by.trait-less.error`](../spec/09-traits.md#r-trait.by.trait-less.error) |
 
-**Still open after M26.** The spec lists the first three as
-[undecided parts](../spec/14-annotations.md#undecided-parts). The fourth
-asks how to read an existing rule that M26 now reaches. The fifth came up
-in the prototype pass and is now fixed. The Prototype column says what `src/` does today;
-none of it is decided:
+**Still open after M26.** M28 decided the first four rows as recommended,
+and they are applied to the spec (2026-09-28). The fifth came up in the
+prototype pass and is fixed. The Prototype column says what `src/` does
+today; it does not follow M28 yet:
 
 | Question | Effect | Prototype | **Recommendation** |
 | --- | --- | --- | --- |
-| A generic target | `impl[T] Box[T] by Structure:` and `impl Box[i32] by Structure:` both parse; neither has a meaning. | Takes either header by its type constructor, `Box`. | Only the declaration's own parameters, without bounds, as `impl[T] Box[T] by Structure:`. Any other header is `misplaced-derivation`. |
-| Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | Applies them in source order; each sees the facts the earlier ones left. | At most one per type, so shared metadata has one place; a second is `overlapping-impl`. |
-| Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | No warning: only decorator facts are checked. | The same warning, reported on the `Self` line. |
-| A member line's right side | [`annot.line.right`](../spec/14-annotations.md#r-annot.line.right) says "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | A list literal only; `name = shared_list` is `invalid-member-line`. | Any expression of a list type, so a reusable list needs no spread. The tour writes `[shared_list...]` until this is settled. |
+| A generic target | `impl[T] Box[T] by Structure:` and `impl Box[i32] by Structure:` both parse; neither has a meaning. | Takes either header by its type constructor, `Box`. | **Decided by M28** as recommended: only the declaration's own parameters, without bounds, as `impl[T] Box[T] by Structure:`. Any other header is `misplaced-derivation` ([`annot.traitless.generic`](../spec/14-annotations.md#r-annot.traitless.generic)). |
+| Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | Applies them in source order; each sees the facts the earlier ones left. | **Decided by M28** as recommended: at most one per type; a second is `overlapping-impl` ([`annot.traitless.unique`](../spec/14-annotations.md#r-annot.traitless.unique)). |
+| Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | No warning: only decorator facts are checked. | **Decided by M28** as recommended: the same warning, reported on the `Self` line ([`annot.fact.unused-self-line`](../spec/14-annotations.md#r-annot.fact.unused-self-line)). |
+| A member line's right side | `annot.line.right`, now retired, said "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | A list literal only; `name = shared_list` is `invalid-member-line`. | **Decided by M28** as recommended: any expression of a list type ([`annot.line.right-typed`](../spec/14-annotations.md#r-annot.line.right-typed)). The tour now writes `display_name = display_name_metadata`. |
 | Two retention rules on one member | [`retention-metadata.hd`](../spec/conformance/typing/valid/retention-metadata.hd), an accept fixture, put `retention_owner(...)` and `delete_when(...)` on `userId`. Both returned `RetentionRule`, which [`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate) rejects. | **Fixed 2026-09-28** in the fixture, not the rule: `delete_when` now returns its own `DeleteWhen`. The fixture stays a known failure only for the shape intrinsics (`K1`). | Applied as recommended: give `delete_when` its own result type. |
+
+#### Still Open After M27 And M28
+
+Applying M27 and M28 raised these readings. The spec text uses the
+decisions' own words, and no fixture depends on an answer. Nothing here is
+decided:
+
+| Question | Effect | **Recommendation** |
+| --- | --- | --- |
+| Parameter names in a generic header | [`annot.traitless.generic`](../spec/14-annotations.md#r-annot.traitless.generic) says "own type parameters". It does not say whether `impl[U] Box[U] by Structure:` for `data Box[T]` is valid. | Valid: every other implementation header binds its own parameter names, so only the count, order, and absence of bounds are checked. |
+| A right side that is not a list | [`annot.line.right-typed`](../spec/14-annotations.md#r-annot.line.right-typed) is now a type rule, so `name = 5` could be [`invalid-member-line`](../spec/14-annotations.md#r-annot.line.right.error) or `type-mismatch` from the contextual `List[Any]`. | `invalid-member-line`, as the unchanged `annot.line.right.error` reads today. |
+| A `Self` line in a per-trait block | M28 covers a trait-less block's `Self` line. A `Self += [style(...)]` in `impl Encode for User by Structure:` is read only by that block's template, and no rule warns on it. | The same warning on the line when the fact's package does not supply the block's trait. |
+| Where M25's declaration facts are reported | M25's second reading, `duplicate-fact` on the later value, was left to confirm. M27 says "as for members", which uses that reading. | Treat M27 as confirming it. |
 
 ### Current Design: Full Example (M1-M14)
 
