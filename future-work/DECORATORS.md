@@ -65,8 +65,30 @@ The preview the owner approved showed `@annotate([.Data])` above
 `pub fn annotate`. The intended meaning is the bootstrap line in D2, on
 the `Annotate` type.
 
-Questions 1-4, 6 and 14 below are settled or moot under D1-D4.
-Questions 5 and 7-13 remain.
+5. **D5: a marker with no arguments is written bare, `@suffix`.** Reading
+   for the apply pass, for the owner to confirm: on a decorator line, a
+   bare name that resolves to a function with no parameters is called, so
+   `@suffix` means `@suffix()`. The rule applies only to decorator lines.
+   The alternative is a unit value such as `pub let suffix = Suffix {}`,
+   which hd's module level can't declare today.
+6. **D6: `@derive(...)` and `@error(...)` stay compiler intrinsics.** The
+   compiler knows these names: `derive`, `error`,
+   `std.annotation.Annotate` and `std.ops.Suffix`.
+7. **D7: user code can read a function's decorators** through
+   `shape_of(f).metadata[M]()`. It is one lookup by type on a known
+   function. No listing of all decorated items exists, so there is no
+   general reflection.
+8. **D8: modules take no decorators for now,** because hd has no module
+   declaration to put them on.
+
+The remaining questions are settled or moot:
+- 7: `Suffix` is recognized by its qualified name.
+- 8: `@suffix` is an ordinary std decorator.
+- 11: inherent methods take decorators, since D1 lists methods.
+- 13: a repeated decorator of one type stays `duplicate-fact`.
+
+L11 (declaring a suffix with `@suffix fn`) can now be applied on top of
+D1-D8.
 
 ## Contents
 
