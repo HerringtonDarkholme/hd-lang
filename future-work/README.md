@@ -19,7 +19,8 @@ language specification:
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Testing Redesign](TESTING.md) records the owner's test redesign
-  decisions T1-T12 (a `tests:` block per file, `test("name"):` as a
+  decisions T1-T27 (a `tests:` block, `it("name"):` cases, `_test.hd`
+  modules, `tests/` integration tests, `Termination` and `ExitCode`):` as a
   library intrinsic, a `Termination` trait and `ExitCode` shared with `main`).
   T4, T5, and T8 are in the specification; the rest are not yet.
 - [Testing Redesign: Stress Test (T1-T13)](TESTING_STRESS_TEST.md) tries the

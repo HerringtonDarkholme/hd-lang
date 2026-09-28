@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T17 are
+Status: design record, started 2026-09-27. Owner decisions T1-T27 are
 decided. T4, T5, and T8 are applied to the specification (for the current
 `test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
@@ -115,6 +115,40 @@ more issues (property testing is folded in from
     top-level `tests:` block holds module items (uses, functions, data,
     and `it(...)` calls) visible only inside it; once per file, top level
     only, never nested. `tests` becomes a keyword.
+18. **T18 (TS-12): the host prints a failed result.** `report()` only
+    computes the `ExitCode`; the host or test runner prints the error
+    (message and cause chain), as Entry Results words it.
+19. **T19 (TS-5): a failed assertion panics** with category
+    `assertion-failed`, ending that test; the runner reports it and runs
+    the next test.
+20. **T20 (TS-6): tests compile against one profile.** `hd test` uses the
+    `console` profile unless `--profile` is given; a test whose
+    requirements the profile cannot bind is reported as skipped. This also
+    covers platform-specific tests without `cfg`.
+21. **T21 (TS-11): each test runs in a fresh program instance, in parallel
+    by default,** with its own `Console` buffer (shown on failure) and a
+    temporary filesystem the runner deletes afterwards.
+22. **T22 (TS-7): `it` takes literal named options** `ignore="reason"`,
+    `expect_panic="category"`, and `timeout="5s"`, read statically by the
+    runner.
+23. **T23 (TS-9): shared helpers follow Rust and Go.** `_test.hd` modules
+    may `use` each other, `tests/` modules may `use` each other, and
+    `tests/` sees the library without its test code.
+24. **T24 (TS-10): a test dependency that depends back on this package is
+    usable only from `tests/`.** Using it from a `tests:` block or a
+    `_test.hd` module is an error, since it would create a second copy of
+    the package.
+25. **T25 (TS-8): the runner drives property shrinking** by rerunning the
+    property in fresh instances with smaller inputs, so a panic is just a
+    failed run; generation stays a derived `build` (Hypothesis's model).
+26. **T26 (TS-13, TS-14, TS-17):** table tests stay a loop inside one `it`;
+    the documentation notes that hash values shift when test code changes
+    (the hasher is seeded by code identity); the `_test.hd` suffix stays.
+27. **T27 (TS-16): the specification pass fixes the drift** it found: this
+    record's example, stale README and PACKAGES text, the conformance
+    fixtures on the old `test "..."` syntax, and fixture file names that
+    clash with `_test.hd`. The removal of `entry-error-not-display` (now
+    `unsatisfied-trait-bound`) is kept.
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
