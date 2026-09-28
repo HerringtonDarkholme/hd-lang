@@ -80,6 +80,23 @@ the `Annotate` type.
    general reflection.
 8. **D8: modules take no decorators for now,** because hd has no module
    declaration to put them on.
+9. **D9 (2026-09-28): `annotate` is variadic, and the suffix marker is
+   `num_suffix`.** The signature is
+   `pub fn annotate(kinds: Target...) -> Annotate`
+   ([`fn.vararg.last`](../spec/07-functions.md#r-fn.vararg.last)), so std
+   writes `@annotate(.Fn)` and `@annotate(.Data, .Enum)`. The suffix fact
+   type is `std.ops.NumSuffix`, with the marker function `num_suffix`,
+   since only number literals take suffixes (L12). A suffix function is
+   declared as:
+
+   ```text
+   @num_suffix
+   pub fn ms(count: i64) -> Duration:
+       Duration::milliseconds(count)
+   ```
+
+   D2, D5 and D6 read with these names: `std.ops.NumSuffix`, `@num_suffix`
+   and `@annotate(.Fn)`.
 
 The remaining questions are settled or moot:
 - 7: `Suffix` is recognized by its qualified name.
