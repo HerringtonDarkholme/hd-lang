@@ -76,8 +76,4 @@ typing/invalid/assert-equal-without-debug.hd	check passes instead of unsatisfied
 typing/valid/debug-standard-types.hd	check fails: unknown-name at line 7: the prototype declares no std.format.debug function or DebugWriter	T33
 typing/valid/derive-debug.hd	check fails: unknown-name at line 14: @derive(Debug) is accepted, but the prototype declares no std.format.debug function or DebugWriter	T33
 typing/valid/snapshot-inline.hd	check fails: unknown-name at line 15: the prototype checks snapshot as a string assert_equal but has no snapshot_file, since it stores no snapshot files	T49
-typing/valid/literal-suffix-duration.hd	check fails: unknown-type Duration at line 5: the prototype declares no std.time, whose Duration and suffix newtypes need i64	LS
-typing/valid/literal-suffix-local-shadow.hd	check fails: unknown-type s at line 6: the prototype declares no std.time suffix types, which need i64	LS
-typing/valid/literal-suffix-compile-time.hd	check fails: unknown-type Duration at line 5: the prototype declares no std.time, whose Duration and suffix newtypes need i64	LS
-typing/invalid/literal-suffix-float-into-integer.hd	MVP reports unknown-type s at line 6 instead of type-mismatch: the prototype declares no std.time suffix types, which need i64	LS
 typing/valid/derive-without-structure-use.hd	check fails: unknown-name at line 14: @derive(Debug) is accepted, but the prototype declares no std.format.debug function	T33

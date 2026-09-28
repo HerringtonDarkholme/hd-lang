@@ -1140,3 +1140,7 @@ typing/valid/typed-derivation-build.hd	type
 typing/valid/typed-derivation.hd	type
 typing/warnings/derivation-line-drift.hd	type
 typing/warnings/unused-derivation-fact.hd	type
+typing/valid/literal-suffix-duration.hd	type
+typing/valid/literal-suffix-local-shadow.hd	type
+typing/valid/literal-suffix-compile-time.hd	type
+typing/invalid/literal-suffix-float-into-integer.hd	type

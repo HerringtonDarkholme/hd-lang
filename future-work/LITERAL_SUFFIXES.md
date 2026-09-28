@@ -611,6 +611,7 @@ each can change without breaking a decision.
 | 7 | A `LiteralSuffix` impl on a data type rather than a newtype (L2) | No diagnostic; the newtype is the documented form | Keep: no rule is needed. |
 | 8 | `timeout=` with a non-literal `Duration`, such as `Duration::seconds(5)` | `non-literal-test-argument`: test options stay literal (T22) | Keep. |
 | 9 | A `from_literal` that panics during compile-time evaluation, as in a fact or `timeout=` | Not specified: no chapter says what a panic in a compile-time position does | Make it a compile error at the literal, for every compile-time position. |
+| 10 | `Duration`'s members and representation | Not specified: the spec names the type only. The prototype declares `data Duration: nanos: i64`, from the STDLIB draft | Specify `Duration` in STDLIB with private `nanos: i64` and constructors such as `Duration::seconds`. |
 
 Point 9 is general: facts and shared enum data share it
 ([`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval)).

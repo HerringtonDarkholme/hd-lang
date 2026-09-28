@@ -1,4 +1,4 @@
-import type { DataDecl, ImplDecl, Program, TraitDecl } from "../ast.ts";
+import type { DataDecl, ImplDecl, Program, TraitDecl, TypeDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 
@@ -16,6 +16,41 @@ const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
 };
 
 export const STANDARD_FROM = "std.convert.From";
+
+// `std.time` (spec/10-modules.md#r-module.prelude.time and
+// 05-expressions.md#literal-suffixes): `Duration` and the suffix newtypes,
+// each implementing `LiteralSuffix[i64, Duration]`. The spec names no
+// `Duration` member, so the prototype's `nanos` field is its own. A name
+// the module does not import is declared under a hidden name, and each
+// suffix scales its literal by checked `i64` multiplication.
+const TIME_UNITS: Readonly<Record<string, string>> = {
+  ns: "1",
+  us: "1000",
+  ms: "1000000",
+  s: "1000000000",
+  min: "60000000000",
+  h: "3600000000000",
+};
+
+function timeSource(
+  imported: ReadonlyMap<string, string>,
+  suffixTrait: string,
+  declareTrait: boolean,
+): string {
+  const duration = imported.get("Duration") ?? "__std_time_Duration";
+  const lines = declareTrait ? [STANDARD_TRAITS["std.ops.LiteralSuffix"]!(suffixTrait)] : [];
+  lines.push(`data ${duration}:\n    nanos: i64\n`);
+  for (const [unit, scale] of Object.entries(TIME_UNITS)) {
+    const local = imported.get(unit);
+    if (!local) continue;
+    const nanos = scale === "1" ? "n" : `n * ${scale}`;
+    lines.push(
+      `type ${local}(i64)\n`,
+      `impl ${suffixTrait}[i64, ${duration}] for ${local}:\n    fn from_literal(n: i64) -> ${duration}: ${duration} { nanos: ${nanos} }\n`,
+    );
+  }
+  return lines.join("\n");
+}
 
 // Runtime type identity (spec/09-traits.md#runtime-type-identity). Importing
 // any `std.inspect` name, or `std.error.Error`, declares the sealed trait and
@@ -66,10 +101,22 @@ export function withStandardTraits(program: Program): Program {
   const traits: TraitDecl[] = [];
   const data: DataDecl[] = [];
   const implementations: ImplDecl[] = [];
+  const types: TypeDecl[] = [];
   let inspect: SourceSpan | undefined;
+  let time: SourceSpan | undefined;
+  const timeNames = new Map<string, string>();
+  let suffixTrait: string | undefined;
   for (const declaration of program.uses) {
     for (const imported of declaration.names) {
       const qualified = `${declaration.module}.${imported.name}`;
+      if (
+        declaration.module === "std.time" &&
+        (imported.name === "Duration" || imported.name in TIME_UNITS)
+      ) {
+        time ??= declaration.span;
+        timeNames.set(imported.name, imported.alias ?? imported.name);
+      }
+      if (qualified === "std.ops.LiteralSuffix") suffixTrait = imported.alias ?? imported.name;
       if (INSPECT_IMPORTS.has(qualified)) inspect ??= declaration.span;
       const source = STANDARD_TRAITS[qualified];
       if (!source) continue;
@@ -86,9 +133,21 @@ export function withStandardTraits(program: Program): Program {
       implementations.push(...respan(parsed.implementations, inspect));
     }
   }
-  if (traits.length === 0) return program;
+  if (time) {
+    const parsed = parse(
+      timeSource(timeNames, suffixTrait ?? "__std_ops_LiteralSuffix", suffixTrait === undefined),
+    ).program;
+    if (parsed) {
+      traits.push(...respan(parsed.traits, time));
+      data.push(...respan(parsed.data, time));
+      types.push(...respan(parsed.types ?? [], time));
+      implementations.push(...respan(parsed.implementations, time));
+    }
+  }
+  if (traits.length === 0 && data.length === 0) return program;
   return {
     ...program,
+    types: [...(program.types ?? []), ...types],
     traits: [...program.traits, ...traits],
     data: [...program.data, ...data],
     implementations: [...program.implementations, ...implementations],

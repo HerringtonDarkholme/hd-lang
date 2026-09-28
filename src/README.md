@@ -448,9 +448,11 @@ else`, `break`, `break value`, and `continue`;
   lex as one number with a suffix, and the parser desugars them to
   `ms::from_literal(250)`, folding a directly applied `-` into the literal.
   An imported `std.ops.LiteralSuffix` is declared in the compiled module, so
-  a library suffix type works; `std.time` and its duration suffixes are not
-  declared, since they need `i64`, and a `timeout=5s` test option is kept
-  unchecked;
+  a library suffix type works. Importing a `std.time` name declares
+  `Duration` (an `i64` count of nanoseconds, the prototype's own field) and
+  each imported suffix newtype with its `LiteralSuffix[i64, Duration]`
+  implementation, under hidden names for what is not imported. A
+  `timeout=5s` test option is kept unchecked;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
