@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T33 are
+Status: design record, started 2026-09-27. Owner decisions T1-T34 are
 decided. T4, T5, and T8 are applied to the specification (for the current
 `test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
@@ -160,8 +160,9 @@ more issues (property testing is folded in from
 30. **T30: snapshot tests, inline and file.** `snapshot(value,
     expect="...")` keeps the expected text in the source, and
     `hd test --update` rewrites the literal (MoonBit's `inspect`, insta's
-    inline snapshots). `snapshot_file(value, "name")` stores larger output
-    in a snapshot file next to the test, approved by a review command. The
+    inline snapshots). `snapshot_file(value)` stores larger output
+    in a snapshot file next to the test (named by T34), approved by a review
+    command. The
     value renders with `Display`, or a derivable `Inspect` when it has
     none. The file layout, the review command, and `Inspect` are designed
     with the standard library.
@@ -189,6 +190,18 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     `T < Eq + Debug`, so a failure shows both values. `Display` stays
     user-facing text. (The name avoids `Inspect`, since `Inspectable` is
     the runtime type-information trait.)
+34. **T34: snapshot files are named from the test.** `snapshot_file(text)`
+    takes no name; it writes `__snapshots__/<module>/<test-slug>-<n>.snap`
+    next to the test file (insta and Jest style). Details filled in with
+    the decision, open to owner correction: the slug lowercases the test
+    name and turns each run of non-alphanumeric characters into `-`; `<n>`
+    counts `snapshot_file` calls within one test run, from 1; an `it_each`
+    row adds its index (`<test-slug>.<i>-<n>.snap`). `hd test --update`
+    writes new or changed files, `hd test --review` shows diffs to accept
+    or reject and lists snapshot files no test wrote (after a rename or
+    reorder) for deletion. `__snapshots__/` has no `mod.hd`, so it is never
+    a module. Known cost, accepted: reordering snapshots within a test or
+    renaming a test changes file names.
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
