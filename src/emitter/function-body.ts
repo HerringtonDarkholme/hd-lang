@@ -915,7 +915,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           expression.valueType,
         );
       case "panic":
-        return `(block (drop ${this.emitExpression(expression.message)}) ${this.emitRuntimePanic("explicit-panic")})`;
+        return `(block (drop ${this.emitExpression(expression.message)}) ${this.emitRuntimePanic(expression.category ?? "explicit-panic")})`;
       default:
         return undefined;
     }
@@ -1240,6 +1240,10 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             ...methodBounds.map((_, index) => `(local.get $b${index})`),
             ...method.requirements.map((_, index) => `(local.get $p${index})`),
           ];
+          if (mapping.strengthened)
+            return [
+              `(func $tadapt${implementation.index}_${method.index} (type $tsig${trait.index}_${method.index}) (param $self anyref) (param $dictionary anyref) ${[...parameters, ...methodBounds, ...providers].join(" ")}${result}\n  (unreachable)\n)`,
+            ];
           if (!method.suspending) {
             const call = `(call ${functionName(mapping.functionIndex)} ${arguments_.join(" ")})`;
             const body = containsGenericValueType(method.result)

@@ -103,6 +103,11 @@ export interface HirTrait {
 export interface HirTraitMethodFunction {
   readonly methodIndex: number;
   readonly functionIndex: number;
+  /**
+   * The implementation strengthened the method's bound, so only a concrete
+   * call reaches it; its dictionary entry traps (14 Walkers, Describers, And Sources).
+   */
+  readonly strengthened?: boolean;
 }
 
 export interface HirTraitImplementation {
@@ -934,7 +939,12 @@ export type HirExpression =
       readonly index: HirExpression;
       readonly valueType: ValueType;
     })
-  | (HirExpressionBase & { readonly kind: "panic"; readonly message: HirExpression })
+  | (HirExpressionBase & {
+      readonly kind: "panic";
+      readonly message: HirExpression;
+      /** A panic category other than `explicit-panic`, raised by generated code. */
+      readonly category?: "structure-variant-mismatch";
+    })
   | (HirExpressionBase & {
       readonly kind: "if";
       readonly condition: HirExpression;

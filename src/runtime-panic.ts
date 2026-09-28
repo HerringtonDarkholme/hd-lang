@@ -10,6 +10,7 @@ export const RUNTIME_PANIC_NAMES = [
   "iterator-invalidated",
   "invalid-shift",
   "index-out-of-bounds",
+  "structure-variant-mismatch",
 ] as const;
 
 export type RuntimePanicName = (typeof RUNTIME_PANIC_NAMES)[number];

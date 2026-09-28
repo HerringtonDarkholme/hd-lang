@@ -19,6 +19,8 @@ import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
+import { withTypedDerivation } from "./typed-derivation.ts";
+import type { Diagnostic } from "../diagnostics.ts";
 
 export interface CheckOptions {
   readonly hostCapabilities?: readonly string[];
@@ -28,7 +30,33 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
   const spelled = withFunctionTypeConstructors(source);
   // A malformed spelled function type leaves no type to check against.
   if (spelled.diagnostics.length > 0) return { diagnostics: [...spelled.diagnostics] };
-  const hoisted = hoistLocalDeclarations(withStandardTraits(spelled.program));
+  // Typed derivation is lowered to ordinary implementations first
+  // (spec/14-annotations.md#typed-derivation).
+  const derived = withTypedDerivation(spelled.program);
+  if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
+    return { diagnostics: [...derived.diagnostics] };
+  const result = checkProgram(derived.program, options);
+  // A member that fails the walker's bound is reported at the opt-in
+  // (spec/14-annotations.md#r-annot.walker.obligation.error).
+  const remapped = result.diagnostics.map((diagnostic): Diagnostic =>
+    diagnostic.code === "unsatisfied-trait-bound" &&
+    derived.optInSpans.some(
+      (span) =>
+        span.start.offset === diagnostic.span.start.offset &&
+        span.end.offset === diagnostic.span.end.offset,
+    )
+      ? {
+          ...diagnostic,
+          code: "member-not-derivable",
+          message: `a member does not satisfy the walker's, describer's, or source's bound: ${diagnostic.message}`,
+        }
+      : diagnostic,
+  );
+  return { ...result, diagnostics: [...derived.diagnostics, ...remapped] };
+}
+
+function checkProgram(source: Program, options: CheckOptions): CheckResult {
+  const hoisted = hoistLocalDeclarations(withStandardTraits(source));
   const declared = withTypeDeclarations(hoisted.program);
   const program = declared.program;
   const context: ProgramCheckContext = {

@@ -1,3 +1,4 @@
+import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import {
@@ -111,6 +112,34 @@ export function validateProgram(context: ProgramCheckContext): void {
         });
       }
     }
+  }
+  // Fact and metadata expressions are evaluated at compile time, outside any
+  // driver (spec/14-annotations.md#r-annot.fact.no-block-on).
+  const facts: Expression[] = [
+    ...[...program.data, ...program.enums].flatMap((declaration) => [
+      ...(declaration.decorators?.facts ?? []),
+    ]),
+    ...program.data.flatMap((declaration) =>
+      declaration.fields.flatMap((field) => field.metadata ?? []),
+    ),
+    ...program.enums.flatMap((declaration) =>
+      declaration.variants.flatMap((variant) => [
+        ...(variant.metadata ?? []),
+        ...variant.fields.flatMap((field) => field.metadata ?? []),
+      ]),
+    ),
+    ...program.functions.flatMap((declaration) =>
+      declaration.parameters.flatMap((parameter) => parameter.metadata ?? []),
+    ),
+  ];
+  for (const fact of facts) {
+    const driverCall = findDriverCall(fact, driverFunctions, imports);
+    if (driverCall)
+      diagnostics.push({
+        code: "suspension-forbidden-context",
+        message: "a fact or metadata expression cannot transitively start a suspension driver",
+        span: driverCall.span,
+      });
   }
 }
 

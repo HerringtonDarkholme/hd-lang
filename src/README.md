@@ -464,6 +464,34 @@ else`, `break`, `break value`, and `continue`;
   `Termination` are not declared (Testing T8), entry-point chain printing is
   not implemented, and `main` may still return only `void` or
   `Result[void, ConsoleError]`;
+- typed derivation (spec/14-annotations.md#typed-derivation, Typed
+  Derivation M1-M24), lowered before checking by `checker/typed-derivation.ts`:
+  decorators on data, enum, newtype, field, variant, payload, and function
+  parameter declarations; the `+=` token; `@derive` of a trait with a
+  `by Structure` template; derivation blocks with member lines (`=`, `+=`,
+  `= pass`, `Self`); and the `std.structure` handles, facts, walkers,
+  describers, and sources, declared in hd when imported. Each derivation
+  becomes an ordinary `impl` whose template bodies call generated `walk`,
+  `describe`, `build`, and `facts` functions, specialized to the target and
+  to the walker, describer, or source type; the template must hold that
+  value in a local declared with its type (`unsupported-derivation`
+  otherwise). A walker's `member` may strengthen its bound; its dictionary
+  entry traps, since only generated code calls it, concretely. The checks
+  of the chapter's diagnostics (`underivable-trait`, `misplaced-derivation`,
+  `marker-template`, `invalid-member-line`, `duplicate-fact`,
+  `omitted-member-without-default`, `member-not-derivable`,
+  `generic-member-call`, `newtype-derivation-self`, `gadt-derivation`, the
+  two warnings, the `structure-variant-mismatch` panic, and
+  `suspension-forbidden-context` in facts) are implemented. Gaps: `Facts`
+  holds `Inspectable` values rather than `Any`, so a fact must be
+  inspectable; a fact's concrete type for `duplicate-fact` is read from
+  syntax (a data literal or a call's declared result); `VariantInfo.shared`
+  is always empty; a build handle's `get` returns the declared type whatever
+  its argument's permission; a newtype forwards only through the receiver
+  and plain `Self`; `@derive(Eq)` is generated, `PartialOrd`, `Ord`, and
+  `Hash` are accepted but not generated, and `Debug` is a no-op because
+  every type counts as `Debug`; the drift and unused-fact warnings treat
+  the module as one package; function targets stay `decorator-not-annotator`;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner
@@ -545,7 +573,7 @@ accepting an arbitrary Wasm trap.
 
 The active boundary is intentionally narrower than the language specification.
 Task combinator intrinsics, strings and structural values in the host-provider
-ABI, and annotations remain in later MVP slices. The compiler rejects syntax it
+ABI, and `annotate` blocks and shape intrinsics remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type

@@ -27,6 +27,28 @@ export interface Parameter {
   readonly variadic?: boolean;
   readonly default?: Expression;
   readonly doc?: string;
+  /** Parameter decorators: member metadata (14 Member Metadata). */
+  readonly metadata?: readonly Expression[];
+  readonly span: SourceSpan;
+}
+
+/** The decorator lines before a declaration (14 Prefix Decorators). */
+export interface Decorators {
+  /** Trait names listed by `@derive(...)` lines, in order. */
+  readonly derives: readonly TypeRef[];
+  /** Every other decorator: a type-level fact. */
+  readonly facts: readonly Expression[];
+  readonly span: SourceSpan;
+}
+
+/** A member line of a derivation block (14 Member Lines). */
+export interface MemberLine {
+  readonly name: string;
+  readonly nameSpan: SourceSpan;
+  readonly operator: "=" | "+=";
+  /** Absent for `= pass`, or for a right side that is `pass` after `+=`. */
+  readonly value?: Expression;
+  readonly pass?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -57,6 +79,8 @@ export interface FunctionDecl {
   readonly testOnly?: boolean;
   /** Runner options of a test body (spec/10-modules.md#test-cases). */
   readonly testOptions?: { readonly ignore?: string; readonly expectPanic?: string };
+  /** Decorator lines before the declaration; rejected until function targets are decided. */
+  readonly decorators?: Decorators;
 }
 
 export interface MethodDecl {
@@ -94,6 +118,11 @@ export interface TraitDecl {
   readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;
+  /**
+   * Methods whose method-level bound an implementation may strengthen: `member`
+   * of the standard `Walker`, `Describer`, and `Source` (14 Typed Derivation).
+   */
+  readonly strengthenableMembers?: readonly string[];
   readonly span: SourceSpan;
 }
 
@@ -105,6 +134,9 @@ export interface ImplDecl {
   readonly targetName: string;
   /** `impl Trait for C by E`: the embedded field `E` that the trait is delegated to. */
   readonly delegate?: { readonly name: string; readonly span: SourceSpan };
+  /** `impl Trait for X by Structure`: a derivation template or block (14 Typed Derivation). */
+  readonly byStructure?: SourceSpan;
+  readonly memberLines?: readonly MemberLine[];
   readonly associatedTypes: readonly AssociatedTypeDecl[];
   readonly methods: readonly MethodDecl[];
   readonly doc?: string;
@@ -119,6 +151,10 @@ export interface DataField {
   readonly embedded?: boolean;
   readonly default?: Expression;
   readonly doc?: string;
+  /** Member decorators: the member's declaration facts (14 Member Metadata). */
+  readonly metadata?: readonly Expression[];
+  /** A payload parameter written without a name, such as `Raw(string)`. */
+  readonly positional?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -138,6 +174,7 @@ export interface DataDecl {
   readonly newtype?: boolean;
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 
@@ -150,6 +187,7 @@ export interface TypeDecl {
   readonly alias?: TypeRef;
   readonly base?: TypeRef;
   readonly doc?: string;
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 
@@ -158,6 +196,7 @@ export interface EnumVariant {
   readonly fields: readonly DataField[];
   readonly result?: Expression;
   readonly doc?: string;
+  readonly metadata?: readonly Expression[];
   readonly span: SourceSpan;
 }
 
@@ -173,6 +212,7 @@ export interface EnumDecl {
   readonly doc?: string;
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
+  readonly decorators?: Decorators;
   readonly span: SourceSpan;
 }
 

@@ -30,6 +30,7 @@ import {
 import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
 import { isDowncastValImport } from "./inspectable.ts";
 import { TYPE_ID } from "./standard-traits.ts";
+import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
   readonly callee: Extract<Expression, { kind: "member" }>;
@@ -1070,6 +1071,24 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         type: "void",
         span: expression.span,
       };
+    }
+    // Checker intrinsics that only typed derivation generates
+    // (spec/14-annotations.md#handles).
+    if (expression.callee.name === STRUCTURE_MISMATCH)
+      return {
+        kind: "panic",
+        message: this.checkExpression({
+          kind: "string",
+          value: "structure-variant-mismatch",
+          span: expression.span,
+        }),
+        category: "structure-variant-mismatch",
+        type: "never",
+        span: expression.span,
+      };
+    if (expression.callee.name === STRUCTURE_AS_DECLARED && expression.arguments.length === 1) {
+      const value = this.checkExpression(expression.arguments[0]!);
+      return { ...value, type: mutableType(readonlyType(value.type)) };
     }
     if (expression.callee.name === "panic") {
       if (expression.argumentSpreads?.some(Boolean))

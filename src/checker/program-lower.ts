@@ -97,10 +97,25 @@ export function lowerCheckedProgram(
         implementation,
         implementationPreparations,
       ),
-      methodFunctions: implementation.methods.map((method) => ({
-        methodIndex: method.methodIndex,
-        functionIndex: declaredSignatures.get(method.declaration.name)!.index,
-      })),
+      methodFunctions: implementation.methods.map((method) => {
+        const signature = declaredSignatures.get(method.declaration.name)!;
+        // A walker's `member` may take more dictionaries than the trait's
+        // (spec/14-annotations.md#r-annot.walker.strengthen-member).
+        const strengthenable =
+          program.traits[implementation.trait.index]?.strengthenableMembers?.includes(
+            implementation.trait.methods[method.methodIndex]?.name ?? "",
+          ) === true;
+        const methodBounds = signature.genericBounds.filter(
+          (bound) => !implementation.declaration.genericParameters.includes(bound.parameter),
+        ).length;
+        const traitBounds =
+          implementation.trait.methods[method.methodIndex]?.genericBounds?.length ?? 0;
+        return {
+          methodIndex: method.methodIndex,
+          functionIndex: signature.index,
+          ...(strengthenable && methodBounds !== traitBounds ? { strengthened: true } : {}),
+        };
+      }),
       span: implementation.declaration.span,
     }),
   );

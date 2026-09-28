@@ -558,9 +558,14 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         });
         const traitGenerics = new Set([...trait.genericParameters, ...required.genericParameters]);
         const requiredBounds = defaultMethod?.genericBounds ?? [];
+        // 14 Walkers, Describers, And Sources: an implementation may
+        // strengthen the bound on `member[F]` (annot.walker.strengthen-member).
+        const strengthenable =
+          program.traits[trait.index]?.strengthenableMembers?.includes(required.name) === true;
         const boundsMatch = required.genericParameters.every((name, index) => {
           const renamed = method.genericParameters[index];
           if (renamed === undefined) return false;
+          if (strengthenable) return true;
           const expected = methodBoundKeys(requiredBounds, name, traitGenerics, renaming);
           const actual = methodBoundKeys(method.genericBounds, renamed, methodGenerics, new Map());
           return (
@@ -593,9 +598,16 @@ export function prepareImplementations(context: ProgramCheckContext): void {
             .map((parameter) => (parameter === "generic:Self" ? targetType : parameter)),
         ];
         const renamedResult = substituteGenericType(required.result, renaming);
+        // A result such as `mut Self` names the target (09 Implementation Declarations).
         const result =
-          typeName(method.result, dataTypes, enumTypes, traitTypes, diagnostics, methodGenerics) ??
-          "void";
+          typeName(
+            substituteSelfType(method.result, implementation.targetName),
+            dataTypes,
+            enumTypes,
+            traitTypes,
+            diagnostics,
+            methodGenerics,
+          ) ?? "void";
         if (
           (method.parameters[0]?.name !== "self") !== required.associated ||
           method.genericParameters.length !== required.genericParameters.length ||
@@ -603,7 +615,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
           parameterTypes.length !== expectedParameters.length ||
           parameterTypes.some((parameter, index) => parameter !== expectedParameters[index]) ||
           (method.parameters.at(-1)?.variadic === true) !== required.variadic ||
-          result !== (renamedResult === "generic:Self" ? targetType : renamedResult) ||
+          result !== substituteGenericType(renamedResult, new Map([["Self", targetType]])) ||
           method.suspending !== required.suspending ||
           !sameRequirements(method.requirements, required.requirements)
         ) {
@@ -623,7 +635,7 @@ export function prepareImplementations(context: ProgramCheckContext): void {
         parameters: method.parameters.map((parameter) =>
           substituteSelfParameter(parameter, implementation.targetName),
         ),
-        result: method.result,
+        result: substituteSelfType(method.result, implementation.targetName),
         requirements: method.requirements,
         body: method.body ?? [],
         span: method.span,

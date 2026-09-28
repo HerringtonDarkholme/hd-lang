@@ -197,6 +197,7 @@ const TYPE_NAMES = new Set<ValueType>([
   "char",
   "string",
   "void",
+  "never",
   "ConsoleError",
 ]);
 
@@ -478,6 +479,8 @@ export function inferGenericType(
   const generic = genericTypeName(formal);
   if (generic) {
     const existing = substitutions.get(generic);
+    // A `mut T` argument weakens to a parameter already inferred as `T`.
+    if (existing && mutableInner(actual) === existing) return undefined;
     if (existing && existing !== actual)
       return `generic parameter '${generic}' was inferred as both ${existing} and ${actual}`;
     substitutions.set(generic, actual);

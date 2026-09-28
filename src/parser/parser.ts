@@ -2,6 +2,8 @@ import type {
   Expression,
   AssociatedTypeBinding,
   AssociatedTypeDecl,
+  Decorators,
+  MemberLine,
   DataDecl,
   EnumDecl,
   FunctionDecl,
@@ -19,7 +21,7 @@ import type {
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
 import { optionalType } from "../types.ts";
-import { ExpressionParser } from "./expression.ts";
+import { DecoratorParser } from "./decorators.ts";
 import { ParseFailure, type ExpressionParseResult } from "./base.ts";
 import {
   emptyModuleItems,
@@ -46,7 +48,7 @@ interface ParsedGenericParameters {
   readonly reified?: readonly string[];
 }
 
-class Parser extends ExpressionParser {
+class Parser extends DecoratorParser {
   parse(): ParseResult {
     const items = emptyModuleItems();
     this.localDeclarations = false;
@@ -136,35 +138,29 @@ class Parser extends ExpressionParser {
       if (inTests) for (const name of use.names) items.testOnlyNames.add(name.alias ?? name.name);
       return;
     }
-    // The prototype parses no decorators, but it treats every type as
-    // implementing `Debug`, so it skips a `@derive(Debug)` line
-    // (spec/09-traits.md#r-trait.debug.derive).
-    if (
-      this.atText("@") &&
-      this.peek(1).text === "derive" &&
-      this.peek(2).text === "(" &&
-      this.peek(3).text === "Debug" &&
-      this.peek(4).text === ")" &&
-      this.peek(5).kind === "newline"
-    ) {
-      for (const text of ["@", "derive", "(", "Debug", ")"]) this.expectText(text);
-      this.expectKind("newline", "expected a declaration after @derive(Debug)");
-      return this.parseModuleItem(doc, items, inTests);
+    // Decorator lines before a data, enum, newtype, or function declaration
+    // (spec/02-grammar.md#annotations). Anything else falls through to the
+    // statement parser, which rejects the decorator.
+    let decorators: Decorators | undefined;
+    if (this.atText("@") && this.decoratedDeclarationFollows()) {
+      decorators = this.parseDecoratorLines();
+      doc = this.parseDocComments() ?? doc;
     }
     const public_ = this.matchText("pub");
     const declared = (name: string): void => {
       if (inTests) items.testOnlyNames.add(name);
     };
+    const decorated = decorators ? { decorators } : {};
     if (this.atText("fn")) {
-      const declaration = this.parseFunction(doc, public_);
+      const declaration = { ...this.parseFunction(doc, public_), ...decorated };
       declared(declaration.name);
       items.functions.push(inTests ? { ...declaration, testOnly: true } : declaration);
     } else if (this.atText("data")) {
-      const declaration = this.parseData(doc, public_);
+      const declaration = { ...this.parseData(doc, public_), ...decorated };
       declared(declaration.name);
       items.data.push(declaration);
     } else if (this.atText("enum")) {
-      const declaration = this.parseEnum(doc, public_);
+      const declaration = { ...this.parseEnum(doc, public_), ...decorated };
       declared(declaration.name);
       items.enums.push(declaration);
     } else if (this.atText("trait")) {
@@ -172,7 +168,9 @@ class Parser extends ExpressionParser {
       declared(declaration.name);
       items.traits.push(declaration);
     } else if (this.atText("type") && this.peek(1).kind === "identifier") {
-      const declaration = this.parseTypeDecl(doc, public_);
+      const typeStart = this.current().span;
+      const declaration = { ...this.parseTypeDecl(doc, public_), ...decorated };
+      this.checkTypeDecorators(declaration, typeStart);
       declared(declaration.name);
       items.types.push(declaration);
     } else if (this.atText("impl")) items.implementations.push(this.parseImpl(doc));
@@ -254,6 +252,7 @@ class Parser extends ExpressionParser {
     if (!this.atText(")")) {
       do {
         const parameterDoc = this.parseDocComments();
+        const parameterMetadata = this.parseMemberDecorators(true);
         if (["self", "Self"].includes(this.current().text) && !this.current().raw) {
           this.fail(
             "reserved-name",
@@ -278,6 +277,7 @@ class Parser extends ExpressionParser {
           variadic: variadic || undefined,
           default: defaultValue,
           doc: parameterDoc,
+          ...(parameterMetadata.length > 0 ? { metadata: parameterMetadata } : {}),
           span: { start: parameterName.span.start, end: defaultValue?.span.end ?? type.span.end },
         });
       } while (this.matchText(",") && !this.atText(")"));
@@ -552,9 +552,13 @@ class Parser extends ExpressionParser {
       this.advance();
       delegateName = this.expectKind("identifier", "expected an embedded field name");
     }
-    const delegate = delegateName
-      ? { delegate: { name: delegateName.text, span: delegateName.span } }
-      : {};
+    // `by Structure` is never a delegation (spec/09-traits.md#r-trait.by.structure).
+    const delegate = !delegateName
+      ? {}
+      : delegateName.text === "Structure"
+        ? { byStructure: delegateName.span }
+        : { delegate: { name: delegateName.text, span: delegateName.span } };
+    const memberLines: MemberLine[] = [];
     // `impl_decl` may end at its header line, for an inherent implementation
     // too (02-grammar.md#traits-and-implementations).
     if (!this.matchText(":")) {
@@ -581,6 +585,11 @@ class Parser extends ExpressionParser {
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
       const methodDoc = this.parseDocComments();
+      const memberLine = this.parseMemberLine();
+      if (memberLine) {
+        memberLines.push(memberLine);
+        continue;
+      }
       if (this.matchText("type")) {
         const associatedName = this.expectKind("identifier", "expected an associated type name");
         this.expectText("=");
@@ -625,6 +634,7 @@ class Parser extends ExpressionParser {
       ...delegate,
       associatedTypes,
       methods,
+      ...(memberLines.length > 0 ? { memberLines } : {}),
       doc,
       span: { start, end: close.span.end },
     };
@@ -856,7 +866,7 @@ class Parser extends ExpressionParser {
     const fields: DataDecl["fields"][number][] = [];
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
-      const fieldDoc = this.parseDocComments();
+      const { doc: fieldDoc, metadata } = this.parseMemberPrefix();
       if (this.matchText("mut")) {
         const candidate = this.current();
         const code =
@@ -884,7 +894,7 @@ class Parser extends ExpressionParser {
         this.expectKind("newline", "expected a line ending after an embedded field");
         const genericStart = type.name.indexOf("[");
         const name = genericStart < 0 ? type.name : type.name.slice(0, genericStart);
-        fields.push({ name, type, embedded: true, doc: fieldDoc, span: type.span });
+        fields.push({ name, type, embedded: true, doc: fieldDoc, ...metadata, span: type.span });
         continue;
       }
       const publicField = this.matchText("pub");
@@ -900,6 +910,7 @@ class Parser extends ExpressionParser {
         type,
         default: defaultValue,
         doc: fieldDoc,
+        ...metadata,
         span: { start: fieldName.span.start, end },
       });
     }
@@ -971,7 +982,7 @@ class Parser extends ExpressionParser {
     const variants: EnumDecl["variants"][number][] = [];
     while (!this.atKind("dedent") && !this.atKind("eof")) {
       if (this.matchKind("newline")) continue;
-      const variantDoc = this.parseDocComments();
+      const { doc: variantDoc, metadata: variantMetadata } = this.parseMemberPrefix();
       const variantName = this.expectKind("identifier", "expected an enum variant name");
       const fields: EnumDecl["variants"][number]["fields"][number][] = [];
       if (this.matchText("(")) {
@@ -979,6 +990,7 @@ class Parser extends ExpressionParser {
           do {
             const fieldDoc = this.parseDocComments();
             const fieldStart = this.current().span.start;
+            const payloadMetadata = this.parseMemberDecorators(true);
             // An unnamed positional payload field is named by its position
             // (08-data-and-enums.md#variant-payloads).
             const fieldName =
@@ -991,6 +1003,8 @@ class Parser extends ExpressionParser {
               name: fieldName ?? String(fields.length),
               type,
               doc: fieldDoc,
+              ...(payloadMetadata.length > 0 ? { metadata: payloadMetadata } : {}),
+              ...(fieldName === undefined ? { positional: true } : {}),
               span: { start: fieldStart, end: type.span.end },
             });
           } while (this.matchText(",") && !this.atText(")"));
@@ -1005,6 +1019,7 @@ class Parser extends ExpressionParser {
         fields,
         result,
         doc: variantDoc,
+        ...variantMetadata,
         span: { start: variantName.span.start, end },
       });
     }
