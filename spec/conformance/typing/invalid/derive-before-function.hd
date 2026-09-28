@@ -1,4 +1,4 @@
-# test: a @derive line before a function is rejected like any decorator there
+# test: a @derive line before a function is rejected; @derive stays an intrinsic for types
 # Spec 14 Prefix Decorators: annot.decorator.function-derive.
 @derive(Eq)  # diagnostic: decorator-not-annotator
 fn same(value: i32) -> i32:

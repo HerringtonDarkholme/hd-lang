@@ -1186,3 +1186,20 @@ existing source. Each entry names the decision that made the change.
   uses `debug_tuple`, and a variant without a payload writes its name.
   The builder type names `DebugStruct`, `DebugTuple`, `DebugList`, and
   `DebugMap` are confirmed. No existing source changes meaning otherwise.
+- Decorators D1-D9 (owner decisions in
+  [Decorators](../future-work/DECORATORS.md#owner-decisions), 2026-09-28):
+  a decorator is a plain value on any item (a function, data type, enum,
+  trait, implementation, or newtype) or member (a field, variant, value
+  parameter, or method). `@tool("search")` before a function, previously
+  `decorator-not-annotator`, is valid, and `shape_of(f).metadata[M]()`
+  reads it. A decorator before a trait, an implementation, a method, or a
+  method's value parameter, and a decorator other than `@derive` before a
+  newtype, previously `syntax-error`, are valid. `@derive(...)` stays an
+  intrinsic: before a function, trait, implementation, or method it is
+  `decorator-not-annotator`. In a decorator, a bare name of a function with
+  no parameters is now called, so `@hidden` attaches `hidden()`, not the
+  function value. `std.annotation` declares `Target`, `Annotate`, and
+  `annotate`: a value whose type carries `@annotate(.Fn)` on any target
+  other than a function is `decorator-not-annotator`. Two values of one
+  concrete type before one function, trait, implementation, newtype, or
+  method are `duplicate-fact`. Modules take no decorators.

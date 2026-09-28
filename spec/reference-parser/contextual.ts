@@ -175,7 +175,7 @@ function lineDiagnostics(record: LineRecord, parent: string): Diagnostic[] {
     (bracketTail !== undefined && !/\b(?:for|if|else|while|match|fn|with)\b/u.test(bracketTail))
   )
     diagnostics.push(diagnostic("trailing-block-position", line));
-  if (clean.startsWith("@") && !new Set(["module", "data", "enum"]).has(parent))
+  if (clean.startsWith("@") && !new Set(["module", "data", "enum", "trait", "impl"]).has(parent))
     diagnostics.push(diagnostic("decorator-not-top-level", line));
   if (parent === "data" && /^mut\s+[A-Z]\w*$/u.test(clean))
     diagnostics.push(diagnostic("mutable-embedded-field", line));

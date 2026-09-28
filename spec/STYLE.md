@@ -888,3 +888,15 @@ style lint rejects a chapter that reuses one.
 - `module.console.println-pending`: retired 2026-09-28. The MHP-1 second
   round dropped the panic on a pending host write; `println` drives the
   write until it finishes. Replaced by `module.console.println-drive.pending`.
+- `grammar.annot.newtype-derive`: retired 2026-09-28. Decorators D1 lets
+  any decorator precede a newtype, a trait, and an implementation. Replaced
+  by `grammar.annot.item-targets` and `grammar.annot.member-targets`.
+- `grammar.annot.newtype-derive.error`: retired 2026-09-28. Decorators D1
+  leaves only a transparent alias without decorators. Replaced by
+  `grammar.annot.alias-no-decorator`.
+- `grammar.fn.decorator-targets`: retired 2026-09-28. Decorators D1 lets
+  method parameters take decorators. Replaced by
+  `grammar.fn.decorator-param-targets`.
+- `annot.decorator.function`: retired 2026-09-28. Decorators D1 lets any
+  decorator precede a function. Replaced by `annot.decorator.targets` and
+  `annot.decorator.attach`.

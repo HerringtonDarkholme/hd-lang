@@ -1,0 +1,6 @@
+# test: two values of one concrete type before one function
+# Spec 14 Prefix Decorators: annot.decorator.duplicate reports the later value.
+@"first"
+@"second"  # diagnostic: duplicate-fact
+fn twice() -> void:
+    pass

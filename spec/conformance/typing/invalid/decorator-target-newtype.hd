@@ -1,0 +1,17 @@
+# test: a newtype has no target kind, so a limited value before it is rejected
+# Spec 14 Target Kinds: annot.target.newtype.
+use std.annotation.annotate
+
+@annotate(.Data, .Enum)
+data Wire:
+    tag: string
+
+fn wire(tag: string) -> Wire:
+    Wire { tag: tag }
+
+@wire("user")
+data User:
+    id: i64
+
+@wire("id")  # diagnostic: decorator-not-annotator
+type UserId(i64)

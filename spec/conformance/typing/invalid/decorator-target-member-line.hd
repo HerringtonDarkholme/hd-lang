@@ -1,0 +1,17 @@
+# test: a limited value attached by a member line is rejected on that line
+# Spec 14 Target Kinds: annot.target.limit.error covers member lines.
+use std.annotation.annotate
+use std.structure.Structure
+
+@annotate(.Fn)
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+data Page:
+    title: string
+
+impl Page by Structure:
+    title = [route("/title")]  # diagnostic: decorator-not-annotator

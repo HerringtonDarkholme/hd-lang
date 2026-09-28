@@ -1,0 +1,30 @@
+# test: a decorator may precede any item or member
+# Spec 14 Prefix Decorators: functions, traits, implementations, methods, their parameters, and newtypes take decorators.
+data Tool:
+    name: string
+
+fn tool(name: string) -> Tool:
+    Tool { name: name }
+
+@tool("search")
+fn search(query: string) -> string:
+    query
+
+@"storage"
+trait Store:
+    @"read"
+    fn load(self, @"key" key: string) -> string
+
+@"inherent"
+impl Tool:
+    @"label"
+    fn label(self) -> string:
+        self.name
+
+@"store"
+impl Store for Tool:
+    fn load(self, @"key" key: string) -> string:
+        key
+
+@"id"
+type ToolId(i64)

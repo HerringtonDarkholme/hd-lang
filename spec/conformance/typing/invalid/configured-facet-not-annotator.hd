@@ -1,6 +1,0 @@
-fn enabled() -> bool:
-    true
-
-@enabled()  # diagnostic: decorator-not-annotator
-fn health() -> string:
-    "ok"

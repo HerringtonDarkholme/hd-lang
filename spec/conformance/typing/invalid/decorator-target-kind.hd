@@ -1,0 +1,18 @@
+# test: a fact type marked @annotate(.Field) placed before a function
+# Spec 14 Target Kinds: annot.target.limit.error is reported on the decorator.
+use std.annotation.annotate
+
+@annotate(.Field)
+data MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen:
+    MaxLen { value: value }
+
+data Profile:
+    @max_len(80)
+    name: string
+
+@max_len(3)  # diagnostic: decorator-not-annotator
+fn greet() -> string:
+    "hi"

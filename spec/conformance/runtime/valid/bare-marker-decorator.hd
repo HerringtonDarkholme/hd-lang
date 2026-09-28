@@ -1,0 +1,20 @@
+# test: a bare decorator name of a function with no parameters is called
+# Spec 14 Prefix Decorators: `@hidden` means `@hidden()`, read through the function's shape.
+use std.testing.assert_equal
+
+data Hidden: pass
+
+fn hidden() -> Hidden:
+    Hidden {}
+
+@hidden
+fn internal_check() -> bool:
+    true
+
+fn plain() -> bool:
+    false
+
+tests:
+    it("attaches the marker's result"):
+        assert_equal(shape_of(internal_check).metadata[Hidden]().is_some(), true, reason="the marker was called")
+        assert_equal(shape_of(plain).metadata[Hidden]().is_some(), false, reason="an undecorated function holds none")

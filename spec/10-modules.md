@@ -227,9 +227,10 @@ fn main() -> i32:
 6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
 7. r[module.prelude.function] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the vararg marker `Rest`, which code imports where it writes them, as in `use std.function.{Fn, SuspendFn}`.
 8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
-9. r[module.prelude.ops] `std.ops` declares `LiteralSuffix`, which code imports to declare a literal suffix.
-10. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
-11. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
+9. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
+10. r[module.prelude.ops] `std.ops` declares `LiteralSuffix`, which code imports to declare a literal suffix.
+11. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+12. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),

@@ -196,8 +196,7 @@ typing/invalid/reassign-parameter.hd	type	reject:non-reassignable-parameter-bind
 typing/valid/parameter-decorator.hd	type	accept	14-annotations.md#prefix-decorators
 typing/valid/retention-metadata.hd	type	accept	14-annotations.md#member-metadata
 typing/invalid/retention-missing-field.hd	type	reject:unknown-shape-target	14-annotations.md#common-shape-representation
-typing/invalid/configured-facet-not-annotator.hd	type	reject:decorator-not-annotator	14-annotations.md#prefix-decorators
-parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	14-annotations.md#prefix-decorators
+parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	14-annotations.md#r-annot.decorator.no-locals
 typing/invalid/covariant-gadt-result.hd	type	reject:invalid-variance	04-type-system.md#variance
 typing/valid/invariant-gadt-result.hd	type	accept	04-type-system.md#variance
 typing/invalid/variance-representation-change.hd	type	reject:variance-representation-change	04-type-system.md#variance
@@ -1066,7 +1065,7 @@ typing/invalid/mixed-derived-law.hd	type	reject:mixed-derived-law	09-traits.md#r
 typing/invalid/derived-hash-without-eq.hd	type	reject:mixed-derived-law	09-traits.md#r-trait.derive.partners.same-list
 typing/invalid/hand-written-hash-beside-derived-eq.hd	type	reject:mixed-derived-law	09-traits.md#r-trait.derive.partners.no-mix
 runtime/valid/derived-newtype.hd	runtime	accept	09-traits.md#r-trait.derive.newtype
-parse/invalid/derive-before-alias.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.annot.newtype-derive.error
+parse/invalid/derive-before-alias.hd	parse	reject:syntax-error	02-grammar.md#r-grammar.annot.alias-no-decorator
 typing/invalid/default-body-inherent-method.hd	type	reject:unknown-method	09-traits.md#r-trait.default.no-self-members.error
 runtime/valid/default-body-supertrait-member.hd	runtime	accept	09-traits.md#r-trait.default.visible
 typing/invalid/trait-variance-marker.hd	type	reject:invalid-variance	09-traits.md#r-trait.decl.generic.no-variance
@@ -1221,7 +1220,7 @@ typing/invalid/literal-suffix-requirement.hd	type	reject:trait-method-signature	
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	10-modules.md#r-module.testing.option.timeout-any-duration
 typing/invalid/tests-root-outside-tests.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/literal-suffix-call.hd	runtime	accept	05-expressions.md#r-expr.suffix.call
-typing/invalid/decorator-before-function.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.function
+typing/valid/decorator-targets.hd	type	accept	14-annotations.md#r-annot.decorator.targets
 typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	14-annotations.md#r-annot.fact.no-block-on
 typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	14-annotations.md#r-annot.metadata.eval
 typing/invalid/strengthened-missing-bound.hd	type	reject:trait-method-signature	14-annotations.md#r-annot.walker.missing-fixed
@@ -1266,3 +1265,12 @@ typing/valid/println-top-level-script.hd	type	accept	10-modules.md#r-module.cons
 runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot.mismatch
 runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot-file.missing-panic
 typing/valid/derive-debug-shapes.hd	type	accept	09-traits.md#r-trait.debug.derive-builders.mapping
+typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.derive-targets
+typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.decorator.duplicate
+runtime/valid/bare-marker-decorator.hd	runtime	accept	14-annotations.md#r-annot.decorator.bare-call
+runtime/valid/function-fact-read.hd	runtime	accept	14-annotations.md#r-annot.decorator.fn-read
+typing/valid/decorator-target-kinds.hd	type	accept	14-annotations.md#r-annot.target.limit
+typing/invalid/decorator-target-kind.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.limit.error
+typing/invalid/decorator-target-newtype.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.newtype
+typing/invalid/annotate-before-function.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.bootstrap
+typing/invalid/decorator-target-member-line.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.target.limit.error

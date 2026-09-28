@@ -304,7 +304,7 @@ receiver_parameter = "self" | "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
-2. r[grammar.fn.decorator-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions. Variant payload parameters also accept them, as [Enums](#enums) states.
+2. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
 3. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
 4. r[grammar.fn.vararg] A vararg parameter ends in `...`; it must be the final positional parameter.
 5. r[grammar.fn.vararg.value-pack] The final-parameter rule includes a value-pack parameter, whose nonfinal use is an error. Error: `nonfinal-positional-value-pack`.
@@ -394,7 +394,7 @@ trait_decl = "trait", identifier, [ type_params ],
 supertrait_bounds = trait_type, { "+", trait_type } ;
 
 trait_member = associated_type_decl
-             | "fn", callable_name, [ generic_params ], parameter_clause,
+             | { decorator_line }, "fn", callable_name, [ generic_params ], parameter_clause,
                "->", result_type, [ header_requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
@@ -406,7 +406,10 @@ impl_decl = "impl", [ generic_params ], type,
               impl_member, { impl_member }, DEDENT )
             ;
 
-impl_member = associated_type_decl | method_decl | derivation_line ;
+impl_member = associated_type_decl
+            | { decorator_line }, method_decl
+            | derivation_line
+            ;
 
 derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
                   NEWLINE ;
@@ -1305,12 +1308,11 @@ context_entry = requirement_key, "=", expression
 
 ```ebnf
 decorated_decl = decorator_line, { decorator_line },
-                 [ "pub" ], ( data_decl | enum_decl | function_decl )
-               | derive_line, { derive_line }, [ "pub" ], newtype_decl ;
+                 ( [ "pub" ], ( data_decl | enum_decl | function_decl
+                              | trait_decl | newtype_decl )
+                 | impl_decl ) ;
 
 decorator_line = "@", ( derive_decorator | closed_expression ), NEWLINE ;
-
-derive_line = "@", derive_decorator, NEWLINE ;
 
 newtype_decl = "type", identifier, [ type_params ], "(", type, ")", NEWLINE ;
 
@@ -1318,9 +1320,10 @@ derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
 ```
 
-1. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
-2. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
-3. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
+1. r[grammar.annot.item-targets] Decorator lines may precede a data type, enum, function, trait, newtype, or implementation declaration.
+2. r[grammar.annot.member-targets] Decorator lines may also precede a data field, an enum variant, and a method of a trait or implementation, as `data_member`, `enum_variant`, `trait_member`, and `impl_member` show.
+3. r[grammar.annot.alias-no-decorator] Any decorator before a transparent alias is an error. Error: `syntax-error`.
+4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
 
 Member metadata written away from a declaration uses a trait-less
 derivation block, an `impl_decl`, as [`grammar.impl.traitless-by`](#r-grammar.impl.traitless-by)

@@ -1,0 +1,28 @@
+# test: a limited fact type is accepted on each kind it lists
+# Spec 14 Target Kinds: `@annotate(.Fn, .Method, .Param)` allows functions, methods, and parameters.
+use std.annotation.{annotate, Target}
+
+@annotate(.Fn, .Method, .Param)
+data Doc:
+    text: string
+
+fn doc(text: string) -> Doc:
+    Doc { text: text }
+
+@doc("adds")
+fn add(@doc("left") left: i32, right: i32) -> i32:
+    left + right
+
+data Counter:
+    count: i32
+
+impl Counter:
+    @doc("reads")
+    fn read(self) -> i32:
+        self.count
+
+@"any"
+data Note:
+    text: string
+
+let kinds: List[Target] = [.Fn, .Data]

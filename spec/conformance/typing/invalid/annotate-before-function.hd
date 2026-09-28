@@ -1,0 +1,7 @@
+# test: an Annotate value may be attached only to a data type or an enum
+# Spec 14 Target Kinds: annot.target.bootstrap.
+use std.annotation.annotate
+
+@annotate(.Fn)  # diagnostic: decorator-not-annotator
+fn marker() -> i32:
+    0

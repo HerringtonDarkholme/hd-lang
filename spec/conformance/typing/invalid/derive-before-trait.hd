@@ -1,0 +1,5 @@
+# test: a @derive line before a trait is rejected
+# Spec 14 Prefix Decorators: annot.decorator.derive-targets.
+@derive(Eq)  # diagnostic: decorator-not-annotator
+trait Named:
+    fn name(self) -> string

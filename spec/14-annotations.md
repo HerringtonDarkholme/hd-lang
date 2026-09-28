@@ -25,10 +25,12 @@ The design principles are:
 4. the semantic foundation is ordinary traits, implementations, values, and
    compiler-provided shape values.
 
-An ordinary decorator attaches a value: a type-level fact before a
-declaration, or member metadata before a field, variant, or parameter. A
-trait-less derivation block attaches the same values away from the
-declaration. The compiler lowers attached values to shape metadata
+An ordinary decorator attaches a value to the item or member it precedes:
+a type-level fact before a data type or enum, or member metadata before a
+field, variant, or parameter. A trait-less derivation block attaches the
+same values away from the declaration.
+
+The compiler lowers attached values to shape metadata
 construction. This is not runtime wrapper execution. `@derive(Trait, ...)` generates
 ordinary trait implementations, either through a compiler intrinsic or
 through a trait's template, as [Typed Derivation](#typed-derivation)
@@ -78,12 +80,15 @@ source declaration. Every shape provides a stable declaration identity, source
 name, qualified name, source position, documentation string, and declaration
 kind. `FieldShape`, `VariantShape`, and `ParamShape` additionally provide their
 zero-based declaration position and declared `TypeShape`. Fields, variants,
-and parameters expose their [member metadata](#member-metadata). `DataShape`,
-`EnumShape`, and `FnShape` contain their ordered direct members. `FnShape`
-additionally exposes its result type, whether it is suspending, and its
-normalized unordered requirement row; each `ParamShape` records whether a
-default is declared.
-Promoted embedded members are not duplicated as direct fields.
+and parameters expose their [member metadata](#member-metadata), and a
+function exposes the values that its [decorators](#prefix-decorators)
+attach.
+
+`DataShape`, `EnumShape`, and `FnShape` contain their ordered direct
+members. `FnShape` additionally exposes its result type, whether it is
+suspending, and its normalized unordered requirement row; each `ParamShape`
+records whether a default is declared. Promoted embedded members are not
+duplicated as direct fields.
 
 The following declarations are the normative shape surface. `DeclarationId`
 is an opaque, equality-comparable identity allocated by the compiler. A
@@ -274,12 +279,9 @@ An `@value` line immediately before a module-level data or enum declaration
 attaches a type-level fact, as [Facts](#facts) defines. It does not register
 or derive anything.
 
-An ordinary decorator before a module-level function declaration is
-rejected until function targets, such as tool adapters, are decided. They
-are listed in [Undecided Parts](#undecided-parts).
-
-1. r[annot.decorator.function] An ordinary decorator before a module-level function declaration is an error, reported on the decorator. Error: `decorator-not-annotator`.
-2. r[annot.decorator.function-derive] A `@derive(...)` line before a module-level function declaration is the same error. Error: `decorator-not-annotator`.
+A decorator may precede any item or member, and attaches its value to it.
+Items are functions, data types, enums, traits, implementations, and
+newtypes. Members are fields, variants, value parameters, and methods:
 
 ```text
 data Tool:
@@ -288,14 +290,74 @@ data Tool:
 fn tool(name: string) -> Tool:
     Tool { name: name }
 
-@tool("search")  # error: decorator-not-annotator
+@tool("search")
 fn search(query: string) -> string:
     query
 
+@"storage"
+trait Store:
+    @"read"
+    fn load(self, @"key" key: string) -> string
+
+@"inherent"
+impl Tool:
+    @"label"
+    fn label(self) -> string:
+        self.name
+
+@"id"
+type ToolId(i64)
+```
+
+1. r[annot.decorator.targets] A decorator may precede an item: a module-level function, data type, enum, trait, implementation, or newtype declaration.
+2. r[annot.decorator.members] A decorator may also precede a member: a data field, an enum variant, a value parameter, or a method of a trait or implementation.
+3. r[annot.decorator.attach] A decorator before a function, trait, implementation, newtype, or method attaches its value to that declaration and changes nothing else about it.
+4. r[annot.decorator.no-locals] A local declaration, a statement, and an expression take no decorator. A decorator there is an error. Error: `decorator-not-top-level`.
+5. r[annot.decorator.no-module] A module takes no decorator, because it has no declaration.
+6. r[annot.decorator.function-derive] A `@derive(...)` line before a module-level function declaration is an error, reported on the decorator. Error: `decorator-not-annotator`.
+7. r[annot.decorator.derive-targets] A `@derive(...)` line before a trait, an implementation, or a method is the same error. Error: `decorator-not-annotator`.
+8. r[annot.decorator.duplicate] Two values of one concrete type before one function, trait, implementation, newtype, or method are an error, reported on the later value. Error: `duplicate-fact`.
+9. r[annot.decorator.fn-read] Code reads a value attached to a module-level function `f` through `shape_of(f).metadata[M]()`.
+10. r[annot.decorator.no-listing] No operation lists the declarations that carry a value, so code cannot enumerate every function with a given decorator.
+
+```text
 @derive(Eq)  # error: decorator-not-annotator
 fn same(value: i32) -> i32:
     value
+
+@derive(Eq)  # error: decorator-not-annotator
+trait Named:
+    fn name(self) -> string
+
+@"first"
+@"second"  # error: duplicate-fact
+fn twice() -> void:
+    pass
 ```
+
+A decorator that names a function with no parameters calls it, so a marker
+is written without parentheses:
+
+```text
+data Hidden: pass
+
+fn hidden() -> Hidden:
+    Hidden {}
+
+@hidden
+fn internal_check() -> bool:
+    true
+
+marked := shape_of(internal_check).metadata[Hidden]()
+```
+
+11. r[annot.decorator.bare-call] In a decorator, a bare name that resolves to a function with no parameters is called, so `@hidden` means `@hidden()`.
+12. r[annot.decorator.bare-call.only] The rule applies only to decorators. Elsewhere, the same name stays a function value.
+
+> **Why.** A decorator is a plain value, as in Java, C#, Kotlin, and Dart,
+> so one rule covers every place it may go. Whatever reads a value checks
+> that it suits its target, so the compiler knows no signatures. Reading
+> by one function's shape, never by listing, keeps discovery with tools.
 
 An `@value` line immediately before a named or embedded data field or an enum
 variant attaches its value to that member's metadata. For a field
@@ -328,10 +390,13 @@ fn get_user(
 
 This attaches `description("User identifier")` to the parameter `id`, and
 it is visible through that parameter's `ParamShape`. Parameter decorators
-are not accepted on closures, methods, trait requirements, receiver
-parameters, or local functions.
+are also accepted on the value parameters of methods, including trait
+requirements. They are not accepted on closures, receiver parameters, or
+local functions.
 
 `@derive` uses the same prefix position but is not an ordinary decorator.
+It stays a compiler intrinsic, as `@error` does
+([Error Conversion decision 10](../future-work/ERROR_CONVERSION.md#owner-decisions)).
 Its arguments are trait names rather than metadata values. The compiler
 checks and generates each requested implementation.
 [Opting In](#opting-in) defines which traits it accepts.
@@ -359,7 +424,7 @@ written only with `@value` on the parameter.
 1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a trait-less derivation block for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
-4. r[annot.metadata.any-value] Any value may be attached; no marker trait is required.
+4. r[annot.metadata.any-value] Any compile-time value may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
 5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
@@ -377,8 +442,9 @@ fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 ```
 
 The language does not check that a metadata value suits its member's type.
-A fact type's compile-time check against its member is the fact check hook
-in [Undecided Parts](#undecided-parts).
+The code that reads the value checks it. A fact type's compile-time check
+against its member is the fact check hook in
+[Undecided Parts](#undecided-parts).
 
 Reusable compositions are ordinary values or lists, not new language syntax:
 
@@ -393,6 +459,84 @@ let email_metadata: List[Any] = [
 Different concrete metadata types coexist in one `List[Any]`. A member
 line may name such a list directly, as `email = email_metadata`, since its
 right side is [any list-typed expression](#r-annot.line.right-typed).
+
+### Target Kinds
+
+A fact type may limit the kinds of target that its values attach to, with
+the standard `@annotate` decorator:
+
+```text
+use std.annotation.annotate
+
+@annotate(.Field)
+data MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen:
+    MaxLen { value: value }
+
+data Profile:
+    @max_len(80)
+    name: string
+
+@max_len(3)  # error: decorator-not-annotator
+fn greet() -> string:
+    "hi"
+```
+
+`std.annotation` declares the kinds and the limiting fact type:
+
+```text
+pub enum Target:
+    Fn
+    Data
+    Enum
+    Field
+    Variant
+    Param
+    Trait
+    Impl
+    Method
+
+@annotate(.Data, .Enum)
+pub data Annotate:
+    pub kinds: List[Target]
+
+pub fn annotate(kinds: Target...) -> Annotate:
+    Annotate { kinds: kinds }
+```
+
+Each target has one kind:
+
+| Rule | Target | Kind |
+| --- | --- | --- |
+| r[annot.target.kind.fn] Function | a module-level function declaration | `.Fn` |
+| r[annot.target.kind.data] Data type | a data type declaration | `.Data` |
+| r[annot.target.kind.enum] Enum | an enum declaration | `.Enum` |
+| r[annot.target.kind.field] Field | a named or embedded data field, or a variant payload member | `.Field` |
+| r[annot.target.kind.variant] Variant | an enum variant | `.Variant` |
+| r[annot.target.kind.param] Parameter | a value parameter of a function or method | `.Param` |
+| r[annot.target.kind.trait] Trait | a trait declaration | `.Trait` |
+| r[annot.target.kind.impl] Implementation | an implementation, including a derivation block | `.Impl` |
+| r[annot.target.kind.method] Method | a method or associated function of a trait or implementation | `.Method` |
+| r[annot.target.kind.newtype] Newtype | a newtype declaration | none |
+
+1. r[annot.target.declarations] `std.annotation` declares `Target`, `Annotate`, and `annotate`. They are not prelude names, so code imports them, as in `use std.annotation.annotate`.
+2. r[annot.target.limit] A data type or enum `F` whose type-level facts include an `Annotate` value limits values of type `F` to targets whose kind that value lists.
+3. r[annot.target.limit.error] A value of a limited type attached to a target of any other kind is an error, reported on the decorator or member line that attaches it. Error: `decorator-not-annotator`.
+4. r[annot.target.newtype] A newtype has no kind, so a value of a limited type before a newtype is always this error. Error: `decorator-not-annotator`.
+5. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
+6. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
+7. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
+8. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
+
+> **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
+> same way. A signature check belongs to the reader, which knows what it
+> needs, so the compiler knows one standard type rather than a pattern
+> language for targets.
+
+See also: [Prefix Decorators](#prefix-decorators),
+[Literal Suffixes](05-expressions.md#literal-suffixes).
 
 ## Grammar
 
@@ -1102,4 +1246,4 @@ An implementation must not guess them:
 | Composing templates | How a walker forwards to another walker's `member`, which only generated code may call generically. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
-| Function targets | Deriving for functions, and what a decorator before a function declaration means, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). |
+| Function targets | Deriving for functions, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). A decorator before a function attaches a value, as [Prefix Decorators](#prefix-decorators) defines. |

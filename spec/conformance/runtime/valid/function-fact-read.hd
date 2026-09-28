@@ -1,0 +1,22 @@
+# test: user code reads a function's decorator value through shape_of
+# Spec 14 Prefix Decorators: annot.decorator.fn-read.
+use std.testing.assert_equal
+
+data Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+@route("/users")
+fn list_users() -> string:
+    "[]"
+
+fn route_of_list_users() -> string:
+    match shape_of(list_users).metadata[Route]():
+        .Some(found) => found.path
+        .None => ""
+
+tests:
+    it("reads the attached route"):
+        assert_equal(route_of_list_users(), "/users", reason="the decorator value is the function's metadata")
