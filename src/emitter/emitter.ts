@@ -6,6 +6,7 @@ import type {
   HirProgram,
   HirStatement,
 } from "../hir.ts";
+import { scalarWasm } from "./scalars.ts";
 import { contextKeys, functionParts, functionType } from "../types.ts";
 import { collectModuleTypes } from "./module-types.ts";
 import {
@@ -693,9 +694,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
       condition =
         arm.literal.type === "string"
           ? `(i32.eq (call $hd.string_compare (local.get ${source}) ${value}) (i32.const 0))`
-          : arm.literal.type === "f64" || arm.literal.type === "i64"
-            ? `(${arm.literal.type}.eq (local.get ${source}) ${value})`
-            : `(i32.eq (local.get ${source}) ${value})`;
+          : `(${scalarWasm(arm.literal.type)}.eq (local.get ${source}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
         representation === "enum"
@@ -712,9 +711,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
             ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
-            : test.literal!.type === "f64" || test.literal!.type === "i64"
-              ? `(${test.literal!.type}.eq ${actual} ${expected})`
-              : `(i32.eq ${actual} ${expected})`;
+            : `(${scalarWasm(test.literal!.type)}.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, next) : next;
     }
     return condition ?? `(i32.const 1)`;
@@ -1442,7 +1439,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       ? `  (import "hd" "pow_f64" (func $hd.pow_f64 (param f64 f64) (result f64)))`
       : "",
     emitter.requiresFloatDisplay
-      ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))`
+      ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))\n  (import "hd" "format_f32" (func $hd.format_f32 (param f64 i32) (result i32)))`
       : "",
     hostFunctions.imports,
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,

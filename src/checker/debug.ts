@@ -11,7 +11,7 @@ import { genericTypeName, matchTraitImplementation } from "./shared.ts";
 // `std.format.Debug` (spec/09-traits.md#debug-trait): `std` implements it for
 // the primitives, collections, optionals, `Result`, and tuples whose type
 // arguments implement it; any other type needs an `impl` or `@derive(Debug)`.
-const PRIMITIVES = new Set(["i32", "i64", "u8", "f64", "bool", "char", "string"]);
+const PRIMITIVES = new Set("i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool char string".split(" "));
 
 /** Whether `std` supplies `Debug` for `type` without a source `impl`. */
 export function builtinDebug(type: ValueType): boolean {

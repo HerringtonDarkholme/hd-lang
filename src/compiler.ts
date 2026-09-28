@@ -163,6 +163,19 @@ export interface Instantiation {
   readonly replay: ReplaySession;
 }
 
+/**
+ * An f32 (passed widened) shows the shortest decimal that rounds back to the
+ * same f32, in the f64 notation (spec/04-type-system.md#numeric-display).
+ */
+function displayF32(value: number): string {
+  if (!Number.isFinite(value)) return displayF64(value);
+  for (let digits = 1; digits <= 9; digits += 1) {
+    const shortest = Number(value.toPrecision(digits));
+    if (Math.fround(shortest) === value) return displayF64(Object.is(value, -0) ? -0 : shortest);
+  }
+  return displayF64(value);
+}
+
 function displayF64(value: number): string {
   if (Number.isNaN(value)) return "NaN";
   if (value === Infinity) return "inf";
@@ -610,6 +623,10 @@ export async function instantiate(
       pow_f64: Math.pow,
       format_f64: (value: number, index: number) => {
         const bytes = textEncoder.encode(displayF64(value));
+        return index < 0 ? bytes.length : bytes[index]!;
+      },
+      format_f32: (value: number, index: number) => {
+        const bytes = textEncoder.encode(displayF32(value));
         return index < 0 ? bytes.length : bytes[index]!;
       },
       panic: (code: number) => {

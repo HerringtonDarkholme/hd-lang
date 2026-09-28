@@ -3,6 +3,7 @@ import type { SourceSpan } from "../diagnostics.ts";
 import type { HirData, HirDataField, HirExpression, ValueType } from "../hir.ts";
 import type { InherentMethod } from "./context.ts";
 import { mutableInner, mutableType, nominalGenericParts, readonlyType } from "../types.ts";
+import { numericType } from "../numeric.ts";
 import {
   containsGenericType,
   genericTypeName,
@@ -75,11 +76,32 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       (declaration) =>
         declaration.newtype && constructorOf(declaration.fields[0]?.type ?? "") === name,
     );
-    if (!newtype?.newtype && !unwraps) return undefined;
     const single =
       expression.arguments.length === 1 &&
       !expression.argumentNames?.some(Boolean) &&
       !expression.argumentSpreads?.some(Boolean);
+    // A constructor-style numeric cast (04 Numeric Casts).
+    if (numericType(name) && !newtype?.newtype) {
+      if (!single)
+        this.fail("argument-count", `a numeric cast to '${name}' takes one value`, expression.span);
+      const value = this.checkExpression(expression.arguments[0]!);
+      if (numericType(readonlyType(value.type)))
+        return {
+          kind: "unary",
+          operator: "cast",
+          operand: value,
+          type: name,
+          span: expression.span,
+        };
+      if (!unwraps)
+        this.fail(
+          "type-mismatch",
+          `'${name}(...)' casts a numeric value, found '${value.type}'`,
+          expression.span,
+        );
+      return this.unwrapNewtype(name, value, expression.span);
+    }
+    if (!newtype?.newtype && !unwraps) return undefined;
     if (newtype?.newtype) {
       if (!single)
         this.fail(
@@ -101,7 +123,18 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
       );
     }
     if (!single) return undefined;
-    const value = this.checkExpression(expression.arguments[0]!);
+    return this.unwrapNewtype(
+      name,
+      this.checkExpression(expression.arguments[0]!),
+      expression.span,
+    );
+  }
+
+  /** `name(value)` unwrapping a newtype whose base is `name`. */
+  private unwrapNewtype(name: string, value: HirExpression, span: SourceSpan): HirExpression {
+    const constructorOf = (type: ValueType): string =>
+      nominalGenericParts(readonlyType(type))?.name ?? readonlyType(type);
+    const expression = { span };
     const view = readonlyType(value.type);
     const declaration = this.dataTypes.get(nominalGenericParts(view)?.name ?? view);
     const field = declaration?.newtype ? declaration.fields[0] : undefined;

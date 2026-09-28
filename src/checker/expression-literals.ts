@@ -1,6 +1,7 @@
 import type { Expression } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, ValueType } from "../hir.ts";
+import { isIntegerType, numericType, type NumericType, widerIntegerName } from "../numeric.ts";
 import {
   mutableInner,
   mutableType,
@@ -87,12 +88,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     span: SourceSpan,
   ): HirExpression {
     const target = integerLiteralTarget(expected) ?? "i32";
-    const ranges: Readonly<Record<string, readonly [bigint, bigint, string?]>> = {
-      i64: [-(2n ** 63n), 2n ** 63n - 1n],
-      u8: [0n, 255n, "u16"],
-      i32: [-2_147_483_648n, 2_147_483_647n, "i64"],
-    };
-    const [minimum, maximum, wider] = ranges[target]!;
+    const { minimum, maximum, bits } = numericType(target)! as Required<NumericType>;
+    const wider = widerIntegerName(target);
     if (value < minimum || value > maximum)
       this.fail(
         "integer-literal-range",
@@ -100,8 +97,8 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
           (wider ? `; declare it ${wider} for a wider range` : ""),
         span,
       );
-    return target === "i64"
-      ? { kind: "integer", value: Number(value), wide: value.toString(), type: "i64", span }
+    return bits === 64
+      ? { kind: "integer", value: Number(value), wide: value.toString(), type: target, span }
       : { kind: "integer", value: Number(value), type: target, span };
   }
 
@@ -112,10 +109,18 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
     switch (expression.kind) {
       case "integer":
         return this.integerLiteral(expression.value, expected, expression.span);
-      case "float":
-        if (!Number.isFinite(expression.value))
-          this.fail("float-literal-range", "floating-point literal is not finite", expression.span);
-        return { ...expression, type: "f64" };
+      case "float": {
+        // An expected `f32` converts the literal directly (04 Floating-Point Literals).
+        const single = floatLiteralTarget(expected) === "f32";
+        const value = single ? Math.fround(expression.value) : expression.value;
+        if (!Number.isFinite(value))
+          this.fail(
+            "float-literal-range",
+            `floating-point literal is not finite as ${single ? "f32" : "f64"}`,
+            expression.span,
+          );
+        return { ...expression, value, type: single ? "f32" : "f64" };
+      }
       case "string":
         return {
           kind: "string",
@@ -299,13 +304,21 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
 }
 
 /** The integer type an expected type asks an unsuffixed integer literal to take. */
-export function integerLiteralTarget(expected: ValueType | undefined): "i64" | "u8" | undefined {
+export function integerLiteralTarget(expected: ValueType | undefined): ValueType | undefined {
   if (!expected) return undefined;
   const type = readonlyType(expected);
   return integerTarget(type) ?? integerTarget(optionalInner(type));
 }
 
-/** `i64` or `u8`: the integer types other than the default `i32`. */
-export function integerTarget(type: ValueType | undefined): "i64" | "u8" | undefined {
-  return type === "i64" || type === "u8" ? type : undefined;
+/** An integer type other than the default `i32`. */
+export function integerTarget(type: ValueType | undefined): ValueType | undefined {
+  return type !== "i32" && isIntegerType(type) ? type : undefined;
+}
+
+/** The float type an expected type asks a floating-point literal to take. */
+export function floatLiteralTarget(expected: ValueType | undefined): ValueType | undefined {
+  if (!expected) return undefined;
+  const type = readonlyType(expected);
+  const inner = optionalInner(type);
+  return type === "f32" || inner === "f32" ? "f32" : undefined;
 }

@@ -2,6 +2,7 @@ import type { FunctionDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirTrait, HirTraitImplementation, ValueType } from "../hir.ts";
 import { optionalInner, readonlyType, resultParts } from "../types.ts";
+import { numericType } from "../numeric.ts";
 import { matchTraitImplementation, traitTypeName } from "./shared.ts";
 import { HIDDEN_EXIT_CODE, HIDDEN_TERMINATION } from "./standard-traits.ts";
 
@@ -95,7 +96,7 @@ function implementsDisplay(
   implementations: readonly HirTraitImplementation[],
 ): boolean {
   const target = readonlyType(type);
-  if (["i32", "i64", "u8", "f64", "bool", "char", "string", "ConsoleError"].includes(target))
+  if (numericType(target) || ["bool", "char", "string", "ConsoleError"].includes(target))
     return true;
   const display = traitTypes.get("Display")!;
   if (

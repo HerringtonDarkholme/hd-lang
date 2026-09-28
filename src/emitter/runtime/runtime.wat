@@ -276,6 +276,93 @@
       (then (array.set $hd.bytes (local.get $result) (i32.const 0) (i32.const 45))))
     (local.get $result))
 
+  ;; Sized integers (src/numeric.ts). An integer of at most 16 bits is an
+  ;; i32 whose result is range-checked; u32 is an i32 and u64 an i64, both
+  ;; read as unsigned.
+  (func $hd.check_range_i32 (param $value i32) (param $minimum i32) (param $maximum i32) (result i32)
+    (if (i32.or
+      (i32.lt_s (local.get $value) (local.get $minimum))
+      (i32.gt_s (local.get $value) (local.get $maximum)))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $value))
+
+  (func $hd.check_range_i64 (param $value i64) (param $minimum i64) (param $maximum i64) (result i64)
+    (if (i32.or
+      (i64.lt_s (local.get $value) (local.get $minimum))
+      (i64.gt_s (local.get $value) (local.get $maximum)))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $value))
+
+  (func $hd.check_shift (param $count i32) (param $bits i32) (result i32)
+    (if (i32.ge_u (local.get $count) (local.get $bits))
+      (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
+    (local.get $count))
+
+  (func $hd.check_shift_i64 (param $count i64) (result i64)
+    (if (i64.ge_u (local.get $count) (i64.const 64))
+      (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
+    (local.get $count))
+
+  (func $hd.check_u32 (param $value i64) (result i32)
+    (if (i64.gt_u (local.get $value) (i64.const 4294967295))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (i32.wrap_i64 (local.get $value)))
+
+  (func $hd.add_u64 (param $left i64) (param $right i64) (result i64)
+    (local $sum i64)
+    (local.set $sum (i64.add (local.get $left) (local.get $right)))
+    (if (i64.lt_u (local.get $sum) (local.get $left))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $sum))
+
+  (func $hd.sub_u64 (param $left i64) (param $right i64) (result i64)
+    (if (i64.lt_u (local.get $left) (local.get $right))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (i64.sub (local.get $left) (local.get $right)))
+
+  (func $hd.mul_u64 (param $left i64) (param $right i64) (result i64)
+    (local $product i64)
+    (local.set $product (i64.mul (local.get $left) (local.get $right)))
+    (if (i32.and
+      (i64.ne (local.get $left) (i64.const 0))
+      (i64.ne (i64.div_u (local.get $product) (local.get $left)) (local.get $right)))
+      (then (call $hd.panic (global.get $hd.panic-integer-overflow)) unreachable))
+    (local.get $product))
+
+  (func $hd.pow_u64 (param $base i64) (param $exponent i32) (result i64)
+    (local $result i64)
+    (local.set $result (i64.const 1))
+    (block $done
+      (loop $next
+        (br_if $done (i32.eqz (local.get $exponent)))
+        (if (i32.and (local.get $exponent) (i32.const 1))
+          (then (local.set $result (call $hd.mul_u64 (local.get $result) (local.get $base)))))
+        (local.set $exponent (i32.shr_u (local.get $exponent) (i32.const 1)))
+        (if (local.get $exponent)
+          (then (local.set $base (call $hd.mul_u64 (local.get $base) (local.get $base)))))
+        (br $next)))
+    (local.get $result))
+
+  ;; Base-ten digits of a u64: the high part is its value divided by ten.
+  (func $hd.u64_to_string (param $value i64) (result (ref null $hd.bytes))
+    (local $high (ref null $hd.bytes))
+    (local $result (ref $hd.bytes))
+    (local $length i32)
+    (if (i64.ge_s (local.get $value) (i64.const 0))
+      (then (return (call $hd.i64_to_string (local.get $value)))))
+    (local.set $high (call $hd.i64_to_string (i64.div_u (local.get $value) (i64.const 10))))
+    (local.set $length (array.len (ref.as_non_null (local.get $high))))
+    (local.set $result (array.new_default $hd.bytes (i32.add (local.get $length) (i32.const 1))))
+    (array.copy $hd.bytes $hd.bytes
+      (local.get $result) (i32.const 0)
+      (ref.as_non_null (local.get $high)) (i32.const 0)
+      (local.get $length))
+    (array.set $hd.bytes
+      (local.get $result)
+      (local.get $length)
+      (i32.add (i32.wrap_i64 (i64.rem_u (local.get $value) (i64.const 10))) (i32.const 48)))
+    (local.get $result))
+
   (func $hd.shl_i32 (param $value i32) (param $count i32) (result i32)
     (if (i32.ge_u (local.get $count) (i32.const 32))
       (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))

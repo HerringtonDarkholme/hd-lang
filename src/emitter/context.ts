@@ -30,6 +30,8 @@ export interface BuiltinTraitAdapter {
   readonly boundTraits: readonly number[];
 }
 import { runtimePanicCode, type RuntimePanicName } from "../runtime-panic.ts";
+import { numericType } from "../numeric.ts";
+import { boxScalar, unboxScalar } from "./scalars.ts";
 import {
   containsGenericValueType,
   exportName,
@@ -182,9 +184,9 @@ export class EmitterContext {
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.watType(mutable);
     if (isGenericValueType(type)) return "anyref";
-    if (type === "i32" || type === "u8" || type === "bool" || type === "char") return "i32";
-    if (type === "f64") return "f64";
-    if (type === "i64") return "i64";
+    const numeric = numericType(type);
+    if (numeric) return numeric.wasm;
+    if (type === "bool" || type === "char") return "i32";
     if (type === "string") return "(ref null $hd.bytes)";
     if (type.startsWith("provider-row:")) return "(ref null $hd.providers)";
     if (type.startsWith("provider:")) return "externref";
@@ -367,12 +369,7 @@ export class EmitterContext {
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.boxWatValue(value, mutable);
     if (isGenericValueType(type)) return value;
-    if (type === "i32" || type === "u8" || type === "bool" || type === "char")
-      return `(struct.new $hd.box-i32 ${value})`;
-    if (type === "f64") return `(struct.new $hd.box-f64 ${value})`;
-    if (type === "i64") return `(struct.new $hd.box-i64 ${value})`;
-    if (type === "void") return `(ref.null any)`;
-    return value;
+    return boxScalar(value, type);
   }
 
   // `report()` of an entry result: 0 for `void`, the `u8` of `ExitCode`, and
@@ -401,12 +398,8 @@ export class EmitterContext {
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.unboxValue(payload, mutable);
     if (isGenericValueType(type) || type === "void") return payload;
-    if (type === "i32" || type === "u8" || type === "bool" || type === "char")
-      return `(struct.get $hd.box-i32 $hd.box-i32-value (ref.cast (ref $hd.box-i32) ${payload}))`;
-    if (type === "f64")
-      return `(struct.get $hd.box-f64 $hd.box-f64-value (ref.cast (ref $hd.box-f64) ${payload}))`;
-    if (type === "i64")
-      return `(struct.get $hd.box-i64 $hd.box-i64-value (ref.cast (ref $hd.box-i64) ${payload}))`;
+    const scalar = unboxScalar(payload, type);
+    if (scalar) return scalar;
     if (type === "string") return `(ref.cast (ref null $hd.bytes) ${payload})`;
     if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.cast (ref null $trait${this.traitsByName.get(traitTypeBase(type))?.index}) ${payload})`;
@@ -447,10 +440,9 @@ export class EmitterContext {
     const mutable = mutableInner(type);
     if (mutable !== undefined) return this.defaultValue(mutable);
     if (isGenericValueType(type)) return `(ref.null any)`;
-    if (type === "i32" || type === "u8" || type === "bool" || type === "char")
-      return `(i32.const 0)`;
-    if (type === "f64") return `(f64.const 0)`;
-    if (type === "i64") return `(i64.const 0)`;
+    const numeric = numericType(type);
+    if (numeric) return `(${numeric.wasm}.const 0)`;
+    if (type === "bool" || type === "char") return `(i32.const 0)`;
     if (type === "string") return `(ref.null $hd.bytes)`;
     if (type.startsWith("trait:") && !type.endsWith("?"))
       return `(ref.null $trait${this.traitsByName.get(traitTypeBase(type))?.index})`;

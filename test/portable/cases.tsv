@@ -1209,3 +1209,13 @@ typing/valid/trait-less-derivation-block.hd	type
 typing/valid/data-decorator.hd	type
 typing/valid/embedded-field-decorator.hd	type
 typing/valid/parameter-decorator.hd	type
+runtime/valid/i64-u64-precision-through-generics.hd	runtime
+runtime/valid/f32-display-width-through-generics.hd	runtime
+typing/valid/newtypes-and-widening.hd	type
+typing/valid/numeric-types.hd	type
+typing/invalid/integer-narrowing.hd	type
+typing/invalid/mixed-signedness.hd	type
+typing/valid/numeric-widening-and-display-list.hd	type
+typing/valid/numeric-corners.hd	type
+runtime/valid/generic-trait-literal-default-instantiation.hd	runtime
+runtime/valid/unsigned-exponent.hd	runtime

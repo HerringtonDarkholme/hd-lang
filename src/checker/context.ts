@@ -48,6 +48,7 @@ import {
   traitTypeName,
   builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
+  numericWidening,
 } from "./shared.ts";
 import { generalizedShape } from "./shapes.ts";
 import {
@@ -66,6 +67,7 @@ import {
   traitSuspensionParts,
   tupleParts,
 } from "../types.ts";
+import { isNarrowInteger, narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
 
 export interface CheckResult {
   readonly program?: HirProgram;
@@ -141,11 +143,8 @@ function hirValueReadsLocal(value: unknown, local: HirLocal): boolean {
 }
 
 const TYPE_NAMES = new Set<ValueType>([
-  "i32",
-  "i64",
-  "u8",
+  ...NUMERIC_TYPES.keys(),
   "bool",
-  "f64",
   "char",
   "string",
   "void",
@@ -157,7 +156,7 @@ export { PRELUDE_NAMES };
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
-  if (type === "i32" || type === "u8" || type === "bool" || type === "char") return 0;
+  if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
 }
@@ -525,12 +524,8 @@ export abstract class CheckerContext {
     wrapOptional = true,
   ): HirExpression {
     if (!expected || value.type === expected || value.type === "never") return value;
-    // 04 Numeric Conversions: `i32` widens implicitly to `i64`.
-    if (value.type === "i32" && readonlyType(expected) === "i64") {
-      if (value.kind === "integer")
-        return { ...value, wide: String(value.value), type: "i64", span: value.span };
-      return { kind: "unary", operator: "widen", operand: value, type: "i64", span };
-    }
+    const widened = numericWidening(value, readonlyType(expected), span);
+    if (widened) return widened;
     if (isPermissionWeakening(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
@@ -1005,7 +1000,7 @@ export abstract class CheckerContext {
         ? plan({ kind: "debug", traitIndex, targetType: type })
         : undefined;
     if (traitName === "Display") {
-      return ["i32", "i64", "u8", "f64", "bool", "char", "string"].includes(type)
+      return numericType(type) || ["bool", "char", "string"].includes(type)
         ? plan({ kind: "display", traitIndex, targetType: type })
         : undefined;
     }
@@ -1083,7 +1078,7 @@ export abstract class CheckerContext {
   ): HirExpression {
     const type = readonlyType(value.type);
     if (type === "string") return value;
-    if (["i32", "i64", "u8", "f64", "bool", "char"].includes(type)) {
+    if (numericType(type) || type === "bool" || type === "char") {
       return { kind: "display", operand: value, type: "string", span };
     }
     const trait = this.traitTypes.get("Display")!;
@@ -1156,7 +1151,7 @@ export abstract class CheckerContext {
 
   protected equalityStrategy(type: ValueType): HirEqualityStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "i64", "u8", "bool", "f64", "char", "string"].includes(comparedType))
+    if (numericType(comparedType) || ["bool", "char", "string"].includes(comparedType))
       return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
@@ -1214,7 +1209,7 @@ export abstract class CheckerContext {
 
   protected orderingStrategy(type: ValueType): HirOrderingStrategy | undefined {
     const comparedType = readonlyType(type);
-    if (["i32", "i64", "u8", "f64", "char", "string"].includes(comparedType))
+    if (numericType(comparedType) || ["char", "string"].includes(comparedType))
       return { kind: "builtin" };
     const tuple = tupleParts(comparedType);
     if (tuple !== undefined) {
@@ -1424,10 +1419,10 @@ export abstract class CheckerContext {
         `readonly type '${actual}' cannot be upgraded to '${expected}'`,
         span,
       );
-    if (actual === "i64" && expected === "i32")
+    if (narrowsTo(actual, expected))
       this.fail(
         "implicit-narrowing",
-        `'i64' does not convert implicitly to 'i32'; write an explicit cast`,
+        `'${actual}' does not convert implicitly to '${expected}'; write an explicit cast`,
         span,
       );
     this.fail("type-mismatch", `expected ${expected}, found ${actual}`, span);

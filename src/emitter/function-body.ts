@@ -48,6 +48,8 @@ import {
   matchTestTag,
 } from "./shared.ts";
 import { DataEmitter } from "./data.ts";
+import { scalarWasm } from "./scalars.ts";
+import { integerConstant } from "./sized-numeric.ts";
 
 export abstract class FunctionBodyEmitter extends DataEmitter {
   protected abstract emitLinearContinuation(
@@ -194,11 +196,9 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
   private emitValueExpression(expression: HirExpression): string | undefined {
     switch (expression.kind) {
       case "integer":
-        return expression.type === "i64"
-          ? `(i64.const ${expression.wide ?? expression.value})`
-          : `(i32.const ${expression.value})`;
+        return integerConstant(expression.type, expression.value, expression.wide);
       case "float":
-        return `(f64.const ${expression.value})`;
+        return `(${expression.type === "f32" ? "f32" : "f64"}.const ${expression.value})`;
       case "string":
         return expression.bytes.length === 0
           ? `(array.new_default $hd.bytes (i32.const 0))`
@@ -389,7 +389,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const operand = this.emitExpression(expression.operand);
         if (expression.operator === "+") return operand;
         if (expression.operator === "not") return `(i32.eqz ${operand})`;
-        if (expression.operator === "widen") return `(i64.extend_i32_s ${operand})`;
+        const numeric = this.emitNumericUnary(expression, operand);
+        if (numeric) return numeric;
         if (expression.operator === "~")
           return expression.type === "i64"
             ? `(i64.xor ${operand} (i64.const -1))`
@@ -409,6 +410,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
             return this.emitOptionalIdentity(expression, left, right);
           return `(ref.eq (ref.cast (ref null eq) ${left}) (ref.cast (ref null eq) ${right}))`;
         }
+        const numeric = this.emitNumericBinary(expression, left, right);
+        if (numeric) return numeric;
         if (expression.operator === "**") {
           if (expression.type === "f64") {
             this.floatPower = true;
@@ -1371,9 +1374,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
       condition =
         arm.literal.type === "string"
           ? `(i32.eq (call $hd.string_compare (local.get ${subject}) ${value}) (i32.const 0))`
-          : arm.literal.type === "f64" || arm.literal.type === "i64"
-            ? `(${arm.literal.type}.eq (local.get ${subject}) ${value})`
-            : `(i32.eq (local.get ${subject}) ${value})`;
+          : `(${scalarWasm(arm.literal.type)}.eq (local.get ${subject}) ${value})`;
     } else if (arm.tag !== undefined) {
       const actual =
         representation === "enum"
@@ -1390,9 +1391,7 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
           ? `(i32.eq ${actual} ${expected})`
           : test.literal!.type === "string"
             ? `(i32.eq (call $hd.string_compare ${actual} ${expected}) (i32.const 0))`
-            : test.literal!.type === "f64" || test.literal!.type === "i64"
-              ? `(${test.literal!.type}.eq ${actual} ${expected})`
-              : `(i32.eq ${actual} ${expected})`;
+            : `(${scalarWasm(test.literal!.type)}.eq ${actual} ${expected})`;
       condition = condition ? andThen(condition, testCondition) : testCondition;
     }
     if (!condition) return guardedBody;

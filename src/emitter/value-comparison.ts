@@ -14,6 +14,16 @@ import {
   tupleParts,
 } from "../types.ts";
 import { EmitterContext } from "./context.ts";
+import { numericType } from "../numeric.ts";
+import { scalarWasm } from "./scalars.ts";
+import {
+  emitCast,
+  emitSizedBinary,
+  emitSizedUnary,
+  emitWiden,
+  isSizedNumeric,
+  type SizedNumericContext,
+} from "./sized-numeric.ts";
 import { functionName, methodBoundParameters, traitSuspensionName } from "./shared.ts";
 
 /** The receiver of a nested `runtime_type` read that composes a type argument's key. */
@@ -26,6 +36,59 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     const index = this.temporaryTypes.length;
     this.temporaryTypes.push(type);
     return `$tmp${index}`;
+  }
+
+  private sizedNumeric(): SizedNumericContext {
+    return {
+      allocateTemporary: (type) => this.allocateTemporary(type),
+      emitRuntimePanic: (name) => this.emitRuntimePanic(name),
+      emitCheckedDivision: (width, operator, left, right) =>
+        this.emitCheckedDivision(width, operator, left, right),
+      useFloatPower: () => {
+        this.floatPower = true;
+      },
+    };
+  }
+
+  /** Widening, casts, and `-` and `~` on the sized numeric types (emitter/sized-numeric.ts). */
+  protected emitNumericUnary(
+    expression: Extract<HirExpression, { kind: "unary" }>,
+    operand: string,
+  ): string | undefined {
+    if (expression.operator === "widen")
+      return emitWiden(operand, expression.operand.type, expression.type);
+    if (expression.operator === "cast")
+      return emitCast(
+        operand,
+        readonlyType(expression.operand.type),
+        expression.type,
+        this.sizedNumeric(),
+      );
+    return isSizedNumeric(expression.type) && expression.operator !== "+"
+      ? emitSizedUnary(expression.operator, operand, expression.type)
+      : undefined;
+  }
+
+  /** A binary operator on the sized numeric types, or an `i64` exponent. */
+  protected emitNumericBinary(
+    expression: Extract<HirExpression, { kind: "binary" }>,
+    left: string,
+    right: string,
+  ): string | undefined {
+    const operator = expression.operator;
+    if (["==", "!=", "is", "and", "or"].includes(operator)) return undefined;
+    if (isSizedNumeric(expression.left.type))
+      return emitSizedBinary(
+        operator,
+        left,
+        right,
+        expression.left.type,
+        expression.right.type,
+        this.sizedNumeric(),
+      );
+    if (operator === "**" && scalarWasm(expression.right.type) === "i64")
+      return `(call $hd.pow_${expression.type} ${left} (i32.wrap_i64 ${right}))`;
+    return undefined;
   }
 
   /** Signed integer `/` or `%`, panicking on a zero divisor and on overflow. */
@@ -71,11 +134,14 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
 
   protected emitPrimitiveDisplay(operand: string, type: ValueType): string {
     if (type === "string") return operand;
-    if (type === "i32" || type === "u8") return `(call $hd.i32_to_string ${operand})`;
+    if (["i8", "i16", "i32", "u8", "u16"].includes(type))
+      return `(call $hd.i32_to_string ${operand})`;
+    if (type === "u32") return `(call $hd.i64_to_string (i64.extend_i32_u ${operand}))`;
     if (type === "i64") return `(call $hd.i64_to_string ${operand})`;
-    if (type === "f64") {
+    if (type === "u64") return `(call $hd.u64_to_string ${operand})`;
+    if (type === "f64" || type === "f32") {
       this.floatDisplay = true;
-      return `(call $hd.f64_to_string ${operand})`;
+      return `(call $hd.${type}_to_string ${operand})`;
     }
     if (type === "char") return `(call $hd.char_to_string ${operand})`;
     if (type === "bool") {
@@ -348,10 +414,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     }
     const readonly = readonlyType(type);
     if (readonly === "string") return `(i32.eqz (call $hd.string_compare ${left} ${right}))`;
-    if (readonly === "f64") return `(f64.eq ${left} ${right})`;
-    if (readonly === "i64") return `(i64.eq ${left} ${right})`;
-    if (readonly === "i32" || readonly === "u8" || readonly === "bool" || readonly === "char")
-      return `(i32.eq ${left} ${right})`;
+    if (numericType(readonly) || readonly === "bool" || readonly === "char")
+      return `(${scalarWasm(readonly)}.eq ${left} ${right})`;
     const tuple = tupleParts(readonly);
     if (tuple !== undefined)
       return this.emitTupleEquality(
@@ -413,22 +477,25 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       const compared = `(call $hd.string_compare ${left} ${right})`;
       return `(if (result i32) (i32.lt_s ${compared} (i32.const 0)) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${compared} (i32.const 0)) (then (i32.const 1)) (else (i32.const 0)))))`;
     }
-    if (readonly === "i32" || readonly === "u8" || readonly === "char")
-      return `(if (result i32) (i32.lt_s ${left} ${right}) (then (i32.const -1)) (else (if (result i32) (i32.gt_s ${left} ${right}) (then (i32.const 1)) (else (i32.const 0)))))`;
-    if (readonly === "i64") {
-      const leftTemporary = this.allocateTemporary("i64");
-      const rightTemporary = this.allocateTemporary("i64");
+    const numeric = numericType(readonly);
+    if (numeric || readonly === "char") {
+      const wasm = scalarWasm(readonly);
+      const leftTemporary = this.allocateTemporary(readonly);
+      const rightTemporary = this.allocateTemporary(readonly);
       const a = `(local.get ${leftTemporary})`;
       const b = `(local.get ${rightTemporary})`;
-      return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (i64.lt_s ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (i64.gt_s ${a} ${b}) (then (i32.const 1)) (else (i32.const 0))))))`;
-    }
-    if (readonly === "f64") {
+      const [less, greater] =
+        numeric?.family === "float"
+          ? ["lt", "gt"]
+          : numeric?.family === "unsigned"
+            ? ["lt_u", "gt_u"]
+            : ["lt_s", "gt_s"];
       // 2 marks an unordered pair (a NaN operand); every relational operator is false for it.
-      const leftTemporary = this.allocateTemporary("f64");
-      const rightTemporary = this.allocateTemporary("f64");
-      const a = `(local.get ${leftTemporary})`;
-      const b = `(local.get ${rightTemporary})`;
-      return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (f64.lt ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (f64.gt ${a} ${b}) (then (i32.const 1)) (else (if (result i32) (f64.eq ${a} ${b}) (then (i32.const 0)) (else (i32.const 2))))))))`;
+      const equal =
+        numeric?.family === "float"
+          ? `(if (result i32) (${wasm}.eq ${a} ${b}) (then (i32.const 0)) (else (i32.const 2)))`
+          : `(i32.const 0)`;
+      return `(block (result i32) (local.set ${leftTemporary} ${left}) (local.set ${rightTemporary} ${right}) (if (result i32) (${wasm}.${less} ${a} ${b}) (then (i32.const -1)) (else (if (result i32) (${wasm}.${greater} ${a} ${b}) (then (i32.const 1)) (else ${equal})))))`;
     }
     const tuple = tupleParts(readonly);
     if (tuple !== undefined)

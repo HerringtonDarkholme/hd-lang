@@ -1,5 +1,6 @@
 import type { Expression, Program, Statement, TypeRef } from "../ast.ts";
-import type { Diagnostic } from "../diagnostics.ts";
+import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
+import { isIntegerType, isNarrowInteger, numericType, widensTo } from "../numeric.ts";
 import type {
   HirData,
   HirEnum,
@@ -191,6 +192,12 @@ function eagerExpressionChildren(expression: Expression): readonly Expression[] 
 }
 
 const TYPE_NAMES = new Set<ValueType>([
+  "i8",
+  "i16",
+  "u16",
+  "u32",
+  "u64",
+  "f32",
   "i32",
   "i64",
   "u8",
@@ -204,7 +211,7 @@ const TYPE_NAMES = new Set<ValueType>([
 ]);
 
 export function mapKeyKind(type: ValueType): 0 | 1 | undefined {
-  if (type === "i32" || type === "u8" || type === "bool" || type === "char") return 0;
+  if (isNarrowInteger(type) || type === "bool" || type === "char") return 0;
   if (type === "string") return 1;
   return undefined;
 }
@@ -1102,7 +1109,7 @@ export const MAX_BOUND_DEPTH = 64;
  */
 export function builtinTotallyOrdered(type: ValueType): boolean {
   const compared = readonlyType(type);
-  if (["i32", "i64", "u8", "char", "string"].includes(compared)) return true;
+  if (isIntegerType(compared) || ["char", "string"].includes(compared)) return true;
   const tuple = tupleParts(compared);
   if (tuple !== undefined) return tuple.every(builtinTotallyOrdered);
   const optional = optionalInner(compared);
@@ -1113,4 +1120,22 @@ export function builtinTotallyOrdered(type: ValueType): boolean {
     nominal.arguments.length === 1 &&
     builtinTotallyOrdered(nominal.arguments[0]!)
   );
+}
+
+/**
+ * 04 Numeric Conversions: `value` widened within its family, or `f32` to
+ * `f64`; a literal takes the wider type directly.
+ */
+export function numericWidening(
+  value: HirExpression,
+  target: ValueType,
+  span: SourceSpan,
+): HirExpression | undefined {
+  if (!widensTo(value.type, target)) return undefined;
+  if (value.kind === "integer")
+    return numericType(target)!.bits === 64
+      ? { ...value, wide: value.wide ?? String(value.value), type: target }
+      : { ...value, type: target };
+  if (value.kind === "float") return { ...value, type: target };
+  return { kind: "unary", operator: "widen", operand: value, type: target, span };
 }

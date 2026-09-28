@@ -269,22 +269,27 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   suspension boundary, including retention through ordinary functions;
 - named local functions lowered through typed closure bindings, including
   enclosing captures, recursion, suspension, and requirement forwarding;
-- `i32`, `i64`, `u8`, `f64`, `bool`, Unicode-scalar `char`, and UTF-8
-  `string` values; an integer literal takes `i64` or `u8` from that expected
-  type and is range-checked, an `i32` widens implicitly to `i64`, and `i64`
-  never narrows implicitly to `i32`; `u8` is an `i32` at run time, its `+`,
-  `-`, and `*` check the 0..255 range, and unary `-` on it is
-  `unsigned-negation` (the other sized numeric types and numeric casts are
-  F-253);
+- the sized numeric types `i8` to `i64`, `u8` to `u64`, `f32`, and `f64`,
+  `bool`, Unicode-scalar `char`, and UTF-8 `string` values
+  (`src/numeric.ts`); an integer or float literal takes its type from the
+  expected type and is range-checked, integers widen implicitly within one
+  signedness family and `f32` widens to `f64`, a narrowing is
+  `implicit-narrowing`, and mixing the families is `mixed-signedness`.
+  Every integer of at most 32 bits is an `i32` at run time and `u64` an
+  `i64` read as unsigned; arithmetic on the narrow types range-checks its
+  result (`emitter/sized-numeric.ts`). Constructor-style casts such as
+  `i16(wide)` check the target range, and a failed cast panics with
+  `integer-overflow`, which the specification leaves open;
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed `._0` selection, stored in erased Wasm GC arrays;
-- checked `i32`, `i64`, and `u8` arithmetic and exponentiation, IEEE `f64` power, UTF-8 string
+- checked integer arithmetic and exponentiation at every width, IEEE `f32` and `f64` power, UTF-8 string
   concatenation, scalar and string comparisons, Wasm GC reference identity,
   boolean short-circuiting, and explicit panics;
 - interpreted `$name` and `${expression}` string segments with left-to-right
   canonical `Display` dispatch for concrete implementations, generic bounds,
-  dynamic trait values, and the standard `string`, `i32`, `i64`, `u8`,
-  `f64`, `bool`, and `char` implementations;
+  dynamic trait values, and the standard `string`, numeric, `bool`, and
+  `char` implementations; an `f32` shows its own shortest round-trip digits
+  through the host's `format_f32`;
 - `println` with the same display surface, statically requiring a
   lexical `Console` provider. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
@@ -793,7 +798,7 @@ marks what this refactor removed.
 | Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them |
-| Emitter | `float.wat` and the `format_f64` and `pow_f64` imports | `f64` display and `**` | Remains: operator and interpolation support |
+| Emitter | `float.wat` and the `format_f64`, `format_f32`, and `pow_f64` imports | float display and `**` | Remains: operator and interpolation support |
 
 Counts: the HIR expression union had 92 kinds, of which 15 were library-
 or capability-specific. The string step removed 5, the `println` step 1,

@@ -1,5 +1,6 @@
 import type { HirFunction, HirProgram, ValueType } from "../hir.ts";
 import { localName } from "./shared.ts";
+import { numericType } from "../numeric.ts";
 
 // The compiler/library boundary (src/README.md#compilerlibrary-boundary).
 // `lib/std` declares each primitive as an ordinary function with a std-only
@@ -33,9 +34,9 @@ export function isRuntimePrimitive(name: string): boolean {
 /** The Wasm type a boundary value crosses as. */
 function boundaryWatType(type: ValueType): string | undefined {
   if (type === "string") return "externref";
-  if (type === "f64") return "f64";
-  if (type === "i64") return "i64";
-  if (["i32", "u8", "bool", "char"].includes(type)) return "i32";
+  const numeric = numericType(type);
+  if (numeric) return numeric.wasm;
+  if (["bool", "char"].includes(type)) return "i32";
   return undefined;
 }
 

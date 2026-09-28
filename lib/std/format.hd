@@ -111,6 +111,30 @@ impl Debug for u8:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")
 
+impl Debug for i8:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for i16:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for u16:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for u32:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for u64:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
+impl Debug for f32:
+    fn debug(self, out: mut DebugWriter) -> void:
+        out.write("$self")
+
 impl Debug for f64:
     fn debug(self, out: mut DebugWriter) -> void:
         out.write("$self")

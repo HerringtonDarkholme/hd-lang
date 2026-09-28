@@ -8,6 +8,7 @@ import {
   readonlyType,
   tupleParts,
 } from "../types.ts";
+import { isIntegerType, numericType, widerNumeric } from "../numeric.ts";
 import { PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import {
@@ -19,6 +20,7 @@ import {
 
 import {
   ExpressionLiteralChecker,
+  floatLiteralTarget,
   integerLiteralTarget,
   integerTarget,
 } from "./expression-literals.ts";
@@ -240,14 +242,17 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
-        // An integer exponent must be unsigned. This prototype has no unsigned
-        // types, so only an exponent built from unsuffixed literals (typed u32
-        // in exponent position) is accepted; it is represented as i32.
+        // An integer exponent must be unsigned. An exponent built from
+        // unsuffixed literals is typed u32 in exponent position; the prototype
+        // represents it as i32.
+        const unsignedExponent =
+          numericType(right.type)?.family === "unsigned" ||
+          (right.type === "i32" && isLiteralExponent(expression.right));
         if (
           expression.operator === "**" &&
-          (left.type === "i32" || left.type === "i64") &&
-          right.type === "i32" &&
-          !isLiteralExponent(expression.right)
+          isIntegerType(left.type) &&
+          isIntegerType(right.type) &&
+          !unsignedExponent
         )
           this.fail(
             "type-mismatch",
@@ -255,7 +260,20 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             expression.right.span,
           );
         const integerPower =
-          expression.operator === "**" && left.type === "i64" && right.type === "i32";
+          expression.operator === "**" && isIntegerType(left.type) && unsignedExponent;
+        // 04 Binary Numeric Operators: signed and unsigned integers do not mix.
+        if (
+          left.type !== right.type &&
+          !integerPower &&
+          isIntegerType(left.type) &&
+          isIntegerType(right.type) &&
+          numericType(left.type)!.family !== numericType(right.type)!.family
+        )
+          this.fail(
+            "mixed-signedness",
+            `signed and unsigned operands do not mix: ${left.type} and ${right.type}; cast one explicitly`,
+            expression.span,
+          );
         if (left.type !== right.type && !integerPower) {
           if (expression.operator === "**")
             this.fail(
@@ -325,18 +343,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
               expression.span,
             );
         }
-        // The prototype shifts only i32 values.
-        if (
-          bitwise &&
-          left.type !== "i32" &&
-          !(integerTarget(left.type) && ["&", "|", "^"].includes(expression.operator))
-        )
+        if (bitwise && !isIntegerType(left.type))
           this.fail(
             "type-mismatch",
-            `operator '${expression.operator}' requires i32 operands`,
+            `operator '${expression.operator}' requires integer operands`,
             expression.span,
           );
-        if (remainder && left.type !== "i32" && !integerTarget(left.type))
+        if (remainder && !isIntegerType(left.type))
           this.fail("type-mismatch", "operator '%' requires integer operands", expression.span);
         if (
           comparison &&
@@ -354,9 +367,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
           !bitwise &&
           !remainder &&
           !stringConcatenation &&
-          left.type !== "i32" &&
-          !integerTarget(left.type) &&
-          left.type !== "f64" &&
+          !numericType(left.type) &&
           !(comparison && (left.type === "bool" || left.type === "char" || left.type === "string"))
         ) {
           this.fail(
@@ -389,13 +400,14 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     if (
       expression.operator === "-" &&
       expression.operand.kind === "integer" &&
-      (literalTarget === "i64" || expression.operand.value === 2_147_483_648n)
+      (numericType(literalTarget)?.family === "signed" ||
+        expression.operand.value === 2_147_483_648n)
     )
       return this.integerLiteral(-expression.operand.value, _expected, expression.span);
     const operand = this.checkExpression(
       expression.operand,
       expression.operator === "-" || expression.operator === "+" || expression.operator === "~"
-        ? literalTarget
+        ? (literalTarget ?? floatLiteralTarget(_expected))
         : undefined,
     );
     let type: ValueType;
@@ -403,17 +415,18 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
       this.requireType(operand.type, "bool", expression.operand.span);
       type = "bool";
     } else if (expression.operator === "~") {
-      if (operand.type !== "i64") this.requireType(operand.type, "i32", expression.operand.span);
+      if (!isIntegerType(operand.type))
+        this.requireType(operand.type, "i32", expression.operand.span);
       type = operand.type;
     } else {
       // 05 Arithmetic: unary `-` does not accept an unsigned integer.
-      if (expression.operator === "-" && operand.type === "u8")
+      if (expression.operator === "-" && numericType(operand.type)?.family === "unsigned")
         this.fail(
           "unsigned-negation",
-          "unary '-' does not accept the unsigned type 'u8'",
+          `unary '-' does not accept the unsigned type '${operand.type}'`,
           expression.span,
         );
-      if (operand.type !== "i32" && !integerTarget(operand.type) && operand.type !== "f64") {
+      if (!numericType(operand.type)) {
         const code =
           expression.operator === "+" ? "nonnumeric-unary-plus" : "invalid-unary-operand";
         this.fail(
@@ -447,21 +460,35 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     const numeric =
       arithmetic || ["==", "!=", "<", "<=", ">", ">=", "**"].includes(expression.operator);
     const outer = arithmetic ? integerLiteralTarget(expected) : undefined;
+    const outerFloat = arithmetic ? floatLiteralTarget(expected) : undefined;
     const leftLiteral = isIntegerLiteral(expression.left);
     const rightLiteral = isIntegerLiteral(expression.right);
-    let left = this.checkExpression(expression.left, leftLiteral ? outer : undefined);
+    const leftFloat = isFloatLiteral(expression.left);
+    const rightFloat = isFloatLiteral(expression.right);
+    let left = this.checkExpression(
+      expression.left,
+      leftLiteral ? outer : leftFloat ? outerFloat : undefined,
+    );
     const rightTarget =
-      rightLiteral && expression.operator !== "**"
-        ? (integerTarget(left.type) ?? outer)
-        : undefined;
+      expression.operator === "**"
+        ? undefined
+        : rightLiteral
+          ? (integerTarget(left.type) ?? outer)
+          : rightFloat
+            ? left.type === "f32"
+              ? "f32"
+              : outerFloat
+            : undefined;
     let right = this.checkExpression(expression.right, rightTarget);
     if (!numeric || expression.operator === "**") return { left, right };
     if (leftLiteral && left.type === "i32" && integerTarget(right.type))
       left = this.checkExpression(expression.left, right.type);
-    const widen = (value: HirExpression): HirExpression =>
-      value.type === "i32" ? this.coerce(value, "i64", value.span) : value;
-    if (left.type === "i64" && right.type === "i32") right = widen(right);
-    else if (left.type === "i32" && right.type === "i64") left = widen(left);
+    if (leftFloat && left.type === "f64" && right.type === "f32")
+      left = this.checkExpression(expression.left, "f32");
+    // Operands of one family widen to the wider type (04 Binary Numeric Operators).
+    const wider = widerNumeric(left.type, right.type);
+    if (wider && wider !== left.type) left = this.coerce(left, wider, left.span);
+    if (wider && wider !== right.type) right = this.coerce(right, wider, right.span);
     return { left, right };
   }
 
@@ -551,6 +578,15 @@ const LITERAL_EXPONENT_OPERATORS = new Set(["+", "*", "**"]);
 
 /** True for an exponent whose leaves are integer literals, which take type u32. */
 /** An unsuffixed integer literal, possibly negated. */
+function isFloatLiteral(expression: Expression): boolean {
+  if (expression.kind === "float") return true;
+  return (
+    expression.kind === "unary" &&
+    expression.operator === "-" &&
+    expression.operand.kind === "float"
+  );
+}
+
 function isIntegerLiteral(expression: Expression): boolean {
   if (expression.kind === "integer") return true;
   return (
