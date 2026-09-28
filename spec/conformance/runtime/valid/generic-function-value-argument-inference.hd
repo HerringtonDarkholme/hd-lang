@@ -1,0 +1,16 @@
+# test: a generic function passed as an argument takes its type arguments from the call
+# Spec 07 Generic Function Values: the value's type arguments are solved together with the
+# call's other type variables.
+use std.testing.assert_equal
+
+fn identity[T](value: T) -> T:
+    value
+
+fn apply[A, B](value: A, f: fn(A) -> B) -> B:
+    f(value)
+
+test "type arguments come from the call":
+    count := apply(3, identity)
+    assert_equal(count, 3, reason="T and B are solved as i32 from the first argument")
+    label := apply("hd", identity)
+    assert_equal(label, "hd", reason="each call solves its own instantiation")

@@ -452,17 +452,63 @@ See also: [Error Trait](09-traits.md#error-trait),
 
 #### Propagation Targets
 
-1. r[expr.try.target] Postfix `?` is invalid when there is no enclosing named function or closure with the required optional or `Result` return type.
-2. r[expr.try.target.top-level] Module top-level statements and `test` blocks do not provide an implicit propagation target.
-3. r[expr.try.misuse] Every misuse of `?` is an error. Error: `invalid-result-propagation`.
-4. r[expr.try.misuse.operand] An operand that is neither optional nor a `Result` is a misuse.
-5. r[expr.try.misuse.target] A `?` whose enclosing function or closure does not return a compatible optional or a `Result` is a misuse.
-6. r[expr.try.misuse.unconverted] A `Result` error that neither conversion step converts to the enclosing error type is a misuse.
+1. r[expr.try.target.nearest] Postfix `?` is invalid when its nearest enclosing named function, closure, or `test` block does not provide the required optional or `Result` return type.
+2. r[expr.try.target.module-top-level] Module top-level statements do not provide an implicit propagation target.
+3. r[expr.try.target.test] A `test` block is a propagation target, as [Propagation In Test Blocks](#propagation-in-test-blocks) describes.
+4. r[expr.try.misuse] Every misuse of `?` is an error. Error: `invalid-result-propagation`.
+5. r[expr.try.misuse.operand] An operand that is neither optional nor a `Result` is a misuse.
+6. r[expr.try.misuse.target] A `?` whose enclosing function or closure does not return a compatible optional or a `Result` is a misuse.
+7. r[expr.try.misuse.unconverted] A `Result` error that neither conversion step converts to the enclosing error type is a misuse.
 
 ```text
 fn first(value: i32?) -> i32:
     value?  # error: invalid-result-propagation
 ```
+
+#### Propagation In Test Blocks
+
+A `test` block propagates errors as if it returned `Result[void, Error]`:
+
+```text
+use std.testing.assert_equal
+
+fn parse_digit(text: string) -> Result[i32, string]:
+    if text == "7": .Ok(7) else: .Err("not a digit: " + text)
+
+test "parses a digit":
+    digit := parse_digit("7")?
+    assert_equal(digit, 7, reason="the digit parses")
+```
+
+1. r[expr.try.test.result] For each `?` in its body outside any closure, a `test` block counts as the nearest function, as if it returned `Result[void, Error]`.
+2. r[expr.try.test.erased] `Error` there is the erased error `std.error.Error`, and the block needs no import of it.
+3. r[expr.try.test.convert] The error is converted by the steps of [Error Conversion](#error-conversion), with `F` the erased `Error`.
+4. r[expr.try.test.display] When no step converts it and `E < Display`, the error is instead wrapped in a standard-library message error, whose `Display` text is the error's.
+5. r[expr.try.test.display.only] That wrapping applies only when a `test` block is the propagation target.
+6. r[expr.try.test.not-display] An error type that neither converts nor implements `Display` is a misuse. Error: `invalid-result-propagation`.
+7. r[expr.try.test.optional] An optional operand is a misuse, because the block's result is not optional. Error: `invalid-result-propagation`.
+8. r[expr.try.test.fail] An `.Err` propagated out of the block fails the test, and the runner prints the error chain as [Entry Results](10-modules.md#entry-results) describes.
+9. r[expr.try.test.closure] Inside a closure in a `test` block, the closure is the nearest function, and these rules do not apply.
+
+```text
+data Hidden: pass
+
+fn hidden() -> Result[i32, Hidden]:
+    .Err(Hidden {})
+
+fn maybe() -> i32?:
+    .None
+
+test "rejected operands":
+    first := hidden()?  # error: invalid-result-propagation
+    second := maybe()?  # error: invalid-result-propagation
+```
+
+> **Why.** Tests of helpers that return string errors can then use `?`
+> without mapping each error by hand.
+
+See also: [Error Trait](09-traits.md#error-trait),
+[Standard Testing](10-modules.md#standard-testing).
 
 ## Unary And Binary Operators
 

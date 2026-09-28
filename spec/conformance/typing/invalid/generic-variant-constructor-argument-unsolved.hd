@@ -1,0 +1,11 @@
+# test: a generic variant constructor whose parameter the call leaves unsolved is rejected
+# Spec 08 Variant Constructors As Function Values: nothing determines Either's R.
+enum Either[L, R]:
+    Left(value: L)
+    Right(value: R)
+
+fn wrap_all[T, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
+    [for value in values => wrap(value)]
+
+fn main() -> void:
+    lefts := wrap_all([1, 2], Either.Left)  # diagnostic: unresolved-generic-placeholder

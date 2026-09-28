@@ -1142,3 +1142,11 @@ typing/invalid/function-type-overlapping-impl.hd	type	reject:overlapping-impl	09
 typing/invalid/function-type-orphan-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.std.function
 runtime/valid/function-type-impl-method.hd	runtime	accept	09-traits.md#r-trait.target.function-type.valid
 typing/invalid/spelled-function-type-not-inspectable.hd	type	reject:type-mismatch	09-traits.md#r-trait.inspectable.not.function
+runtime/valid/test-block-propagation.hd	runtime	accept	05-expressions.md#propagation-in-test-blocks
+typing/invalid/test-block-propagation-not-display.hd	type	reject:invalid-result-propagation	05-expressions.md#propagation-in-test-blocks
+typing/invalid/test-block-propagation-optional.hd	type	reject:invalid-result-propagation	05-expressions.md#propagation-in-test-blocks
+typing/valid/entry-exit-status.hd	type	accept	10-modules.md#exit-status
+runtime/valid/generic-function-value-argument-inference.hd	runtime	accept	07-functions.md#generic-function-values
+typing/invalid/generic-function-value-argument-unsolved.hd	type	reject:unresolved-generic-placeholder	07-functions.md#generic-function-values
+runtime/valid/generic-variant-constructor-argument.hd	runtime	accept	08-data-and-enums.md#variant-constructors-as-function-values
+typing/invalid/generic-variant-constructor-argument-unsolved.hd	type	reject:unresolved-generic-placeholder	08-data-and-enums.md#variant-constructors-as-function-values

@@ -46,8 +46,8 @@ A fixture may rely only on:
 - primitive types and prelude names
   ([Modules](../10-modules.md#prelude));
 - standard modules that a numbered chapter specifies, such as `std.testing`,
-  `std.task`, `std.resource`, `std.convert`, `std.error`, `std.inspect`, and
-  `std.function`;
+  `std.task`, `std.resource`, `std.convert`, `std.error`, `std.inspect`,
+  `std.function`, and `std.process`;
 - its own declarations;
 - the environment its fixture directives name (see
   [Fixture Environments](#fixture-environments)), including the package
@@ -184,8 +184,9 @@ Rules that apply to every case:
    is not judged.
 2. Each `test "..."` block runs in its own fresh program instance, after
    module initialization. `main` does not run in that instance.
-3. The command succeeds when nothing panicked and no `std.testing` assertion
-   failed.
+3. The command succeeds when nothing panicked, no `std.testing` assertion
+   failed, and no test block propagated an `.Err`
+   ([Propagation In Test Blocks](../05-expressions.md#propagation-in-test-blocks)).
 
 Only entry points and test blocks execute. A fixture that needs to observe a
 function's result calls it from a test block and checks the result with

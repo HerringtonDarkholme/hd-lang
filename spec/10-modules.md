@@ -297,8 +297,9 @@ fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
 3. r[module.testing.failure] A failed assertion reports test failure when called from a test.
 4. r[module.testing.panic] Otherwise a failed assertion causes a runtime panic. Panic: `assertion-failed`.
-5. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
+5. r[module.testing.propagated-error] A test also fails when an `.Err` propagates out of its block, as [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks) describes.
+6. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
+7. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
 
 ```text
 use std.testing.assert_equal
@@ -510,8 +511,10 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 1. r[module.entry.err] An entry point may instead return `Result[void, E]`, in which case an `.Err` result reports invocation failure through the runtime adapter.
 2. r[module.entry.err-display] That form requires `E < Display`. An error type without that implementation is an error. Error: `entry-error-not-display`.
 3. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the requirement.
-4. r[module.entry.err-render] The host renders the error with `Display.to_string` and exits with status 1.
-5. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
+4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
+5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
+6. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
+7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
 data HiddenError: pass
@@ -520,7 +523,44 @@ pub fn main() -> Result[void, HiddenError]:  # error: entry-error-not-display
     .Err(HiddenError {})
 ```
 
-See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values).
+See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values),
+[Error Trait](09-traits.md#error-trait).
+
+#### Exit Status
+
+The standard trait `ExitStatus` lets an error type choose the exit status:
+
+```text
+use std.process.ExitStatus
+
+pub enum CliError:
+    Usage
+    Missing(path: string)
+
+impl Display for CliError:
+    fn to_string(self) -> string:
+        match self:
+            CliError.Usage => "usage: tool PATH"
+            CliError.Missing(path) => "missing: " + path
+
+impl ExitStatus for CliError:
+    fn status(self) -> i32:
+        match self:
+            CliError.Usage => 2
+            CliError.Missing(_) => 1
+
+pub fn main() -> Result[void, CliError]:
+    .Err(CliError.Usage)
+```
+
+1. r[module.entry.exit-status.trait] `std.process` declares the trait `ExitStatus`, whose one method is `fn status(self) -> i32`.
+2. r[module.entry.exit-status] When an entry point returns `.Err(error)` and `E` implements `ExitStatus`, the process exits with `error.status()`.
+3. r[module.entry.exit-status.default] Otherwise an `.Err` result exits with status 1.
+4. r[module.entry.exit-status.code-only] `ExitStatus` chooses only the exit status: the host still prints the error as [Entry Results](#entry-results) describes.
+5. r[module.entry.exit-status.import] `ExitStatus` is not a prelude name; code imports it with `use std.process.ExitStatus`.
+
+> **Note.** A tool that must exit without printing, such as one that stops
+> quietly on a closed pipe, prints what it needs and exits by hand.
 
 ### Entry Arguments
 
@@ -568,6 +608,11 @@ Registered boundaries initially allow recursively structural values:
 3. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
 4. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
 5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
+
+> **Note.** An error type with a member of type `Error` is therefore not
+> boundary-safe either. Before such an error crosses a boundary, code
+> converts it with the standard-library `report_of` to an `ErrorReport`,
+> a boundary-safe snapshot of its message and causes.
 
 See also: [Error Trait](09-traits.md#error-trait).
 

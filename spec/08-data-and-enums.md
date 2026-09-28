@@ -598,13 +598,15 @@ retry := fn(error: FsError) -> SyncError: SyncError.Retry(1, error)
 2. r[data.enum.fn-value.type] `ToolError.NotFound` has type `fn(string) -> ToolError`: one positional parameter of the payload type, the enum as result, no suspension, and the empty requirement row.
 3. r[data.enum.fn-value.use] It may be passed wherever that function type is expected, such as to a standard-library `map_err` in `result.map_err(SyncError.Fs)`.
 4. r[data.enum.fn-value.positional] The payload's field name and positional or named declaration do not matter, because function values take positional arguments only.
-5. r[data.enum.fn-value.generic] For a generic enum, or a variant with its own generic parameters, the value follows the rule for generic function values. That rule requires an expected monomorphic function type to instantiate every generic parameter.
-6. r[data.enum.fn-value.shorthand] The contextual shorthand `.Variant` still needs an expected enum type, so it is never a function value.
-7. r[data.enum.fn-value.call] Calling the value constructs the variant, exactly as calling the constructor does.
-8. r[data.enum.fn-value.multiple] A variant constructor with two or more payload fields is not a function value and must be called.
-9. r[data.enum.fn-value.unsaturated] Using one without an argument clause is an error. Error: `unsaturated-enum-constructor`.
-10. r[data.enum.fn-value.closure] An explicit closure passes its construction as a function value.
-11. r[data.enum.fn-value.payload-free] A payload-free variant, including one whose declaration initializes shared enum data, is an enum value and is selected without `()`.
+5. r[data.enum.fn-value.generic-rule] For a generic enum, or a variant with its own generic parameters, the value follows the rule for [generic function values](07-functions.md#generic-function-values).
+6. r[data.enum.fn-value.generic-argument] Passed as a call argument, it takes its type arguments from the call. So `result.map_err(TaskError.Failed)` on a `Result[T, FsError]` gives `TaskError[FsError]`.
+7. r[data.enum.fn-value.generic-unsolved] A generic parameter that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
+8. r[data.enum.fn-value.shorthand] The contextual shorthand `.Variant` still needs an expected enum type, so it is never a function value.
+9. r[data.enum.fn-value.call] Calling the value constructs the variant, exactly as calling the constructor does.
+10. r[data.enum.fn-value.multiple] A variant constructor with two or more payload fields is not a function value and must be called.
+11. r[data.enum.fn-value.unsaturated] Using one without an argument clause is an error. Error: `unsaturated-enum-constructor`.
+12. r[data.enum.fn-value.closure] An explicit closure passes its construction as a function value.
+13. r[data.enum.fn-value.payload-free] A payload-free variant, including one whose declaration initializes shared enum data, is an enum value and is selected without `()`.
 
 ```text
 fn apply(make: fn(i32, FsError) -> SyncError) -> SyncError:
@@ -613,6 +615,42 @@ fn apply(make: fn(i32, FsError) -> SyncError) -> SyncError:
 fn retry() -> SyncError:
     apply(SyncError.Retry)  # error: unsaturated-enum-constructor
 ```
+
+A generic variant constructor takes its type arguments from the call:
+
+```text
+enum FsError:
+    NotFound(path: string)
+
+enum TaskError[E]:
+    Failed(error: E)
+    Cancelled
+
+fn wrap_error[T, E, F](result: Result[T, E], wrap: fn(E) -> F) -> Result[T, F]:
+    match result:
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(wrap(error))
+
+fn read(path: string) -> Result[string, FsError]:
+    .Err(FsError.NotFound(path))
+
+wrapped := wrap_error(read("a.txt"), TaskError.Failed)
+```
+
+```text
+enum Either[L, R]:
+    Left(value: L)
+    Right(value: R)
+
+fn wrap_all[T, F](values: List[T], wrap: fn(T) -> F) -> List[F]:
+    [for value in values => wrap(value)]
+
+fn main() -> void:
+    lefts := wrap_all([1, 2], Either.Left)  # error: unresolved-generic-placeholder
+```
+
+In the second example, nothing determines `R`. An expected type such as
+`let lefts: List[Either[i32, string]]` would solve it.
 
 See also: [Function Types And Values](07-functions.md#function-types-and-values),
 [Generalized Algebraic Data Types](13-gadts.md).
@@ -801,6 +839,11 @@ See also: [Generalized Algebraic Data Types](13-gadts.md).
 
 1. r[data.unsupported.mut-embedded] hd-lang has no `mut` embedded-field shorthand, because access to an embedded part already follows its container.
 2. r[data.unsupported.layout] Stable object layout and component-model representation are ABI concerns and are not observable core-language semantics.
+3. r[data.unsupported.non-exhaustive] Enums have no non-exhaustive form, so adding a variant to a public enum is a breaking change for its users.
+
+> **Note.** A library that needs to grow a set of error kinds can wrap a
+> private enum in a data type with a private field and expose accessor
+> methods.
 
 See also: [Variant Payloads](#variant-payloads), where
 `data.enum.payload.no-field-blocks` rules out variant field blocks.

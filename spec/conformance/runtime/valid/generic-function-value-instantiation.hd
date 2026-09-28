@@ -1,7 +1,7 @@
 # test: a generic function referred to as a value is instantiated from the expected function type or explicit arguments
-# Spec 07 Function Types And Values: "Referring to one as a value must instantiate every generic
-# parameter, either from an expected monomorphic function type or with a complete explicit
-# type-argument list. ... The resulting value has an ordinary monomorphic function type."
+# Spec 07 Generic Function Values: "Referring to one as a value must instantiate every generic
+# parameter." The type arguments come from an expected monomorphic function type, a complete
+# explicit type-argument list, or the call the value is an argument of.
 use std.testing.assert_equal
 
 fn identity[T](value: T) -> T:

@@ -1,0 +1,29 @@
+# test: a generic variant constructor passed as an argument takes its type arguments from the call
+# Spec 08 Variant Constructors As Function Values: TaskError.Failed passed to wrap_error on a
+# Result[string, FsError] is instantiated as fn(FsError) -> TaskError[FsError].
+use std.testing.assert
+
+enum FsError:
+    NotFound(path: string)
+
+enum TaskError[E]:
+    Failed(error: E)
+    Cancelled
+
+fn wrap_error[T, E, F](result: Result[T, E], wrap: fn(E) -> F) -> Result[T, F]:
+    match result:
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(wrap(error))
+
+fn read(path: string) -> Result[string, FsError]:
+    .Err(FsError.NotFound(path))
+
+fn failed_path(result: Result[string, TaskError[FsError]]) -> string:
+    match result:
+        .Ok(_) => "ok"
+        .Err(TaskError.Failed(FsError.NotFound(path))) => path
+        .Err(TaskError.Cancelled) => "cancelled"
+
+test "the constructor's type argument comes from the call":
+    wrapped := wrap_error(read("a.txt"), TaskError.Failed)
+    assert(failed_path(wrapped) == "a.txt", reason="the error is wrapped in TaskError.Failed")

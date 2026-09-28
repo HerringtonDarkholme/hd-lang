@@ -438,3 +438,21 @@ style lint rejects a chapter that reuses one.
 - `trait.target.function`: retired 2026-09-27. FN_TYPE owner decision 6
   made function types implementation targets. Replaced by
   `trait.target.function-type` and `trait.target.function-type.valid`.
+- `expr.try.target`: retired 2026-09-27. Error conversion decision 14 makes
+  a `test` block a propagation target. Replaced by
+  `expr.try.target.nearest` and `expr.try.target.test`.
+- `expr.try.target.top-level`: retired 2026-09-27. Error conversion
+  decision 14 makes a `test` block a propagation target. Replaced by
+  `expr.try.target.module-top-level` and `expr.try.target.test`.
+- `module.entry.err-render`: retired 2026-09-27. Error conversion decisions
+  13 and 17 print an `Error` chain and let `ExitStatus` choose the status.
+  Replaced by `module.entry.err-render-chain`,
+  `module.entry.err-render-display`, and `module.entry.exit-status.default`.
+- `fn.type.generic.instantiate`: retired 2026-09-27. Error conversion
+  decision 19 lets a call argument infer its type arguments. Replaced by
+  `fn.type.generic.instantiate-every` and
+  `fn.type.generic.instantiate-sources`.
+- `data.enum.fn-value.generic`: retired 2026-09-27. Error conversion
+  decision 19 lets a call argument infer its type arguments. Replaced by
+  `data.enum.fn-value.generic-rule` and
+  `data.enum.fn-value.generic-argument`.

@@ -802,3 +802,28 @@ existing source. Each entry names the decision that made the change.
   function-typed operand, previously valid, is the new code
   `unsupported-function-identity`. Generic code over `T < AnyRef` still
   compiles, with an unspecified result.
+- Entry-point error chains (error conversion decision 13, 2026-09-27): when
+  `main`'s error type implements `std.error.Error`, the host prints the
+  message and then each cause as `caused by: ...`, instead of only
+  `Display.to_string`. Other error types print as before.
+- `?` in test blocks (error conversion decisions 14 and 16, 2026-09-27): a
+  `test` block is a propagation target, as if it returned
+  `Result[void, Error]`. A `?` there, previously
+  `invalid-result-propagation`, is valid for an error that converts to the
+  erased `Error`, and for any other `E < Display`, which is wrapped in a
+  standard-library message error. A propagated `.Err` fails the test.
+- Exit status (error conversion decision 17, 2026-09-27): `std.process`
+  declares `ExitStatus`. When `main`'s error type implements it, a failing
+  entry point exits with `error.status()` instead of 1.
+- Erased errors at boundaries (error conversion decision 18, 2026-09-27): no
+  rule changed. Chapter 10 notes that an error type holding an erased
+  `Error` converts to an `ErrorReport` before crossing a boundary.
+- Generic function values as arguments (error conversion decision 19,
+  2026-09-27): a generic function or generic variant constructor passed as a
+  call argument takes its type arguments from the call, so
+  `result.map_err(TaskError.Failed)` is valid where it was
+  `unresolved-generic-placeholder`. A parameter left unsolved is still that
+  error. Declarations still write their own generic parameters and
+  signatures.
+- No non-exhaustive enums (error conversion decision 20, 2026-09-27): no
+  rule changed. Chapter 08 lists a non-exhaustive enum form as unsupported.

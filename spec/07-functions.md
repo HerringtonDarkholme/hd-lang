@@ -355,11 +355,49 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 
 ### Generic Function Values
 
+A generic function passed as an argument takes its type arguments from the
+call:
+
+```text
+fn identity[T](value: T) -> T:
+    value
+
+fn apply[A, B](value: A, f: fn(A) -> B) -> B:
+    f(value)
+
+count := apply(3, identity)
+```
+
 1. r[fn.type.generic.not-polymorphic] Generic functions are not first-class polymorphic values.
-2. r[fn.type.generic.instantiate] Referring to one as a value must instantiate every generic parameter, either from an expected monomorphic function type or with a complete explicit type-argument list.
-3. r[fn.type.generic.placeholder] A placeholder in that list may be solved from the expected monomorphic type.
-4. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
-5. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
+2. r[fn.type.generic.instantiate-every] Referring to one as a value must instantiate every generic parameter.
+3. r[fn.type.generic.instantiate-sources] The type arguments come from an expected monomorphic function type, from a complete explicit type-argument list, or from the call the value is an argument of.
+4. r[fn.type.generic.placeholder] A placeholder in that list may be solved from the expected monomorphic type.
+5. r[fn.type.generic.argument] When the value is an argument of a call, its type arguments are solved together with the call's other type variables.
+6. r[fn.type.generic.argument.sources] Those variables are solved from the other arguments, the expected result type, and the called function's constraints, as for the call itself.
+7. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
+8. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
+9. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
+
+In `count := apply(3, identity)`, `A` is `i32` from the first argument, and
+`identity`'s `T` and the call's `B` are solved as `i32` with it.
+
+```text
+fn identity[T](value: T) -> T:
+    value
+
+fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
+    pass
+
+fn main() -> void:
+    call_with_nothing(identity)  # error: unresolved-generic-placeholder
+```
+
+> **Why.** Only use sites infer. A function declaration's own generic
+> parameters and signature are always written, never inferred from its body
+> or its callers.
+
+See also: [Type Inference Boundaries](04-type-system.md#type-inference-boundaries),
+[Variant Constructors As Function Values](08-data-and-enums.md#variant-constructors-as-function-values).
 
 ### Suspending Function Values
 

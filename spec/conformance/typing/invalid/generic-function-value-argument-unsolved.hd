@@ -1,0 +1,11 @@
+# test: a generic function value whose parameter the call leaves unsolved is rejected
+# Spec 07 Generic Function Values: a generic parameter of the value that remains unsolved
+# is an error.
+fn identity[T](value: T) -> T:
+    value
+
+fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
+    pass
+
+fn main() -> void:
+    call_with_nothing(identity)  # diagnostic: unresolved-generic-placeholder

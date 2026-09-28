@@ -1,0 +1,9 @@
+# test: ? in a test block rejects an error that neither converts nor implements Display
+# Spec 05 Propagation In Test Blocks: such an error type is a misuse.
+data Hidden: pass
+
+fn hidden() -> Result[i32, Hidden]:
+    .Err(Hidden {})
+
+test "rejected operand":
+    first := hidden()?  # diagnostic: invalid-result-propagation
