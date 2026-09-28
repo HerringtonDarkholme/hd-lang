@@ -1,0 +1,6 @@
+# test: a test body with an optional result does not implement Termination
+# Spec 05 Propagation In Test Blocks: the body's inferred result must implement Termination.
+fn maybe() -> i32?:
+    .None
+
+test "an optional result": maybe()  # diagnostic: unsatisfied-trait-bound

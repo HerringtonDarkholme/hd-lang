@@ -298,7 +298,7 @@ fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
 2. r[module.testing.reason] `reason` is required and must explain the checked condition.
 3. r[module.testing.failure] A failed assertion reports test failure when called from a test.
 4. r[module.testing.panic] Otherwise a failed assertion causes a runtime panic. Panic: `assertion-failed`.
-5. r[module.testing.propagated-error] A test also fails when an `.Err` propagates out of its block, as [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks) describes.
+5. r[module.testing.result-report] A test also fails when its body's result reports an `ExitCode` other than 0, such as an `.Err` propagated out of its block, as [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks) describes.
 6. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
 7. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
 
@@ -498,7 +498,7 @@ pub fn main() -> void:
 ```
 
 1. r[module.entry.definition] An **executable entry point** is a public top-level function named `main` or `main!` with no parameters.
-2. r[module.entry.result] It returns `void` or `Result[void, E]` with `E < Display`.
+2. r[module.entry.result-termination] Its result type must implement `std.process.Termination`, as for an ordinary trait bound, so it may be `void`, `ExitCode`, or `Result[T, E]` with `T < Termination` and `E < Display`. Any other result type is an error. Error: `unsatisfied-trait-bound`.
 3. r[module.entry.row] It may declare a requirement row.
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
@@ -508,18 +508,17 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 
 ### Entry Results
 
-1. r[module.entry.err] An entry point may instead return `Result[void, E]`, in which case an `.Err` result reports invocation failure through the runtime adapter.
-2. r[module.entry.err-display] That form requires `E < Display`. An error type without that implementation is an error. Error: `entry-error-not-display`.
-3. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the requirement.
-4. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
-5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
-6. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
-7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
+1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.
+2. r[module.entry.err-dynamic] A dynamic trait value type whose trait is `Display` or has it as a supertrait, such as the erased `std.error.Error`, satisfies the `E < Display` bound.
+3. r[module.entry.err-render-chain] When `E` implements `std.error.Error`, including the erased `Error`, the host prints the error's `Display` text and then each cause that the standard-library `chain` yields after it.
+4. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
+5. r[module.entry.err-render-display] Otherwise the host renders the error with `Display.to_string`.
+6. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
 data HiddenError: pass
 
-pub fn main() -> Result[void, HiddenError]:  # error: entry-error-not-display
+pub fn main() -> Result[void, HiddenError]:  # error: unsatisfied-trait-bound
     .Err(HiddenError {})
 ```
 
@@ -528,53 +527,46 @@ See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values),
 
 #### Exit Status
 
-The standard trait `ExitStatus` lets an error type choose the exit status:
+`std.process` declares the exit code and the trait that produces it:
 
 ```text
-use std.process.ExitStatus
-use std.process.StatusCode
+pub type ExitCode(u8)
 
-pub enum CliError:
-    Usage
-    Missing(path: string)
-
-impl Display for CliError:
-    fn to_string(self) -> string:
-        match self:
-            CliError.Usage => "usage: tool PATH"
-            CliError.Missing(path) => "missing: " + path
-
-impl ExitStatus for CliError:
-    fn status(self) -> StatusCode:
-        let code: u8 = match self:
-            CliError.Usage => 2
-            CliError.Missing(_) => 1
-        match StatusCode::new(code):
-            .Some(status) => status
-            .None => panic("a CliError status is never 0")
-
-pub fn main() -> Result[void, CliError]:
-    .Err(CliError.Usage)
+pub trait Termination:
+    fn report(self) -> ExitCode
 ```
 
-1. r[module.entry.exit-status.trait-code] `std.process` declares the trait `ExitStatus`, whose one method is `fn status(self) -> StatusCode`.
-2. r[module.entry.status-code] `std.process` declares `StatusCode`, a nominal wrapper of a `u8` exit status that never holds 0.
-3. r[module.entry.status-code.new] `StatusCode::new(code: u8) -> StatusCode?` returns `.None` when `code` is 0, and otherwise a `StatusCode` holding `code`.
-4. r[module.entry.exit-status.code] When an entry point returns `.Err(error)` and `E` implements `ExitStatus`, the process exits with the `u8` held by `error.status()`.
-5. r[module.entry.exit-status.static] That rule reads the static type `E`. When `E` is a dynamic trait value type, such as the erased `Error`, the concrete error's `ExitStatus` is not consulted.
-6. r[module.entry.exit-status.default] Otherwise an `.Err` result exits with status 1.
-7. r[module.entry.exit-status.code-only] `ExitStatus` chooses only the exit status: the host still prints the error as [Entry Results](#entry-results) describes.
-8. r[module.entry.exit-status.import] `ExitStatus` is not a prelude name; code imports it with `use std.process.ExitStatus`.
-9. r[module.entry.status-code.import] `StatusCode` is not a prelude name either; code imports it with `use std.process.StatusCode`.
+1. r[module.entry.exit-code] `std.process` declares the newtype `ExitCode`, whose `u8` is a process exit code. Every `u8` is valid, and 0 means success.
+2. r[module.entry.termination] `std.process` declares the trait `Termination`, whose one method is `fn report(self) -> ExitCode`.
+3. r[module.entry.termination.void] `void` implements `Termination`; its `report` returns `ExitCode(0)`.
+4. r[module.entry.termination.exit-code] `ExitCode` implements `Termination`; its `report` returns the code itself.
+5. r[module.entry.termination.result] `Result[T, E]` implements `Termination` when `T < Termination` and `E < Display`.
+6. r[module.entry.termination.ok] For `.Ok(value)`, its `report` returns `value.report()`.
+7. r[module.entry.termination.err] For `.Err(error)`, its `report` prints the error as [Entry Results](#entry-results) describes and returns `ExitCode(1)`.
+8. r[module.entry.process-import] `ExitCode` and `Termination` are not prelude names; code imports them from `std.process`, as in `use std.process.ExitCode`.
 
-> **Why.** A status that cannot be 0 means a failed run never reports
-> success, and a `u8` cannot fall outside the 1 to 255 that POSIX hosts keep.
+A program that picks its own code returns an `ExitCode`:
 
-> **Note.** `main() -> Result[void, Error]` therefore always exits with 1
-> on `.Err`. A tool that needs its own codes returns its own error type.
+```text
+use std.process.ExitCode
+
+fn count_changes() -> Result[i32, string]:
+    .Ok(3)
+
+pub fn main() -> Result[ExitCode, string]:
+    changes := count_changes()?
+    if changes > 0: .Ok(ExitCode(1)) else: .Ok(ExitCode(0))
+```
+
+> **Why.** One trait serves entry points and tests, as Rust's `Termination`
+> does, and the result type, not the error type, picks the code.
+
+> **Note.** `main() -> Result[void, E]` therefore exits with 1 on every
+> `.Err`. A tool that needs other codes returns `ExitCode` or
+> `Result[ExitCode, E]`.
 
 > **Note.** A tool that must exit without printing, such as one that stops
-> quietly on a closed pipe, prints what it needs and exits by hand.
+> quietly on a closed pipe, prints what it needs and returns an `ExitCode`.
 
 ### Entry Arguments
 

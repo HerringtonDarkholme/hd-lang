@@ -467,7 +467,8 @@ fn first(value: i32?) -> i32:
 
 #### Propagation In Test Blocks
 
-A `test` block propagates errors as if it returned `Result[void, Error]`:
+A `test` block's body has a result type inferred like a closure's, and `?`
+propagates to it by the ordinary rules:
 
 ```text
 use std.testing.assert_equal
@@ -475,37 +476,36 @@ use std.testing.assert_equal
 fn parse_digit(text: string) -> Result[i32, string]:
     if text == "7": .Ok(7) else: .Err("not a digit: " + text)
 
+fn passed() -> Result[void, string]:
+    .Ok()
+
 test "parses a digit":
     digit := parse_digit("7")?
     assert_equal(digit, 7, reason="the digit parses")
+    passed()
 ```
 
-1. r[expr.try.test.result] For each `?` in its body outside any closure, a `test` block counts as the nearest function, as if it returned `Result[void, Error]`.
-2. r[expr.try.test.erased] `Error` there is the erased error `std.error.Error`, and the block needs no import of it.
-3. r[expr.try.test.convert] The error is converted by the steps of [Error Conversion](#error-conversion), with `F` the erased `Error`.
-4. r[expr.try.test.display] When no step converts it and `E < Display`, the error is instead wrapped in a standard-library message error, whose `Display` text is the error's.
-5. r[expr.try.test.display.only] That wrapping applies only when a `test` block is the propagation target.
-6. r[expr.try.test.not-display] An error type that neither converts nor implements `Display` is a misuse. Error: `invalid-result-propagation`.
-7. r[expr.try.test.optional] An optional operand is a misuse, because the block's result is not optional. Error: `invalid-result-propagation`.
-8. r[expr.try.test.fail] An `.Err` propagated out of the block fails the test, and the runner prints the error chain as [Entry Results](10-modules.md#entry-results) describes.
-9. r[expr.try.test.closure] Inside a closure in a `test` block, the closure is the nearest function, and these rules do not apply.
+1. r[expr.try.test.nearest] For each `?` in its body outside any closure, a `test` block counts as the nearest function.
+2. r[expr.try.test.inferred] The block's result type is inferred from its body, as for a closure whose result type is neither written nor supplied by an expected function type ([Closure Annotations](07-functions.md#closure-annotations)). `?` therefore performs no conversion there.
+3. r[expr.try.test.termination] That result type must implement `std.process.Termination` ([Exit Status](10-modules.md#exit-status)), so it may be `void`, `ExitCode`, or `Result[T, E]` with `T < Termination` and `E < Display`. Any other result type is an error. Error: `unsatisfied-trait-bound`.
+4. r[expr.try.test.fail-report] The test fails when `report()` on the block's result returns an `ExitCode` other than 0. For an `.Err`, the runner prints the error as [Entry Results](10-modules.md#entry-results) describes.
+5. r[expr.try.test.closure] Inside a closure in a `test` block, the closure is the nearest function, and these rules do not apply.
 
 ```text
 data Hidden: pass
 
-fn hidden() -> Result[i32, Hidden]:
+fn hidden() -> Result[void, Hidden]:
     .Err(Hidden {})
 
 fn maybe() -> i32?:
     .None
 
-test "rejected operands":
-    first := hidden()?  # error: invalid-result-propagation
-    second := maybe()?  # error: invalid-result-propagation
+test "an error without Display": hidden()  # error: unsatisfied-trait-bound
+test "an optional result": maybe()         # error: unsatisfied-trait-bound
 ```
 
-> **Why.** Tests of helpers that return string errors can then use `?`
-> without mapping each error by hand.
+> **Why.** A test body and `main` share one rule, so a helper's own error
+> type, such as `string`, fails a test without a wrapper.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Standard Testing](10-modules.md#standard-testing).

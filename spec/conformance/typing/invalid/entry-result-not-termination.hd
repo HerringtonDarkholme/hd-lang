@@ -1,0 +1,4 @@
+# test: an entry point's result type must implement std.process.Termination
+# Spec 10 Executable Entry Point: i32 does not implement Termination.
+pub fn main() -> i32:  # diagnostic: unsatisfied-trait-bound
+    0

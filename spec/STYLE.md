@@ -660,3 +660,62 @@ style lint rejects a chapter that reuses one.
   No replacement.
 - `types.shape.annotations`: retired 2026-09-27. Typed derivation decision
   10 removed annotation lookup. No replacement.
+- `module.entry.result`: retired 2026-09-27. Testing T5 makes the entry
+  result an ordinary `Termination` bound. Replaced by
+  `module.entry.result-termination`.
+- `module.entry.err`: retired 2026-09-27. Testing T8 exits with the code
+  that `report()` returns. Replaced by `module.entry.exit-report`.
+- `module.entry.err-display`: retired 2026-09-27. Testing T5 makes the entry
+  result an ordinary `Termination` bound. Replaced by
+  `module.entry.result-termination`.
+- `module.entry.exit-status.trait-code`: retired 2026-09-27. Testing T8
+  replaces `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`.
+  Replaced by `module.entry.termination`.
+- `module.entry.status-code`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. Replaced
+  by `module.entry.exit-code`.
+- `module.entry.status-code.new`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. Every
+  `u8` is a valid `ExitCode`. No replacement.
+- `module.entry.exit-status.code`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. Replaced
+  by `module.entry.exit-report` and `module.entry.termination.err`.
+- `module.entry.exit-status.static`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. No error
+  type chooses a code. No replacement.
+- `module.entry.exit-status.default`: retired 2026-09-27. Testing T8
+  replaces `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`.
+  Replaced by `module.entry.termination.err`.
+- `module.entry.exit-status.code-only`: retired 2026-09-27. Testing T8
+  replaces `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`.
+  No error type chooses a code. No replacement.
+- `module.entry.exit-status.import`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. Replaced
+  by `module.entry.process-import`.
+- `module.entry.status-code.import`: retired 2026-09-27. Testing T8 replaces
+  `ExitStatus` and `StatusCode` with `ExitCode` and `Termination`. Replaced
+  by `module.entry.process-import`.
+- `module.testing.propagated-error`: retired 2026-09-27. Testing T4 makes a
+  test body follow the `Termination` rule. Replaced by
+  `module.testing.result-report`.
+- `expr.try.test.result`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. Replaced by `expr.try.test.nearest` and
+  `expr.try.test.inferred`.
+- `expr.try.test.erased`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. The block no longer returns the erased
+  `Error`. No replacement.
+- `expr.try.test.convert`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. Replaced by `expr.try.test.inferred`.
+- `expr.try.test.display`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. No error is wrapped. No replacement.
+- `expr.try.test.display.only`: retired 2026-09-27. Testing T4 makes a test
+  body follow the `Termination` rule. No error is wrapped. No replacement.
+- `expr.try.test.not-display`: retired 2026-09-27. Testing T4 makes a test
+  body follow the `Termination` rule. Replaced by
+  `expr.try.test.termination`.
+- `expr.try.test.optional`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. Replaced by `expr.try.test.termination`.
+- `expr.try.test.fail`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. Replaced by `expr.try.test.fail-report`.
+- `grammar.test.outcome`: retired 2026-09-27. Testing T4 makes a test body
+  follow the `Termination` rule. Replaced by `grammar.test.outcome-report`.

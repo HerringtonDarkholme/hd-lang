@@ -1,7 +1,0 @@
-# test: ? in a test block rejects an optional operand
-# Spec 05 Propagation In Test Blocks: the block's result is Result[void, Error], not optional.
-fn maybe() -> i32?:
-    .None
-
-test "rejected operand":
-    second := maybe()?  # diagnostic: invalid-result-propagation

@@ -1,30 +1,21 @@
-# test: ? in a test block propagates into the erased Error, and wraps a Display error
-# Spec 05 Propagation In Test Blocks: a test block counts as the nearest function, as if it
-# returned Result[void, Error]. An error that does not convert but implements Display is
-# wrapped in a standard-library message error.
-use std.error.Error
+# test: ? in a test block propagates by the ordinary rules to the block's inferred result
+# Spec 05 Propagation In Test Blocks: a test block counts as the nearest function, and its
+# result type is inferred like a closure's. Result[void, string] implements Termination,
+# so a string error needs no wrapper. A void body also passes.
 use std.testing.assert_equal
-
-enum FsError:
-    NotFound(path: string)
-
-impl Display for FsError:
-    fn to_string(self) -> string:
-        match self:
-            FsError.NotFound(path) => "not found: " + path
-
-impl Error for FsError
 
 fn parse_digit(text: string) -> Result[i32, string]:
     if text == "7": .Ok(7) else: .Err("not a digit: " + text)
 
-fn read_config(path: string) -> Result[string, FsError]:
-    if path == "": .Err(FsError.NotFound(path)) else: .Ok("config")
+fn passed() -> Result[void, string]:
+    .Ok()
 
 test "parses a digit":
     digit := parse_digit("7")?
     assert_equal(digit, 7, reason="the digit parses")
+    passed()
 
-test "a domain error converts to the erased Error":
-    text := read_config("app.toml")?
-    assert_equal(text, "config", reason="the Ok value continues")
+test "a void body passes":
+    match parse_digit("x"):
+        .Ok(_) => panic("x is not a digit")
+        .Err(message) => assert_equal(message, "not a digit: x", reason="the helper rejects x")

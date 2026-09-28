@@ -1,0 +1,22 @@
+# test: Termination.report maps void, ExitCode, and Result to an exit code
+# Spec 10 Exit Status: void reports 0, ExitCode reports itself, .Ok reports its value's
+# code, and .Err prints the error and reports 1. A test body may return an ExitCode.
+use std.process.{ExitCode, Termination}
+use std.testing.assert_equal
+
+fn code_of[T < Termination](value: T) -> u8:
+    u8(value.report())
+
+test "an ExitCode reports itself":
+    assert_equal(code_of(ExitCode(3)), 3, reason="ExitCode reports its own code")
+
+test "an Ok result reports its value's code":
+    let result: Result[ExitCode, string] = .Ok(ExitCode(4))
+    assert_equal(code_of(result), 4, reason=".Ok reports the value's code")
+
+test "an Err result reports 1":
+    let result: Result[void, string] = .Err("expected failure")
+    assert_equal(code_of(result), 1, reason=".Err reports 1")
+
+test "a test body may return ExitCode(0)":
+    ExitCode(0)

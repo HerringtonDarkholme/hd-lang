@@ -49,7 +49,7 @@ test_decl = "test", string_literal, ":", suite_body ;
 2. r[grammar.test.body] A test body is an ordinary suite.
 3. r[grammar.test.tooling] Its discovery and assertion APIs are standard-library and tooling behavior.
 4. r[grammar.test.instance] Each test runs in its own program instance and is a driver context.
-5. r[grammar.test.outcome] A test passes when its body completes normally and fails when the body panics or an assertion reports failure.
+5. r[grammar.test.outcome-report] A test passes when its body completes normally with a result whose `report()` returns `ExitCode(0)`. It fails when the body panics, an assertion reports failure, or the result reports another code ([Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks)).
 6. r[grammar.test.no-reuse] Instances are not reused between tests.
 7. r[grammar.test.not-in-suites] `test` blocks are not permitted inside executable suites.
 8. r[grammar.test.contextual] `test` is contextual: at module level it begins a test block only when followed by a string literal; otherwise it remains an ordinary identifier.

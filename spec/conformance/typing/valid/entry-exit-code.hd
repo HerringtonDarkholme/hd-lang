@@ -1,0 +1,11 @@
+# test: an entry point picks its exit code by returning std.process.ExitCode
+# Spec 10 Exit Status: Result[ExitCode, E] implements Termination, and its .Ok value's
+# report() is the exit code.
+use std.process.ExitCode
+
+fn count_changes() -> Result[i32, string]:
+    .Ok(3)
+
+pub fn main() -> Result[ExitCode, string]:
+    changes := count_changes()?
+    if changes > 0: .Ok(ExitCode(1)) else: .Ok(ExitCode(0))

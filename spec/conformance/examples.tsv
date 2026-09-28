@@ -117,7 +117,7 @@ specification	block	classification	fixture
 05-expressions.md	18	accept	runtime/valid/propagation-from-two-domains.hd
 05-expressions.md	19	mixed	typing/invalid/propagation-without-target.hd
 05-expressions.md	20	accept	runtime/valid/test-block-propagation.hd
-05-expressions.md	21	mixed	typing/invalid/test-block-propagation-not-display.hd|typing/invalid/test-block-propagation-optional.hd
+05-expressions.md	21	mixed	typing/invalid/test-body-error-not-display.hd|typing/invalid/test-body-optional-result.hd
 05-expressions.md	22	mixed	typing/invalid/arithmetic-on-bool.hd|typing/invalid/arithmetic-on-list.hd
 05-expressions.md	23	mixed	typing/invalid/bitwise-and-bool.hd|typing/invalid/bitwise-or-float.hd|typing/invalid/bitwise-xor-string.hd
 05-expressions.md	24	mixed	typing/invalid/signed-integer-exponent.hd|typing/invalid/negative-literal-exponent.hd|typing/invalid/power-mixed-numeric-types.hd
@@ -304,8 +304,9 @@ specification	block	classification	fixture
 10-modules.md	18	mixed	parse/invalid/pub-top-level-binding.hd
 10-modules.md	19	accept	typing/valid/requirements-and-suspension.hd
 10-modules.md	20	mixed	typing/invalid/nondisplay-entry-error.hd
-10-modules.md	21	accept	typing/valid/entry-exit-status.hd
-10-modules.md	22	type-fragment	-
+10-modules.md	21	type-fragment	-
+10-modules.md	22	accept	typing/valid/entry-exit-code.hd
+10-modules.md	23	type-fragment	-
 11-requirements-and-suspension.md	1	accept	typing/valid/requirements-and-suspension.hd
 11-requirements-and-suspension.md	2	mixed	parse/invalid/old-row-operator-union.hd
 11-requirements-and-suspension.md	3	mixed	typing/invalid/method-without-requirement-clause.hd

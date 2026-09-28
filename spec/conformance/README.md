@@ -185,7 +185,7 @@ Rules that apply to every case:
 2. Each `test "..."` block runs in its own fresh program instance, after
    module initialization. `main` does not run in that instance.
 3. The command succeeds when nothing panicked, no `std.testing` assertion
-   failed, and no test block propagated an `.Err`
+   failed, and every test block's result reported `ExitCode(0)`
    ([Propagation In Test Blocks](../05-expressions.md#propagation-in-test-blocks)).
 
 Only entry points and test blocks execute. A fixture that needs to observe a
