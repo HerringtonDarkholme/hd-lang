@@ -304,8 +304,11 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     marked "shrinking stopped early". `shrink=` on `it_prop` and
     `hd test --shrink N` override it.
 
-The `timeout=` value waits on the literal-suffix design (owner: design
-now, so `timeout=5s` may replace the `"5s"` string).
+The `timeout=` value follows the literal-suffix decisions
+([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
+`timeout: Duration? = .None`, written `timeout=5s` with `use std.time.s`;
+the suffixed literal is evaluated at compile time in this option position
+(L7). This replaces the `"5s"` string once literal suffixes are applied.
 
 ```text
 # std.testing (T40)
