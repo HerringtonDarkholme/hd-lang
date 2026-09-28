@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T42 are
+Status: design record, started 2026-09-27. Owner decisions T1-T45 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
@@ -269,6 +269,18 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
 42. **T42: `hd check` checks test code only with `--tests`,** like
     `cargo check`; `hd test` always compiles it.
 
+43. **T43: an unknown `expect_panic` category is a compile error.** The
+    categories are the specification's fixed list.
+44. **T44: `pub` on an item inside a `tests:` block is an error.** Nothing
+    outside the block sees it (T17); shared helpers go in a `_test.hd`
+    module (T23).
+45. **T45: a `_test.hd` module or a `tests/` file may not contain a
+    `tests:` block.** The whole file is already test-only, with `it(...)`
+    at its top level (T13).
+
+The `timeout=` value waits on the literal-suffix design (owner: design
+now, so `timeout=5s` may replace the `"5s"` string).
+
 ```text
 # std.testing (T40)
 pub fn it[T < Termination, R](name: string, ignore: string? = .None,
@@ -350,7 +362,8 @@ tests:                                      # compiled only by `hd test`
 
 These questions came up while applying the decisions on 2026-09-27. Each
 waits for the owner; the specification states none of them as a rule.
-Items 1 and 8 are answered by T40 and T41.
+Items 1, 3, 4, 5, 8, 9 (home only), and 11 are answered by T39-T45; item 2
+waits on the literal-suffix design.
 
 1. **`it` as an intrinsic.** Its options cannot be ordinary defaulted
    parameters before `body`, since
