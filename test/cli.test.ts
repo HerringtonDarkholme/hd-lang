@@ -112,7 +112,44 @@ test("hd test fails a test whose result is .Err", async () => {
     );
     await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
       assert.equal(error.code, 1);
-      assert.match(error.stdout + error.stderr, /a test returned Err/);
+      assert.match(error.stdout + error.stderr, /test "propagates an error" returned Err/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// Each it_each row is its own test case in a fresh program instance
+// (spec/10-modules.md#table-tests and #r-module.testing.instance).
+test("hd test runs each it_each row in a fresh instance", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "rows.hd");
+    const lines = [
+      "use std.testing.{assert_equal, it_each}",
+      "",
+      "let count: i32 = 0",
+      "",
+      "fn bump() -> i32:",
+      "    count = count + 1",
+      "    count",
+      "",
+      "tests:",
+      '    it_each("bumps once", [1, 2, 3], body=fn!(value: i32):',
+      '        assert_equal(bump(), 1, reason="each row starts fresh")',
+      "    )",
+      "",
+      '    it_each("fails on two", [1, 2, 3], body=fn!(value: i32) -> Result[void, string]:',
+      '        if value == 2: .Err("two") else: .Ok()',
+      "    )",
+      "",
+    ];
+    await writeFile(source, lines.slice(0, 13).join("\n"));
+    assert.match((await hd(["test", source])).stdout, /: 4 passed/);
+    await writeFile(source, lines.join("\n"));
+    await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
+      assert.match(error.stdout + error.stderr, /test "fails on two\[1\]" returned Err/);
       return true;
     });
   } finally {

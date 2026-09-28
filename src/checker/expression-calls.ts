@@ -1114,6 +1114,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       return { kind: "panic", message, type: "never", span: expression.span };
     }
     if (expression.callee.name === "debug") return this.checkDebugCall(expression);
+    if (expression.callee.name.startsWith("$each-row-")) return this.checkEachRowCall(expression);
     if (expression.callee.name === "println") {
       if (expression.typeArguments)
         this.fail("unexpected-type-arguments", "println infers its Display type", expression.span);

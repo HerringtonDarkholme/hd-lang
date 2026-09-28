@@ -20,6 +20,8 @@ import { functionName, methodBoundParameters, traitSuspensionName } from "./shar
 const NESTED_TYPE_ID_RECEIVER = "(ref.i31 (i32.const 0))";
 
 export abstract class ValueComparisonEmitter extends EmitterContext {
+  protected abstract emitExpression(expression: HirExpression): string;
+
   protected allocateTemporary(type: ValueType): string {
     const index = this.temporaryTypes.length;
     this.temporaryTypes.push(type);
@@ -55,6 +57,14 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
       `  (${width}.${operator === "/" ? "div_s" : "rem_s"} (local.get ${leftTemporary}) (local.get ${rightTemporary}))`,
       `)`,
     ].join("\n");
+  }
+
+  /** The `it_each` runner hooks: two exported globals the runner reads and sets. */
+  protected emitTestRunnerExpression(expression: HirExpression): string | undefined {
+    if (expression.kind === "each-row-index") return `(global.get $hd.each-index)`;
+    if (expression.kind === "each-row-count")
+      return `(global.set $hd.each-count ${this.emitExpression(expression.count)})`;
+    return undefined;
   }
 
   protected emitPrimitiveDisplay(operand: string, type: ValueType): string {

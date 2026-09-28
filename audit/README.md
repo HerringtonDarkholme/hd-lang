@@ -59,10 +59,11 @@ The testing redesign (Testing T2-T31 and T40-T47) passes its fixtures, with
 gaps that no fixture reaches: only functions of a `tests:` block are hidden
 from code outside it, test modules, integration tests, and test
 dependencies are not implemented (a `tests` use root is always
-`test-only-use`, since the prototype compiles no integration test module), every test case shares one
-instance (F-403), a test body's `Result` reports only its outer tag, not
-its `.Ok` value's `ExitCode` (Testing T8), `timeout` is parsed but not enforced, `it_each` runs its
-rows as one test case, and `it_prop` and `it_prop_with` (T36) are not
+`test-only-use`, since the prototype compiles no integration test module), a
+panic outside `expect_panic` stops the run (F-403; each test case and
+each `it_each` row otherwise runs in a fresh instance), a test body's
+`Result` reports only its outer tag, not its `.Ok` value's `ExitCode`
+(Testing T8), `timeout` is parsed but not enforced, and `it_prop` and `it_prop_with` (T36) are not
 implemented. `hd check` without `--tests` (T42) skips test cases and
 test-only functions, but still reports the test-case errors its parser
 finds. A trailing block binds the final parameter (T40) only for calls

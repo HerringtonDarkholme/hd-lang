@@ -90,6 +90,15 @@ export abstract class CallChecker extends StatementChecker {
     return { kind: "snapshot-file", text, type: "void", span: expression.span };
   }
 
+  /** The runner hooks of a lowered `it_each` table (parser/test-cases.ts). */
+  protected checkEachRowCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
+    const span = expression.span;
+    if (expression.callee.kind === "name" && expression.callee.name === "$each-row-index")
+      return { kind: "each-row-index", type: "i32", span };
+    const count = this.checkExpression(expression.arguments[0]!, "i32");
+    return { kind: "each-row-count", count, type: "void", span };
+  }
+
   /** The prelude `debug[T < Debug](value: T) -> string` (10-modules.md#prelude). */
   protected checkDebugCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
     if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))

@@ -18,6 +18,8 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
   return program.tests.map((test, index) => {
     const inferred = test.explicit === true && test.result === undefined;
     const options = {
+      name: test.name,
+      ...(test.table ? { table: true } : {}),
       ...(test.ignore !== undefined ? { ignore: test.ignore } : {}),
       ...(test.expectPanic !== undefined ? { expectPanic: test.expectPanic } : {}),
     };
@@ -33,7 +35,7 @@ function createTestDeclarations(program: ProgramCheckContext["program"]): Functi
       requirements: [],
       body: test.body,
       testOnly: true,
-      ...(Object.keys(options).length > 0 ? { testOptions: options } : {}),
+      testOptions: options,
       span: test.span,
     };
   });

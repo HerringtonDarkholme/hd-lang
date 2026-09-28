@@ -125,6 +125,8 @@ export interface InstantiateOptions {
   readonly hostSuspensionCancel?: (call: HostSuspensionCall) => void;
   readonly hostSuspensionInvoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
   readonly hostSuspensionPending?: (call: HostSuspensionCall) => boolean;
+  /** A compilation of `source` to instantiate again, as for a fresh test instance. */
+  readonly compilation?: Compilation;
 }
 
 export interface Instantiation {
@@ -232,7 +234,7 @@ export async function instantiate(
   source: string,
   options: InstantiateOptions = {},
 ): Promise<Instantiation> {
-  const compilation = compile(source, options);
+  const compilation = options.compilation ?? compile(source, options);
   const functionIdentities: FunctionIdentity[] = [
     ...compilation.hir.functions,
     ...compilation.hir.closures,

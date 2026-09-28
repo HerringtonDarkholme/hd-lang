@@ -39,6 +39,10 @@ npm run check
 
 `hd check` skips the test cases and test-only functions of a `tests:` block
 unless `--tests` is given (Testing T42); `hd test` always compiles them.
+`hd test` (`test-runner.ts`) runs each test case in a fresh instance of one
+compilation. An `it_each` table is one test function that the runner calls
+once per row, as `name[i]`, through the exported `__hd_each_index` and
+`__hd_each_count` globals; a failure names the test case.
 
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line

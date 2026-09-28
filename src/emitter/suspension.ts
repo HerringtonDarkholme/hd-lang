@@ -418,6 +418,10 @@ class SuspensionPlanBuilder {
           (operand) => continuation({ ...expression, operand: operand! }),
           context,
         );
+      case "each-row-index":
+        return continuation(expression);
+      case "each-row-count":
+        return lowerValues([expression.count], ([count]) => ({ ...expression, count: count! }));
       case "console-print":
         return lowerValues([expression.provider, expression.value], ([provider, value]) => ({
           ...expression,

@@ -1,4 +1,5 @@
 import type { SourceSpan } from "./diagnostics.ts";
+import type { HirFunction } from "./hir.ts";
 
 export interface TypeRef {
   readonly name: string;
@@ -78,7 +79,7 @@ export interface FunctionDecl {
   /** Declared in a `tests:` block, or a test body: test code (spec/10-modules.md#test-modules). */
   readonly testOnly?: boolean;
   /** Runner options of a test body (spec/10-modules.md#test-cases). */
-  readonly testOptions?: { readonly ignore?: string; readonly expectPanic?: string };
+  readonly testOptions?: HirFunction["testOptions"];
   /** Decorator lines before the declaration; rejected until function targets are decided. */
   readonly decorators?: Decorators;
 }
@@ -225,6 +226,8 @@ export interface TestDecl {
   readonly explicit?: boolean;
   /** A trailing body that uses `?` (spec/05-expressions.md#r-expr.try.test.with-try). */
   readonly propagates?: boolean;
+  /** An `it_each` table, whose rows the runner runs as separate test cases. */
+  readonly table?: boolean;
   /** The written result of an explicit closure, or `Result[void, Error]` for `propagates`. */
   readonly result?: TypeRef;
   readonly ignore?: string;

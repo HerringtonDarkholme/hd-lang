@@ -217,9 +217,11 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
 }
 
 // `std.testing.it_each(name, rows, ..., body=)` registers one case per row
-// (spec/10-modules.md#table-tests). The prototype runs the rows as one test
-// case, a loop that bang-calls the body with each row. A body without a
-// written result that uses `?` returns `Result[void, Error]`
+// (spec/10-modules.md#table-tests). The prototype compiles one test function
+// that the runner calls once per row, each in a fresh instance: it evaluates
+// `rows`, reports their count, and runs the body with the selected row. With
+// no rows, row 0 panics with `index-out-of-bounds` after reporting count 0.
+// A body without a written result that uses `?` returns `Result[void, Error]`
 // (spec/05-expressions.md#r-expr.try.test.row-body).
 function tableTest(
   statement: Statement,
@@ -245,56 +247,52 @@ function tableTest(
     fail("argument-count", "an it_each body is a fn! closure with one parameter", body.span);
   const propagates = !body.result && usesPropagation(body.body);
   const span = call.span;
-  const row = "$each.row";
-  const callback = "$each.body";
+  const local = (name: string): Expression => ({ kind: "name", name, span });
+  const bind = (name: string, value: Expression): Statement => ({
+    kind: "binding",
+    name,
+    mutable: false,
+    value,
+    span,
+  });
+  const invoke = (callee: Expression, arguments_: Expression[] = []): Expression => ({
+    kind: "call",
+    callee,
+    arguments: arguments_,
+    span,
+  });
+  const count = invoke({ kind: "member", receiver: local("$each.rows"), name: "len", span });
   const bangCall: Expression = {
     kind: "suspend-call",
-    callee: { kind: "name", name: callback, span },
-    arguments: [{ kind: "name", name: row, span }],
+    callee: local("$each.body"),
+    arguments: [
+      { kind: "index", receiver: local("$each.rows"), index: local("$each.index"), span },
+    ],
     span,
   };
   const closure: Closure = propagates
     ? { ...body, result: { name: `Result[void,${errorName}]`, span: body.span } }
     : body;
-  const done: Statement[] = propagates
-    ? [
-        {
-          kind: "expression",
-          expression: {
-            kind: "call",
-            callee: { kind: "contextual-variant", name: "Ok", span },
-            arguments: [],
-            span,
-          },
-          span,
-        },
-      ]
-    : [];
+  const statementOf = (expression: Expression): Statement => ({
+    kind: "expression",
+    expression,
+    span,
+  });
   return {
     kind: "test",
     name,
     body: [
-      { kind: "binding", name: callback, mutable: false, value: closure, span: body.span },
-      {
-        kind: "expression",
-        expression: {
-          kind: "for",
-          bindings: [{ name: row, span: rows.span }],
-          iterable: rows,
-          body: [
-            {
-              kind: "expression",
-              expression: propagates ? { kind: "propagate", operand: bangCall, span } : bangCall,
-              span,
-            },
-          ],
-          elseBody: [],
-          span,
-        },
-        span,
-      },
-      ...done,
+      { ...bind("$each.body", closure), span: body.span },
+      bind("$each.rows", rows),
+      bind("$each.index", invoke(local("$each-row-index"))),
+      statementOf(invoke(local("$each-row-count"), [count])),
+      statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
+      ...(propagates
+        ? [statementOf(invoke({ kind: "contextual-variant", name: "Ok", span }))]
+        : []),
     ],
+    ...(body.result ? { explicit: true, result: body.result } : {}),
+    table: true,
     ...(propagates ? { propagates: true } : {}),
     ...optionFields(options),
     span: statement.span,

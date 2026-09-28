@@ -312,7 +312,13 @@ export interface HirFunction {
    */
   readonly developmentEntry?: boolean;
   /** Runner options of a test body (spec/10-modules.md#test-cases). */
-  readonly testOptions?: { readonly ignore?: string; readonly expectPanic?: string };
+  readonly testOptions?: {
+    readonly name: string;
+    /** An `it_each` table: the runner calls it once per row, as `name[i]`. */
+    readonly table?: boolean;
+    readonly ignore?: string;
+    readonly expectPanic?: string;
+  };
 }
 
 export interface HirProgram {
@@ -522,6 +528,15 @@ export type HirExpression =
       readonly kind: "string-split";
       readonly receiver: HirExpression;
       readonly separator: HirExpression;
+    })
+  | (HirExpressionBase & {
+      // The row an `it_each` test function runs, which the runner selects.
+      readonly kind: "each-row-index";
+    })
+  | (HirExpressionBase & {
+      // Reports an `it_each` table's row count to the runner.
+      readonly kind: "each-row-count";
+      readonly count: HirExpression;
     })
   | (HirExpressionBase & {
       // `std.testing.snapshot_file(text)` (spec/10-modules.md#snapshots).

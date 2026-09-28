@@ -19,7 +19,7 @@ import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
 import { loadSpecIndex } from "./spec-index.ts";
-import { resultParts } from "./types.ts";
+import { runSelected } from "./test-runner.ts";
 
 type RuntimeScenario = "cancellation-cleanup" | "competing-drivers" | "reentrant-poll";
 type RuntimeProfileName =
@@ -339,58 +339,15 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         return 0;
       }
       if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
-      let result: unknown;
-      // A test case with `expect_panic` passes only when its body panics with
-      // that category (spec/10-modules.md#r-module.testing.option.expect-panic).
-      // A panic poisons its instance, so each such case runs last, in a fresh
-      // instance; the prototype otherwise shares one instance (F-403).
-      const expectingPanic = selected.filter(
-        (declaration) => declaration.testOptions?.expectPanic !== undefined,
+      const outcome = await runSelected(
+        selected,
+        instance.exports,
+        async () =>
+          (await instantiate(source, { ...instantiateOptions, compilation })).instance.exports,
       );
-      for (const declaration of selected) {
-        if (declaration.testOptions?.expectPanic !== undefined) continue;
-        if (declaration.parameters.length > 0)
-          throw new Error(`${declaration.name} must not declare ordinary parameters`);
-        const exportName = /^\$test\.\d+$/.test(declaration.name)
-          ? `__hd_test_${declaration.name.slice(6)}`
-          : declaration.name;
-        const entry = instance.exports[exportName];
-        if (typeof entry !== "function")
-          throw new Error(`${declaration.name} has no runnable export`);
-        result = entry(...declaration.requirements.map((requirement) => ({ requirement })));
-        // The entry wrapper returns the exit code, or -1 for an `.Err`
-        // (spec/10-modules.md#r-module.entry.exit-report).
-        if (declaration.entry && !declaration.suspending && typeof result === "number") {
-          if (result === -1) {
-            reporter.entryError();
-            return 1;
-          }
-          if (result !== 0) return result;
-          result = undefined;
-        }
-        // A test fails when its Result reports `.Err`
-        // (spec/10-modules.md#r-module.testing.fail).
-        if (!declaration.entry && resultParts(declaration.result)) {
-          if (result !== 0) {
-            reporter.entryError("a test");
-            return 1;
-          }
-          result = undefined;
-        }
-      }
-      for (const declaration of expectingPanic) {
-        const expected = declaration.testOptions!.expectPanic!;
-        const fresh = await instantiate(source, instantiateOptions);
-        const entry = fresh.instance.exports[`__hd_test_${declaration.name.slice(6)}`];
-        if (typeof entry !== "function")
-          throw new Error(`${declaration.name} has no runnable export`);
-        try {
-          entry();
-        } catch (error) {
-          if (error instanceof RuntimePanicError && error.code === expected) continue;
-          throw error;
-        }
-        reporter.entryError(`a test expecting panic ${expected}`);
+      if (outcome.kind === "exit") return outcome.code;
+      if (outcome.kind === "failed") {
+        reporter.entryError(outcome.subject);
         return 1;
       }
       replay.assertComplete();
@@ -398,8 +355,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         await writeFile(replayPath, JSON.stringify(recorded, null, 2) + "\n");
         console.log(replayPath);
       }
-      if (command === "test") console.log(`${file}: ${selected.length} passed`);
-      else if (result !== undefined) console.log(result);
+      if (command === "test") console.log(`${file}: ${outcome.count} passed`);
+      else if (outcome.result !== undefined) console.log(outcome.result);
       return 0;
     }
     usage();
