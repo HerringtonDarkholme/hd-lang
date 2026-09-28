@@ -1,7 +1,7 @@
 # Typed Derivation: Survey And Design Options
 
 Status: design record for roadmap area 2. Typed derivation is fully
-decided by owner decisions M1-M22 (2026-09-27), tested by three stress tests
+decided by owner decisions M1-M23 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M22 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -596,7 +596,15 @@ declared types, so a derived `clone_mut` can clone `mut` members as `mut`.
 `= pass` keeps M3: walk and describe skip the member, build fills it from
 its declared default, and a `= pass` member with no default is a compile
 error. The design is applied to the specification now; the `src/`
-prototype is a later, separate pass. (Applied 2026-09-27: see
+prototype is a later, separate pass.
+
+(M23, decided 2026-09-27, after the spec pass) `by Structure` needs an
+explicit `use std.structure.Structure`, and it is never delegation. Code
+outside generated code may call `missing[F]` through a generic source; only
+the existing `member` restriction stays. `Clone` is a standard-library
+trait. A derivation block may not target a newtype: a newtype derives only
+through its base. The diagnostic codes and the panic category
+`structure-variant-mismatch` chosen in the spec pass are accepted. (Applied 2026-09-27: see
 [Typed Derivation](../spec/14-annotations.md#typed-derivation). Also
 decided 2026-09-27: the root-application orphan exception is dropped
 everywhere, so decisions 9 and 11's "plus the root-application orphan
