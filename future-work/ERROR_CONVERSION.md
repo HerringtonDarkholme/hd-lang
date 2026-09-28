@@ -187,13 +187,18 @@ Decided 2026-09-26:
     Error Stress Test problem 11): besides errors that reach the block's
     `Error` by decision 14, an `.Err` of any `E < Display` (for example
     `Result[T, string]`) is wrapped in a std message error, so tests of
-    string-error helpers can use `?`. This is a test-block rule only.
+    string-error helpers can use `?`. This is a test-block rule only. Superseded 2026-09-27 by
+    [Testing T4](TESTING.md#owner-decisions): a test body follows the
+    `Termination` rule shared with `main`, with no wrapping.
 17. **`std.process.ExitStatus` chooses the exit code** (2026-09-27, problem
     12): `trait ExitStatus: fn status(self) -> i32`. When `main` returns
     `.Err(e)` and `E` implements `ExitStatus`, the process exits with
     `e.status()`; otherwise it exits with 1. It controls the code only; the
     entry point still prints the error (decision 13). A tool that must exit
-    silently prints and exits by hand.
+    silently prints and exits by hand. Superseded 2026-09-27 by
+    [Testing T8](TESTING.md#owner-decisions): Rust's model, `ExitCode(u8)`
+    and `Termination`; an error exits 1, and a specific code is returned as
+    an `ExitCode`. `ExitStatus` and `StatusCode` are removed.
 18. **Erased errors stay off boundaries** (2026-09-27, problem 13): no new
     rule. A registered function's error type holds only boundary-safe
     payloads; an error type with an erased `Error` member converts with

@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T7 are
+Status: design record, started 2026-09-27. Owner decisions T1-T8 are
 decided; none is in the specification yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
@@ -45,22 +45,39 @@ more issues (property testing is folded in from
    `test` anywhere else is an error; table-driven cases loop inside one
    test for now.
 
-The signature, as spelled out on 2026-09-27:
+8. **T8: exit codes follow Rust's `ExitCode`.** `std.process` declares
+   `type ExitCode(u8)` (any `u8`; 0 is success) and
+   `Termination.report(self) -> ExitCode`. `void` reports `ExitCode(0)`,
+   `ExitCode` reports itself, and `Result[T, E]` with `T < Termination`,
+   `E < Display` reports the `.Ok` value's code, or prints the error (message
+   and cause chain) and reports `ExitCode(1)`. A program that wants a
+   specific code returns `ExitCode` or `Result[ExitCode, E]` from `main`.
+   This removes the `ExitStatus` trait
+   ([Error Conversion decision 17](ERROR_CONVERSION.md#owner-decisions)),
+   `StatusCode`, the erased-`Error` exit rule, and the zero check, all of
+   which were applied to the specification on 2026-09-27 and must be
+   removed. A test fails when its body's `report()` is not `ExitCode(0)`.
+
+The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
+`ExitCode`):
 
 ```text
 # std.process: shared by main and tests
 pub trait Termination:
-    fn report(self) -> Outcome          # success, or failure text and StatusCode
+    fn report(self) -> ExitCode
 
-impl Termination for void
-impl[E < Display] Termination for Result[void, E]
+type ExitCode(u8)
+
+impl Termination for void                                  # ExitCode(0)
+impl Termination for ExitCode                              # itself
+impl[T < Termination, E < Display] Termination for Result[T, E]
 
 # std.testing
 pub fn test[T < Termination, R](name: string, body: fn!() -> T $ R) -> void $ R
 ```
 
-The exact `Outcome` type and whether a non-suspending block fits `fn!()`
-are details for the specification pass.
+Whether a non-suspending block fits `fn!()` is a detail for the
+specification pass.
 
 ```text
 use app.billing
