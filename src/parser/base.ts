@@ -1,4 +1,4 @@
-import type { Expression, Statement, TypeRef, VarianceMarker } from "../ast.ts";
+import type { Expression, Statement, TypeRef, UseDecl, UseName, VarianceMarker } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type { Token, TokenKind } from "../lexer.ts";
 import { rowArgumentType } from "../types.ts";
@@ -40,6 +40,7 @@ export abstract class ParserBase {
 
   protected abstract parseSuite(closureBody?: boolean): readonly Statement[];
   protected abstract parseStatement(topOrInline: boolean): Statement;
+  protected abstract finishSimpleStatement(topOrInline: boolean): SourceSpan["end"];
   protected abstract parseRequirements(header?: boolean): readonly string[];
   protected abstract parseRequirementKey(): string;
   protected abstract parseExpressionSource(source: string): ExpressionParseResult;
@@ -418,5 +419,81 @@ export abstract class ParserBase {
   protected fail(code: string, message: string, span: SourceSpan): never {
     this.diagnostics.push({ code, message, span });
     throw new ParseFailure(message);
+  }
+
+  // `use` begins a use declaration only before a use root
+  // (01-lexical-structure.md#keywords-and-reserved-words).
+  protected atUseDeclaration(): boolean {
+    const offset = this.atText("pub") ? 1 : 0;
+    const word = this.peek(offset);
+    const root = this.peek(offset + 1);
+    return (
+      word.text === "use" &&
+      !word.raw &&
+      !root.raw &&
+      ["pkg", "std", "dep", "self", "super"].includes(root.text)
+    );
+  }
+
+  protected parseUse(): UseDecl {
+    const public_ = this.matchText("pub");
+    const start = this.expectText("use").span.start;
+    // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`.
+    const parts = [
+      this.atText("self")
+        ? this.advance().text
+        : this.expectKind("identifier", "expected a module path after use").text,
+    ];
+    let grouped = false;
+    while (this.matchText(".")) {
+      if (this.matchText("{")) {
+        grouped = true;
+        break;
+      }
+      parts.push(this.expectKind("identifier", "expected a module path component").text);
+    }
+    const names: UseName[] = [];
+    let module: string;
+    if (grouped) {
+      module = parts.join(".");
+      if (!this.atText("}")) {
+        do {
+          const name = this.expectKind("identifier", "expected an imported declaration name").text;
+          if (this.atText("."))
+            this.fail(
+              "direct-variant-use",
+              "enum variants cannot be imported directly",
+              this.current().span,
+            );
+          const alias = this.matchText("as")
+            ? this.expectKind("identifier", "expected an import alias").text
+            : undefined;
+          names.push({ name, ...(alias ? { alias } : {}) });
+        } while (this.matchText(",") && !this.atText("}"));
+      }
+      this.expectText("}");
+    } else {
+      // Only the grouped form accepts a `pub` prefix (10 Use Forms).
+      if (public_)
+        this.fail(
+          "syntax-error",
+          "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
+          { start, end: this.peek(-1).span.end },
+        );
+      const name = parts.pop()!;
+      module = parts.join(".");
+      const alias = this.matchText("as")
+        ? this.expectKind("identifier", "expected an import alias").text
+        : undefined;
+      names.push({ name, ...(alias ? { alias } : {}) });
+    }
+    const end = this.finishSimpleStatement(false);
+    return {
+      kind: "use",
+      module,
+      names,
+      ...(public_ ? { public: true } : {}),
+      span: { start, end },
+    };
   }
 }

@@ -300,6 +300,8 @@ export interface HirFunction {
    * through an explicit `--entry main`.
    */
   readonly developmentEntry?: boolean;
+  /** Runner options of a test body (spec/10-modules.md#test-cases). */
+  readonly testOptions?: { readonly ignore?: string; readonly expectPanic?: string };
 }
 
 export interface HirProgram {

@@ -1061,7 +1061,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
         expression.callee.span,
       );
     }
-    const signature = this.signatures.get(expression.callee.name);
+    const signature = this.visibleSignature(expression.callee.name);
     if (!signature)
       this.failUnknownName(
         expression.callee.name,

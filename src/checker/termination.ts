@@ -3,7 +3,7 @@ import type { HirTrait, HirTraitImplementation, ValueType } from "../hir.ts";
 import { optionalInner, readonlyType, resultParts } from "../types.ts";
 import { matchTraitImplementation, traitTypeName } from "./shared.ts";
 
-/** The synthetic function name of a `test` block. */
+/** The synthetic function name of an `it(...)` test case. */
 export const TEST_FUNCTION = /^\$test\.\d+$/;
 
 /** A `?` met while a function's result is inferred; `error` is unset for an optional. */
@@ -35,8 +35,8 @@ export function mismatchedPropagation(
   return undefined;
 }
 
-// Whether a test body's result implements std.process.Termination
-// (spec/05-expressions.md#r-expr.try.test.termination). The prototype has no
+// Whether an explicit test body's result implements std.process.Termination
+// (spec/05-expressions.md#r-expr.try.test.explicit-closure). The prototype has no
 // `ExitCode`, so it accepts `void` and `Result[T, E]` with a terminating `T`
 // and a `Display` error.
 export function terminates(

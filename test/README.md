@@ -38,7 +38,7 @@ Use `# warning: CODE` for non-fatal compiler diagnostics and
 both the diagnostic code and the annotated line number. A `# panic: CODE`
 fixture must fail with that exact runtime panic code; `runtime-error` is
 reserved for backend traps that do not yet have a structured code.
-`# expect: test` runs the fixture's `main` and named test blocks through the
+`# expect: test` runs the fixture's `main` and its test cases through the
 public test command. A `# fixture-runtime-profile: NAME` directive supplies the
 same named host profile to check and execution.
 

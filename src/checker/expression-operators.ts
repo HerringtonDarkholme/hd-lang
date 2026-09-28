@@ -132,7 +132,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             expression.span,
           );
         }
-        const signature = this.signatures.get(expression.name);
+        const signature = this.visibleSignature(expression.name);
         if (signature) {
           if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0) {
             const instantiated = this.instantiateFunctionValue(expression, signature, _expected);

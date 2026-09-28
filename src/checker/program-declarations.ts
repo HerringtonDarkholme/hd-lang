@@ -9,20 +9,34 @@ interface ExplicitEnumFieldValue {
   readonly value: Expression;
 }
 
+// Each `it(...)` call becomes a suspending synthetic function
+// (spec/10-modules.md#r-module.testing.it.body). A trailing body's result is
+// fixed: `Result[void, Error]` when it uses `?`, else `void`
+// (spec/05-expressions.md#propagation-in-test-blocks). An explicit closure
+// keeps its written result, or infers one.
 function createTestDeclarations(program: ProgramCheckContext["program"]): FunctionDecl[] {
-  return program.tests.map((test, index) => ({
-    kind: "function",
-    name: `$test.${index}`,
-    suspending: true,
-    genericParameters: [],
-    genericBounds: [],
-    parameters: [],
-    result: { name: "void", span: test.span },
-    resultOmitted: true,
-    requirements: [],
-    body: test.body,
-    span: test.span,
-  }));
+  return program.tests.map((test, index) => {
+    const inferred = test.explicit === true && test.result === undefined;
+    const options = {
+      ...(test.ignore !== undefined ? { ignore: test.ignore } : {}),
+      ...(test.expectPanic !== undefined ? { expectPanic: test.expectPanic } : {}),
+    };
+    return {
+      kind: "function",
+      name: `$test.${index}`,
+      suspending: true,
+      genericParameters: [],
+      genericBounds: [],
+      parameters: [],
+      result: test.result ?? { name: "void", span: test.span },
+      ...(inferred ? { resultOmitted: true } : {}),
+      requirements: [],
+      body: test.body,
+      testOnly: true,
+      ...(Object.keys(options).length > 0 ? { testOptions: options } : {}),
+      span: test.span,
+    };
+  });
 }
 
 // Parameters (or named shared enum fields) after `index` are not yet visible

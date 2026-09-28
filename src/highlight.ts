@@ -49,7 +49,7 @@ const PRIMITIVE_TYPES = new Set([
   "never",
 ]);
 // Contextual words that are keywords only in declaration or statement heads.
-const CONTEXTUAL_KEYWORDS = new Set(["test", "with"]);
+const CONTEXTUAL_KEYWORDS = new Set(["with"]);
 // A use declaration: `use` or `pub use` followed by a use root.
 const USE_DECLARATION = /^\s*(?:pub\s+)?use\s+(?:pkg|std|dep|self|super)\b/;
 

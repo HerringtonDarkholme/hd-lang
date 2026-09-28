@@ -259,7 +259,11 @@ export class FunctionChecker extends ExpressionControlChecker {
         if (optionalCallable && functionParts(readonlyType(optionalCallable)))
           return this.checkClosureExpression(expression, optionalCallable);
         const expectedCallable = expected ? functionParts(readonlyType(expected)) : undefined;
-        const suspending = expression.suspending === true;
+        // A trailing block passed for an `fn!` parameter is a suspending
+        // closure (spec/07-functions.md#r-fn.trailing.suspending).
+        const suspending =
+          expression.suspending === true ||
+          (expression.trailing === true && expectedCallable?.suspending === true);
         if (expectedCallable && expectedCallable.suspending !== suspending) {
           this.fail(
             "type-mismatch",
@@ -307,6 +311,7 @@ export class FunctionChecker extends ExpressionControlChecker {
         const baseDeclaration: FunctionDecl = {
           kind: "function",
           name: `$closure${closureIndex}`,
+          ...(this.declaration.testOnly ? { testOnly: true } : {}),
           suspending,
           genericParameters: [],
           genericBounds: [],

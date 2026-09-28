@@ -260,7 +260,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           : undefined;
       let scenarioInstance: WebAssembly.Instance | undefined;
       let pendingFunctionIndex: number | undefined;
-      const { instance, compilation, replay } = await instantiate(source, {
+      const instantiateOptions: Parameters<typeof instantiate>[1] = {
         console: (text) => console.log(text),
         trace:
           command === "trace"
@@ -288,7 +288,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         hostCapabilities: profile?.hostCapabilities,
         hostSuspensionInvoke: profile?.invoke,
         hostSuspensionPending: profile?.pending,
-      });
+      };
+      const { instance, compilation, replay } = await instantiate(source, instantiateOptions);
       scenarioInstance = instance;
       if (pendingFunctionName) {
         pendingFunctionIndex = compilation.hir.functions.find(
@@ -309,12 +310,18 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
         console.log(`${file}: 1 passed`);
         return 0;
       }
-      // Only the entry point and test blocks execute
+      // Only the entry point and test cases execute
       // (spec/conformance/README.md#runtime-execution); `--entry` names any
       // exported function for `run`.
+      // A test case with the `ignore` option does not run
+      // (spec/10-modules.md#r-module.testing.option.ignore).
       const selected = compilation.hir.functions.filter((declaration) => {
         if (command === "test")
-          return declaration.entry === true || /^\$test\.\d+$/.test(declaration.name);
+          return (
+            declaration.entry === true ||
+            (/^\$test\.\d+$/.test(declaration.name) &&
+              declaration.testOptions?.ignore === undefined)
+          );
         if (entryName !== "main") return declaration.name === entryName;
         // A non-`pub` `main` is not an entry point; implementation tests may
         // still run it by naming it explicitly.
@@ -329,7 +336,15 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       }
       if (selected.length === 0) throw new Error(`program has no exported ${entryName} function`);
       let result: unknown;
+      // A test case with `expect_panic` passes only when its body panics with
+      // that category (spec/10-modules.md#r-module.testing.option.expect-panic).
+      // A panic poisons its instance, so each such case runs last, in a fresh
+      // instance; the prototype otherwise shares one instance (F-403).
+      const expectingPanic = selected.filter(
+        (declaration) => declaration.testOptions?.expectPanic !== undefined,
+      );
       for (const declaration of selected) {
+        if (declaration.testOptions?.expectPanic !== undefined) continue;
         if (declaration.parameters.length > 0)
           throw new Error(`${declaration.name} must not declare ordinary parameters`);
         const exportName = /^\$test\.\d+$/.test(declaration.name)
@@ -347,7 +362,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           result = undefined;
         }
         // A test fails when its Result reports `.Err`
-        // (spec/05-expressions.md#r-expr.try.test.fail-report).
+        // (spec/10-modules.md#r-module.testing.fail).
         if (!declaration.entry && resultParts(declaration.result)) {
           if (result !== 0) {
             reporter.entryError("a test");
@@ -355,6 +370,21 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
           }
           result = undefined;
         }
+      }
+      for (const declaration of expectingPanic) {
+        const expected = declaration.testOptions!.expectPanic!;
+        const fresh = await instantiate(source, instantiateOptions);
+        const entry = fresh.instance.exports[`__hd_test_${declaration.name.slice(6)}`];
+        if (typeof entry !== "function")
+          throw new Error(`${declaration.name} has no runnable export`);
+        try {
+          entry();
+        } catch (error) {
+          if (error instanceof RuntimePanicError && error.code === expected) continue;
+          throw error;
+        }
+        reporter.entryError(`a test expecting panic ${expected}`);
+        return 1;
       }
       replay.assertComplete();
       if (command === "record") {

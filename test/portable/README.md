@@ -20,7 +20,7 @@ HD_TEST_COMMAND="other-hd" node --experimental-strip-types test/run-portable.ts
 
 The commands use exit status for success, rejection, and runtime panic.
 Diagnostics must include their stable code followed by `:`. The `test` command
-runs `main` and every named hd-lang test block in a fixture.
+runs `main` and every test case of a fixture's `tests:` block.
 
 Independent cases run concurrently. Set `HD_TEST_JOBS` or pass `--jobs` to
 change the default of up to eight compiler processes.

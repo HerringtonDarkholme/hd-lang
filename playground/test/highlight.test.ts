@@ -63,8 +63,9 @@ const TRICKY = [
   "enum Shape: Circle(radius: f64)",
   "data User:",
   '    pub name: string = "anon"',
-  'test "it works":',
-  '    assert(self.ok, reason="with Self and true")',
+  "tests:",
+  '    it("works"):',
+  '        assert(self.ok, reason="with Self and true")',
   "c := 'x' + '\\n'",
   "",
 ].join("\n");
@@ -86,8 +87,9 @@ test("editor token classes match classify for the tricky cases", () => {
   assert.equal(at(10, "reified"), "hd-keyword");
   assert.equal(at(10, "List"), "hd-type");
   assert.equal(at(12, "1_000_000i64"), "hd-number");
-  assert.equal(at(17, "self"), "hd-literal");
-  assert.equal(at(17, "with Self"), "hd-string");
+  assert.equal(at(16, "tests"), "hd-keyword");
+  assert.equal(at(18, "self"), "hd-literal");
+  assert.equal(at(18, "with Self"), "hd-string");
 });
 
 test("editor token classes match classify on the examples and runtime fixtures", async () => {

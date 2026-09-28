@@ -84,7 +84,7 @@ export abstract class ExpressionSuspensionChecker extends ExpressionCallChecker 
               expression.callee.span,
             );
           }
-          const signature = this.signatures.get(expression.callee.name);
+          const signature = this.visibleSignature(expression.callee.name);
           if (
             !signature &&
             (expression.callee.name === "all" || expression.callee.name === "race")

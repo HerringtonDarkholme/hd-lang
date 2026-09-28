@@ -53,6 +53,10 @@ export interface FunctionDecl {
   // (07-functions.md#default-values); `laterNames` are the parameters declared
   // after the defaulted one, which are not yet visible.
   readonly defaultContext?: { readonly laterNames: readonly string[] };
+  /** Declared in a `tests:` block, or a test body: test code (spec/10-modules.md#test-modules). */
+  readonly testOnly?: boolean;
+  /** Runner options of a test body (spec/10-modules.md#test-cases). */
+  readonly testOptions?: { readonly ignore?: string; readonly expectPanic?: string };
 }
 
 export interface MethodDecl {
@@ -172,10 +176,20 @@ export interface EnumDecl {
   readonly span: SourceSpan;
 }
 
+// One `it("name", ...)` call of a `tests:` block (spec/10-modules.md#test-cases).
 export interface TestDecl {
   readonly kind: "test";
   readonly name: string;
   readonly body: readonly Statement[];
+  /** The body was an explicit closure rather than a trailing block. */
+  readonly explicit?: boolean;
+  /** A trailing body that uses `?` (spec/05-expressions.md#r-expr.try.test.with-try). */
+  readonly propagates?: boolean;
+  /** The written result of an explicit closure, or `Result[void, Error]` for `propagates`. */
+  readonly result?: TypeRef;
+  readonly ignore?: string;
+  readonly expectPanic?: string;
+  readonly timeout?: string;
   readonly span: SourceSpan;
 }
 
@@ -301,6 +315,8 @@ export interface Program {
   readonly functions: readonly FunctionDecl[];
   readonly tests: readonly TestDecl[];
   readonly statements: readonly Statement[];
+  /** Names that the `tests:` block declares or uses (spec/03-names-and-scopes.md#tests-blocks). */
+  readonly testOnlyNames?: readonly string[];
   readonly span: SourceSpan;
 }
 
@@ -482,6 +498,8 @@ export type Expression =
   | {
       readonly kind: "closure";
       readonly suspending?: boolean;
+      /** A trailing callback block (spec/07-functions.md#trailing-callback-blocks). */
+      readonly trailing?: boolean;
       readonly parameters: readonly ClosureParameter[];
       readonly result?: TypeRef;
       readonly requirements?: readonly string[];

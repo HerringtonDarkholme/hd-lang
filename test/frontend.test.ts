@@ -410,7 +410,7 @@ test("parser retains top-level public visibility", () => {
   assert.equal(result.program?.functions[0]?.public, true);
 });
 
-test("parser retains named test blocks", () => {
+test("parser retains the test cases of a tests block", () => {
   const result = parse(conformanceBody("parse/valid/test-block-discard"));
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.program?.tests[0]?.name, "checks a value");

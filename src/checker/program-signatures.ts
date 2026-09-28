@@ -317,6 +317,7 @@ export function createProgramSignatures(
       variadic: declaration.parameters.at(-1)?.variadic === true,
       result: normalizedResult,
       requirements,
+      ...(declaration.testOnly ? { testOnly: true } : {}),
       span: declaration.span,
     });
   });

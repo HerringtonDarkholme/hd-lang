@@ -75,6 +75,7 @@ export const KEYWORDS = new Set([
   "pub",
   "return",
   "self",
+  "tests",
   "trait",
   "true",
   "type",

@@ -11,12 +11,9 @@ import type {
   Parameter,
   Program,
   Statement,
-  TestDecl,
   TraitDecl,
   TypeDecl,
   TypeRef,
-  UseDecl,
-  UseName,
   VarianceMarker,
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
@@ -24,6 +21,13 @@ import { lex, type Token } from "../lexer.ts";
 import { optionalType } from "../types.ts";
 import { ExpressionParser } from "./expression.ts";
 import { ParseFailure, type ExpressionParseResult } from "./base.ts";
+import {
+  emptyModuleItems,
+  finishTestCases,
+  isCallOf,
+  testCase,
+  type ModuleItems,
+} from "./test-cases.ts";
 
 export interface ParseResult {
   readonly program?: Program;
@@ -44,80 +48,42 @@ interface ParsedGenericParameters {
 
 class Parser extends ExpressionParser {
   parse(): ParseResult {
-    const uses: UseDecl[] = [];
-    const functions: FunctionDecl[] = [];
-    const data: DataDecl[] = [];
-    const enums: EnumDecl[] = [];
-    const traits: TraitDecl[] = [];
-    const implementations: ImplDecl[] = [];
-    const tests: TestDecl[] = [];
-    const types: TypeDecl[] = [];
-    const statements: Statement[] = [];
+    const items = emptyModuleItems();
     this.localDeclarations = false;
     const start = this.current().span.start;
+    let testsBlock = false;
     try {
       while (!this.atKind("eof")) {
         if (this.matchKind("newline")) continue;
         const doc = this.parseDocComments();
-        if (this.atText("struct"))
-          this.fail(
-            "old-struct-declaration",
-            "'struct' was replaced by 'data'",
-            this.current().span,
-          );
-        if (this.atText("import"))
-          this.fail(
-            "old-import-declaration",
-            "'import' was replaced by 'use'",
-            this.current().span,
-          );
-        if (this.atText("export"))
-          this.fail(
-            "old-export-declaration",
-            "'export' was replaced by 'pub use'",
-            this.current().span,
-          );
-        if (this.atUseDeclaration()) {
+        // A file holds at most one top-level `tests:` block
+        // (spec/02-grammar.md#test-blocks).
+        if (this.atText("tests") && this.peek(1).text === ":") {
           if (doc)
             this.fail(
               "doc-comment-without-target",
-              "documentation comments cannot attach to a use declaration",
+              "documentation comments cannot attach to a tests block",
               this.current().span,
             );
-          uses.push(this.parseUse());
+          if (testsBlock)
+            this.fail(
+              "duplicate-tests-block",
+              "a file may have at most one tests: block",
+              this.current().span,
+            );
+          testsBlock = true;
+          this.parseTestsBlock(items);
           continue;
         }
-        const public_ = this.matchText("pub");
-        if (this.atText("fn")) functions.push(this.parseFunction(doc, public_));
-        else if (this.atText("data")) data.push(this.parseData(doc, public_));
-        else if (this.atText("enum")) enums.push(this.parseEnum(doc, public_));
-        else if (this.atText("trait")) traits.push(this.parseTrait(doc, public_));
-        else if (this.atText("type") && this.peek(1).kind === "identifier")
-          types.push(this.parseTypeDecl(doc, public_));
-        else if (this.atText("impl")) implementations.push(this.parseImpl(doc));
-        else if (this.atText("test") && this.peek(1).kind === "string")
-          tests.push(this.parseTest(doc));
-        else {
-          // Top-level bindings cannot be public (10 Name Resolution Across Packages).
-          if (public_)
-            this.fail(
-              "syntax-error",
-              "'pub' must precede a declaration; top-level bindings cannot be public",
-              this.peek(-1).span,
-            );
-          if (doc)
-            this.fail(
-              "doc-comment-without-target",
-              "documentation comments must attach to a declaration or member",
-              this.current().span,
-            );
-          statements.push(this.parseStatement(true));
-        }
+        this.parseModuleItem(doc, items, false);
       }
+      finishTestCases(items, (code, message, span) => this.fail(code, message, span));
     } catch (error) {
       if (!(error instanceof ParseFailure)) throw error;
       return { diagnostics: this.diagnostics };
     }
+    const { uses, types, data, enums, traits, implementations, functions, tests, statements } =
+      items;
     return {
       program: {
         uses,
@@ -130,24 +96,102 @@ class Parser extends ExpressionParser {
         functions,
         tests,
         statements,
+        ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
         span: { start, end: this.current().span.end },
       },
       diagnostics: this.diagnostics,
     };
   }
 
-  // `use` begins a use declaration only before a use root
-  // (01-lexical-structure.md#keywords-and-reserved-words).
-  private atUseDeclaration(): boolean {
-    const offset = this.atText("pub") ? 1 : 0;
-    const word = this.peek(offset);
-    const root = this.peek(offset + 1);
-    return (
-      word.text === "use" &&
-      !word.raw &&
-      !root.raw &&
-      ["pkg", "std", "dep", "self", "super"].includes(root.text)
-    );
+  // One top-level item, or one item of the `tests:` block, whose statements
+  // must all be `it(...)` calls (spec/10-modules.md#test-cases).
+  private parseModuleItem(doc: string | undefined, items: ModuleItems, inTests: boolean): void {
+    if (this.atText("struct"))
+      this.fail("old-struct-declaration", "'struct' was replaced by 'data'", this.current().span);
+    if (this.atText("import"))
+      this.fail("old-import-declaration", "'import' was replaced by 'use'", this.current().span);
+    if (this.atText("export"))
+      this.fail(
+        "old-export-declaration",
+        "'export' was replaced by 'pub use'",
+        this.current().span,
+      );
+    if (this.atUseDeclaration()) {
+      if (doc)
+        this.fail(
+          "doc-comment-without-target",
+          "documentation comments cannot attach to a use declaration",
+          this.current().span,
+        );
+      const use = this.parseUse();
+      items.uses.push(use);
+      if (inTests) for (const name of use.names) items.testOnlyNames.add(name.alias ?? name.name);
+      return;
+    }
+    const public_ = this.matchText("pub");
+    const declared = (name: string): void => {
+      if (inTests) items.testOnlyNames.add(name);
+    };
+    if (this.atText("fn")) {
+      const declaration = this.parseFunction(doc, public_);
+      declared(declaration.name);
+      items.functions.push(inTests ? { ...declaration, testOnly: true } : declaration);
+    } else if (this.atText("data")) {
+      const declaration = this.parseData(doc, public_);
+      declared(declaration.name);
+      items.data.push(declaration);
+    } else if (this.atText("enum")) {
+      const declaration = this.parseEnum(doc, public_);
+      declared(declaration.name);
+      items.enums.push(declaration);
+    } else if (this.atText("trait")) {
+      const declaration = this.parseTrait(doc, public_);
+      declared(declaration.name);
+      items.traits.push(declaration);
+    } else if (this.atText("type") && this.peek(1).kind === "identifier") {
+      const declaration = this.parseTypeDecl(doc, public_);
+      declared(declaration.name);
+      items.types.push(declaration);
+    } else if (this.atText("impl")) items.implementations.push(this.parseImpl(doc));
+    else {
+      // Top-level bindings cannot be public (10 Name Resolution Across Packages).
+      if (public_)
+        this.fail(
+          "syntax-error",
+          "'pub' must precede a declaration; top-level bindings cannot be public",
+          this.peek(-1).span,
+        );
+      if (doc)
+        this.fail(
+          "doc-comment-without-target",
+          "documentation comments must attach to a declaration or member",
+          this.current().span,
+        );
+      const statement = this.parseStatement(!inTests);
+      if (!inTests) items.statements.push(statement);
+      else if (isCallOf(statement, "it"))
+        items.tests.push(
+          testCase(statement, (code, message, span) => this.fail(code, message, span)),
+        );
+      else items.pendingEach.push(statement);
+    }
+  }
+
+  private parseTestsBlock(items: ModuleItems): void {
+    this.expectText("tests");
+    this.expectText(":");
+    this.expectKind("newline", "expected a line ending after 'tests:'");
+    this.expectKind("indent", "expected an indented tests block");
+    let count = 0;
+    while (!this.atKind("dedent") && !this.atKind("eof")) {
+      if (this.matchKind("newline")) continue;
+      const doc = this.parseDocComments();
+      this.parseModuleItem(doc, items, true);
+      count += 1;
+    }
+    this.expectKind("dedent", "expected the end of the tests block");
+    if (count === 0)
+      this.fail("empty-suite", "a tests block must contain an item", this.current().span);
   }
 
   parseExpressionFragment(): ExpressionParseResult {
@@ -367,86 +411,6 @@ class Parser extends ExpressionParser {
       : name.text;
     for (const binding of own) bindings.push({ ...binding, trait: rendered });
     return { name: rendered, span: { start: name.span.start, end: close.span.end } };
-  }
-
-  protected parseTest(doc?: string): TestDecl {
-    if (doc)
-      this.fail(
-        "doc-comment-without-target",
-        "documentation comments cannot attach to a test block",
-        this.current().span,
-      );
-    const start = this.expectText("test").span.start;
-    const name = this.expectKind("string", "expected a test name");
-    const body = this.parseSuite();
-    return {
-      kind: "test",
-      name: String(name.value ?? name.text),
-      body,
-      span: { start, end: body.at(-1)!.span.end },
-    };
-  }
-
-  protected parseUse(): UseDecl {
-    const public_ = this.matchText("pub");
-    const start = this.expectText("use").span.start;
-    // A use root: `pkg`, `std`, `dep`, `super`, or the reserved word `self`.
-    const parts = [
-      this.atText("self")
-        ? this.advance().text
-        : this.expectKind("identifier", "expected a module path after use").text,
-    ];
-    let grouped = false;
-    while (this.matchText(".")) {
-      if (this.matchText("{")) {
-        grouped = true;
-        break;
-      }
-      parts.push(this.expectKind("identifier", "expected a module path component").text);
-    }
-    const names: UseName[] = [];
-    let module: string;
-    if (grouped) {
-      module = parts.join(".");
-      if (!this.atText("}")) {
-        do {
-          const name = this.expectKind("identifier", "expected an imported declaration name").text;
-          if (this.atText("."))
-            this.fail(
-              "direct-variant-use",
-              "enum variants cannot be imported directly",
-              this.current().span,
-            );
-          const alias = this.matchText("as")
-            ? this.expectKind("identifier", "expected an import alias").text
-            : undefined;
-          names.push({ name, ...(alias ? { alias } : {}) });
-        } while (this.matchText(",") && !this.atText("}"));
-      }
-      this.expectText("}");
-    } else {
-      // Only the grouped form accepts a `pub` prefix (10 Use Forms).
-      if (public_)
-        this.fail(
-          "syntax-error",
-          "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
-          { start, end: this.peek(-1).span.end },
-        );
-      const name = parts.pop()!;
-      module = parts.join(".");
-      const alias = this.matchText("as")
-        ? this.expectKind("identifier", "expected an import alias").text
-        : undefined;
-      names.push({ name, ...(alias ? { alias } : {}) });
-    }
-    const end = this.finishSimpleStatement(false);
-    return {
-      kind: "use",
-      module,
-      names,
-      ...(public_ ? { public: true } : {}),
-      span: { start, end },
-    };
   }
 
   protected parseTrait(doc?: string, public_ = false): TraitDecl {
@@ -1423,6 +1387,7 @@ class Parser extends ExpressionParser {
       );
     const callback: Expression = {
       kind: "closure",
+      trailing: true,
       parameters: [],
       body,
       span: { start: callee.span.end, end: body.at(-1)!.span.end },

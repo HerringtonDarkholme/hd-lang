@@ -36,7 +36,7 @@ or later.
     see top-level bindings. The other modules of a multi-file project become
     the session's first declarations;
   - a file without `main` whose top level holds only declarations runs its
-    `test` blocks, as before.
+    test cases, as before.
 
   Console output streams into the output panel. Runtime panics are reported
   with their panic code. A run longer than 15 seconds is stopped, and
@@ -46,7 +46,7 @@ or later.
   check it, without running anything. Diagnostics show `path:line:column`
   and the diagnostic code. Clicking one jumps to it, and the editor
   underlines it.
-- **Test** runs the `test` blocks, as `hd test` does, whether or not the
+- **Test** runs the test cases, as `hd test` does, whether or not the
   entry module declares `main`. It checks the file as a module, so top-level
   code must type-check as module initialization.
 - **WAT**, beside **Output** in the output pane, shows the WebAssembly text

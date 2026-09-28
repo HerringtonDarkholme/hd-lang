@@ -26,7 +26,7 @@ import { resultParts } from "../../src/types.ts";
 import { assembleWat } from "../../src/wasm.ts";
 import type { Project } from "./project.ts";
 
-/** `run` runs `main` or the top-level code, `check` type-checks, `test` runs test blocks. */
+/** `run` runs `main` or the top-level code, `check` type-checks, `test` runs the test cases. */
 export type RunMode = "run" | "check" | "test";
 
 export interface RunDiagnostic {
@@ -173,18 +173,22 @@ export async function runProject(
       const returned = typeof result === "number" && result !== 0 ? ` with ${result}` : "";
       return finish("ok", diagnostics, `exited normally${returned}`);
     }
-    const tests = functions.filter(({ name }) => /^\$test\.\d+$/.test(name));
+    // A test case with the `ignore` option does not run
+    // (spec/10-modules.md#r-module.testing.option.ignore).
+    const tests = functions.filter(
+      ({ name, testOptions }) => /^\$test\.\d+$/.test(name) && testOptions?.ignore === undefined,
+    );
     if (tests.length === 0)
       return finish(
         "failure",
         diagnostics,
         mode === "test"
-          ? "nothing to test: declare a `test` block"
-          : "nothing to run: declare `pub fn main()`, top-level code, or a `test` block",
+          ? "nothing to test: add a `tests:` block with `it(...)` test cases"
+          : "nothing to run: declare `pub fn main()`, top-level code, or a `tests:` block",
       );
     for (const test of tests) {
       const index = Number(test.name.slice("$test.".length));
-      current = `test "${testNames[index] ?? test.name}"`;
+      current = `test case "${testNames[index] ?? test.name}"`;
       exported(`__hd_test_${index}`)(...providers(test.requirements));
     }
     return finish(

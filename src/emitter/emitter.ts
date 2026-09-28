@@ -909,7 +909,7 @@ class FunctionEmitter extends FunctionBodyEmitter {
   }
 
   // A test whose body returns a `Result` exports its tag (0 = Ok, 1 = Err), so
-  // the runner fails the test on `.Err` (spec/05-expressions.md#r-expr.try.test.fail-report).
+  // the runner fails the test on `.Err` (spec/10-modules.md#r-module.testing.fail).
   // The prototype reads only the outer tag, so a nested `.Ok(.Err(...))` passes.
   private emitSuspensionEntryExport(
     declaration: HirFunction,

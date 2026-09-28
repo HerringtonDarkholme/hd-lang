@@ -91,7 +91,7 @@ test("documented CLI commands work end to end", async () => {
 });
 
 // A test body's `.Err` result fails the test
-// (spec/05-expressions.md#r-expr.try.test.fail-report).
+// (spec/10-modules.md#r-module.testing.fail).
 test("hd test fails a test whose result is .Err", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -102,12 +102,11 @@ test("hd test fails a test whose result is .Err", async () => {
         "fn digit(text: string) -> Result[i32, string]:",
         '    if text == "7": .Ok(7) else: .Err("not a digit")',
         "",
-        "fn passed() -> Result[void, string]:",
-        "    .Ok()",
-        "",
-        'test "propagates an error":',
-        '    value := digit("x")?',
-        "    passed()",
+        "tests:",
+        '    it("propagates an error", fn!() -> Result[void, string]:',
+        '        value := digit("x")?',
+        "        .Ok()",
+        "    )",
         "",
       ].join("\n"),
     );

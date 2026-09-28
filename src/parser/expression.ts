@@ -450,6 +450,14 @@ export abstract class ExpressionParser extends ParserBase {
     // A deeper line that opens no suite and is not a leading-dot continuation
     // (01-lexical-structure.md#physical-and-logical-lines) is a syntax error.
     if (token.kind === "indent") this.fail("syntax-error", "unexpected indentation", token.span);
+    // `tests` is reserved; a `tests:` block is only a top-level item
+    // (spec/02-grammar.md#r-grammar.tests.top-level).
+    if (token.text === "tests")
+      this.fail(
+        "syntax-error",
+        "'tests' is reserved: a tests: block may appear only at module top level",
+        token.span,
+      );
     this.fail("expected-expression", `expected an expression, found '${token.text}'`, token.span);
   }
 

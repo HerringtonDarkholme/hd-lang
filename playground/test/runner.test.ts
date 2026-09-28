@@ -146,23 +146,24 @@ test("a two-file project with a package use compiles and runs", async () => {
   assert.deepEqual(located(missing), ["src/main.hd:1:1:unknown-module"]);
 });
 
-test("test blocks run when there is no entry point", async () => {
+test("test cases run when there is no entry point", async () => {
   const result = await runner.runProject(
     single(
       [
         "use std.testing.assert_equal",
         "",
-        'test "adds":',
-        '    assert_equal(1 + 1, 2, reason="sum")',
+        "tests:",
+        '    it("adds"):',
+        '        assert_equal(1 + 1, 2, reason="sum")',
         "",
-        'test "fails":',
-        '    assert_equal(1 + 1, 3, reason="wrong")',
+        '    it("fails"):',
+        '        assert_equal(1 + 1, 3, reason="wrong")',
       ].join("\n"),
     ),
     "run",
   );
   assert.equal(result.status, "panic");
-  assert.equal(result.summary, 'assertion-failed: runtime panic in test "fails"');
+  assert.equal(result.summary, 'assertion-failed: runtime panic in test case "fails"');
 });
 
 test("without main, Run evaluates top-level inputs with REPL semantics", async () => {
@@ -231,15 +232,16 @@ test("without main, a multi-file project evaluates the entry module", async () =
   assert.deepEqual(result.stdout, ['"Ada (36)" : string']);
 });
 
-test("Test runs the test blocks, with or without main", async () => {
+test("Test runs the test cases, with or without main", async () => {
   const source = [
     "use std.testing.assert_equal",
     "",
     "pub fn main() -> void $ Console:",
     '    println("main runs only for Run")',
     "",
-    'test "adds":',
-    '    assert_equal(1 + 1, 2, reason="sum")',
+    "tests:",
+    '    it("adds"):',
+    '        assert_equal(1 + 1, 2, reason="sum")',
   ].join("\n");
   const tested = await runner.runProject(single(source), "test");
   assert.equal(tested.status, "ok", tested.summary);
@@ -249,7 +251,7 @@ test("Test runs the test blocks, with or without main", async () => {
   assert.deepEqual(ran.stdout, ["main runs only for Run"]);
   const none = await runner.runProject(single("pub fn main() -> void: pass\n"), "test");
   assert.equal(none.status, "failure");
-  assert.equal(none.summary, "nothing to test: declare a `test` block");
+  assert.equal(none.summary, "nothing to test: add a `tests:` block with `it(...)` test cases");
 });
 
 test("the bundled examples run", async () => {
@@ -331,7 +333,9 @@ test("without main, the WAT is the last module Run compiled", async () => {
   assert.equal(module!.origin, "top-level");
   assert.equal(module!.count, 4, "each of the four inputs compiles a module");
   assert.match(module!.wat, /\(export "main"\)/);
-  const declarationsOnly = runner.watProject(single('fn f() -> i32: 1\ntest "t":\n    pass\n'));
+  const declarationsOnly = runner.watProject(
+    single('fn f() -> i32: 1\ntests:\n    it("t"):\n        pass\n'),
+  );
   assert.equal(declarationsOnly.status, "ok", "declarations with tests compile as one module");
 });
 

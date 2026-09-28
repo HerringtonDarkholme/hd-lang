@@ -68,7 +68,8 @@ warnings. It protects the complete prelude namespace from declaration and
 binding shadowing. Top-level `pub` functions and nominal types retain visibility
 in the AST; public signatures reject private type and requirement leaks, and
 public `main` rows are checked against the MVP host profile, currently
-`Console`. Named test blocks lower to hidden active-driver functions for type
+`Console`. Test cases (`it(...)` calls in a `tests:` block) lower to hidden
+active-driver functions for type
 checking and harness-only Wasm exports, so explicit discard and must-use
 diagnostics apply uniformly and runtime fixtures execute the same generated
 code as entry functions. The
@@ -143,7 +144,7 @@ The `all!` and `race!`
 intrinsics remain blocked on their unresolved standard signatures and receive
 the dedicated `unsupported-task-combinator` diagnostic.
 
-The imported standard testing intrinsics execute inside named test blocks:
+The imported standard testing intrinsics execute inside test cases:
 `assert` preserves source argument order and traps on a false condition, while
 `assert_equal` executes structural equality for the MVP scalar, string, tuple,
 list, optional, `Result`, and map surface, including order-independent map

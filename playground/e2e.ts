@@ -197,8 +197,9 @@ try {
       "pub fn main() -> void $ Console:",
       '    println("main")',
       "",
-      'test "adds":',
-      '    assert_equal(1 + 1, 2, reason="sum")',
+      "tests:",
+      '    it("adds"):',
+      '        assert_equal(1 + 1, 2, reason="sum")',
     ].join("\n");
     await page.evaluate((hash) => (location.hash = hash), code(tests));
     await page.getByText("Loaded the shared project").waitFor();

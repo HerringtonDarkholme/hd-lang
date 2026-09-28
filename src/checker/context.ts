@@ -1,3 +1,4 @@
+import { PRELUDE_NAMES } from "./prelude-names.ts";
 import type { Expression, FunctionDecl, Statement, TypeRef } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import type {
@@ -83,6 +84,8 @@ export interface Signature {
   readonly variadic: boolean;
   readonly result: ValueType;
   readonly requirements: readonly string[];
+  /** Declared in a `tests:` block (spec/03-names-and-scopes.md#tests-blocks). */
+  readonly testOnly?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -144,61 +147,7 @@ const TYPE_NAMES = new Set<ValueType>([
   "ConsoleError",
 ]);
 
-export const PRELUDE_NAMES = new Set([
-  "never",
-  "bool",
-  "i8",
-  "i16",
-  "i32",
-  "i64",
-  "u8",
-  "u16",
-  "u32",
-  "u64",
-  "f32",
-  "f64",
-  "char",
-  "string",
-  "void",
-  "List",
-  "Map",
-  "Any",
-  "AnyVal",
-  "AnyRef",
-  "Option",
-  "Result",
-  "panic",
-  "Display",
-  "Eq",
-  "PartialOrd",
-  "Ord",
-  "Ordering",
-  "Hash",
-  "Hasher",
-  "Iterator",
-  "Iterable",
-  "Console",
-  "ConsoleError",
-  "println",
-  "Suspend",
-  "Poll",
-  "PollContext",
-  "Waker",
-  "ShapeMetadata",
-  "DeclarationId",
-  "DeclarationKind",
-  "PrimitiveKind",
-  "SourcePosition",
-  "TypeShape",
-  "DataShape",
-  "FieldShape",
-  "EnumShape",
-  "VariantShape",
-  "FnShape",
-  "ParamShape",
-  "shape",
-  "shape_of",
-]);
+export { PRELUDE_NAMES };
 
 export { isPermissionWeakening, weakenBoundedGenericActual };
 
@@ -509,6 +458,7 @@ export abstract class CheckerContext {
           synthetic: this.synthetic,
           closure: this.insideClosure,
           captures: [...this.captures.values()],
+          ...(this.declaration.testOptions ? { testOptions: this.declaration.testOptions } : {}),
         },
         diagnostics: this.diagnostics,
       };
@@ -1487,7 +1437,22 @@ export abstract class CheckerContext {
     throw new CheckFailure(message);
   }
 
+  // `it` is registered only at the top level of a `tests:` block, so any other
+  // use of the name is misplaced (spec/10-modules.md#r-module.testing.it.elsewhere).
+  // An item of a `tests:` block is visible only inside the block
+  // (spec/03-names-and-scopes.md#r-names.tests.inside-only).
+  protected visibleSignature(name: string): Signature | undefined {
+    const signature = this.signatures.get(name);
+    return signature?.testOnly && !this.declaration.testOnly ? undefined : signature;
+  }
+
   protected failUnknownName(name: string, message: string, span: SourceSpan): never {
+    if (name === "it")
+      this.fail(
+        "misplaced-test-case",
+        "it(...) registers a test case only at the top level of a tests block",
+        span,
+      );
     if (this.declaration.defaultContext?.laterNames.includes(name))
       this.fail(
         "binding-not-yet-visible",
