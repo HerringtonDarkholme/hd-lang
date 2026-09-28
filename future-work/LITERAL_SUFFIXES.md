@@ -1,6 +1,7 @@
 # Literal Suffixes: Survey And Design Options
 
-Status: design exploration, 2026-09-27; nothing here is decided or in the
+Status: design exploration, 2026-09-27; owner decisions L1-L5 (2026-09-28)
+are below, none in the specification yet. Before them, nothing here was decided or in the
 specification.
 
 The owner asked for this while designing tests: `it("fetch", timeout=5s):`
@@ -12,6 +13,46 @@ literals, gives four options, and ends with questions. It reviews
 [Literal Types](../spec/04-type-system.md#literal-types),
 [Test Cases](../spec/10-modules.md#test-cases) and
 [Testing T22](TESTING.md#owner-decisions).
+
+## Owner Decisions
+
+Decided 2026-09-28; not yet in the specification.
+
+1. **L1: suffixes are imported library declarations** (option 3's
+   resolution): `250ms` resolves the suffix `ms` through ordinary `use`
+   (`use std.time.ms`), and libraries may declare their own (`12px`,
+   `50Gb`).
+2. **L2: a suffix is declared by implementing `std.ops.LiteralSuffix`** on
+   a zero-field type whose name is the suffix, not by a keyword or a
+   decorator:
+
+   ```text
+   # std.ops
+   pub trait LiteralSuffix[In, Out]:
+       fn apply(n: In) -> Out
+
+   # std.time
+   pub data ms()
+   impl LiteralSuffix[i64, Duration] for ms:
+       fn apply(n: i64) -> Duration: Duration.millis(n)
+
+   # user code
+   use std.time.ms
+   delay := 250ms              # means ms::apply(250)
+   ```
+
+   Implementing the trait on the function's own item type was preferred
+   in principle but waits on function item types (FN_TYPE questions 9 and
+   10); a `suffix fn` keyword was rejected in favour of the trait.
+3. **L3: `In` is one numeric type.** `impl LiteralSuffix[i64, Duration]`
+   makes `1.5s` a type error (write `1500ms`).
+4. **L4: `-5s` means `s::apply(-5)`.** The `-` folds into the literal
+   before the suffix applies, checked like `-128` for `i8`.
+5. **L5: operator traits in `std.ops` are planned** (`Add`, `Sub`, `Neg`,
+   `Mul`, and so on, Rust's model), so `5s + 3s` and `-d` can work on
+   library types. They are designed separately
+   ([Open Issues](OPEN_ISSUES.md#operator-traits)); `LiteralSuffix` is the
+   first member of `std.ops`.
 
 ## Contents
 

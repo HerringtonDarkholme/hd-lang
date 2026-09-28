@@ -379,6 +379,19 @@ functions, or lookup on the expected type, compared in
 
 **Unblocks.** `timeout=5s` in tests, and unit literals in libraries.
 
+### Operator Traits
+
+**Decided direction (2026-09-28).** hd plans operator traits in `std.ops`
+(Rust's model: `Add`, `Sub`, `Mul`, `Div`, `Neg`, comparison already via
+`Eq`/`Ord`), so library types such as `Duration` support `5s + 3s` and `-d`.
+Today hd has no operator overloading. `std.ops.LiteralSuffix` is the first
+member ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L5).
+
+**Open.** Which operators, their signatures (same-type or mixed operands,
+output types), coherence for primitives, compound assignment, and whether
+comparison operators map to the existing comparison traits. Needs a
+brainstorm pass.
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:
