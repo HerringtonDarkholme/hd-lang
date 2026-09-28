@@ -109,7 +109,10 @@ fn greet() -> void $ Console:
    `$.use(Console).write_line!` instead. The owner confirmed this
    consequence.
 
-**Open (raised by the prototype, 2026-09-28): should a replay capture
+**Decided (owner, 2026-09-28): option 1, keep today's behavior.** Console
+calls stay out of the record, and a replay writes the lines again.
+
+**Was open (raised by the prototype, 2026-09-28): should a replay capture
 console output?** The host console now goes through the same host
 capability bridge as every other host provider, and that bridge records
 each host call for replay. The prototype leaves `Console` out of

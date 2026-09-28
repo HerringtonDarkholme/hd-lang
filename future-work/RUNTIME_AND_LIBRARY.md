@@ -252,7 +252,12 @@ Decided 2026-09-27 (owner answers to this section's questions):
 
 ### Prototype Host Function Declarations
 
-Status: open question for the owner; nothing here is accepted behavior.
+Status: decided by the owner, 2026-09-28. The mechanism stays
+toolchain-internal: the specification says nothing about it, and each
+implementation keeps its own std-only way to declare such functions, as
+Rust's `#[rustc_intrinsic]` and Go's `//go:linkname` do. User code can
+never use it. The prototype's `@intrinsic("name")` line, allowed only in
+`lib/std`, is one such mechanism. The options below are kept for history.
 
 The specification gives capabilities a home (host capability traits) but
 no way for the standard library to declare a pure function whose body
