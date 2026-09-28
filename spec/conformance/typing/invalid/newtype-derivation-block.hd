@@ -1,0 +1,32 @@
+# test: a derivation block may not target a newtype; a newtype derives only through its base
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok()
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+type Meters(i64)
+
+impl Show for Meters by Structure  # diagnostic: misplaced-derivation

@@ -1,0 +1,5 @@
+# test: code outside generated code may call missing through a generic source
+use std.structure.{Field, Source}
+
+fn fill[S, F, R < Source[S]](r: mut R, h: Field[S, F]) -> Result[F, R::Error]:
+    r.missing(h)

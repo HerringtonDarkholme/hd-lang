@@ -873,3 +873,15 @@ existing source. Each entry names the decision that made the change.
   above. Calling a `mut self` method on `$.use(K)`, previously
   `mutable-receiver-required` without `mut`, is valid for a mutable
   requirement trait.
+- Typed derivation M23 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions),
+  2026-09-27): `by Structure` now needs `use std.structure.Structure`, like
+  any other name. A derivation template or block without it, previously
+  valid, is `unknown-trait`, and the `use` itself is not
+  `structure-outside-template`. `by Structure` is still never a delegation.
+  A call to `missing` through a generic source, previously
+  `generic-member-call`, is valid; the code now covers `member` only. A
+  derivation block on a newtype, previously unspecified, is
+  `misplaced-derivation`: a newtype derives only through its base with
+  `@derive`. `Clone` is a standard-library trait, listed in
+  [STDLIB](../future-work/STDLIB.md#clone).

@@ -588,3 +588,18 @@ style lint rejects a chapter that reuses one.
 - `req.mut.capture`: retired 2026-09-27. The requirement access decision
   derives captured access from the trait. Replaced by
   `req.mut.capture-trait`.
+- `annot.block.by-structure`: retired 2026-09-27. Typed derivation (M23)
+  requires `use std.structure.Structure` for `by Structure`. Replaced by
+  `annot.block.structure-use` and `annot.block.not-delegation`.
+- `annot.structure.template-only`: retired 2026-09-27. Typed derivation
+  (M23) lets the `use` declaration name `Structure`. Replaced by
+  `annot.structure.named-positions`.
+- `annot.structure.template-only.error`: retired 2026-09-27. Its parent
+  rule gained the `use` position. Replaced by
+  `annot.structure.named-positions.error`.
+- `trait.sealed.use-positions`: retired 2026-09-27. Typed derivation (M23)
+  and the block-header change let code outside a template name
+  `Structure`. Replaced by `trait.sealed.use-positions-structure`.
+- `annot.walker.generic-call`: retired 2026-09-27. Typed derivation (M23)
+  lets source code call `missing` through a generic source. Replaced by
+  `annot.walker.generic-member-call` and `annot.walker.generic-missing`.

@@ -99,7 +99,7 @@ typing/invalid/derive-error-trait.hd	MVP reports decorator-not-top-level at line
 typing/invalid/derive-and-block-overlap.hd	MVP reports decorator-not-top-level at line 30 instead of overlapping-impl: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 typing/invalid/structure-implementation.hd	MVP reports unknown-type at line 5 instead of sealed-trait-implementation: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
 typing/invalid/structure-outside-template.hd	MVP reports unknown-trait at line 4 instead of structure-outside-template: unknown trait 'Structure'; the prototype has no typed derivation	TD
-typing/invalid/marker-template.hd	MVP reports bare-parameter-impl-target at line 6 instead of marker-template: implementation target 'T' is a bare type parameter; a target must start with a type constructor; the prototype has no typed derivation	TD
+typing/invalid/marker-template.hd	MVP reports bare-parameter-impl-target at line 8 instead of marker-template: implementation target 'T' is a bare type parameter; a target must start with a type constructor; the prototype has no typed derivation	TD
 typing/invalid/duplicate-fact.hd	MVP reports doc-comment-without-target at line 43 instead of duplicate-fact: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/invalid/member-line-payload-member.hd	MVP reports doc-comment-without-target at line 43 instead of unknown-annotation-member: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/invalid/invalid-member-line.hd	MVP reports doc-comment-without-target at line 35 instead of invalid-member-line: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
@@ -112,4 +112,7 @@ typing/invalid/gadt-derivation.hd	MVP reports decorator-not-top-level at line 30
 typing/warnings/derivation-line-drift.hd	MVP reports doc-comment-without-target at line 57 instead of derivation-line-drift: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
 typing/warnings/unused-derivation-fact.hd	MVP reports decorator-not-top-level at line 36 instead of unused-derivation-fact: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
 runtime/panic/structure-variant-mismatch.hd	MVP reports decorator-not-top-level at line 32 instead of structure-variant-mismatch: decorators are only valid on top-level declarations; the prototype has no typed derivation	TD
-parse/valid/derivation-member-lines.hd	parse fails: doc-comment-without-target at line 3: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+parse/valid/derivation-member-lines.hd	parse fails: doc-comment-without-target at line 5: documentation comments must attach to a declaration or member; the prototype has no typed derivation	TD
+typing/invalid/structure-without-use.hd	MVP reports unknown-type at line 6 instead of unknown-trait: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
+typing/invalid/newtype-derivation-block.hd	MVP reports unknown-type at line 30 instead of misplaced-derivation: unknown or unsupported type 'i64'; the prototype has no typed derivation	TD
+typing/valid/generic-missing-call.hd	check fails: unknown-trait at line 4: unknown trait 'Source'; the prototype has no typed derivation	TD

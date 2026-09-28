@@ -940,6 +940,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 ```text
 use std.error.Error
+use std.structure.Structure
 
 @derive(Error)  # error: underivable-trait
 enum LoadError:
@@ -1049,8 +1050,8 @@ pub trait Source[S]:
 1. r[annot.structure.sealed] `Structure` is a sealed trait: an `impl Structure for T` outside the standard library is an error. Error: `sealed-trait-implementation`.
 2. r[annot.structure.generated] The compiler generates `Structure` for a target only while it instantiates a template for that target. No type has it otherwise.
 3. r[annot.structure.per-derivation] Each derivation sees its own `Structure` for the target, which reflects that derivation's facts and omitted members.
-4. r[annot.structure.template-only] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only after `by` in a derivation block's header.
-5. r[annot.structure.template-only.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
+4. r[annot.structure.named-positions] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only in the `use` declaration that imports it and after `by` in a derivation block's header.
+5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
 6. r[annot.structure.receivers] `walk` takes the value as a readonly `self`. `facts`, `describe`, and `build` are receiverless.
 7. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
 8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in is consent for the template's library to read every member.
@@ -1078,6 +1079,8 @@ A template is a trait's one derived implementation, written over
 `Structure`:
 
 ```text
+use std.structure.Structure
+
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
         let w: mut Encoder = Encoder { style: style_of(T::facts()), out: "" }
@@ -1097,6 +1100,8 @@ impl[T] Encode for T by Structure:
 10. r[annot.template.checked] The instantiated implementation is type-checked at its opt-in, where the member types and the walker's bounds are both known.
 
 ```text
+use std.structure.Structure
+
 trait Tagged:
     fn tag(self) -> string:
         "tagged"
@@ -1113,6 +1118,8 @@ impl[T] Tagged for T by Structure  # error: marker-template
 A derivation block applies one template to one type and may configure it:
 
 ```text
+use std.structure.Structure
+
 data Order:
     id: i64
     total_cents: i64
@@ -1127,12 +1134,33 @@ impl Encode for Order by Structure:
 1. r[annot.block.form] `impl Trait for X by Structure:` is a **derivation block**: it applies the template of `Trait` to `X`.
 2. r[annot.block.template] `Trait` must have a template. A block for any other trait, including a comparison trait, is an error. Error: `underivable-trait`.
 3. r[annot.block.module] A derivation block must be declared in the module that declares `X`. One declared elsewhere is an error. Error: `misplaced-derivation`.
-4. r[annot.block.by-structure] In an implementation header, `by Structure` always denotes `std.structure.Structure`. It needs no import, and it is never a delegation.
-5. r[annot.block.methods] A block may write a method of the trait. The written method replaces the template's method, as a written method replaces a default.
-6. r[annot.block.lines] A block may carry [member lines](#member-lines), which edit the `Structure` that this derivation sees.
-7. r[annot.block.local] Member lines are local to their block. Another derivation for the same type sees only the declaration facts.
-8. r[annot.block.header] A block may state generic parameters and bounds in its header, as in `impl[T < Hash] Encode for Bag[T] by Structure:`. The derived implementation then has exactly those bounds.
-9. r[annot.block.gadt] The target of a derivation, by `@derive` or by a block, must not be a GADT enum. Such a derivation is an error, reported at the opt-in. Error: `gadt-derivation`.
+4. r[annot.block.structure-use] In an implementation header, `Structure` after `by` must name `std.structure.Structure`, imported with `use std.structure.Structure` like any other name. Without that import, `Structure` is unknown. Error: `unknown-trait`.
+5. r[annot.block.not-delegation] `by Structure` is never a delegation, as [`trait.by.structure`](09-traits.md#r-trait.by.structure) also states.
+6. r[annot.block.methods] A block may write a method of the trait. The written method replaces the template's method, as a written method replaces a default.
+7. r[annot.block.lines] A block may carry [member lines](#member-lines), which edit the `Structure` that this derivation sees.
+8. r[annot.block.local] Member lines are local to their block. Another derivation for the same type sees only the declaration facts.
+9. r[annot.block.header] A block may state generic parameters and bounds in its header, as in `impl[T < Hash] Encode for Bag[T] by Structure:`. The derived implementation then has exactly those bounds.
+10. r[annot.block.gadt] The target of a derivation, by `@derive` or by a block, must not be a GADT enum. Such a derivation is an error, reported at the opt-in. Error: `gadt-derivation`.
+11. r[annot.block.newtype] The target of a derivation block must not be a newtype. A newtype derives only through its base type, with `@derive`, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+12. r[annot.block.newtype.error] A derivation block whose target is a newtype is an error, reported on the block. Error: `misplaced-derivation`.
+
+```text
+use std.structure.Structure
+
+type Meters(i64)
+
+impl Show for Meters by Structure  # error: misplaced-derivation
+```
+
+A module that writes `by Structure` without importing `Structure` gets the
+ordinary unknown-trait error:
+
+```text
+data Point:
+    x: i64
+
+impl Show for Point by Structure  # error: unknown-trait
+```
 
 > **Note.** A foreign type has no derivation exception. Derive on a local
 > mirror type with the foreign type's public fields, and convert, as with
@@ -1160,6 +1188,8 @@ out, for that block only:
 8. r[annot.line.placement] A member line anywhere other than a derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
 
 ```text
+use std.structure.Structure
+
 data Pair:
     left: i64
     right: i64
@@ -1190,6 +1220,8 @@ impl Show for Reply by Structure:
 5. r[annot.omit.only-code] `= pass` is the only member line that changes generated code. Every other line changes only facts.
 
 ```text
+use std.structure.Structure
+
 data Account:
     id: i64
     token: Token
@@ -1321,10 +1353,11 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
 ```
 
 > **Note.** A walker that holds a second value, such as a diff, checks
-> `v.holds(other)` in `variant` before any `h.get(other)`. For example, a
-> `Clone` trait may declare `clone(self)`, which reads the readonly views,
-> and `clone_mut(mut self) -> mut Self`, whose source reads the declared
-> types from a `mut` value, as `CopySource` does.
+> `v.holds(other)` in `variant` before any `h.get(other)`. The
+> standard-library `Clone` trait, listed in
+> [STDLIB](../future-work/STDLIB.md#clone), declares `clone(self)`, which
+> reads the readonly views, and `clone_mut(mut self) -> mut Self`, whose
+> source reads the declared types from a `mut` value, as `CopySource` does.
 
 > **Note.** Handles are constants, and each generated call passes a
 > constant dictionary, so a traversal allocates nothing per member.
@@ -1352,8 +1385,9 @@ impl[S] Walker[S] for Encoder:
 2. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
 3. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
 4. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-5. r[annot.walker.generic-call] `member` and `missing` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
-6. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
+5. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
+6. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
+7. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
 
 ```text
 @derive(Show)  # error: member-not-derivable
@@ -1362,6 +1396,9 @@ data Label:
 
 fn forward[S, W < Walker[S]](w: mut W, h: Field[S, i64], value: i64) -> void:
     _ := w.member(h, value)  # error: generic-member-call
+
+fn fill[S, F, R < Source[S]](r: mut R, h: Field[S, F]) -> Result[F, R::Error]:
+    r.missing(h)  # valid: `missing` may be called through a generic source
 ```
 
 > **Why.** A strengthened bound becomes one obligation per member, checked
@@ -1398,6 +1435,7 @@ An implementation must not guess them:
 | --- | --- |
 | Fact check hook | The form of a fact type's compile-time check against its member, and whether it covers cross-member and type-level checks. |
 | Non-escaping handles | Whether a future non-escaping trait design makes handles non-escaping. |
+| Generic `missing` calls | Which bound a call to `missing` through a generic source checks, when the source's implementation strengthens the bound on `missing[F]`. |
 | Plan constants | A template may declare a constant computed once per derivation at compile time. Its syntax and the evaluator's limits are open, so no syntax for it exists. |
 | Typed shared constants | Typed handles for shared constructor data. |
 | `T -> U` mapping | Whether derivation between two types is in scope. |

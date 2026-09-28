@@ -1,4 +1,6 @@
 # test: derivation blocks accept member lines with =, +=, and pass
+use std.structure.Structure
+
 impl Encode for Order by Structure:
     Self += [style(prefix="order_")]
     Self = [style()]

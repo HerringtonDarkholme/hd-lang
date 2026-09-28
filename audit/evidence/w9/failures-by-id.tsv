@@ -1,6 +1,6 @@
 id	count	title
 F-250	51	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
-TD	21	Typed derivation (owner decisions M1-M22) is not implemented: no `std.structure`, templates, derivation blocks, member lines, or `+=` token
+TD	24	Typed derivation (owner decisions M1-M23) is not implemented: no `std.structure`, templates, derivation blocks, member lines, or `+=` token
 F-253	14	Sized numeric types (i8-i64, u8-u64, f32) are unimplemented and not listed as deferred
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles

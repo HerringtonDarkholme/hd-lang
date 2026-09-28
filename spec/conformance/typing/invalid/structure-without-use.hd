@@ -1,0 +1,8 @@
+# test: by Structure needs use std.structure.Structure; without it Structure is an unknown trait
+trait Show:
+    fn show(self) -> string
+
+data Point:
+    x: i64
+
+impl Show for Point by Structure  # diagnostic: unknown-trait

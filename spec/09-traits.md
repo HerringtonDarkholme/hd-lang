@@ -1133,7 +1133,7 @@ compiler and the standard library supply.
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
-3. r[trait.sealed.use-positions] User code may name a sealed trait in a bound, as a supertrait, and, where the trait is dynamically safe, as a value type. `Structure` is the exception: only a derivation template may name it.
+3. r[trait.sealed.use-positions-structure] User code may name a sealed trait in a bound, as a supertrait, and, where the trait is dynamically safe, as a value type. `Structure` is the exception: it may be named only where [`annot.structure.named-positions`](14-annotations.md#r-annot.structure.named-positions) allows.
 4. r[trait.sealed.no-user-impl] User code cannot implement a sealed trait.
 5. r[trait.sealed.user-impl] An `impl` of a sealed trait outside the standard library is an error, reported on the `impl` line, whatever its target. Error: `sealed-trait-implementation`.
 

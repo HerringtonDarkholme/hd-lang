@@ -1150,7 +1150,7 @@ runtime/valid/typed-derivation-walk.hd	runtime	accept	14-annotations.md#walk-des
 typing/invalid/derive-error-trait.hd	type	reject:underivable-trait	14-annotations.md#r-annot.derive.error-trait
 typing/invalid/derive-and-block-overlap.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.derive.overlap
 typing/invalid/structure-implementation.hd	type	reject:sealed-trait-implementation	14-annotations.md#r-annot.structure.sealed
-typing/invalid/structure-outside-template.hd	type	reject:structure-outside-template	14-annotations.md#r-annot.structure.template-only.error
+typing/invalid/structure-outside-template.hd	type	reject:structure-outside-template	14-annotations.md#r-annot.structure.named-positions.error
 typing/invalid/marker-template.hd	type	reject:marker-template	14-annotations.md#r-annot.template.body.error
 typing/invalid/duplicate-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.line.duplicate
 typing/invalid/member-line-payload-member.hd	type	reject:unknown-annotation-member	14-annotations.md#r-annot.line.enum
@@ -1158,7 +1158,7 @@ typing/invalid/invalid-member-line.hd	type	reject:invalid-member-line	14-annotat
 typing/invalid/member-line-outside-block.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.line.placement
 typing/invalid/omitted-member-without-default.hd	type	reject:omitted-member-without-default	14-annotations.md#r-annot.omit.no-default
 typing/invalid/derive-member-not-derivable.hd	type	reject:member-not-derivable	14-annotations.md#r-annot.walker.obligation.error
-typing/invalid/generic-member-call.hd	type	reject:generic-member-call	14-annotations.md#r-annot.walker.generic-call
+typing/invalid/generic-member-call.hd	type	reject:generic-member-call	14-annotations.md#r-annot.walker.generic-member-call
 typing/invalid/newtype-derivation-self.hd	type	reject:newtype-derivation-self	09-traits.md#r-trait.derive.newtype.self-error
 typing/invalid/gadt-derivation.hd	type	reject:gadt-derivation	14-annotations.md#r-annot.block.gadt
 typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	14-annotations.md#r-annot.line.drift
@@ -1168,3 +1168,6 @@ parse/valid/derivation-member-lines.hd	parse	accept	02-grammar.md#r-grammar.impl
 parse/invalid/mutable-requirement-key.hd	parse	reject:syntax-error	11-requirements-and-suspension.md#r-req.mut.no-spelling
 parse/invalid/mutable-provider-use.hd	parse	reject:syntax-error	11-requirements-and-suspension.md#r-req.mut.no-spelling
 parse/invalid/mutable-provider-binding.hd	parse	reject:syntax-error	11-requirements-and-suspension.md#r-req.mut.no-spelling
+typing/invalid/structure-without-use.hd	type	reject:unknown-trait	14-annotations.md#r-annot.block.structure-use
+typing/invalid/newtype-derivation-block.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.block.newtype.error
+typing/valid/generic-missing-call.hd	type	accept	14-annotations.md#r-annot.walker.generic-missing
