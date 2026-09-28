@@ -1,6 +1,6 @@
 # Literal Suffixes: Survey And Design Options
 
-Status: design exploration, 2026-09-27; owner decisions L1-L5 (2026-09-28)
+Status: design exploration, 2026-09-27; owner decisions L1-L9 (2026-09-28)
 are below, none in the specification yet. Before them, nothing here was decided or in the
 specification.
 
@@ -53,6 +53,22 @@ Decided 2026-09-28; not yet in the specification.
    library types. They are designed separately
    ([Open Issues](OPEN_ISSUES.md#operator-traits)); `LiteralSuffix` is the
    first member of `std.ops`.
+6. **L6: every numeric literal may carry a suffix.** Decimal integers and
+   floats take it directly (`5s`, `1.5kb`); `1e3` stays an exponent. A
+   radix literal (hex, binary, octal) takes a suffix only after a `'`
+   separator, Nim's form (`0xff'B`, `0b1010'flags`), because `_` is already
+   a digit separator and letters such as `B` are hex digits. (The owner
+   chose "all numeric"; the `'` spelling is filled in here, open to owner
+   correction.)
+7. **L7: a suffixed literal is a plain call** to `apply`. It is evaluated at
+   compile time only where the position already requires that (facts,
+   shared enum data, test options), and there `apply` must need no
+   providers and never suspend.
+8. **L8: suffixes are imported normally,** with no special case for tests:
+   `timeout=5s` needs `use std.time.s`.
+9. **L9: std ships only duration suffixes at first,** `ns us ms s min h`
+   for `Duration` (no `m`, no `d`). Byte sizes wait for a byte-size type.
+   String suffixes are out of scope.
 
 ## Contents
 
