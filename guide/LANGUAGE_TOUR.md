@@ -19,8 +19,7 @@ concrete enough to discuss while still allowing unsettled choices to evolve.
 11. [Tests](#tests)
 12. [Requirements and Suspension](#requirements-and-suspension)
 13. [Using Annotations](#using-annotations)
-14. [Implementing Annotators](#implementing-annotators)
-15. [Runtime and Library Features](#runtime-and-library-features)
+14. [Runtime and Library Features](#runtime-and-library-features)
 
 ## Hello hd-lang
 
@@ -271,7 +270,7 @@ data User:
 implementations from the data or enum shape. Derived equality compares every
 declared field, including embedded fields; enum equality also distinguishes
 variants. It does not detect reference cycles, so comparison may exhaust the
-stack when it repeatedly traverses one. It is not an annotation facet.
+stack when it repeatedly traverses one.
 Derived ordering compares data fields in declaration order. Enum variants
 compare by declaration order before their shared data and payload fields.
 Derived `Hash` hashes every declared data field, or the enum variant identity
@@ -512,7 +511,7 @@ message := match status:
     JobStatus.Failed => "failed"
 ```
 
-`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate Validation for User: pass`, it means default facet derivation with no overrides.
+`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate User: pass`, it attaches no metadata.
 
 ### Deferred cleanup
 
@@ -1665,7 +1664,7 @@ invariant in the requirement row. Because only permission changes preserve
 representation, `fn() -> mut User` converts to `fn() -> User`, but
 `fn() -> i32` does not convert to `fn() -> Display`.
 
-Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, annotation lookup, serialization, or type-directed dependency injection:
+Function generic parameters are erased by default. Use `reified` only when runtime behavior needs the concrete type, such as shape inspection, metadata lookup, serialization, or type-directed dependency injection:
 
 ```text
 fn resolve[reified T]() -> T $ TypeProvider:
@@ -2126,7 +2125,7 @@ fn demo!() -> Result[User?, DbError] $ Database, Cache:
 
 `Suspend[T]` is a single-execution, pollable state machine. Its driver polls for `Pending` or `Ready(T)` and uses a waker to arrange further progress. Exclusive driving is enforced at runtime: competing drivers, reentrant polling, and driving after completion or cancellation panic. Repeated polling while pending is normal; executing again requires constructing a new suspension. Cancelling a suspension while it or a descendant is active on the current poll stack also panics and leaves its state unchanged.
 
-The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; a test is active for its whole execution, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, annotation builders, `defer` suites, and non-entry module initialization.
+The caller must satisfy the function's dependency requirements when constructing the suspension. The selected providers are captured then, even though the body has not started, and are not replaced by a later driver context. Cancellation is synchronous and runs registered `defer` suites in the suspension's unfinished frames after cancelling an unfinished child. A started suspension must be cancelled before it is discarded; raw abandonment runs no cleanup. A stored suspension uses `s!()` in a suspending body. Non-suspending code first writes `use std.task.block_on`, then calls `block_on(s)`. A driver is active while its executor is evaluating or polling it on the current program-instance call stack; a test is active for its whole execution, while a host-held invocation between polls is unfinished but not active. Calling `block_on` under an active driver panics. It is transitively forbidden in defaults, `defer` suites, and non-entry module initialization.
 
 Here `$.use(Database, Cache)` retrieves multiple providers from the current context in order. The `!` on `db.get_user!(id)` marks a possible suspension point. It does not mean that the call raises an error or performs dependency lookup.
 
@@ -2212,19 +2211,15 @@ there is no row subtraction. Additional
 
 ## Using Annotations
 
-Annotations provide typed metadata and facet derivation. Shape APIs,
-materialization, exact-target facet derivation, and recursive references are part of
-the language. An unoverridden field uses its type's facet annotation; an exact
-field result override can supply the facet result instead. Missing information
-is a compile-time error, never an implicit omission.
+Annotations attach typed values to declarations and expose declaration
+structure as shape values. They do not change a declaration's type,
+behavior, name, or visibility, and they register nothing.
 
-Annotations attach typed metadata to declaration shapes and derive typed information for complete targets. They do not change a declaration's type, behavior, name, or visibility.
-
-Prefix decorators put a no-override facet next to a declaration and member
-metadata next to a field, variant, or function parameter:
+Prefix decorators attach a type-level fact to a data or enum declaration,
+and member metadata to a field, variant, or function parameter:
 
 ```text
-@Validation
+@style(prefix="user_")
 data User:
     @max_len(80)
     display_name: string
@@ -2233,7 +2228,6 @@ data Post:
     @flatten()
     Timestamps
 
-@Tool
 fn get_user(
     @description("User identifier")
     id: UserId,
@@ -2241,37 +2235,16 @@ fn get_user(
     ...
 ```
 
-Here `@Validation` expands to `annotate Validation for User: pass`, then to
-`impl Annotate[Validation] for User`. The field decorator expands to
-`annotate User: display_name = [max_len(80)]` and attaches metadata to its
-field shape. The embedded-field decorator similarly expands to
-`annotate Post: Timestamps = [flatten()]`; it must implement
-`FieldMetadata[Timestamps]` and does not decorate members promoted from
-`Timestamps`. An enum can use `@Validation` and decorators on its variants. A
-function can use a facet decorator such as `@Tool`; its parameter decorators
-expand to metadata in `annotate get_user` and are attached to `ParamShape`
-before `map_param`. These are compile-time checked attachments, not runtime
-wrappers.
+The field decorator expands to `annotate User: display_name = [max_len(80)]`
+and attaches metadata to its field shape. The embedded-field decorator
+similarly expands to `annotate Post: Timestamps = [flatten()]` and does not
+decorate members promoted from `Timestamps`. Parameter decorators expand to
+metadata in `annotate get_user` and are attached to its `ParamShape`. A
+decorator before a function declaration itself is an error: function
+targets, such as tool adapters, are still undecided.
 
 Decorators and `annotate` blocks are module-level. Local declarations cannot
-carry annotation facets or member metadata.
-
-Declaration facets may be configured with ordinary values:
-
-```text
-data SearchHit:
-    title: string
-
-@tool(strict=true)
-fn search(query: string) -> List[SearchHit]:
-    ...
-```
-
-If `tool(strict=true)` returns `Tool`, the compiler uses `Tool` as the facet
-type and retains that value as `self` for `map_param` and `build`. The
-configuration runs once during restricted annotation initialization. It does
-not create a second annotation namespace: `@Tool` and `@tool(...)` occupy the
-same `(Tool, search)` coherence slot.
+carry member metadata.
 
 Use `annotate Target` to attach metadata to existing members:
 
@@ -2284,12 +2257,11 @@ annotate User:
     display_name = [min_len(1), max_len(80)]
 ```
 
-For `display_name: string`, the assignment is contextually typed as `List[FieldMetadata[string]]`. `MinLen` and `MaxLen` are different concrete values implementing the same dynamic trait, so the collection is homogeneous.
-
-Metadata values and reusable metadata lists are ordinary values:
+Metadata is contextually typed as `List[Any]`, so any value may be
+attached, and metadata values and reusable lists are ordinary values:
 
 ```text
-let display_name_metadata: List[FieldMetadata[string]] = [
+let display_name_metadata: List[Any] = [
     min_len(1),
     max_len(80),
 ]
@@ -2301,81 +2273,11 @@ annotate User:
     display_name = display_name_metadata
 ```
 
-Metadata values execute in a restricted metadata phase. They must be pure, deterministic, non-suspending, and dependency-free. Multiple entries with the same concrete metadata type on one member are rejected.
+Metadata values are evaluated once, at compile time, and must be
+requirement-free. Multiple entries with the same concrete type on one member
+are rejected. Whether a value suits its member's type is not checked yet.
 
-Use `annotate Facet for Target` to derive information for a complete target.
-`pass` requests default facet derivation with no structural result overrides:
-
-```text
-annotate Validation for User: pass
-```
-
-Metadata is composed from the bottom up. For `User`, hd-lang first resolves validation information for each field's declared type, reads the field's `FieldMetadata[string]` values, and then uses `DataAnnotator` to build validation information for the complete data.
-
-Generated metadata is retrieved explicitly as an ordinary runtime value:
-
-```text
-user_validator := Validation::annotation(User)
-
-input := read_json()
-result := user_validator.parse(input)
-```
-
-The same declaration can provide unrelated annotation information:
-
-```text
-data User:
-    id: UserId
-    display_name: string
-    avatar: string?
-
-annotate Validation for User: pass
-annotate DatabaseSchema for User: pass
-annotate UI for User: pass
-```
-
-Each facet is retrieved independently:
-
-```text
-validator := Validation::annotation(User)
-table := DatabaseSchema::annotation(User)
-form := UI::annotation(User)
-```
-
-Add structural result overrides when default facet derivation is insufficient:
-
-```text
-annotate UI for User:
-    avatar = profile_image(size=40)
-```
-
-Assignments in an `annotate` block can override existing fields or variants only; they cannot invent members that are absent from the target declaration. The whole resolved package graph can have at most one block for an exact facet/target pair.
-
-Function annotations follow the same model:
-
-```text
-fn get_user!(id: UserId) -> Result[User?, DbError] $ Database:
-    db := $.use(Database)
-    db.get_user!(id)
-
-annotate Tool for get_user: pass
-```
-
-This produces tool information but does not discover or register the function, and it does not make the function public. Registration is explicit:
-
-```text
-tool_registry.register(Tool::annotation(get_user))
-```
-
-`Facet::annotation(Target)` is the runtime retrieval spelling. A local `build`
-inside the facet block replaces aggregate assembly. A member type without the
-requested facet needs an exact field or variant result override; otherwise
-facet derivation is a compile-time error. Decorator syntax is an optional locality
-form for the corresponding `annotate` blocks.
-
-## Implementing Annotators
-
-Annotators are ordinary types that transform declaration shapes into typed metadata. The compiler exposes shapes for the declarations an annotator can inspect:
+The compiler exposes shapes for the declarations a library can inspect:
 
 ```text
 shape[User]()                        # DataShape
@@ -2390,7 +2292,8 @@ shape_of(get_user)                   # FnShape
 enum its result has typed `fields` or `variants` members, so a misspelled field
 name is a compile-time error. Iterate the ordered members with `field_list` or
 `variant_list`. `shape_of` accepts only the name of a module-level function,
-not a closure or other function value.
+not a closure or other function value. A member's metadata is read with
+`metadata[M]()`, as in `shape[User]().fields.display_name.metadata[MaxLen]()`.
 
 `TypeShape` covers every type a declaration can mention: besides primitives,
 collections, tuples, named types, and functions, it has `Newtype(decl, base)`,
@@ -2399,230 +2302,26 @@ collections, tuples, named types, and functions, it has `Newtype(decl, base)`,
 
 `FnShape` includes ordered parameter shapes, the result type, default presence,
 the suspension marker, and the normalized unordered requirement row. Parameter
-shapes carry attached `ParamMetadata[T]` values, but `annotate Facet for
-Function` cannot override a parameter's `ParamTarget`.
+shapes carry their attached metadata.
 
-Every annotation value implements `Annotation` and chooses one uniform information type. `Annotate[A]` records that a concrete target provides information for annotation `A`:
-
-```text
-trait Annotation:
-    type Info
-
-trait Annotate[A < Annotation]:
-    fn info() -> A::Info
-```
-
-Local member metadata uses open traits. A field metadata trait is generic over the field's declared type:
+Information derived from a whole type, such as a validator, a schema, or a
+form description, is an ordinary trait with an associated function, derived
+through its library's template:
 
 ```text
-trait FieldMetadata[T]
-trait VariantMetadata
-trait ParamMetadata[T]
-```
+trait Validate:
+    fn validator() -> Validator
 
-For example, `MaxLen` applies to `string` fields but not `i32` fields:
-
-```text
-data MaxLen:
-    value: i32
-
-fn max_len(value: i32) -> MaxLen:
-    MaxLen { value: value }
-
-impl FieldMetadata[string] for MaxLen
-```
-
-The compiler accepts this metadata based on ordinary trait checking:
-
-```text
-data User:
+@derive(Validate)
+data Signup:
+    @max_len(80)
     display_name: string
 
-annotate User:
-    display_name = [max_len(80)]
+signup_validator := Signup::validator()
 ```
 
-It rejects the same value on an incompatible field because `MaxLen` does not implement `FieldMetadata[i32]`:
-
-```text
-data Invalid:
-    retry_count: i32
-
-annotate Invalid:
-    retry_count = [max_len(80)]  # compile error
-```
-
-An annotation maps complete types to uniform information. This small validation annotation uses one recursive `Validator` type for primitives and data types:
-
-```text
-data Validation: pass
-
-data FieldValidator:
-    name: string
-    target: AnnotationRef[Validator]
-    max_len: i32?
-
-enum Validator:
-    I32
-    String
-    List(item: AnnotationRef[Validator])
-    Custom(name: string)
-    Data(name: string, fields: List[(string, FieldValidator)])
-
-impl Annotation for Validation:
-    type Info = Validator
-```
-
-Exact `annotate` blocks extend the facet for individual types:
-
-```text
-annotate Validation for i32:
-    fn build(self, target: TypeShape) -> Validator:
-        Validator.I32
-
-annotate Validation for string:
-    fn build(self, target: TypeShape) -> Validator:
-        Validator.String
-```
-
-Generic target families use the same binders and bounds as generic
-implementations:
-
-```text
-annotate[reified T < Annotate[Validation]] Validation for List[T]:
-    fn build(self, target: TypeShape) -> Validator:
-        Validator.List(Validation::annotation_ref(T))
-```
-
-This occupies the same coherence slot as the corresponding generic
-`impl Annotate[Validation] for List[T]`. There is no unconstrained wildcard
-`annotate Validation for type` fallback.
-
-Default facet derivation with `: pass` is available for data, enum, and
-function targets. A newtype does not automatically derive from its underlying
-type; its annotation must provide an explicit `build` or direct `Annotate`
-implementation.
-
-Ordinary decorators expand to `annotate` blocks, which lower to `Annotate[Facet]` implementations or shape metadata. `annotate Validation for T` generates the same conformance as `impl Annotate[Validation] for T`. The `annotate` form additionally understands the target's structure so it can express field or variant overrides. Both forms occupy the same coherence slot. `@derive` is the exception: it creates trait implementations, through a compiler intrinsic or a trait's typed-derivation template.
-
-A local `build` in `annotate Facet for Target` replaces only aggregate assembly;
-child resolution and member mapping still happen first. To replace the entire
-facet derivation pipeline, implement the conformance directly:
-
-```text
-impl Annotate[Validation] for User:
-    fn info() -> Validator:
-        Validator.Custom(name="user")
-```
-
-The direct implementation and structural `annotate` form cannot coexist for
-the same facet and target.
-
-An annotator for a data type maps each field and then builds one result for the complete type:
-
-```text
-trait DataAnnotator < Annotation:
-    type FieldTarget
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Self::Info],
-    ) -> Self::FieldTarget
-
-    fn build(
-        self,
-        target: DataShape,
-        fields: List[(string, Self::FieldTarget)],
-    ) -> Self::Info
-```
-
-`Validation` combines each field's already-derived type validator with metadata attached directly to that field:
-
-```text
-impl DataAnnotator for Validation:
-    type FieldTarget = FieldValidator
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Validator],
-    ) -> FieldValidator:
-        FieldValidator {
-            name: field.name,
-            target: type_metadata,
-            max_len: field.metadata[MaxLen]().map(
-                fn(annotation: MaxLen) -> i32: annotation.value
-            ),
-        }
-
-    fn build(
-        self,
-        target: DataShape,
-        fields: List[(string, FieldValidator)],
-    ) -> Validator:
-        Validator.Data(name=target.name, fields=fields)
-```
-
-The compiler supplies `type_metadata`; `map_field` does not restart annotation resolution. This enforces the bottom-up order:
-
-```text
-type metadata -> field metadata -> data metadata
-```
-
-`AnnotationRef[T]` is provided by the annotation runtime. It can hold an already-built target or a deferred reference to one, allowing the same annotator to support recursive data types and enums without adding a facet-specific `Ref` variant.
-
-Enums and functions follow the same mapping-then-building pattern:
-
-```text
-trait EnumAnnotator < Annotation:
-    type FieldTarget
-    type VariantTarget
-
-    fn map_field(
-        self,
-        field: FieldShape,
-        type_metadata: AnnotationRef[Self::Info],
-    ) -> Self::FieldTarget
-
-    fn map_variant(
-        self,
-        variant: VariantShape,
-        fields: List[Self::FieldTarget],
-    ) -> Self::VariantTarget
-
-    fn build(
-        self,
-        target: EnumShape,
-        variants: List[(string, Self::VariantTarget)],
-    ) -> Self::Info
-
-trait FuncAnnotator < Annotation:
-    type ParamTarget
-
-    fn map_param(self, param: ParamShape) -> Self::ParamTarget
-
-    fn build(
-        self,
-        target: FnShape,
-        params: List[(string, Self::ParamTarget)],
-    ) -> Self::Info
-```
-
-`VariantMetadata` provides the corresponding homogeneous dynamic-trait
-collection for variants. A parameter of type `T` uses
-`List[ParamMetadata[T]]`; function annotators can read it together with each
-`ParamShape`'s name, type, default presence, and documentation. This metadata
-customizes `map_param` but does not directly replace its `ParamTarget` result.
-`DataAnnotator`, `EnumAnnotator`, and `FuncAnnotator` remain responsible for
-aggregate mapping and building.
-
-Shape values and annotator methods follow the definitions in the annotation
-chapter. Generic families may use generic `annotate` declarations or ordinary
-generic `impl Annotate[A] for Target`; both occupy the same coherence slot. Type and aggregate
-information share `Annotation::Info`. A child with no facet implementation
-requires an exact field or variant result override; otherwise facet derivation fails
-at compile time.
+The template reads each member's metadata as facts. See
+[Typed Derivation](../spec/14-annotations.md#typed-derivation).
 
 ## Runtime and Library Features
 

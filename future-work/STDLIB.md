@@ -49,7 +49,7 @@ every user module that already declares it.
 | `std.iter` | `Iterator`, `Iterable` | [For Loops](../spec/06-control-flow.md) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
-| `std.annotation` | shape and annotator names | [Annotations](../spec/14-annotations.md) |
+| `std.annotation` | shape names and `shape`, `shape_of` | [Annotations](../spec/14-annotations.md) |
 | `std.testing` | `assert`, `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
@@ -283,7 +283,7 @@ std
 ├── fingerprint     Fingerprint, Algorithm, fingerprinting trait
 ├── incremental     incremental computation (runtime draft)
 │
-├── annotation      shapes and annotators (fixed)
+├── annotation      shapes (fixed)
 └── testing         assert (fixed), assertion helpers, hermetic contexts, property testing
 ```
 
@@ -692,6 +692,17 @@ derived through its `by Structure` template with a source that reads the old
 value, as the specification's
 [`CopySource`](../spec/14-annotations.md#handles) example shows. Its module
 is not yet chosen.
+
+### Derived Function Cache
+
+A facet is an ordinary trait with an associated function, such as
+`trait Validate: fn validator() -> Validator`, derived through a template
+([Typed Derivation decision 10](TYPED_DERIVATION.md#owner-decisions)). One
+standard-library cache memoizes derived associated functions: each value is
+built lazily, once per (trait, type) per program instance. A `Ref[T]`
+deferred reference, with cycle detection, lets a recursive type's value refer
+to itself; it replaces the removed `AnnotationRef[T]`. The cache's API and
+module are not yet designed.
 
 ### `std.path`
 
@@ -1307,8 +1318,8 @@ language:
    [Associated Function Calls](../spec/09-traits.md#associated-function-calls).
 5. **Complete shape coverage** for every legal field type, now specified in
    [Common Shape Representation](../spec/14-annotations.md#common-shape-representation).
-6. **Field metadata** for renames, defaults, and skipping; annotations already
-   provide this.
+6. **Field metadata** for renames, defaults, and skipping; member metadata
+   and typed-derivation facts already provide this.
 7. **Enum encoding policy**: tagged, adjacent, or untagged, chosen per type.
 8. **Round-trip stability** that matches the boundary encoding, so a value
    crossing a registered boundary and one written to JSON agree.

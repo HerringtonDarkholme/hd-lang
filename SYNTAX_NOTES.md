@@ -1963,6 +1963,14 @@ not propagate implicitly from function-typed parameters.
 
 ## Nominal Types With Validation Metadata
 
+> Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
+> traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
+> was removed by
+> [Typed Derivation decision 10](future-work/TYPED_DERIVATION.md#owner-decisions).
+> See [Annotations](spec/14-annotations.md) and
+> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> current design.
+
 Validation metadata does not refine an existing static type. Reusable domain
 identity uses the ordinary nominal newtype syntax together with an exact
 annotation case; there is no separate `brand` declaration:
@@ -1991,9 +1999,25 @@ question; the core annotation mechanism does not silently change construction.
 
 ## Schema And Validation Direction
 
+> Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
+> traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
+> was removed by
+> [Typed Derivation decision 10](future-work/TYPED_DERIVATION.md#owner-decisions).
+> See [Annotations](spec/14-annotations.md) and
+> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> current design.
+
 Validation should not create distinct static subtypes by default. A field like `string.max_len(50)` and `string.max_len(100)` should still have the same base static type, `string`; validation metadata is used for runtime checks, generated schemas, generated data, docs, and tooling.
 
 ## Generic Representation And Annotation Derivation
+
+> Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
+> traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
+> was removed by
+> [Typed Derivation decision 10](future-work/TYPED_DERIVATION.md#owner-decisions).
+> See [Annotations](spec/14-annotations.md) and
+> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> current design.
 
 Annotation design should be split into four separate concerns before finalizing syntax.
 
@@ -2581,8 +2605,8 @@ openapi.add_tool(Tool::annotation(get_user))
 
 ### Complete Validation Derivation Example
 
-The standalone source version is
-[`full-validation.hd`](spec/conformance/typing/valid/full-validation.hd). The
+The standalone source version was the conformance fixture
+`full-validation.hd`, removed with the facet protocol. The
 following example combines primitive and generic type mapping, data fields,
 enum payload fields, nominal defaults, field metadata, and automatic recursion.
 `Validator` does not need a facet-specific `Ref` variant because references are
@@ -3188,6 +3212,14 @@ Open syntax issues:
 
 ## Registration Annotation Direction
 
+> Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
+> traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
+> was removed by
+> [Typed Derivation decision 10](future-work/TYPED_DERIVATION.md#owner-decisions).
+> See [Annotations](spec/14-annotations.md) and
+> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> current design.
+
 The language should be function-first. System metadata should be attached to normal declarations through `annotate` blocks.
 
 Candidate:
@@ -3223,6 +3255,14 @@ Open syntax issues:
 3. How explicit registries select tools for external exposure.
 
 ## Data Retention Direction
+
+> Superseded: the facet protocol (`Annotation`, `Annotate`, the annotator
+> traits, `FieldMetadata`, `AnnotationRef`, and `annotate Facet for Target`)
+> was removed by
+> [Typed Derivation decision 10](future-work/TYPED_DERIVATION.md#owner-decisions).
+> See [Annotations](spec/14-annotations.md) and
+> [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
+> current design.
 
 Data types should be able to express retention, deletion, and cascade requirements declaratively. The behavior should not be hardcoded into the language as a specific policy; the language should provide syntax for expressing the requirement.
 

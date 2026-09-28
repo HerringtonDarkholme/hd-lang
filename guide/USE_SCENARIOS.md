@@ -37,8 +37,8 @@ libraries should support:
 8. generated JSON Schema, OpenAPI, MCP descriptions, TypeScript definitions,
    and documentation for external ecosystems.
 
-*Mechanism:* member metadata and `annotate Validation for Target` derivation
-([Annotations](../spec/14-annotations.md)). Validation metadata does not create
+*Mechanism:* member metadata and typed derivation of a library trait such as
+`Validate` ([Annotations](../spec/14-annotations.md)). Validation metadata does not create
 a distinct static subtype. Domain identity uses an ordinary nominal type;
 annotations attach validation or presentation information to that type.
 
@@ -65,13 +65,14 @@ fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
     db := $.use(Database)
     .Ok(db.get_user!(id)?)
 
-annotate Tool for get_user: pass
-tool_registry.register(Tool::annotation(get_user))
+tool_registry.register(get_user)
 ```
 
 *Mechanism:* a tool is an ordinary typed function, not a wrapper or a
-separate declaration kind. Its metadata is a library-defined `Tool` annotation
-facet, and registration is an explicit runtime call. The same registration
+separate declaration kind, and registration is an explicit runtime call. How
+a tool adapter reads a function's per-declaration data is undecided
+([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)),
+so tools are registered by hand for now. The same registration
 model should extend to service endpoints, jobs, workflows, and host-callable
 Wasm functions.
 
@@ -174,14 +175,14 @@ Typed data definitions should support:
 2. custom validation functions;
 3. schema-driven property-test data generation;
 4. serializer and deserializer generation;
-5. database, UI, documentation, and observability facets;
+5. database, UI, documentation, and observability descriptions;
 6. declarative retention, archive, anonymization, and cascade-deletion policy;
 7. lifecycle checking against concrete storage backends;
 8. links from runtime values and operational signals back to source types.
 
 *Mechanism:* schema, validation, persistence, UI, and lifecycle descriptions
-share the general annotation model rather than introduce separate declaration
-systems.
+share member metadata and typed derivation rather than introduce separate
+declaration systems.
 
 ### Correctness And Property Testing
 
@@ -281,21 +282,21 @@ It should support:
 A developer should be able to state a record's lifecycle policy next to its
 type and have that policy checked against the storage it uses.
 
-*Mechanism:* retention uses the annotation model rather than standalone syntax:
+*Mechanism:* retention uses member metadata and typed derivation rather than
+standalone syntax:
 
 ```text
 data User:
     id: UserId
     deleted: bool
 
+@derive(Retention)
 data Post:
     id: PostId
     userId: UserId
 
 annotate Post:
     userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
-
-annotate Retention for Post: pass
 ```
 
 An ownership marker alone is insufficient; metadata must state the lifecycle
@@ -307,12 +308,12 @@ deletion with workflows, audit logs, and access control.
 
 The two scenarios share these accepted directions:
 
-1. schemas are derived from ordinary data, enum, function, and annotation
-   declarations rather than a parallel schema language;
+1. schemas are derived from ordinary data, enum, and function declarations
+   and their metadata rather than a parallel schema language;
 2. validation metadata does not silently refine static types;
 3. custom validators are ordinary functions;
-4. annotations support validation, database, UI, retention, observability, and
-   other library-defined facets;
+4. member metadata and typed derivation support validation, database, UI,
+   retention, observability, and other library-defined information;
 5. tools, endpoints, jobs, and workflows are ordinary functions with explicit
    metadata and registration;
 6. errors, dependencies, and suspension remain separate as `Result`,

@@ -430,18 +430,19 @@ test "stamps with the fixed clock":
 
 ## Annotations
 
-Annotations attach typed metadata to declarations and derive information
-for whole types, such as validators, schemas, or tool descriptions. The
-result is an ordinary runtime value.
+Annotations attach typed metadata to declarations. A library derives
+information for whole types, such as validators or schemas, as an ordinary
+trait with an associated function, and the result is an ordinary runtime
+value.
 
 ```hd
-@Validation
+@derive(Validate)
 data Signup:
     @max_len(80)
     display_name: string
     email: string
 
-validator := Validation::annotation(Signup)
+validator := Signup::validator()
 ```
 
 ## Where Next

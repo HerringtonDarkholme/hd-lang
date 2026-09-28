@@ -80,7 +80,7 @@ for the owner:
 | `default()` allocation (round 2 R15) | Whether `h.default()` may allocate for every member type. |
 | Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
 | Generic `missing` calls (M23) | M23 lets source code call `missing[F]` through a generic source, and M9 lets a source strengthen `missing[F]`'s bound. Which bound such a call checks, and where, is undecided. |
-| Function targets | Deriving for functions ([FN_TYPE](FN_TYPE.md)), and how chapter 14's facets and annotators relate to typed derivation. |
+| Function targets | Deriving for functions, and what a decorator before a function means ([FN_TYPE](FN_TYPE.md) questions 9 and 10). Chapter 14's facets and annotators are removed (decision 10). |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
@@ -216,8 +216,7 @@ even with global coherence.
 with an explicit form for foreign targets. The compiler provides a command that
 prints the complete materialized `Info` plan and its provenance for a target
 without executing effectful code. Until the rule is specified, the existing
-package-global placement rules in
-[Annotations](../spec/14-annotations.md#coherence-and-package-rules) stay in
+package-global placement rules in Annotations (since removed) stay in
 force.
 
 **Open questions.**

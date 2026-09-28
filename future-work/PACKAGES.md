@@ -16,10 +16,10 @@ Inputs:
   [Name Resolution Across Packages](../spec/10-modules.md#name-resolution-across-packages)
   (interface files, link-time coherence), and
   [Executable Entry Point](../spec/10-modules.md#executable-entry-point).
-- The orphan and overlap rules in [Traits](../spec/09-traits.md) and
-  [Coherence And Package Rules](../spec/14-annotations.md#coherence-and-package-rules)
-  for annotations. The root-application orphan exception is dropped
-  (decision 4).
+- The orphan and overlap rules in [Traits](../spec/09-traits.md). The
+  annotation coherence rules were removed with the facet protocol
+  ([Typed Derivation decision 10](TYPED_DERIVATION.md#owner-decisions)), and
+  the root-application orphan exception is dropped (decision 4).
 - The package bullet in
   [Runtime, Library, ABI, And Tooling Work](OPEN_ISSUES.md#runtime-library-abi-and-tooling-work).
 

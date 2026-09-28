@@ -121,7 +121,10 @@ as history):
     standard-library cache for derived associated functions: a value built
     lazily once per (trait, type) per program instance, with `Ref[T]`
     deferred references and cycle detection replacing `AnnotationRef`.
-    Function targets are decided with the function-item question.
+    Function targets are decided with the function-item question. (Applied
+    2026-09-27: the facet protocol is removed from
+    [Annotations](../spec/14-annotations.md), and the cache is listed in
+    [STDLIB](STDLIB.md#derived-function-cache).)
 11. **One block per concern; derivations are never merged in one place.**
     A derivation is requested with a block `derive X for T:` whose field
     and container options are metadata scoped to that derivation only
@@ -1223,9 +1226,10 @@ Nothing below is decided. Each item waits for the owner.
 - **Composing templates** (round 1 P16). A wrapper walker cannot forward to
   an inner walker's `member`, because M9 lets only generated code call it
   through a generic parameter.
-- **Function targets and chapter 14.** Function targets wait for
-  [FN_TYPE.md](FN_TYPE.md). How chapter 14's annotators and `Annotate`
-  relate to this design is open: decisions 7 and 10 predate M1-M21.
+- **Function targets.** Function targets wait for
+  [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
+  is removed (decision 10, applied 2026-09-27), so an ordinary decorator
+  before a function is `decorator-not-annotator` until then.
 
 ### Current Design: Full Example (M1-M14)
 

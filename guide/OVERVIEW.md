@@ -74,14 +74,15 @@ does not audit authority that flows through values.
 
 ### Typed annotations
 
-Annotations attach typed metadata to declarations and derive ordinary runtime
-information from compiler-verified structure. They do not silently change a
-declaration's type, behavior, name, visibility, or registration status.
+Annotations attach typed metadata to declarations, and typed derivation
+turns compiler-verified structure into ordinary trait implementations. They
+do not silently change a declaration's type, behavior, name, visibility, or
+registration status.
 
-The same model can support validation, schemas, tool descriptions, database
-metadata, user interfaces, retention policies, and other structural facets.
-Libraries define the meaning of those facets; the language supplies coherent
-attachment and derivation.
+The same model can support validation, schemas, database metadata, user
+interfaces, retention policies, and other structural information. Libraries
+define the meaning of that information; the language supplies attachment and
+derivation.
 
 ### WebAssembly execution
 
