@@ -549,6 +549,17 @@ found on 21 cases against T1-T13; T14-T27 answer its questions.
 
 ### Still Open After T53
 
+**Decided (owner, 2026-09-28, T54).**
+- A snapshot mismatch or a missing snapshot file fails with
+  `assertion-failed`, as `assert_equal` does.
+- The `DebugWriter` builder types keep Rust's names: `DebugStruct`,
+  `DebugTuple`, `DebugList` and `DebugMap`.
+- `@derive(Debug)` follows Rust's mapping: a data type or record variant
+  uses a struct builder, a tuple variant uses a tuple builder, and a unit
+  variant prints its name only. The spec states this mapping.
+- Test-layout fixture packages for `cyclic-test-dependency` and a `tests`
+  root inside `tests/` get added when those rules need coverage.
+
 Applying T53 on 2026-09-28 needed these readings. The spec states each as
 applied, so each can change without breaking a decision. Nothing here is
 decided:

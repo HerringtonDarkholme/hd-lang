@@ -96,6 +96,16 @@ fn greet() -> void $ Console:
 2. `println` panics when `write_line!` returns `.Err(ConsoleError)`. Code
    that must handle the error calls `write_line!` directly.
 
+**Decided, second round (owner, 2026-09-28).**
+- `println` is exactly `block_on(write_line!(...))` plus the `.Err` panic.
+  A pending host write is driven until it finishes, as `block_on` does.
+  The earlier "a pending host suspension is a panic" rule is dropped.
+- `println`'s own panic is an ordinary std `panic` call, so its category
+  follows the general rules (`explicit-panic`).
+- `println` at the top level of an entry-module script (REPL, playground)
+  is valid: no driver is running there, and only non-entry module
+  initialization bans `block_on`.
+
 **Decided follow-ups (owner, 2026-09-28).**
 1. `println` is an ordinary std prelude function. Its panics are ordinary
    panics raised by std code, with a message std defines. The language adds
