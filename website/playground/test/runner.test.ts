@@ -373,7 +373,7 @@ test("the WAT of a program is the module Run instantiates", async () => {
   assert.equal(shown.status, "ok", shown.summary);
   assert.equal(shown.module?.origin, "program");
   assert.match(shown.module!.wat, /^\(module\n/);
-  assert.match(shown.module!.wat, /\(func \$f\d+ \(export "main"\)/);
+  assert.match(shown.module!.wat, /\(func \(export "main"\) \(param \$provider0 externref\)/);
   const modules: Runner.CompiledModule[] = [];
   const ran = await runner.runProject(project, "run", undefined, (module) => modules.push(module));
   assert.equal(ran.status, "ok", ran.summary);

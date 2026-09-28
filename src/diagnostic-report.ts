@@ -198,6 +198,27 @@ export class DiagnosticReporter {
     });
   }
 
+  /** A checked program that stopped at a feature the prototype does not run. */
+  unsupported(code: string, message: string): void {
+    if (this.format === "text") {
+      this.write(`${this.file}: ${code}: ${message}`);
+      return;
+    }
+    this.record({
+      kind: "diagnostic",
+      code,
+      severity: "error",
+      message,
+      file: this.file,
+      span: null,
+      notes: [],
+      related: [],
+      fix: null,
+      rule: null,
+      rules: [],
+    });
+  }
+
   /**
    * A `main` or test whose `Result` is `Err`, or a test that failed otherwise
    * (`outcome`); the program ran, so no code applies.

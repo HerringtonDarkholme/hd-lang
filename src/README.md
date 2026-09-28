@@ -289,11 +289,16 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   lexical `Console` provider and streaming UTF-8 from Wasm GC strings through
   the narrow host byte callback. `Console` is a prelude trait with
   `write_line!(mut self, text: string) -> Result[void, ConsoleError]`, so
-  `$.use(Console)` is `mut Console` and a program may implement it; the
-  emitter runs only the host console, an opaque `externref`
-  (`emitter/run-time-gaps.ts`), and reports a program-defined provider or a
-  direct `write_line!` call as `unsupported-console-provider` or
-  `unsupported-console-call`;
+  `$.use(Console)` is `mut Console` and a program may implement it. The
+  host console is a `Console` trait value that boxes the host's `externref`
+  (`emitter/host-providers.ts`); its `write_line!` writes the line and is
+  ready with `.Ok()` on its first poll, so direct calls run on it and on a
+  program-defined provider. `println` writes only through the host console:
+  when it reaches a program-defined provider, the run stops with
+  `unsupported-console-provider`, since the spec does not say how `println`
+  drives `write_line!` (MHP-1). A public non-suspending function with a
+  host provider in its row is exported through a wrapper that makes the
+  trait value from the host's `externref`;
 - suspending host capability methods with scalar and UTF-8 string arguments
   and results, using opaque per-call tokens and a byte-stream bridge that keeps
   Wasm GC references inside Wasm;
@@ -655,6 +660,7 @@ What it provides:
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffixes `ms`, `s`, `min`, `h` |
+| `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.ops` | `LiteralSuffix` |
 
@@ -664,8 +670,8 @@ limits: the `std.iter` adapters work on the built-in list and map cursors
 there is no `chars`, `to_utf8`, or `from_utf8` (no scalar or byte access
 from hd), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
-`Hash`), and no `std.console` (a program-defined `Console` provider does
-not run, MHP-1). `test/std/*.hd` tests each module through `hd test`, and
+`Hash`), and no host `ConsoleInput`; a `BufferConsole` records direct
+`write_line!` calls, not `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
 
 ## Layout

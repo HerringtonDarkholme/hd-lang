@@ -122,12 +122,18 @@ class FunctionEmitter extends FunctionBodyEmitter {
     const temporaries = this.temporaryTypes.map(
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
-    const exported =
+    const exportable =
       !declaration.name.startsWith("$") &&
       !declaration.closure &&
       !declaration.suspending &&
       declaration.parameters.every((parameter) => this.hostSafe(parameter.type)) &&
       this.hostSafe(declaration.result);
+    // A host trait provider arrives as an `externref`, so such a function is
+    // exported through a wrapper that makes the trait value.
+    const hostProviders = declaration.requirements.some((requirement) =>
+      this.hostTrait(requirement),
+    );
+    const exported = exportable && !hostProviders;
     const exportClause = exported ? ` (export ${exportName(declaration.name)})` : "";
     const internalName = declaration.suspending
       ? `$body${suspensionIndex(declaration)}`
@@ -153,34 +159,10 @@ class FunctionEmitter extends FunctionBodyEmitter {
       indent(body),
       `)`,
       ...this.emitResultEntryExport(declaration, internalName),
+      ...(exportable && hostProviders && declaration.genericBounds.length === 0
+        ? this.emitHostProviderExport(declaration, internalName)
+        : []),
     ].join("\n");
-  }
-
-  // A `main` with a non-void result is exported through a wrapper that
-  // returns its exit code (10-modules.md#exit-status), or -1 for an `.Err`,
-  // which the host reports as an error before it exits with 1.
-  private emitResultEntryExport(declaration: HirFunction, internalName: string): string[] {
-    if (
-      !declaration.entry ||
-      declaration.closure ||
-      declaration.suspending ||
-      declaration.parameters.length > 0 ||
-      declaration.genericBounds.length > 0 ||
-      declaration.result === "void" ||
-      declaration.result === "never"
-    )
-      return [];
-    const providers = declaration.requirements.map(
-      (requirement, index) => `(param $provider${index} ${this.providerType(requirement)})`,
-    );
-    const call = `(call ${internalName}${declaration.requirements.map((_, index) => ` (local.get $provider${index})`).join("")})`;
-    const locals: string[] = [];
-    const report = this.emitEntryReport(call, declaration.result, locals);
-    return [
-      `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
-      ...locals.map((local) => `  ${local}`),
-      `  ${report})`,
-    ];
   }
 
   emitSuspensionSupport(declaration: HirFunction): string {
@@ -1468,7 +1450,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
         ].join("\n")
       : "",
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,
-    emitter.requiresConsoleOutput
+    emitter.requiresConsoleOutput || hostProviders.console
       ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
       : "",
   ]
@@ -1477,7 +1459,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
   const start = program.initializer === undefined ? "" : `\n  (start $f${program.initializer})`;
   const optionalRuntime = [
     emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
-    emitter.requiresConsoleOutput ? CONSOLE_RUNTIME_WAT : "",
+    emitter.requiresConsoleOutput || hostProviders.console ? CONSOLE_RUNTIME_WAT : "",
     emitter.requiresStringSplit ? STRING_SPLIT_RUNTIME_WAT : "",
     emitter.requiresStringTransforms ? STRING_TRANSFORM_RUNTIME_WAT : "",
   ]

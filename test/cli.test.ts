@@ -173,6 +173,53 @@ test("hd run and hd test judge suspending results by Termination", async () => {
   }
 });
 
+// `write_line!` runs on the host console and on a program-defined provider
+// (spec/10-modules.md#console); `println` through a program-defined provider
+// is not run (MHP-1).
+test("hd run runs Console.write_line! on host and program providers", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "console.hd");
+    const lines = [
+      "data Buffer:",
+      "    lines: mut List[string]",
+      "",
+      "impl Console for Buffer:",
+      "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
+      "        self.lines.append(text)",
+      "        .Ok()",
+      "",
+      "fn greet!() -> Result[void, ConsoleError] $ Console:",
+      "    let console: mut Console = $.use(Console)",
+      '    console.write_line!("hi")',
+      "",
+      "pub fn main!() -> Result[void, ConsoleError] $ Console:",
+      "    greet!()?",
+      "    let buffer: mut Buffer = Buffer { lines: [] }",
+      "    $.with(Console=buffer):",
+      "        greet!()?",
+      '    println("recorded ${buffer.lines.len()}")',
+    ];
+    await writeFile(source, [...lines, "    .Ok()", ""].join("\n"));
+    const ran = await hd(["run", source]);
+    assert.equal(ran.stdout, "hi\nrecorded 1\n");
+
+    await writeFile(
+      source,
+      [...lines, "    $.with(Console=buffer):", '        println("lost")', "    .Ok()", ""].join(
+        "\n",
+      ),
+    );
+    await assert.rejects(hd(["run", source]), (error: CommandResult & { code?: number }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stdout + error.stderr, /unsupported-console-provider: println reached/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // Each it_each row is its own test case in a fresh program instance
 // (spec/10-modules.md#table-tests and #r-module.testing.instance).
 test("hd test runs each it_each row in a fresh instance", async () => {

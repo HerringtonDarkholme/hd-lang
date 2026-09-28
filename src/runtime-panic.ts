@@ -25,6 +25,20 @@ export class RuntimePanicError extends Error {
   }
 }
 
+/**
+ * A checked program stopped at a feature the prototype does not run; `code`
+ * is a prototype diagnostic code such as `unsupported-console-provider`.
+ */
+export class UnsupportedAtRunTimeError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "UnsupportedAtRunTimeError";
+    this.code = code;
+  }
+}
+
 export function runtimePanicCode(name: RuntimePanicName): number {
   return RUNTIME_PANIC_NAMES.indexOf(name);
 }

@@ -14,7 +14,7 @@ import {
 import { explainCommand, lookupCommand } from "./cli-queries.ts";
 import { DiagnosticReporter, type OutputFormat } from "./diagnostic-report.ts";
 import { DiagnosticError } from "./diagnostics.ts";
-import { RuntimePanicError } from "./runtime-panic.ts";
+import { RuntimePanicError, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
@@ -367,6 +367,10 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
     }
     if (error instanceof RuntimePanicError) {
       reporter.runtimePanic(error.code);
+      return 1;
+    }
+    if (error instanceof UnsupportedAtRunTimeError) {
+      reporter.unsupported(error.code, error.message);
       return 1;
     }
     throw error;

@@ -1,0 +1,19 @@
+# std.console BufferConsole records what write_line! writes.
+use std.console.BufferConsole
+use std.testing.assert_equal
+
+fn greet!(name: string) -> Result[void, ConsoleError] $ Console:
+    let console: mut Console = $.use(Console)
+    console.write_line!("hello, $name")?
+    console.write_line!("bye")
+
+tests:
+    it("BufferConsole records each line"):
+        let console: mut BufferConsole = BufferConsole::new()
+        $.with(Console=console):
+            result := greet!("ada")
+            assert_equal(result.is_ok(), true, reason="the buffer never fails")
+        assert_equal(console.output(), ["hello, ada", "bye"], reason="both lines")
+
+    it("a new BufferConsole is empty"):
+        assert_equal(BufferConsole::new().output().len(), 0, reason="no lines yet")

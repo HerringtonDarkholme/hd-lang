@@ -7,7 +7,7 @@ import { emitWat } from "./emitter/index.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
-import { RuntimePanicError, runtimePanicName } from "./runtime-panic.ts";
+import { RuntimePanicError, runtimePanicName, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 
 export interface Compilation extends WasmArtifact {
   readonly hir: HirProgram;
@@ -509,6 +509,14 @@ export async function instantiate(
         throw new RuntimePanicError(runtimePanicName(code));
       },
       console_byte: consoleByte,
+      // `println` reached a program-defined `Console` provider
+      // (emitter/host-providers.ts).
+      console_unsupported: () => {
+        throw new UnsupportedAtRunTimeError(
+          "unsupported-console-provider",
+          "println reached a program-defined Console provider; the prototype prints only through the host Console, because the spec does not say how println drives write_line! (MHP-1)",
+        );
+      },
     },
   });
   const replay: ReplaySession = {

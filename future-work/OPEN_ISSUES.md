@@ -64,10 +64,12 @@ beside a second note: adding a `mut self` method to a published requirement
 trait is a breaking change
 ([Packages](PACKAGES.md#33-the-checked-compatibility-rule)).
 
-**Still open after the prototype pass (2026-09-28).** The prototype now
-checks `Console` as a prelude trait, but it runs only the host console. A
-program-defined provider and a direct `write_line!` call are reported as
-not supported at run time, because the spec leaves two questions open.
+**Still open after the prototype pass (2026-09-28).** The prototype checks
+`Console` as a prelude trait. It runs direct `write_line!` calls on the host
+console and on a program-defined provider, such as the toy
+`std.console.BufferConsole`. `println` still writes only through the host
+console: when it reaches a program-defined provider, the run stops with
+`unsupported-console-provider`, because the spec leaves two questions open.
 
 1. **How `println` calls `write_line!`.** `println` is non-suspending
    (`-> void $ Console`), but `write_line!` suspends, so a recording

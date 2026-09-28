@@ -6,6 +6,8 @@ export interface HostProviderEmission {
   readonly imports: string;
   readonly references: readonly string[];
   readonly types: string;
+  /** Whether the host console is emitted, which prints through `$hd.console_print`. */
+  readonly console: boolean;
 }
 
 interface HostMethod {
@@ -265,13 +267,108 @@ function emitFrameType({ trait, method }: HostMethod): string {
       (field ${frame}state (mut i32))${result}))`;
 }
 
+// The host console (spec/10-modules.md#console). The host binds `Console`
+// through its console import, not a boundary adapter: `write_line!` writes
+// its line when first polled and is then ready with `.Ok()`. The host reports
+// no write failure, so no `ConsoleError` is produced.
+// `$hd.host_console_extern` gives `println` the host console under a
+// `Console` value; any other provider stops the run, because the spec does
+// not say how `println` drives a program's `write_line!` (MHP-1).
+const CONSOLE_FRAME = "$hd.host_console_frame";
+
+function emitConsoleType(): string {
+  return `    (type ${CONSOLE_FRAME} (struct
+      (field ${CONSOLE_FRAME}provider externref)
+      (field ${CONSOLE_FRAME}text (ref null $hd.bytes))
+      (field ${CONSOLE_FRAME}state (mut i32))))`;
+}
+
+function emitConsole(trait: HirTrait): { functions: string; references: string[] } {
+  const method = trait.methods[0]!;
+  const ids = `${trait.index}_${method.index}`;
+  const frame = `(ref.cast (ref ${CONSOLE_FRAME}) (local.get $inner))`;
+  const state = `(struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame))`;
+  const functions = [
+    `(func ${methodName(trait, method)} (type $tsig${ids}) (param $receiver anyref) (param $dictionary anyref) (param $text (ref null $hd.bytes)) (result (ref null $ts${ids}))`,
+    `  (struct.new $ts${ids}`,
+    `    (struct.new ${CONSOLE_FRAME}`,
+    `      (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver)))`,
+    `      (local.get $text)`,
+    `      (i32.const 0))`,
+    `    (ref.func ${pollName(trait, method)})`,
+    `    (ref.func ${cancelName(trait, method)})`,
+    `    (ref.func ${resultName(trait, method)}))`,
+    `)`,
+    ``,
+    `(func ${pollName(trait, method)} (type $tspollsig${ids}) (param $inner anyref) (result i32)`,
+    `  (local $frame (ref ${CONSOLE_FRAME}))`,
+    `  (local.set $frame ${frame})`,
+    `  (if (i32.eq ${state} (i32.const 1))`,
+    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-reentrant-poll")})) unreachable))`,
+    `  (if (i32.or (i32.eq ${state} (i32.const 2)) (i32.eq ${state} (i32.const 3)))`,
+    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-invalid-state")})) unreachable))`,
+    `  (call $hd.console_print`,
+    `    (struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}provider (local.get $frame))`,
+    `    (struct.get ${CONSOLE_FRAME} ${CONSOLE_FRAME}text (local.get $frame)))`,
+    `  (struct.set ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame) (i32.const 2))`,
+    `  (i32.const 1)`,
+    `)`,
+    ``,
+    `(func ${cancelName(trait, method)} (type $tscancelsig${ids}) (param $inner anyref)`,
+    `  (local $frame (ref ${CONSOLE_FRAME}))`,
+    `  (local.set $frame ${frame})`,
+    `  (if (i32.eq ${state} (i32.const 1))`,
+    `    (then (call $hd.panic (i32.const ${runtimePanicCode("suspension-reentrant-poll")})) unreachable))`,
+    `  (if (i32.eqz ${state})`,
+    `    (then (struct.set ${CONSOLE_FRAME} ${CONSOLE_FRAME}state (local.get $frame) (i32.const 3))))`,
+    `)`,
+    ``,
+    `(func ${resultName(trait, method)} (type $tsresultsig${ids}) (param $inner anyref) (result (ref null $hd.variant))`,
+    `  (struct.new $hd.variant (i32.const 0) (ref.null any))`,
+    `)`,
+    ``,
+    emitTraitFactory(trait),
+    ``,
+    `(func $hd.host_console_extern (param $console (ref null $trait${trait.index})) (result externref)`,
+    `  (local $receiver anyref)`,
+    `  (local.set $receiver (struct.get $trait${trait.index} $trait${trait.index}value (ref.as_non_null (local.get $console))))`,
+    `  (if (ref.test (ref $hd.box-extern) (local.get $receiver))`,
+    `    (then (return (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver))))))`,
+    `  (call $hd.console_unsupported)`,
+    `  unreachable`,
+    `)`,
+  ].join("\n");
+  return {
+    functions,
+    references: [
+      methodName(trait, method),
+      pollName(trait, method),
+      cancelName(trait, method),
+      resultName(trait, method),
+    ],
+  };
+}
+
 export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const capabilities = new Set(program.hostCapabilities);
-  const traits = program.traits.filter((trait) => capabilities.has(trait.name));
+  const console = program.traits.find(
+    (trait) => trait.name === "Console" && capabilities.has(trait.name),
+  );
+  const consoleEmission = console ? emitConsole(console) : undefined;
+  const traits = program.traits.filter(
+    (trait) => capabilities.has(trait.name) && trait !== console,
+  );
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
-  if (methods.length === 0) return { functions: "", imports: "", references: [], types: "" };
-  const imports = methods.flatMap(emitImports).join("\n");
+  if (methods.length === 0 && !consoleEmission)
+    return { functions: "", imports: "", references: [], types: "", console: false };
+  const imports = [
+    ...methods.flatMap(emitImports),
+    ...(consoleEmission
+      ? [`  (import "hd" "console_unsupported" (func $hd.console_unsupported))`]
+      : []),
+  ].join("\n");
   const functions = [
+    ...(consoleEmission ? [consoleEmission.functions] : []),
     ...methods.flatMap((hostMethod) => [
       emitPoll(hostMethod),
       emitCancel(hostMethod),
@@ -281,12 +378,17 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
     ]),
     ...traits.map(emitTraitFactory),
   ].join("\n\n");
-  const references = methods.flatMap(({ trait, method }) => [
-    methodName(trait, method),
-    pollName(trait, method),
-    cancelName(trait, method),
-    resultName(trait, method),
-  ]);
-  const types = methods.map(emitFrameType).join("\n");
-  return { functions, imports, references, types };
+  const references = [
+    ...(consoleEmission?.references ?? []),
+    ...methods.flatMap(({ trait, method }) => [
+      methodName(trait, method),
+      pollName(trait, method),
+      cancelName(trait, method),
+      resultName(trait, method),
+    ]),
+  ];
+  const types = [...(consoleEmission ? [emitConsoleType()] : []), ...methods.map(emitFrameType)]
+    .filter(Boolean)
+    .join("\n");
+  return { functions, imports, references, types, console: consoleEmission !== undefined };
 }

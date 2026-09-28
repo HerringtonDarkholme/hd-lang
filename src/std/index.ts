@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 export const STANDARD_MODULES = [
   "cmp",
   "collections",
+  "console",
   "iter",
   "num",
   "ops",

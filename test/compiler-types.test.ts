@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
+import { UnsupportedAtRunTimeError } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
@@ -497,16 +498,26 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
   );
 });
 
-test("Console is a prelude trait, but only the host console runs (MHP-1)", () => {
+test("Console is a prelude trait; println runs only through the host console (MHP-1)", async () => {
   const source = [
     "data Quiet: pass",
     "",
     "impl Console for Quiet:",
     "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]: .Ok()",
     "",
+    "pub fn main() -> void $ Console:",
+    "    let quiet: mut Quiet = Quiet {}",
+    "    $.with(Console=quiet):",
+    '        println("lost")',
+    "",
   ].join("\n");
   assert.deepEqual(analyze(source).diagnostics, []);
-  assert.throws(() => compile(source), /program-defined Console provider/);
+  const { instance } = await instantiate(source);
+  assert.throws(
+    () => (instance.exports.main as CallableFunction)({}),
+    (error: unknown) =>
+      error instanceof UnsupportedAtRunTimeError && error.code === "unsupported-console-provider",
+  );
 });
 
 test("Debug is checked, and debug text is not rendered (T33)", () => {

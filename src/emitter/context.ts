@@ -32,7 +32,9 @@ export interface BuiltinTraitAdapter {
 import { runtimePanicCode, type RuntimePanicName } from "../runtime-panic.ts";
 import {
   containsGenericValueType,
+  exportName,
   isGenericValueType,
+  localName,
   providerWatType,
   traitSuspensionName,
   traitTypeBase,
@@ -282,6 +284,51 @@ export class EmitterContext {
         ? `(call $hd.host_trait${trait.index} (local.get $provider${index}))`
         : `(local.get $provider${index})`;
     });
+  }
+
+  protected emitHostProviderExport(declaration: HirFunction, internalName: string): string[] {
+    const parameters = declaration.parameters.map(
+      (parameter) =>
+        `(param ${localName(parameter.index)} ${this.parameterWatType(parameter.type)})`,
+    );
+    const providers = this.entryProviderParameters(declaration);
+    const result =
+      declaration.result === "void" ? "" : ` (result ${this.watType(declaration.result)})`;
+    const arguments_ = [
+      ...declaration.parameters.map((parameter) => `(local.get ${localName(parameter.index)})`),
+      ...this.entryProviderArguments(declaration),
+    ];
+    return [
+      `(func (export ${exportName(declaration.name)})${[...parameters, ...providers].map((parameter) => ` ${parameter}`).join("")}${result}`,
+      `  (call ${internalName}${arguments_.map((argument) => ` ${argument}`).join("")}))`,
+    ];
+  }
+
+  // A `main` with a non-void result is exported through a wrapper that
+  // returns its exit code (10-modules.md#exit-status), or -1 for an `.Err`,
+  // which the host reports as an error before it exits with 1.
+  protected emitResultEntryExport(declaration: HirFunction, internalName: string): string[] {
+    if (
+      !declaration.entry ||
+      declaration.closure ||
+      declaration.suspending ||
+      declaration.parameters.length > 0 ||
+      declaration.genericBounds.length > 0 ||
+      declaration.result === "void" ||
+      declaration.result === "never"
+    )
+      return [];
+    const providers = this.entryProviderParameters(declaration);
+    const call = `(call ${internalName}${this.entryProviderArguments(declaration)
+      .map((argument) => ` ${argument}`)
+      .join("")})`;
+    const locals: string[] = [];
+    const report = this.emitEntryReport(call, declaration.result, locals);
+    return [
+      `(func (export ${exportName("main")})${providers.length ? " " + providers.join(" ") : ""} (result i32)`,
+      ...locals.map((local) => `  ${local}`),
+      `  ${report})`,
+    ];
   }
 
   protected hostSafe(type: ValueType): boolean {
