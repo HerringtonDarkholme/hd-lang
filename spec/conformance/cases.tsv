@@ -1239,3 +1239,11 @@ typing/invalid/trait-less-block-newtype.hd	type	reject:misplaced-derivation	14-a
 typing/invalid/trait-less-block-local.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.local
 typing/invalid/trait-less-block-duplicate-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.traitless.after-decorators
 typing/invalid/trait-less-delegation.hd	type	reject:invalid-delegation	09-traits.md#r-trait.by.trait-less.error
+typing/invalid/omitted-embedded-part.hd	type	reject:omitted-member-without-default	14-annotations.md#r-annot.omit.no-default
+typing/invalid/duplicate-type-level-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.fact.duplicate-decorator
+typing/valid/trait-less-block-generic.hd	type	accept	14-annotations.md#r-annot.traitless.generic
+typing/invalid/trait-less-block-generic-argument.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.generic.error
+typing/invalid/trait-less-block-generic-bound.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.generic.error
+typing/invalid/trait-less-block-second.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.traitless.unique
+typing/warnings/trait-less-self-line-unused-fact.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-self-line
+runtime/valid/member-line-list-expression.hd	runtime	accept	14-annotations.md#r-annot.line.right-typed

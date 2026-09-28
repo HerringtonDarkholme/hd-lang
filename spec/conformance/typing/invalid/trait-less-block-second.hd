@@ -1,0 +1,19 @@
+# test: a type has at most one trait-less block, so a second one overlaps the first
+# Spec 14 Trait-Less Derivation Blocks: annot.traitless.unique (M28).
+use std.structure.Structure
+
+data Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+data User:
+    name: string
+    email: string
+
+impl User by Structure:
+    name += [tag("n")]
+
+impl User by Structure:  # diagnostic: overlapping-impl
+    email += [tag("e")]

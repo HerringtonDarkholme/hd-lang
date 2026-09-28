@@ -878,3 +878,6 @@ style lint rejects a chapter that reuses one.
 - `annot.line.placement`: retired 2026-09-28. Typed derivation M26 allows
   member lines in a trait-less derivation block. Replaced by
   `annot.line.placement-blocks`.
+- `annot.line.right`: retired 2026-09-28. Typed derivation M28 allows any
+  expression of a list type on a member line's right side, not only a list
+  expression. Replaced by `annot.line.right-typed`.

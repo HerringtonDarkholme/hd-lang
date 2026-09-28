@@ -1,0 +1,15 @@
+# test: a trait-less block's header applies the type to its own parameters, not to other type arguments
+# Spec 14 Trait-Less Derivation Blocks: annot.traitless.generic.error (M28).
+use std.structure.Structure
+
+data Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+data Box[T]:
+    item: T
+
+impl Box[i32] by Structure:  # diagnostic: misplaced-derivation
+    item += [tag("a")]

@@ -1105,6 +1105,24 @@ existing source. Each entry names the decision that made the change.
   associated type, or an omit line `f = pass` in it, and a newtype target,
   are errors. `impl C by E` without a trait, where `E` is not `Structure`,
   is `invalid-delegation`.
+- Typed derivation M27 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  2026-09-28): `Part = pass` on an embedded part stays
+  `omitted-member-without-default`, now shown as an example. Two decorators
+  before one declaration whose type-level facts have one concrete type, as
+  two `@style(...)` lines, previously not covered, are `duplicate-fact` on
+  the later decorator.
+- Typed derivation M28 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  2026-09-28): a trait-less derivation block's header declares only its
+  target's own type parameters, without bounds, as
+  `impl[T] Box[T] by Structure:`; `impl Box[i32] by Structure:` or a bound,
+  previously without a meaning, is `misplaced-derivation`. A second
+  trait-less block for one type, previously undecided, is
+  `overlapping-impl`. A type-level fact written in a trait-less block's
+  `Self` line now gets `unused-derivation-fact` on that line. A member
+  line's right side may be any expression of a list type, so
+  `name = shared_list`, previously `invalid-member-line`, is valid.
 - `println` drives `write_line!` (mutable host providers MHP-1, owner
   decision 2026-09-28): a `println(value)` call calls
   `write_line!(value.to_string())` on the covering `Console` provider and

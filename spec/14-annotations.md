@@ -390,7 +390,9 @@ let email_metadata: List[Any] = [
 ]
 ```
 
-Different concrete metadata types coexist in one `List[Any]`.
+Different concrete metadata types coexist in one `List[Any]`. A member
+line may name such a list directly, as `email = email_metadata`, since its
+right side is [any list-typed expression](#r-annot.line.right-typed).
 
 ## Grammar
 
@@ -695,7 +697,7 @@ to write shared metadata, as
 
 1. r[annot.line.name] The name on the left of a member line must be a direct member of the target, or `Self`. Any other name is an error. Error: `unknown-annotation-member`.
 2. r[annot.line.enum] In an enum's block, a member line names a whole variant or `Self`. A line that names a payload member is an error. Error: `unknown-annotation-member`.
-3. r[annot.line.right] The right side must be a list expression, or `pass` after a member name and `=`.
+3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). A `Self` line's list is contextually typed as `List[Any]`.
 6. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
@@ -737,13 +739,22 @@ impl Show for Reply by Structure:
 ```text
 use std.structure.Structure
 
+data Audit:
+    at: i64
+
 data Account:
+    Audit
     id: i64
     token: Token
 
 impl Show for Account by Structure:
     token = pass  # error: omitted-member-without-default
+    Audit = pass  # error: omitted-member-without-default
 ```
+
+An embedded part has no default syntax
+([`data.default.embedded`](08-data-and-enums.md#r-data.default.embedded)),
+so omitting one, as `Audit = pass` above, is always this error.
 
 #### Line Drift
 
@@ -793,6 +804,9 @@ change the type of a member.
 10. r[annot.traitless.local] A trait-less block in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.
 11. r[annot.traitless.target] `X` must be a data type or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
 12. r[annot.traitless.by] The name after `by` in a header without a trait must be `Structure`, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) states.
+13. r[annot.traitless.generic] The header must declare only the own type parameters of `X`'s declaration, in order and without bounds, and apply `X` to them, as `impl[T] Box[T] by Structure:`.
+14. r[annot.traitless.generic.error] Any other header, such as `impl Box[i32] by Structure:` or `impl[T < Hash] Box[T] by Structure:`, is an error, reported on the block. Error: `misplaced-derivation`.
+15. r[annot.traitless.unique] A type has at most one trait-less block. A second one is an error, reported on the second block. Error: `overlapping-impl`.
 
 ```text
 use std.structure.Structure
@@ -806,17 +820,25 @@ data Account:
 
 type Meters(i64)
 
+data Box[T]:
+    item: T
+
 impl Account by Structure:
     token = pass  # error: invalid-member-line
     fn label(self) -> string:  # error: misplaced-derivation
         "account"
 
 impl Meters by Structure  # error: misplaced-derivation
+
+impl Box[i32] by Structure  # error: misplaced-derivation
+
+impl Account by Structure  # error: overlapping-impl
 ```
 
 > **Why.** The block reuses the derivation block's header and member lines,
 > so shared metadata needs no keyword of its own. An omit line is not
-> metadata, because it changes generated code.
+> metadata, because it changes generated code. One block per type keeps
+> shared metadata in one place, so no line depends on the order of blocks.
 
 See also: [Member Metadata](#member-metadata), [Facts](#facts).
 
@@ -842,8 +864,12 @@ fn key_for(style: Style, m: Member) -> string:
 8. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
 9. r[annot.fact.unused-non-std] A type-level fact whose type comes from a package other than `std`, where that package supplies no template that the type derives, gets a warning, reported on its decorator. Warning: `unused-derivation-fact`.
 10. r[annot.fact.unused-std] A fact of a primitive or standard type, such as `@"internal"`, never gets this warning.
+11. r[annot.fact.unused-self-line] A type-level fact that a trait-less block's `Self` line writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
+12. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
+use std.structure.Structure
+
 @style(prefix="p_")  # warning: unused-derivation-fact
 data Plain:
     id: i64
@@ -851,11 +877,22 @@ data Plain:
 @"internal"
 data Note:
     id: i64
+
+data Quiet:
+    id: i64
+
+impl Quiet by Structure:
+    Self += [style(prefix="q_")]  # warning: unused-derivation-fact
+
+@style(prefix="a_")
+@style(prefix="b_")  # error: duplicate-fact
+data Twice:
+    id: i64
 ```
 
-11. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
-12. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
-13. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+13. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
+14. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
+15. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -1061,7 +1098,4 @@ An implementation must not guess them:
 | Composing templates | How a walker forwards to another walker's `member`, which only generated code may call generically. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
-| Generic trait-less blocks | How a trait-less derivation block for a generic type is written, as in `impl[T] Box[T] by Structure:`, and whether its header may name other type arguments. |
-| Several trait-less blocks | Whether one type may have more than one trait-less derivation block, and in which order their lines apply. |
-| Unused facts from a block | Whether a type-level fact written in a trait-less block's `Self` line gets `unused-derivation-fact`, and where it is reported. |
 | Function targets | Deriving for functions, and what a decorator before a function declaration means, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). |

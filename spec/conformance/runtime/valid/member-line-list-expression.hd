@@ -1,0 +1,66 @@
+# test: a member line's right side may be any list-typed expression, in a trait-less block and a derivation block
+# Spec 14 Member Lines: annot.line.right-typed (M28).
+use std.structure.{Structure, Field, Variant, Walker}
+use std.testing.assert_equal
+
+data Tag:
+    text: string
+
+data Note:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+fn note(text: string) -> Note:
+    Note { text: text }
+
+let noted_n: List[Any] = [note("n")]
+let noted_m: List[Any] = [note("m")]
+let tagged_c: List[Any] = [tag("c")]
+
+trait Probe:
+    fn probe(self) -> string
+
+data Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        tagged := match h.info.facts.find[Tag]():
+            .Some(found) => found.text
+            .None => "-"
+        noted := match h.info.facts.find[Note]():
+            .Some(found) => found.text
+            .None => "-"
+        self.out = self.out + h.info.name + "=" + tagged + "/" + noted + ";"
+        .Ok()
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let w: mut Prober = Prober { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Point:
+    @tag("a")
+    x: i64
+    @tag("b")
+    y: i64
+    z: i64
+
+impl Point by Structure:
+    x += noted_n
+    z = tagged_c
+
+impl Probe for Point by Structure:
+    y = noted_m
+
+tests:
+    it("applies named lists as member lines"):
+        assert_equal(Point { x: 1, y: 2, z: 3 }.probe(), "x=a/n;y=-/m;z=c/-;", reason="a named list extends or replaces facts like a list literal")

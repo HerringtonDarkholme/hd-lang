@@ -1,0 +1,17 @@
+# test: a trait-less block for a generic type declares the type's own parameters, without bounds
+# Spec 14 Trait-Less Derivation Blocks: annot.traitless.generic (M28).
+use std.structure.Structure
+
+data Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+data Pair[K, V]:
+    key: K
+    value: V
+
+impl[K, V] Pair[K, V] by Structure:
+    key += [tag("k")]
+    value = [tag("v")]

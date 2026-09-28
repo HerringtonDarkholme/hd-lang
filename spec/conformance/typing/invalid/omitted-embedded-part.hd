@@ -1,0 +1,39 @@
+# test: an embedded part has no default syntax, so omitting it is always an error
+# Spec 14 Omitted Members: annot.omit.no-default, with data.default.embedded (M27).
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F < Show](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok()
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Audit:
+    at: i64
+
+data Account:
+    Audit
+    id: i64
+
+impl Show for Account by Structure:
+    Audit = pass  # diagnostic: omitted-member-without-default

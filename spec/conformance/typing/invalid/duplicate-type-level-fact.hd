@@ -1,0 +1,12 @@
+# test: two decorators before one declaration must not attach type-level facts of one concrete type
+# Spec 14 Facts: annot.fact.duplicate-decorator (M27).
+data Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+@style(prefix="a_")
+@style(prefix="b_")  # diagnostic: duplicate-fact
+data Twice:
+    id: i64
