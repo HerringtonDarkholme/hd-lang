@@ -477,7 +477,7 @@ A package interface must contain:
 | generic kinds, variance, bounds, and reification |
 | requirement rows |
 | associated types |
-| every ordinary, local, and annotation implementation head needed for coherence |
+| every ordinary and local implementation head needed for coherence |
 | the bodies of pack and reified code, which downstream compilation specializes |
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
@@ -646,7 +646,7 @@ See also: [Error Trait](09-traits.md#error-trait).
 
 1. r[module.instance.thread] One program instance executes on one thread and has no shared-memory parallelism or source-level atomics.
 2. r[module.instance.parallel] Hosts may run multiple Wasm instances in parallel only by exchanging boundary-safe values.
-3. r[module.instance.disjoint] Their heaps, mutable globals, suspension drivers, and annotation registries are disjoint.
+3. r[module.instance.disjoint] Their heaps, mutable globals, and suspension drivers are disjoint.
 
 ### Host Boundary
 

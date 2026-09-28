@@ -675,7 +675,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 3. r[data.shared.constructor] Each variant with shared enum data must provide its enum constructor expression after `->`.
 4. r[data.shared.arguments] The constructor call follows ordinary positional/named argument ordering and must initialize each shared parameter without a default.
 5. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
-6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, by the evaluator that annotation values use, and it must be requirement-free.
+6. r[data.shared.compile-time] Each variant's constructor expression is evaluated once, at compile time, as a [fact expression](14-annotations.md#r-annot.fact.eval) is, and it must be requirement-free.
 7. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
 8. r[data.shared.not-stored] Shared data is stored once per variant and never in an enum value, so it adds nothing to a value's size or identity.
 

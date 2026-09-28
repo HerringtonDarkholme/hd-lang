@@ -687,7 +687,6 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 3. r[types.shape.other] For any other type, including a reified type parameter, `shape[T]()` returns `TypeShape`.
 4. r[types.shape.erased] An erased generic parameter cannot be passed as its type argument.
 5. r[types.shape.members] Field and variant shapes are selected from the specialized result, and `shape_of(f)` reflects a function declaration.
-6. r[types.shape.annotations] Annotation lookup for a generic target has the same reification requirement.
 
 See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics).
 

@@ -655,3 +655,8 @@ style lint rejects a chapter that reuses one.
 - `req.drive.block-on.forbidden`: retired 2026-09-27. Typed derivation
   decision 10 removed annotation builders, one of its contexts. Replaced by
   `req.drive.block-on.forbidden-contexts`.
+- `names.local.annotations-global`: retired 2026-09-27. Typed derivation
+  decision 10 removed annotation coherence, initialization, and memoization.
+  No replacement.
+- `types.shape.annotations`: retired 2026-09-27. Typed derivation decision
+  10 removed annotation lookup. No replacement.

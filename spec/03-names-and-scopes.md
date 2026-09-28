@@ -270,7 +270,6 @@ See also: [Prelude Names](#prelude-names).
 
 1. r[names.local.no-pub] `pub` is not permitted on local declarations.
 2. r[names.local.no-decorators] Decorators and `annotate` declarations are not permitted in a local scope.
-3. r[names.local.annotations-global] Annotation coherence, initialization, and memoization remain package-global even though undecorated local declarations are available.
 
 ### Local Implementations
 
