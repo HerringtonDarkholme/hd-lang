@@ -31,11 +31,11 @@ hold pending this record), and
 - [What Read-Only Means](#what-read-only-means)
 - [Who Reads A Decorator](#who-reads-a-decorator)
 - [Minimum Compiler Knowledge](#minimum-compiler-knowledge)
-- [Option 1: A Closed Standard Set](#option-1-a-closed-standard-set)
-- [Option 2: A Decorator Trait With Target Types](#option-2-a-decorator-trait-with-target-types)
-- [Option 3: A Decorator Declaration With Target Patterns](#option-3-a-decorator-declaration-with-target-patterns)
-- [Option 4: A Check Function Over Shapes](#option-4-a-check-function-over-shapes)
-- [Option 5: A Root Meta-Decorator, `@annotate`](#option-5-a-root-meta-decorator-annotate)
+- [Option 1: A Decorator Trait With Target Types](#option-1-a-decorator-trait-with-target-types)
+- [Option 2: A Check Function Over Shapes](#option-2-a-check-function-over-shapes)
+- [Option 3: A Closed Standard Set](#option-3-a-closed-standard-set)
+- [Option 4: A Root Meta-Decorator, `@annotate`](#option-4-a-root-meta-decorator-annotate)
+- [Option 5: A Decorator Declaration With Target Patterns](#option-5-a-decorator-declaration-with-target-patterns)
 - [Pitfalls](#pitfalls)
 - [Comparison](#comparison)
 - [Ranking By Design Cost](#ranking-by-design-cost)
@@ -213,8 +213,8 @@ Of the four std decorators, only some need the compiler at all:
 So the minimum is: the general decorator mechanism, one **lang
 decorator** for suffixes, and the two existing intrinsics. The mechanism
 itself has one root the compiler knows, plus the std target types. The
-root is a trait in options 2 and 4, a keyword in option 3, and a root
-decorator in option 5.
+root is a trait in options 1 and 2, a keyword in option 5, and a root
+decorator in option 4.
 
 A lang decorator is an ordinary std declaration that the compiler
 recognizes. Two ways to recognize it:
@@ -238,61 +238,12 @@ use std.time.{Duration, ms}
 delay := 250ms
 ```
 
-Under every option except option 1, the compiler resolves `ms` as L10
+Under every option except option 3, the compiler resolves `ms` as L10
 decided. It then checks one fact: `ms` carries a `std.ops.Suffix` value.
 The signature rules of L11 come from the decorator's own target
 declaration, not from compiler rules.
 
-## Option 1: A Closed Standard Set
-
-The radical simplification. A decorator stays any value, as today, and may
-go on any target D1 allows. The language checks targets only for a closed
-list of std decorators, and each such check is a spec rule. User decorators
-are unchecked data for their readers.
-
-```text
-use std.time.Duration
-
-@suffix
-pub fn ms(count: i64) -> Duration:
-    Duration::milliseconds(count)
-
-@derive(Eq, Show)
-data Point:
-    x: i64
-
-@error
-enum LoadError:
-    @error("cannot read $path")
-    Read(path: string)
-
-@bench
-fn parse_large(b: mut Bencher) -> void:
-    pass
-
-@route("/users")
-fn list_users() -> string:
-    "[]"
-
-@route("/users")
-data Oops: pass
-```
-
-`@route` on a data type is accepted: nothing says where `Route` belongs.
-`@suffix` and `@bench` are intrinsics like `@derive` and `@error`, each with
-spec rules for its targets and signature.
-
-| Rules | Change |
-| --- | --- |
-| Added | One target rule per std intrinsic (`@suffix`, `@bench`, later `@deprecated`, ...); `decorator-not-annotator` removed |
-| Removed | Nothing else |
-| Soundness | Unchanged: user decorators are data only |
-| Interaction | Facts and templates unchanged; `shape_of(f).metadata[M]()` works as above |
-
-This is Rust's and Go's model. It drops D2 for user decorators, and it
-grows the intrinsic list with every std marker, against D5.
-
-## Option 2: A Decorator Trait With Target Types
+## Option 1: A Decorator Trait With Target Types
 
 The owner's tentative model, refined. A decorator is a value whose type
 implements `std.decorator.Decorator[Target]` once per target it accepts.
@@ -413,7 +364,196 @@ the function value, not a `Suffix`; question 10 covers bare markers.
 | Soundness | Resolution is the existing trait solver; the orphan rule keeps a decorator's targets in its own package |
 | Interaction | Facts and templates unchanged; member lines are checked against the member's target; package interfaces carry the impls as ordinary impls |
 
-## Option 3: A Decorator Declaration With Target Patterns
+## Option 2: A Check Function Over Shapes
+
+A decorator's type implements `std.decorator.Decorator` with one method,
+`check`, that the compiler runs at compile time on the target's shape. The
+target check is ordinary hd code, like a Java annotation processor or a
+Scala 3 macro annotation that only reports errors.
+
+```text
+use std.decorator.{Decorator, Target}
+use std.annotation.FnShape
+
+pub data Suffix: pass
+
+impl Decorator for Suffix:
+    fn check(self, target: Target) -> Result[void, string]:
+        match target:
+            .Function(f) => one_number(f)
+            _ => .Err("a suffix goes on a function")
+
+fn one_number(f: FnShape) -> Result[void, string]:
+    if f.params.len() == 1 && f.params[0].param_type.is_number() && !f.suspending:
+        .Ok()
+    else:
+        .Err("a suffix takes one number and never suspends")
+```
+
+Uses look as in option 1. `Target` is an enum over `FnShape`, `DataShape`,
+`EnumShape`, `FieldShape` and new shapes for traits, impls and methods.
+
+| Rules | Change |
+| --- | --- |
+| Added | `std.decorator` with `Target`; compile-time evaluation of `check` on shapes; `TraitShape`, `ImplShape` and `MethodShape`; `TypeShape` comparison helpers |
+| Removed | `decorator-not-annotator`; L11's signature rules; the whole fact check hook, including cross-member checks |
+| Soundness | Checks are code: a `check` that panics or loops needs the compile-time evaluator's limits, still open as "plan constants" |
+| Interaction | The most flexible; also the closest to reflection, because user code walks declaration structure at compile time |
+
+The target is not visible in any signature, so an editor cannot offer
+only the decorators that fit a position. Error text is the library's own
+string.
+
+## Option 3: A Closed Standard Set
+
+The radical simplification. A decorator stays any value, as today, and may
+go on any target D1 allows. The language checks targets only for a closed
+list of std decorators, and each such check is a spec rule. User decorators
+are unchecked data for their readers.
+
+```text
+use std.time.Duration
+
+@suffix
+pub fn ms(count: i64) -> Duration:
+    Duration::milliseconds(count)
+
+@derive(Eq, Show)
+data Point:
+    x: i64
+
+@error
+enum LoadError:
+    @error("cannot read $path")
+    Read(path: string)
+
+@bench
+fn parse_large(b: mut Bencher) -> void:
+    pass
+
+@route("/users")
+fn list_users() -> string:
+    "[]"
+
+@route("/users")
+data Oops: pass
+```
+
+`@route` on a data type is accepted: nothing says where `Route` belongs.
+`@suffix` and `@bench` are intrinsics like `@derive` and `@error`, each with
+spec rules for its targets and signature.
+
+| Rules | Change |
+| --- | --- |
+| Added | One target rule per std intrinsic (`@suffix`, `@bench`, later `@deprecated`, ...); `decorator-not-annotator` removed |
+| Removed | Nothing else |
+| Soundness | Unchanged: user decorators are data only |
+| Interaction | Facts and templates unchanged; `shape_of(f).metadata[M]()` works as above |
+
+This is Rust's and Go's model. It drops D2 for user decorators, and it
+grows the intrinsic list with every std marker, against D5.
+
+## Option 4: A Root Meta-Decorator, `@annotate`
+
+The owner's idea, added on 2026-09-28. One root decorator, `@annotate`,
+marks a type as a decorator and lists its targets. It plays the part of
+Java's `@Target` on an `@interface`, or C#'s `[AttributeUsage]`.
+`@annotate` is the one root the compiler knows, and every other decorator
+is defined through it.
+
+```text
+@annotate[O](OnFn[fn(i64) -> O], OnFn[fn(f64) -> O])  # hypothetical syntax
+pub data Suffix: pass
+
+@annotate[T < Termination](OnFn[fn(mut Bencher) -> T])  # hypothetical syntax
+pub data BenchMarker: pass
+
+@annotate[F, P](OnField[F], OnVariant, OnParam[P])  # hypothetical syntax
+pub data Rename:
+    pub name: string
+
+@annotate(OnField[string])  # hypothetical syntax
+pub data MaxLen:
+    pub value: i64
+```
+
+Uses look exactly as in option 1. `@derive` and `@error` stay intrinsics.
+
+**Checking kinds and signatures.** In the simplest reading, each listed
+target means one impl of a sealed `Decorator` trait. So
+`@annotate[O](OnFn[fn(i64) -> O])` means option 1's
+`impl[O] Decorator[OnFn[fn(i64) -> O]] for Suffix`. Kind and signature
+checks are then the same trait resolution as option 1, with the same
+target types. They accept and reject the same programs, including generic
+targets and bounds.
+
+**Does it reduce intrinsics?** Not compared with option 1. Both need the
+same compiler knowledge: the target types, the `Suffix` lang decorator,
+and one root. Option 1's root is a lang trait with ordinary impl syntax.
+Option 4's root is an intrinsic decorator with its own argument grammar,
+like `@derive`. Option 4 does save an intrinsic compared with options 3
+and 5: it replaces option 5's `decorator` keyword, and option 3's
+per-marker intrinsics.
+
+**Bootstrapping.** The root cannot describe itself in a useful way. Its
+arguments are types, so `@annotate` is not a value, and no std declaration
+of it can carry a checked `@annotate` line. Java has the same fixed point:
+`@Target` is annotated with `@Target(ANNOTATION_TYPE)`, which only
+documents what javac already knows. In hd the root's own rule, "only on a
+data type or enum", would be a spec rule, as `@derive`'s rules are. A
+self-description would be documentation:
+
+```text
+@annotate[T](OnData[T], OnEnum[T])  # hypothetical syntax
+pub data Annotate: pass
+```
+
+**Compared with option 1.**
+
+| Point | Option 1, trait opt-in | Option 4, `@annotate` |
+| --- | --- | --- |
+| Checking | Trait resolution | The same, through generated impls |
+| Where the targets are | Any impl the orphan rule allows in the type's package | On the declaration, in one place |
+| Binding "any output" | `impl[O]`, existing syntax | `@annotate[O](...)`, a new binder on a decorator line |
+| Bounds (`T < Termination`) | Existing impl bounds | The same binder grammar |
+| Arguments | Not applicable | Types, not values: a grammar exception like `@derive` |
+| Spelling today | Parses | `annotate` is a reserved word, so `@annotate` is a `syntax-error` |
+| Root | One lang trait | One intrinsic decorator |
+| Reading targets | Tools read impls | Tools read one decorator line |
+| Undeclared values | Need a separate rule (question 6) | A type without `@annotate` is plainly not a decorator |
+
+Option 1 can gain option 4's locality with one rule: a `Decorator` impl
+must be declared in the module of its decorator type. That keeps all
+targets beside the type with no new syntax.
+
+**A kind-only variant.** If `@annotate` took kind values instead of types,
+its argument would be an ordinary value, and no binder would be needed.
+This is exactly Java's and C#'s model. It drops the signature half of D2,
+so the suffix check would be a spec rule again. With a non-keyword name,
+it parses today:
+
+```text
+@decorator(on=[.Function, .Field])
+pub data Route:
+    path: string
+```
+
+**Pitfalls specific to option 4.**
+
+1. `annotate` is reserved for `annotate Target:` blocks. The root needs a
+   grammar exception, another name such as `@decorator`, or the removal of
+   `annotate` blocks.
+2. Its arguments are types, so it adds a second decorator with its own
+   argument grammar beside `@derive`.
+3. Free type names such as `O` need an explicit binder. Guessing that an
+   unknown name is a parameter would infer a declaration's generics, which
+   the owner rules out.
+4. `Any` is still not a wildcard, as in option 1.
+5. Several `@annotate` lines on one type would break the M25 duplicate
+   rule, so all targets must share one line and one binder list.
+6. The root's own targets are a spec rule, not a checked declaration.
+
+## Option 5: A Decorator Declaration With Target Patterns
 
 Java's `@interface`, Kotlin's `annotation class` and C#'s `AttributeUsage`,
 with TypeScript-style signature patterns added. A `decorator` declaration
@@ -453,146 +593,6 @@ Bare markers such as `@suffix` fall out naturally, as in Java and Kotlin.
 The price is a second small type language: `_`, `field[string]` and the
 bounds repeat what function types and generics already express.
 
-## Option 4: A Check Function Over Shapes
-
-A decorator's type implements `std.decorator.Decorator` with one method,
-`check`, that the compiler runs at compile time on the target's shape. The
-target check is ordinary hd code, like a Java annotation processor or a
-Scala 3 macro annotation that only reports errors.
-
-```text
-use std.decorator.{Decorator, Target}
-use std.annotation.FnShape
-
-pub data Suffix: pass
-
-impl Decorator for Suffix:
-    fn check(self, target: Target) -> Result[void, string]:
-        match target:
-            .Function(f) => one_number(f)
-            _ => .Err("a suffix goes on a function")
-
-fn one_number(f: FnShape) -> Result[void, string]:
-    if f.params.len() == 1 && f.params[0].param_type.is_number() && !f.suspending:
-        .Ok()
-    else:
-        .Err("a suffix takes one number and never suspends")
-```
-
-Uses look as in option 2. `Target` is an enum over `FnShape`, `DataShape`,
-`EnumShape`, `FieldShape` and new shapes for traits, impls and methods.
-
-| Rules | Change |
-| --- | --- |
-| Added | `std.decorator` with `Target`; compile-time evaluation of `check` on shapes; `TraitShape`, `ImplShape` and `MethodShape`; `TypeShape` comparison helpers |
-| Removed | `decorator-not-annotator`; L11's signature rules; the whole fact check hook, including cross-member checks |
-| Soundness | Checks are code: a `check` that panics or loops needs the compile-time evaluator's limits, still open as "plan constants" |
-| Interaction | The most flexible; also the closest to reflection, because user code walks declaration structure at compile time |
-
-The target is not visible in any signature, so an editor cannot offer
-only the decorators that fit a position. Error text is the library's own
-string.
-
-## Option 5: A Root Meta-Decorator, `@annotate`
-
-The owner's idea, added on 2026-09-28. One root decorator, `@annotate`,
-marks a type as a decorator and lists its targets. It plays the part of
-Java's `@Target` on an `@interface`, or C#'s `[AttributeUsage]`.
-`@annotate` is the one root the compiler knows, and every other decorator
-is defined through it.
-
-```text
-@annotate[O](OnFn[fn(i64) -> O], OnFn[fn(f64) -> O])  # hypothetical syntax
-pub data Suffix: pass
-
-@annotate[T < Termination](OnFn[fn(mut Bencher) -> T])  # hypothetical syntax
-pub data BenchMarker: pass
-
-@annotate[F, P](OnField[F], OnVariant, OnParam[P])  # hypothetical syntax
-pub data Rename:
-    pub name: string
-
-@annotate(OnField[string])  # hypothetical syntax
-pub data MaxLen:
-    pub value: i64
-```
-
-Uses look exactly as in option 2. `@derive` and `@error` stay intrinsics.
-
-**Checking kinds and signatures.** In the simplest reading, each listed
-target means one impl of a sealed `Decorator` trait. So
-`@annotate[O](OnFn[fn(i64) -> O])` means option 2's
-`impl[O] Decorator[OnFn[fn(i64) -> O]] for Suffix`. Kind and signature
-checks are then the same trait resolution as option 2, with the same
-target types. They accept and reject the same programs, including generic
-targets and bounds.
-
-**Does it reduce intrinsics?** Not compared with option 2. Both need the
-same compiler knowledge: the target types, the `Suffix` lang decorator,
-and one root. Option 2's root is a lang trait with ordinary impl syntax.
-Option 5's root is an intrinsic decorator with its own argument grammar,
-like `@derive`. Option 5 does save an intrinsic compared with options 1
-and 3: it replaces option 3's `decorator` keyword, and option 1's
-per-marker intrinsics.
-
-**Bootstrapping.** The root cannot describe itself in a useful way. Its
-arguments are types, so `@annotate` is not a value, and no std declaration
-of it can carry a checked `@annotate` line. Java has the same fixed point:
-`@Target` is annotated with `@Target(ANNOTATION_TYPE)`, which only
-documents what javac already knows. In hd the root's own rule, "only on a
-data type or enum", would be a spec rule, as `@derive`'s rules are. A
-self-description would be documentation:
-
-```text
-@annotate[T](OnData[T], OnEnum[T])  # hypothetical syntax
-pub data Annotate: pass
-```
-
-**Compared with option 2.**
-
-| Point | Option 2, trait opt-in | Option 5, `@annotate` |
-| --- | --- | --- |
-| Checking | Trait resolution | The same, through generated impls |
-| Where the targets are | Any impl the orphan rule allows in the type's package | On the declaration, in one place |
-| Binding "any output" | `impl[O]`, existing syntax | `@annotate[O](...)`, a new binder on a decorator line |
-| Bounds (`T < Termination`) | Existing impl bounds | The same binder grammar |
-| Arguments | Not applicable | Types, not values: a grammar exception like `@derive` |
-| Spelling today | Parses | `annotate` is a reserved word, so `@annotate` is a `syntax-error` |
-| Root | One lang trait | One intrinsic decorator |
-| Reading targets | Tools read impls | Tools read one decorator line |
-| Undeclared values | Need a separate rule (question 6) | A type without `@annotate` is plainly not a decorator |
-
-Option 2 can gain option 5's locality with one rule: a `Decorator` impl
-must be declared in the module of its decorator type. That keeps all
-targets beside the type with no new syntax.
-
-**A kind-only variant.** If `@annotate` took kind values instead of types,
-its argument would be an ordinary value, and no binder would be needed.
-This is exactly Java's and C#'s model. It drops the signature half of D2,
-so the suffix check would be a spec rule again. With a non-keyword name,
-it parses today:
-
-```text
-@decorator(on=[.Function, .Field])
-pub data Route:
-    path: string
-```
-
-**Pitfalls specific to option 5.**
-
-1. `annotate` is reserved for `annotate Target:` blocks. The root needs a
-   grammar exception, another name such as `@decorator`, or the removal of
-   `annotate` blocks.
-2. Its arguments are types, so it adds a second decorator with its own
-   argument grammar beside `@derive`.
-3. Free type names such as `O` need an explicit binder. Guessing that an
-   unknown name is a parameter would infer a declaration's generics, which
-   the owner rules out.
-4. `Any` is still not a wildcard, as in option 2.
-5. Several `@annotate` lines on one type would break the M25 duplicate
-   rule, so all targets must share one line and one binder list.
-6. The root's own targets are a spec rule, not a checked declaration.
-
 ## Pitfalls
 
 ### Generic Targets
@@ -621,8 +621,8 @@ The tentative `FnTarget[fn(i64) -> Any]` does not match
 `fn(i64) -> Duration` under hd's rules. Function types are covariant in the
 output, but `Duration -> Any` builds a trait value, which
 [`types.variance.repr.excluded`](../spec/04-type-system.md#r-types.variance.repr.excluded)
-rules out of variance. Option 2 therefore writes "any output" as an impl
-type parameter (`impl[O] ... fn(i64) -> O`), which unifies. Option 3
+rules out of variance. Option 1 therefore writes "any output" as an impl
+type parameter (`impl[O] ... fn(i64) -> O`), which unifies. Option 5
 needs its own `_`.
 
 ### Targets Without A Type
@@ -675,7 +675,7 @@ annotations. In hd a decorator that needs several entries can take a list.
 Today every fact is an unchecked value
 ([`annot.metadata.any-value`](../spec/14-annotations.md#r-annot.metadata.any-value)).
 D2 asks for declared targets. Either every fact type opts in, at one impl
-line each in option 2. Or undeclared values keep today's targets, and only
+line each in option 1. Or undeclared values keep today's targets, and only
 new targets need a declaration. A derivation block's member lines
 attach facts too, so they need the same check:
 
@@ -689,15 +689,15 @@ impl Show for Pair by Structure:
     left += [max_len(3)]
 ```
 
-Under option 2 with opt-in everywhere, `max_len(3)` on an `i64` member is
+Under option 1 with opt-in everywhere, `max_len(3)` on an `i64` member is
 rejected, because `MaxLen` implements `Decorator` only for
 `OnField[string]`. Cross-member checks, such as "exactly one member is the
-id", stay the open fact check hook in every option except option 4.
+id", stay the open fact check hook in every option except option 2.
 
 ### Bare Markers
 
 `@error` and `@derive` are written bare because they are intrinsics. An
-ordinary marker in options 2 and 4 is a value, so a bare `@suffix` would
+ordinary marker in options 1 and 2 is a value, so a bare `@suffix` would
 name something else. Three answers exist. Write `@suffix()`, as the spec's `@flatten()`
 already does. Let a bare fieldless data type name mean its one value. Or
 let a bare function name with no required parameters mean a call.
@@ -705,7 +705,7 @@ Dart uses a fourth, a named `const`, which hd does not have.
 
 ### Evolution
 
-| Change | Option 2 | Option 3 | Option 4 | Option 5 |
+| Change | Option 1 | Option 5 | Option 2 | Option 4 |
 | --- | --- | --- | --- | --- |
 | Add a target | Add an impl; compatible | Add a pattern; compatible | Accept more in `check`; compatible, but not visible | Extend the `@annotate` line; compatible |
 | Remove a target | Remove an impl; breaking, visible in the interface | Breaking, visible | Breaking, invisible | Breaking, visible |
@@ -719,25 +719,25 @@ is resolved like any expression. Rust instead ignores unknown names in its
 
 ## Comparison
 
-| | 1. Closed set | 2. Trait with target types | 3. Declaration with patterns | 4. Check function | 5. Root `@annotate` |
+| | 1. Trait with target types | 2. Check function | 3. Closed set | 4. Root `@annotate` | 5. Declaration with patterns |
 | --- | --- | --- | --- | --- | --- |
-| U1 suffix | Intrinsic with spec rules | Two std impl lines plus one lang decorator | One declaration plus one lang decorator | A `check` over `FnShape` plus one lang decorator | One `@annotate` line plus one lang decorator |
+| U1 suffix | Two std impl lines plus one lang decorator | A `check` over `FnShape` plus one lang decorator | Intrinsic with spec rules | One `@annotate` line plus one lang decorator | One declaration plus one lang decorator |
 | U2 `@derive` | Intrinsic | Intrinsic | Intrinsic | Intrinsic | Intrinsic |
 | U3 `@error` | Intrinsic | Intrinsic | Intrinsic | Intrinsic | Intrinsic |
-| U4 runner marker | Intrinsic | Ordinary; one impl with a `Termination` bound | Ordinary; pattern with a bound | Ordinary; code | Ordinary; a bound in the binder |
-| U5 library facts | Unchecked | Kind and member type checked | Kind and member type checked | Anything checked, including cross-member | Kind and member type checked |
-| U6 function facts | `shape_of(f).metadata[M]()` | Same | Same | Same | Same |
-| New concepts | None | One marker trait, about ten target types | A declaration form and a pattern language | Compile-time `check`, three new shapes | One root decorator, a binder on its line, the same target types |
-| Rules removed | `decorator-not-annotator` | That, L11's signature rules, part of the fact check hook | That, L11's rules, `annot.metadata.any-value` | That, L11's rules, the whole fact check hook | Same as option 3 |
-| D2 (declared targets) | Std only | Yes | Yes | Yes, but not declared, only checked | Yes |
-| D5 (few intrinsics) | Grows with each std marker | Two intrinsics, one lang trait, one lang decorator | Two intrinsics, one keyword, one lang decorator | Two intrinsics, one lang trait, one lang decorator | Three intrinsics (`@annotate` added) and one lang decorator |
-| Reflection surface | None | None | None | Compile-time shape walking | None |
-| Soundness | Trivial | Existing trait solver | A new matching relation | Depends on the evaluator's limits | Existing trait solver, through generated impls |
-| Agent-writability | Easy, but misuse is silent | One impl per target; errors name the impl | One line; errors name the pattern | Free-form code; errors are strings | One line; errors name the target |
-| Human readability | Good | Good once the target types are known | Best at the declaration | Must read code | Good, all targets at the declaration |
-| Tooling: which decorators fit here? | Std only | Yes, from impls | Yes, from patterns | No | Yes, from the root line |
-| Implementation cost | Lowest | Low: target construction plus resolution | Medium: parser, patterns, generated types | High: evaluator on shapes | Low, plus a grammar exception for type arguments and the binder |
-| Evolution | Every std marker is a compiler change | Visible in interfaces | Visible in declarations | Invisible | Visible in declarations |
+| U4 runner marker | Ordinary; one impl with a `Termination` bound | Ordinary; code | Intrinsic | Ordinary; a bound in the binder | Ordinary; pattern with a bound |
+| U5 library facts | Kind and member type checked | Anything checked, including cross-member | Unchecked | Kind and member type checked | Kind and member type checked |
+| U6 function facts | Same | Same | `shape_of(f).metadata[M]()` | Same | Same |
+| New concepts | One marker trait, about ten target types | Compile-time `check`, three new shapes | None | One root decorator, a binder on its line, the same target types | A declaration form and a pattern language |
+| Rules removed | That, L11's signature rules, part of the fact check hook | That, L11's rules, the whole fact check hook | `decorator-not-annotator` | Same as option 5 | That, L11's rules, `annot.metadata.any-value` |
+| D2 (declared targets) | Yes | Yes, but not declared, only checked | Std only | Yes | Yes |
+| D5 (few intrinsics) | Two intrinsics, one lang trait, one lang decorator | Two intrinsics, one lang trait, one lang decorator | Grows with each std marker | Three intrinsics (`@annotate` added) and one lang decorator | Two intrinsics, one keyword, one lang decorator |
+| Reflection surface | None | Compile-time shape walking | None | None | None |
+| Soundness | Existing trait solver | Depends on the evaluator's limits | Trivial | Existing trait solver, through generated impls | A new matching relation |
+| Agent-writability | One impl per target; errors name the impl | Free-form code; errors are strings | Easy, but misuse is silent | One line; errors name the target | One line; errors name the pattern |
+| Human readability | Good once the target types are known | Must read code | Good | Good, all targets at the declaration | Best at the declaration |
+| Tooling: which decorators fit here? | Yes, from impls | No | Std only | Yes, from the root line | Yes, from patterns |
+| Implementation cost | Low: target construction plus resolution | High: evaluator on shapes | Lowest | Low, plus a grammar exception for type arguments and the binder | Medium: parser, patterns, generated types |
+| Evolution | Visible in interfaces | Invisible | Every std marker is a compiler change | Visible in declarations | Visible in declarations |
 
 ## Ranking By Design Cost
 
@@ -751,24 +751,24 @@ before traits, impls and methods need a grammar change, and `@derive` and
 
 | Order | Option | 1. Syntax | 2. Rule exceptions | 3. Intrinsics | 4. Library | Costliest kind |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1st | 2. Trait with target types | none | none, if question 14's placement rule is dropped | one lang decorator (`std.ops.Suffix`), and the compiler builds target types | the `Decorator` trait and about ten target types | 3 |
-| 2nd | 4. Check function | none | none | a compile-time evaluator over shapes, and one lang decorator | three new shape types and `check` functions | 3, but it opens the compile-time reflection the owner ruled out |
-| 3rd | 1. Closed standard set | none | one target rule in the spec for each std marker | one intrinsic for each std marker | none | 2, and it grows with each marker |
-| 4th | 5. Root `@annotate` | a type binder `@annotate[O](...)`, and `annotate` is reserved | type arguments in a decorator line, like `@derive` | the `@annotate` root, and one lang decorator | the target types | 1 |
-| 5th | 3. Declaration with patterns | a `decorator` keyword and a pattern language | a new matching relation | one lang decorator | none | 1 |
+| 1st | 1. Trait with target types | none | none, if question 14's placement rule is dropped | one lang decorator (`std.ops.Suffix`), and the compiler builds target types | the `Decorator` trait and about ten target types | 3 |
+| 2nd | 2. Check function | none | none | a compile-time evaluator over shapes, and one lang decorator | three new shape types and `check` functions | 3, but it opens the compile-time reflection the owner ruled out |
+| 3rd | 3. Closed standard set | none | one target rule in the spec for each std marker | one intrinsic for each std marker | none | 2, and it grows with each marker |
+| 4th | 4. Root `@annotate` | a type binder `@annotate[O](...)`, and `annotate` is reserved | type arguments in a decorator line, like `@derive` | the `@annotate` root, and one lang decorator | the target types | 1 |
+| 5th | 5. Declaration with patterns | a `decorator` keyword and a pattern language | a new matching relation | one lang decorator | none | 1 |
 
 Effects on the recommendation:
 
-- Option 2 stays first. It is the only option whose costliest change is a
+- Option 1 stays first. It is the only option whose costliest change is a
   single intrinsic, and it adds no syntax and no rule exception.
 - Question 14's recommended placement rule (target impls must sit in the
   decorator type's module) is a rule exception. Under the cost order it
   should be dropped: the ordinary impl ownership rules already decide
   where a `Decorator` impl may live.
-- Option 5 drops from next best to fourth, because it needs new syntax.
-  Option 4 ranks second by cost, but it conflicts with the owner's "no
+- Option 4 drops from next best to fourth, because it needs new syntax.
+  Option 2 ranks second by cost, but it conflicts with the owner's "no
   full compile-time reflection" direction. So in practice the next best
-  is option 1, and only if user decorators need no checks.
+  is option 3, and only if user decorators need no checks.
 - Recognizing `std.ops.Suffix` by qualified name (question 7) stays
   preferred over an `@lang` marker. A marker would add both an intrinsic
   and a rule exception (closed to user packages).
@@ -777,40 +777,40 @@ Effects on the recommendation:
 
 Added 2026-09-28, after Typed Derivation M26 and the design cost order.
 
-**What M26 changes.** `annotate` is no longer reserved, so option 5's
+**What M26 changes.** `annotate` is no longer reserved, so option 4's
 name clash is gone. Nothing else about the options changes. M26's
 trait-less block `impl User by Structure:` writes facts through member
 lines, and those facts need the same target check as `@` facts. Under
 every option, a member line is checked as if its value were written as `@`
 on that member.
 
-**What option 5 still needs.** The decorator grammar is
+**What option 4 still needs.** The decorator grammar is
 `decorator_line = "@", ( derive_decorator | closed_expression )`. So
 `@annotate(OnField[string])` needs its own production, just as `@derive`
 has `derive_decorator`: `OnField[string]` and `fn(i64) -> O` are types,
 not expressions. That production also has to accept full types (function
 types included), not only the qualified names `derive_decorator` takes,
-plus a binder such as `[O]`. So option 5 is a new syntax production of the
+plus a binder such as `[O]`. So option 4 is a new syntax production of the
 same kind as `derive_decorator`, plus one intrinsic root. Its costliest
 change is still syntax, level 1. The `@name(...)` form looks the same as
 today, but its argument grammar is new.
 
 A variant that avoids the binder: `@annotate` accepts only concrete
-targets, and a decorator with a generic output uses option 2's impl form.
-Then option 5 is a partial sugar over option 2, which means two ways to
+targets, and a decorator with a generic output uses option 1's impl form.
+Then option 4 is a partial sugar over option 1, which means two ways to
 write the same thing.
 
 **Order after M26 (unchanged):**
 
 | Order | Option | Costliest change |
 | --- | --- | --- |
-| 1st | 2. Trait with target types | intrinsic (target types built by the compiler, `std.ops.Suffix`) |
-| 2nd | 4. Check function | intrinsic, but it opens the compile-time reflection the owner ruled out |
-| 3rd | 1. Closed standard set | rule exception per std marker |
-| 4th | 5. Root `@annotate` | syntax: a `derive_decorator`-like production that takes types and a binder |
-| 5th | 3. Declaration with patterns | syntax: a keyword and a pattern language |
+| 1st | 1. Trait with target types | intrinsic (target types built by the compiler, `std.ops.Suffix`) |
+| 2nd | 2. Check function | intrinsic, but it opens the compile-time reflection the owner ruled out |
+| 3rd | 3. Closed standard set | rule exception per std marker |
+| 4th | 4. Root `@annotate` | syntax: a `derive_decorator`-like production that takes types and a binder |
+| 5th | 5. Declaration with patterns | syntax: a keyword and a pattern language |
 
-**Recommendation (unchanged): option 2.** It needs no syntax and no rule
+**Recommendation (unchanged): option 1.** It needs no syntax and no rule
 exception. The owner's readability goal, having every target next to the
 type, is met by convention: write the `Decorator` impls directly under the
 decorator type, as the examples here do. That convention is style, not a
@@ -823,7 +823,7 @@ rule, so it adds no rule exception.
 > `@annotate` has no clash with a keyword.
 
 
-**Recommendation: option 2, a decorator trait with target types,** with
+**Recommendation: option 1, a decorator trait with target types,** with
 these refinements:
 
 1. "Any" in a target is an impl type parameter, not `Any`, so matching is
@@ -850,11 +850,11 @@ Why:
 It gives up value-level and cross-member checks, which stay with the fact
 check hook, and Java-style bare markers, which question 10 asks about.
 
-Before the design cost order (see [Ranking By Design Cost](#ranking-by-design-cost)), the next best was option 5. It checks exactly what option 2 checks and
+Before the design cost order (see [Ranking By Design Cost](#ranking-by-design-cost)), the next best was option 4. It checks exactly what option 1 checks and
 keeps every target beside the type. But it adds an intrinsic with type
 arguments, a binder syntax, and a clash with the reserved word `annotate`.
-Option 2 can get the same locality from one placement rule (question 14).
-Option 3 comes after both, because its pattern language repeats function
+Option 1 can get the same locality from one placement rule (question 14).
+Option 5 comes after both, because its pattern language repeats function
 types.
 
 ## Questions For The Owner
@@ -864,15 +864,16 @@ types.
 Effect: decides whether targets are trait impls, a new declaration, code,
 or a closed std list.
 
-- **A.** Option 1, a closed std set; user decorators unchecked.
-- **B.** Option 2, `Decorator[Target]` impls with std target types.
-- **C.** Option 3, a `decorator` declaration with target patterns.
-- **D.** Option 4, a compile-time `check` over shapes.
-- **E.** Option 5, a root `@annotate` line on the decorator type, meaning
-  the same impls as B.
+- **A.** Option 1, `Decorator[Target]` impls with std target types.
+- **B.** Option 2, a compile-time `check` over shapes.
+- **C.** Option 3, a closed std set; user decorators unchecked.
+- **D.** Option 4, a root `@annotate` line on the decorator type, meaning
+  the same impls as A.
+- **E.** Option 5, a `decorator` declaration with target patterns.
 
-**Recommendation: B.** E checks the same things but adds an intrinsic with
-type arguments and a binder; question 14 gives B E's locality.
+**Recommendation: A.** D checks the same things but needs a
+`derive_decorator`-like production that takes types and a binder;
+question 14 gives A D's locality.
 
 ```text
 use std.decorator.{Decorator, OnFn}
@@ -1023,7 +1024,7 @@ enum LoadError:
 
 ### 10. How is a marker with no arguments written?
 
-Effect: under option 2 a bare `@suffix` would name the function `suffix`,
+Effect: under option 1 a bare `@suffix` would name the function `suffix`,
 not a `Suffix` value.
 
 - **A.** Write `@suffix()`, as the spec already writes `@flatten()`.
@@ -1091,15 +1092,15 @@ data Pair:
 ### 14. Where are a decorator's targets written?
 
 Effect: decides whether a reader finds every target of `Suffix` beside
-its declaration. This is the main gain of option 5.
+its declaration. This is the main gain of option 4.
 
-- **A.** Option 2 impls, which must be in the decorator type's module.
-- **B.** Option 2 impls anywhere the orphan rule allows.
-- **C.** One root line on the type, as option 5 proposes. It then needs a
+- **A.** Option 1 impls, which must be in the decorator type's module.
+- **B.** Option 1 impls anywhere the orphan rule allows.
+- **C.** One root line on the type, as option 4 proposes. It then needs a
   name other than the reserved `annotate`, or a grammar exception, plus a
   binder for `O`.
 
-**Recommendation: A.** It gives option 5's locality with one placement
+**Recommendation: A.** It gives option 4's locality with one placement
 rule and no new syntax.
 
 ```text
@@ -1154,17 +1155,17 @@ existing diagnostic, not a parser result.
 | 1 | What hd Has Today | parses |
 | 2 | Who Reads A Decorator | parses |
 | 3 | Minimum Compiler Knowledge | parses |
-| 4 | Option 1 | parses |
-| 5 | Option 2, `std.decorator` | parses |
-| 6 | Option 2, U1 | parses |
-| 7 | Option 2, U4 | parses |
-| 8 | Option 2, U5 | parses |
-| 9 | Option 2, all uses | parses |
-| 10 | Option 3 | `syntax-error` at line 4, the first line marked `# hypothetical syntax` |
-| 11 | Option 4 | parses |
-| 12 | Option 5, targets | `syntax-error` at line 1, marked `# hypothetical syntax`: `annotate` was a reserved word. Parses since Typed Derivation M26 was applied (2026-09-28) |
-| 13 | Option 5, bootstrapping | `syntax-error` at line 1, marked `# hypothetical syntax`. Parses since Typed Derivation M26 was applied (2026-09-28) |
-| 14 | Option 5, kind-only variant | parses |
+| 4 | Option 3 | parses |
+| 5 | Option 1, `std.decorator` | parses |
+| 6 | Option 1, U1 | parses |
+| 7 | Option 1, U4 | parses |
+| 8 | Option 1, U5 | parses |
+| 9 | Option 1, all uses | parses |
+| 10 | Option 5 | `syntax-error` at line 4, the first line marked `# hypothetical syntax` |
+| 11 | Option 2 | parses |
+| 12 | Option 4, targets | `syntax-error` at line 1, marked `# hypothetical syntax`: `annotate` was a reserved word. Parses since Typed Derivation M26 was applied (2026-09-28) |
+| 13 | Option 4, bootstrapping | `syntax-error` at line 1, marked `# hypothetical syntax`. Parses since Typed Derivation M26 was applied (2026-09-28) |
+| 14 | Option 4, kind-only variant | parses |
 | 15 | Generic Targets | parses |
 | 16 | Targets Without A Type | `syntax-error` at line 2 and `decorator-not-top-level` at line 3, both on lines marked `# hypothetical syntax` |
 | 17 | Ordering And Duplicates | parses |
