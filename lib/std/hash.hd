@@ -1,0 +1,81 @@
+# std.hash: `Hash` and `Hasher` (spec/09-traits.md#hashing), both prelude
+# names. The standard implementations feed a value's bytes to the hasher:
+# a string its UTF-8 bytes, an integer its little-endian bytes at its own
+# width, and a `bool` one byte. The specification names no standard hasher
+# yet, so none is declared here.
+use std.text.{byte_at, byte_len}
+
+pub trait Hasher:
+    fn write(mut self, bytes: List[u8]) -> void
+
+pub trait Hash:
+    fn hash(self, state: mut Hasher) -> void
+
+impl Hash for string:
+    fn hash(self, state: mut Hasher) -> void:
+        let bytes: mut List[u8] = []
+        let index = 0
+        while index < byte_len(self):
+            bytes.append(u8(byte_at(self, index)))
+            index = index + 1
+        state.write(bytes)
+
+impl Hash for bool:
+    fn hash(self, state: mut Hasher) -> void:
+        let byte: u8 = 0
+        if self:
+            byte = 1
+        state.write([byte])
+
+impl Hash for i8:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(signed_bytes(self, 1))
+
+impl Hash for i16:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(signed_bytes(self, 2))
+
+impl Hash for i32:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(signed_bytes(self, 4))
+
+impl Hash for i64:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(signed_bytes(self, 8))
+
+impl Hash for u8:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write([self])
+
+impl Hash for u16:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(unsigned_bytes(self, 2))
+
+impl Hash for u32:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(unsigned_bytes(self, 4))
+
+impl Hash for u64:
+    fn hash(self, state: mut Hasher) -> void:
+        state.write(unsigned_bytes(self, 8))
+
+# The low `count` bytes of a two's-complement value, least significant first.
+fn signed_bytes(value: i64, count: i32) -> List[u8]:
+    let bytes: mut List[u8] = []
+    let rest = value
+    let index = 0
+    while index < count:
+        bytes.append(u8(rest & 255))
+        rest = rest >> 8
+        index = index + 1
+    bytes
+
+fn unsigned_bytes(value: u64, count: i32) -> List[u8]:
+    let bytes: mut List[u8] = []
+    let rest = value
+    let index = 0
+    while index < count:
+        bytes.append(u8(rest & 255))
+        rest = rest >> 8
+        index = index + 1
+    bytes

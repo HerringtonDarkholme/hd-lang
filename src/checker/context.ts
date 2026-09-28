@@ -231,7 +231,8 @@ export function isKnownType(
     if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
-        mapKeyKind(nominal.arguments[0]!) !== undefined &&
+        (mapKeyKind(nominal.arguments[0]!) !== undefined ||
+          genericTypeName(nominal.arguments[0]!) !== undefined) &&
         nominal.arguments[1] !== "void" &&
         isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
       );

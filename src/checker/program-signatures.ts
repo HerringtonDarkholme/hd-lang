@@ -182,6 +182,15 @@ export function createProgramSignatures(
       return;
     }
     const genericParameters = new Set(typeParameters);
+    const hashable = new Set(
+      typeParameters.filter((name) =>
+        ["Eq", "Hash"].every((trait) =>
+          declaration.genericBounds.some(
+            (bound) => bound.parameter === name && bound.traits.includes(trait),
+          ),
+        ),
+      ),
+    );
     declaration.parameters.forEach((parameter, parameterIndex) => {
       if (parameter.variadic && parameterIndex !== declaration.parameters.length - 1) {
         diagnostics.push({
@@ -200,6 +209,7 @@ export function createProgramSignatures(
         diagnostics,
         genericParameters,
         new Set(rowParameters),
+        hashable,
       );
       return type && parameter.variadic ? nominalGenericType("List", [type]) : type;
     });
@@ -211,6 +221,7 @@ export function createProgramSignatures(
       diagnostics,
       genericParameters,
       new Set(rowParameters),
+      hashable,
     );
     if (parameters.some((type) => type === undefined) || !result) return;
     const normalizedParameters = parameters.map((type) =>

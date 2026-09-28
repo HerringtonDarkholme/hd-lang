@@ -20,8 +20,12 @@ export function assembleWat(wat: string): WasmArtifact {
   try {
     module = binaryen.parseText(wat);
   } catch (error) {
+    const message = binaryenErrorMessage(error);
+    // Quote the offending generated line, which the message locates.
+    const line = /^(\d+):\d+:/.exec(message)?.[1];
+    const text = line === undefined ? undefined : wat.split("\n")[Number(line) - 1]?.trim();
     throw new WasmValidationError(
-      `Binaryen could not parse generated WAT: ${binaryenErrorMessage(error)}`,
+      `Binaryen could not parse generated WAT: ${message}${text ? `\n  ${text}` : ""}`,
     );
   }
 

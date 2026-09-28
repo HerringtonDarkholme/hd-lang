@@ -1219,3 +1219,5 @@ typing/valid/numeric-widening-and-display-list.hd	type
 typing/valid/numeric-corners.hd	type
 runtime/valid/generic-trait-literal-default-instantiation.hd	runtime
 runtime/valid/unsigned-exponent.hd	runtime
+typing/valid/prelude-surface.hd	type
+typing/valid/generic-map-key.hd	type

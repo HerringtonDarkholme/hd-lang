@@ -571,8 +571,7 @@ else`, `break`, `break value`, and `continue`;
   and unwrap the stored payload; `impl Inspectable`, a redeclared or
   implemented `runtime_type`/`downcast`/`downcast_mut`, and an Inspectable
   requirement key in a function's requirement clause are rejected. Not
-  covered: `Hash` for `TypeId`
-  (no `Hash` trait, F-255), a type
+  covered: `Hash` for `TypeId`, a type
   parameter bounded only by a subtrait of `Inspectable`, Inspectable keys in
   closure types and provider scopes, qualified printable names (the
   prototype has one module), and opaqueness (`TypeId { key: ... }` is
@@ -661,7 +660,7 @@ does not implement the canonical prelude trait.
 
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
-module: `std.annotation`, `std.cmp`, `std.collections`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
+module: `std.annotation`, `std.cmp`, `std.collections`, `std.hash`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
@@ -694,6 +693,7 @@ What it provides:
 | Module | Contents |
 | --- | --- |
 | `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape[T]()` and `shape_of(f)` call |
+| `std.hash` | `Hash` and `Hasher` (prelude names), and `Hash` for `string`, `bool`, and every integer type; no standard hasher, which the specification does not name |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
@@ -713,8 +713,9 @@ The prelude `string` methods live in `std.text` too, and `lower` and
 (the prototype's `mut Iterator[T]`) and collect eagerly, except `take`;
 there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
 private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
-`Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
-`Hash`), and no host `ConsoleInput`; a `BufferConsole` records both direct
+`Integer` or `Float` trait, no `Set` (the specification does not define it,
+and a run-time map key is an `i32`-like value or a string, so a generic
+`Set.new()` could not create its map), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and, outside a driver, `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
 

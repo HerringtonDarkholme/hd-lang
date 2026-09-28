@@ -286,7 +286,8 @@ export function isKnownType(
     if (nominal.name === "Map") {
       return (
         nominal.arguments.length === 2 &&
-        mapKeyKind(nominal.arguments[0]!) !== undefined &&
+        (mapKeyKind(nominal.arguments[0]!) !== undefined ||
+          genericTypeName(nominal.arguments[0]!) !== undefined) &&
         nominal.arguments[1] !== "void" &&
         isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes)
       );
@@ -964,6 +965,8 @@ export function typeName(
   diagnostics: Diagnostic[],
   genericParameters: ReadonlySet<string> = new Set(),
   rowParameters: ReadonlySet<string> = new Set(),
+  /** Type parameters bounded by `Eq` and `Hash`, which may key a map (trait.hash.map-key). */
+  hashableParameters: ReadonlySet<string> = new Set(),
 ): ValueType | undefined {
   const kinded = normalizeRowArguments(
     resolveTraitType(resolveGenericType(type.name, genericParameters, rowParameters), traitTypes),
@@ -990,7 +993,8 @@ export function typeName(
     nominal.arguments.length === 2 &&
     isKnownType(nominal.arguments[0]!, dataTypes, enumTypes, traitTypes) &&
     isKnownType(nominal.arguments[1]!, dataTypes, enumTypes, traitTypes) &&
-    mapKeyKind(nominal.arguments[0]!) === undefined
+    mapKeyKind(nominal.arguments[0]!) === undefined &&
+    !hashableParameters.has(genericTypeName(nominal.arguments[0]!) ?? "")
   ) {
     diagnostics.push({
       code: "invalid-map-key",

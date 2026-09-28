@@ -86,6 +86,8 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
         expression.right.type,
         this.sizedNumeric(),
       );
+    if (expression.left.type === "i64" && (operator === "<<" || operator === ">>"))
+      return `(i64.${operator === "<<" ? "shl" : "shr_s"} ${left} (call $hd.check_shift_i64 ${right}))`;
     if (operator === "**" && scalarWasm(expression.right.type) === "i64")
       return `(call $hd.pow_${expression.type} ${left} (i32.wrap_i64 ${right}))`;
     return undefined;

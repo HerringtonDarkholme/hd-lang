@@ -11,6 +11,7 @@ export const STANDARD_MODULES = [
   "annotation",
   "cmp",
   "format",
+  "hash",
   "collections",
   "console",
   "iter",

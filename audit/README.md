@@ -12,7 +12,7 @@ decisions, and the repository history keeps the removed evidence.
 | Path | What it holds | Why it stays |
 | ---- | ------------- | ------------ |
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
-| [`findings/`](findings/) | one file per open finding (41), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open on 2026-09-27: the tagged cases still fail, and the others were re-run or spot-checked |
+| [`findings/`](findings/) | one file per open finding (40), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open on 2026-09-27: the tagged cases still fail, and the others were re-run or spot-checked |
 | [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `test/portable/KNOWN_FAILURES.tsv` grouped by finding or decision ID | the prototype's fix list |
 | [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265, F-310, and F-250 | open findings; `spec/tools/fuzz/README.md` points here |
 | [`evidence/04-runtime/`](evidence/04-runtime/) | replay, host-value, and panic result tables | back F-155, F-161, F-401, and F-404 |
@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,220 of the 1,263 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 43 are listed in
+On 2026-09-28 the prototype passes 1,222 of the 1,263 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 41 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 43 still fail.
+decision below; all 41 still fail.
 
 ## Specification Follow-Ups
 
@@ -51,6 +51,18 @@ decision below; all 43 still fail.
   `integer-overflow`. **Recommendation:** name `integer-overflow` in
   `types.cast.panic`, since a cast out of range is the same failure as
   arithmetic out of range.
+
+- F-255 follow-up: `Hash` and `Hasher` are implemented in
+  `lib/std/hash.hd`, but two names the rules use are not declared.
+  [`trait.derive.newtype.self-error`](../spec/09-traits.md#r-trait.derive.newtype.self-error)
+  and [`annot.bound.more`](../spec/14-annotations.md#r-annot.bound.more)
+  name `Set[T]`, and
+  [`trait.derive.hash.seeded`](../spec/09-traits.md#r-trait.derive.hash.seeded)
+  names "the standard `Hasher`", yet no chapter declares either. The
+  prototype has neither. **Recommendation:** move `Set[T < Eq + Hash]` and a
+  default hasher from the
+  [STDLIB draft](../future-work/STDLIB.md#stdcollections) into spec/10's
+  standard-library section, or reword the three rules without them.
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 

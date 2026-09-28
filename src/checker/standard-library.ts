@@ -59,6 +59,8 @@ const renamedModules = new Map<string, Program>();
 const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
   ["console", "println"],
   ["format", "debug"],
+  ["hash", "Hash"],
+  ["hash", "Hasher"],
   // The shape surface (spec/14-annotations.md#common-shape-representation).
   ...[
     "DeclarationId",

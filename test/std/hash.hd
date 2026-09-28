@@ -1,0 +1,35 @@
+# std.hash: the standard Hash implementations feed their bytes to a Hasher.
+use std.testing.{assert_equal}
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.append(byte)
+
+fn recorded[T < Hash](value: T) -> List[u8]:
+    let recorder: mut Recorder = Recorder { bytes: [] }
+    value.hash(recorder)
+    recorder.bytes
+
+fn lookup[K < Eq + Hash](items: Map[K, i32], key: K) -> i32?:
+    items[key]
+
+tests:
+    it("a string hashes its UTF-8 bytes"):
+        assert_equal(recorded("hé"), [104, 195, 169], reason="the UTF-8 bytes")
+
+    it("integers hash their little-endian bytes at their own width"):
+        assert_equal(recorded(258), [2, 1, 0, 0], reason="i32")
+        let small: i16 = -2
+        assert_equal(recorded(small), [254, 255], reason="i16 two's complement")
+        let top: u64 = 18446744073709551615
+        assert_equal(recorded(top), [255, 255, 255, 255, 255, 255, 255, 255], reason="u64")
+        assert_equal(recorded(true), [1], reason="bool")
+
+    it("a type parameter bounded by Eq and Hash keys a map"):
+        assert_equal(lookup({"a": 1, "b": 2}, "b"), 2, reason="a string key")
+        assert_equal(lookup({7: 70}, 7), 70, reason="an i32 key")
+        assert_equal(lookup({7: 70}, 8), .None, reason="a missing key")
