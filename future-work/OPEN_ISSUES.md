@@ -89,6 +89,13 @@ fn greet() -> void $ Console:
     println("hello")   # which write_line! runs, and what if it fails?
 ```
 
+**Decided (owner, 2026-09-28).** Both recommendations are accepted.
+1. `println` drives `write_line!` to completion inside itself, as
+   `block_on` does, and stays non-suspending. A pending host suspension
+   there is a panic.
+2. `println` panics when `write_line!` returns `.Err(ConsoleError)`. Code
+   that must handle the error calls `write_line!` directly.
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Decided.** Owner decisions M1-M26 in
