@@ -1,0 +1,29 @@
+# expect-stdout: recorded 3
+# expect-stdout: [1] a
+# test: prelude / Console / println drives a provider's write_line! through its own bang calls
+# Spec 10 Console: println drives write_line! to completion inside itself and stays
+# non-suspending, so a non-suspending caller keeps its signature.
+
+data NumberedConsole:
+    lines: mut List[string]
+
+impl NumberedConsole:
+    fn next_number!(self) -> i32:
+        self.lines.len() + 1
+
+impl Console for NumberedConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        number := self.next_number!()
+        self.lines.append("[${number}] ${text}")
+        .Ok()
+
+fn report(values: List[string]) -> void $ Console:
+    for value in values:
+        println(value)
+
+pub fn main!() -> void $ Console:
+    let numbered: mut NumberedConsole = NumberedConsole { lines: [] }
+    $.with(Console=numbered):
+        report(["a", "b", "c"])
+    println("recorded ${numbered.lines.len()}")
+    println(numbered.lines[0])

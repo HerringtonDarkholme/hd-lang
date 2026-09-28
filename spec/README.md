@@ -1105,3 +1105,12 @@ existing source. Each entry names the decision that made the change.
   associated type, or an omit line `f = pass` in it, and a newtype target,
   are errors. `impl C by E` without a trait, where `E` is not `Structure`,
   is `invalid-delegation`.
+- `println` drives `write_line!` (mutable host providers MHP-1, owner
+  decision 2026-09-28): a `println(value)` call calls
+  `write_line!(value.to_string())` on the covering `Console` provider and
+  drives it to completion inside itself, so a program-defined provider,
+  such as a recording console, now receives the line. `println` stays
+  non-suspending, and no caller changes. A `write_line!` call that stays
+  pending on a host operation, or returns `.Err(ConsoleError)`, previously
+  unspecified, now makes `println` panic; the panic category is not yet
+  specified.

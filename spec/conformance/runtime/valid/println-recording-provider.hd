@@ -1,0 +1,22 @@
+# test: prelude / Console / println writes its line through a program-defined provider
+# Spec 10 Console: println calls write_line! with the value's text on the Console
+# provider that covers the call, and drives the call to completion.
+use std.testing.assert_equal
+
+data BufferConsole:
+    lines: mut List[string]
+
+impl Console for BufferConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.lines.append(text)
+        .Ok()
+
+fn greet(name: string) -> void $ Console:
+    println("hello, ${name}")
+
+tests:
+    it("records the greeting"):
+        let console: mut BufferConsole = BufferConsole { lines: [] }
+        $.with(Console=console):
+            greet("Ada")
+        assert_equal(console.lines, ["hello, Ada"], "one line")

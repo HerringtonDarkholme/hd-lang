@@ -274,11 +274,51 @@ trait Console:
 2. r[module.console.write-line-mut] `write_line!` takes `mut self`, so `Console` is a mutable requirement trait and a provider may record what it writes.
 3. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
 4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
+5. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
+6. r[module.console.println-drive] `println` drives that `write_line!` call to completion inside itself, before it returns, and does not return control to the host.
+7. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
+8. r[module.console.println-pending] If a poll of that `write_line!` call returns `Pending` because a host operation is pending, `println` panics.
+9. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
 
 ```text
 pub fn main() -> void:
     println("missing")  # error
 ```
+
+A recording provider receives each line that `println` writes:
+
+```text
+use std.testing.assert_equal
+
+data BufferConsole:
+    lines: mut List[string]
+
+impl Console for BufferConsole:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+        self.lines.append(text)
+        .Ok()
+
+fn greet(name: string) -> void $ Console:
+    println("hello, ${name}")
+
+tests:
+    it("records the greeting"):
+        let console: mut BufferConsole = BufferConsole { lines: [] }
+        $.with(Console=console):
+            greet("Ada")
+        assert_equal(console.lines, ["hello, Ada"], "one line")
+```
+
+> **Why.** Rust's `println!` and Go's `fmt.Println` are synchronous, so
+> every caller keeps its signature. Rust's `println!` also panics when the
+> write to standard output fails.
+
+> **Note.** Code that must handle a console error calls `write_line!`
+> directly. The panic category of the two `println` panics is not yet
+> specified.
+
+See also: [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension),
+[Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
 ### Value-Category Traits
 
