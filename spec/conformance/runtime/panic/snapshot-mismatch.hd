@@ -1,0 +1,7 @@
+# test: a snapshot whose text differs from its expectation fails as an assertion
+# Spec 10 Snapshots: module.testing.snapshot.mismatch (Testing T54).
+use std.testing.snapshot
+
+tests:
+    it("the text differs from the expectation"):
+        snapshot("hello, Ada", expect="hello, Grace")  # panic: assertion-failed

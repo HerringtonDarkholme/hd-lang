@@ -493,6 +493,14 @@ impl Debug for Point:
 3. r[trait.debug.builder.chain] `field` and `entry` return their builder, so calls chain, and `finish` ends the value.
 4. r[trait.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
 5. r[trait.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
+6. r[trait.debug.derive-builders.mapping] The derived calls follow Rust's `#[derive(Debug)]`, by the shape of each value, as the table below states.
+
+| Rule | Value | Derived calls |
+| --- | --- | --- |
+| r[trait.debug.derive-builders.data] Data type | a value of a `data` type, with or without fields | `out.debug_struct(type_name)`, then `.field(field_name, value)` per field in declaration order, then `.finish()` |
+| r[trait.debug.derive-builders.record] Record variant | a variant whose payload fields are all named | `out.debug_struct(variant_name)`, then `.field(field_name, value)` per payload field in order, then `.finish()` |
+| r[trait.debug.derive-builders.tuple] Tuple variant | a variant whose payload fields are all positional | `out.debug_tuple(variant_name)`, then `.field(value)` per payload value in order, then `.finish()` |
+| r[trait.debug.derive-builders.unit] Unit variant | a variant without a payload | `out.write(variant_name)` only |
 
 > **Why.** `assert_equal` and property tests show failing values through
 > `Debug`, so any type a test compares can show itself without a

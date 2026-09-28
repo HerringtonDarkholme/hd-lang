@@ -275,15 +275,17 @@ trait Console:
 3. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
 4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
 5. r[module.console.println-write] A call `println(value)` calls `write_line!(value.to_string())` on the `Console` provider that covers the call.
-6. r[module.console.println-drive] `println` drives that `write_line!` call to completion inside itself, before it returns, and does not return control to the host.
-7. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
-8. r[module.console.println-pending] If a poll of that `write_line!` call returns `Pending` because a host operation is pending, `println` panics.
+6. r[module.console.println-drive.block-on] `println` drives that `write_line!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on), exactly as `block_on` drives a stored suspension, and returns after the call completes.
+7. r[module.console.println-drive.pending] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
+8. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
 9. r[module.console.println-error] If that `write_line!` call returns `.Err(ConsoleError)`, `println` panics.
 10. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
 11. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-12. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its nested-driver panic.
-13. r[module.console.println-block-on.nested] So a `println` call while a driver is active, as in `main!` or a test body, panics before it writes. Panic: `suspension-nested-driver`.
-14. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
+12. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+13. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on): its forbidden contexts, their transitive ban, and its nested-driver panic.
+14. r[module.console.println-block-on.nested] So a `println` call while a driver is active, as in `main!` or a test body, panics before it writes. Panic: `suspension-nested-driver`.
+15. r[module.console.println-block-on.contexts] A `println` call in a `defer` suite, a default expression, or a fact expression, directly or transitively, is an error. Error: `suspension-forbidden-context`.
+16. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid: no driver is active there, and only non-entry module initialization bans `block_on`.
 
 ```text
 pub fn main() -> void:
@@ -683,6 +685,8 @@ pub fn snapshot_file(text: string) -> void
 4. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
 5. r[module.testing.snapshot-file.path] `snapshot_file` keeps its file at `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, whose parts the table below defines.
 6. r[module.testing.snapshot-file.missing] When that file does not exist, the test case fails, except in an update run, as `hd test --update` makes, which records the file.
+7. r[module.testing.snapshot.mismatch] When `text` differs from the expected text, `snapshot` or `snapshot_file` fails as a failed assertion does. Panic: `assertion-failed`.
+8. r[module.testing.snapshot-file.missing-panic] A missing snapshot file outside an update run fails the same way. Panic: `assertion-failed`.
 
 | Rule | Part | Value |
 | --- | --- | --- |

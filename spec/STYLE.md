@@ -881,3 +881,10 @@ style lint rejects a chapter that reuses one.
 - `annot.line.right`: retired 2026-09-28. Typed derivation M28 allows any
   expression of a list type on a member line's right side, not only a list
   expression. Replaced by `annot.line.right-typed`.
+- `module.console.println-drive`: retired 2026-09-28. The MHP-1 second
+  round made `println` exactly `block_on` of its `write_line!` call, which
+  may wait on a host write. Replaced by `module.console.println-drive.block-on`
+  and `module.console.println-drive.pending`.
+- `module.console.println-pending`: retired 2026-09-28. The MHP-1 second
+  round dropped the panic on a pending host write; `println` drives the
+  write until it finishes. Replaced by `module.console.println-drive.pending`.

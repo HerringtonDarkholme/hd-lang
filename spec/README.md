@@ -1170,3 +1170,19 @@ existing source. Each entry names the decision that made the change.
   there. A `println` call in a `defer` suite or a default expression,
   directly or transitively, previously valid, is now
   `suspension-forbidden-context`.
+- `println` is `block_on` of its write (mutable host providers, MHP-1
+  second round, owner decision 2026-09-28): a `write_line!` call that is
+  pending on a host write, which previously made `println` panic, is now
+  driven until it finishes, as `block_on` does. The panic on
+  `.Err(ConsoleError)` is `explicit-panic`, as any `panic` call in `std`
+  is. A `println` call at the top level of a script stays valid.
+- Testing T54 (owner decision in
+  [Still Open After T53](../future-work/TESTING.md#still-open-after-t53),
+  2026-09-28): a `snapshot` or `snapshot_file` mismatch, and a missing
+  snapshot file outside an update run, previously a test failure with no
+  panic category, now panic with `assertion-failed`. `@derive(Debug)`
+  follows Rust's mapping: a data type or a variant with named payload
+  fields uses `debug_struct`, a variant with positional payload fields
+  uses `debug_tuple`, and a variant without a payload writes its name.
+  The builder type names `DebugStruct`, `DebugTuple`, `DebugList`, and
+  `DebugMap` are confirmed. No existing source changes meaning otherwise.

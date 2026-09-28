@@ -1156,7 +1156,7 @@ typing/valid/console-recording-provider.hd	type	accept	10-modules.md#r-module.co
 typing/valid/console-host-provider-mutable.hd	type	accept	10-modules.md#r-module.console.write-line-mut
 typing/invalid/console-readonly-binding-write-line.hd	type	reject:mutable-receiver-required	10-modules.md#r-module.console.write-line-mut
 runtime/valid/println-recording-provider.hd	runtime	accept	10-modules.md#r-module.console.println-write
-runtime/valid/println-provider-suspending-body.hd	runtime	accept	10-modules.md#r-module.console.println-drive
+runtime/valid/println-provider-suspending-body.hd	runtime	accept	10-modules.md#r-module.console.println-drive.block-on
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	09-traits.md#r-trait.own.no-orphan-exception
 typing/valid/inherited-mut-method-requirement.hd	type	accept	11-requirements-and-suspension.md#r-req.mut.trait
 typing/invalid/mutable-provider-install-readonly-field.hd	type	reject:mutable-upgrade	11-requirements-and-suspension.md#r-req.mut.install-mutable
@@ -1262,3 +1262,7 @@ typing/valid/debug-writer-builders.hd	type	accept	09-traits.md#r-trait.debug.bui
 typing/valid/choices-arbitrary.hd	type	accept	10-modules.md#r-module.testing.choices.declare
 runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	05-expressions.md#r-expr.suffix.std.overflow
 runtime/valid/duration-api.hd	runtime	accept	05-expressions.md#r-expr.suffix.std.duration-api
+typing/valid/println-top-level-script.hd	type	accept	10-modules.md#r-module.console.println-script
+runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot.mismatch
+runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	10-modules.md#r-module.testing.snapshot-file.missing-panic
+typing/valid/derive-debug-shapes.hd	type	accept	09-traits.md#r-trait.debug.derive-builders.mapping

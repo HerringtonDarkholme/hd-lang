@@ -1,0 +1,13 @@
+# test: Debug derives for a fieldless data type and for record, tuple, and unit variants
+# Spec 09 Debug Builders: trait.debug.derive-builders.mapping (Testing T54).
+@derive(Debug)
+data Marker: pass
+
+@derive(Debug)
+enum Shape:
+    Empty
+    Circle(i32)
+    Rect(width: i32, height: i32)
+
+fn describe(marker: Marker, value: Shape) -> string:
+    debug(marker) + " " + debug(value)

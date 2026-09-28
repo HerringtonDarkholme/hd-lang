@@ -1,0 +1,7 @@
+# test: prelude / Console / println at the top level of a script is valid
+# Spec 10 Console: module.console.println-script (MHP-1 second round). A
+# script's top level runs no driver, and only non-entry module initialization
+# bans block_on, so println there needs only the script's inferred Console row.
+greeting := "hello"
+println(greeting)
+println("done")
