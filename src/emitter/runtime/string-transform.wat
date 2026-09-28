@@ -39,3 +39,8 @@
     (param $value (ref null $hd.bytes))
     (result (ref null $hd.bytes))
     (call $hd.string_transform (local.get $value) (i32.const 1)))
+
+  (func $hd.string_upper
+    (param $value (ref null $hd.bytes))
+    (result (ref null $hd.bytes))
+    (call $hd.string_transform (local.get $value) (i32.const 2)))

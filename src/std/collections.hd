@@ -1,0 +1,85 @@
+# std.collections: inherent `List` methods (future-work/STDLIB.md#stdcollections).
+# `map` is the normative built-in method (spec/10-modules.md#built-in-methods).
+# Each method returns a new list and leaves its receiver unchanged.
+
+impl[T] List[T]:
+    pub fn map[U](self, transform: fn(T) -> U) -> List[U]:
+        let mapped: mut List[U] = []
+        for item in self:
+            mapped.append(transform(item))
+        mapped
+
+    pub fn filter(self, keep: fn(T) -> bool) -> List[T]:
+        let kept: mut List[T] = []
+        for item in self:
+            if keep(item):
+                kept.append(item)
+        kept
+
+    pub fn first(self) -> T?:
+        if self.len() == 0: .None else: .Some(self[0])
+
+    pub fn last(self) -> T?:
+        if self.len() == 0: .None else: .Some(self[self.len() - 1])
+
+    pub fn reversed(self) -> List[T]:
+        let backwards: mut List[T] = []
+        let index = self.len() - 1
+        while index >= 0:
+            backwards.append(self[index])
+            index = index - 1
+        backwards
+
+    # A stable merge sort: equal items keep their order.
+    pub fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]:
+        if self.len() <= 1:
+            return self.filter(fn(item: T) -> bool: true)
+        let middle = self.len() / 2
+        let left: mut List[T] = []
+        let right: mut List[T] = []
+        let index = 0
+        while index < self.len():
+            if index < middle: left.append(self[index]) else: right.append(self[index])
+            index = index + 1
+        let sorted_left = left.sorted_by(compare)
+        let sorted_right = right.sorted_by(compare)
+        let merged: mut List[T] = []
+        let at_left = 0
+        let at_right = 0
+        while at_left < sorted_left.len() || at_right < sorted_right.len():
+            let take_right = at_left >= sorted_left.len()
+            if !take_right && at_right < sorted_right.len():
+                take_right = match compare(sorted_right[at_right], sorted_left[at_left]):
+                    .Less => true
+                    _ => false
+            if take_right:
+                merged.append(sorted_right[at_right])
+                at_right = at_right + 1
+            else:
+                merged.append(sorted_left[at_left])
+                at_left = at_left + 1
+        merged
+
+    # Consecutive pieces of `size` items; the last may be shorter.
+    pub fn chunks(self, size: i32) -> List[List[T]]:
+        if size <= 0:
+            panic("chunks: size must be positive")
+        let pieces: mut List[List[T]] = []
+        let piece: mut List[T] = []
+        for item in self:
+            piece.append(item)
+            if piece.len() == size:
+                pieces.append(piece)
+                piece = []
+        if piece.len() > 0:
+            pieces.append(piece)
+        pieces
+
+    # Pairs items by position, stopping at the shorter list.
+    pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
+        let pairs: mut List[(T, U)] = []
+        let index = 0
+        while index < self.len() && index < other.len():
+            pairs.append((self[index], other[index]))
+            index = index + 1
+        pairs

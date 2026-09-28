@@ -1,0 +1,37 @@
+# std.result: inherent methods on `Result[T, E]` (future-work/STDLIB.md#stdoption-and-stdresult).
+
+impl[T, E] Result[T, E]:
+    pub fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]:
+        match self:
+            .Ok(value) => .Ok(transform(value))
+            .Err(error) => .Err(error)
+
+    pub fn map_err[F](self, transform: fn(E) -> F) -> Result[T, F]:
+        match self:
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(transform(error))
+
+    pub fn ok(self) -> T?:
+        match self:
+            .Ok(value) => .Some(value)
+            .Err(_) => .None
+
+    pub fn err(self) -> E?:
+        match self:
+            .Ok(_) => .None
+            .Err(error) => .Some(error)
+
+    pub fn is_ok(self) -> bool:
+        match self:
+            .Ok(_) => true
+            .Err(_) => false
+
+    pub fn unwrap_or(self, fallback: T) -> T:
+        match self:
+            .Ok(value) => value
+            .Err(_) => fallback
+
+    pub fn expect(self, message: string) -> T:
+        match self:
+            .Ok(value) => value
+            .Err(_) => panic(message)

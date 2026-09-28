@@ -65,7 +65,10 @@ type MemberCall = Extract<Expression, { kind: "call" }> & {
 export const traitDefaultDeclarations = new WeakMap<FunctionDecl, number>();
 
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
-  /** The prelude `string` methods (10-modules.md#prelude). */
+  /**
+   * The prelude `string` methods (10-modules.md#prelude), and `std.text`'s
+   * host-backed `upper` (src/std/text.hd).
+   */
   protected checkStringMemberCall(
     expression: MemberCall,
     receiver: HirExpression,
@@ -77,7 +80,7 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
         this.fail("argument-count", "string.len expects no arguments", expression.span);
       return { kind: "string-length", receiver, type: "i32", span: expression.span };
     }
-    if (method === "trim" || method === "lower") {
+    if (method === "trim" || method === "lower" || method === "upper") {
       if (expression.arguments.length !== 0)
         this.fail("argument-count", `string.${method} expects no arguments`, expression.span);
       return {

@@ -1,0 +1,33 @@
+# std.option: inherent methods on `T?` (future-work/STDLIB.md#stdoption-and-stdresult).
+# `map` is the normative built-in method (spec/10-modules.md#built-in-methods).
+
+impl[T] T?:
+    pub fn map[U](self, transform: fn(T) -> U) -> U?:
+        match self:
+            .Some(value) => .Some(transform(value))
+            .None => .None
+
+    pub fn unwrap_or(self, fallback: T) -> T:
+        match self:
+            .Some(value) => value
+            .None => fallback
+
+    pub fn ok_or[E](self, error: E) -> Result[T, E]:
+        match self:
+            .Some(value) => .Ok(value)
+            .None => .Err(error)
+
+    pub fn is_some(self) -> bool:
+        match self:
+            .Some(_) => true
+            .None => false
+
+    pub fn is_none(self) -> bool:
+        match self:
+            .Some(_) => false
+            .None => true
+
+    pub fn expect(self, message: string) -> T:
+        match self:
+            .Some(value) => value
+            .None => panic(message)

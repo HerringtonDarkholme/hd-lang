@@ -14,6 +14,7 @@ import {
 import { validateProgram } from "./program-validation.ts";
 import type { ProgramCheckContext } from "./program-context.ts";
 import { validateHostCapabilities } from "./host-capabilities.ts";
+import { withStandardLibrary } from "./standard-library.ts";
 import { withStandardTraits } from "./standard-traits.ts";
 import { withFunctionTypeConstructors } from "./function-types.ts";
 import { hoistLocalDeclarations } from "./local-declarations.ts";
@@ -56,7 +57,7 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
 }
 
 function checkProgram(source: Program, options: CheckOptions): CheckResult {
-  const hoisted = hoistLocalDeclarations(withStandardTraits(source));
+  const hoisted = hoistLocalDeclarations(withStandardTraits(withStandardLibrary(source)));
   const declared = withTypeDeclarations(hoisted.program);
   const program = declared.program;
   const context: ProgramCheckContext = {

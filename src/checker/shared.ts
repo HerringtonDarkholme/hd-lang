@@ -599,6 +599,14 @@ export function matchGenericTypePattern(
       actualMutable !== undefined &&
       matchGenericTypePattern(patternMutable, actualMutable, substitutions)
     );
+  const patternOptional = optionalInner(pattern);
+  const actualOptional = optionalInner(actual);
+  if (patternOptional !== undefined || actualOptional !== undefined)
+    return (
+      patternOptional !== undefined &&
+      actualOptional !== undefined &&
+      matchGenericTypePattern(patternOptional, actualOptional, substitutions)
+    );
   const patternTuple = tupleParts(pattern);
   const actualTuple = tupleParts(actual);
   if (patternTuple !== undefined || actualTuple !== undefined)

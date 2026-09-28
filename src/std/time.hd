@@ -1,0 +1,40 @@
+# std.time: `Duration` and its literal suffixes (spec/05-expressions.md#literal-suffixes,
+# future-work/STDLIB.md#stdtime). A `Duration` is a whole number of
+# milliseconds in an `i64` (r-expr.suffix.std.duration); the spec names no
+# member, so `millis` is the prototype's own. Each suffix scales its literal by
+# checked `i64` multiplication.
+use std.ops.LiteralSuffix
+
+pub data Duration:
+    millis: i64
+
+impl Duration:
+    pub fn milliseconds(count: i64) -> Duration:
+        Duration { millis: count }
+
+    pub fn seconds(count: i64) -> Duration:
+        Duration { millis: count * 1000 }
+
+    pub fn as_milliseconds(self) -> i64:
+        self.millis
+
+pub type ms(i64)
+pub type s(i64)
+pub type min(i64)
+pub type h(i64)
+
+impl LiteralSuffix[i64, Duration] for ms:
+    fn from_literal(n: i64) -> Duration:
+        Duration::milliseconds(n)
+
+impl LiteralSuffix[i64, Duration] for s:
+    fn from_literal(n: i64) -> Duration:
+        Duration::seconds(n)
+
+impl LiteralSuffix[i64, Duration] for min:
+    fn from_literal(n: i64) -> Duration:
+        Duration::seconds(n * 60)
+
+impl LiteralSuffix[i64, Duration] for h:
+    fn from_literal(n: i64) -> Duration:
+        Duration::seconds(n * 3600)

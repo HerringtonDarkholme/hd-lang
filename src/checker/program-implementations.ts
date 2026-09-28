@@ -182,33 +182,37 @@ function prepareInherentImplementation(
   const targetBase =
     nominalGenericParts(implementation.targetName)?.name ?? implementation.targetName;
   const target = dataTypes.get(targetBase) ?? enumTypes.get(targetBase);
-  if (!target) {
+  const resolveTarget = (): ValueType | undefined =>
+    typeName(
+      { name: implementation.targetName, span: implementation.span },
+      dataTypes,
+      enumTypes,
+      traitTypes,
+      diagnostics,
+      new Set(implementation.genericParameters),
+    );
+  let targetType: ValueType | undefined;
+  if (!target && implementation.standard) {
+    // `std` declares inherent methods on built-in types such as `string`,
+    // `T?`, and `List[T]` (09-traits.md#r-trait.own.inherent.std).
+    targetType = resolveTarget();
+  } else if (!target) {
     diagnostics.push({
       code: "unknown-type",
       message: `unknown inherent implementation target '${implementation.targetName}'`,
       span: implementation.span,
     });
     return;
-  }
-  if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
+  } else if (target.genericParameters.length > 0 && targetBase === implementation.targetName) {
     diagnostics.push({
       code: "unsupported-generic-impl",
       message: `inherent implementation of generic type '${implementation.targetName}' requires explicit generic parameters`,
       span: implementation.span,
     });
     return;
+  } else {
+    targetType = targetBase === implementation.targetName ? targetBase : resolveTarget();
   }
-  const targetType =
-    targetBase === implementation.targetName
-      ? targetBase
-      : typeName(
-          { name: implementation.targetName, span: implementation.span },
-          dataTypes,
-          enumTypes,
-          traitTypes,
-          diagnostics,
-          new Set(implementation.genericParameters),
-        );
   if (targetType === undefined) return;
   for (const method of implementation.methods) {
     // 09 Inherent Member Names: two members with one name clash only when

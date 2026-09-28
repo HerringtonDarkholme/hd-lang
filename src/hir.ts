@@ -521,7 +521,7 @@ export type HirExpression =
   | (HirExpressionBase & { readonly kind: "display"; readonly operand: HirExpression })
   | (HirExpressionBase & {
       readonly kind: "string-transform";
-      readonly operation: "lower" | "trim";
+      readonly operation: "lower" | "trim" | "upper";
       readonly receiver: HirExpression;
     })
   | (HirExpressionBase & {

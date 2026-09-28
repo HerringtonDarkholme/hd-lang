@@ -1,0 +1,98 @@
+# std.text: inherent `string` methods, `join`, and `StringBuilder`
+# (future-work/STDLIB.md#stdtext). Positions and lengths count Unicode
+# scalars, as the built-in methods do (spec/10-modules.md#string-methods).
+# `upper` is host-backed like `lower`, so the checker supplies it.
+
+impl string:
+    pub fn is_empty(self) -> bool:
+        self.len() == 0
+
+    pub fn ends_with(self, suffix: string) -> bool:
+        self.len() >= suffix.len() && scalar_range(self, self.len() - suffix.len(), self.len()) == suffix
+
+    pub fn contains(self, needle: string) -> bool:
+        needle.len() == 0 || self.split(needle).len() > 1
+
+    # The scalar position of the first `needle`; an empty needle is at 0.
+    pub fn find(self, needle: string) -> i32?:
+        if needle.len() == 0:
+            return .Some(0)
+        pieces := self.split(needle)
+        if pieces.len() > 1: .Some(pieces[0].len()) else: .None
+
+    pub fn trim_start(self) -> string:
+        trimmed := self.trim()
+        if trimmed.len() == 0:
+            return ""
+        match self.find(trimmed):
+            .Some(start) => scalar_range(self, start, self.len())
+            .None => self
+
+    pub fn trim_end(self) -> string:
+        trimmed := self.trim()
+        if trimmed.len() == 0:
+            return ""
+        match self.find(trimmed):
+            .Some(start) => scalar_range(self, 0, start + trimmed.len())
+            .None => self
+
+    pub fn strip_prefix(self, prefix: string) -> string?:
+        if self.starts_with(prefix): .Some(scalar_range(self, prefix.len(), self.len())) else: .None
+
+    pub fn strip_suffix(self, suffix: string) -> string?:
+        if self.ends_with(suffix): .Some(scalar_range(self, 0, self.len() - suffix.len())) else: .None
+
+    # The pieces between "\n" separators; a final "\n" ends the last line
+    # rather than starting an empty one.
+    pub fn lines(self) -> List[string]:
+        pieces := self.split("\n")
+        let found: mut List[string] = []
+        let index = 0
+        while index < pieces.len():
+            if index < pieces.len() - 1 || pieces[index].len() > 0:
+                found.append(pieces[index])
+            index = index + 1
+        found
+
+    pub fn repeat(self, count: i32) -> string:
+        if count < 0:
+            panic("repeat: count must not be negative")
+        let repeated = ""
+        let index = 0
+        while index < count:
+            repeated = repeated + self
+            index = index + 1
+        repeated
+
+# The scalars of `text` from `start` up to, not including, `end`.
+fn scalar_range(text: string, start: i32, end: i32) -> string:
+    scalars := text.split("")
+    let piece = ""
+    let index = start
+    while index < end:
+        piece = piece + scalars[index]
+        index = index + 1
+    piece
+
+pub fn join(parts: List[string], separator: string) -> string:
+    let joined = ""
+    let index = 0
+    for part in parts:
+        if index > 0:
+            joined = joined + separator
+        joined = joined + part
+        index = index + 1
+    joined
+
+pub data StringBuilder:
+    parts: mut List[string]
+
+impl StringBuilder:
+    pub fn new() -> mut StringBuilder:
+        StringBuilder { parts: [] }
+
+    pub fn push(mut self, text: string) -> void:
+        self.parts.append(text)
+
+    pub fn build(self) -> string:
+        join(self.parts, "")

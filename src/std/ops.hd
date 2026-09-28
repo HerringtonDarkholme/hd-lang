@@ -1,0 +1,4 @@
+# std.ops: the traits behind literal syntax (spec/09-traits.md#literal-suffix-trait).
+
+pub trait LiteralSuffix[In, Out]:
+    fn from_literal(n: In) -> Out

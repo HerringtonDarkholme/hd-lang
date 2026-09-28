@@ -13,10 +13,17 @@ import * as esbuild from "esbuild";
 const playground = dirname(fileURLToPath(import.meta.url));
 const root = resolve(playground, "../..");
 const RUNTIME_DIR = join(root, "src", "emitter", "runtime");
+const STD_DIR = join(root, "src", "std");
+/** Directories whose files the compiler reads with `node:fs`, by shim path. */
+const EMBEDDED: Readonly<Record<string, { readonly dir: string; readonly extension: string }>> = {
+  "runtime-wat": { dir: RUNTIME_DIR, extension: ".wat" },
+  "std-hd": { dir: STD_DIR, extension: ".hd" },
+};
 
 /**
  * Browser replacements for the Node APIs the compiler uses: the emitter's
- * runtime reads its `.wat` files with `node:fs`, and `instantiate` hashes
+ * runtime reads its `.wat` files and the checker its `std` `.hd` sources with
+ * `node:fs`, and `instantiate` hashes
  * function sources with `node:crypto`. Binaryen imports Node modules only
  * behind a Node check, so they stay external.
  */
@@ -24,11 +31,12 @@ export function browserShims(): esbuild.Plugin {
   return {
     name: "hd-browser-shims",
     setup(build) {
-      build.onResolve({ filter: /^node:fs$/ }, (args) =>
-        resolve(args.resolveDir) === RUNTIME_DIR
-          ? { path: "runtime-wat", namespace: "hd-shim" }
-          : undefined,
-      );
+      build.onResolve({ filter: /^node:fs$/ }, (args) => {
+        const embedded = Object.entries(EMBEDDED).find(
+          ([, { dir }]) => resolve(args.resolveDir) === dir,
+        );
+        return embedded ? { path: embedded[0], namespace: "hd-shim" } : undefined;
+      });
       build.onResolve({ filter: /^node:crypto$/ }, () => ({
         path: join(playground, "src", "shims", "crypto.ts"),
       }));
@@ -37,15 +45,16 @@ export function browserShims(): esbuild.Plugin {
           ? { path: args.path, external: true }
           : undefined,
       );
-      build.onLoad({ filter: /^runtime-wat$/, namespace: "hd-shim" }, async () => {
+      build.onLoad({ filter: /^(runtime-wat|std-hd)$/, namespace: "hd-shim" }, async (args) => {
+        const { dir, extension } = EMBEDDED[args.path]!;
         const files: Record<string, string> = {};
-        for (const name of (await readdir(RUNTIME_DIR)).filter((file) => file.endsWith(".wat")))
-          files[name] = await readFile(join(RUNTIME_DIR, name), "utf8");
+        for (const name of (await readdir(dir)).filter((file) => file.endsWith(extension)))
+          files[name] = await readFile(join(dir, name), "utf8");
         return {
           contents: `const files = ${JSON.stringify(files)};
 export function readFileSync(url) {
   const name = String(url).split("/").pop();
-  if (!(name in files)) throw new Error("no embedded runtime file " + name);
+  if (!(name in files)) throw new Error("no embedded file " + name);
   return files[name];
 }`,
           loader: "js",

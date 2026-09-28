@@ -1,0 +1,244 @@
+# std.num: integer arithmetic variants and parsing (future-work/STDLIB.md#stdnum).
+# Overflow is checked by default; these methods make the other behaviors
+# explicit. The prototype has the integer types `i32`, `i64`, and `u8`, and
+# declares the methods for `i32` and `i64`.
+
+pub enum ParseNumberError:
+    Empty
+    InvalidDigit(position: i32)
+    OutOfRange
+
+impl i32:
+    pub fn checked_add(self, other: i32) -> i32?:
+        if other > 0 && self > 2147483647 - other:
+            return .None
+        if other < 0 && self < (-2147483647 - 1) - other:
+            return .None
+        .Some(self + other)
+
+    pub fn checked_sub(self, other: i32) -> i32?:
+        if other > 0 && self < (-2147483647 - 1) + other:
+            return .None
+        if other < 0 && self > 2147483647 + other:
+            return .None
+        .Some(self - other)
+
+    pub fn checked_mul(self, other: i32) -> i32?:
+        if self == 0 || other == 0:
+            return .Some(0)
+        let overflows = false
+        if self > 0:
+            overflows = if other > 0: self > 2147483647 / other else: other < (-2147483647 - 1) / self
+        else:
+            overflows = if other > 0: self < (-2147483647 - 1) / other else: other < 2147483647 / self
+        if overflows: .None else: .Some(self * other)
+
+    pub fn checked_div(self, other: i32) -> i32?:
+        if other == 0 || (self == (-2147483647 - 1) && other == -1):
+            return .None
+        .Some(self / other)
+
+    # Two's-complement wrapping: an overflowing sum moves by 2^32.
+    pub fn wrapping_add(self, other: i32) -> i32:
+        match self.checked_add(other):
+            .Some(sum) => sum
+            .None =>
+                if other > 0: (self + (-2147483647 - 1)) + (other + (-2147483647 - 1)) else: (self - (-2147483647 - 1)) + (other - (-2147483647 - 1))
+
+    pub fn wrapping_sub(self, other: i32) -> i32:
+        if other == (-2147483647 - 1): self.wrapping_add((-2147483647 - 1)) else: self.wrapping_add(-other)
+
+    pub fn saturating_add(self, other: i32) -> i32:
+        match self.checked_add(other):
+            .Some(sum) => sum
+            .None => if other > 0: 2147483647 else: (-2147483647 - 1)
+
+    pub fn saturating_sub(self, other: i32) -> i32:
+        match self.checked_sub(other):
+            .Some(difference) => difference
+            .None => if other > 0: (-2147483647 - 1) else: 2147483647
+
+    # Panics with integer overflow when the distance does not fit in `i32`.
+    pub fn abs_diff(self, other: i32) -> i32:
+        if self > other: self - other else: other - self
+
+    pub fn count_ones(self) -> i32:
+        let count = 0
+        let rest = self
+        if rest < 0:
+            count = 1
+            rest = rest - (-2147483647 - 1)
+        while rest > 0:
+            if rest % 2 == 1:
+                count = count + 1
+            rest = rest / 2
+        count
+
+    pub fn leading_zeros(self) -> i32:
+        if self < 0:
+            return 0
+        let width = 0
+        let rest = self
+        while rest > 0:
+            width = width + 1
+            rest = rest / 2
+        32 - width
+
+impl i64:
+    pub fn checked_add(self, other: i64) -> i64?:
+        if other > 0 && self > i64_max() - other:
+            return .None
+        if other < 0 && self < i64_min() - other:
+            return .None
+        .Some(self + other)
+
+    pub fn checked_sub(self, other: i64) -> i64?:
+        if other > 0 && self < i64_min() + other:
+            return .None
+        if other < 0 && self > i64_max() + other:
+            return .None
+        .Some(self - other)
+
+    pub fn checked_mul(self, other: i64) -> i64?:
+        if self == 0 || other == 0:
+            return .Some(0)
+        let overflows = false
+        if self > 0:
+            overflows = if other > 0: self > i64_max() / other else: other < i64_min() / self
+        else:
+            overflows = if other > 0: self < i64_min() / other else: other < i64_max() / self
+        if overflows: .None else: .Some(self * other)
+
+    pub fn checked_div(self, other: i64) -> i64?:
+        if other == 0 || (self == i64_min() && other == -1):
+            return .None
+        .Some(self / other)
+
+    # Two's-complement wrapping: an overflowing sum moves by 2^64.
+    pub fn wrapping_add(self, other: i64) -> i64:
+        match self.checked_add(other):
+            .Some(sum) => sum
+            .None =>
+                if other > 0: (self + i64_min()) + (other + i64_min()) else: (self - i64_min()) + (other - i64_min())
+
+    pub fn wrapping_sub(self, other: i64) -> i64:
+        if other == i64_min(): self.wrapping_add(i64_min()) else: self.wrapping_add(-other)
+
+    pub fn saturating_add(self, other: i64) -> i64:
+        match self.checked_add(other):
+            .Some(sum) => sum
+            .None => if other > 0: i64_max() else: i64_min()
+
+    pub fn saturating_sub(self, other: i64) -> i64:
+        match self.checked_sub(other):
+            .Some(difference) => difference
+            .None => if other > 0: i64_min() else: i64_max()
+
+    # Panics with integer overflow when the distance does not fit in `i64`.
+    pub fn abs_diff(self, other: i64) -> i64:
+        if self > other: self - other else: other - self
+
+    pub fn count_ones(self) -> i32:
+        let count = 0
+        let rest = self
+        if rest < 0:
+            count = 1
+            rest = rest - i64_min()
+        while rest > 0:
+            if rest % 2 == 1:
+                count = count + 1
+            rest = rest / 2
+        count
+
+    pub fn leading_zeros(self) -> i32:
+        if self < 0:
+            return 0
+        let width = 0
+        let rest = self
+        while rest > 0:
+            width = width + 1
+            rest = rest / 2
+        64 - width
+
+impl f64:
+    pub fn is_nan(self) -> bool:
+        self != self
+
+    # Neither NaN nor an infinity: only then is `self - self` zero.
+    pub fn is_finite(self) -> bool:
+        self - self == 0.0
+
+# Parsing accepts an optional `+` or `-` and then decimal digits only.
+pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    negative := scalars[0] == "-"
+    let index = if negative || scalars[0] == "+": 1 else: 0
+    if index == scalars.len():
+        return .Err(ParseNumberError.InvalidDigit(0))
+    let value: i32 = 0
+    while index < scalars.len():
+        digit := match digit_value(scalars[index]):
+            .Some(found) => found
+            .None => return .Err(ParseNumberError.InvalidDigit(index))
+        # Accumulate toward the sign so the minimum value parses.
+        shifted := match value.checked_mul(10):
+            .Some(product) => product
+            .None => return .Err(ParseNumberError.OutOfRange)
+        let next = shifted.checked_add(digit)
+        if negative:
+            next = shifted.checked_sub(digit)
+        value = match next:
+            .Some(found) => found
+            .None => return .Err(ParseNumberError.OutOfRange)
+        index = index + 1
+    .Ok(value)
+
+pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
+    scalars := text.split("")
+    if scalars.len() == 0:
+        return .Err(ParseNumberError.Empty)
+    negative := scalars[0] == "-"
+    let index = if negative || scalars[0] == "+": 1 else: 0
+    if index == scalars.len():
+        return .Err(ParseNumberError.InvalidDigit(0))
+    let value: i64 = 0
+    while index < scalars.len():
+        digit := match digit_value(scalars[index]):
+            .Some(found) => found
+            .None => return .Err(ParseNumberError.InvalidDigit(index))
+        # Accumulate toward the sign so the minimum value parses.
+        shifted := match value.checked_mul(10):
+            .Some(product) => product
+            .None => return .Err(ParseNumberError.OutOfRange)
+        let next = shifted.checked_add(digit)
+        if negative:
+            next = shifted.checked_sub(digit)
+        value = match next:
+            .Some(found) => found
+            .None => return .Err(ParseNumberError.OutOfRange)
+        index = index + 1
+    .Ok(value)
+
+# `i64` literals take their type from context, so the bounds are functions.
+fn i64_max() -> i64:
+    9223372036854775807
+
+fn i64_min() -> i64:
+    let lowest: i64 = -9223372036854775807
+    lowest - 1
+
+fn digit_value(scalar: string) -> i32?:
+    match scalar:
+        "0" => .Some(0)
+        "1" => .Some(1)
+        "2" => .Some(2)
+        "3" => .Some(3)
+        "4" => .Some(4)
+        "5" => .Some(5)
+        "6" => .Some(6)
+        "7" => .Some(7)
+        "8" => .Some(8)
+        "9" => .Some(9)
+        _ => .None

@@ -1,0 +1,44 @@
+# std.cmp helpers (future-work/STDLIB.md#stdcmp-stdhash-stdformat). `Eq`,
+# `PartialOrd`, `Ord`, and `Ordering` are prelude names.
+
+# The smaller of two values; `a` when they are equal.
+pub fn min[T < Ord](a: T, b: T) -> T:
+    match b.cmp(a):
+        .Less => b
+        _ => a
+
+# The larger of two values; `b` when they are equal.
+pub fn max[T < Ord](a: T, b: T) -> T:
+    match b.cmp(a):
+        .Less => a
+        _ => b
+
+# `value` limited to `low..=high`; panics when `low > high`.
+pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:
+    match high.cmp(low):
+        .Less => panic("clamp: low must not exceed high")
+        _ => pass
+    match value.cmp(low):
+        .Less => return low
+        _ => pass
+    match high.cmp(value):
+        .Less => high
+        _ => value
+
+# Orders values in reverse.
+pub data Reverse[T]:
+    pub value: T
+
+impl[T < Ord] Eq for Reverse[T]:
+    fn eq(self, other: Reverse[T]) -> bool:
+        match self.value.cmp(other.value):
+            .Equal => true
+            _ => false
+
+impl[T < Ord] PartialOrd for Reverse[T]:
+    fn partial_cmp(self, other: Reverse[T]) -> Ordering?:
+        .Some(other.value.cmp(self.value))
+
+impl[T < Ord] Ord for Reverse[T]:
+    fn cmp(self, other: Reverse[T]) -> Ordering:
+        other.value.cmp(self.value)

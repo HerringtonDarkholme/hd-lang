@@ -1,0 +1,69 @@
+# std.iter: iterator adapters and `range` (future-work/STDLIB.md#stditer).
+# `Iterator` and `Iterable` are prelude names.
+#
+# The draft's `IteratorExt` extension trait would need an implementation for
+# the trait value type `Iterator[T]`, which spec/09-traits.md rejects
+# (`trait-value-impl-target`), so each adapter is a free function that takes
+# its source first. The prototype's `mut Iterator[T]` is the built-in list and
+# map cursor, so an adapter collects what it yields into a list and returns
+# that list's cursor: `map_each`, `filter`, and `enumerate` read their whole
+# source at once, and `take` reads only `count` items.
+
+pub fn map_each[T, U](source: mut Iterator[T], transform: fn(T) -> U) -> mut Iterator[U]:
+    let mapped: mut List[U] = []
+    while true:
+        match source.next():
+            .Some(item) => mapped.append(transform(item))
+            .None => break
+    mapped.iter()
+
+pub fn filter[T](source: mut Iterator[T], keep: fn(T) -> bool) -> mut Iterator[T]:
+    let kept: mut List[T] = []
+    while true:
+        match source.next():
+            .Some(item) =>
+                if keep(item):
+                    kept.append(item)
+            .None => break
+    kept.iter()
+
+pub fn take[T](source: mut Iterator[T], count: i32) -> mut Iterator[T]:
+    let taken: mut List[T] = []
+    while taken.len() < count:
+        match source.next():
+            .Some(item) => taken.append(item)
+            .None => break
+    taken.iter()
+
+pub fn enumerate[T](source: mut Iterator[T]) -> mut Iterator[(i32, T)]:
+    let numbered: mut List[(i32, T)] = []
+    while true:
+        match source.next():
+            .Some(item) => numbered.append((numbered.len(), item))
+            .None => break
+    numbered.iter()
+
+pub fn collect[T](source: mut Iterator[T]) -> List[T]:
+    let items: mut List[T] = []
+    while true:
+        match source.next():
+            .Some(item) => items.append(item)
+            .None => break
+    items
+
+pub fn fold[T, A](source: mut Iterator[T], initial: A, step: fn(A, T) -> A) -> A:
+    let total = initial
+    while true:
+        match source.next():
+            .Some(item) => total = step(total, item)
+            .None => break
+    total
+
+# The integers from `start` up to, not including, `end`.
+pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
+    let values: mut List[i32] = []
+    let value = start
+    while value < end:
+        values.append(value)
+        value = value + 1
+    values.iter()

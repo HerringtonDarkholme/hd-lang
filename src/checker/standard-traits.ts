@@ -1,4 +1,4 @@
-import type { DataDecl, ImplDecl, Program, TraitDecl, TypeDecl } from "../ast.ts";
+import type { DataDecl, ImplDecl, Program, TraitDecl } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 
@@ -9,26 +9,13 @@ import { parse } from "../parser/index.ts";
 const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
   "std.convert.From": (name) => `trait ${name}[T]:\n    fn from(value: T) -> Self\n`,
   "std.error.Error": (name) => `trait ${name} < Display + ${INSPECTABLE}\n`,
-  // 09-traits.md#literal-suffix-trait
-  "std.ops.LiteralSuffix": (name) => `trait ${name}[In, Out]:\n    fn from_literal(n: In) -> Out\n`,
 };
 
 export const STANDARD_FROM = "std.convert.From";
 
-// `std.time` (spec/10-modules.md#r-module.prelude.time-suffixes and
-// 05-expressions.md#literal-suffixes): `Duration` and the suffix newtypes,
-// each implementing `LiteralSuffix[i64, Duration]`. A `Duration` is a whole
-// number of milliseconds in an `i64` (r-expr.suffix.std.duration); the spec
-// names no member, so the prototype's `millis` field is its own. A name the
-// module does not import is declared under a hidden name, and each suffix
-// scales its literal by checked `i64` multiplication.
-const TIME_UNITS: Readonly<Record<string, string>> = {
-  ms: "1",
-  s: "1000",
-  min: "60000",
-  h: "3600000",
-};
-
+// `std.time`, `std.ops`, and `std.process` are hd sources in `src/std/`,
+// declared by standard-library.ts under a program's local names or hidden
+// names such as these.
 export const HIDDEN_DURATION = "__std_time_Duration";
 
 /** The local name of `std.time.Duration`, or its hidden name. */
@@ -40,51 +27,8 @@ export function durationName(uses: Program["uses"]): string {
   return HIDDEN_DURATION;
 }
 
-function timeSource(
-  imported: ReadonlyMap<string, string>,
-  suffixTrait: string,
-  declareTrait: boolean,
-): string {
-  const duration = imported.get("Duration") ?? HIDDEN_DURATION;
-  const lines = declareTrait ? [STANDARD_TRAITS["std.ops.LiteralSuffix"]!(suffixTrait)] : [];
-  lines.push(`data ${duration}:\n    millis: i64\n`);
-  for (const [unit, scale] of Object.entries(TIME_UNITS)) {
-    const local = imported.get(unit);
-    if (!local) continue;
-    const millis = scale === "1" ? "n" : `n * ${scale}`;
-    lines.push(
-      `type ${local}(i64)\n`,
-      `impl ${suffixTrait}[i64, ${duration}] for ${local}:\n    fn from_literal(n: i64) -> ${duration}: ${duration} { millis: ${millis} }\n`,
-    );
-  }
-  return lines.join("\n");
-}
-
-// `std.process` (spec/10-modules.md#exit-status): importing `ExitCode` or
-// `Termination` declares both, with the implementations for `ExitCode`,
-// `void`, and `Result[T, E]`; a name not imported gets a hidden name.
 export const HIDDEN_EXIT_CODE = "__std_process_ExitCode";
 export const HIDDEN_TERMINATION = "__std_process_Termination";
-
-function processSource(exitCode: string, termination: string): string {
-  return `pub type ${exitCode}(u8)
-
-pub trait ${termination}:
-    fn report(self) -> ${exitCode}
-
-impl ${termination} for ${exitCode}:
-    fn report(self) -> ${exitCode}: self
-
-impl ${termination} for void:
-    fn report(self) -> ${exitCode}: ${exitCode}(0)
-
-impl[T < ${termination}, E < Display] ${termination} for Result[T, E]:
-    fn report(self) -> ${exitCode}:
-        match self:
-            .Ok(value) => value.report()
-            .Err(_) => ${exitCode}(1)
-`;
-}
 
 // `std.format.DebugWriter` (spec/09-traits.md#debug-trait): the spec leaves
 // its builder calls to the standard library, so the prototype declares it
@@ -149,28 +93,10 @@ export function withStandardTraits(program: Program): Program {
   const traits: TraitDecl[] = [];
   const data: DataDecl[] = [];
   const implementations: ImplDecl[] = [];
-  const types: TypeDecl[] = [];
   let inspect: SourceSpan | undefined;
-  let time: SourceSpan | undefined;
-  const timeNames = new Map<string, string>();
-  let suffixTrait: string | undefined;
-  let process: SourceSpan | undefined;
-  const processNames = new Map<string, string>();
   for (const declaration of program.uses) {
     for (const imported of declaration.names) {
       const qualified = `${declaration.module}.${imported.name}`;
-      if (qualified === "std.process.ExitCode" || qualified === "std.process.Termination") {
-        process ??= declaration.span;
-        processNames.set(imported.name, imported.alias ?? imported.name);
-      }
-      if (
-        declaration.module === "std.time" &&
-        (imported.name === "Duration" || imported.name in TIME_UNITS)
-      ) {
-        time ??= declaration.span;
-        timeNames.set(imported.name, imported.alias ?? imported.name);
-      }
-      if (qualified === "std.ops.LiteralSuffix") suffixTrait = imported.alias ?? imported.name;
       if (INSPECT_IMPORTS.has(qualified)) inspect ??= declaration.span;
       const source = STANDARD_TRAITS[qualified];
       if (!source) continue;
@@ -179,9 +105,6 @@ export function withStandardTraits(program: Program): Program {
       if (trait) traits.push(respan(trait, declaration.span));
     }
   }
-  // A test `timeout` is checked against `Duration`, so it declares `std.time`.
-  const timed = program.tests.find((test) => test.timeout);
-  if (timed) time ??= timed.span;
   if (inspect) {
     const parsed = parse(INSPECT_SOURCE).program;
     if (parsed) {
@@ -190,37 +113,12 @@ export function withStandardTraits(program: Program): Program {
       implementations.push(...respan(parsed.implementations, inspect));
     }
   }
-  if (time) {
-    const parsed = parse(
-      timeSource(timeNames, suffixTrait ?? "__std_ops_LiteralSuffix", suffixTrait === undefined),
-    ).program;
-    if (parsed) {
-      traits.push(...respan(parsed.traits, time));
-      data.push(...respan(parsed.data, time));
-      types.push(...respan(parsed.types ?? [], time));
-      implementations.push(...respan(parsed.implementations, time));
-    }
-  }
-  if (process) {
-    const parsed = parse(
-      processSource(
-        processNames.get("ExitCode") ?? HIDDEN_EXIT_CODE,
-        processNames.get("Termination") ?? HIDDEN_TERMINATION,
-      ),
-    ).program;
-    if (parsed) {
-      traits.push(...respan(parsed.traits, process));
-      types.push(...respan(parsed.types ?? [], process));
-      implementations.push(...respan(parsed.implementations, process));
-    }
-  }
   // Every program declares `DebugWriter`, which the prelude `Debug` names.
   const writer = debugWriterName(program.uses);
   data.push(...respan(parse(`pub data ${writer}: pass\n`).program!.data, program.span));
   if (traits.length === 0 && data.length === 0) return program;
   return {
     ...program,
-    types: [...(program.types ?? []), ...types],
     traits: [...program.traits, ...traits],
     data: [...program.data, ...data],
     implementations: [...program.implementations, ...implementations],

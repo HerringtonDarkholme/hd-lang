@@ -496,7 +496,9 @@ export async function instantiate(
               ? trimWhiteSpace(input)
               : stringTransformOperation === 1
                 ? input.toLowerCase()
-                : undefined;
+                : stringTransformOperation === 2
+                  ? input.toUpperCase()
+                  : undefined;
           if (transformed === undefined)
             throw new Error(`unknown string transform ${stringTransformOperation}`);
           stringTransformOutput = textEncoder.encode(transformed);

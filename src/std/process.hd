@@ -1,0 +1,52 @@
+# std.process: exit status (spec/10-modules.md#exit-status) and subprocesses
+# (future-work/STDLIB.md#stdprocess). WASI has no subprocess interface, so no
+# prototype runtime profile binds a host `Process`; `ScriptedProcess` is the
+# deterministic provider.
+
+pub type ExitCode(u8)
+
+pub trait Termination:
+    fn report(self) -> ExitCode
+
+impl Termination for ExitCode:
+    fn report(self) -> ExitCode:
+        self
+
+impl Termination for void:
+    fn report(self) -> ExitCode:
+        ExitCode(0)
+
+impl[T < Termination, E < Display] Termination for Result[T, E]:
+    fn report(self) -> ExitCode:
+        match self:
+            .Ok(value) => value.report()
+            .Err(_) => ExitCode(1)
+
+pub data Command:
+    pub program: string
+    pub arguments: List[string]
+    pub environment: Map[string, string]
+    pub stdin: List[u8]
+
+pub data Output:
+    pub status: i32
+    pub stdout: List[u8]
+    pub stderr: List[u8]
+
+pub enum ProcessError:
+    NotFound(program: string)
+    Denied(program: string)
+    Failed(message: string)
+
+pub trait Process:
+    fn run!(self, command: Command) -> Result[Output, ProcessError]
+
+# Answers each command with the output scripted for its program.
+pub data ScriptedProcess:
+    outputs: Map[string, Output]
+
+impl Process for ScriptedProcess:
+    fn run!(self, command: Command) -> Result[Output, ProcessError]:
+        match self.outputs.get(command.program):
+            .Some(output) => .Ok(output)
+            .None => .Err(ProcessError.NotFound(command.program))
