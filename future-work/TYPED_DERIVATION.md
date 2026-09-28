@@ -1,7 +1,7 @@
 # Typed Derivation: Survey And Design Options
 
 Status: design record for roadmap area 2. Typed derivation is fully
-decided by owner decisions M1-M23 (2026-09-27), tested by three stress tests
+decided by owner decisions M1-M24 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M23 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -607,7 +607,18 @@ outside generated code may call `missing[F]` through a generic source; only
 the existing `member` restriction stays. `Clone` is a standard-library
 trait. A derivation block may not target a newtype: a newtype derives only
 through its base. The diagnostic codes and the panic category
-`structure-variant-mismatch` chosen in the spec pass are accepted. (Applied 2026-09-27: see
+`structure-variant-mismatch` chosen in the spec pass are accepted.
+
+(M24, decided 2026-09-27, after the M23 pass) A source may strengthen only
+`member[F]`'s bound, not `missing[F]`'s, so a generic `missing` call is
+always checked. Member and parameter metadata are `List[Any]`, evaluated
+once at compile time like facts; checking a value against its member's
+type waits for the fact check hook. `block_on` is forbidden in fact and
+metadata expressions. `@derive(X)` needs no `use` of `Structure`; the
+import is needed only where code writes `by Structure`. Decorators before
+functions stay rejected until the function-target question is decided.
+`Clone`'s module and the derived-function cache API are chosen with the
+standard library. (Applied 2026-09-27: see
 [Typed Derivation](../spec/14-annotations.md#typed-derivation). Also
 decided 2026-09-27: the root-application orphan exception is dropped
 everywhere, so decisions 9 and 11's "plus the root-application orphan
