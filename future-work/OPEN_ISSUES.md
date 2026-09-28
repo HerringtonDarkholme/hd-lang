@@ -51,6 +51,12 @@ requires `mut Console`.
 their profiles are named, and a recording
 [`BufferConsole`](STDLIB.md#stdconsole).
 
+**Decided 2026-09-27, not yet applied.** (a) No per-profile list: an entry
+row may contain `$ mut K` exactly when trait `K` has a method taking
+`mut self`; otherwise it stays `mutable-upgrade`. (b) `Console.write_line!`
+takes `mut self`, so a recording `BufferConsole` is expressible, and code
+that prints (including `println`) needs `$ mut Console` in its row.
+
 ### Typed Derivation, Tool Adapters, And Secrets
 
 **Pointer.** The design lives in
@@ -92,6 +98,13 @@ nodes; user-visible finalizers are ruled out
 **Unblocks.** Persisted callbacks, safe incremental caches, distributed work,
 and bounded graph lifetimes.
 
+**Decided 2026-09-27, not yet applied: option 1 now.** A serializable
+closure's code identity is a content hash. Its captures must be
+boundary-safe values ([Durable Replay decision 11](DURABLE_REPLAY.md#owner-decisions)
+replaces the `Durable` bound), and capturing a provider or mutable state is
+rejected. The design still needs a record: the hash input, how a closure
+opts in, and graph lifetimes.
+
 ### Observability Hooks
 
 **Problem.** There is no task-local carrier for trace context and no
@@ -112,6 +125,11 @@ ordinary providers. The hook must honor `Secret[T]`/`Redact` once defined.
 
 **Unblocks.** Trace propagation across suspension, workflow event correlation,
 structured metrics, and enforceable redaction.
+
+**Decided 2026-09-27, not yet applied: option 1.** The runtime carries trace
+context task-locally in the poll context; hooks fire at host-boundary calls
+and suspension points; exporters and policy stay ordinary providers. The
+redaction clause waits for `Secret[T]`, which is removed for now.
 
 ### Access Control And Tenancy Expressibility
 
