@@ -1009,8 +1009,8 @@ return .Err(db_error)
 ```
 
 `Result[T, E]`, `T?`, and `mut Suspend[T]` are must-use values. Do not leave
-one as an ignored statement, including as the final expression of a loop,
-an `if` without `else`, or a test block. Propagate it, match it, return it, or
+one as an ignored statement, including as the final expression of a loop
+or an `if` without `else`. Propagate it, match it, return it, or
 store it for later. When discarding it is deliberate, make that decision
 visible with `_ := expression`:
 
@@ -1997,9 +1997,9 @@ selected runtime profile, such as `Args` and `Console` above. Application
 traits such as `Database` are not injected merely because they appear on
 `main`; bind them with `$.with` inside the entry point.
 
-The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `.Err` result to a failed invocation.
+The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. Its result type implements `std.process.Termination`: `void`, `std.process.ExitCode`, or `Result[T, E]` with `E < Display`; the generated host adapter maps an `.Err` result to a failed invocation.
 
-On `.Err`, an error type that implements `std.error.Error` prints its message and then each cause as `caused by: ...`; any other error prints its `Display` text. The process exits with status 1, unless the error type implements `std.process.ExitStatus`, whose `status()` then chooses the code as a `std.process.StatusCode`, a `u8` that is never 0 (`StatusCode::new(2)` returns `StatusCode?`). Only the declared error type counts, so `main() -> Result[void, Error]` always exits with 1.
+On `.Err`, an error type that implements `std.error.Error` prints its message and then each cause as `caused by: ...`; any other error prints its `Display` text. The process then exits with status 1. A program that picks its own code returns an `ExitCode`, a `u8` where 0 means success, as in `main() -> Result[ExitCode, CliError]` returning `.Ok(ExitCode(2))`.
 
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 
@@ -2055,10 +2055,11 @@ test "loads the count":
 A test passes when the block completes normally and fails on an assertion
 failure or panic. Test instances do not share top-level mutable state.
 
-`?` works in a test block as if the block returned `Result[void, Error]`. An
-error that implements `Error` propagates as usual, and any other error with
-`Display`, such as a `string`, is wrapped in a standard message error. A
-propagated `.Err` fails the test and prints the error chain:
+A test block's final value is its result, and it follows the same
+`Termination` rule as `main`: `void`, `ExitCode`, or a `Result` whose error
+has `Display`, such as `Result[void, string]`. `?` in the block propagates to
+that result by the ordinary rules. A result that reports a nonzero code,
+such as an `.Err`, fails the test and prints the error chain:
 
 ```text
 use std.testing.assert_equal
@@ -2066,9 +2067,13 @@ use std.testing.assert_equal
 fn parse_digit(text: string) -> Result[i32, string]:
     if text == "7": .Ok(7) else: .Err("not a digit: " + text)
 
-test "parses a digit":
-    digit := parse_digit("7")?
+fn check_digit(text: string) -> Result[void, string]:
+    digit := parse_digit(text)?
     assert_equal(digit, 7, reason="the digit parses")
+    .Ok()
+
+test "parses a digit":
+    check_digit("7")
 ```
 
 ## Requirements and Suspension

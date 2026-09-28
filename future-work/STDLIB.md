@@ -1103,32 +1103,28 @@ pub data ScriptedProcess:
     outputs: Map[string, Output]
 ```
 
-`std.process` also declares `ExitStatus`, which lets an entry point's error
-type choose the exit status
-([Exit Status](../spec/10-modules.md#exit-status), Error Conversion
-decision 17). Its `status()` returns a `StatusCode`, a `u8` wrapper that is
-never 0, so a failed run never exits 0
-([Error Entry-Point Follow-Ups](OPEN_ISSUES.md#error-entry-point-follow-ups),
-question 1). Unlike `Process`, neither needs a host binding:
+`std.process` also declares `ExitCode` and `Termination`, which turn the
+result of `main` or a test into an exit code
+([Exit Status](../spec/10-modules.md#exit-status),
+[Testing T8](TESTING.md#owner-decisions)). Unlike `Process`, neither needs
+a host binding:
 
 ```text
-pub trait ExitStatus:
-    fn status(self) -> StatusCode
+pub type ExitCode(u8)                  # 0 is success
 
-pub data StatusCode:
-    code: u8    # private, never 0
+pub trait Termination:
+    fn report(self) -> ExitCode
 
-impl StatusCode:
-    pub fn new(code: u8) -> StatusCode?:
-        if code == 0:
-            return .None
-        .Some(StatusCode { code: code })
+impl Termination for void              # ExitCode(0)
+impl Termination for ExitCode          # itself
+impl[T < Termination, E < Display] Termination for Result[T, E]
 ```
 
-Only the static error type is read: `main() -> Result[void, Error]` exits
-with 1 even when the concrete error implements `ExitStatus` (question 2).
-Whether `StatusCode` is this data type or a checked newtype, and whether it
-offers constants for common codes, are open in the same entry.
+`.Ok(value)` reports `value.report()`; `.Err(error)` prints the error and
+its cause chain and reports `ExitCode(1)`. A tool that wants another code
+returns `ExitCode` or `Result[ExitCode, E]`. This replaces the earlier
+`ExitStatus` trait and its never-zero `StatusCode`
+([Error Entry-Point Follow-Ups](OPEN_ISSUES.md#error-entry-point-follow-ups)).
 
 ### `std.observe` and `std.log`
 

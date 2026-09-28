@@ -20,8 +20,8 @@ language specification:
   surveys possible foundations for future lifetime and resource-safety work.
 - [Testing Redesign](TESTING.md) records the owner's test redesign
   decisions T1-T12 (a `tests:` block per file, `test("name"):` as a
-  library intrinsic, a `Termination` trait and `ExitCode` shared with `main`); not yet
-  in the specification.
+  library intrinsic, a `Termination` trait and `ExitCode` shared with `main`).
+  T4, T5, and T8 are in the specification; the rest are not yet.
 - [Testing Redesign: Stress Test (T1-T13)](TESTING_STRESS_TEST.md) tries the
   test redesign on 21 cases from real suites and ranks 17 problems, with
   questions for the owner.

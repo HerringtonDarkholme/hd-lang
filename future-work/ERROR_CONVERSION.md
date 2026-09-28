@@ -176,7 +176,10 @@ Decided 2026-09-26:
     `Display.to_string` as today. Applied 2026-09-27 (see below).
 14. **`?` in test blocks** (2026-09-27, review R1): a `test` block is a
     propagation target as if it returned `Result[void, Error]`; `.Err` fails
-    the test and prints the chain. Applied 2026-09-27 (see below).
+    the test and prints the chain. Applied 2026-09-27 (see below). Revised
+    2026-09-27 by [Testing T4](TESTING.md#owner-decisions): the block stays
+    a propagation target, but its result is inferred and `?` converts
+    nothing.
 15. **`std.error` sketches `.context(...)` and `ErrorReport`** (2026-09-27,
     review R3): `fn context[T, E < Error](self: Result[T, E], message:
     string) -> Result[T, Error]` producing a `Context { message, cause }`
@@ -270,13 +273,14 @@ Applied 2026-09-27:
   `caused by: ...` (`r[module.entry.err-render-chain]`); other error types
   still print `Display.to_string`.
 - **Decisions 14 and 16:** [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks)
-  makes a `test` block a propagation target as if it returned
-  `Result[void, Error]`, wraps any other `E < Display` in a std message
-  error, and fails the test on a propagated `.Err`
-  (`r[expr.try.target.test]`, `r[expr.try.test.display]`).
+  made a `test` block a propagation target as if it returned
+  `Result[void, Error]` and wrapped any other `E < Display` in a std
+  message error. Superseded the same day by Testing T4: the block's result
+  is inferred and must implement `Termination`
+  (`r[expr.try.target.test]`, `r[expr.try.test.termination]`).
 - **Decision 17:** [Exit Status](../spec/10-modules.md#exit-status)
-  declares `std.process.ExitStatus` and uses `error.status()`, otherwise 1
-  (`r[module.entry.exit-status]`).
+  declared `std.process.ExitStatus`. Superseded the same day by Testing T8:
+  `ExitCode` and `Termination` (`r[module.entry.termination]`).
 - **Decision 18:** no rule; a note in
   [Boundary-Safe Values](../spec/10-modules.md#boundary-safe-values) points
   to `report_of`.
@@ -289,9 +293,9 @@ Applied 2026-09-27:
 - **Decision 20:** [Unsupported Aggregate Extensions](../spec/08-data-and-enums.md#unsupported-aggregate-extensions)
   lists non-exhaustive enums (`r[data.unsupported.non-exhaustive]`).
 
-The prototype implements decision 19 and declares `ExitStatus`; test-block
-`?` and entry-point chains are known failures (`EC-14`, `EC-17` in
-`test/portable/KNOWN_FAILURES.tsv`).
+The prototype implements decision 19 and Testing T4's test-block `?`.
+Entry-point chain printing is not implemented, and `ExitCode` needs `u8`
+(`T8` in `test/portable/KNOWN_FAILURES.tsv`).
 
 ## Current Design
 
@@ -383,16 +387,18 @@ fn run(path: string) -> Result[void, Error]:
 7. **Boundaries:** an erased `Error` never crosses a registered boundary or
    enters a durable history; code converts it to a domain enum or a report
    value first (decision 6).
-8. **Entry point:** `pub fn main() -> Result[void, E]` with `E < Display`
-   exits with status 1 on `.Err`, or with `error.status()` when `E`
-   implements `std.process.ExitStatus` (decision 17); when `E` implements
-   `Error` (including the erased `Error`) the runtime prints the message and
-   then each cause as `caused by: ...`, otherwise `Display.to_string`
-   (decision 13; [10 Entry Results](../spec/10-modules.md#entry-results)).
-9. **Tests:** `?` works in a `test` block as if the block returned
-   `Result[void, Error]`, and also accepts any `E < Display`, wrapped in a
-   std message error; an `.Err` fails the test and prints the chain
-   (decisions 14 and 16;
+8. **Entry point:** `main`'s result implements `std.process.Termination`
+   ([Testing T5 and T8](TESTING.md#owner-decisions)).
+   `pub fn main() -> Result[void, E]` with `E < Display` exits with 1 on
+   `.Err`; a program picks another code by returning `ExitCode` or
+   `Result[ExitCode, E]`. When `E` implements `Error` (including the erased
+   `Error`) the runtime prints the message and then each cause as
+   `caused by: ...`, otherwise `Display.to_string` (decision 13;
+   [10 Entry Results](../spec/10-modules.md#entry-results)).
+9. **Tests:** a `test` block's result is inferred and follows the same
+   `Termination` rule, so `?` works by the ordinary rules, for example with
+   a `Result[void, string]` result; a result that reports a nonzero code
+   fails the test and prints the chain (Testing T4;
    [05 Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks)).
 10. **Context and reports** (decision 15, `std.error` API):
     `result.context("loading rules")` wraps any `E < Error` into the erased
@@ -412,10 +418,10 @@ Not decided, and deliberately not specified:
 
 - **`@error`** (decision 10) is decided but not yet in the specification.
   Decision 12's payload-parameter grammar is applied (02 and 14).
-- **The std message error** of decision 16 has no name yet; it is
-  library API for [STDLIB](STDLIB.md#stderror).
-- **Open follow-ups** from decision 17 (out-of-range or zero exit statuses,
-  and `ExitStatus` on an erased `Error`) are owner questions in
+- **The std message error** of decision 16 is gone with that decision
+  (Testing T4).
+- **The follow-ups** from decision 17 (zero exit statuses and `ExitStatus`
+  on an erased `Error`) were superseded by Testing T8; see
   [Open Issues](OPEN_ISSUES.md#error-entry-point-follow-ups).
 - **`Console.write_line!` taking `mut self`,** raised by the recording
   `BufferConsole` in [STDLIB](STDLIB.md#stdconsole), is tracked with

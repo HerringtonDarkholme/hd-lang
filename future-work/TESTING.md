@@ -1,7 +1,8 @@
 # Testing Redesign
 
 Status: design record, started 2026-09-27. Owner decisions T1-T13 are
-decided; none is in the specification yet. The redesign may continue with
+decided. T4, T5, and T8 are applied to the specification (for the current
+`test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
 
@@ -30,14 +31,20 @@ more issues (property testing is folded in from
    `E < Display`. `?` works through ordinary rules; an `.Err` fails the
    test and prints like a failing `main`, cause chain included. This
    replaces [Error Conversion decision 16](ERROR_CONVERSION.md#owner-decisions)
-   (wrapping other errors in a standard message error), which is applied
-   in the specification and must be revised.
+   (wrapping other errors in a standard message error). Applied
+   2026-09-27 in
+   [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks):
+   the block's result is inferred like a closure's and must implement
+   `Termination`.
 
 5. **T5: `main` and tests share one `Termination` trait.** It lives in
    `std.process`; `main`'s entry-result rule and `test` both read
    `T < Termination`, so the special entry rule becomes an ordinary bound
    (Rust's model). `void` and `Result[void, E]` with `E < Display` implement
-   it; `ExitStatus` and `StatusCode` still pick `main`'s exit code.
+   it; `ExitStatus` and `StatusCode` still pick `main`'s exit code (revised
+   by T8). Applied 2026-09-27 in
+   [Executable Entry Point](../spec/10-modules.md#executable-entry-point):
+   a result that does not implement it is `unsatisfied-trait-bound`.
 6. **T6: a test may require host providers.** Its body's row is a row
    parameter; the test runner binds it from the test profile (for example
    `hd test --grant ...`), as a host binds `main`'s row. Unit tests use
@@ -59,6 +66,7 @@ more issues (property testing is folded in from
    `StatusCode`, the erased-`Error` exit rule, and the zero check, all of
    which were applied to the specification on 2026-09-27 and must be
    removed. A test fails when its body's `report()` is not `ExitCode(0)`.
+   Applied 2026-09-27 in [Exit Status](../spec/10-modules.md#exit-status).
 9. **T9: `tests/` is for integration tests.** The separate test root keeps
    its role, like Rust's `tests/`: its modules are compiled only by
    `hd test`, see only the package's public surface as a dependent would,
