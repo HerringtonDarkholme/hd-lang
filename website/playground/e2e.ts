@@ -200,7 +200,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     await module.waitFor();
     const text = (await module.textContent()) ?? "";
     assert.ok(text.startsWith("(module"), text.slice(0, 40));
-    assert.match(text, /\(func \$f\d+ \(export "main"\)/);
+    assert.match(text, /\(func \(export "main"\) \(param \$provider0 externref\)/);
     assert.match(
       (await page.locator(".wat-meta").textContent()) ?? "",
       /compiles to, with entry module src\/main\.hd/,
