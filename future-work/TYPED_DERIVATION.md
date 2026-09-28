@@ -1,7 +1,7 @@
 # Typed Derivation: Survey And Design Options
 
 Status: design record for roadmap area 2. Typed derivation is fully
-decided by owner decisions M1-M21 (2026-09-27), tested by three stress tests
+decided by owner decisions M1-M22 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). Nothing here is accepted language
 behavior yet: the specification and the prototype compiler are unchanged
@@ -578,6 +578,20 @@ repeated key, so protobuf merges and JSON rejects), and `missing[F](h) -> F`
 template may declare a constant computed once per opt-in at compile time by
 the annotation evaluator, from `T::facts()` and `T::describe` with a pure
 `Describer` (M18 P8), so key tables and lookups are not rebuilt per call.
+
+(M22, decided 2026-09-27) Build handle `get` follows field access: `h.get(x)`
+accepts any `S`, and returns the member's readonly view when `x` is
+readonly and the declared type `F` when `x` is `mut S`. This replaces M21
+R3-1's "requires `s: mut S`"; no member is upgraded, because the result
+has the same permission ordinary field access gives
+(`types.readonly.nested`). A `Clone` trait has two methods: `clone(self)`,
+which copies from a readonly value through the readonly view, and
+`clone_mut(mut self) -> mut Self`, which needs `mut self` and reads the
+declared types, so a derived `clone_mut` can clone `mut` members as `mut`.
+`= pass` keeps M3: walk and describe skip the member, build fills it from
+its declared default, and a `= pass` member with no default is a compile
+error. The design is applied to the specification now; the `src/`
+prototype is a later, separate pass.
 
 ### Current Design: Full Example (M1-M21)
 
@@ -1172,10 +1186,6 @@ Nothing below is decided. Each item waits for the owner.
   and whether it covers cross-member and type-level checks (round 2 R8).
 - **Non-escaping handles** (M18 R5). Whether the NonEscapable design (TQ-24
   to TQ-26) makes handles non-escaping once it is ready.
-- **Build view in types** (M21 R3-1). Whether the `mut S` rule for build
-  handles is a separate handle type or a rule on `Field`. This decides
-  whether a source may read non-`mut` members from a readonly value, as a
-  derived `Clone` over readonly `self` would.
 - **Plan constants** (M21 R3-4). The declaration and reference syntax of a
   template's constant (the example's `const KEYS: KeyPlan:` is
   hypothetical), and the compile-time evaluator's exact limits.
