@@ -113,15 +113,20 @@ option. L5 is a direction only; no operator trait is specified.
     C++ `"abc"s` and `"abc"sv`, and prefix or tag forms such as Rust
     `b"..."`, Python `f"..."` and Scala `sql"..."`. None of them needs a
     suffix on an hd literal.
-13. **L13: a reserved word straight after digits is not a suffix.**
-    `5else` lexes as `5` followed by `else`, as before.
+13. **L13: a reserved word straight after digits is a lexer error.**
+    `5else` is `invalid-token`, not a suffix and not two tokens. (Revised
+    the same day; the first answer was two tokens.)
 14. **L14: kept as applied.** A suffixed literal in a `match` pattern is a
     `syntax-error` until constant patterns are designed. Diagnostics reuse
     existing codes, and the message text names the suffix; no
     `literal-suffix` code is added.
-15. **L15: a suffix function that panics during compile-time evaluation is
-    a compile error at the literal,** in every compile-time position
-    (facts, shared enum data).
+15. **L15: no special compile-time evaluation.** `5s` is exactly the call
+    `s(5)` wherever it appears. This replaces the compile-time part of L7: a
+    suffixed literal in a fact, shared enum data or other compile-time
+    position follows the same rules as any other call there. A panic there
+    behaves as it would for any other call; suffixes get no extra rule.
+    (Revised the same day; the first answer was a compile error at the
+    literal.)
 16. **L16: `timeout=` takes any `Duration` value,** such as
     `Duration::seconds(5)` or `5s`, because the runner runs the test code
     anyway. This relaxes Testing T22's literal-only rule for `timeout`
