@@ -1,0 +1,5 @@
+# test: a @derive line before a function is rejected like any decorator there
+# Spec 14 Prefix Decorators: annot.decorator.function-derive.
+@derive(Eq)  # diagnostic: decorator-not-annotator
+fn same(value: i32) -> i32:
+    value

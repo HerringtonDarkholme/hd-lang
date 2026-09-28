@@ -1,10 +1,13 @@
 # Literal Suffixes: Survey And Design Options
 
-Status: design exploration, 2026-09-27; owner decisions L1-L9 (2026-09-28)
-are below, applied to the specification on 2026-09-28 (L5's operator traits
-excepted, which are designed separately). The survey and options before the
-decisions are the exploration they came from. Questions raised while
-applying them are under [Still Open](#still-open).
+Status: design exploration, 2026-09-27; owner decisions L1-L17 (2026-09-28)
+are below. L1-L9 were applied to the specification on 2026-09-28 (L5's
+operator traits excepted, which are designed separately), and L12, L13 and
+L15-L17 the same day. L11 (`@suffix fn`) is not applied: the owner is
+rethinking decorators, so the `LiteralSuffix` mechanism stays in the
+specification for now. The survey and options before the decisions are the
+exploration they came from. Questions raised while applying them are under
+[Still Open](#still-open).
 
 The owner asked for this while designing tests: `it("fetch", timeout=5s):`
 instead of `timeout="5s"`, and the design should be general enough for
@@ -24,8 +27,16 @@ Decided 2026-09-28. Applied 2026-09-28 in
 [Suffixed Literals](../spec/04-type-system.md#suffixed-literals) (typing),
 [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) (the call and
 `std.time`), [Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait),
-and the test [`timeout`](../spec/10-modules.md#r-module.testing.option.timeout-duration)
-option. L5 is a direction only; no operator trait is specified.
+and the test [`timeout`](../spec/10-modules.md#r-module.testing.option.timeout-any-duration)
+option. L5 is a direction only; no operator trait is specified. L12, L13 and
+L15-L17 were applied on 2026-09-28 in the same sections, as
+[`lex.suffix.no-radix`](../spec/01-lexical-structure.md#r-lex.suffix.no-radix),
+[`lex.suffix.reserved`](../spec/01-lexical-structure.md#r-lex.suffix.reserved),
+[`expr.suffix.exact-call`](../spec/05-expressions.md#r-expr.suffix.exact-call),
+[`module.testing.option.timeout-at-run`](../spec/10-modules.md#r-module.testing.option.timeout-at-run)
+and [`expr.suffix.std.duration`](../spec/05-expressions.md#r-expr.suffix.std.duration).
+L10 and L14 confirm what was applied. L11 is not applied yet (see
+[Still Open](#still-open)).
 
 1. **L1: suffixes are imported library declarations** (option 3's
    resolution): `250ms` resolves the suffix `ms` through ordinary `use`
@@ -178,7 +189,7 @@ as a literal in positions that accept only literals, such as test options.
 | Methods on `i32` | Only std declares inherent ones; any package may implement its own trait for `i32` | [`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std), [`trait.own.orphan`](../spec/09-traits.md#r-trait.own.orphan) |
 | `5.seconds()` | Parses today: a method call on the literal `5` | [Member Access](../spec/05-expressions.md#member-access) |
 | `.Queued` | Resolved on the expected enum type; an error without one | [`data.enum.shorthand`](../spec/08-data-and-enums.md#r-data.enum.shorthand) |
-| Test options | String literals only, read statically by the runner (before L1-L9) | [`module.testing.it.options-literal`](../spec/10-modules.md#r-module.testing.it.options-literal) |
+| Test options | String literals only, read statically by the runner (before L1-L9) | [`module.testing.it.options-strings`](../spec/10-modules.md#r-module.testing.it.options-strings) |
 | Facts, shared enum data | Any requirement-free expression, evaluated once at compile time | [`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval), [`data.shared.compile-time`](../spec/08-data-and-enums.md#r-data.shared.compile-time) |
 | `Duration` | Drafted as `data Duration: nanos: i64` with `Duration::seconds(5)` | [STDLIB `std.time`](STDLIB.md#stdtime) |
 
@@ -647,31 +658,34 @@ fn pattern() -> string:
 
 ## Still Open
 
-These points came up while applying L1-L9 on 2026-09-28. Each waits for
-the owner. The specification states the reading in the Applied column, so
-each can change without breaking a decision.
+These points came up while applying L1-L9 and then L12-L17 on 2026-09-28.
+Each waits for the owner. The specification states the reading in the
+Applied column, so each can change without breaking a decision.
+
+The first pass's points 1-3 and 8-10 are answered: L12 removed the `'`
+form (points 1 and 2), L13 made `5else` an `invalid-token` (point 3), L16
+lets `timeout=` take any `Duration` (point 8), L15 makes a panic in a suffix
+behave as in any other call (point 9), and L17 fixes `Duration` as whole
+milliseconds (point 10). L14 kept points 4 and 5 as applied. Points 6 and 7
+concern the `LiteralSuffix` mechanism, which L11 would replace.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 1 | L6's `'` spelling for radix suffixes, filled in by the record | `0xff'B`, `0b1010'flags` ([`lex.suffix.radix`](../spec/01-lexical-structure.md#r-lex.suffix.radix)) | Keep. |
-| 2 | `5'ms`, the `'` form on a decimal literal | Not a suffixed literal: it stays an error, as before | Keep: one spelling per literal kind. |
-| 3 | A reserved word after digits, as in `5else` | Lexed as a suffix, by longest match ([`lex.suffix.longest`](../spec/01-lexical-structure.md#r-lex.suffix.longest)) | Keep: lexing stays context-free. |
-| 4 | A suffixed literal in a `match` pattern | A `syntax-error`: a call is not a pattern ([`grammar.pattern.no-suffixed-literal`](../spec/02-grammar.md#r-grammar.pattern.no-suffixed-literal)) | Keep until constant patterns are designed. |
-| 5 | Diagnostic codes | Unknown suffix `unknown-type`; no `LiteralSuffix` impl `unsatisfied-trait-bound`; `1.5s` `type-mismatch` | Keep the existing codes; no new code. |
-| 6 | One suffix type with two `LiteralSuffix` impls, such as `[i64, Duration]` and `[f64, Duration]` (L3) | Chosen by the ordinary rule for instantiations of one generic trait ([`expr.suffix.instantiations`](../spec/05-expressions.md#r-expr.suffix.instantiations)) | Keep; std ships only the `i64` impls. |
-| 7 | A `LiteralSuffix` impl on a data type rather than a newtype (L2) | No diagnostic; the newtype is the documented form | Keep: no rule is needed. |
-| 8 | `timeout=` with a non-literal `Duration`, such as `Duration::seconds(5)` | `non-literal-test-argument`: test options stay literal (T22) | Keep. |
-| 9 | A `from_literal` that panics during compile-time evaluation, as in a fact or `timeout=` | Not specified: no chapter says what a panic in a compile-time position does | Make it a compile error at the literal, for every compile-time position. |
-| 10 | `Duration`'s members and representation | Not specified: the spec names the type only. The prototype declares `data Duration: nanos: i64`, from the STDLIB draft | Specify `Duration` in STDLIB with private `nanos: i64` and constructors such as `Duration::seconds`. |
-
-Point 9 is general: facts and shared enum data share it
-([`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval)).
+| 1 | L11, `@suffix fn` in place of `LiteralSuffix` | Not applied: the owner is rethinking decorators. The spec keeps `std.ops.LiteralSuffix` and the newtype carriers ([Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait)), and `std.ops` stays | Apply L11 once the decorator design settles, with Typed Derivation M25's `@suffix` note. |
+| 2 | One suffix type with two `LiteralSuffix` impls (first-pass point 6) | Chosen by the ordinary rule for instantiations of one generic trait ([`expr.suffix.instantiations`](../spec/05-expressions.md#r-expr.suffix.instantiations)) | Moot under L11, which has no overloading; keep until then. |
+| 3 | A `LiteralSuffix` impl on a data type rather than a newtype (first-pass point 7) | No diagnostic | Moot under L11; keep until then. |
+| 4 | When a `timeout` value is evaluated, relative to the body | "When the test case runs, in its program instance, as `it_each` rows are" ([`module.testing.option.timeout-at-run`](../spec/10-modules.md#r-module.testing.option.timeout-at-run)); the order against the body is unstated | Evaluate it before the body starts, outside the time limit. |
+| 5 | Whether a `timeout` value may need providers or suspend | Not specified: it is an ordinary argument of `it`, whose row is `R` | Require it to be requirement-free and non-suspending, as a default value is. |
+| 6 | A `Duration` suffix whose result overflows `i64` milliseconds, as in `10_000_000_000_000_000h` | Not specified; the prototype panics on its checked multiplication | A checked arithmetic panic, as for any `i64` overflow. |
+| 7 | `std.time` constructors and accessors under L17 | STDLIB now drafts `Duration` with private `millis: i64`, `milliseconds`, `seconds` and `as_milliseconds`; `nanoseconds` and `as_nanoseconds` are dropped | Keep that set until `Duration` gets a finer representation. |
+| 8 | `Timestamp` and `Instant` precision, now that `Duration` is milliseconds | Not changed: STDLIB drafts `Timestamp` with `unix_nanos: i64`, so `since` loses precision | Store `Timestamp` as milliseconds too, matching `Duration`. |
+| 9 | Which words count as reserved for L13 | The reserved-word list of [Keywords And Reserved Words](../spec/01-lexical-structure.md#keywords-and-reserved-words), so `5true` and `5self` are `invalid-token`; contextual words such as `5as` stay suffixes | Keep: contextual words are ordinary names outside their positions. |
 
 ```text
 use std.time.{Duration, h}
 
 enum Budget(limit: Duration):
-    Forever -> Budget(limit=10_000_000h)  # overflows i64 nanoseconds
+    Forever -> Budget(limit=10_000_000_000_000_000h)  # overflows i64 milliseconds
 ```
 
 ## Sources
@@ -732,3 +746,7 @@ learned suffixed literals. The table above numbers blocks as they stood on
 2026-09-27; the L2 example and the Still Open example were added later, so
 the file now has 16 blocks. All 16 parse except option 4's declaration,
 now block 6, which still reports `decorator-not-top-level` at line 2.
+
+After L12-L17 were applied on 2026-09-28, the reference parser rejects
+`0xff'B` and `5else`. Every block was parsed again: all 16 parse except
+block 6, as before. The rewritten Still Open example parses.

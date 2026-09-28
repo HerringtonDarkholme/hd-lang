@@ -147,7 +147,7 @@ const terminalPools: Readonly<Record<string, readonly string[]>> = {
   raw_string_literal: ['r"raw\\n"'],
   string_expression: ['"text"', '""', '"a $x b"', '"${1 + 2}"', 'r"raw"', '"\\u{1F600}"'],
   string_literal: ['"text"', '""', '"a $x b"'],
-  suffixed_literal: ["5s", "250ms", "1.5kb", "1e3ms", "0xff'B"],
+  suffixed_literal: ["5s", "250ms", "1.5kb", "1e3ms", "5em"],
 };
 
 const layout = new Set(["DEDENT", "EOF", "INDENT", "NEWLINE", "SUITE_END"]);

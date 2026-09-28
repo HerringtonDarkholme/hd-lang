@@ -505,7 +505,7 @@ impl LiteralSuffix[i32, Pixels] for px:
 ```
 
 > **Why.** A requirement-free, non-suspending `from_literal` can run in any
-> position that is evaluated at compile time, such as a test option.
+> position that is evaluated at compile time, such as a fact.
 
 See also: [Literal Suffixes](05-expressions.md#literal-suffixes),
 [Requirement Rows](11-requirements-and-suspension.md#requirement-rows).

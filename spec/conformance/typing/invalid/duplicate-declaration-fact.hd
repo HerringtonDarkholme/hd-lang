@@ -1,0 +1,12 @@
+# test: one member must not hold two declaration facts of one concrete type
+# Spec 14 Member Metadata: annot.metadata.duplicate.
+data Rename:
+    name: string
+
+fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+data User:
+    @rename("mail")
+    @rename("email")  # diagnostic: duplicate-fact
+    email: string

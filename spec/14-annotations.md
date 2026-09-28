@@ -268,6 +268,7 @@ rejected until function targets, such as tool adapters, are decided. They
 are listed in [Undecided Parts](#undecided-parts).
 
 1. r[annot.decorator.function] An ordinary decorator before a module-level function declaration is an error, reported on the decorator. Error: `decorator-not-annotator`.
+2. r[annot.decorator.function-derive] A `@derive(...)` line before a module-level function declaration is the same error. Error: `decorator-not-annotator`.
 
 ```text
 data Tool:
@@ -279,6 +280,10 @@ fn tool(name: string) -> Tool:
 @tool("search")  # error: decorator-not-annotator
 fn search(query: string) -> string:
     query
+
+@derive(Eq)  # error: decorator-not-annotator
+fn same(value: i32) -> i32:
+    value
 ```
 
 An `@value` line immediately before a named or embedded data field or an enum
@@ -344,6 +349,7 @@ cannot add, rename, remove, or change the type of a member or parameter.
 1. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
 2. r[annot.metadata.any-value] Any value may be attached; no marker trait is required.
 3. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
+4. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
 concrete type.
@@ -761,17 +767,22 @@ fn key_for(style: Style, m: Member) -> string:
 6. r[annot.fact.eval] A fact expression is evaluated once, at compile time. It must be requirement-free, as defined for [default values](07-functions.md#default-values).
 7. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
 8. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-9. r[annot.fact.unused] A type-level fact whose package supplies no template that the type derives gets a warning, reported on its decorator. Warning: `unused-derivation-fact`.
+9. r[annot.fact.unused-non-std] A type-level fact whose type comes from a package other than `std`, where that package supplies no template that the type derives, gets a warning, reported on its decorator. Warning: `unused-derivation-fact`.
+10. r[annot.fact.unused-std] A fact of a primitive or standard type, such as `@"internal"`, never gets this warning.
 
 ```text
 @style(prefix="p_")  # warning: unused-derivation-fact
 data Plain:
     id: i64
+
+@"internal"
+data Note:
+    id: i64
 ```
 
-10. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
-11. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
-12. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+11. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
+12. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
+13. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on
@@ -834,8 +845,9 @@ traversed as an enum with one variant.
 5. r[annot.member.positional] An unnamed payload parameter is a member named `_0`, `_1`, and so on, by position, with `positional` true.
 6. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
 7. r[annot.variant.data] A data type's one variant has `of_data` true, and its name and doc comment are the type's.
-8. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
-9. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
+8. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
+9. r[annot.variant.shared] `shared` holds the variant's shared constructor data as `(name, value)` pairs, built once at compile time. An unnamed shared parameter is named `_0`, `_1`, and so on.
+10. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Shared Enum Constructor Data](08-data-and-enums.md#shared-enum-constructor-data).

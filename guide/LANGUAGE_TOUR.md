@@ -159,10 +159,10 @@ mask := 0x_FF_FF_00
 A numeric literal may end in a suffix that a library declares, such as
 `250ms`. The suffix is a type brought in with `use`, and the literal calls
 its `std.ops.LiteralSuffix` implementation: `250ms` means
-`ms::from_literal(250)`, a `std.time.Duration`. A radix literal takes its
-suffix after `'`, as in `0xff'B`, and `-5s` negates the literal before the
-call. The standard library declares only `ns`, `us`, `ms`, `s`, `min`, and
-`h`:
+`ms::from_literal(250)`, a `std.time.Duration`. Only decimal and
+floating-point literals take a suffix, and `-5s` negates the literal before
+the call. A `Duration` is a whole number of milliseconds, and the standard
+library declares only `ms`, `s`, `min`, and `h`:
 
 ```text
 use std.time.{Duration, ms, s}
@@ -2133,9 +2133,9 @@ tests:
 ```
 
 `it` is an ordinary function whose defaulted options come before its final
-`body` parameter. Options are literal named arguments: `ignore="reason"`,
-`expect_panic="category"` with a panic category, and `timeout=5s`, a
-`Duration` whose suffix comes from `use std.time.s`. For
+`body` parameter. Its options are named arguments: `ignore="reason"` and
+`expect_panic="category"` take string literals, and `timeout` takes any
+`Duration`, such as `timeout=5s` with `use std.time.s`. For
 table tests, `std.testing.it_each` registers one test case per row, named
 `name[i]`, and takes the same options. Its body takes the row, so it is an
 explicit `fn!` closure passed as `body=`:

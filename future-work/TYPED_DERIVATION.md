@@ -1,7 +1,8 @@
 # Typed Derivation: Survey And Design Options
 
 Status: design record for roadmap area 2. Typed derivation is fully
-decided by owner decisions M1-M24 (2026-09-27), tested by three stress tests
+decided by owner decisions M1-M24 (2026-09-27) and M25 (2026-09-28, applied
+the same day, row 4 of its table still open), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M24 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -1267,7 +1268,7 @@ Nothing here is decided; each item says what the prototype does and gives a
 | `@derive` before a function | [`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function) rejects an ordinary decorator; the grammar also admits `@derive(...)` there. | `decorator-not-annotator` for every decorator line | `decorator-not-annotator` for `@derive` too, until function targets are decided. |
 | Duplicate declaration facts | [Member Metadata](../spec/14-annotations.md#member-metadata) forbids two values of one concrete type on a member, but names no code; `duplicate-fact` covers only member lines. | not checked | Report it as `duplicate-fact`. |
 | Omitting an embedded part | An embedded field cannot declare a default (`embedded-field-default`), so `Part = pass` is always `omitted-member-without-default`. | reports that error | Keep it, and add the case as an example beside [`annot.omit.no-default`](../spec/14-annotations.md#r-annot.omit.no-default). |
-| Unused facts of foreign types | [`annot.fact.unused`](../spec/14-annotations.md#r-annot.fact.unused) keys on the fact's package; a fact of a primitive or standard type, such as `@"note"`, has no library package. | warns for any type-level fact of a type that derives no template | Warn only when the fact's type comes from a package other than `std`. |
+| Unused facts of foreign types | `annot.fact.unused` (now [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std)) keyed on the fact's package; a fact of a primitive or standard type, such as `@"note"`, has no library package. | warns for any type-level fact of a type that derives no template | Warn only when the fact's type comes from a package other than `std`. |
 
 **Owner decisions (2026-09-28, M25).** The owner accepted the recommendations
 in rows 1, 2, 3 and 5:
@@ -1277,6 +1278,20 @@ in rows 1, 2, 3 and 5:
 - a duplicate declaration fact is `duplicate-fact`;
 - `unused-derivation-fact` warns only for fact types from a package other
   than `std`.
+
+Applied 2026-09-28 in
+[`annot.variant.data-facts`](../spec/14-annotations.md#r-annot.variant.data-facts),
+[`annot.decorator.function-derive`](../spec/14-annotations.md#r-annot.decorator.function-derive),
+[`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate)
+and [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std).
+The `@suffix` note in row 2 is not applied: Literal Suffixes L11 waits for
+the decorator redesign, so no decorator is allowed before a function yet.
+Two readings are open for the owner:
+
+| Point | Applied | **Recommendation** |
+| --- | --- | --- |
+| Two type-level facts of one concrete type from decorators, as in two `@style(...)` lines | Not covered: `annot.metadata.duplicate` names members, variants and parameters; [`annot.line.duplicate`](../spec/14-annotations.md#r-annot.line.duplicate) covers `Self` lines | `duplicate-fact` on the later decorator, as for members. |
+| Where `duplicate-fact` is reported for declaration facts | On the later value | Keep. |
 
 Row 4 (omitting an embedded part) is still open.
 

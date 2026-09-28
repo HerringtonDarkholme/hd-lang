@@ -65,7 +65,7 @@ interface StringScan {
 interface NumberScan {
   readonly end: number;
   readonly floating: boolean;
-  /** Where the literal suffix begins, including a radix literal's `'`. */
+  /** Where the literal suffix begins. */
   readonly suffix?: number;
 }
 
@@ -289,8 +289,8 @@ function validNumber(text: string): boolean {
 // Chapter 01 and 02 (owner decision TUP-1): digits after `.` are an ordinary
 // number, so `t.0.1` lexes `0.1` as one floating-point token; tuple members
 // are identifiers such as `_0`.
-// Chapter 01 literal suffixes: a letter directly after decimal digits, or `'`
-// and a letter after radix digits, starts a suffix of identifier characters.
+// Chapter 01 literal suffixes: a letter directly after decimal or float
+// digits starts a suffix of identifier characters; radix literals take none.
 function suffixEnd(source: string, start: number): number {
   let end = start;
   while (end < source.length && /^[\p{XID_Continue}_]$/u.test(source[end]!)) end += 1;
@@ -304,8 +304,6 @@ function startsSuffix(character: string | undefined): boolean {
 function numberEnd(source: string, start: number): NumberScan {
   const scan = unsuffixedNumberEnd(source, start);
   const radix = /^0[xXbBoO]/.test(source.slice(start, start + 2));
-  if (radix && source[scan.end] === "'" && startsSuffix(source[scan.end + 1]))
-    return { ...scan, end: suffixEnd(source, scan.end + 1), suffix: scan.end };
   if (!radix && startsSuffix(source[scan.end]))
     return { ...scan, end: suffixEnd(source, scan.end), suffix: scan.end };
   return scan;
@@ -676,7 +674,10 @@ export function lexSource(source: string): LexResult {
     if (isDigit(character)) {
       const found = numberEnd(source, index);
       const text = source.slice(index, found.end);
-      if (!validNumber(source.slice(index, found.suffix ?? found.end)))
+      // A reserved word as a suffix, as in `5else`, forms no token
+      // (chapter 01 `lex.suffix.reserved`).
+      const suffix = found.suffix === undefined ? "" : source.slice(found.suffix, found.end);
+      if (!validNumber(source.slice(index, found.suffix ?? found.end)) || reserved.has(suffix))
         diagnostics.push(diagnostic("invalid-token", line));
       tokens.push(token(numberKind(found), line, text));
       index = found.end;

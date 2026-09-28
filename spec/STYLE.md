@@ -825,3 +825,35 @@ style lint rejects a chapter that reuses one.
   forbids strengthening the bound on `missing[F]`. Replaced by
   `annot.walker.strengthen-member`, `annot.walker.missing-fixed`, and
   `annot.walker.missing-fixed.error`.
+- `lex.suffix.radix`: retired 2026-09-28. Literal Suffixes L12 removed the
+  `'` form, so radix literals take no suffix. Replaced by
+  `lex.suffix.no-radix` and `lex.suffix.no-quote`.
+- `lex.suffix.longest`: retired 2026-09-28. Literal Suffixes L13 makes a
+  reserved-word suffix, as in `5else`, an `invalid-token`. Replaced by
+  `lex.suffix.longest-match` and `lex.suffix.reserved`.
+- `expr.suffix.plain-call`: retired 2026-09-28. Literal Suffixes L15 gives
+  a suffixed literal no evaluation rule of its own. Replaced by
+  `expr.suffix.exact-call` and `expr.suffix.position-rules`.
+- `expr.suffix.compile-time`: retired 2026-09-28. Literal Suffixes L15
+  removed the compile-time rule for suffixed literals. Replaced by
+  `expr.suffix.position-rules`.
+- `expr.suffix.std.ns`: retired 2026-09-28. Literal Suffixes L17 dropped
+  the `ns` suffix; `Duration` holds milliseconds. No replacement.
+- `expr.suffix.std.us`: retired 2026-09-28. Literal Suffixes L17 dropped
+  the `us` suffix. No replacement.
+- `expr.suffix.std.only`: retired 2026-09-28. Literal Suffixes L17 left
+  four standard suffixes. Replaced by `expr.suffix.std.only-four`.
+- `module.prelude.time`: retired 2026-09-28. Literal Suffixes L17 dropped
+  `ns` and `us` from `std.time`. Replaced by `module.prelude.time-suffixes`.
+- `module.testing.it.options-literal`: retired 2026-09-28. Literal Suffixes
+  L16 lets `timeout` take any `Duration` value. Replaced by
+  `module.testing.it.options-strings`.
+- `module.testing.option.timeout-duration`: retired 2026-09-28. Literal
+  Suffixes L16 lets `timeout` take any `Duration` value, not only a
+  suffixed literal. Replaced by `module.testing.option.timeout-any-duration`.
+- `module.testing.option.timeout-compile-time`: retired 2026-09-28. Literal
+  Suffixes L16 evaluates a `timeout` value when the test case runs.
+  Replaced by `module.testing.option.timeout-at-run`.
+- `annot.fact.unused`: retired 2026-09-28. Typed derivation (M25) warns
+  only for a fact whose type comes from a package other than `std`.
+  Replaced by `annot.fact.unused-non-std` and `annot.fact.unused-std`.

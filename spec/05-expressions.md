@@ -145,8 +145,8 @@ fn indent() -> Pixels:
 4. r[expr.suffix.no-import] The call needs no import of `LiteralSuffix`: a `use` of the suffix type alone makes the literal valid.
 5. r[expr.suffix.not-implemented] A suffix type that does not implement `LiteralSuffix` is an error. Error: `unsatisfied-trait-bound`.
 6. r[expr.suffix.instantiations] When `x` implements `LiteralSuffix` at several instantiations, the call chooses one by the rule for [instantiations of one generic trait](09-traits.md#instantiations-of-one-generic-trait).
-7. r[expr.suffix.plain-call] Otherwise the literal is an ordinary call. It runs when the expression is evaluated, and a panic in `from_literal` is a runtime panic.
-8. r[expr.suffix.compile-time] In a position already evaluated at compile time, the call is evaluated at compile time with that position. Those positions are a [fact](14-annotations.md#r-annot.fact.eval), [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), and a [test option](10-modules.md#r-module.testing.it.options-literal).
+7. r[expr.suffix.exact-call] A suffixed literal is exactly that call wherever it appears, and it has no evaluation rule of its own.
+8. r[expr.suffix.position-rules] In a [fact](14-annotations.md#r-annot.fact.eval), in [shared enum data](08-data-and-enums.md#r-data.shared.compile-time), or in any other position, the call follows the rules for any call there, including what a panic in `from_literal` does.
 9. r[expr.suffix.requirement-free] `from_literal` needs no providers and never suspends, as [Literal Suffix Trait](09-traits.md#literal-suffix-trait) requires, so every compile-time position accepts a suffixed literal.
 
 ```text
@@ -161,16 +161,15 @@ The standard library declares these suffixes in `std.time`:
 
 | Rule | Suffix | Meaning |
 | --- | --- | --- |
-| r[expr.suffix.std.ns] Nanoseconds | `ns` | `Duration` of that many nanoseconds |
-| r[expr.suffix.std.us] Microseconds | `us` | `Duration` of that many microseconds |
 | r[expr.suffix.std.ms] Milliseconds | `ms` | `Duration` of that many milliseconds |
 | r[expr.suffix.std.s] Seconds | `s` | `Duration` of that many seconds |
 | r[expr.suffix.std.min] Minutes | `min` | `Duration` of that many minutes |
 | r[expr.suffix.std.h] Hours | `h` | `Duration` of that many hours |
 
 1. r[expr.suffix.std.impl] Each is a newtype that implements `LiteralSuffix[i64, Duration]`, for the standard `std.time.Duration`.
-2. r[expr.suffix.std.only] These are the only standard suffixes. `std` declares no `m`, `d`, byte-size, or string suffix.
-3. r[expr.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
+2. r[expr.suffix.std.duration] A `std.time.Duration` is a whole number of milliseconds, held in an `i64`.
+3. r[expr.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
+4. r[expr.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
 
 ```text
 use std.time.{Duration, ms, s}

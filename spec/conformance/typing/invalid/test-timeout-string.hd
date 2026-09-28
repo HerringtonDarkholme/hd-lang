@@ -1,5 +1,5 @@
-# test: a timeout option is no longer a string
-# Spec 10 Test Cases: a timeout value must be a suffixed literal.
+# test: a timeout option is a Duration, not a string
+# Spec 10 Test Cases: `timeout="5s"` does not have type Duration.
 tests:
-    it("waits", timeout="5s"):  # diagnostic: non-literal-test-argument
+    it("waits", timeout="5s"):  # diagnostic: type-mismatch
         pass

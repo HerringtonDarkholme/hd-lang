@@ -18,7 +18,7 @@ specification	block	classification	fixture
 01-lexical-structure.md	17	mixed	parse/invalid/repeated-numeric-separator.hd|parse/invalid/bare-hex-prefix.hd|parse/invalid/binary-literal-letter-suffix.hd
 01-lexical-structure.md	18	mixed	parse/invalid/float-separator-before-point.hd|parse/invalid/float-trailing-separator.hd|parse/invalid/float-separator-after-exponent-marker.hd
 01-lexical-structure.md	19	accept	parse/valid/suffixed-literals.hd
-01-lexical-structure.md	20	mixed	parse/invalid/suffix-after-separator.hd|parse/invalid/radix-literal-suffix-without-separator.hd|parse/invalid/string-literal-suffix.hd
+01-lexical-structure.md	20	mixed	parse/invalid/suffix-after-separator.hd|parse/invalid/radix-literal-suffix-without-separator.hd|parse/invalid/reserved-word-suffix.hd|parse/invalid/string-literal-suffix.hd|parse/invalid/radix-literal-quote-suffix.hd
 01-lexical-structure.md	21	accept	parse/valid/layout.hd
 01-lexical-structure.md	22	mixed	parse/invalid/reserved-word-interpolation.hd|parse/invalid/stray-dollar.hd
 01-lexical-structure.md	23	mixed	parse/invalid/invalid-escape.hd|parse/invalid/out-of-range-unicode-escape.hd|parse/invalid/surrogate-unicode-escape.hd
@@ -319,7 +319,7 @@ specification	block	classification	fixture
 10-modules.md	14	mixed	typing/invalid/assert-equal-non-eq.hd
 10-modules.md	15	accept	runtime/valid/test-case-options.hd
 10-modules.md	16	type-fragment	-
-10-modules.md	17	accept	typing/valid/test-timeout-duration.hd
+10-modules.md	17	accept	typing/valid/test-timeout-duration.hd|typing/valid/test-timeout-call.hd
 10-modules.md	18	mixed	typing/invalid/tests-block-binding.hd|typing/invalid/duplicate-test-name.hd|typing/invalid/non-literal-test-name.hd|typing/invalid/unknown-panic-category.hd|typing/invalid/test-timeout-string.hd|typing/invalid/misplaced-test-case.hd|typing/invalid/test-case-as-value.hd
 10-modules.md	19	type-fragment	-
 10-modules.md	20	accept	runtime/valid/it-each-rows.hd
@@ -387,7 +387,7 @@ specification	block	classification	fixture
 13-gadts.md	7	accept	typing/valid/gadts.hd
 14-annotations.md	1	accept	typing/valid/shape-api.hd
 14-annotations.md	2	type-fragment	-
-14-annotations.md	3	mixed	typing/invalid/decorator-before-function.hd
+14-annotations.md	3	mixed	typing/invalid/decorator-before-function.hd|typing/invalid/derive-before-function.hd
 14-annotations.md	4	accept	typing/valid/parameter-decorator.hd
 14-annotations.md	5	accept	typing/valid/annotations.hd
 14-annotations.md	6	accept	typing/valid/annotations.hd

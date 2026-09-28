@@ -143,7 +143,8 @@ are under [Still Open](#still-open).
 22. **T22 (TS-7): `it` takes literal named options** `ignore="reason"`,
     `expect_panic="category"`, and `timeout="5s"`, read statically by the
     runner. The note after T52 changes `timeout` to a suffixed literal,
-    `timeout=5s`.
+    `timeout=5s`, and Literal Suffixes L16 lets it take any `Duration`
+    value.
 23. **T23 (TS-9): shared helpers follow Rust and Go.** `_test.hd` modules
     may `use` each other, `tests/` modules may `use` each other, and
     `tests/` sees the library without its test code.
@@ -343,11 +344,13 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
 
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
-`timeout: Duration? = .None`, written `timeout=5s` with `use std.time.s`;
-the suffixed literal is evaluated at compile time in this option position
-(L7). Applied 2026-09-28 in
-[`module.testing.option.timeout-duration`](../spec/10-modules.md#r-module.testing.option.timeout-duration),
-replacing the `"5s"` string.
+`timeout: Duration? = .None`, written `timeout=5s` with `use std.time.s`.
+Literal Suffixes L16 then relaxed T22 for `timeout` alone: it takes any
+`Duration` value, such as `budget()`, evaluated when the test case runs.
+Applied 2026-09-28 in
+[`module.testing.option.timeout-any-duration`](../spec/10-modules.md#r-module.testing.option.timeout-any-duration)
+and [`module.testing.option.timeout-at-run`](../spec/10-modules.md#r-module.testing.option.timeout-at-run),
+replacing the `"5s"` string and the compile-time reading of L7.
 
 ```text
 # std.testing (T40)

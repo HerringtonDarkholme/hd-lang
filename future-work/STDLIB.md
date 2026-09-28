@@ -55,7 +55,7 @@ every user module that already declares it.
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
 | `std.ops` | `LiteralSuffix[In, Out]` | [Literal Suffix Trait](../spec/09-traits.md#literal-suffix-trait) |
-| `std.time` | `Duration`; the literal suffixes `ns`, `us`, `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
+| `std.time` | `Duration`; the literal suffixes `ms`, `s`, `min`, `h` | [Literal Suffixes](../spec/05-expressions.md#literal-suffixes) |
 | `std.host` | `Args` | [Program Entry Points](../guide/LANGUAGE_TOUR.md#program-entry-points) (example) |
 | `std.fingerprint` | the persisted-identity digest | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
 | `std.incremental` | incremental graph library | [Incremental Computation](RUNTIME_AND_LIBRARY.md#incremental-computation) |
@@ -269,7 +269,7 @@ std
 ├── path            Path (pure, platform-neutral)
 ├── resource        ResourceError[E] (fixed)
 │
-├── time            Duration, Instant, Timestamp; Clock; ManualClock; suffixes ns us ms s min h
+├── time            Duration, Instant, Timestamp; Clock; ManualClock; suffixes ms s min h
 ├── random          Rng (pure PRNG); Random; SeededRandom
 ├── host            Args, Env; MapArgs, MapEnv
 ├── console         Console (fixed), ConsoleInput; BufferConsole
@@ -783,20 +783,12 @@ methods, and an entry point requires it as a plain `$ K`
 use std.ops.LiteralSuffix
 
 pub data Duration:
-    nanos: i64
+    millis: i64
 
-pub type ns(i64)
-pub type us(i64)
 pub type ms(i64)
 pub type s(i64)
 pub type min(i64)
 pub type h(i64)
-
-impl LiteralSuffix[i64, Duration] for ns:
-    fn from_literal(n: i64) -> Duration: Duration::nanoseconds(n)
-
-impl LiteralSuffix[i64, Duration] for us:
-    fn from_literal(n: i64) -> Duration: Duration::nanoseconds(n * 1_000)
 
 impl LiteralSuffix[i64, Duration] for ms:
     fn from_literal(n: i64) -> Duration: Duration::milliseconds(n)
@@ -811,16 +803,13 @@ impl LiteralSuffix[i64, Duration] for h:
     fn from_literal(n: i64) -> Duration: Duration::seconds(n * 3_600)
 
 impl Duration:
-    pub fn nanoseconds(count: i64) -> Duration:
-        pass
-
     pub fn milliseconds(count: i64) -> Duration:
         pass
 
     pub fn seconds(count: i64) -> Duration:
         pass
 
-    pub fn as_nanoseconds(self) -> i64:
+    pub fn as_milliseconds(self) -> i64:
         pass
 
 pub data Timestamp:
@@ -869,7 +858,9 @@ The suffix newtypes let code write `250ms` or `5s` for a `Duration`, each
 imported by name, as in `use std.time.{ms, s}`
 ([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). There is no
 `m`, which could mean meters, and no `d`, since a day is not always 24
-hours (L9).
+hours (L9). A `Duration` is a whole number of milliseconds in an `i64`, so
+there is no `ns` or `us` until a finer representation exists (L17,
+[`expr.suffix.std.duration`](../spec/05-expressions.md#r-expr.suffix.std.duration)).
 
 Reading the clock is a plain call (decision 2); only `sleep!` suspends. A
 test installs a manual clock with mutable access, so `sleep!` can advance it:
@@ -1448,9 +1439,9 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: strin
     pass
 ```
 
-`timeout` takes a `Duration` written as a suffixed literal, as in
+`timeout` takes any `Duration` value, usually a suffixed literal, as in
 `timeout=5s` with `use std.time.s`
-([`module.testing.option.timeout-duration`](../spec/10-modules.md#r-module.testing.option.timeout-duration)).
+([`module.testing.option.timeout-any-duration`](../spec/10-modules.md#r-module.testing.option.timeout-any-duration)).
 
 Assertion helpers, same shape:
 

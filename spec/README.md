@@ -1070,3 +1070,23 @@ existing source. Each entry names the decision that made the change.
   2026-09-28): a use of the `tests` root outside an integration test module,
   including in a test module, is `test-only-use`. `DebugWriter` stays an
   imported name, not a prelude name.
+- Literal suffix revisions (Literal Suffixes L12, L13, L15, L16, and L17,
+  owner decisions 2026-09-28): only decimal and floating-point literals take
+  a suffix. `0xff'B`, previously a suffixed literal, now begins an
+  unterminated character literal, `unterminated-string`. A reserved word
+  directly after digits, as in `5else`, previously a suffixed literal whose
+  suffix was unknown, is now `invalid-token`. A suffixed literal has no
+  compile-time rule of its own: in a fact or shared enum data it follows
+  the rules for any call there. `timeout=` takes any `Duration` value, such
+  as a call; `timeout="5s"` is now `type-mismatch` instead of
+  `non-literal-test-argument`, and the value is evaluated when the test
+  case runs. `Duration` is a whole number of milliseconds in an `i64`, and
+  `std.time` no longer declares `ns` or `us`.
+- Typed derivation M25 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  2026-09-28): a data type's one variant has an empty `VariantInfo.facts`.
+  `@derive(...)` before a function, which the grammar admits, is
+  `decorator-not-annotator`. Two declaration facts of one concrete type on a
+  member, variant, or parameter, previously an error with no code, are
+  `duplicate-fact`. A type-level fact of a primitive or `std` type, such as
+  `@"internal"`, previously `unused-derivation-fact`, no longer warns.

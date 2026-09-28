@@ -398,11 +398,15 @@ pub fn main() -> ExitCode:
 **Decided and applied (2026-09-28).** Owner decisions L1-L9: a suffix is a
 newtype implementing `std.ops.LiteralSuffix`, imported by `use`, and
 `250ms` calls its `from_literal`
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). The test
-`timeout` option takes a `Duration`, as in `timeout=5s`.
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). L12, L13
+and L15-L17 are applied too: only decimal and float literals take a suffix,
+`5else` is `invalid-token`, a suffixed literal has no compile-time rule of
+its own, the test `timeout` option takes any `Duration`, and `Duration` is
+whole milliseconds with the suffixes `ms s min h`.
 
-**Open.** Nine points raised while applying them, each with a
-recommendation, in [Literal Suffixes](LITERAL_SUFFIXES.md#still-open).
+**Open.** L11 (`@suffix fn` in place of `LiteralSuffix`) waits for the
+decorator redesign. Nine points, each with a recommendation, are in
+[Literal Suffixes](LITERAL_SUFFIXES.md#still-open).
 
 ### Operator Traits
 

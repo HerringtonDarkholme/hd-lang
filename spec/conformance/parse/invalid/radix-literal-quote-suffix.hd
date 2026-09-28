@@ -1,0 +1,3 @@
+# test: a quote after a radix literal does not begin a suffix
+# Spec 01 Literal Suffixes: `0xff'B` begins an unterminated character literal.
+mask := 0xff'B  # diagnostic: unterminated-string

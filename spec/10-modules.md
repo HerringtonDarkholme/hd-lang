@@ -228,7 +228,7 @@ fn main() -> i32:
 7. r[module.prelude.function] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the vararg marker `Rest`, which code imports where it writes them, as in `use std.function.{Fn, SuspendFn}`.
 8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
 9. r[module.prelude.ops] `std.ops` declares `LiteralSuffix`, which code imports to declare a literal suffix.
-10. r[module.prelude.time] `std.time` declares `Duration` and the duration suffixes `ns`, `us`, `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+10. r[module.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
 11. r[module.prelude.no-suffix] The prelude supplies no literal suffix.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
@@ -389,7 +389,7 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
-5. r[module.testing.it.options-literal] The named options are those in the table below. An `ignore` or `expect_panic` value must be a string literal without interpolation, and a `timeout` value must be a suffixed literal. Any other value is an error. Error: `non-literal-test-argument`.
+5. r[module.testing.it.options-strings] The named options are those in the table below. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
 7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
 8. r[module.testing.position-statements] Every statement in test position must be a call of `it`, `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
@@ -400,17 +400,22 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_pani
 | --- | --- | --- | --- |
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
-| r[module.testing.option.timeout-duration] Timeout | `timeout` | a `std.time.Duration`, written as a suffixed literal such as `5s` | The runner fails the test case when its body runs longer than the duration. |
+| r[module.testing.option.timeout-any-duration] Timeout | `timeout` | any `std.time.Duration` value, such as `5s` or a call that returns one | The runner fails the test case when its body runs longer than the duration. |
 
 1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-set) is an error. Error: `unknown-panic-category`.
-2. r[module.testing.option.timeout-compile-time] A `timeout` literal is evaluated at compile time, so the runner reads the duration without running test code.
-3. r[module.testing.option.timeout-import] Its suffix is imported like any other, as in `use std.time.s`; `it` adds no suffix of its own.
+2. r[module.testing.option.timeout-at-run] A `timeout` value is an ordinary argument, not a literal. It is evaluated when the test case runs, in its program instance, as `it_each` rows are.
+3. r[module.testing.option.timeout-import] A suffix in a `timeout` value is imported like any other, as in `use std.time.s`; `it` adds no suffix of its own.
 
 ```text
-use std.time.s
+use std.time.{Duration, s}
+
+fn budget() -> Duration: 30s
 
 tests:
     it("fetches the index", timeout=5s):
+        pass
+
+    it("loads the archive", timeout=budget()):
         pass
 ```
 
@@ -432,7 +437,7 @@ tests:
     it("rejects a category", expect_panic="index-out-of-range"):  # error: unknown-panic-category
         pass
 
-    it("waits", timeout="5s"):  # error: non-literal-test-argument
+    it("waits", timeout="5s"):  # error: type-mismatch
         pass
 
 fn helper() -> void:

@@ -555,34 +555,36 @@ delay := 1_500ms
 ```
 
 ```ebnf
-suffixed_literal = ( decimal_integer_literal | float_literal ), literal_suffix
-                 | ( binary_integer_literal | octal_integer_literal
-                   | hexadecimal_integer_literal ), "'", literal_suffix
-                 ;
+suffixed_literal = ( decimal_integer_literal | float_literal ), literal_suffix ;
 literal_suffix = XID_START, { identifier_continue } ;
 ```
 
 1. r[lex.suffix.form] A **suffixed literal** is a numeric literal followed directly by a literal suffix, with nothing between them.
 2. r[lex.suffix.name] A literal suffix begins with a Unicode `XID_Start` character and continues with `identifier_continue` characters.
 3. r[lex.suffix.decimal] A decimal integer or floating-point literal takes its suffix directly, as in `5s`, `1.5kb`, and `5_000ms`.
-4. r[lex.suffix.radix] A binary, octal, or hexadecimal literal takes a suffix only after a `'` separator, as in `0xff'B` and `0b1010'flags`.
-5. r[lex.suffix.radix-letters] Without the `'`, a letter after a radix literal follows the integer rules: `0xffB` is the literal `0xffb`, and `0x1fs` is an error. Error: `syntax-error`.
+4. r[lex.suffix.no-radix] A binary, octal, or hexadecimal literal takes no suffix.
+5. r[lex.suffix.radix-letters] A letter after a radix literal follows the integer rules: `0xffB` is the literal `0xffb`, and `0x1fs` is an error. Error: `syntax-error`.
 6. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign; otherwise it begins a suffix.
 7. r[lex.suffix.exponent.examples] So `1e3` is a floating-point literal, `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
-8. r[lex.suffix.longest] A suffix takes every following `identifier_continue` character, so a reserved word written directly after digits, as in `5else`, is a suffix.
-9. r[lex.suffix.separator] A suffix cannot begin with `_`, and the digits before it cannot end in a separator. So `5_ms` forms no token. Error: `invalid-token`.
-10. r[lex.suffix.no-string] String and character literals take no suffix, so `"abc"u` is an error. Error: `syntax-error`.
-11. r[lex.suffix.meaning] The suffix is resolved as a name and applied as a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+8. r[lex.suffix.longest-match] A suffix takes every following `identifier_continue` character.
+9. r[lex.suffix.reserved] A suffix that is a reserved word, as in `5else` or `1.5true`, makes the literal form no token. Error: `invalid-token`.
+10. r[lex.suffix.separator] A suffix cannot begin with `_`, and the digits before it cannot end in a separator. So `5_ms` forms no token. Error: `invalid-token`.
+11. r[lex.suffix.no-string] String and character literals take no suffix, so `"abc"u` is an error. Error: `syntax-error`.
+12. r[lex.suffix.no-quote] A `'` after digits never begins a suffix. It begins a character literal, so `0xff'B` and `5'ms` are unterminated. Error: `unterminated-string`.
+13. r[lex.suffix.meaning] The suffix is resolved as a name and applied as a call, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
 
 ```text
 wait := 5_ms   # error: invalid-token
 mask := 0b101s  # error: syntax-error
+flag := 5else   # error: invalid-token
 name := "abc"u  # error: syntax-error
+mask := 0xff'B  # error: unterminated-string
 ```
 
-> **Why.** Hexadecimal digits include letters such as `B`, and `_` already
-> separates digits, so a radix literal needs its own separator, as Nim
-> writes `0xff'u8`.
+> **Why.** Hexadecimal digits include letters such as `B`, so a letter
+> after a radix literal cannot begin a suffix. Only decimal and
+> floating-point literals take one, so radix literals need no separate
+> spelling.
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names).

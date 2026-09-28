@@ -36,3 +36,7 @@ fn style(prefix: string = "") -> Style:
 @style(prefix="p_")  # warning: unused-derivation-fact
 data Plain:
     id: i64
+
+@"internal"
+data Note:
+    id: i64

@@ -1,0 +1,9 @@
+# test: a timeout option takes any Duration value
+# Spec 10 Test Cases: a call that returns a Duration is a timeout value.
+use std.time.{Duration, s}
+
+fn budget() -> Duration: 30s
+
+tests:
+    it("loads the archive", timeout=budget()):
+        pass

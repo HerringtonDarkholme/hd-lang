@@ -1,0 +1,4 @@
+# test: a reserved word directly after digits forms no token
+# Spec 01 Literal Suffixes: `5else` is not a suffixed literal.
+fn pick(flag: bool) -> i32:
+    if flag: 1 else: 5else  # diagnostic: invalid-token
