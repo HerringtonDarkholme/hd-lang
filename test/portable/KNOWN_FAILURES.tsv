@@ -70,15 +70,6 @@ runtime/valid/unavailable-trait-method-invisible.hd	check exits 2 with usage tex
 typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
-runtime/valid/mutable-provider-state.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/valid/mutable-provider-rows.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-parse/valid/mutable-requirement-keys.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/invalid/mutable-provider-use-from-readonly-scope.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/invalid/mutable-provider-install-readonly-value.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/invalid/mutable-provider-readonly-row.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/invalid/mutable-provider-call-from-readonly-scope.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers are unimplemented	R-MUT
-typing/valid/mutable-host-entry-requirement.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers and mutable host bindings are unimplemented	R-MUT
-typing/invalid/mutable-host-entry-readonly-trait.hd	the parser rejects a `mut` requirement key (syntax-error: expected a concrete requirement name); mutable providers and profile mutable markings are unimplemented	R-MUT
 typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
 parse/invalid/annotate-list-literal-facet.hd	parse reports expected-expression at line 9 instead of syntax-error: the prototype has no annotate declarations	GQ11
 parse/valid/annotate-generic-parameters-before-facet.hd	parse fails: expected-expression at line 10: the prototype has no annotate declarations	GQ11

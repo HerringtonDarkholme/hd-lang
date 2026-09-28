@@ -666,12 +666,24 @@ export abstract class CallChecker extends StatementChecker {
     const checked: HirProviderContextEntry[] = [];
     const providers = new Map<string, HirLocal>();
     for (const entry of entries) {
-      let value = this.checkExpression(entry.value);
       if (entry.kind === "binding") {
         const key = this.canonicalProviderKey(entry.key, entry.span);
         this.rejectProviderKeyCollision(key, providers.keys(), entry.span);
         const trait = this.traitTypes.get(traitKeyName(key));
-        if (trait) value = this.requireCoercion(value, `trait:${key}`, entry.value.span);
+        // A mutable requirement trait needs a `mut` value (req.mut.install-mutable).
+        const providerType = trait ? this.providerValueType(key) : undefined;
+        let value = this.checkExpression(entry.value, providerType);
+        if (
+          providerType &&
+          mutableInner(providerType) !== undefined &&
+          mutableInner(value.type) === undefined
+        )
+          this.fail(
+            "mutable-upgrade",
+            `readonly value '${value.type}' cannot provide the mutable requirement trait '${key}'`,
+            entry.value.span,
+          );
+        if (providerType) value = this.requireCoercion(value, providerType, entry.value.span);
         else if (!value.type.startsWith("provider:")) {
           this.fail(
             "provider-type-mismatch",
@@ -684,6 +696,7 @@ export abstract class CallChecker extends StatementChecker {
         providers.set(key, local);
         continue;
       }
+      const value = this.checkExpression(entry.value);
       const keys = contextKeys(value.type);
       if (!keys)
         this.fail(
@@ -724,8 +737,29 @@ export abstract class CallChecker extends StatementChecker {
     return local;
   }
 
+  /**
+   * The provider value type for a key. A mutable requirement trait, one that
+   * declares or inherits a `mut self` method, is always provided with mutable
+   * access (11-requirements-and-suspension.md#mutable-providers).
+   */
   protected providerValueType(key: string): ValueType {
-    return this.traitTypes.has(traitKeyName(key)) ? `trait:${key}` : `provider:${key}`;
+    if (!this.traitTypes.has(traitKeyName(key))) return `provider:${key}`;
+    return this.isMutableRequirementTrait(traitKeyName(key))
+      ? mutableType(`trait:${key}`)
+      : `trait:${key}`;
+  }
+
+  private isMutableRequirementTrait(name: string, seen = new Set<string>()): boolean {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    const trait = this.traitTypes.get(name);
+    if (!trait) return false;
+    return (
+      trait.methods.some((method) => method.receiverMutable) ||
+      trait.supertraits.some((supertrait) =>
+        this.isMutableRequirementTrait(supertrait.traitName, seen),
+      )
+    );
   }
 
   protected rejectProviderKeyCollision(
