@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T4 are
+Status: design record, started 2026-09-27. Owner decisions T1-T7 are
 decided; none is in the specification yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
@@ -30,6 +30,37 @@ more issues (property testing is folded in from
    replaces [Error Conversion decision 16](ERROR_CONVERSION.md#owner-decisions)
    (wrapping other errors in a standard message error), which is applied
    in the specification and must be revised.
+
+5. **T5: `main` and tests share one `Termination` trait.** It lives in
+   `std.process`; `main`'s entry-result rule and `test` both read
+   `T < Termination`, so the special entry rule becomes an ordinary bound
+   (Rust's model). `void` and `Result[void, E]` with `E < Display` implement
+   it; `ExitStatus` and `StatusCode` still pick `main`'s exit code.
+6. **T6: a test may require host providers.** Its body's row is a row
+   parameter; the test runner binds it from the test profile (for example
+   `hd test --grant ...`), as a host binds `main`'s row. Unit tests use
+   `$.with` fakes and have an empty row.
+7. **T7: `test(...)` registers only at module top level,** with a string
+   literal name, so tests can be listed without running them. Calling
+   `test` anywhere else is an error; table-driven cases loop inside one
+   test for now.
+
+The signature, as spelled out on 2026-09-27:
+
+```text
+# std.process: shared by main and tests
+pub trait Termination:
+    fn report(self) -> Outcome          # success, or failure text and StatusCode
+
+impl Termination for void
+impl[E < Display] Termination for Result[void, E]
+
+# std.testing
+pub fn test[T < Termination, R](name: string, body: fn!() -> T $ R) -> void $ R
+```
+
+The exact `Outcome` type and whether a non-suspending block fits `fn!()`
+are details for the specification pass.
 
 ```text
 use app.billing
