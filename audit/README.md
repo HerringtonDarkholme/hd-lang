@@ -62,4 +62,5 @@ The testing redesign (Testing T2-T31) passes its fixtures, with gaps that no
 fixture reaches: only functions of a `tests:` block are hidden from code
 outside it, test modules, integration tests, and test dependencies are not
 implemented, every test case shares one instance (F-403), `timeout` is
-parsed but not enforced, and `it_each` runs its rows as one test case.
+parsed but not enforced, `it_each` runs its rows as one test case, and
+`it_prop` and `it_prop_with` (T36) are not implemented.

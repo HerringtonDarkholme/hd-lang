@@ -1460,29 +1460,26 @@ prelude status, and members are open.
 
 Property testing stays a library facility (T12), as
 [Runtime and Library Design](RUNTIME_AND_LIBRARY.md#property-testing)
-describes. Generators come from a derivable `Arbitrary` trait through typed
-derivation. The runner drives shrinking, rerunning a failed property in
-fresh instances with smaller inputs (T25). The draft part that needs no
-derivation is a strategy type over the pure `Rng`:
+describes. `@derive(Arbitrary)` derives a `build` over a recording
+`std.testing.Choices` source, and member lines tune one member (T35). Other
+constraints use a plain generator `fn(mut Choices) -> T`. The runner shrinks
+by replaying smaller choice streams through the same generator, so no type
+needs shrink code (T25, T35). Properties register with `it_prop` and
+`it_prop_with` (T36); failing streams are committed under
+`__regressions__/` (T37); the budget is 100 cases (T38). The draft
+signatures, from TESTING.md:
 
 ```text
-pub data Strategy[T]:
-    generate: fn(mut Rng, i32) -> T
-    shrink: fn(T) -> List[T]
-
-pub fn integers(low: i64, high: i64) -> Strategy[i64]:
+pub fn it_prop[T < Arbitrary](name: string, prop: fn!(T) -> void, cases: i32 = 100) -> void:
     pass
 
-pub fn lists[T](element: Strategy[T], max_len: i32) -> Strategy[List[T]]:
-    pass
-
-pub fn check[T](strategy: Strategy[T], property: fn(T) -> bool, reason: string, cases: i32 = 100) -> void:
+pub fn it_prop_with[T](name: string, gen: fn(mut Choices) -> T, prop: fn!(T) -> void, cases: i32 = 100) -> void:
     pass
 ```
 
-How a derived `Arbitrary` and this `Strategy` fit together is designed with
-the library. Stateful testing and replay artifacts wait for area 3's event
-log.
+`Arbitrary`'s members and the `Choices` API are designed with the library.
+This replaces the earlier `Strategy` sketch with its own `shrink` function.
+Stateful testing waits for area 3's event log.
 
 ## Open Language Dependencies
 

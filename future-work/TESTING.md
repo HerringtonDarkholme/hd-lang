@@ -1,8 +1,8 @@
 # Testing Redesign
 
 Status: design record, started 2026-09-27. Owner decisions T1-T38 are
-decided. T2-T31 are applied to the specification on 2026-09-27 (T4, T5, and
-T8 earlier that day). T33 is not applied; it waits on the questions under
+decided. T2-T31 and T36's statement rule are applied to the specification
+on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
 and T21 are tooling and library text, recorded in
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
