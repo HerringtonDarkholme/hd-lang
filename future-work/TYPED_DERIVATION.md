@@ -1298,6 +1298,18 @@ Two readings are open for the owner:
 | Two type-level facts of one concrete type from decorators, as in two `@style(...)` lines | Not covered: `annot.metadata.duplicate` names members, variants and parameters; [`annot.line.duplicate`](../spec/14-annotations.md#r-annot.line.duplicate) covers `Self` lines | `duplicate-fact` on the later decorator, as for members. |
 | Where `duplicate-fact` is reported for declaration facts | On the later value | Keep. |
 
+**Owner decision M28 (2026-09-28), the M26 open points.** The owner
+accepted all four recommendations:
+1. A trait-less block's header may use only the declaration's own type
+   parameters, with no bounds, as in `impl[T] Box[T] by Structure:`. Any
+   other header is `misplaced-derivation`.
+2. A type has at most one trait-less block. A second one is
+   `overlapping-impl`.
+3. A `Self` line fact that no template reads gets `unused-derivation-fact`,
+   reported on the line.
+4. A member line's right side may be any list-typed expression, so
+   `name = shared_list` is valid.
+
 **Owner decision M27 (2026-09-28).**
 - Row 4 is kept: `Part = pass` on an embedded part is
   `omitted-member-without-default`. Add the case as an example next to
