@@ -250,6 +250,42 @@ Decided 2026-09-27 (owner answers to this section's questions):
    runtime targets Wasm components. Whether it uses WASI 0.2 or 0.3 (native
    async, which fits suspension) is chosen when the runtime is built.
 
+### Prototype Host Function Declarations
+
+Status: open question for the owner; nothing here is accepted behavior.
+
+The specification gives capabilities a home (host capability traits) but
+no way for the standard library to declare a pure function whose body
+lives below hd, such as Unicode case mapping or a byte access on
+`string`. The toy prototype in `src/` needed one to move string methods
+out of the compiler, so it uses a prototype-internal line that only
+`lib/std` may write
+([src/README.md](../src/README.md#compilerlibrary-boundary)):
+
+```text
+@intrinsic("string_lower")
+fn host_lower(text: string) -> string:
+    panic("intrinsic")
+```
+
+User code that writes the line gets `decorator-not-annotator`, as for any
+function decorator today.
+
+**Question.** How should the standard library declare a function that the
+compiler or the host implements?
+
+1. Leave it unspecified: each toolchain marks its own std primitives.
+   Rust's `core` uses `#[rustc_intrinsic]` and Go's runtime uses
+   `//go:linkname`, both toolchain-internal.
+2. Specify a std-only marker, as the prototype does, so conforming
+   toolchains share one std source.
+3. Specify WIT-style imports: a std module declares a function as imported
+   from a named host interface, as Wasm components do.
+
+**Recommendation.** Option 1. It needs no syntax or rule, the lowest cost
+in the Design Cost Order, and std sources stay portable because every
+primitive is an ordinary declaration with a placeholder body.
+
 ## Persistence and Resumption
 
 A suspending function can be run as a durable workflow without adding checkpoint syntax:

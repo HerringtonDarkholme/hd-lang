@@ -591,14 +591,12 @@ else`, `break`, `break value`, and `continue`;
   survive unrelated declaration insertion, source-derived function code
   identity, argument/result and provider configuration checks, and CLI sidecar
   commands;
-- strings backed by Wasm GC byte arrays, with scalar-counting `string.len()`;
-- White_Space `string.trim()`, and default-case `string.lower()` and
-  `std.text`'s `string.upper()`, through a
-  bytewise host bridge that reconstructs the result as a Wasm GC byte array;
-  every host-boundary decoder keeps a leading U+FEFF;
-- `string.split()` and `string.replace()` implemented in WAT, retaining
-  boundary empty pieces, splitting an empty separator into Unicode scalar
-  strings, and inserting an empty `old`'s replacement at scalar boundaries;
+- strings backed by Wasm GC byte arrays. The prelude string methods
+  (`len`, `trim`, `lower`, `split`, `replace`, `starts_with`) are hd code in
+  `lib/std/text.hd` over three byte primitives; `lower` and `upper` call
+  the host through the generic host-function boundary
+  ([Compiler/Library Boundary](#compilerlibrary-boundary)). Every
+  host-boundary decoder keeps a leading U+FEFF;
 - non-suspending `defer` on normal completion, return, break, and continue;
 - homogeneous `List[T]` literals, indexing, `len()`, and mutable `append()` over
   a growable Wasm GC vector with erased backing storage, plus indexed
@@ -659,6 +657,8 @@ the prototype compiles:
   to a fixed point over the added bodies; only `std` sources may declare
   them (`ImplDecl.standard`). The normative `List.map` and `T?.map` are
   among them;
+- such a method's body adds only the module declarations it reaches, such
+  as `std.text`'s byte primitives, not the whole module;
 - every added declaration's span is the `use` that brought it in, or the
   program's span.
 
@@ -678,15 +678,107 @@ What it provides:
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
 | `std.ops` | `LiteralSuffix` |
 
-`upper` is the one method backed by the host, like `lower`. Prototype
-limits: the `std.iter` adapters work on the built-in list and map cursors
+The prelude `string` methods live in `std.text` too, and `lower` and
+`upper` are backed by the host. Prototype limits: the `std.iter` adapters work on the built-in list and map cursors
 (the prototype's `mut Iterator[T]`) and collect eagerly, except `take`;
-there is no `chars`, `to_utf8`, or `from_utf8` (no scalar or byte access
-from hd), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
+there is no `chars`, `to_utf8`, or `from_utf8` (the byte primitives are
+private to `std.text`), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
 `Hash`), and no host `ConsoleInput`; a `BufferConsole` records both direct
 `write_line!` calls and `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
+
+## Compiler/Library Boundary
+
+The compiler should know the language, not the library. A capability
+such as `fs` or `net`, or a string algorithm, belongs in `lib/std` hd code
+plus, where it touches the outside world, a host-side function. It should
+not need a HIR node, a checker case, or a hand-written WAT helper. This
+section lists where the prototype still breaks that rule, and the plan.
+
+### Boundary Mechanisms
+
+There are two ways for `lib/std` to reach below hd code. Both are
+prototype-internal: the specification has no syntax for a library to
+declare a host function (a question in
+[RUNTIME_AND_LIBRARY.md](../future-work/RUNTIME_AND_LIBRARY.md#prototype-host-function-declarations)).
+
+1. **Intrinsic functions.** A `lib/std` function preceded by
+   `@intrinsic("name")` is an ordinary declaration whose body the compiler
+   supplies. The standard-library loader turns the line into
+   `FunctionDecl.intrinsic` (`checker/standard-library.ts`). The same line in
+   user code stays a rejected function decorator (`decorator-not-annotator`),
+   so only `lib/std` can use it. The written body (`panic("intrinsic")`)
+   type-checks and is never emitted. Calls are ordinary calls.
+   - A **runtime primitive** is a few Wasm instructions over the runtime's
+     own value layout, listed in `emitter/intrinsics.ts`: today
+     `string_byte_len`, `string_byte_at`, and `string_byte_slice`.
+   - Every other name is a **host function**, imported as `hd`
+     `host:<name>` through one generic path. Scalars cross as Wasm numbers,
+     and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
+     copies byte by byte. The host looks the name up in
+     `src/host-functions.ts` (today `string_lower` and `string_upper`).
+2. **Host capability traits.** A capability is a trait with suspending
+   methods (spec/11 and
+   [RUNTIME_AND_LIBRARY.md](../future-work/RUNTIME_AND_LIBRARY.md#capabilities-and-sandbox)).
+   A host-bound trait gets a provider value built by
+   `emitter/host-providers.ts`: each method's call goes out through
+   generic per-method `host_<trait>_<method>_*` imports with the same
+   boundary values, and the host answers through one
+   `hostSuspensionInvoke` callback keyed by trait and method name, with
+   record and replay.
+
+Adding a pure host-backed std function needs its `lib/std` declaration and
+one entry in `src/host-functions.ts`. Adding a capability such as `FsRead`
+needs its trait in `lib/std` and a host implementation behind
+`hostSuspensionInvoke`; neither needs a HIR node or a checker case.
+
+### Audit
+
+The special cases found on 2026-09-28, grouped by where they live. "Done"
+marks what this refactor removed.
+
+| Area | Special case | Kind | Status |
+| --- | --- | --- | --- |
+| HIR | `string-length`, `string-transform` (`trim`, `lower`, `upper`), `string-split`, `string-replace`, `string-starts-with` | string library | Done: hd code in `lib/std/text.hd` on three byte primitives; `lower` and `upper` are host functions |
+| Checker | `checkStringMemberCall`: `len`, `trim`, `lower`, `upper`, `split`, `replace`, `starts_with` by name | string library | Done: ordinary `impl string:` methods |
+| WAT runtime | `string-split.wat`, `string-transform.wat`, `$hd.string_len`, `$hd.string_starts_with` | string library | Done: removed; `$hd.string_slice` stays as the slice primitive |
+| Host glue | `string_transform_begin`, `_input`, `_output` imports, `trimWhiteSpace` | string library | Done: `trim` is hd code; case mapping goes through `host:` |
+| HIR | `console-print` (`println`) | capability | Plan below |
+| Checker | `println` by name; `Console` trait declared in TypeScript (`program-types.ts`); `ConsoleError` as a primitive type name (`shared.ts`, `context.ts`, `termination.ts`) | capability, std declarations | Plan below |
+| Emitter | `emitConsole` (a hand-written `Console` provider), `emitPrintln`, `console.wat` (`$hd.console_print`) | capability | Plan below |
+| Host glue | `console_byte`, `println_pending`, `println_error` imports | capability | Plan below |
+| HIR | `assert`, `assert-equal`, `snapshot-file` | `std.testing` | Remains: `assert_equal` needs the compiler's equality strategies; see below |
+| HIR | `each-row-index`, `each-row-count`, `test-timeout` | test runner hooks | Remains: runner protocol, not library code |
+| HIR | `debug-render` | `std.format` | Remains: reports `unsupported-debug-render` until the `DebugWriter` layout is specified |
+| HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
+| HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
+| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics |
+| Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
+| Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them |
+| Emitter | `float.wat` and the `format_f64` and `pow_f64` imports | `f64` display and `**` | Remains: operator and interpolation support |
+
+Counts: the HIR expression union had 92 kinds, of which 15 were library-
+or capability-specific. The string step removed 5 (87 kinds, 10 specific).
+
+### Console Plan
+
+`println` and the host console are the last capability that the compiler
+names. The plan, in order:
+
+1. Declare `Console` and `println` in `lib/std/console.hd`, as prelude
+   names the loader adds when a program mentions them.
+2. Give the host console to the generic capability bridge: marshal the
+   `Result[void, ConsoleError]` result of `write_line!` as a tagged boundary
+   value, and implement `Console.write_line` in the host table. This drops
+   `emitConsole`, `console.wat`, and `console_byte`.
+3. Write `println` as hd code that calls `write_line` and drives it inside
+   itself. That needs one generic, std-only suspension primitive (poll once
+   without a driver guard, panic if pending), since `block_on` refuses to
+   run under an active driver. This drops `console-print` and
+   `emitPrintln`.
+4. `ConsoleError` stays a TypeScript type name until the specification
+   gives it members; the spec only says it is boundary-safe and `Display`.
 
 ## Layout
 
