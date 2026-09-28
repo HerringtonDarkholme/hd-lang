@@ -860,19 +860,6 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         const value = `(struct.get $e${expression.enumIndex} $e${expression.enumIndex}f${expression.fieldIndex} ${this.emitExpression(expression.receiver)})`;
         return this.loadErased(value, expression.erasedFieldType, expression.type);
       }
-      case "string-length":
-        return `(call $hd.string_len ${this.emitExpression(expression.receiver)})`;
-      case "string-transform":
-        this.stringTransforms = true;
-        return `(call $hd.string_${expression.operation} ${this.emitExpression(expression.receiver)})`;
-      case "string-split":
-        this.stringSplit = true;
-        return `(call $hd.string_split ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.separator)})`;
-      case "string-replace":
-        this.stringSplit = true;
-        return `(call $hd.string_replace ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.old)} ${this.emitExpression(expression.replacement)})`;
-      case "string-starts-with":
-        return `(call $hd.string_starts_with ${this.emitExpression(expression.receiver)} ${this.emitExpression(expression.prefix)})`;
       case "list-length":
         return `(struct.get $hd.vector $hd.vector-size (ref.as_non_null ${this.emitExpression(expression.receiver)}))`;
       case "list-iterator":

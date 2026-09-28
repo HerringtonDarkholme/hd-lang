@@ -85,8 +85,6 @@ export class EmitterContext {
   protected readonly temporaryTypes: ValueType[] = [];
   protected floatPower = false;
   protected floatDisplay = false;
-  protected stringTransforms = false;
-  protected stringSplit = false;
   protected consoleOutput = false;
   protected currentRequirements: readonly string[] = [];
   protected readonly callableAdapters = new Map<string, CallableAdapter>();
@@ -229,14 +227,6 @@ export class EmitterContext {
 
   get requiresFloatDisplay(): boolean {
     return this.floatDisplay;
-  }
-
-  get requiresStringTransforms(): boolean {
-    return this.stringTransforms;
-  }
-
-  get requiresStringSplit(): boolean {
-    return this.stringSplit;
   }
 
   protected emitRuntimePanic(name: RuntimePanicName): string {

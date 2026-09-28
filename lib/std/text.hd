@@ -1,46 +1,125 @@
-# std.text: inherent `string` methods, `join`, and `StringBuilder`
-# (future-work/STDLIB.md#stdtext). Positions and lengths count Unicode
-# scalars, as the built-in methods do (spec/10-modules.md#string-methods).
-# `upper` is host-backed like `lower`, so the checker supplies it.
+# std.text: the `string` methods, `join`, and `StringBuilder`
+# (spec/10-modules.md#string-methods, future-work/STDLIB.md#stdtext).
+# Positions and lengths count Unicode scalars. The prelude methods (`len`,
+# `trim`, `lower`, `split`, `replace`, `starts_with`) are ordinary hd code
+# here too. Every method is built on the byte primitives at the end of this
+# file; `lower` and `upper` call the host, which holds the Unicode case
+# tables (src/README.md, Compiler/library boundary).
 
 impl string:
+    # The number of Unicode scalars.
+    pub fn len(self) -> i32:
+        let count = 0
+        let index = 0
+        size := byte_len(self)
+        while index < size:
+            if !continuation_byte(byte_at(self, index)):
+                count = count + 1
+            index = index + 1
+        count
+
     pub fn is_empty(self) -> bool:
-        self.len() == 0
+        byte_len(self) == 0
+
+    pub fn starts_with(self, prefix: string) -> bool:
+        byte_len(prefix) <= byte_len(self) && bytes_match(self, prefix, 0)
 
     pub fn ends_with(self, suffix: string) -> bool:
-        self.len() >= suffix.len() && scalar_range(self, self.len() - suffix.len(), self.len()) == suffix
+        byte_len(suffix) <= byte_len(self) && bytes_match(self, suffix, byte_len(self) - byte_len(suffix))
 
     pub fn contains(self, needle: string) -> bool:
-        needle.len() == 0 || self.split(needle).len() > 1
+        match byte_find(self, needle, 0):
+            .Some(_) => true
+            .None => false
 
     # The scalar position of the first `needle`; an empty needle is at 0.
     pub fn find(self, needle: string) -> i32?:
-        if needle.len() == 0:
-            return .Some(0)
-        pieces := self.split(needle)
-        if pieces.len() > 1: .Some(pieces[0].len()) else: .None
+        match byte_find(self, needle, 0):
+            .Some(start) => .Some(byte_slice(self, 0, start).len())
+            .None => .None
+
+    # The pieces between separators, keeping empty ones. An empty separator
+    # splits into one-scalar strings.
+    pub fn split(self, separator: string) -> List[string]:
+        let pieces: mut List[string] = []
+        size := byte_len(self)
+        if byte_len(separator) == 0:
+            let start = 0
+            while start < size:
+                end := scalar_end(self, start)
+                pieces.append(byte_slice(self, start, end))
+                start = end
+            return pieces
+        let start = 0
+        let searching = true
+        while searching:
+            match byte_find(self, separator, start):
+                .Some(found) =>
+                    pieces.append(byte_slice(self, start, found))
+                    start = found + byte_len(separator)
+                .None =>
+                    searching = false
+        pieces.append(byte_slice(self, start, size))
+        pieces
+
+    # Replaces non-overlapping matches from left to right. An empty `old`
+    # inserts `replacement` at every scalar boundary.
+    pub fn replace(self, old: string, replacement: string) -> string:
+        size := byte_len(self)
+        if byte_len(old) == 0:
+            let replaced = replacement
+            let start = 0
+            while start < size:
+                end := scalar_end(self, start)
+                replaced = replaced + byte_slice(self, start, end) + replacement
+                start = end
+            return replaced
+        let replaced = ""
+        let start = 0
+        let searching = true
+        while searching:
+            match byte_find(self, old, start):
+                .Some(found) =>
+                    replaced = replaced + byte_slice(self, start, found) + replacement
+                    start = found + byte_len(old)
+                .None =>
+                    searching = false
+        replaced + byte_slice(self, start, size)
+
+    # Removes the Unicode White_Space property at both ends.
+    pub fn trim(self) -> string:
+        self.trim_start().trim_end()
 
     pub fn trim_start(self) -> string:
-        trimmed := self.trim()
-        if trimmed.len() == 0:
-            return ""
-        match self.find(trimmed):
-            .Some(start) => scalar_range(self, start, self.len())
-            .None => self
+        size := byte_len(self)
+        let start = 0
+        while start < size && white_space(scalar_at(self, start)):
+            start = scalar_end(self, start)
+        byte_slice(self, start, size)
 
     pub fn trim_end(self) -> string:
-        trimmed := self.trim()
-        if trimmed.len() == 0:
-            return ""
-        match self.find(trimmed):
-            .Some(start) => scalar_range(self, 0, start + trimmed.len())
-            .None => self
+        let end = byte_len(self)
+        let trimming = end > 0
+        while trimming:
+            start := scalar_start(self, end)
+            if white_space(scalar_at(self, start)):
+                end = start
+                trimming = end > 0
+            else:
+                trimming = false
+        byte_slice(self, 0, end)
+
+    pub fn lower(self) -> string:
+        host_lower(self)
+
+    pub fn upper(self) -> string:
+        host_upper(self)
 
     pub fn strip_prefix(self, prefix: string) -> string?:
-        if self.starts_with(prefix): .Some(scalar_range(self, prefix.len(), self.len())) else: .None
+        if self.starts_with(prefix): .Some(byte_slice(self, byte_len(prefix), byte_len(self))) else: .None
 
     pub fn strip_suffix(self, suffix: string) -> string?:
-        if self.ends_with(suffix): .Some(scalar_range(self, 0, self.len() - suffix.len())) else: .None
+        if self.ends_with(suffix): .Some(byte_slice(self, 0, byte_len(self) - byte_len(suffix))) else: .None
 
     # The pieces between "\n" separators; a final "\n" ends the last line
     # rather than starting an empty one.
@@ -64,16 +143,6 @@ impl string:
             index = index + 1
         repeated
 
-# The scalars of `text` from `start` up to, not including, `end`.
-fn scalar_range(text: string, start: i32, end: i32) -> string:
-    scalars := text.split("")
-    let piece = ""
-    let index = start
-    while index < end:
-        piece = piece + scalars[index]
-        index = index + 1
-    piece
-
 pub fn join(parts: List[string], separator: string) -> string:
     let joined = ""
     let index = 0
@@ -96,3 +165,96 @@ impl StringBuilder:
 
     pub fn build(self) -> string:
         join(self.parts, "")
+
+# Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
+# needle can only match at a scalar boundary, so comparing bytes is exact.
+fn bytes_match(text: string, needle: string, start: i32) -> bool:
+    let index = 0
+    width := byte_len(needle)
+    while index < width:
+        if byte_at(text, start + index) != byte_at(needle, index):
+            return false
+        index = index + 1
+    true
+
+# The byte position of the first `needle` at or after byte `from`.
+fn byte_find(text: string, needle: string, from: i32) -> i32?:
+    let start = from
+    last := byte_len(text) - byte_len(needle)
+    while start <= last:
+        if bytes_match(text, needle, start):
+            return .Some(start)
+        start = start + 1
+    .None
+
+fn continuation_byte(byte: i32) -> bool:
+    byte >= 128 && byte < 192
+
+# The byte position just past the scalar that starts at byte `start`.
+fn scalar_end(text: string, start: i32) -> i32:
+    let end = start + 1
+    size := byte_len(text)
+    while end < size && continuation_byte(byte_at(text, end)):
+        end = end + 1
+    end
+
+# The byte position where the scalar that ends at byte `end` starts.
+fn scalar_start(text: string, end: i32) -> i32:
+    let start = end - 1
+    while start > 0 && continuation_byte(byte_at(text, start)):
+        start = start - 1
+    start
+
+# The code point of the scalar that starts at byte `start`.
+fn scalar_at(text: string, start: i32) -> i32:
+    lead := byte_at(text, start)
+    if lead < 128:
+        return lead
+    let point = 0
+    let width = 4
+    if lead < 224:
+        point = lead - 192
+        width = 2
+    else:
+        if lead < 240:
+            point = lead - 224
+            width = 3
+        else:
+            point = lead - 240
+    let index = 1
+    while index < width:
+        point = point * 64 + byte_at(text, start + index) - 128
+        index = index + 1
+    point
+
+# The Unicode White_Space property.
+fn white_space(point: i32) -> bool:
+    if point <= 32:
+        return point == 32 || (point >= 9 && point <= 13)
+    if point < 8192:
+        return point == 133 || point == 160 || point == 5760
+    point <= 8202 || point == 8232 || point == 8233 || point == 8239 || point == 8287 || point == 12288
+
+# Primitives. The compiler supplies each body: the byte primitives come from
+# the Wasm runtime and the case mappings from the host. `@intrinsic` is
+# prototype-internal and accepted only in lib/std.
+
+@intrinsic("string_byte_len")
+fn byte_len(text: string) -> i32:
+    panic("intrinsic")
+
+@intrinsic("string_byte_at")
+fn byte_at(text: string, index: i32) -> i32:
+    panic("intrinsic")
+
+@intrinsic("string_byte_slice")
+fn byte_slice(text: string, start: i32, end: i32) -> string:
+    panic("intrinsic")
+
+@intrinsic("string_lower")
+fn host_lower(text: string) -> string:
+    panic("intrinsic")
+
+@intrinsic("string_upper")
+fn host_upper(text: string) -> string:
+    panic("intrinsic")

@@ -202,7 +202,8 @@ test("explicit generic data construction records its instantiated HIR type", () 
     "utf8",
   );
   const compilation = compile(source);
-  assert.equal(compilation.hir.functions.at(-1)?.locals[0]?.type, "Shipment[i32]");
+  const body = compilation.hir.functions.find((declaration) => declaration.name === "$test.0");
+  assert.equal(body?.locals[0]?.type, "Shipment[i32]");
 });
 
 test("generic enums erase payloads and recover instantiated match bindings", () => {

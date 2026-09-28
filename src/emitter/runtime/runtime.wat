@@ -284,28 +284,28 @@
       (then (call $hd.panic (global.get $hd.panic-invalid-shift)) unreachable))
     (i32.shr_s (local.get $value) (local.get $count)))
 
-  (func $hd.string_len (param $value (ref null $hd.bytes)) (result i32)
-    (local $bytes (ref $hd.bytes))
+  (func $hd.string_slice
+    (param $source (ref $hd.bytes))
+    (param $start i32)
+    (param $end i32)
+    (result (ref null $hd.bytes))
+    (local $result (ref $hd.bytes))
     (local $index i32)
     (local $length i32)
-    (local $scalars i32)
-    (local.set $bytes (ref.as_non_null (local.get $value)))
-    (local.set $length (array.len (local.get $bytes)))
+    (local.set $length (i32.sub (local.get $end) (local.get $start)))
+    (local.set $result (array.new_default $hd.bytes (local.get $length)))
     (block $done
       (loop $next
         (br_if $done (i32.ge_u (local.get $index) (local.get $length)))
-        (if
-          (i32.ne
-            (i32.and
-              (array.get_u $hd.bytes (local.get $bytes) (local.get $index))
-              (i32.const 192))
-            (i32.const 128))
-          (then
-            (local.set $scalars
-              (i32.add (local.get $scalars) (i32.const 1)))))
+        (array.set $hd.bytes
+          (local.get $result)
+          (local.get $index)
+          (array.get_u $hd.bytes
+            (local.get $source)
+            (i32.add (local.get $start) (local.get $index))))
         (local.set $index (i32.add (local.get $index) (i32.const 1)))
         (br $next)))
-    (local.get $scalars))
+    (local.get $result))
 
   (func $hd.string_concat
     (param $left-value (ref null $hd.bytes))
@@ -407,29 +407,6 @@
                   (i32.or (i32.const 128) (i32.and (i32.shr_u (local.get $value) (i32.const 12)) (i32.const 63)))
                   (i32.or (i32.const 128) (i32.and (i32.shr_u (local.get $value) (i32.const 6)) (i32.const 63)))
                   (i32.or (i32.const 128) (i32.and (local.get $value) (i32.const 63)))))))))))
-
-  (func $hd.string_starts_with
-    (param $value-source (ref null $hd.bytes))
-    (param $prefix-source (ref null $hd.bytes))
-    (result i32)
-    (local $value (ref $hd.bytes))
-    (local $prefix (ref $hd.bytes))
-    (local $index i32)
-    (local.set $value (ref.as_non_null (local.get $value-source)))
-    (local.set $prefix (ref.as_non_null (local.get $prefix-source)))
-    (if (i32.gt_u (array.len (local.get $prefix)) (array.len (local.get $value)))
-      (then (return (i32.const 0))))
-    (block $matched
-      (loop $next
-        (br_if $matched (i32.ge_u (local.get $index) (array.len (local.get $prefix))))
-        (if
-          (i32.ne
-            (array.get_u $hd.bytes (local.get $value) (local.get $index))
-            (array.get_u $hd.bytes (local.get $prefix) (local.get $index)))
-          (then (return (i32.const 0))))
-        (local.set $index (i32.add (local.get $index) (i32.const 1)))
-        (br $next)))
-    (i32.const 1))
 
   (func $hd.string_compare
     (param $left-value (ref null $hd.bytes))

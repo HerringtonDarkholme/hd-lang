@@ -6,7 +6,6 @@ import {
   mutableInner,
   mutableType,
   nominalGenericParts,
-  nominalGenericType,
   readonlyType,
 } from "../types.ts";
 import {
@@ -53,10 +52,6 @@ type PromotedSelection = Extract<MemberSelection, { readonly kind: "field" | "in
 
 const MAX_EMBEDDING_DEPTH = 64;
 
-type MemberCall = Extract<Expression, { kind: "call" }> & {
-  readonly callee: Extract<Expression, { kind: "member" }>;
-};
-
 /**
  * Trait default bodies instantiated for an implementation. The prototype checks
  * them with a concrete `Self`; inside them a trait method named like a field of
@@ -65,116 +60,6 @@ type MemberCall = Extract<Expression, { kind: "call" }> & {
 export const traitDefaultDeclarations = new WeakMap<FunctionDecl, number>();
 
 export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
-  /**
-   * The prelude `string` methods (10-modules.md#prelude), and `std.text`'s
-   * host-backed `upper` (lib/std/text.hd).
-   */
-  protected checkStringMemberCall(
-    expression: MemberCall,
-    receiver: HirExpression,
-  ): HirExpression | undefined {
-    if (receiver.type !== "string") return undefined;
-    const method = expression.callee.name;
-    if (method === "len") {
-      if (expression.arguments.length !== 0)
-        this.fail("argument-count", "string.len expects no arguments", expression.span);
-      return { kind: "string-length", receiver, type: "i32", span: expression.span };
-    }
-    if (method === "trim" || method === "lower" || method === "upper") {
-      if (expression.arguments.length !== 0)
-        this.fail("argument-count", `string.${method} expects no arguments`, expression.span);
-      return {
-        kind: "string-transform",
-        operation: method,
-        receiver,
-        type: "string",
-        span: expression.span,
-      };
-    }
-    if (method === "replace") return this.checkStringReplace(expression, receiver);
-    if (method !== "split" && method !== "starts_with") return undefined;
-    if (expression.arguments.length !== 1)
-      this.fail("argument-count", `string.${method} expects one argument`, expression.span);
-    if (expression.argumentSpreads?.some(Boolean))
-      this.fail(
-        "positional-spread-needs-vararg",
-        `string.${method} has no variadic parameter`,
-        expression.span,
-      );
-    const parameterName = method === "split" ? "separator" : "prefix";
-    const argumentName = expression.argumentNames?.[0];
-    if (argumentName && argumentName !== parameterName)
-      this.fail(
-        "unknown-named-argument",
-        `string.${method} has no parameter named '${argumentName}'`,
-        expression.arguments[0]!.span,
-      );
-    const argument = this.requireCoercion(
-      this.checkExpression(expression.arguments[0]!, "string"),
-      "string",
-      expression.arguments[0]!.span,
-    );
-    return method === "split"
-      ? {
-          kind: "string-split",
-          receiver,
-          separator: argument,
-          type: nominalGenericType("List", ["string"]),
-          span: expression.span,
-        }
-      : {
-          kind: "string-starts-with",
-          receiver,
-          prefix: argument,
-          type: "bool",
-          span: expression.span,
-        };
-  }
-
-  // `replace(self, old: string, replacement: string) -> string` (10 Prelude).
-  private checkStringReplace(expression: MemberCall, receiver: HirExpression): HirExpression {
-    const parameters = ["old", "replacement"];
-    if (expression.arguments.length !== parameters.length)
-      this.fail("argument-count", "string.replace expects two arguments", expression.span);
-    if (expression.argumentSpreads?.some(Boolean))
-      this.fail(
-        "positional-spread-needs-vararg",
-        "string.replace has no variadic parameter",
-        expression.span,
-      );
-    const slots: (HirExpression | undefined)[] = [undefined, undefined];
-    let positional = 0;
-    expression.arguments.forEach((argument, index) => {
-      const argumentName = expression.argumentNames?.[index];
-      const slot = argumentName === undefined ? positional++ : parameters.indexOf(argumentName);
-      if (slot < 0)
-        this.fail(
-          "unknown-named-argument",
-          `string.replace has no parameter named '${argumentName}'`,
-          argument.span,
-        );
-      if (slots[slot])
-        this.fail(
-          "duplicate-argument",
-          `string.replace received '${parameters[slot]}' more than once`,
-          argument.span,
-        );
-      slots[slot] = this.requireCoercion(
-        this.checkExpression(argument, "string"),
-        "string",
-        argument.span,
-      );
-    });
-    return {
-      kind: "string-replace",
-      receiver,
-      old: slots[0]!,
-      replacement: slots[1]!,
-      type: "string",
-      span: expression.span,
-    };
-  }
-
   /**
    * `Name(value)` constructs the newtype `Name`, and `Base(value)` unwraps a
    * newtype over `Base` (04-type-system.md#transparent-aliases-and-newtypes).

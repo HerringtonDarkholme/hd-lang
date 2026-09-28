@@ -82,6 +82,12 @@ export interface FunctionDecl {
   readonly testOptions?: HirFunction["testOptions"];
   /** Decorator lines before the declaration; rejected until function targets are decided. */
   readonly decorators?: Decorators;
+  /**
+   * A `lib/std` primitive whose body the compiler supplies: the standard-library
+   * loader sets it from a std-only `@intrinsic("name")` line (src/README.md,
+   * Compiler/library boundary). User code cannot set it.
+   */
+  readonly intrinsic?: string;
 }
 
 export interface MethodDecl {

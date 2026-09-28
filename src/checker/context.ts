@@ -464,6 +464,7 @@ export abstract class CheckerContext {
           closure: this.insideClosure,
           captures: [...this.captures.values()],
           ...(this.declaration.testOptions ? { testOptions: this.declaration.testOptions } : {}),
+          ...(this.declaration.intrinsic ? { intrinsic: this.declaration.intrinsic } : {}),
         },
         diagnostics: this.diagnostics,
       };

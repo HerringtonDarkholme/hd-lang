@@ -535,7 +535,8 @@ test("strings compare by UTF-8 value order", async () => {
   const source = conformance("runtime/valid/string-ordering");
   const { instance, compilation } = await instantiate(source);
   assert.match(compilation.wat, /call \$hd\.string_compare/);
-  assert.match(compilation.wat, /call \$hd\.string_starts_with/);
+  // `starts_with` is std hd code over the byte primitives (lib/std/text.hd).
+  assert.match(compilation.wat, /array\.get_u \$hd\.bytes/);
   assert.equal((instance.exports.main as CallableFunction)(), 42);
 });
 

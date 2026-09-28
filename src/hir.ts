@@ -311,6 +311,12 @@ export interface HirFunction {
    * through an explicit `--entry main`.
    */
   readonly developmentEntry?: boolean;
+  /**
+   * A `lib/std` primitive: the emitter supplies the body, from its runtime
+   * or through the generic host-function import (src/README.md, Compiler/library
+   * boundary). The checked `body` is a placeholder.
+   */
+  readonly intrinsic?: string;
   /** Runner options of a test body (spec/10-modules.md#test-cases). */
   readonly testOptions?: {
     readonly name: string;
@@ -520,16 +526,6 @@ export type HirExpression =
     })
   | (HirExpressionBase & { readonly kind: "display"; readonly operand: HirExpression })
   | (HirExpressionBase & {
-      readonly kind: "string-transform";
-      readonly operation: "lower" | "trim" | "upper";
-      readonly receiver: HirExpression;
-    })
-  | (HirExpressionBase & {
-      readonly kind: "string-split";
-      readonly receiver: HirExpression;
-      readonly separator: HirExpression;
-    })
-  | (HirExpressionBase & {
       // The row an `it_each` test function runs, which the runner selects.
       readonly kind: "each-row-index";
     })
@@ -557,12 +553,6 @@ export type HirExpression =
       readonly kind: "console-print";
       readonly provider: HirExpression;
       readonly value: HirExpression;
-    })
-  | (HirExpressionBase & {
-      readonly kind: "string-replace";
-      readonly receiver: HirExpression;
-      readonly old: HirExpression;
-      readonly replacement: HirExpression;
     })
   | (HirExpressionBase & {
       readonly kind: "assert-equal";
@@ -918,12 +908,6 @@ export type HirExpression =
       readonly enumIndex: number;
       readonly fieldIndex: number;
       readonly erasedFieldType?: ValueType;
-    })
-  | (HirExpressionBase & { readonly kind: "string-length"; readonly receiver: HirExpression })
-  | (HirExpressionBase & {
-      readonly kind: "string-starts-with";
-      readonly receiver: HirExpression;
-      readonly prefix: HirExpression;
     })
   | (HirExpressionBase & { readonly kind: "list-length"; readonly receiver: HirExpression })
   | (HirExpressionBase & {

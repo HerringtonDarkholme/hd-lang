@@ -43,6 +43,7 @@ import {
 
 import { FunctionBodyEmitter } from "./function-body.ts";
 import { emitHostProviders, emitPrintln } from "./host-providers.ts";
+import { emitHostFunctionImports, emitIntrinsicBody } from "./intrinsics.ts";
 import { lowerRunTimeGaps } from "./run-time-gaps.ts";
 import {
   emitStoredSuspensionAdapters,
@@ -110,15 +111,17 @@ class FunctionEmitter extends FunctionBodyEmitter {
     this.temporaryTypes.length = 0;
     this.cleanupFrames.length = 0;
     const cache = enumSharedCache(declaration);
-    const body = cache
-      ? [
-          `(if (ref.is_null (global.get ${cache}))`,
-          `  (then (global.set ${cache} (block (result ${this.watType(declaration.result)})`,
-          indent(indent(this.emitBlock(declaration.body, declaration.result))),
-          `  ))))`,
-          `(ref.as_non_null (global.get ${cache}))`,
-        ].join("\n")
-      : this.emitBlock(declaration.body, declaration.result);
+    const body = declaration.intrinsic
+      ? emitIntrinsicBody(declaration)
+      : cache
+        ? [
+            `(if (ref.is_null (global.get ${cache}))`,
+            `  (then (global.set ${cache} (block (result ${this.watType(declaration.result)})`,
+            indent(indent(this.emitBlock(declaration.body, declaration.result))),
+            `  ))))`,
+            `(ref.as_non_null (global.get ${cache}))`,
+          ].join("\n")
+        : this.emitBlock(declaration.body, declaration.result);
     const temporaries = this.temporaryTypes.map(
       (type, index) => `  (local $tmp${index} ${this.watType(type)})`,
     );
@@ -1161,12 +1164,11 @@ class FunctionEmitter extends FunctionBodyEmitter {
 }
 
 import {
+  BOUNDARY_RUNTIME_WAT,
   CONSOLE_RUNTIME_WAT,
   FLOAT_RUNTIME_WAT,
   MAP_RUNTIME_WAT,
   RUNTIME_WAT,
-  STRING_SPLIT_RUNTIME_WAT,
-  STRING_TRANSFORM_RUNTIME_WAT,
 } from "./runtime/index.ts";
 
 export function emitWat(source: HirProgram): string {
@@ -1429,6 +1431,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
       ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
       : "";
   const println = emitter.requiresConsoleOutput ? emitPrintln(program) : undefined;
+  const hostFunctions = emitHostFunctionImports(program);
   const imports = [
     [hostProviders.imports, println?.imports ?? ""].filter(Boolean).join("\n"),
     [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
@@ -1443,13 +1446,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     emitter.requiresFloatDisplay
       ? `  (import "hd" "format_f64" (func $hd.format_f64 (param f64 i32) (result i32)))`
       : "",
-    emitter.requiresStringTransforms
-      ? [
-          `  (import "hd" "string_transform_begin" (func $hd.string_transform_begin (param i32)))`,
-          `  (import "hd" "string_transform_input" (func $hd.string_transform_input (param i32)))`,
-          `  (import "hd" "string_transform_output" (func $hd.string_transform_output (param i32) (result i32)))`,
-        ].join("\n")
-      : "",
+    hostFunctions.imports,
     `  (import "hd" "panic" (func $hd.panic (param i32)))`,
     emitter.requiresConsoleOutput || hostProviders.console
       ? `  (import "hd" "console_byte" (func $hd.console_byte (param externref i32)))`
@@ -1461,8 +1458,7 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
   const optionalRuntime = [
     emitter.requiresFloatDisplay ? FLOAT_RUNTIME_WAT : "",
     emitter.requiresConsoleOutput || hostProviders.console ? CONSOLE_RUNTIME_WAT : "",
-    emitter.requiresStringSplit ? STRING_SPLIT_RUNTIME_WAT : "",
-    emitter.requiresStringTransforms ? STRING_TRANSFORM_RUNTIME_WAT : "",
+    hostFunctions.boundary ? BOUNDARY_RUNTIME_WAT : "",
   ]
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)

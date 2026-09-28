@@ -221,8 +221,6 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
             span: expression.span,
           };
     }
-    const stringCall = this.checkStringMemberCall(expression, receiver);
-    if (stringCall) return stringCall;
     const receiverNominal = nominalGenericParts(readonlyType(receiver.type));
     if (receiverNominal?.name === "List" && expression.callee.name === "len") {
       if (expression.arguments.length !== 0)

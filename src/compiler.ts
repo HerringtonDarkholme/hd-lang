@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import type { Diagnostic } from "./diagnostics.ts";
 import { DiagnosticError } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
-import { emitWat } from "./emitter/index.ts";
+import { emitWat, isRuntimePrimitive } from "./emitter/index.ts";
+import { HOST_FUNCTIONS } from "./host-functions.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
 import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
@@ -183,12 +184,6 @@ function encodeHostValue(type: ValueType, value: HostSuspensionValue): EncodedHo
   return { bits: view.getBigUint64(0, false).toString(16).padStart(16, "0"), kind: "f64" };
 }
 
-// `trim` removes exactly the Unicode White_Space property at both ends
-// (10 Prelude); JavaScript `trim` also removes U+FEFF and keeps U+0085.
-function trimWhiteSpace(value: string): string {
-  return value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
-}
-
 function decodeHostValue(type: ValueType, encoded: EncodedHostValue): HostSuspensionValue {
   if (encoded.kind !== type)
     throw new Error(`replay boundary type '${encoded.kind}' does not match '${type}'`);
@@ -328,9 +323,6 @@ export async function instantiate(
     return isPending ? 1 : 0;
   };
   const hostImports: Record<string, HostImport> = {};
-  let stringTransformOperation = 0;
-  let stringTransformInput: number[] = [];
-  let stringTransformOutput: Uint8Array | undefined;
   const hostCapabilities = new Set(compilation.hir.hostCapabilities);
   const hostCall = (
     provider: unknown,
@@ -485,6 +477,36 @@ export async function instantiate(
       }
     }
   }
+  // The generic host-function boundary (host-functions.ts): a `string`
+  // crosses as a handle whose UTF-8 bytes the Wasm side copies one by one.
+  interface HostString {
+    readonly bytes: Uint8Array;
+  }
+  hostImports.host_string_new = (length) => ({ bytes: new Uint8Array(Number(length)) });
+  hostImports.host_string_set = (handle, index, byte) => {
+    (handle as HostString).bytes[Number(index)] = Number(byte);
+  };
+  hostImports.host_string_length = (handle) => (handle as HostString).bytes.length;
+  hostImports.host_string_get = (handle, index) => (handle as HostString).bytes[Number(index)];
+  for (const declaration of compilation.hir.functions) {
+    const name = declaration.intrinsic;
+    if (!name || isRuntimePrimitive(name)) continue;
+    hostImports[`host:${name}`] = (...arguments_) => {
+      const implementation = HOST_FUNCTIONS[name];
+      if (!implementation) throw new Error(`the host has no function '${name}'`);
+      const result = implementation(
+        ...declaration.parameters.map((parameter, index) =>
+          parameter.type === "string"
+            ? textDecoder.decode((arguments_[index] as HostString).bytes)
+            : (arguments_[index] as number | bigint),
+        ),
+      );
+      if (declaration.result === "string")
+        return { bytes: textEncoder.encode(String(result)) } satisfies HostString;
+      if (declaration.result === "bool") return result ? 1 : 0;
+      return result;
+    };
+  }
   const { instance } = await WebAssembly.instantiate(compilation.bytes, {
     hd: {
       ...hostImports,
@@ -494,31 +516,6 @@ export async function instantiate(
       format_f64: (value: number, index: number) => {
         const bytes = textEncoder.encode(displayF64(value));
         return index < 0 ? bytes.length : bytes[index]!;
-      },
-      string_transform_begin: (operation: number) => {
-        stringTransformOperation = operation;
-        stringTransformInput = [];
-        stringTransformOutput = undefined;
-      },
-      string_transform_input: (byte: number) => {
-        stringTransformInput.push(byte);
-      },
-      string_transform_output: (index: number) => {
-        if (!stringTransformOutput) {
-          const input = textDecoder.decode(Uint8Array.from(stringTransformInput));
-          const transformed =
-            stringTransformOperation === 0
-              ? trimWhiteSpace(input)
-              : stringTransformOperation === 1
-                ? input.toLowerCase()
-                : stringTransformOperation === 2
-                  ? input.toUpperCase()
-                  : undefined;
-          if (transformed === undefined)
-            throw new Error(`unknown string transform ${stringTransformOperation}`);
-          stringTransformOutput = textEncoder.encode(transformed);
-        }
-        return index < 0 ? stringTransformOutput.length : stringTransformOutput[index]!;
       },
       panic: (code: number) => {
         throw new RuntimePanicError(runtimePanicName(code));

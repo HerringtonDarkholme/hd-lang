@@ -247,7 +247,6 @@ function visitExpression(
     case "enum-member":
     case "variant-tag":
     case "variant-payload":
-    case "string-length":
     case "list-length":
     case "list-iterator":
     case "iterator-next":

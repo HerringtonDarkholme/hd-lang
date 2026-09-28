@@ -1,4 +1,4 @@
-import type { ImplDecl, MethodDecl, Program } from "../ast.ts";
+import type { FunctionDecl, ImplDecl, MethodDecl, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
@@ -59,13 +59,36 @@ function builtInTarget(implementation: ImplDecl): boolean {
   return base === "?" || base === "Result" || BUILT_IN_TARGETS.has(base);
 }
 
+/**
+ * The name in a std function's `@intrinsic("name")` line. The line is
+ * prototype-internal and std-only: the loader turns it into
+ * `FunctionDecl.intrinsic`, so the checker never sees it, while the same line
+ * in user code stays a rejected function decorator (src/README.md,
+ * Compiler/library boundary).
+ */
+function intrinsicName(declaration: FunctionDecl): string | undefined {
+  const decorators = declaration.decorators;
+  const fact = decorators?.facts[0];
+  if (!decorators || decorators.derives.length > 0 || decorators.facts.length !== 1) return;
+  if (fact?.kind !== "call" || fact.callee.kind !== "name" || fact.callee.name !== "intrinsic")
+    return;
+  const [argument] = fact.arguments;
+  return fact.arguments.length === 1 && argument?.kind === "string" ? argument.value : undefined;
+}
+
 function parseModule(name: StandardModule, source: string): Program {
   const parsed = parse(source);
   if (!parsed.program || parsed.diagnostics.some((d) => d.severity !== "warning"))
     throw new Error(
       `std.${name} does not parse: ${parsed.diagnostics.map((d) => `${d.code}@${d.span.start.line}: ${d.message}`).join("; ")}`,
     );
-  return parsed.program;
+  const functions = parsed.program.functions.map((declaration) => {
+    const intrinsic = intrinsicName(declaration);
+    if (!intrinsic) return declaration;
+    const { decorators: _decorators, ...rest } = declaration;
+    return { ...rest, intrinsic };
+  });
+  return { ...parsed.program, functions };
 }
 
 function standardModule(name: StandardModule): ParsedModule {
@@ -144,12 +167,32 @@ function mentionedNames(node: unknown, names: Set<string>): void {
   for (const [key, child] of Object.entries(node)) if (key !== "span") mentionedNames(child, names);
 }
 
+type ModuleDeclaration = { readonly name: string };
+
+/** Top-level declarations of a (renamed) module, in declaration order. */
+function declarationsOf(program: Program): readonly ModuleDeclaration[] {
+  return [
+    ...(program.types ?? []),
+    ...program.data,
+    ...program.enums,
+    ...program.traits,
+    ...program.functions,
+  ];
+}
+
+function baseName(type: string): string {
+  return type.split("[")[0] ?? type;
+}
+
 /** Declares the `std` modules and built-in methods that the program uses. */
 export function withStandardLibrary(program: Program): Program {
   // Local names of the program's own std imports, and where each module came in.
   const localNames = new Map<string, string>();
   const spans = new Map<StandardModule, SourceSpan>();
+  // Modules declared whole: imported ones and their dependencies.
   const included = new Set<StandardModule>();
+  // Single declarations (by declared name) that a built-in method reaches.
+  const reached = new Set<string>();
   const include = (module: StandardModule, span: SourceSpan): void => {
     if (!spans.has(module)) spans.set(module, span);
     if (included.has(module)) return;
@@ -187,26 +230,59 @@ export function withStandardLibrary(program: Program): Program {
     modules.set(module, renamed);
     return renamed;
   };
+  // Every std declaration by its declared name, and the module it belongs to.
+  const owners = new Map<string, StandardModule>();
+  for (const module of STANDARD_MODULES)
+    for (const name of standardModule(module).names) owners.set(nameOf(module, name), module);
+  const declared = (name: string): boolean => {
+    const module = owners.get(name);
+    return module === undefined || included.has(module) || reached.has(name);
+  };
+  // An implementation on a std type, or of a std trait, is declared with them.
+  const implementationDeclared = (implementation: ImplDecl): boolean =>
+    declared(baseName(implementation.targetName)) &&
+    (implementation.traitName === undefined || declared(baseName(implementation.traitName)));
 
   // Built-in methods: the methods of `impl` blocks on built-in types whose
-  // names are selected, to a fixed point. A selected method that mentions a
-  // module declaration includes that module.
+  // names are selected, to a fixed point. A selected method reaches the std
+  // declarations it mentions, and each reached declaration reaches those it
+  // mentions, so a method call declares only the helpers it needs.
   const selected = new Set<string>();
   memberNames(program, selected);
   const chosen = new Map<ImplDecl, MethodDecl[]>();
+  const scanned = new Set<unknown>();
+  const reach = (node: unknown): void => {
+    const mentioned = new Set<string>();
+    mentionedNames(node, mentioned);
+    for (const name of mentioned) {
+      const module = owners.get(name);
+      if (module === undefined || included.has(module) || reached.has(name)) continue;
+      reached.add(name);
+      if (!spans.has(module)) spans.set(module, program.span);
+    }
+  };
   let changed = true;
   while (changed) {
     changed = false;
-    for (const module of included) {
+    for (const module of STANDARD_MODULES) {
+      if (!spans.has(module)) continue;
       const renamed = moduleProgram(module);
-      memberNames(renamed.functions, selected);
-      memberNames(
-        renamed.implementations.filter((item) => !builtInTarget(item)),
-        selected,
-      );
+      const whole = included.has(module);
+      const nodes = [
+        ...declarationsOf(renamed).filter((item) => whole || reached.has(item.name)),
+        ...renamed.implementations.filter(
+          (item) => !builtInTarget(item) && (whole || implementationDeclared(item)),
+        ),
+      ];
+      for (const node of nodes) {
+        if (scanned.has(node)) continue;
+        scanned.add(node);
+        changed = true;
+        memberNames(node, selected);
+        if (!whole) reach(node);
+      }
     }
     for (const module of STANDARD_MODULES) {
-      const parsed = standardModule(module);
       for (const implementation of moduleProgram(module).implementations) {
         if (!builtInTarget(implementation)) continue;
         const methods = chosen.get(implementation) ?? [];
@@ -216,15 +292,12 @@ export function withStandardLibrary(program: Program): Program {
           chosen.set(implementation, methods);
           changed = true;
           memberNames(method, selected);
-          const mentioned = new Set<string>();
-          mentionedNames(method, mentioned);
-          if (parsed.names.some((name) => mentioned.has(nameOf(module, name))))
-            include(module, program.span);
+          reach(method);
         }
       }
     }
   }
-  if (included.size === 0 && chosen.size === 0) return program;
+  if (spans.size === 0 && chosen.size === 0) return program;
 
   // Module declarations, each respanned to the use that included the module.
   const types = [...(program.types ?? [])];
@@ -234,17 +307,26 @@ export function withStandardLibrary(program: Program): Program {
   const functions = [...program.functions];
   const implementations = [...program.implementations];
   for (const module of STANDARD_MODULES) {
-    if (!included.has(module)) continue;
+    const span = spans.get(module);
+    if (!span) continue;
     const renamed = moduleProgram(module);
-    const span = spans.get(module)!;
-    types.push(...respan(renamed.types ?? [], span));
-    data.push(...respan(renamed.data, span));
-    enums.push(...respan(renamed.enums, span));
-    traits.push(...respan(renamed.traits, span));
-    functions.push(...respan(renamed.functions, span));
+    const whole = included.has(module);
+    const keep = <T extends ModuleDeclaration>(items: readonly T[]): T[] =>
+      respan(
+        items.filter((item) => whole || reached.has(item.name)),
+        span,
+      );
+    types.push(...keep(renamed.types ?? []));
+    data.push(...keep(renamed.data));
+    enums.push(...keep(renamed.enums));
+    traits.push(...keep(renamed.traits));
+    functions.push(...keep(renamed.functions));
     implementations.push(
       ...respan(
-        renamed.implementations.filter((implementation) => !builtInTarget(implementation)),
+        renamed.implementations.filter(
+          (implementation) =>
+            !builtInTarget(implementation) && (whole || implementationDeclared(implementation)),
+        ),
         span,
       ),
     );

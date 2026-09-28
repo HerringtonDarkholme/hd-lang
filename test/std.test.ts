@@ -44,8 +44,32 @@ test("every std module parses on its own", () => {
 });
 
 test("a program that selects no std member is unchanged", () => {
-  const program = parse("fn size(items: List[i32]) -> i32: items.len()\n").program!;
+  const program = parse("fn first(items: List[i32]) -> i32: items[0]\n").program!;
   assert.equal(withStandardLibrary(program), program);
+});
+
+test("a string method declares only the std helpers it reaches", () => {
+  const program = parse('fn size() -> i32: "abc".len()\n').program!;
+  const joined = withStandardLibrary(program);
+  assert.deepEqual(joined.functions.map((declaration) => declaration.name).sort(), [
+    "__std_text_byte_at",
+    "__std_text_byte_len",
+    "__std_text_continuation_byte",
+    "size",
+  ]);
+  assert.deepEqual(joined.data, []);
+  assert.equal(
+    joined.functions.find((declaration) => declaration.name === "__std_text_byte_len")?.intrinsic,
+    "string_byte_len",
+  );
+});
+
+test("only lib/std can declare an intrinsic", () => {
+  const analysis = analyze('@intrinsic("string_byte_len")\nfn size(text: string) -> i32: 0\n');
+  assert.deepEqual(
+    analysis.diagnostics.map((diagnostic) => diagnostic.code),
+    ["decorator-not-annotator"],
+  );
 });
 
 test("only the selected built-in methods are declared", () => {

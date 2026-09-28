@@ -401,16 +401,6 @@ class SuspensionPlanBuilder {
           cell: cell!,
           value: value!,
         }));
-      case "string-replace":
-        return lowerValues(
-          [expression.receiver, expression.old, expression.replacement],
-          ([receiver, old, replacement]) => ({
-            ...expression,
-            receiver: receiver!,
-            old: old!,
-            replacement: replacement!,
-          }),
-        );
       case "display":
       case "permission-weaken":
         return this.lowerExpression(
@@ -678,8 +668,6 @@ class SuspensionPlanBuilder {
       case "tuple-index":
       case "variant-tag":
       case "variant-payload":
-      case "string-length":
-      case "string-transform":
       case "list-length":
       case "list-iterator":
       case "iterator-next":
@@ -690,25 +678,11 @@ class SuspensionPlanBuilder {
           (receiver) => continuation({ ...expression, receiver: receiver! } as HirExpression),
           context,
         );
-      case "string-split":
-        return this.lowerValueList(
-          [expression.receiver, expression.separator],
-          ([receiver, separator]) =>
-            continuation({ ...expression, receiver: receiver!, separator: separator! }),
-          context,
-        );
       case "field-set":
         return this.lowerValueList(
           [expression.receiver, expression.value],
           ([receiver, value]) =>
             continuation({ ...expression, receiver: receiver!, value: value! }),
-          context,
-        );
-      case "string-starts-with":
-        return this.lowerValueList(
-          [expression.receiver, expression.prefix],
-          ([receiver, prefix]) =>
-            continuation({ ...expression, receiver: receiver!, prefix: prefix! }),
           context,
         );
       case "list-index":
