@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T27 are
+Status: design record, started 2026-09-27. Owner decisions T1-T31 are
 decided. T4, T5, and T8 are applied to the specification (for the current
 `test "name":` syntax); the others are not yet. The redesign may continue with
 more issues (property testing is folded in from
@@ -149,6 +149,35 @@ more issues (property testing is folded in from
     fixtures on the old `test "..."` syntax, and fixture file names that
     clash with `_test.hd`. The removal of `entry-error-not-display` (now
     `unsatisfied-trait-bound`) is kept.
+28. **T28: unit tests fake, integration tests use real providers.** Tests
+    in a `tests:` block or a `_test.hd` module get no host providers: every
+    requirement must come from `$.with` fakes, and a missing one is a
+    compile error. `tests/` binds real providers from the test profile,
+    and a test whose providers the profile cannot bind is skipped (T20).
+    This replaces T6 for unit tests.
+29. **T29: names stay freeform strings; `hd test --list` prints
+    `module::name  file:line`.** Filters match substrings of the id.
+30. **T30: snapshot tests, inline and file.** `snapshot(value,
+    expect="...")` keeps the expected text in the source, and
+    `hd test --update` rewrites the literal (MoonBit's `inspect`, insta's
+    inline snapshots). `snapshot_file(value, "name")` stores larger output
+    in a snapshot file next to the test, approved by a review command. The
+    value renders with `Display`, or a derivable `Inspect` when it has
+    none. The file layout, the review command, and `Inspect` are designed
+    with the standard library.
+31. **T31: `std.testing.it_each` for table tests, not a prelude name.**
+    `it_each("name", rows, body)` with `body: fn!(A) -> T` runs one case per
+    row, reported as `name[i]`. It lives in `std.testing` and is imported with
+    `use std.testing.it_each`; only `it` is in the prelude. The calls-only rule
+    admits a call to `it` or to `std.testing.it_each`. `it.each` was
+    considered: it would need members on a function or callable values, a
+    new language feature. This replaces T26's loop-only answer for per-row
+    results; a loop inside one `it` still works.
+
+```text
+# std.testing
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R
+```
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
