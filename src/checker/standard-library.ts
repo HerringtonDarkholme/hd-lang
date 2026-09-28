@@ -158,7 +158,10 @@ function standardModule(name: StandardModule): ParsedModule {
     if (!declaration.module.startsWith("std."))
       throw new Error(`std.${name} uses '${declaration.module}', which is not a std module`);
     for (const imported of declaration.names)
-      if (isStandardModule(module)) uses.push({ module, name: imported.name });
+      // A module's own compiler-checked name, such as `std.testing.assert`
+      // in `std.testing`, is a compiler use: the module does not declare it.
+      if (isStandardModule(module) && !(module === name && !names.includes(imported.name)))
+        uses.push({ module, name: imported.name });
       else compilerUses.push({ module, name: imported.name });
   }
   const module = { name, program, names, uses, compilerUses };

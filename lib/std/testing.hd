@@ -3,6 +3,7 @@
 # `it_prop_with` are checked by the compiler; `Choices`, `Arbitrary`, and
 # `snapshot_file` are declared here (Testing T53), with the property-test
 # runner protocol.
+use std.testing.assert
 
 # The only source of randomness a generator sees
 # (spec/10-modules.md#property-tests). The runner creates each one and
@@ -101,10 +102,11 @@ fn prop_discard() -> void:
 # `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`. The host
 # reads, and on `hd test --update` writes, the file, and returns why it
 # differs, or "" when it matches. A missing file fails except on `--update`.
+# A mismatch or a missing file is a failed assertion (Testing T54), so it
+# panics with `assertion-failed`, as `assert_equal` does.
 pub fn snapshot_file(text: string) -> void:
     problem := snapshot_file_check(text)
-    if problem != "":
-        panic(problem)
+    assert(problem == "", problem)
 
 @intrinsic("snapshot_file_check")
 fn snapshot_file_check(text: string) -> string:

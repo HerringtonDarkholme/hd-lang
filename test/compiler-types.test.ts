@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { analyze, compile, instantiate } from "../src/compiler.ts";
-import { RuntimePanicError } from "../src/runtime-panic.ts";
 import { conformance } from "./fixture.ts";
 
 test("named functions reify as monomorphic function values", () => {
@@ -532,7 +531,7 @@ test("println drives write_line! on a program-defined Console (MHP-1)", async ()
   assert.deepEqual(printed, []);
 });
 
-test("println panics when its write_line! is pending on a host operation (MHP-1)", async () => {
+test("println drives a write_line! pending on a host operation until it finishes (MHP-1)", async () => {
   const source = [
     "pub trait Gate:",
     "    fn wait!(self) -> void",
@@ -545,21 +544,30 @@ test("println panics when its write_line! is pending on a host operation (MHP-1)
     "        self.gate.wait!()",
     "        .Ok()",
     "",
+    "let written: i32 = 0",
+    "",
     "pub fn main() -> void $ Console, Gate:",
     "    let gated: mut GatedConsole = GatedConsole { gate: $.use(Gate) }",
     "    $.with(Console=gated):",
     '        println("held")',
+    "    written = written + 1",
+    "",
+    "pub fn written_lines() -> i32: written",
     "",
   ].join("\n");
   assert.deepEqual(analyze(source, { hostCapabilities: ["Gate"] }).diagnostics, []);
+  // The gate stays pending for two polls; `block_on` keeps driving the write.
+  let polls = 0;
   const { instance } = await instantiate(source, {
     hostCapabilities: ["Gate"],
-    hostSuspensionPending: () => true,
+    hostSuspensionPending: () => {
+      polls += 1;
+      return polls <= 2;
+    },
   });
-  assert.throws(
-    () => (instance.exports.main as CallableFunction)({}, { name: "gate" }),
-    (error: unknown) => error instanceof RuntimePanicError && error.code === "explicit-panic",
-  );
+  (instance.exports.main as CallableFunction)({}, { name: "gate" });
+  assert.equal(polls, 3);
+  assert.equal((instance.exports.written_lines as CallableFunction)(), 1);
 });
 
 test("Debug is checked, and derived builders render debug text (T33, T53)", async () => {
@@ -576,6 +584,30 @@ test("Debug is checked, and derived builders render debug text (T33, T53)", asyn
     ),
     ["unsatisfied-trait-bound"],
   );
+});
+
+test("@derive(Debug) picks Rust's builder per data type and variant (T54)", async () => {
+  const source = [
+    "@derive(Debug)",
+    "data Unit: pass",
+    "",
+    "@derive(Debug)",
+    "enum Shape:",
+    "    Empty",
+    "    Circle(i32)",
+    "    Rect(width: i32, height: i32)",
+    "",
+    "pub fn main() -> void $ Console:",
+    "    println(debug(Unit {}))",
+    "    println(debug(Shape.Empty))",
+    "    println(debug(Shape.Circle(3)))",
+    "    println(debug(Shape.Rect(width=4, height=5)))",
+    "",
+  ].join("\n");
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
+  (instance.exports.main as CallableFunction)({});
+  assert.deepEqual(printed, ["Unit", "Empty", "Circle(3)", "Rect { width: 4, height: 5 }"]);
 });
 
 test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {

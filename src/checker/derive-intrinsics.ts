@@ -21,19 +21,23 @@ function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl
   const out = new Source_();
   derivedImpl(target, "Debug", out);
   out.add(`    fn debug(self, out: mut ${writer}) -> void:`);
-  // One builder per value, as Rust's derive does (trait.debug.derive-builders):
-  // `debug_struct` for named members, `debug_tuple` for positional ones, and
-  // the bare name for a variant without a payload.
+  // One builder per value, as Rust's derive does (trait.debug.derive-builders.mapping):
+  // `debug_struct` for a data type, even a fieldless one, and for a variant
+  // with named members; `debug_tuple` for a variant with positional ones; and
+  // the bare name for a variant without a payload. A variant that mixes both
+  // uses `debug_tuple`, a stand-in for an open question (Testing T54).
+  const struct = (members: readonly DataField[], name: string, value: (index: number) => string) =>
+    `out.debug_struct(${out.string(name)})${members.map((member, index) => `.field(${out.string(member.name)}, ${value(index)})`).join("")}.finish()`;
   const fields = (members: readonly DataField[], name: string, value: (index: number) => string) =>
     members.length === 0
       ? `out.write(${out.string(name)})`
       : members[0]!.positional
         ? `out.debug_tuple(${out.string(name)})${members.map((_, index) => `.field(${value(index)})`).join("")}.finish()`
-        : `out.debug_struct(${out.string(name)})${members.map((member, index) => `.field(${out.string(member.name)}, ${value(index)})`).join("")}.finish()`;
+        : struct(members, name, value);
   if (target.kind === "data") {
     const members = target.declaration.fields;
     out.add(
-      `        ${fields(members, target.declaration.name, (index) => `self.${members[index]!.name}`)}`,
+      `        ${struct(members, target.declaration.name, (index) => `self.${members[index]!.name}`)}`,
     );
   } else {
     const { name, variants } = target.declaration;

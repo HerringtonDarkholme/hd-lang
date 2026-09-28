@@ -302,11 +302,13 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   provider, the host console or a program-defined one, and drives the call
   with `block_on` (MHP-1), so it panics with `suspension-nested-driver`
   under `main!` or a test body and is `suspension-forbidden-context` in a
-  `defer` suite or a default expression. A call that returns `.Err`, or
-  that `block_on` finds pending on a host operation, is an
-  `explicit-panic`. The prototype drives synchronously, so its `block_on`
-  cannot wait for any pending host operation: it panics the same way
-  rather than wait. A public non-suspending function with a
+  `defer` suite or a default expression. A call that returns `.Err` is an
+  `explicit-panic` from `std`'s `panic`. A write pending on a host
+  operation is polled again until it finishes, as the entry driver polls
+  `main!`, since the prototype's host answers each poll itself. A script's
+  top-level `println` is rejected with `missing-requirement`, because the
+  prototype infers no script entry requirement row
+  (`module.init.script-row`). A public non-suspending function with a
   host provider in its row is exported through a wrapper that makes the
   trait value from the host's `externref`;
 - suspending host capability methods with scalar and UTF-8 string arguments
@@ -540,9 +542,11 @@ else`, `break`, `break value`, and `continue`;
   on a newtype through its base type, and `mixed-derived-law` checks the
   law partners; `==` uses a generic implementation such as a derived
   `impl[T < Eq] Eq for Box[T]`, while `<` does not yet. `@derive(Debug)` generates
-  builder calls (Testing T53): `debug_struct` for named members,
-  `debug_tuple` for positional ones, and `write` of a payload-free
-  variant's name. `Debug` is a prelude trait; `DebugWriter`, its
+  builder calls in Rust's mapping (Testing T53, T54): `debug_struct` for a
+  data type, even a fieldless one, and a variant with named payload fields,
+  `debug_tuple` for a variant with positional ones, and `write` of a
+  payload-free variant's name. A variant that mixes both uses
+  `debug_tuple`, a stand-in for an open question. `Debug` is a prelude trait; `DebugWriter`, its
   builders, the prelude `debug`, and `std`'s `Debug` implementations for
   the primitives, `List`, `T?`, `Result`, and pairs are hd code in
   `lib/std/format.hd`, whose writer is always compact. The checker still
@@ -590,7 +594,7 @@ else`, `break`, `break value`, and `continue`;
   it), and `snapshot_file` is hd code in `lib/std/testing.hd` whose host
   function (`src/snapshots.ts`) compares the text with
   `<package root>/__snapshots__/<module>/<test-slug>-<n>.snap`, failing
-  with an `explicit-panic` when it is missing or differs, except under
+  with `assertion-failed` (Testing T54) when it is missing or differs, except under
   `hd test --update`, which writes it (Testing T53); `Choices` and
   `Arbitrary` are hd code there too;
 - `it_prop` and `it_prop_with` register one property test case, which the

@@ -1228,3 +1228,6 @@ typing/valid/derived-ordering.hd	type
 typing/valid/derived-generic-bound.hd	type
 typing/valid/derived-hash.hd	type
 runtime/valid/derived-newtype.hd	runtime
+runtime/panic/snapshot-mismatch.hd	runtime
+runtime/panic/snapshot-file-missing.hd	runtime
+typing/valid/derive-debug-shapes.hd	type
