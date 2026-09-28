@@ -220,12 +220,13 @@ The standard console surface includes:
 
 ```text
 trait Console:
-    fn write_line!(self, text: string) -> Result[void, ConsoleError]
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
-2. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-3. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
+2. r[module.console.write-line-mut] `write_line!` takes `mut self`, so `Console` is a mutable requirement trait and a provider may record what it writes.
+3. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
+4. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope.
 
 ```text
 pub fn main() -> void:

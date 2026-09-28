@@ -893,3 +893,10 @@ existing source. Each entry names the decision that made the change.
 - Exit status of erased errors (error entry-point follow-ups question 2,
   2026-09-27): no behavior changed. Chapter 10 now states that the rule reads
   the static error type, so `main() -> Result[void, Error]` exits with 1.
+- Mutable `Console` (mutable host providers, owner decision 2026-09-27):
+  `Console.write_line!` takes `mut self`, so `Console` is a mutable
+  requirement trait and `$.use(Console)` yields `mut Console`. `println` and
+  its `$ Console` row are unchanged. A user implementation of `Console` that
+  declared `write_line!(self, ...)` is now `trait-method-signature`, and
+  `console := $.use(Console)` followed by `console.write_line!(...)` is now
+  `mutable-receiver-required`; bind with `let console: mut Console`.

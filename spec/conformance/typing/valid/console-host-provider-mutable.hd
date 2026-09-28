@@ -1,0 +1,6 @@
+# test: prelude / Console / the host Console provider is mutable because write_line! takes mut self
+
+pub fn main!() -> void $ Console:
+    let console: mut Console = $.use(Console)
+    _ := console.write_line!("host capability")
+    _ := $.use(Console).write_line!("direct call")

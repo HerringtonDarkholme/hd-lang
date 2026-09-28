@@ -118,3 +118,6 @@ typing/invalid/newtype-derivation-block.hd	MVP reports unknown-type at line 30 i
 typing/valid/generic-missing-call.hd	check fails: unknown-trait at line 4: unknown trait 'Source'; the prototype has no typed derivation	TD
 typing/invalid/exit-status-i32-result.hd	check exits 0: the prototype has no u8, so it declares ExitStatus.status returning i32 instead of StatusCode	EEF-1
 runtime/valid/status-code-rejects-zero.hd	check fails: unknown-type u8 at line 5, and the prototype does not declare std.process.StatusCode	EEF-1
+typing/valid/console-recording-provider.hd	check fails: unknown-trait Console at line 8: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
+typing/valid/console-host-provider-mutable.hd	check fails: unknown-type mut:Console at line 4: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1
+typing/invalid/console-readonly-binding-write-line.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype binds Console as an opaque host provider, not a prelude trait, so `mut Console`, write_line!, and user implementations of Console are unavailable	MHP-1

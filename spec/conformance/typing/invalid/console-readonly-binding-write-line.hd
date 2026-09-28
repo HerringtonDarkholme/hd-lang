@@ -1,0 +1,5 @@
+# test: prelude / Console / a := binding of the console is readonly, so write_line! needs mut
+
+pub fn main!() -> void $ Console:
+    console := $.use(Console)
+    _ := console.write_line!("starting")  # diagnostic: mutable-receiver-required

@@ -1173,3 +1173,6 @@ parse/invalid/mutable-provider-binding.hd	parse	reject:syntax-error	11-requireme
 typing/invalid/structure-without-use.hd	type	reject:unknown-trait	14-annotations.md#r-annot.block.structure-use
 typing/invalid/newtype-derivation-block.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.block.newtype.error
 typing/valid/generic-missing-call.hd	type	accept	14-annotations.md#r-annot.walker.generic-missing
+typing/valid/console-recording-provider.hd	type	accept	10-modules.md#r-module.console.write-line-mut
+typing/valid/console-host-provider-mutable.hd	type	accept	10-modules.md#r-module.console.write-line-mut
+typing/invalid/console-readonly-binding-write-line.hd	type	reject:mutable-receiver-required	10-modules.md#r-module.console.write-line-mut
