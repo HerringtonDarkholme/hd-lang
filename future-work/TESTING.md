@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T49 are
+Status: design record, started 2026-09-27. Owner decisions T1-T50 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
@@ -294,6 +294,10 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     `snapshot_file(text: string)`. `expect=` must be a string literal so
     `hd test --update` can rewrite it; an empty or missing `expect` is
     recorded on the first `--update`.
+50. **T50 (2026-09-28): a property body follows T15.** `it_prop` and
+    `it_prop_with` take `prop: fn!(T) -> R` with `R < Termination`: `void`,
+    or `Result[void, Error]` when the body uses `?`. An `.Err` counts as a
+    failing case and is shrunk like an assertion failure.
 
 The `timeout=` value waits on the literal-suffix design (owner: design
 now, so `timeout=5s` may replace the `"5s"` string).
@@ -307,8 +311,8 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None,
 
 ```text
 # std.testing
-pub fn it_prop[T < Arbitrary](name: string, prop: fn!(T) -> void, cases: i32 = 100) -> void
-pub fn it_prop_with[T](name: string, gen: fn(mut Choices) -> T, prop: fn!(T) -> void, cases: i32 = 100) -> void
+pub fn it_prop[T < Arbitrary, R < Termination](name: string, cases: i32 = 100, prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, cases: i32 = 100, prop: fn!(T) -> R) -> void
 ```
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
