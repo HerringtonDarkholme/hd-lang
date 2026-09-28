@@ -1970,6 +1970,10 @@ not propagate implicitly from function-typed parameters.
 > See [Annotations](spec/14-annotations.md) and
 > [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
 > current design.
+> The `annotate Target:` member block was removed later by
+> [Typed Derivation M26](future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass):
+> shared metadata goes in a trait-less derivation block,
+> `impl User by Structure:`, and `annotate` is not a reserved word.
 
 Validation metadata does not refine an existing static type. Reusable domain
 identity uses the ordinary nominal newtype syntax together with an exact
@@ -2006,6 +2010,10 @@ question; the core annotation mechanism does not silently change construction.
 > See [Annotations](spec/14-annotations.md) and
 > [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
 > current design.
+> The `annotate Target:` member block was removed later by
+> [Typed Derivation M26](future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass):
+> shared metadata goes in a trait-less derivation block,
+> `impl User by Structure:`, and `annotate` is not a reserved word.
 
 Validation should not create distinct static subtypes by default. A field like `string.max_len(50)` and `string.max_len(100)` should still have the same base static type, `string`; validation metadata is used for runtime checks, generated schemas, generated data, docs, and tooling.
 
@@ -2018,6 +2026,10 @@ Validation should not create distinct static subtypes by default. A field like `
 > See [Annotations](spec/14-annotations.md) and
 > [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
 > current design.
+> The `annotate Target:` member block was removed later by
+> [Typed Derivation M26](future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass):
+> shared metadata goes in a trait-less derivation block,
+> `impl User by Structure:`, and `annotate` is not a reserved word.
 
 Annotation design should be split into four separate concerns before finalizing syntax.
 
@@ -3219,6 +3231,10 @@ Open syntax issues:
 > See [Annotations](spec/14-annotations.md) and
 > [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
 > current design.
+> The `annotate Target:` member block was removed later by
+> [Typed Derivation M26](future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass):
+> shared metadata goes in a trait-less derivation block,
+> `impl User by Structure:`, and `annotate` is not a reserved word.
 
 The language should be function-first. System metadata should be attached to normal declarations through `annotate` blocks.
 
@@ -3263,6 +3279,10 @@ Open syntax issues:
 > See [Annotations](spec/14-annotations.md) and
 > [Typed Derivation](spec/14-annotations.md#typed-derivation) for the
 > current design.
+> The `annotate Target:` member block was removed later by
+> [Typed Derivation M26](future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass):
+> shared metadata goes in a trait-less derivation block,
+> `impl User by Structure:`, and `annotate` is not a reserved word.
 
 Data types should be able to express retention, deletion, and cascade requirements declaratively. The behavior should not be hardcoded into the language as a specific policy; the language should provide syntax for expressing the requirement.
 

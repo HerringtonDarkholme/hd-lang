@@ -1,8 +1,9 @@
 # Typed Derivation: Survey And Design Options
 
 Status: design record for roadmap area 2. Typed derivation is fully
-decided by owner decisions M1-M24 (2026-09-27) and M25 (2026-09-28, applied
-the same day, row 4 of its table still open), tested by three stress tests
+decided by owner decisions M1-M24 (2026-09-27), M25 (2026-09-28, applied
+the same day, row 4 of its table still open) and M26 (2026-09-28, applied
+the same day, its readings awaiting confirmation), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M24 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -11,7 +12,7 @@ rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
 and [09](../spec/09-traits.md#derived-implementations). The prototype
 compiler implements them by lowering each derivation to an ordinary
 implementation ([src/README.md](../src/README.md)); its remaining gaps are the
-`TD` rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), and
+`TD` and `M26` rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), and
 [Still Open](#still-open-after-the-prototype-pass) lists what the pass found
 unspecified. The spec is the
 accepted behavior; this record is history and rationale.
@@ -1251,6 +1252,9 @@ Nothing below is decided. Each item waits for the owner.
   ([STDLIB](STDLIB.md#clone)).
 - **Derived-function cache** (M24). Its API and module are chosen with the
   standard library ([STDLIB](STDLIB.md#derived-function-cache)).
+- **Trait-less blocks** (M26). A generic target, several blocks for one
+  type, unused facts from a `Self` line, and a member line's right side;
+  see [Still Open After M26](#still-open-after-the-prototype-pass).
 - **Function targets.** Function targets wait for
   [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
   is removed (decision 10, applied 2026-09-27), so an ordinary decorator
@@ -1320,6 +1324,45 @@ Open for the apply pass:
 - How a trait-less block's `+=` and `=` combine with the declaration's `@`
   facts. The recommendation is the member-line rules, with the declaration
   facts coming first.
+
+**Applied 2026-09-28 (M26)** in
+[Trait-Less Derivation Blocks](../spec/14-annotations.md#trait-less-derivation-blocks),
+[Member Metadata](../spec/14-annotations.md#member-metadata),
+[`grammar.impl.traitless-by`](../spec/02-grammar.md#r-grammar.impl.traitless-by),
+[`trait.by.trait-less.error`](../spec/09-traits.md#r-trait.by.trait-less.error)
+and [`lex.keyword.reserved-words`](../spec/01-lexical-structure.md#r-lex.keyword.reserved-words).
+The prototype does not follow yet: its gaps are the `M26` rows of
+[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv). The three open
+points are applied as their recommendations. Each is a reading for the
+owner to confirm:
+
+| Point | Applied reading | Rules |
+| --- | --- | --- |
+| Scope | The block must be in the module that declares its target, as an inherent implementation and a derivation block must. Elsewhere it is `misplaced-derivation`. | [`annot.traitless.module`](../spec/14-annotations.md#r-annot.traitless.module) |
+| Parameter metadata | `@` on the parameter only. A block for a function is not possible, since its target must be a type. | [`annot.metadata.params-at-only`](../spec/14-annotations.md#r-annot.metadata.params-at-only) |
+| Combining | Decorator values come first. A `+=` line appends after them, a `=` line replaces them, and `Self` lines do the same for type-level facts. A per-trait block's lines then edit the result. | [`annot.traitless.after-decorators`](../spec/14-annotations.md#r-annot.traitless.after-decorators), [`annot.traitless.self`](../spec/14-annotations.md#r-annot.traitless.self), [`annot.traitless.then-blocks`](../spec/14-annotations.md#r-annot.traitless.then-blocks) |
+
+The decision says the block is only for writing shared metadata. The apply
+pass read that as the rules below, also for the owner to confirm:
+
+| Point | Applied reading | Rules |
+| --- | --- | --- |
+| An omit line, `f = pass` | `invalid-member-line`: omitting a member changes generated code, so it is not metadata | [`annot.traitless.no-omit`](../spec/14-annotations.md#r-annot.traitless.no-omit) |
+| A method or associated type in the block | `misplaced-derivation` on that member | [`annot.traitless.lines-only`](../spec/14-annotations.md#r-annot.traitless.lines-only) |
+| A block in a local scope | `misplaced-derivation`, keeping the old rule that local declarations carry no metadata | [`annot.traitless.local`](../spec/14-annotations.md#r-annot.traitless.local), [`names.local.no-metadata`](../spec/03-names-and-scopes.md#r-names.local.no-metadata) |
+| Target kinds | A data type or enum only; a newtype, like any other target, is `misplaced-derivation`. A GADT enum is allowed, since the block derives nothing | [`annot.traitless.target`](../spec/14-annotations.md#r-annot.traitless.target) |
+| `impl C by E` without a trait, where `E` is not `Structure` | `invalid-delegation`, as for a bad delegation | [`trait.by.trait-less.error`](../spec/09-traits.md#r-trait.by.trait-less.error) |
+
+**Still open after M26.** The spec lists the first three as
+[undecided parts](../spec/14-annotations.md#undecided-parts). The fourth
+asks how to read an existing rule that M26 now reaches:
+
+| Question | Effect | **Recommendation** |
+| --- | --- | --- |
+| A generic target | `impl[T] Box[T] by Structure:` and `impl Box[i32] by Structure:` both parse; neither has a meaning. | Only the declaration's own parameters, without bounds, as `impl[T] Box[T] by Structure:`. Any other header is `misplaced-derivation`. |
+| Several trait-less blocks for one type | Two blocks that both write `name =` would depend on source order. | At most one per type, so shared metadata has one place; a second is `overlapping-impl`. |
+| Unused facts from a `Self` line | [`annot.fact.unused-non-std`](../spec/14-annotations.md#r-annot.fact.unused-non-std) reports on a decorator, and a `Self` line has none. | The same warning, reported on the `Self` line. |
+| A member line's right side | [`annot.line.right`](../spec/14-annotations.md#r-annot.line.right) says "a list expression". `annotate` accepted any expression, so `name = shared_list` was valid. | Any expression of a list type, so a reusable list needs no spread. The tour writes `[shared_list...]` until this is settled. |
 
 ### Current Design: Full Example (M1-M14)
 

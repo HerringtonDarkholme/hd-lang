@@ -57,7 +57,7 @@ intrinsics.
 | Topic | Today | Rule |
 | --- | --- | --- |
 | Type-level decorator | `@value` before a data type or enum attaches a type-level fact | [`annot.fact.type-level-decorator`](../spec/14-annotations.md#r-annot.fact.type-level-decorator) |
-| Member decorator | `@value` before a field, a variant, or a payload parameter attaches member metadata | [Prefix Decorators](../spec/14-annotations.md#prefix-decorators), [`annot.fact.member`](../spec/14-annotations.md#r-annot.fact.member) |
+| Member decorator | `@value` before a field, a variant, or a payload parameter attaches member metadata | [Prefix Decorators](../spec/14-annotations.md#prefix-decorators), [`annot.fact.member-metadata`](../spec/14-annotations.md#r-annot.fact.member-metadata) |
 | Parameter decorator | Only on value parameters of module-level named functions | [`grammar.fn.decorator-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-targets) |
 | Function decorator | Parses, then rejected | [`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function), `decorator-not-annotator` |
 | Newtype decorator | Only `@derive` | [`grammar.annot.newtype-derive`](../spec/02-grammar.md#r-grammar.annot.newtype-derive) |
@@ -1118,8 +1118,8 @@ existing diagnostic, not a parser result.
 | 9 | Option 2, all uses | parses |
 | 10 | Option 3 | `syntax-error` at line 4, the first line marked `# hypothetical syntax` |
 | 11 | Option 4 | parses |
-| 12 | Option 5, targets | `syntax-error` at line 1, marked `# hypothetical syntax`: `annotate` is a reserved word |
-| 13 | Option 5, bootstrapping | `syntax-error` at line 1, marked `# hypothetical syntax` |
+| 12 | Option 5, targets | `syntax-error` at line 1, marked `# hypothetical syntax`: `annotate` was a reserved word. Parses since Typed Derivation M26 was applied (2026-09-28) |
+| 13 | Option 5, bootstrapping | `syntax-error` at line 1, marked `# hypothetical syntax`. Parses since Typed Derivation M26 was applied (2026-09-28) |
 | 14 | Option 5, kind-only variant | parses |
 | 15 | Generic Targets | parses |
 | 16 | Targets Without A Type | `syntax-error` at line 2 and `decorator-not-top-level` at line 3, both on lines marked `# hypothetical syntax` |

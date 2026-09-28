@@ -287,6 +287,8 @@ type and have that policy checked against the storage it uses.
 standalone syntax:
 
 ```text
+use std.structure.Structure
+
 data User:
     id: UserId
     deleted: bool
@@ -296,7 +298,7 @@ data Post:
     id: PostId
     userId: UserId
 
-annotate Post:
+impl Post by Structure:
     userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
 ```
 

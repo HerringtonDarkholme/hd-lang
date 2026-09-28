@@ -329,6 +329,9 @@ impl Encode for Order by Structure:
 ```
 
 `cache = pass` leaves a member out, and `build` fills it from its default.
+Shared metadata that every derivation sees can also be written away from the
+declaration, in a trait-less block such as `impl User by Structure:` with the
+same member lines; see [Using Annotations](#using-annotations).
 Facts and member metadata are `List[Any]` values evaluated once at compile
 time, so they must be requirement-free and may not reach `block_on`. A
 decorator before a function is still an error. A newtype has no derivation
@@ -536,7 +539,7 @@ message := match status:
     JobStatus.Failed => "failed"
 ```
 
-`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed. In `annotate User: pass`, it attaches no metadata.
+`pass` is the no-op expression and evaluates to `void`. It is useful when syntax requires a body but no operation is needed, as in `data Empty: pass`.
 
 ### Deferred cleanup
 
@@ -2335,32 +2338,42 @@ fn get_user(
     ...
 ```
 
-The field decorator expands to `annotate User: display_name = [max_len(80)]`
-and attaches metadata to its field shape. The embedded-field decorator
-similarly expands to `annotate Post: Timestamps = [flatten()]` and does not
-decorate members promoted from `Timestamps`. Parameter decorators expand to
-metadata in `annotate get_user` and are attached to its `ParamShape`. A
+The field decorator attaches `max_len(80)` to the metadata of
+`display_name`, visible through its field shape. The embedded-field
+decorator attaches `flatten()` to `Timestamps` and does not decorate members
+promoted from `Timestamps`. A parameter decorator attaches metadata to the
+parameter's `ParamShape`; it is the only way to give a parameter metadata. A
 decorator before a function declaration itself is an error: function
 targets, such as tool adapters, are still undecided.
 
-Decorators and `annotate` blocks are module-level. Local declarations cannot
-carry member metadata.
-
-Use `annotate Target` to attach metadata to existing members:
+To write shared metadata away from a long declaration, use a trait-less
+derivation block. It names no trait, derives nothing, and holds only member
+lines, which every derivation of the type and its shape see:
 
 ```text
+use std.structure.Structure
+
 data User:
+    @max_len(80)
     display_name: string
     active: bool
 
-annotate User:
-    display_name = [min_len(1), max_len(80)]
+impl User by Structure:
+    display_name += [min_len(1)]
 ```
+
+A `+=` line appends after the member's decorator values, and a `=` line
+replaces them. A per-trait derivation block, such as
+`impl Encode for User by Structure:`, then edits the result for that one
+derivation. The block lives in the type's module. Decorators and trait-less
+blocks are module-level, so local declarations cannot carry member metadata.
 
 Metadata is contextually typed as `List[Any]`, so any value may be
 attached, and metadata values and reusable lists are ordinary values:
 
 ```text
+use std.structure.Structure
+
 let display_name_metadata: List[Any] = [
     min_len(1),
     max_len(80),
@@ -2369,8 +2382,8 @@ let display_name_metadata: List[Any] = [
 data User:
     display_name: string
 
-annotate User:
-    display_name = display_name_metadata
+impl User by Structure:
+    display_name = [display_name_metadata...]
 ```
 
 Metadata values are evaluated once, at compile time, and must be

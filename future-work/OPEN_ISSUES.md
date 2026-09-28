@@ -91,9 +91,11 @@ fn greet() -> void $ Console:
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Decided.** Owner decisions M1-M23 in
+**Decided.** Owner decisions M1-M26 in
 [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md) are
-applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation).
+applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation);
+M26 replaced the `annotate` block with the
+[trait-less derivation block](../spec/14-annotations.md#trait-less-derivation-blocks).
 The prototype implements them by lowering; its gaps are the `TD` rows of
 `test/portable/KNOWN_FAILURES.tsv`, and the questions the prototype pass
 raised are in
@@ -118,6 +120,9 @@ for the owner:
 | Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library ([STDLIB](STDLIB.md#clone)). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library ([STDLIB](STDLIB.md#derived-function-cache)). |
+| Generic trait-less blocks (M26) | How a trait-less derivation block for a generic type is written, and whether its header may name other type arguments. |
+| Several trait-less blocks (M26) | Whether one type may have more than one trait-less block, and in which order their lines apply. |
+| Unused facts from a block (M26) | Whether a type-level fact from a trait-less block's `Self` line gets `unused-derivation-fact`, and where. |
 | Function targets | Deriving for functions, and what a decorator before a function means ([FN_TYPE](FN_TYPE.md) questions 9 and 10). Chapter 14's facets and annotators are removed (decision 10). |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
