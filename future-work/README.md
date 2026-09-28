@@ -19,10 +19,11 @@ language specification:
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Testing Redesign](TESTING.md) records the owner's test redesign
-  decisions T1-T34 (a `tests:` block, `it("name"):` cases, `_test.hd`
+  decisions T1-T51 (a `tests:` block, `it("name"):` cases, `_test.hd`
   modules, `tests/` integration tests, a `Termination` trait and `ExitCode`
-  shared with `main`, `it_each`, and snapshot tests). The language parts are
-  in the specification; T33 (a derivable `Debug`) waits on open questions.
+  shared with `main`, `it_each`, a derivable `Debug`, property tests, and
+  snapshot tests). The language parts are in the specification, with a few
+  follow-up questions for the owner.
   The runner and library parts are in
   [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
   [Standard Library](STDLIB.md#testing-layer).

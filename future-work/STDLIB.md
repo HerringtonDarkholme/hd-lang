@@ -43,14 +43,14 @@ every user module that already declares it.
 | Module | Names fixed today | Source |
 | --- | --- | --- |
 | `std.core` | primitives, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` | [Prelude](../spec/10-modules.md#prelude) |
-| `std.format` | `Display` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md) |
+| `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.iter` | `Iterator`, `Iterable` | [For Loops](../spec/06-control-flow.md) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of` | [Annotations](../spec/14-annotations.md) |
-| `std.testing` | `assert`, `assert_equal` | [Standard Testing](../spec/10-modules.md#standard-testing) |
+| `std.testing` | `assert`, `assert_equal`, `it`, `it_each`, `it_prop`, `it_prop_with`, `snapshot`, `snapshot_file` | [Standard Testing](../spec/10-modules.md#standard-testing) |
 | `std.resource` | `ResourceError[E]` | [Wasm Boundary](../spec/10-modules.md#wasm-boundary) |
 | `std.convert` | `From[T]` | [Conversion Trait](../spec/09-traits.md#conversion-trait) |
 | `std.error` | `Error` (a `Display` subtrait whose members all have defaults) | [Error Trait](../spec/09-traits.md#error-trait) |
@@ -1370,19 +1370,33 @@ declares the test-case functions, and adds four groups.
 
 The test-case functions are specified in
 [Test Cases](../spec/10-modules.md#test-cases), from
-[Testing](TESTING.md#owner-decisions) T16 and T31:
+[Testing](TESTING.md#owner-decisions) T16, T31, T40, T41, and T47. All four
+are ordinary functions; only their registration is special. Each is called
+only directly in test position, with a literal name and `it`'s literal
+options.
 
 | Name | What it is | How code reaches it |
 | --- | --- | --- |
-| `it` | A compiler intrinsic; each call at the top level of test code registers one test case. | The prelude supplies it, so it cannot be shadowed. |
-| `it_each` | An ordinary function; one test case per row, named `name[i]`. | `use std.testing.it_each` |
+| `it` | One test case; the body is a trailing block or `body=`. | The prelude supplies it, so it cannot be shadowed. |
+| `it_each` | One test case per row, named `name[i]`; the body is `body=fn!(row: A): ...`. | `use std.testing.it_each` |
+| `it_prop`, `it_prop_with` | One property test case; the body is `prop=fn!(value: T): ...`. | `use std.testing.{it_prop, it_prop_with}` |
 
 ```text
 use std.process.Termination
 
-pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R:
+pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_panic: string? = .None,
+                             timeout: string? = .None, body: fn!() -> T $ R) -> void $ R:
+    pass
+
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
+                                      expect_panic: string? = .None, timeout: string? = .None,
+                                      body: fn!(A) -> T $ R) -> void $ R:
     pass
 ```
+
+`timeout` stays a string until literal suffixes are applied; then it takes
+a `Duration`, as in `timeout=5s`
+([Testing](TESTING.md#owner-decisions), after T51).
 
 Assertion helpers, same shape:
 
@@ -1434,12 +1448,12 @@ Later entries win, so a test replaces one provider after the spread. The
 stateful providers enter the context with `mut` access, so code under test
 can advance the clock, step the generator, and write files.
 
-Snapshot functions compare a string with expected text (T30, T32). The
-signatures below are drafts; the exact signatures, and whether `expect` must
-be a literal, are open ([Testing](TESTING.md#still-open)):
+Snapshot functions compare a string with expected text (T30, T32). Their
+signatures are specified in [Snapshots](../spec/10-modules.md#snapshots)
+(T49), and `expect` must be a string literal:
 
 ```text
-pub fn snapshot(text: string, expect: string) -> void:
+pub fn snapshot(text: string, expect: string = "") -> void:
     pass
 
 pub fn snapshot_file(text: string) -> void:
@@ -1452,11 +1466,21 @@ literal in the source. `snapshot_file` takes no name: the runner names its
 file from the running test, under the package's one `__snapshots__/` folder
 (T34), as [Snapshot Tests](RUNTIME_AND_LIBRARY.md#snapshot-tests) lays out.
 
-`debug(x)` renders a derivable `Debug` trait (T33). `std` implements it for
-primitives and collections, and its output is stable, field by field, and
-multi-line. `assert_equal` is to require `T < Eq + Debug`, so a failure shows
-both values. T33 is decided but not in the specification: `Debug`'s module,
-prelude status, and members are open.
+`debug(x)` renders the derivable `Debug` trait (T33, T39, T48), specified in
+[Debug Trait](../spec/09-traits.md#debug-trait). `std.format` declares it
+beside `Display`, and both `Debug` and `debug` are prelude names:
+
+```text
+pub trait Debug:
+    fn debug(self, out: mut DebugWriter) -> void
+```
+
+`DebugWriter` is a structured writer with builder calls, like Rust's
+`debug_struct` and `field`; its API is designed with the library. The
+derived implementation is a walker over the members, and `debug(x) -> string`
+prints stable, multi-line, consistently indented output. `std` implements
+`Debug` for primitives, collections, `T?`, `Result`, and tuples.
+`assert_equal` requires `T < Eq + Debug`, so a failure shows both values.
 
 Property testing stays a library facility (T12), as
 [Runtime and Library Design](RUNTIME_AND_LIBRARY.md#property-testing)
@@ -1466,14 +1490,22 @@ constraints use a plain generator `fn(mut Choices) -> T`. The runner shrinks
 by replaying smaller choice streams through the same generator, so no type
 needs shrink code (T25, T35). Properties register with `it_prop` and
 `it_prop_with` (T36); failing streams are committed under
-`__regressions__/` (T37); the budget is 100 cases (T38). The draft
-signatures, from TESTING.md:
+`__regressions__/` (T37); the budget is 100 cases (T38), and shrinking
+stops after 500 attempts, reporting the smallest failing input so far,
+marked "shrinking stopped early" (T51). A property body returns `void`, or
+`Result[void, Error]` when it uses `?`, and an `.Err` is a failing case
+shrunk like an assertion failure (T50). The signatures, with `it`'s options
+(T41) in the order the specification uses for `it_each`:
 
 ```text
-pub fn it_prop[T < Arbitrary](name: string, prop: fn!(T) -> void, cases: i32 = 100) -> void:
+pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
+                                               expect_panic: string? = .None, timeout: string? = .None,
+                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 
-pub fn it_prop_with[T](name: string, gen: fn(mut Choices) -> T, prop: fn!(T) -> void, cases: i32 = 100) -> void:
+pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                        expect_panic: string? = .None, timeout: string? = .None,
+                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void:
     pass
 ```
 

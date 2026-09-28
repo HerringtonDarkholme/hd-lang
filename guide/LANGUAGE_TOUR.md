@@ -225,7 +225,7 @@ Integer values also support bitwise operators:
 ```text
 masked := flags & mask
 combined := read | write
-toggled := flags ^ debug
+toggled := flags ^ verbose
 inverted := ~mask
 left := value << 2
 right := value >> 1
@@ -267,7 +267,10 @@ data User:
 ```
 
 `@derive` is a compiler intrinsic: it generates ordinary trait
-implementations from the data or enum shape. Derived equality compares every
+implementations from the data or enum shape. `@derive(Debug)` also works,
+through the `Debug` trait's template; `debug(value)` then renders the value
+as stable, multi-line text for tests and diagnostics, apart from the
+user-facing `Display`. Derived equality compares every
 declared field, including embedded fields; enum equality also distinguishes
 variants. It does not detect reference cycles, so comparison may exhaust the
 stack when it repeatedly traverses one.
@@ -1112,6 +1115,21 @@ fn bad_connect(host: string, token: string = read_secret!("TOKEN")) -> Connectio
 Function types do not carry purity, so a default cannot call through a
 function value or dynamic trait method; a named callable must have a verified
 purity summary.
+
+A final function-typed parameter may follow defaulted parameters, as in
+Kotlin and Swift. A trailing block or a named argument supplies it, so the
+options before it can be left out:
+
+```text
+fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:
+    body()
+
+fn run() -> void:
+    retry(3):
+        pass
+    retry(3, backoff=10):
+        pass
+```
 
 Use varargs when a function accepts zero or more positional arguments of the same type:
 
@@ -2040,7 +2058,7 @@ assertions:
 ```text
 use std.testing.assert_equal
 
-@derive(Eq)
+@derive(Eq, Debug)
 data DbError:
     message: string
 
@@ -2061,6 +2079,8 @@ tests:
 
 A test case passes when its body completes, and fails on a panic, including
 a failed assertion. Test instances do not share top-level mutable state.
+`assert_equal` needs `Eq` and `Debug` on the compared type, so a failure can
+show both values; derive both, as `DbError` does.
 
 A test body has a fixed result. Without `?` it is `void`. With `?` it is
 `Result[void, Error]`, where `Error` is the erased `std.error.Error`, so the
@@ -2090,10 +2110,12 @@ tests:
         .Ok()
 ```
 
-Options come before the body as literal named arguments: `ignore="reason"`,
-`expect_panic="category"`, and `timeout="5s"`. For table tests,
-`std.testing.it_each` registers one test case per row, named `name[i]`. Its
-body takes the row, so it is an explicit `fn!` closure:
+`it` is an ordinary function whose defaulted options come before its final
+`body` parameter. Options are literal named arguments: `ignore="reason"`,
+`expect_panic="category"` with a panic category, and `timeout="5s"`. For
+table tests, `std.testing.it_each` registers one test case per row, named
+`name[i]`, and takes the same options. Its body takes the row, so it is an
+explicit `fn!` closure passed as `body=`:
 
 ```text
 use std.testing.{assert_equal, it_each}
@@ -2106,16 +2128,23 @@ tests:
     it("an empty list has no first item", expect_panic="index-out-of-bounds"):
         _ := first([])
 
-    it_each("doubles", [1, 2, 3], fn!(value: i32):
+    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
         assert_equal(double(value), value + value, reason="doubling adds the value to itself")
     )
 ```
 
+The test-case functions are called only directly at the top level of test
+code, never as values, so a tool can list every test without running it.
+`snapshot(text, expect="...")` from `std.testing` compares text with a
+literal that `hd test --update` rewrites. `hd check` checks test code only
+with `--tests`; `hd test` always compiles it.
+
 Larger suites get their own files. A file whose name ends in `_test.hd`,
 such as `src/billing_test.hd`, is a test module: it sees the package's
-public names and holds `it` calls at its top level. Integration tests live
-under `tests/`, see the package as a dependent does, and get real providers
-from the test profile. See [Test Modules](../spec/10-modules.md#test-modules)
+public names and holds `it` calls at its top level, with no `tests:` block.
+Integration tests live under `tests/`, see the package as a dependent does,
+and get real providers from the test profile. There, `pkg.billing` names the
+library's public API, and `use tests.common` reaches `tests/common.hd`. See [Test Modules](../spec/10-modules.md#test-modules)
 and the [test runner notes](../future-work/RUNTIME_AND_LIBRARY.md#testing).
 
 ## Requirements and Suspension

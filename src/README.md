@@ -37,6 +37,9 @@ npm run hd -- doc main examples/core.hd
 npm run check
 ```
 
+`hd check` skips the test cases and test-only functions of a `tests:` block
+unless `--tests` is given (Testing T42); `hd test` always compiles them.
+
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line
 ending in `:` starts a block, which an empty line ends. The session is kept as

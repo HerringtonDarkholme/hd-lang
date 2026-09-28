@@ -2,12 +2,12 @@
 
 Status: design record, started 2026-09-27. Owner decisions T1-T51 are
 decided. T2-T31 and T36's statement rule are applied to the specification
-on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
-[Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
-and T21 are tooling and library text, recorded in
+on 2026-09-27 (T4, T5, and T8 earlier that day), and the language parts of
+T33 and T39-T50 on 2026-09-28. T29, T30, T32, T34, T37, T38, T51, and the
+runner parts of T20, T21, and T42 are tooling and library text, recorded in
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing) and
-[Standard Library](STDLIB.md#testing-layer). The redesign may continue with
-more issues.
+[Standard Library](STDLIB.md#testing-layer). The questions this pass raised
+are under [Still Open](#still-open).
 
 ## Owner Decisions
 
@@ -204,7 +204,9 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     multi-line output via `debug(x)`. `assert_equal` requires
     `T < Eq + Debug`, so a failure shows both values. `Display` stays
     user-facing text. (The name avoids `Inspect`, since `Inspectable` is
-    the runtime type-information trait.)
+    the runtime type-information trait.) Applied 2026-09-28, with T39 and
+    T48, in [Debug Trait](../spec/09-traits.md#debug-trait) and
+    [`module.testing.assert-equal-debug`](../spec/10-modules.md#r-module.testing.assert-equal-debug).
 34. **T34: snapshot files are named from the test.** `snapshot_file(text)`
     takes no name; it writes `__snapshots__/<module>/<test-slug>-<n>.snap`
     under one `__snapshots__/` folder at the package root (beside
@@ -253,21 +255,27 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     This settles T33's home.
 40. **T40: a final function parameter may follow defaulted parameters**
     (Kotlin's and Swift's rule). This relaxes
-    [`fn.default.order`](../spec/07-functions.md#r-fn.default.order) for
+    [`fn.default.order`](../spec/07-functions.md#default-values) for
     the last parameter when its type is a function type, since a trailing
     block or a named argument always supplies it. So `it` is an ordinary
     function, not an intrinsic; only its registration (T7, T16) is special.
     The rule is general: `retry(3, backoff=...):` works too. Returning a
     function from `it(name, options)` was considered and rejected: it
     needs a new trailing-block rule, and a bare call would register
-    nothing.
+    nothing. Applied 2026-09-28 in
+    [`fn.default.order-final-function`](../spec/07-functions.md#r-fn.default.order-final-function)
+    and [Test Cases](../spec/10-modules.md#test-cases).
 41. **T41: `it_each`, `it_prop`, and `it_prop_with` follow `it`'s rules:**
     a string-literal name, the same options, top level of a `tests:` block
     or test module only. `it_each` rows are evaluated when that test runs,
     its body follows T15, and a `name[i]` may not equal another test's
-    name.
+    name. Applied 2026-09-28 in
+    [Table Tests](../spec/10-modules.md#table-tests), with `it`'s options
+    before `body` (see [Still Open](#still-open)).
 42. **T42: `hd check` checks test code only with `--tests`,** like
-    `cargo check`; `hd test` always compiles it.
+    `cargo check`; `hd test` always compiles it. Applied 2026-09-28 in the
+    [conformance command contract](../spec/conformance/README.md#command-contract):
+    the runner passes `check --tests`.
 
 43. **T43: an unknown `expect_panic` category is a compile error.** The
     categories are the specification's fixed list.
@@ -280,10 +288,17 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
 46. **T46: under `tests/`, `pkg.<module>` names the library's modules with
     only their public API,** as a dependent sees them; other integration
     modules are `tests.<name>` (shared helpers in `tests/common.hd` are
-    `use tests.common`), like Rust's `tests/common/`.
+    `use tests.common`), like Rust's `tests/common/`. T43-T46 are applied
+    2026-09-28 in [Test Cases](../spec/10-modules.md#test-cases),
+    [Tests Blocks](../spec/03-names-and-scopes.md#tests-blocks), and
+    [Test Modules](../spec/10-modules.md#test-modules), with the new codes
+    `unknown-panic-category`, `public-test-item`, and
+    `misplaced-tests-block`, and the use root `tests`.
 47. **T47: `it`, `it_each`, `it_prop`, and `it_prop_with` are only called
     directly in test position;** any other use, including as a value, is
-    `misplaced-test-case`, so tests stay statically listable.
+    `misplaced-test-case`, so tests stay statically listable. Applied
+    2026-09-28 in
+    [`module.testing.direct-call`](../spec/10-modules.md#r-module.testing.direct-call).
 48. **T48: `Debug` is a structured writer.**
     `trait Debug: fn debug(self, out: mut DebugWriter) -> void`, with
     builder calls like Rust's `debug_struct` and `field`; the derived impl
@@ -293,11 +308,14 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     `snapshot(text: string, expect: string = "")` and
     `snapshot_file(text: string)`. `expect=` must be a string literal so
     `hd test --update` can rewrite it; an empty or missing `expect` is
-    recorded on the first `--update`.
+    recorded on the first `--update`. Applied 2026-09-28 in
+    [Snapshots](../spec/10-modules.md#snapshots).
 50. **T50 (2026-09-28): a property body follows T15.** `it_prop` and
     `it_prop_with` take `prop: fn!(T) -> R` with `R < Termination`: `void`,
     or `Result[void, Error]` when the body uses `?`. An `.Err` counts as a
-    failing case and is shrunk like an assertion failure.
+    failing case and is shrunk like an assertion failure. Applied
+    2026-09-28 in
+    [`expr.try.test.row-body`](../spec/05-expressions.md#r-expr.try.test.row-body).
 51. **T51 (2026-09-28): shrinking is capped by runs.** Each shrink attempt
     is a fresh instance, so shrinking stops after 500 attempts by default
     (Hypothesis's figure) and reports the smallest failing input so far,
@@ -318,9 +336,13 @@ pub fn it[T < Termination, R](name: string, ignore: string? = .None,
 ```
 
 ```text
-# std.testing
-pub fn it_prop[T < Arbitrary, R < Termination](name: string, cases: i32 = 100, prop: fn!(T) -> R) -> void
-pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, cases: i32 = 100, prop: fn!(T) -> R) -> void
+# std.testing (T50, T51; T41 adds it's options, placed as applied)
+pub fn it_prop[T < Arbitrary, R < Termination](name: string, ignore: string? = .None,
+                                               expect_panic: string? = .None, timeout: string? = .None,
+                                               cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
+pub fn it_prop_with[T, R < Termination](name: string, gen: fn(mut Choices) -> T, ignore: string? = .None,
+                                        expect_panic: string? = .None, timeout: string? = .None,
+                                        cases: i32 = 100, shrink: i32 = 500, prop: fn!(T) -> R) -> void
 ```
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
@@ -345,7 +367,7 @@ impl[T < Termination, E < Display] Termination for Result[T, E]:
             .Ok(value) => value.report()
             .Err(_) => ExitCode(1)
 
-# std.testing: `it` is a compiler intrinsic; this is its shape without options
+# std.testing: this 2026-09-27 shape had no options; T40 gives the full one above
 pub fn it[T < Termination, R](name: string, body: fn!() -> T $ R) -> void $ R:
     pass
 ```
@@ -389,61 +411,59 @@ tests:                                      # compiled only by `hd test`
 
 ## Still Open
 
-These questions came up while applying the decisions on 2026-09-27. Each
-waits for the owner; the specification states none of them as a rule.
-Items 1, 3-9, 11, and 12 are answered by T39-T49; item 2 waits on the
-literal-suffix design; item 10 (fixture environments) is implementation work.
+These questions came up while applying the decisions. Each waits for the
+owner; the specification states none of them as a rule. The 2026-09-27
+questions 1, 3-9, 11, and 12 were answered by T39-T49 and applied on
+2026-09-28; question 2 (`timeout`) waits for literal suffixes to be applied.
 
-1. **`it` as an intrinsic.** Its options cannot be ordinary defaulted
-   parameters before `body`, since
-   [`fn.default.order`](../spec/07-functions.md#r-fn.default.order) puts
-   defaults last. The specification therefore states `it` as an intrinsic.
-   Confirm.
-2. **`timeout` syntax.** The duration syntax beyond the `"5s"` example is
-   not decided.
-3. **Unknown panic category.** Is an `expect_panic` value that names no
-   panic category an error?
-4. **`pub` inside `tests:`.** Is `pub` on an item inside a `tests:` block
-   an error?
-5. **`tests:` in test modules.** May a `_test.hd` module or an integration
-   test module have a `tests:` block? T13 says a test module holds `it`
-   calls at its top level.
-6. **Naming from `tests/`.** How does an integration test module name the
-   library and the other integration test modules? What does `pkg` mean
-   under `tests/`?
-7. **`it` as a value.** May code use `it` as a value? The specification
-   only rejects calls of `it` outside test code.
-8. **`it_each` details.** T31 fixes the signature; these parts are open:
+1. **Fixtures for test modules.** The conformance suite has no fixture
+   environment for test modules, integration tests, or test dependencies.
+   So `test-only-use`, `cyclic-test-dependency`, `misplaced-tests-block`
+   (T45), and the `tests` use root (T46) have no fixtures.
+2. **A parameterized body after options must be named.** Under T40 a
+   positional argument still binds the next parameter, and a trailing
+   block takes no parameters. So `it_each(name, rows, fn!(x: A): ...)` and
+   `it_prop(name, fn!(x: T): ...)` now bind the closure to an option and
+   fail to type-check; the body is written `body=` or `prop=`. The `it_each`
+   and `it_prop` examples in the specification, the guide, and the library
+   records changed accordingly, as did three fixtures that passed an
+   explicit `it` body by position.
 
-   | Question | Why it matters |
+   | Option | Effect |
    | --- | --- |
-   | Must its name be a string literal? | Listing tests without running them needs a static name. |
-   | Does it take `ignore`, `expect_panic`, and `timeout`? | `it` takes them; the signature above has no place for them. |
-   | May it be called outside the top level of test code? | `misplaced-test-case` covers `it` only. |
-   | Is `rows` evaluated in each case's own instance? | Each case runs in a fresh instance (T21). |
-   | How does `name[i]` meet `duplicate-test-name`? | An `it("name[0]")` beside `it_each("name", ...)` could clash. |
-   | What result type has its closure body when it uses `?`? | T15 covers trailing blocks only, and the body is an explicit closure. |
+   | Keep `body=` and `prop=` | No new rule; calls name the body. |
+   | Put the options after `body` for `it_each` and `it_prop` | Positional bodies work again; the options trail the closure. |
+   | Let a trailing block take parameters | A new trailing-block form, for every callee. |
 
-9. **T33 is not applied.** `assert_equal[T < Eq + Debug]` needs `Debug`'s
-   module, whether it is a prelude name, its members, and where `debug`
-   lives. Eight conformance fixtures compare user types with `assert_equal`
-   and would need a `Debug` implementation: `assert-equal-nominal`,
-   `assert-equal-nominal-unequal`, `assert-equal-generic-nominal`,
-   `assert-equal-generic-nominal-unequal`, `assert-equal-generic-primitive`,
-   `assert-equal-generic-primitive-unequal`, `assert-equal-cross-check`, and
-   `partial-equality-dispatch`. The prototype cannot parse `@derive` on data
-   types either.
-   **Recommendation:** declare `Debug` beside `Display` in `std.format` and
-   put it in the prelude, since `assert_equal` bounds on it.
-10. **Fixtures for test modules.** The conformance suite has no fixture
-    environment for test modules, integration tests, or test dependencies.
-    So `test-only-use` and `cyclic-test-dependency` have no fixtures.
-11. **`hd check` and test code.** The conformance command contract now has
-    `parse` and `check` cover a fixture's `tests:` block. Confirm that
-    `hd check` type-checks test code, although only test builds compile it.
-12. **Snapshot API.** The signatures of `snapshot` and `snapshot_file`,
-    whether `expect=` must be a literal, and the `Debug` rendering format
-    are open.
+   **Recommendation:** keep `body=` and `prop=`; it follows T40 as decided
+   and adds no rule.
+
+   ```text
+   tests:
+       it_each("doubles", [1, 2, 3], body=fn!(value: i32):
+           assert_equal(double(value), value + value, reason="doubling adds the value")
+       )
+   ```
+
+3. **Where `it_each`, `it_prop`, and `it_prop_with` take their options.**
+   T41 gives them `it`'s options without a position. The specification puts
+   them after the leading arguments (`name`, `rows`, or `gen`) and before the
+   body, as `it` does; `cases=` and `shrink=` follow them.
+   **Recommendation:** confirm this order.
+4. **`DebugWriter` in the prelude.** T39 puts `Debug` and `debug` in the
+   prelude, but not `DebugWriter`. A hand-written `impl Debug` names it, so
+   it needs `use std.format.DebugWriter`. **Recommendation:** leave it
+   imported; derived implementations, the common case, never name it.
+5. **The `tests` root outside `tests/`.** T46 defines `tests.<name>` for
+   integration test modules only. What does `use tests.common` mean in a
+   library module or a `_test.hd` module? **Recommendation:** an error in
+   both, reusing `test-only-use` for library code; a `_test.hd` module
+   sees package names only (T13).
+6. **Listing `it_each` rows.** T41 evaluates `rows` when the test runs,
+   but T29's `hd test --list` shows ids such as `billing::doubles[0]`
+   without running anything. The runner cannot list rows it has not
+   evaluated. **Recommendation:** `--list` shows one `name[..]` entry per
+   `it_each` call, and the rows appear when the test runs.
 
 The earlier [Testing Stress Test](TESTING_STRESS_TEST.md) ranks 17 problems
 found on 21 cases against T1-T13; T14-T27 answer its questions.
