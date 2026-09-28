@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T12 are
+Status: design record, started 2026-09-27. Owner decisions T1-T13 are
 decided; none is in the specification yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
@@ -74,14 +74,23 @@ more issues (property testing is folded in from
     `use` declarations (test dependencies allowed), helpers, data types, and
     `test(...)` calls. Code outside the block cannot name what is inside.
     `test(...)` may appear only at the top level of a `tests:` block, not at
-    module top level. A separate `*_test.hd` companion file was considered
-    and dropped: a child module cannot see its parent's private names, and
-    the block already groups test-only code (Rust's `#[cfg(test)] mod
+    module top level. A `*_test.hd` file that joins its module was considered
+    and dropped: it would split one module across files, and the block
+    already groups test-only code; T13 keeps `*_test.hd` as its own module (Rust's `#[cfg(test)] mod
     tests`).
 12. **T12: property testing is a `std.testing` library.** A test calls, for
     example, `testing.check(fn(order: Order): ...)`; generators come from a
     derivable `Arbitrary` trait through typed derivation, and shrinking is a
     derived build. The API is designed with the standard library.
+13. **T13: three kinds of test, each with its own view.** (1) Same-file:
+    the `tests:` block sees the module's private names. (2) Standalone
+    file: a module whose file name ends in `_test.hd` (for example
+    `src/billing_test.hd`, module `billing_test`) is an ordinary module
+    compiled only by `hd test`. It sees `pub` names package-wide like any
+    sibling module, may use test dependencies at top level, and holds
+    `test(...)` calls at its top level with no `tests:` block. (3)
+    Integration: `tests/` sees only the library's public API, as a
+    dependent does (T9).
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
