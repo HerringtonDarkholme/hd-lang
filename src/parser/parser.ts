@@ -22,7 +22,7 @@ import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { lex, type Token } from "../lexer.ts";
 import { optionalType } from "../types.ts";
 import { DecoratorParser } from "./decorators.ts";
-import { ParseFailure, type ExpressionParseResult } from "./base.ts";
+import { ParseFailure, type ExpressionParseResult, type ParseOptions } from "./base.ts";
 import {
   emptyModuleItems,
   finishTestCases,
@@ -67,17 +67,20 @@ class Parser extends DecoratorParser {
               "documentation comments cannot attach to a tests block",
               this.current().span,
             );
-          if (testsBlock)
+          const { testModule, joinedModules } = this.options;
+          if (testModule || (testsBlock && !joinedModules))
             this.fail(
-              "duplicate-tests-block",
-              "a file may have at most one tests: block",
+              testModule ? "misplaced-tests-block" : "duplicate-tests-block",
+              testModule
+                ? "a test module holds its test cases at top level, not in a tests: block"
+                : "a file may have at most one tests: block",
               this.current().span,
             );
           testsBlock = true;
           this.parseTestsBlock(items);
           continue;
         }
-        this.parseModuleItem(doc, items, false);
+        this.parseModuleItem(doc, items, this.options.testModule === true);
       }
       finishTestCases(items, (code, message, span) => this.fail(code, message, span));
     } catch (error) {
@@ -119,8 +122,8 @@ class Parser extends DecoratorParser {
         this.current().span,
       );
     // Nothing outside a `tests:` block sees its items, so none is `pub`
-    // (spec/03-names-and-scopes.md#r-names.tests.no-pub).
-    if (inTests && this.atText("pub"))
+    // (spec/03-names-and-scopes.md#r-names.tests.no-pub); a test module's may be.
+    if (inTests && !this.options.testModule && this.atText("pub"))
       this.fail(
         "public-test-item",
         "an item inside a tests block cannot be pub; share test helpers from a _test.hd module",
@@ -1489,8 +1492,8 @@ class Parser extends DecoratorParser {
   }
 }
 
-export function parse(source: string): ParseResult {
+export function parse(source: string, options: ParseOptions = {}): ParseResult {
   const lexed = lex(source);
   if (lexed.diagnostics.length > 0) return { diagnostics: lexed.diagnostics };
-  return new Parser(lexed.tokens).parse();
+  return new Parser(lexed.tokens).withOptions(options).parse();
 }

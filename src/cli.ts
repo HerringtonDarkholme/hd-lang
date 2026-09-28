@@ -183,7 +183,12 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   const path = resolve(file);
   const source = await readFile(path, "utf8");
   const profile = profileName ? RUNTIME_PROFILES[profileName] : undefined;
-  const compileOptions: CompileOptions = { hostCapabilities: profile?.hostCapabilities };
+  // A `*_test.hd` file is a test module (spec/10-modules.md#test-modules).
+  const parseOptions = path.endsWith("_test.hd") ? { testModule: true } : {};
+  const compileOptions: CompileOptions = {
+    hostCapabilities: profile?.hostCapabilities,
+    parse: parseOptions,
+  };
   const reporter = new DiagnosticReporter(
     format,
     file,
@@ -192,7 +197,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   );
   try {
     if (command === "parse") {
-      const result = parse(source);
+      const result = parse(source, parseOptions);
       if (!result.program) throw new DiagnosticError(result.diagnostics);
       console.log(`${file}: ok`);
       return 0;
@@ -290,6 +295,7 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
                 : undefined,
         providerConfigurationId: "cli-default",
         hostCapabilities: profile?.hostCapabilities,
+        parse: parseOptions,
         hostSuspensionInvoke: profile?.invoke,
         hostSuspensionPending: profile?.pending,
       };

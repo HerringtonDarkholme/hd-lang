@@ -251,7 +251,10 @@ test("Test runs the test cases, with or without main", async () => {
   assert.deepEqual(ran.stdout, ["main runs only for Run"]);
   const none = await runner.runProject(single("pub fn main() -> void: pass\n"), "test");
   assert.equal(none.status, "failure");
-  assert.equal(none.summary, "nothing to test: add a `tests:` block with `it(...)` test cases");
+  assert.equal(
+    none.summary,
+    "nothing to test: add a `tests:` block or a `_test.hd` module with `it(...)` test cases",
+  );
 });
 
 test("Test judges it_each rows, expected panics, and ignored cases as hd test does", async () => {
@@ -290,6 +293,82 @@ test("Test judges it_each rows, expected panics, and ignored cases as hd test do
     ]),
     'failure: test "panics" expecting panic index-out-of-bounds failed',
   );
+});
+
+// A `*_test.hd` file is a test module: Test links it and runs its top-level
+// test cases; Run leaves it out (spec/10-modules.md#test-modules).
+test("Test runs the test cases of _test.hd modules", async () => {
+  const files = {
+    "src/main.hd": [
+      "use pkg.billing.{late_fee}",
+      "",
+      "pub fn main() -> void $ Console:",
+      "    println(late_fee(31))",
+      "",
+      "tests:",
+      '    it("is a same-file test"):',
+      "        pass",
+    ].join("\n"),
+    "src/billing.hd": ["pub fn late_fee(days: i32) -> i32:", "    if days > 30: 5 else: 0"].join(
+      "\n",
+    ),
+    "src/billing_test.hd": [
+      "use pkg.billing.{late_fee}",
+      "use pkg.helpers_test.{overdue}",
+      "use std.testing.assert_equal",
+      "",
+      'it("charges a fee after 30 days"):',
+      '    assert_equal(late_fee(overdue()), 5, reason="one day late")',
+    ].join("\n"),
+    "src/helpers_test.hd": ["pub fn overdue() -> i32: 31"].join("\n"),
+  };
+  const project = { files, main: "src/main.hd" };
+  const tested = await runner.runProject(project, "test");
+  assert.equal(tested.summary, "2 tests passed");
+  const ran = await runner.runProject(project, "run");
+  assert.deepEqual([ran.summary, ...ran.stdout], ["exited normally", "5"]);
+
+  const failing = await runner.runProject(
+    {
+      ...project,
+      files: {
+        ...files,
+        "src/billing_test.hd": files["src/billing_test.hd"].replace("), 5,", "), 4,"),
+      },
+    },
+    "test",
+  );
+  assert.equal(
+    failing.summary,
+    'assertion-failed: runtime panic in test case "charges a fee after 30 days"',
+  );
+  const misplaced = await runner.runProject(
+    {
+      ...project,
+      files: { ...files, "src/helpers_test.hd": 'tests:\n    it("x"):\n        pass\n' },
+    },
+    "test",
+  );
+  assert.deepEqual(located(misplaced), ["src/helpers_test.hd:1:1:misplaced-tests-block"]);
+  const leaked = await runner.runProject(
+    {
+      ...project,
+      files: {
+        ...files,
+        "src/billing.hd": `use pkg.helpers_test.{overdue}\n${files["src/billing.hd"]}`,
+      },
+    },
+    "run",
+  );
+  assert.deepEqual(located(leaked), ["src/billing.hd:1:1:test-only-use"]);
+  const mistyped = await runner.runProject(
+    {
+      ...project,
+      files: { ...files, "src/helpers_test.hd": 'pub fn overdue() -> i32: "31"\n' },
+    },
+    "test",
+  );
+  assert.deepEqual(located(mistyped), ["src/helpers_test.hd:1:26:type-mismatch"]);
 });
 
 // A suspending `main!` is judged by `report()` on its result, as `main` is

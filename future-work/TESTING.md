@@ -449,7 +449,9 @@ T52 and applied the same day.
    `tests` use root inside `tests/` (T46) have no fixtures. `test-only-use`
    has one, for `use tests.common` in an ordinary module, since every
    fixture is one. The prototype pass on 2026-09-28 left this unbuilt,
-   because the spec owns the fixture format. **Recommendation:** a header
+   because the spec owns the fixture format. The prototype now runs test
+   modules (`hd test` on a `*_test.hd` file, and the playground's package
+   linker), so only the fixture format waits. **Recommendation:** a header
    like `# fixture-package-role`, such as `# fixture-test-layout: test-module`
    or `integration`, that places the fixture as `src/<name>_test.hd` or
    `tests/<name>.hd` in a synthetic package, with `--test-layout` passed to

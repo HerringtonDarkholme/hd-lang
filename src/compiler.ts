@@ -5,7 +5,7 @@ import { DiagnosticError } from "./diagnostics.ts";
 import { check, type CheckOptions } from "./checker/index.ts";
 import { emitWat } from "./emitter/index.ts";
 import type { HirProgram, ValueType } from "./hir.ts";
-import { parse } from "./parser/index.ts";
+import { parse, type ParseOptions } from "./parser/index.ts";
 import { assembleWat, type WasmArtifact } from "./wasm.ts";
 import { RuntimePanicError, runtimePanicName, UnsupportedAtRunTimeError } from "./runtime-panic.ts";
 
@@ -25,6 +25,8 @@ export interface CompileOptions extends CheckOptions {
    * unchecked, as `hd check` does without `--tests` (Testing T42).
    */
   readonly skipTestCode?: boolean;
+  /** How to parse `source`: as a test module, or as a linked package's joined modules. */
+  readonly parse?: ParseOptions;
 }
 
 export type SuspensionTraceEvent = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -125,6 +127,7 @@ export interface InstantiateOptions {
   readonly hostSuspensionCancel?: (call: HostSuspensionCall) => void;
   readonly hostSuspensionInvoke?: (call: HostSuspensionCall) => HostSuspensionOutcome;
   readonly hostSuspensionPending?: (call: HostSuspensionCall) => boolean;
+  readonly parse?: ParseOptions;
   /** A compilation of `source` to instantiate again, as for a fresh test instance. */
   readonly compilation?: Compilation;
 }
@@ -210,7 +213,7 @@ function sameEncodedHostValue(left: EncodedHostValue, right: EncodedHostValue): 
 }
 
 export function analyze(source: string, options: CompileOptions = {}): Analysis {
-  const parsed = parse(source);
+  const parsed = parse(source, options.parse);
   if (!parsed.program) return { diagnostics: parsed.diagnostics };
   const program = options.skipTestCode
     ? {

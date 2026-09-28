@@ -182,7 +182,13 @@ What works, relative to [10-modules.md](../../spec/10-modules.md):
 - modules are initialized after the modules they use, with ready modules in
   lexicographic order. Only modules reachable from the entry are linked;
 - standard-library uses (`use std.testing.assert_equal`) may repeat across
-  modules.
+  modules;
+- test modules: a `*_test.hd` file holds its test cases at top level and
+  sees public declarations package-wide. Test links every test module, and
+  Run links none unless test code uses it. A test module joins the program
+  as a `tests:` block, so it must not hold its own (`misplaced-tests-block`),
+  and code outside test code must not use it (`test-only-use`). Integration
+  test modules under `tests/` are not supported.
 
 The linker's own diagnostic codes are `invalid-module-path`,
 `duplicate-module-path`, `unknown-module`, `unknown-import`,
@@ -195,7 +201,8 @@ Not supported yet:
   renaming a package declaration with `as` are `unsupported-package-use`.
 - Linked modules share one namespace. Two modules cannot declare the same
   top-level name, even privately (`package-name-collision`), and only the
-  entry module may declare `main`.
+  entry module may declare `main`. Test case names share it too, so two
+  modules cannot name a test case alike (`duplicate-test-name`).
 - The linker checks that each `use` names a public declaration. It does not
   stop a module from naming another module's declaration without a `use`.
 - There are no dependencies (`dep.<name>`) and no `hd.toml` manifest.
@@ -209,10 +216,11 @@ The playground runs what the prototype compiler supports; see
   CLI's test profiles (`--profile`), scenarios, trace, record, and replay are
   not exposed. A program that needs another host capability, such as
   `std.host.Args`, is `nonhost-entry-requirement`.
-- `println` writes through the host `Console`. The prototype checks
-  `let console: mut Console = $.use(Console)` and a direct
-  `console.write_line!(...)` call but does not run them
-  (`unsupported-console-call`).
+- `println` writes through the host `Console` only. A direct
+  `console.write_line!(...)` call runs on the host console and on a
+  program-defined provider such as `std.console.BufferConsole`, but
+  `println` through a program-defined provider stops the run
+  (`unsupported-console-provider`).
 - Test modules (`src/billing_test.hd`) are not supported: a test case must
   sit in a `tests:` block.
 - A suspending `main!` that returns a `Result` is not judged: its `.Err` is

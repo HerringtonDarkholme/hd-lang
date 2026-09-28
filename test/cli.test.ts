@@ -220,6 +220,39 @@ test("hd run runs Console.write_line! on host and program providers", async () =
   }
 });
 
+// A `*_test.hd` file is a test module whose top level holds its test cases
+// (spec/10-modules.md#test-modules).
+test("hd test runs a _test.hd test module", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "fee_test.hd");
+    const lines = [
+      "use std.testing.assert_equal",
+      "",
+      "pub fn late_fee(days: i32) -> i32:",
+      "    if days > 30: 5 else: 0",
+      "",
+      'it("charges a fee after 30 days"):',
+      '    assert_equal(late_fee(31), 5, reason="one day late")',
+      "",
+    ];
+    await writeFile(source, lines.join("\n"));
+    const tested = await hd(["test", source]);
+    assert.match(tested.stdout, /fee_test\.hd: 1 passed/);
+
+    await writeFile(
+      source,
+      [...lines, "tests:", '    it("inner"):', "        pass", ""].join("\n"),
+    );
+    await assert.rejects(hd(["check", source]), (error: CommandResult) => {
+      assert.match(error.stdout + error.stderr, /9:1: misplaced-tests-block/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 // Each it_each row is its own test case in a fresh program instance
 // (spec/10-modules.md#table-tests and #r-module.testing.instance).
 test("hd test runs each it_each row in a fresh instance", async () => {

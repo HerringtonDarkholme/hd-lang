@@ -458,7 +458,9 @@ else`, `break`, `break value`, and `continue`;
   not the CLI): `pkg`, `self`, and `super` uses between the modules of one
   package resolve to public declarations and `pub use` re-exports, and the
   modules reachable from the entry are joined into one program in
-  initialization order. Linked modules share one top-level namespace, and
+  initialization order. A `*_test.hd` test module joins as a `tests:`
+  block, and a test build links every test module; `hd test FILE` parses a
+  `*_test.hd` file as a test module, whose top level is test position. Linked modules share one top-level namespace, and
   namespace or renaming uses of package declarations are not supported
   (`../website/playground/README.md#packages-and-modules`);
 - imported `std.resource.ResourceError[E]` as the canonical generic

@@ -15,6 +15,12 @@ import { parse } from "./parser/index.ts";
 // and does not stop one module from naming another's declaration without a
 // `use`. Module namespace uses (`use pkg.user.types`) and renaming uses
 // (`as`) of package declarations are `unsupported-package-use`.
+//
+// A `*_test.hd` file is a test module. It joins as a `tests:` block, so the
+// joined source may hold several `tests:` blocks and is parsed with
+// `joinedModules`. A test build (`LinkOptions.tests`) links every test module.
+// Test case names share the joined namespace too, so two modules must not
+// name a test case alike.
 
 export const SOURCE_ROOT = "src/";
 
@@ -35,6 +41,21 @@ interface LinkSegment {
   /** First line of the module in the linked source, 1-based. */
   readonly firstLine: number;
   readonly lineCount: number;
+  /** Columns the linker indented the module by: 4 for a test module. */
+  readonly indent: number;
+}
+
+export interface LinkOptions {
+  /**
+   * A test build (spec/10-modules.md#r-module.test.code): every test module
+   * is linked, not only those the entry module reaches.
+   */
+  readonly tests?: boolean;
+}
+
+/** Whether a package path is a test module (spec/10-modules.md#r-module.test.module). */
+export function isTestModulePath(path: string): boolean {
+  return path.endsWith("_test.hd");
 }
 
 export interface LinkedPackage {
@@ -44,9 +65,9 @@ export interface LinkedPackage {
   readonly modules: readonly PackageModule[];
   readonly diagnostics: readonly PackageDiagnostic[];
   /**
-   * The line of `source` where the entry module starts. The entry module is
-   * initialized last, so it runs to the end of `source`, and its lines keep
-   * their numbers relative to this one.
+   * The line of `source` where the entry module starts. Outside a test build
+   * the entry module is initialized last, so it runs to the end of `source`,
+   * and its lines keep their numbers relative to this one.
    */
   readonly entryLine?: number;
   /** Maps a diagnostic on the linked source back to its package file. */
@@ -114,7 +135,11 @@ interface ResolvedUse {
 }
 
 /** Links the package `files` (path to source) whose entry module is `entry`. */
-export function linkPackage(files: Readonly<Record<string, string>>, entry: string): LinkedPackage {
+export function linkPackage(
+  files: Readonly<Record<string, string>>,
+  entry: string,
+  options: LinkOptions = {},
+): LinkedPackage {
   const diagnostics: PackageDiagnostic[] = [];
   const report = (path: string, code: string, message: string, span = fileStart()): void => {
     diagnostics.push({ path, code, message, span });
@@ -137,7 +162,7 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
       continue;
     }
     folded.set(fold(identity), path);
-    const parsed = parse(files[path]!);
+    const parsed = parse(files[path]!, { testModule: isTestModulePath(path) });
     for (const diagnostic of parsed.diagnostics) diagnostics.push({ ...diagnostic, path });
     modules.set(identity, {
       path,
@@ -241,8 +266,20 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
     const imported = new Set<string>();
     const targets = new Set<PackageModule>();
     edges.set(module, targets);
+    const testNames = new Set(module.program?.testOnlyNames ?? []);
     for (const use of uses) {
       targets.add(use.target);
+      // Only test code may use a test module (spec/10-modules.md#r-module.test.non-test-use).
+      const testCode =
+        isTestModulePath(module.path) ||
+        use.declaration.names.every(({ name, alias }) => testNames.has(alias ?? name));
+      if (isTestModulePath(use.target.path) && !testCode)
+        report(
+          module.path,
+          "test-only-use",
+          `only test code may use the test module '${use.target.identity}'`,
+          use.declaration.span,
+        );
       for (const name of use.names) {
         const found = exporter(use.target, name, new Set());
         if (found === undefined)
@@ -296,15 +333,23 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
     reachable.add(module);
   };
   if (entryModule) visit(entryModule);
+  if (options.tests)
+    for (const module of modules.values()) if (isTestModulePath(module.path)) visit(module);
 
-  // Initialization order: dependencies first, ready modules by identity.
+  // Initialization order: dependencies first, ready modules by identity, and
+  // test modules after the others, so a standard use that a test module
+  // shares with library code stays outside the test module's `tests:` block.
   const order: PackageModule[] = [];
   const pending = new Set(reachable);
   while (pending.size > 0) {
     const ready = [...pending]
       .filter((module) => [...(edges.get(module) ?? [])].every((target) => !pending.has(target)))
       .sort((left, right) => (left.identity < right.identity ? -1 : 1));
-    const next = ready[0] ?? [...pending][0]!;
+    const library = [...pending].some(({ path }) => !isTestModulePath(path));
+    const next =
+      (library ? ready.find(({ path }) => !isTestModulePath(path)) : undefined) ??
+      ready[0] ??
+      [...pending][0]!;
     order.push(next);
     pending.delete(next);
   }
@@ -360,6 +405,7 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
     const move = (position: SourcePosition): SourcePosition => ({
       ...position,
       line: Math.min(Math.max(1, position.line - segment.firstLine + 1), segment.lineCount),
+      column: Math.max(1, position.column - segment.indent),
     });
     return {
       ...diagnostic,
@@ -376,48 +422,73 @@ export function linkPackage(files: Readonly<Record<string, string>>, entry: stri
   let source = "";
   let line = 1;
   for (const module of order) {
-    let text = files[module.path]!;
-    const edits: { readonly start: number; readonly end: number; readonly text: string }[] = [];
-    const moduleStd = new Set<string>();
-    for (const declaration of module.program!.uses) {
-      // A `pub use` span starts at `use`; the edit covers the `pub` too.
-      const end = declaration.span.end.offset;
-      let start = declaration.span.start.offset;
-      if (declaration.public) start = text.lastIndexOf("pub", start);
-      const newlines = text.slice(start, end).replace(/[^\n]/g, "");
-      if (!isStandardUse(declaration)) {
-        edits.push({ start, end, text: newlines });
-        continue;
-      }
-      const kept = declaration.names.filter(({ name, alias }) => {
-        const key = `${alias ?? name}=${declaration.module}.${name}`;
-        moduleStd.add(key);
-        return !importedStd.has(key);
-      });
-      if (kept.length === declaration.names.length) continue;
-      const names = kept.map(({ name, alias }) => (alias ? `${name} as ${alias}` : name));
-      const pub = declaration.public ? "pub " : "";
-      edits.push({
-        start,
-        end,
-        text:
-          kept.length === 0
-            ? newlines
-            : `${pub}use ${declaration.module}.{${names.join(", ")}}${newlines}`,
-      });
-    }
-    for (const key of moduleStd) importedStd.add(key);
-    for (const edit of edits.toReversed())
-      text = text.slice(0, edit.start) + edit.text + text.slice(edit.end);
+    let text = joinedText(module, files[module.path]!, importedStd);
     if (!text.endsWith("\n")) text += "\n";
     const lineCount = text.split("\n").length - 1;
-    segments.push({ path: module.path, firstLine: line, lineCount });
+    // A test module's top level is test position, so it joins the linked
+    // source as a `tests:` block (spec/10-modules.md#test-modules). Its
+    // top-level `pub` is dropped, since a `tests:` item cannot be `pub`;
+    // the linked modules share one namespace anyway.
+    if (isTestModulePath(module.path)) {
+      text = `tests:\n${text
+        .replace(/^pub(?=\s+(?:fn|data|enum|trait|type|use)\b)/gm, "   ")
+        .replace(/^(?=.)/gm, "    ")}`;
+      line += 1;
+    }
+    const indent = isTestModulePath(module.path) ? 4 : 0;
+    segments.push({ path: module.path, firstLine: line, lineCount, indent });
     source += text;
     line += lineCount;
   }
-  return { source, modules: order, diagnostics, locate, entryLine: segments.at(-1)?.firstLine };
+  return {
+    source,
+    modules: order,
+    diagnostics,
+    locate,
+    entryLine: segments.find(({ path }) => path === entry)?.firstLine,
+  };
 }
 
 function isStandardUse(declaration: UseDecl): boolean {
   return declaration.module.split(".")[0] === "std";
+}
+
+// A module's text in the joined source: package uses are dropped, and a
+// standard use keeps only the names that no earlier module imported
+// (`importedStd`, which this adds to). Every other line stays in place.
+function joinedText(module: PackageModule, source: string, importedStd: Set<string>): string {
+  let text = source;
+  const edits: { readonly start: number; readonly end: number; readonly text: string }[] = [];
+  const moduleStd = new Set<string>();
+  for (const declaration of module.program!.uses) {
+    // A `pub use` span starts at `use`; the edit covers the `pub` too.
+    const end = declaration.span.end.offset;
+    let start = declaration.span.start.offset;
+    if (declaration.public) start = text.lastIndexOf("pub", start);
+    const newlines = text.slice(start, end).replace(/[^\n]/g, "");
+    if (!isStandardUse(declaration)) {
+      edits.push({ start, end, text: newlines });
+      continue;
+    }
+    const kept = declaration.names.filter(({ name, alias }) => {
+      const key = `${alias ?? name}=${declaration.module}.${name}`;
+      moduleStd.add(key);
+      return !importedStd.has(key);
+    });
+    if (kept.length === declaration.names.length) continue;
+    const names = kept.map(({ name, alias }) => (alias ? `${name} as ${alias}` : name));
+    const pub = declaration.public ? "pub " : "";
+    edits.push({
+      start,
+      end,
+      text:
+        kept.length === 0
+          ? newlines
+          : `${pub}use ${declaration.module}.{${names.join(", ")}}${newlines}`,
+    });
+  }
+  for (const key of moduleStd) importedStd.add(key);
+  for (const edit of edits.toReversed())
+    text = text.slice(0, edit.start) + edit.text + text.slice(edit.end);
+  return text;
 }

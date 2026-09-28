@@ -10,6 +10,20 @@ export interface ExpressionParseResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
+export interface ParseOptions {
+  /**
+   * The file is a test module, a `*_test.hd` file (spec/10-modules.md#test-modules):
+   * its top level is in test position, its items are test code, and it holds
+   * no `tests:` block.
+   */
+  readonly testModule?: boolean;
+  /**
+   * The source joins several modules of a package, each of which may hold a
+   * `tests:` block (src/package.ts), so `duplicate-tests-block` does not apply.
+   */
+  readonly joinedModules?: boolean;
+}
+
 export abstract class ParserBase {
   // Mutable: a suite nested inside brackets gets its layout tokens spliced in
   // when the parser reaches its header (see `openNestedLayout`).
@@ -18,8 +32,15 @@ export abstract class ParserBase {
   protected readonly diagnostics: Diagnostic[] = [];
   protected activeGenericParameters: ReadonlySet<string> = new Set();
 
+  protected options: ParseOptions = {};
+
   constructor(tokens: readonly Token[]) {
     this.tokens = [...tokens];
+  }
+
+  withOptions(options: ParseOptions): this {
+    this.options = options;
+    return this;
   }
 
   // Set while parsing a declaration or closure result (02-grammar.md#types):
