@@ -1319,6 +1319,13 @@ user := convert[_, User](payload)
 Every `_` must be determined by the call arguments, expected result type, or
 generic constraints. It is not a type and cannot be used in `List[_]`.
 
+A generic function, or a generic enum's one-payload variant constructor,
+passed as an argument takes its type arguments from the call.
+`result.map_err(TaskError.Failed)` on a `Result[T, FsError]` builds
+`TaskError[FsError]`, and a parameter the call leaves unsolved is an error.
+Only use sites infer: a declaration always writes its own generic parameters
+and signature.
+
 Function generic parameters are erased at runtime by default. Mark a parameter `reified` when the function needs its concrete runtime type:
 
 ```text
@@ -1960,6 +1967,8 @@ traits such as `Database` are not injected merely because they appear on
 
 The ordinary function rules still apply. Use the `!` suffix only when `main` can suspend. A non-suspending entry point is named `main`. It may return `void` or `Result[void, E]`; the generated host adapter maps an `.Err` result to a failed invocation.
 
+On `.Err`, an error type that implements `std.error.Error` prints its message and then each cause as `caused by: ...`; any other error prints its `Display` text. The process exits with status 1, unless the error type implements `std.process.ExitStatus`, whose `status()` then chooses the code.
+
 `pub` controls hd-lang module visibility, not Wasm export visibility. Other public functions are not automatically exported from the compiled component. Tools, workflows, and library-facing Wasm functions become host-visible only through explicit registration, which generates the required boundary adapter. The exact registration API is designed separately for each integration.
 
 Registered Wasm boundaries accept only recursively boundary-safe structural values. The initial boundary-safe forms are primitive scalars, `string`, tuples, `List[T]`, `Map[K, V]`, data types, enums, `T?`, and `Result[T, E]`, provided every contained type is also boundary-safe:
@@ -1977,7 +1986,7 @@ fn lookup_users!(request: LookupRequest) -> Result[List[User], LookupError] $ Da
     ...
 ```
 
-Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
+Mutable types, trait values, closures, and live runtime handles cannot appear anywhere in an exported parameter or result. So an error type that holds an erased `Error` cannot cross either; convert it with `std.error`'s `report_of` to an `ErrorReport` first. Requirement keys such as `Database` are host bindings and do not cross as serialized function arguments. Export registration checks the complete signature and generates the boundary conversion.
 
 Maps iterate in insertion order. Replacing an existing key keeps its position;
 removing and reinserting it moves it to the end. Map equality and boundary
@@ -2013,6 +2022,22 @@ test "loads the count":
 
 A test passes when the block completes normally and fails on an assertion
 failure or panic. Test instances do not share top-level mutable state.
+
+`?` works in a test block as if the block returned `Result[void, Error]`. An
+error that implements `Error` propagates as usual, and any other error with
+`Display`, such as a `string`, is wrapped in a standard message error. A
+propagated `.Err` fails the test and prints the error chain:
+
+```text
+use std.testing.assert_equal
+
+fn parse_digit(text: string) -> Result[i32, string]:
+    if text == "7": .Ok(7) else: .Err("not a digit: " + text)
+
+test "parses a digit":
+    digit := parse_digit("7")?
+    assert_equal(digit, 7, reason="the digit parses")
+```
 
 ## Requirements and Suspension
 

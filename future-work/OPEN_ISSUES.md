@@ -289,6 +289,39 @@ design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
 
+### Error Entry-Point Follow-Ups
+
+**Decided.** [Error conversion decisions](ERROR_CONVERSION.md#owner-decisions)
+13, 14, 16, and 17 are applied: a failing entry point or test prints the
+error chain, and `std.process.ExitStatus` chooses the exit status
+([Entry Results](../spec/10-modules.md#entry-results)). The printer walks
+the library's `chain`, which stops at a part it already visited
+([STDLIB](STDLIB.md#stderror)). Two details stay open; the spec says
+nothing about them yet.
+
+**Question 1: status 0 and out-of-range statuses.** `status()` returning 0
+reports success for a failed run, and POSIX hosts keep only the low 8 bits.
+Candidates: (A) 0 and values outside 1 to 255 exit with 1; (B) the runtime
+profile maps them; (C) pass the value through unchanged.
+**Recommendation:** A, so a failure never exits with 0.
+
+```text
+impl ExitStatus for CliError:
+    fn status(self) -> i32: 256    # exits with 0 on POSIX under C
+```
+
+**Question 2: `ExitStatus` behind the erased `Error`.** The rule reads the
+static error type, so `main() -> Result[void, Error]` always exits with 1,
+even when the concrete error implements `ExitStatus`. Candidates: (A) keep
+the static rule; (B) the runtime also checks the concrete type.
+**Recommendation:** A, as decision 17 is worded; a tool that needs codes
+returns its own error type.
+
+```text
+pub fn main() -> Result[void, Error]:
+    .Err(CliError.Usage)    # exits with 1, not CliError's status 2
+```
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:

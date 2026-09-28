@@ -167,10 +167,10 @@ Decided 2026-09-26:
     on data field lines. Not yet applied to 02 or 08.
 13. **A failing entry point prints the error chain** (2026-09-27, review
     R2) when its error type implements `Error`; otherwise it prints
-    `Display.to_string` as today. Not yet applied to 10.
+    `Display.to_string` as today. Applied 2026-09-27 (see below).
 14. **`?` in test blocks** (2026-09-27, review R1): a `test` block is a
     propagation target as if it returned `Result[void, Error]`; `.Err` fails
-    the test and prints the chain. Not yet applied to 05.
+    the test and prints the chain. Applied 2026-09-27 (see below).
 15. **`std.error` sketches `.context(...)` and `ErrorReport`** (2026-09-27,
     review R3): `fn context[T, E < Error](self: Result[T, E], message:
     string) -> Result[T, Error]` producing a `Context { message, cause }`
@@ -251,6 +251,36 @@ Applied 2026-09-26:
   ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
   `error.find[T]()`, `chain`, and `root_cause` are library API in
   [STDLIB](STDLIB.md#stderror).
+
+Applied 2026-09-27:
+
+- **Decision 13:** [Entry Results](../spec/10-modules.md#entry-results)
+  prints an `Error` chain, the message and then each cause as
+  `caused by: ...` (`r[module.entry.err-render-chain]`); other error types
+  still print `Display.to_string`.
+- **Decisions 14 and 16:** [Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks)
+  makes a `test` block a propagation target as if it returned
+  `Result[void, Error]`, wraps any other `E < Display` in a std message
+  error, and fails the test on a propagated `.Err`
+  (`r[expr.try.target.test]`, `r[expr.try.test.display]`).
+- **Decision 17:** [Exit Status](../spec/10-modules.md#exit-status)
+  declares `std.process.ExitStatus` and uses `error.status()`, otherwise 1
+  (`r[module.entry.exit-status]`).
+- **Decision 18:** no rule; a note in
+  [Boundary-Safe Values](../spec/10-modules.md#boundary-safe-values) points
+  to `report_of`.
+- **Decision 19:** [Generic Function Values](../spec/07-functions.md#generic-function-values)
+  (`r[fn.type.generic.argument]`) and
+  [Variant Constructors As Function Values](../spec/08-data-and-enums.md#variant-constructors-as-function-values)
+  (`r[data.enum.fn-value.generic-argument]`) solve a generic value's type
+  arguments with the call's; an unsolved one is
+  `unresolved-generic-placeholder`.
+- **Decision 20:** [Unsupported Aggregate Extensions](../spec/08-data-and-enums.md#unsupported-aggregate-extensions)
+  lists non-exhaustive enums (`r[data.unsupported.non-exhaustive]`).
+
+The prototype implements decision 19 and declares `ExitStatus`; test-block
+`?` and entry-point chains are known failures (`EC-14`, `EC-17` in
+`test/portable/KNOWN_FAILURES.tsv`).
 
 ## Current Design
 
@@ -344,14 +374,16 @@ fn run(path: string) -> Result[void, Error]:
    enters a durable history; code converts it to a domain enum or a report
    value first (decision 6).
 8. **Entry point:** `pub fn main() -> Result[void, E]` with `E < Display`
-   exits with status 1 on `.Err`; when `E` implements `Error` (including the
-   erased `Error`) the runtime prints the message and then each cause as
-   `caused by: ...`, otherwise `Display.to_string` (decision 13;
-   [10 Executable Entry Point](../spec/10-modules.md#executable-entry-point)
-   today prints only `Display.to_string`).
+   exits with status 1 on `.Err`, or with `error.status()` when `E`
+   implements `std.process.ExitStatus` (decision 17); when `E` implements
+   `Error` (including the erased `Error`) the runtime prints the message and
+   then each cause as `caused by: ...`, otherwise `Display.to_string`
+   (decision 13; [10 Entry Results](../spec/10-modules.md#entry-results)).
 9. **Tests:** `?` works in a `test` block as if the block returned
-   `Result[void, Error]`; an `.Err` fails the test and prints the chain
-   (decision 14; 05 Propagation today gives test blocks no target).
+   `Result[void, Error]`, and also accepts any `E < Display`, wrapped in a
+   std message error; an `.Err` fails the test and prints the chain
+   (decisions 14 and 16;
+   [05 Propagation In Test Blocks](../spec/05-expressions.md#propagation-in-test-blocks)).
 10. **Context and reports** (decision 15, `std.error` API):
     `result.context("loading rules")` wraps any `E < Error` into the erased
     `Error` as a std `Context { message, cause }`; `ErrorReport { message,
@@ -368,9 +400,13 @@ fn run(path: string) -> Result[void, Error]:
 
 Not decided, and deliberately not specified:
 
-- **`@error`** (decision 10) and decisions 12-14 (payload-parameter
-  annotations, chain printing at the entry point, `?` in test blocks) are
-  decided but not yet in the specification (02, 05, 08, 09, 10).
+- **`@error`** (decision 10) and decision 12 (payload-parameter
+  annotations) are decided but not yet in the specification (02, 08, 09).
+- **The std message error** of decision 16 has no name yet; it is
+  library API for [STDLIB](STDLIB.md#stderror).
+- **Open follow-ups** from decision 17 (out-of-range or zero exit statuses,
+  and `ExitStatus` on an erased `Error`) are owner questions in
+  [Open Issues](OPEN_ISSUES.md#error-entry-point-follow-ups).
 - **`Console.write_line!` taking `mut self`,** raised by the recording
   `BufferConsole` in [STDLIB](STDLIB.md#stdconsole), is tracked with
   [Mutable Host Providers](OPEN_ISSUES.md#mutable-host-providers), not here.

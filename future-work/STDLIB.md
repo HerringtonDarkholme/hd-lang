@@ -1085,6 +1085,16 @@ pub data ScriptedProcess:
     outputs: Map[string, Output]
 ```
 
+`std.process` also declares `ExitStatus`, which lets an entry point's error
+type choose the exit status
+([Exit Status](../spec/10-modules.md#exit-status), Error Conversion
+decision 17). Unlike `Process`, it needs no host binding:
+
+```text
+pub trait ExitStatus:
+    fn status(self) -> i32
+```
+
 ### `std.observe` and `std.log`
 
 These take the draft in

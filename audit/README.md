@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-27 the prototype passes 1,043 of the 1,143 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 100 are listed in
+On 2026-09-27 the prototype passes 1,049 of the 1,151 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 102 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 100 still fail.
+decision below; all 102 still fail.
 
 ## Specification Follow-Ups
 
@@ -56,3 +56,5 @@ cases.
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
 | GQ11 | `[` directly after `annotate` always opens generic parameters. The prototype has no `annotate` declarations. |
 | GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
+| EC-14 | Error conversion decisions 14 and 16: a `test` block is a propagation target, as if it returned `Result[void, Error]`, and wraps any other `E < Display` in a std message error. The prototype rejects `?` in a test block, which also makes its two invalid fixtures pass. |
+| EC-17 | Error conversion decisions 13 and 17: a failing entry point prints an `Error` chain and exits with `ExitStatus.status()`. The prototype declares `std.process.ExitStatus`, but `main` may still return only `Result[void, ConsoleError]`. |
