@@ -389,8 +389,9 @@ member ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L5).
 
 **Open.** Which operators, their signatures (same-type or mixed operands,
 output types), coherence for primitives, compound assignment, and whether
-comparison operators map to the existing comparison traits. Needs a
-brainstorm pass.
+comparison operators map to the existing comparison traits. The brainstorm
+[Operator Traits](OPERATOR_TRAITS.md) compares four trait shapes and asks
+eight questions; it recommends Rust's `Add[Rhs]` with an associated `Out`.
 
 ## Runtime, Library, ABI, And Tooling Work
 

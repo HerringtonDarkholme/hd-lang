@@ -75,6 +75,8 @@ language specification:
   constructor data into per-variant constants; the decisions are applied.
 - [Literal Suffixes](LITERAL_SUFFIXES.md) surveys unit literals such as
   `5s` and `12px` and compares four designs, with questions for the owner.
+- [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
+  compares four `std.ops` trait shapes, with questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 
