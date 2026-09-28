@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T8 are
+Status: design record, started 2026-09-27. Owner decisions T1-T9 are
 decided; none is in the specification yet. The redesign may continue with
 more issues (property testing is folded in from
 [Runtime And Library](RUNTIME_AND_LIBRARY.md#testing)).
@@ -57,6 +57,11 @@ more issues (property testing is folded in from
    `StatusCode`, the erased-`Error` exit rule, and the zero check, all of
    which were applied to the specification on 2026-09-27 and must be
    removed. A test fails when its body's `report()` is not `ExitCode(0)`.
+9. **T9: `tests/` is for integration tests.** The separate test root keeps
+   its role, like Rust's `tests/`: its modules are compiled only by
+   `hd test`, see only the package's public surface as a dependent would,
+   and may use test dependencies anywhere. Unit tests live beside the code
+   with `test(...)` and `@test` items.
 
 The signature, as spelled out on 2026-09-27 (T8 fixes `Outcome` as
 `ExitCode`):
@@ -107,5 +112,4 @@ test("bills on time"):
 ## Still Open
 
 - Property testing API (library-level, `std.testing`).
-- Whether `tests/` (the separate test root) keeps its current role.
 - Test filtering, naming rules for duplicate names, and parameterized tests.
