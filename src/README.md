@@ -463,14 +463,12 @@ else`, `break`, `break value`, and `continue`;
   and `1.5kb` lex as one number with a suffix, and the parser desugars them
   to `ms::from_literal(250)`, folding a directly applied `-` into the
   literal. Radix literals take no suffix, and a reserved-word suffix such as
-  `5else` is `invalid-token`. An imported `std.ops.LiteralSuffix` is
-  declared in the compiled module, so a library suffix type works.
-  Importing a `std.time` name declares `Duration` (an `i64` count of
-  milliseconds, in the prototype's own `millis` field) and each imported
-  suffix newtype of `ms`, `s`, `min`, and `h` with its
-  `LiteralSuffix[i64, Duration]` implementation, under hidden names for
-  what is not imported. A test `timeout` is checked as a `Duration` and
-  enforced after the body returns (see `hd test` above);
+  `5else` is `invalid-token`. `std.ops.LiteralSuffix` and `std.time`
+  (`Duration`, an `i64` count of milliseconds in the prototype's own
+  `millis` field, and the suffix newtypes `ms`, `s`, `min`, and `h`) come
+  from the [standard library](#standard-library), so a library suffix type
+  works. A test `timeout` is checked as a `Duration` and enforced after the
+  body returns (see `hd test` above);
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
@@ -484,7 +482,8 @@ else`, `break`, `break value`, and `continue`;
   closure's and must be `void` or a `Result` with a `Display` error, else
   `unsatisfied-trait-bound`; a test whose result is `.Err` fails. Only the
   outer `Result` tag is read. Importing `std.process.ExitCode` or
-  `Termination` declares both (Testing T8), with the implementations for
+  `Termination` declares both from the
+  [standard library](#standard-library) (Testing T8), with the implementations for
   `ExitCode`, `void` (whose `self` is a null `anyref`), and `Result[T, E]`;
   `main` may return `void`, `ExitCode`, or a `Result` over them (a program's
   own `Termination` type is reported as not yet supported), and `hd run`
@@ -575,7 +574,8 @@ else`, `break`, `break value`, and `continue`;
   identity, argument/result and provider configuration checks, and CLI sidecar
   commands;
 - strings backed by Wasm GC byte arrays, with scalar-counting `string.len()`;
-- White_Space `string.trim()` and default-case `string.lower()` through a
+- White_Space `string.trim()`, and default-case `string.lower()` and
+  `std.text`'s `string.upper()`, through a
   bytewise host bridge that reconstructs the result as a Wasm GC byte array;
   every host-boundary decoder keeps a leading U+FEFF;
 - `string.split()` and `string.replace()` implemented in WAT, retaining
@@ -614,12 +614,67 @@ unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
 does not implement the canonical prelude trait.
 
+## Standard Library
+
+The toy standard library is hd source in [`std/`](std/), one file per
+module: `std.cmp`, `std.collections`, `std.iter`, `std.num`, `std.ops`,
+`std.option`, `std.process`, `std.result`, `std.text`, and `std.time`. It
+follows the draft in
+[future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
+specification allows; the open points are listed there under
+[Questions For The Owner](../future-work/STDLIB.md#questions-for-the-owner).
+`checker/standard-library.ts` joins what a program uses into the one module
+the prototype compiles:
+
+- a module's declarations are added when the program imports one of its
+  names, as in `use std.cmp.{max, min}`, each under the local name or
+  alias, and the rest under hidden names such as `__std_cmp_clamp`. A
+  module's own `use std.<module>.<Name>` lines pull in that module the
+  same way;
+- an inherent implementation on a built-in type (`impl string:`,
+  `impl[T] T?:`, `impl[T, E] Result[T, E]:`, `impl[T] List[T]:`,
+  `impl i32:`) needs no `use`
+  ([`trait.own.inherent.std`](../spec/09-traits.md#r-trait.own.inherent.std)).
+  Only the methods whose names the program selects with `.name` are added,
+  to a fixed point over the added bodies; only `std` sources may declare
+  them (`ImplDecl.standard`). The normative `List.map` and `T?.map` are
+  among them;
+- every added declaration's span is the `use` that brought it in, or the
+  program's span.
+
+What it provides:
+
+| Module | Contents |
+| --- | --- |
+| `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
+| `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
+| `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
+| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder` |
+| `std.iter` | `range`, and the adapters `map_each`, `filter`, `take`, `enumerate`, `collect`, `fold` as free functions |
+| `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
+| `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
+| `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffixes `ms`, `s`, `min`, `h` |
+| `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
+| `std.ops` | `LiteralSuffix` |
+
+`upper` is the one method backed by the host, like `lower`. Prototype
+limits: the `std.iter` adapters work on the built-in list and map cursors
+(the prototype's `mut Iterator[T]`) and collect eagerly, except `take`;
+there is no `chars`, `to_utf8`, or `from_utf8` (no scalar or byte access
+from hd), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
+`Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
+`Hash`), and no `std.console` (a program-defined `Console` provider does
+not run, MHP-1). `test/std/*.hd` tests each module through `hd test`, and
+the playground's `std` example uses several.
+
 ## Layout
 
 - `lexer.ts` and `ast.ts` define the small source-frontend stages.
 - `parser/` builds the AST and exposes its public API from `parser/index.ts`.
 - `checker/` resolves names and produces the typed nodes in `hir.ts`.
 - `emitter/` lowers HIR to readable WAT and exposes only `emitter/index.ts`.
+- `std/` holds the toy standard library's hd sources, read by
+  `std/index.ts`; `checker/standard-library.ts` joins them into a program.
 - `suspension.ts` lowers suspending HIR into explicit resumable control flow.
 - `wasm.ts` parses, validates, and emits Wasm with pinned Binaryen.
 - `compiler.ts` exposes the in-process compiler API.

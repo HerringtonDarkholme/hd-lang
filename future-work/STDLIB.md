@@ -1739,9 +1739,14 @@ Decided 2026-09-26:
 
 ## Questions For The Owner
 
-All thirteen questions are decided; see [Owner Decisions](#owner-decisions).
+Questions 1 to 13 are decided; see [Owner Decisions](#owner-decisions).
 Each entry keeps the options that were weighed and states the decision. The
 examples follow the decided design.
+
+Questions 14 to 22 are open. They came up while writing the prototype's toy
+standard library ([src/README.md](../src/README.md#standard-library)), which
+takes the smallest reading of this draft where it is silent. Nothing in them
+is accepted behavior.
 
 ### 1. How does a deterministic provider change its own state?
 
@@ -1974,4 +1979,175 @@ fn port(text: string) -> i64?:
     match json.parse(text):
         .Ok(json.Json.Number(number)) => number.as_i64()
         _ => .None
+```
+
+### 14. Where do the iterator adapters live?
+
+Effect: the draft's `IteratorExt` cannot be written. An implementation for
+the trait value type `Iterator[T]` is `trait-value-impl-target`, and a
+blanket one over a bare parameter is `bare-parameter-impl-target`
+([Implementation Targets](../spec/09-traits.md#implementation-targets)).
+
+- **A.** Free functions in `std.iter`, taking the source first. The
+  prototype does this.
+- **B.** Default methods of the prelude `Iterator`, as Rust's `Iterator`
+  provides `map` and `filter`
+  ([docs](https://doc.rust-lang.org/std/iter/trait.Iterator.html)).
+- **C.** Let `std` declare inherent methods on the trait value type
+  `Iterator[T]`, extending `trait.own.inherent.std`.
+
+**Recommendation:** B. It is the proven model, needs no new rule, and keeps
+`items.iter().filter(keep)` readable.
+
+```text
+use std.iter.{collect, filter, range}
+
+fn evens() -> List[i32]:
+    collect(filter(range(0, 10), fn(value: i32) -> bool: value % 2 == 0))
+```
+
+### 15. Do `T?` and `Result` get `and_then`?
+
+Effect: chaining two fallible steps needs a `match` or `?`, since the draft
+lists `map` and `map_ok` but no flat map.
+
+- **A.** Add `and_then` to both, as Rust has
+  ([`Option::and_then`](https://doc.rust-lang.org/std/option/enum.Option.html#method.and_then)).
+- **B.** Leave chaining to `?`. The prototype does this.
+
+**Recommendation:** A. It is small, and `?` does not work inside a closure
+whose result is not an optional or `Result`.
+
+```text
+fn port(text: string?) -> i32?:
+    text.and_then(parse_port)
+```
+
+### 16. Which `Map` methods does `std` add?
+
+Effect: a program cannot list a map's keys or test membership without a
+`for` loop, because the draft adds no `Map` methods beyond the normative
+`len`, `get`, and `remove`.
+
+- **A.** `contains_key`, `keys`, and `values`, in insertion order.
+- **B.** None yet. The prototype does this.
+
+**Recommendation:** A, the three methods every surveyed language ships.
+
+```text
+fn has_port(settings: Map[string, string]) -> bool:
+    settings.contains_key("port")
+```
+
+### 17. What does `lines` do with a final newline and `\r\n`?
+
+Effect: `"a\nb\n".lines()` could have two items or three, and Windows text
+could keep a trailing `\r` on each line.
+
+- **A.** Rust's rule: a final `\n` ends the last line, and one `\r` before
+  each `\n` is removed.
+- **B.** A final `\n` ends the last line; `\r` stays. The prototype does
+  this.
+- **C.** Exactly `split("\n")`.
+
+**Recommendation:** A, since text from another platform should read the same.
+
+```text
+fn count_lines(text: string) -> i32:
+    text.lines().len()
+```
+
+### 18. What do out-of-range counts do?
+
+Effect: `repeat(-1)`, `chunks(0)`, and `clamp(value, 10, 0)` have no stated
+result. The prototype panics with `explicit-panic` for each.
+
+- **A.** Panic, as Rust's `chunks` and `clamp` do.
+- **B.** Return the empty result (`""`, `[]`) and, for `clamp`, `low`.
+
+**Recommendation:** A. Each case is a bug in the caller, and panics are
+reserved for bugs.
+
+```text
+fn pages(items: List[i32]) -> List[List[i32]]:
+    items.chunks(0)
+```
+
+### 19. What type does `abs_diff` return?
+
+Effect: the draft's `abs_diff(self, other: Self) -> Self` overflows for
+`i32` when the distance exceeds its range, as between the minimum and the
+maximum. The prototype panics with `integer-overflow` there.
+
+- **A.** The unsigned type of the same width, as Rust does (`i32` gives
+  `u32`).
+- **B.** `Self`, with a checked-overflow panic.
+
+**Recommendation:** A, once the sized unsigned types exist (F-253).
+
+```text
+fn distance(a: i32, b: i32) -> i32:
+    a.abs_diff(b)
+```
+
+### 20. What text do `parse_i32` and `parse_i64` accept?
+
+Effect: the draft gives the error enum but not the grammar. The prototype
+accepts one optional `+` or `-` and decimal digits, reports a lone sign as
+`InvalidDigit(0)`, and counts `position` in scalars.
+
+- **A.** That grammar, which matches Rust's `str::parse` for integers.
+- **B.** Also accept `_` separators and radix prefixes, as source literals
+  do.
+
+**Recommendation:** A. Parsing user input should not accept literal syntax.
+
+```text
+use std.num.parse_i32
+
+fn port(text: string) -> i32:
+    match parse_i32(text):
+        .Ok(value) => value
+        .Err(_) => 8080
+```
+
+### 21. Which traits do the `std` value types implement?
+
+Effect: `Duration`, `ParseNumberError`, `ProcessError`, and `Output`
+implement nothing in the draft. So `assert_equal` cannot compare two
+durations, and `main` cannot return a `ParseNumberError`.
+
+- **A.** `Eq` for every value type, `Ord` for `Duration`, and `Display`
+  for each error enum.
+- **B.** Leave them to typed derivation once `std` uses it. The prototype
+  implements none.
+
+**Recommendation:** A. The draft's own `ManualClock` test compares
+timestamps with `assert_equal`.
+
+```text
+use std.time.{Duration, s}
+
+fn same(a: Duration) -> bool:
+    a == 5s
+```
+
+### 22. How is a `ScriptedProcess` made?
+
+Effect: its only field is private and the draft gives no constructor, so
+code outside `std.process` cannot build one.
+
+- **A.** `ScriptedProcess::new(outputs: Map[string, Output])`, and an
+  unscripted program is `ProcessError.NotFound`. The prototype returns
+  `NotFound` but has no constructor.
+- **B.** Make `outputs` public.
+
+**Recommendation:** A, matching `BufferConsole::new()` and
+`ManualClock::starting_at`.
+
+```text
+use std.process.{Output, ScriptedProcess}
+
+fn fake_run() -> ScriptedProcess:
+    ScriptedProcess::new({"make": Output { status: 0, stdout: [], stderr: [] }})
 ```
