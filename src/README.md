@@ -535,8 +535,12 @@ else`, `break`, `break value`, and `continue`;
   for declaration facts alike (M25); `VariantInfo.shared`
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
-  and plain `Self`; `@derive(Eq)` is generated, `PartialOrd`, `Ord`, and
-  `Hash` are accepted but not generated, and `@derive(Debug)` generates
+  and plain `Self`; `@derive(Eq)`, `PartialOrd`, `Ord`, and `Hash` are
+  generated as ordinary hd implementations (`checker/derive-intrinsics.ts`),
+  on a newtype through its base type, and `mixed-derived-law` checks the
+  law partners; `==` uses a generic implementation such as a derived
+  `impl[T < Eq] Eq for Box[T]`, while `<` does not yet. A run-time map key is
+  still an `i32`-like value or a string. `@derive(Debug)` generates
   builder calls (Testing T53): `debug_struct` for named members,
   `debug_tuple` for positional ones, and `write` of a payload-free
   variant's name. `Debug` is a prelude trait; `DebugWriter`, its

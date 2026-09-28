@@ -1,0 +1,77 @@
+# The intrinsic derivations: Eq, PartialOrd, Ord, and Hash.
+use std.testing.{assert, assert_equal}
+
+@derive(Eq, PartialOrd, Ord, Hash)
+data Key:
+    first: i32
+    second: string
+
+@derive(Eq, PartialOrd, Ord, Hash)
+enum Priority:
+    Low(value: i32)
+    High(value: i32)
+    Urgent
+
+@derive(Eq, PartialOrd)
+data Measurement:
+    value: f64
+
+@derive(Eq)
+data Box[T]:
+    value: T
+
+@derive(Eq, Hash)
+type Mile(i32)
+
+@derive(Eq, PartialOrd, Ord)
+type Rank(i32)
+
+data Recorder:
+    bytes: mut List[u8]
+
+impl Hasher for Recorder:
+    fn write(mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.bytes.append(byte)
+
+fn recorded[T < Hash](value: T) -> List[u8]:
+    let recorder: mut Recorder = Recorder { bytes: [] }
+    value.hash(recorder)
+    recorder.bytes
+
+fn total[T < Ord](left: T, right: T) -> string:
+    match left.cmp(right):
+        .Less => "less"
+        .Equal => "equal"
+        .Greater => "greater"
+
+tests:
+    it("derived ordering is lexicographic in field order"):
+        assert(Key { first: 1, second: "z" } < Key { first: 2, second: "a" }, reason="first field")
+        assert(Key { first: 1, second: "a" } < Key { first: 1, second: "b" }, reason="tie break")
+        assert_equal(total(Key { first: 1, second: "a" }, Key { first: 1, second: "a" }), "equal", reason="Ord")
+
+    it("derived enum ordering follows variant order, then payloads"):
+        assert(Priority.Low(99) < Priority.High(0), reason="variant order")
+        assert(Priority.Low(2) < Priority.Low(3), reason="payload order")
+        assert_equal(total(Priority.Urgent, Priority.High(5)), "greater", reason="a later variant")
+
+    it("derived partial ordering of floats"):
+        assert(Measurement { value: 1.0 } < Measurement { value: 2.0 }, reason="ordered")
+        assert(!(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }), reason="NaN is unordered")
+
+    it("derived Hash hashes the fields in order"):
+        assert_equal(recorded(Key { first: 1, second: "a" }), [1, 0, 0, 0, 97], reason="data fields")
+        assert_equal(recorded(Priority.High(2)), [1, 0, 0, 0, 2, 0, 0, 0], reason="variant then payload")
+        assert_equal(recorded(Priority.Urgent), [2, 0, 0, 0], reason="a variant without payload")
+
+    it("== uses a generic derived Eq"):
+        assert(Box { value: 1 } == Box { value: 1 }, reason="equal")
+        assert(Box { value: "a" } != Box { value: "b" }, reason="unequal")
+
+    it("a newtype derives from its base type"):
+        assert(Mile(1) == Mile(1), reason="Eq through i32")
+        assert(Mile(1) != Mile(2), reason="unequal")
+        assert(Rank(1) < Rank(2), reason="PartialOrd through i32")
+        assert_equal(total(Rank(3), Rank(2)), "greater", reason="Ord through i32")
+        assert_equal(recorded(Mile(258)), [2, 1, 0, 0], reason="Hash through i32")

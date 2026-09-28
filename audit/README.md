@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,222 of the 1,263 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 41 are listed in
+On 2026-09-28 the prototype passes 1,227 of the 1,263 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 36 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 41 still fail.
+decision below; all 36 still fail.
 
 ## Specification Follow-Ups
 
@@ -63,6 +63,20 @@ decision below; all 41 still fail.
   default hasher from the
   [STDLIB draft](../future-work/STDLIB.md#stdcollections) into spec/10's
   standard-library section, or reword the three rules without them.
+
+- F-250: three derivation fixtures expect codes that no numbered rule
+  defines; only the diagnostic list in `spec/README.md` names them.
+  `derived-hash-field-not-hash.hd` expects `field-not-hash`,
+  `derived-total-order-float.hd` expects `field-not-eq` for an `f64` field
+  under `@derive(Ord)`, and `derived-generic-bound.hd` expects
+  `missing-derived-bound` for `==` on `Box[fn() -> void]`. The prototype
+  reports `unsatisfied-trait-bound` from the generated implementation.
+  `derived-hash-field-not-hash.hd` also derives `Hash` without `Eq`, which
+  [`trait.derive.partners.same-list`](../spec/09-traits.md#r-trait.derive.partners.same-list)
+  makes `mixed-derived-law`. **Recommendation:** add a rule to
+  [Derived Implementations](../spec/09-traits.md#derived-implementations)
+  that names one code per trait for a field that lacks it, and one for an
+  unmet derived bound, and add `Eq` to that fixture's `@derive` list.
 
 ## Applied Decisions the Prototype Does Not Follow Yet
 

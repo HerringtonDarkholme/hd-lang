@@ -1221,3 +1221,8 @@ runtime/valid/generic-trait-literal-default-instantiation.hd	runtime
 runtime/valid/unsigned-exponent.hd	runtime
 typing/valid/prelude-surface.hd	type
 typing/valid/generic-map-key.hd	type
+typing/invalid/mixed-derived-law.hd	type
+typing/invalid/derived-hash-without-eq.hd	type
+typing/invalid/hand-written-hash-beside-derived-eq.hd	type
+typing/valid/derived-ordering.hd	type
+typing/valid/derived-generic-bound.hd	type

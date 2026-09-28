@@ -6,16 +6,14 @@ typing/invalid/pack-map-mapper-mismatch.hd	MVP reports unknown-name at line 5 in
 typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at line 4: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
-typing/valid/derived-hash.hd	check fails: invalid-map-key at line 16: @derive(Hash) is accepted but not generated, and a run-time map key is i32-like or a string	F-250
-typing/invalid/derived-hash-field-not-hash.hd	check passes instead of field-not-hash at line 4: @derive(Hash) is accepted but not generated	F-250
-typing/valid/derived-ordering.hd	check fails: missing-partial-ord at line 22: @derive(PartialOrd) and @derive(Ord) are accepted but not generated	F-250
-typing/invalid/derived-total-order-float.hd	check passes instead of field-not-eq at line 2: @derive(Ord) is accepted but not generated	F-250
+typing/valid/derived-hash.hd	check fails: invalid-map-key at line 16: @derive(Hash) is generated, but a run-time map key is i32-like or a string, so a data or enum key is rejected	F-250
+typing/invalid/derived-hash-field-not-hash.hd	MVP reports mixed-derived-law at line 4 instead of field-not-hash at line 6: the fixture derives Hash without Eq (trait.derive.partners.same-list), and no numbered rule defines field-not-hash	F-250
+typing/invalid/derived-total-order-float.hd	MVP reports unsatisfied-trait-bound at line 2 instead of field-not-eq at line 4: no numbered rule defines field-not-eq, and the f64 field implements Eq but not Ord	F-250
 typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/impossible-gadt-pattern.hd	MVP reports unsupported-gadt-result at line 3 instead of impossible-gadt-pattern	F-250
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
-typing/invalid/derived-generic-bound.hd	MVP reports missing-partial-eq at line 6 instead of missing-derived-bound: the generated impl[T < Eq] Eq for Box[T] is not used by ==	F-250
-typing/valid/derived-generic-bound.hd	check fails: missing-partial-eq at line 6: the generated impl[T < Eq] Eq for Box[T] is not used by ==	F-250
+typing/invalid/derived-generic-bound.hd	MVP reports unsatisfied-trait-bound at line 6 instead of missing-derived-bound: no numbered rule defines missing-derived-bound; the generated impl[T < Eq] Eq for Box[T] is used by ==	F-250
 typing/invalid/multiple-positional-value-packs.hd	MVP reports unsupported-generic-parameter at line 1 instead of multiple-positional-value-packs: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/metadata-type-as-value.hd	MVP reports unknown-name at line 5 instead of type-used-as-value: no numbered spec rule defines type-used-as-value (spec/README.md only lists the code), so the prototype checks the argument as a value	F-250
 runtime/valid/resource-disposed-result.hd	check exits 2 with usage text: the disposed-file profile does not exist; the fixture also exposes the private trait Files from pub main (private-type-leak, F-150)	F-259
@@ -31,10 +29,7 @@ typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: t
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-own-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-embedded-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
-typing/invalid/mixed-derived-law.hd	check passes instead of mixed-derived-law at line 3: the TQ-12 law-partner check is not implemented	F-250
-typing/invalid/derived-hash-without-eq.hd	check passes instead of mixed-derived-law at line 3: the TQ-12 law-partner check is not implemented, and @derive(Hash) is not generated	F-250
-typing/invalid/hand-written-hash-beside-derived-eq.hd	check passes instead of mixed-derived-law at line 3: the TQ-12 law-partner check is not implemented	F-250
-runtime/valid/derived-newtype.hd	check fails: missing-partial-eq at line 12: a newtype derives only template traits through its base; @derive(Eq, Ord, Hash) on a newtype is not generated (TQ-11)	F-250
+runtime/valid/derived-newtype.hd	check fails: invalid-map-key at line 20: the newtype derivations are generated (TQ-11), but a run-time map key is i32-like or a string	F-250
 typing/invalid/dynamic-safety-pack-parameter.hd	MVP reports unsupported-generic-parameter at line 4 instead of trait-not-dynamically-safe: packs and defaults are outside the current erased-generic slice (the TQ-10 row and reified exclusions are implemented)	F-250
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250

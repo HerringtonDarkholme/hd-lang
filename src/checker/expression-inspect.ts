@@ -10,7 +10,12 @@ import {
 } from "../types.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
-import { containsGenericType, genericTypeName, traitTypeName } from "./shared.ts";
+import {
+  containsGenericType,
+  genericTypeName,
+  matchGenericTypePattern,
+  traitTypeName,
+} from "./shared.ts";
 import { INSPECTABLE, TYPE_ID } from "./standard-traits.ts";
 import {
   metadataMethodName,
@@ -338,5 +343,20 @@ export abstract class InspectChecker extends MemberLookupChecker {
         target.span,
       );
     if (fallback) this.fail(fallback, `shape has no target '${target.name}'`, target.span);
+  }
+
+  /** Whether a generic implementation of `traitName`, such as a derived one, covers `type`. */
+  protected hasGenericImplementation(traitName: string, type: ValueType): boolean {
+    const trait = this.traitTypes.get(traitName);
+    const target = readonlyType(type);
+    return (
+      nominalGenericParts(target) !== undefined &&
+      this.implementations.some(
+        (candidate) =>
+          candidate.traitIndex === trait?.index &&
+          candidate.targetType !== target &&
+          matchGenericTypePattern(candidate.targetType, target, new Map()),
+      )
+    );
   }
 }

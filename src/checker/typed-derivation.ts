@@ -16,6 +16,8 @@ import type {
 } from "../ast.ts";
 import type { Diagnostic, SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
+import { Source_, ZERO_SPAN } from "./generated-source.ts";
+import { deriveIntrinsics, intrinsicHelpers } from "./derive-intrinsics.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { debugWriterName } from "./standard-traits.ts";
@@ -46,8 +48,7 @@ import {
 // Prototype gaps: `Facts` holds `Inspectable` values rather than `Any`, so a
 // fact must be inspectable; `VariantInfo.shared` is always empty; a build
 // handle's `get` returns the member's declared type whatever the argument's
-// permission; the comparison traits and `Debug` are accepted in `@derive` but
-// only `Eq` is generated (every type already counts as `Debug`); drift and
+// permission; the intrinsic derivations are in derive-intrinsics.ts; drift and
 // unused-fact warnings treat every local trait as one package.
 
 const STRUCTURE_MODULE = "std.structure";
@@ -266,76 +267,6 @@ function transform(node: unknown, callback: (value: Record<string, unknown>) => 
 function headName(type: string): string {
   return readonlyType(type).split("[")[0]!;
 }
-
-// ---------------------------------------------------------------------------
-// Generated source with placeholders for user expressions and types.
-
-export class Source_ {
-  readonly lines: string[] = [];
-  /** Helper functions, emitted after `lines` so a helper never splits a body. */
-  readonly definitions: string[] = [];
-  private readonly defined = new Set<string>();
-  private readonly expressions: Expression[] = [];
-  private readonly types: string[] = [];
-
-  expression(expression: Expression): string {
-    this.expressions.push(expression);
-    return `hdexpr${this.expressions.length - 1}`;
-  }
-
-  type(type: string): string {
-    this.types.push(type);
-    return `HDTYPE${this.types.length - 1}X`;
-  }
-
-  string(text: string): string {
-    return this.expression({ kind: "string", value: text, span: ZERO_SPAN });
-  }
-
-  add(text: string): void {
-    this.lines.push(text);
-  }
-
-  /** Emits a helper function once; returns false when it already exists. */
-  define(name: string, lines: () => readonly string[]): void {
-    if (this.defined.has(name)) return;
-    this.defined.add(name);
-    this.definitions.push(...lines());
-  }
-
-  /** Parses the collected source and patches placeholders and spans. */
-  program(span: SourceSpan): Program {
-    const source = `${[...this.lines, ...this.definitions].join("\n")}\n`;
-    const parsed = parse(source);
-    if (!parsed.program)
-      throw new Error(
-        `typed derivation generated invalid source: ${parsed.diagnostics.map((item) => `${item.code} ${item.message} at ${item.span.start.line}`).join("; ")}\n${source}`,
-      );
-    const types = this.types;
-    const expressions = this.expressions;
-    const patch = (node: unknown, key?: string): unknown => {
-      if (Array.isArray(node)) return node.map((item) => patch(item));
-      if (typeof node === "string")
-        return key === "value"
-          ? node
-          : node.replace(/HDTYPE(\d+)X/g, (_, index: string) => types[Number(index)]!);
-      if (!node || typeof node !== "object") return node;
-      const record = node as Record<string, unknown>;
-      if (record.kind === "name" && typeof record.name === "string") {
-        const match = /^hdexpr(\d+)$/.exec(record.name);
-        if (match) return expressions[Number(match[1])];
-      }
-      const result: Record<string, unknown> = {};
-      for (const [entry, value] of Object.entries(record))
-        result[entry] = entry === "span" ? span : patch(value, entry);
-      return result;
-    };
-    return patch(parsed.program) as Program;
-  }
-}
-
-const ZERO_POSITION = { line: 1, column: 1, offset: 0 };
-const ZERO_SPAN: SourceSpan = { start: ZERO_POSITION, end: ZERO_POSITION };
 
 // ---------------------------------------------------------------------------
 
@@ -577,11 +508,15 @@ export function withTypedDerivation(source: Program): DerivationResult {
   const derivedPairs = new Map<string, SourceSpan>();
   const intrinsic: { trait: string; target: Target; span: SourceSpan }[] = [];
   const newtypeDerivations: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
+  const newtypeIntrinsic: { trait: string; declaration: TypeDecl; span: SourceSpan }[] = [];
   const optIn = (target: Target | undefined, declaration: DataDecl | EnumDecl | TypeDecl): void => {
     for (const trait of declaration.decorators?.derives ?? []) {
       const name = trait.name;
       if (INTRINSIC_DERIVES.has(name)) {
-        if (target) intrinsic.push({ trait: name, target, span: trait.span });
+        const span = trait.span;
+        if (target) intrinsic.push({ trait: name, target, span });
+        else if (name !== "Debug" && declaration.kind === "type")
+          newtypeIntrinsic.push({ trait: name, declaration, span });
         continue;
       }
       if (!templates.has(name)) {
@@ -691,11 +626,8 @@ export function withTypedDerivation(source: Program): DerivationResult {
     const result = forwardNewtype(item, templates.get(item.trait)!, error);
     if (result) implementations.push(result);
   }
-  for (const item of intrinsic) {
-    if (item.trait === "Eq") implementations.push(deriveEq(item.target, item.span));
-    if (item.trait === "Debug")
-      implementations.push(deriveDebug(item.target, debugWriterName(program.uses), item.span));
-  }
+  const writer = debugWriterName(program.uses);
+  implementations.push(...deriveIntrinsics(program, intrinsic, newtypeIntrinsic, writer, error));
   if (diagnostics.some((item) => item.severity !== "warning"))
     return { program, diagnostics, optInSpans };
 
@@ -744,6 +676,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       ],
       functions: [
         ...program.functions,
+        ...intrinsicHelpers(intrinsic, newtypeIntrinsic),
         ...factFunctions,
         ...generated.flatMap((item) => item.functions),
       ],
@@ -1414,87 +1347,4 @@ function forwardNewtype(
     methods,
     span: item.span,
   };
-}
-
-// ---------------------------------------------------------------------------
-// The intrinsic `@derive(Eq)` (spec/09-traits.md#comparison-traits) and
-// `@derive(Debug)` (#debug-trait). The spec leaves `DebugWriter`'s builder
-// calls to the standard library, so a derived `debug` writes nothing.
-
-/** Starts `impl[T < Trait] Trait for Target:` and returns the target's placeholder. */
-function derivedImpl(target: Target, trait: string, out: Source_): string {
-  const { name, genericParameters: parameters } = target.declaration;
-  const T = out.type(parameters.length > 0 ? `${name}[${parameters.join(",")}]` : name);
-  const bounds = parameters.map((parameter) => `${parameter} < ${trait}`).join(", ");
-  out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${trait} for ${T}:`);
-  return T;
-}
-
-function deriveDebug(target: Target, writer: string, span: SourceSpan): ImplDecl {
-  const out = new Source_();
-  derivedImpl(target, "Debug", out);
-  out.add(`    fn debug(self, out: mut ${writer}) -> void:`);
-  // One builder per value, as Rust's derive does (trait.debug.derive-builders):
-  // `debug_struct` for named members, `debug_tuple` for positional ones, and
-  // the bare name for a variant without a payload.
-  const fields = (members: readonly DataField[], name: string, value: (index: number) => string) =>
-    members.length === 0
-      ? `out.write(${out.string(name)})`
-      : members[0]!.positional
-        ? `out.debug_tuple(${out.string(name)})${members.map((_, index) => `.field(${value(index)})`).join("")}.finish()`
-        : `out.debug_struct(${out.string(name)})${members.map((member, index) => `.field(${out.string(member.name)}, ${value(index)})`).join("")}.finish()`;
-  if (target.kind === "data") {
-    const members = target.declaration.fields;
-    out.add(
-      `        ${fields(members, target.declaration.name, (index) => `self.${members[index]!.name}`)}`,
-    );
-  } else {
-    const { name, variants } = target.declaration;
-    if (variants.length === 0) out.add("        pass");
-    else out.add("        match self:");
-    for (const variant of variants) {
-      const bound = variant.fields.map((_, index) => `hd_v${index}`);
-      const pattern =
-        bound.length === 0
-          ? `${name}.${variant.name}`
-          : `${name}.${variant.name}(${bound.join(", ")})`;
-      out.add(
-        `            ${pattern} => ${fields(variant.fields, variant.name, (index) => bound[index]!)}`,
-      );
-    }
-  }
-  return out.program(span).implementations[0]!;
-}
-
-function deriveEq(target: Target, span: SourceSpan): ImplDecl {
-  const declaration = target.declaration;
-  const out = new Source_();
-  const T = derivedImpl(target, "Eq", out);
-  out.add(`    fn eq(self, other: ${T}) -> bool:`);
-  if (target.kind === "data") {
-    const fields = target.declaration.fields;
-    out.add(
-      `        ${fields.length === 0 ? "true" : fields.map((field) => `self.${field.name} == other.${field.name}`).join(" && ")}`,
-    );
-  } else {
-    const variants = target.declaration.variants;
-    out.add(`        match (self, other):`);
-    for (const variant of variants) {
-      const names = (side: string): string[] =>
-        variant.fields.map((field, position) => `${side}${position}`);
-      const pattern = (side: string): string =>
-        variant.fields.length === 0
-          ? `${declaration.name}.${variant.name}`
-          : `${declaration.name}.${variant.name}(${variant.fields.map((field, position) => names(side)[position]).join(", ")})`;
-      const compare =
-        variant.fields.length === 0
-          ? "true"
-          : names("l")
-              .map((left, position) => `${left} == ${names("r")[position]}`)
-              .join(" && ");
-      out.add(`            (${pattern("l")}, ${pattern("r")}) => ${compare}`);
-    }
-    if (variants.length > 1) out.add(`            _ => false`);
-  }
-  return out.program(span).implementations[0]!;
 }

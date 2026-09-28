@@ -27,6 +27,12 @@ import {
 type NameExpression = Extract<Expression, { kind: "name" }>;
 
 export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker {
+  /** `left.eq(right)` through a generic `Eq` implementation, or undefined. */
+  protected abstract genericEqualityCall(
+    expression: Extract<Expression, { kind: "binary" }>,
+    left: HirExpression,
+  ): HirExpression | undefined;
+
   /**
    * A generic function used as a value (07-functions.md#function-types-and-values):
    * every generic parameter comes from a complete explicit type-argument list,
@@ -307,6 +313,18 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
                   span: expression.span,
                 };
           }
+          // A generic `impl[T < Eq] Eq for Box[T]`, such as a derived one.
+          const generic = this.genericEqualityCall(expression, left);
+          if (generic)
+            return expression.operator === "=="
+              ? generic
+              : {
+                  kind: "unary",
+                  operator: "not",
+                  operand: generic,
+                  type: "bool",
+                  span: expression.span,
+                };
           if (
             genericTypeName(left.type) ||
             this.dataTypes.has(nominalGenericParts(left.type)?.name ?? left.type) ||

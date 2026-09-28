@@ -843,6 +843,23 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     };
   }
 
+  protected genericEqualityCall(
+    expression: Extract<Expression, { kind: "binary" }>,
+    left: HirExpression,
+  ): HirExpression | undefined {
+    if (!this.hasGenericImplementation("Eq", left.type)) return undefined;
+    const callee = { kind: "member", receiver: expression.left, name: "eq" } as const;
+    return this.checkImplementedMemberCall(
+      {
+        kind: "call",
+        callee: { ...callee, span: expression.span },
+        arguments: [expression.right],
+        span: expression.span,
+      },
+      left,
+    );
+  }
+
   private checkNamedIntrinsicCall(
     expression: NamedCallExpression,
     expected?: ValueType,

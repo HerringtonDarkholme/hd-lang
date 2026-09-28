@@ -9,7 +9,8 @@ import {
   tupleParts,
 } from "../types.ts";
 import type { HirData, HirExpression, ValueType } from "../hir.ts";
-import { factType, Source_ } from "./typed-derivation.ts";
+import { Source_ } from "./generated-source.ts";
+import { factType } from "./typed-derivation.ts";
 
 // The shape intrinsics (spec/14-annotations.md#shape-intrinsics).
 //
