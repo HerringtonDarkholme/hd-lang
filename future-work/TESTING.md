@@ -560,16 +560,34 @@ found on 21 cases against T1-T13; T14-T27 answer its questions.
 - Test-layout fixture packages for `cyclic-test-dependency` and a `tests`
   root inside `tests/` get added when those rules need coverage.
 
+**T54 applied (2026-09-28)** in
+[`module.testing.snapshot.mismatch`](../spec/10-modules.md#r-module.testing.snapshot.mismatch),
+[`module.testing.snapshot-file.missing-panic`](../spec/10-modules.md#r-module.testing.snapshot-file.missing-panic),
+and
+[`trait.debug.derive-builders.mapping`](../spec/09-traits.md#r-trait.debug.derive-builders.mapping)
+with its table. The builder names were already
+[`trait.debug.builder.types`](../spec/09-traits.md#r-trait.debug.builder.types).
+`snapshot_file` in `lib/std/testing.hd` now fails through `assert`, and a
+derived `Debug` for a fieldless data type uses `debug_struct`. Applying
+T54 raised one question; nothing here is decided:
+
+| Question | Effect | **Recommendation** |
+| --- | --- | --- |
+| A variant with both positional and named payload fields | Rust has no such variant, so its mapping names no builder for `Mixed(i32, label: string)`. The prototype uses `debug_tuple` and drops the names, printing `Mixed(6, "m")`. | Use `debug_struct` and name a positional field by its position, `_0`, as `._0` selects it, printing `Mixed { _0: 6, label: "m" }`. |
+
+```text
+@derive(Debug)
+enum Shape:
+    Mixed(i32, label: string)   # which builder?
+```
+
 Applying T53 on 2026-09-28 needed these readings. The spec states each as
-applied, so each can change without breaking a decision. Nothing here is
-decided:
+applied, so each can change without breaking a decision. T54 decided the
+builder names, the derived builders, how a snapshot fails, and when
+test-layout fixture packages get added; nothing else here is decided:
 
 | Question | Applied | **Recommendation** |
 | --- | --- | --- |
-| Builder type names and chaining | `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`, as Rust names them; `field` and `entry` return the builder, and `finish` ends it ([`trait.debug.builder.types`](../spec/09-traits.md#r-trait.debug.builder.types)) | Keep: T53 says "like Rust's `Formatter`". |
-| Which builder a derived `Debug` uses | The spec says only that it generates builder calls. The prototype follows Rust's derive: `debug_struct` for named members, `debug_tuple` for positional ones, and `write` of the name for a variant without a payload | State that mapping in [`trait.debug.derive-builders`](../spec/09-traits.md#r-trait.debug.derive-builders). |
-| How a snapshot mismatch or a missing file fails | [`module.testing.snapshot-file.missing`](../spec/10-modules.md#r-module.testing.snapshot-file.missing) says the test case fails, with no panic category. The prototype raises an `explicit-panic` from `std` code | `assertion-failed`, since the call is an assertion on text. |
-| The synthetic package of a test layout | The package holds no other source file ([Test Layouts](../spec/conformance/README.md#test-layouts)), so no fixture can test `cyclic-test-dependency` or a `tests` root use inside `tests/` | Add a `packages/`-like fixture package when those rules need fixtures. |
 | `Choices` beyond T53 | The draft's `@derive(Arbitrary)`, its member-line facts, the `__regressions__` format, size scheduling, and the `assume` discard limit are not specified | Decide them with the property-test runner. |
 
 The prototype runs `it_prop` and `it_prop_with` (T35-T38, T50, T51): every

@@ -120,7 +120,10 @@ test (T34):
 
 So the test above writes `__snapshots__/<module>/greets-by-name-1.snap`.
 Renaming a test, or reordering its `snapshot_file` calls, changes the file
-names; the owner accepted that cost.
+names; the owner accepted that cost. A mismatch, or a missing file outside
+an update run, fails with `assertion-failed`, as `assert_equal` does
+([T54](TESTING.md#still-open-after-t53),
+[`module.testing.snapshot.mismatch`](../spec/10-modules.md#r-module.testing.snapshot.mismatch)).
 
 | Command | Effect |
 | --- | --- |

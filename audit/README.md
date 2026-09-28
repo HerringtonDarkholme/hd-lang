@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,229 of the 1,263 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 34 are listed in
+On 2026-09-28 the prototype passes 1,232 of the 1,267 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 35 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 34 still fail.
+decision below; all 35 still fail.
 
 ## Specification Follow-Ups
 
@@ -91,6 +91,7 @@ Revision Notes in `spec/README.md` are the record.
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
+| MHP-1 | A `println` call at the top level of a script is valid (the second round). The prototype infers no script entry requirement row (`module.init.script-row`), so `println-top-level-script.hd` reports `missing-requirement`. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 
 The shape intrinsics (K1) pass their fixtures and run: `shape[T]()` and
@@ -125,8 +126,11 @@ that the checker plans, not for the built-in functions it special-cases.
 calls run on the host console and on a program-defined provider.
 `println` drives its write with `block_on`, so it has `block_on`'s rules
 ([the MHP-1 follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)),
-and its four fixtures pass. The prototype's `block_on` cannot wait for a
-pending host operation, so it panics there.
+and its four fixtures pass. `block_on` keeps polling a write that is
+pending on a host operation until it finishes (the second round), as the
+entry driver does; the prototype's host answers each poll itself. No
+conformance profile holds a write pending and then completes it, so a
+unit test covers this.
 
 `Debug` (Testing T33, T39, T48, and T53) is checked and rendered: it is a
 prelude trait, and `DebugWriter`, its builders, `debug`, and the standard

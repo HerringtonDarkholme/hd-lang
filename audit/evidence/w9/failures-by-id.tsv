@@ -7,3 +7,4 @@ F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they al
 M29	1	Typed derivation M29's per-trait Self-line warning needs a second package, and the prototype CLI has no package roles
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
+MHP-1	1	A script's top-level println needs the inferred script entry requirement row, which the prototype does not infer

@@ -106,6 +106,17 @@ fn greet() -> void $ Console:
   is valid: no driver is running there, and only non-entry module
   initialization bans `block_on`.
 
+**Second round applied (2026-09-28)** in
+[`module.console.println-drive.block-on`](../spec/10-modules.md#r-module.console.println-drive.block-on),
+[`module.console.println-drive.pending`](../spec/10-modules.md#r-module.console.println-drive.pending),
+[`module.console.println-error.category`](../spec/10-modules.md#r-module.console.println-error.category),
+and
+[`module.console.println-script`](../spec/10-modules.md#r-module.console.println-script).
+`module.console.println-drive` and `module.console.println-pending` are
+retired. The prototype's `block_on` now polls a pending host write again
+until it finishes. It infers no script entry requirement row, so the
+top-level fixture is a known failure tagged MHP-1.
+
 **Decided follow-ups (owner, 2026-09-28).**
 1. `println` is an ordinary std prelude function. Its panics are ordinary
    panics raised by std code, with a message std defines. The language adds
@@ -150,7 +161,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 The rules are
 [`module.console.println-write`](../spec/10-modules.md#r-module.console.println-write)
 through
-[`module.console.println-error`](../spec/10-modules.md#r-module.console.println-error).
+[`module.console.println-script`](../spec/10-modules.md#r-module.console.println-script).
 
 The applying pass of MHP-1 raised three questions: the panic category,
 constructing a `ConsoleError`, and whether `block_on`'s restrictions
@@ -166,14 +177,17 @@ through
 raises the error panic with `panic`, so the checker has no `println`
 case. Fixtures, examples, tests, and the guides that called `println`
 under a driver now write with `$.use(Console).write_line!` or run from a
-non-suspending `main`. Applying them raised these readings; nothing here
-is decided:
+non-suspending `main`. Applying them raised three readings: the panic
+category, the pending-host panic, and top-level `println`. The second
+round above answers all three.
+
+**Still open after the second round (raised 2026-09-28).** Nothing here is
+decided:
 
 | Question | Effect | **Recommendation** |
 | --- | --- | --- |
-| The category of `println`'s own panics | Follow-up 1 says they are ordinary `std` panics with no category of their own. `std` raises a panic by calling `panic`, which is `explicit-panic`, but the spec text does not name it. | State it: both are `explicit-panic`, as any `panic` call in `std` is. |
-| The pending-host panic beside `block_on` | [`module.console.println-pending`](../spec/10-modules.md#r-module.console.println-pending) makes a pending host write panic, while `block_on` itself owns its loop until the suspension completes. The prototype drives synchronously, so its `block_on` panics on any pending host operation. | Keep `println-pending` as `println`'s own rule; `block_on`'s wait on a host operation is a runtime question for [durable replay](DURABLE_REPLAY.md) and the entry driver. |
-| Top-level `println` in an entry module | `block_on` is forbidden only in non-entry module initialization, so a script's top-level `println` stays valid. The prototype used to reject every top-level `block_on`; it now follows the rule. | Keep, as the rule reads. |
+| A fixture for a pending host write | No [runtime profile](../spec/conformance/README.md#runtime-profiles) holds a `write_line!` pending and then completes it: `console` is ready on the first poll, and `pending-gate` never completes. So `module.console.println-drive.pending` and `block_on`'s own wait have only a prototype unit test. | Add a conformance profile whose gate is pending on its first poll and ready on the next. |
+| A fixture for the `.Err` panic | `module.console.println-error.category` has no fixture, since no code can build a `ConsoleError` (follow-up 2 defers its constructor). | Add the fixture when `ConsoleError`'s constructor is settled. |
 
 ```text
 fn report!() -> void $ Console:
