@@ -720,8 +720,9 @@ specification does not have it yet.
    test-only dependencies; test builds include test dependencies, and the
    separate `tests/` root may use them anywhere. Detail decided 2026-09-27:
    the `use` lines come first in the block, and like any inner scope they
-   may shadow a module-level name. The owner wants to revisit the test
-   design as a whole before this reaches the specification.
+   may shadow a module-level name. Superseded 2026-09-27 by
+   [Testing T1-T2](TESTING.md#owner-decisions): no `use` inside a test;
+   test-only dependencies are named by `@test` items.
 6. **Question 6: adding an implementation or annotation for a foreign trait
    or facet is a minor change;** `hd update` reports a resulting coherence
    conflict before writing.

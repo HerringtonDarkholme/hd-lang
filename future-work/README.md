@@ -18,6 +18,10 @@ language specification:
   roadmap area 5, revised to the owner's decisions 1-14.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
+- [Testing Redesign](TESTING.md) records the owner's test redesign
+  decisions T1-T4 (`@test` test-only items, `test("name"):` as a library
+  intrinsic, test bodies following the entry-point result rule); not yet
+  in the specification.
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
