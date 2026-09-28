@@ -1559,6 +1559,8 @@ impl Describe for Worker by Logger:
 4. r[trait.by.invalid] Otherwise the implementation is an error, reported on the line of `by`. Error: `invalid-delegation`.
 5. r[trait.by.direct] `E` names a direct embedded field; a deeper part is reached by delegating to the field that contains it.
 6. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
+7. r[trait.by.trait-less] A header without a trait never delegates: `impl C by Structure` declares a [trait-less derivation block](14-annotations.md#trait-less-derivation-blocks).
+8. r[trait.by.trait-less.error] `impl C by E` without a trait, where `E` is not `Structure`, is an error, reported on the line of `by`. Error: `invalid-delegation`.
 
 ```text
 trait Describe:
@@ -1576,6 +1578,7 @@ data Service:
     port: i32
 
 impl Describe for Service by port  # error: invalid-delegation
+impl Service by Logger  # error: invalid-delegation
 ```
 
 ### Generated Methods

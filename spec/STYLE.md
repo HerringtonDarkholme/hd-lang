@@ -857,3 +857,24 @@ style lint rejects a chapter that reuses one.
 - `annot.fact.unused`: retired 2026-09-28. Typed derivation (M25) warns
   only for a fact whose type comes from a package other than `std`.
   Replaced by `annot.fact.unused-non-std` and `annot.fact.unused-std`.
+- `lex.keyword.reserved-list`: retired 2026-09-28. Typed derivation M26
+  removed the `annotate` block, so `annotate` is no longer reserved.
+  Replaced by `lex.keyword.reserved-words`.
+- `lex.contextual.by`: retired 2026-09-28. Typed derivation M26 allows `by`
+  after the target of a header without a trait. Replaced by
+  `lex.contextual.by-header`.
+- `grammar.suite.top-level-only`: retired 2026-09-28. Typed derivation M26
+  removed annotation declarations. Replaced by `grammar.suite.use-top-level`.
+- `grammar.tests.items`: retired 2026-09-28. Typed derivation M26 removed
+  annotation declarations. Replaced by `grammar.tests.item-forms`.
+- `grammar.annot.pass`: retired 2026-09-28. Typed derivation M26 removed
+  the `annotate` block and its body. No replacement.
+- `names.local.no-decorators`: retired 2026-09-28. Typed derivation M26
+  replaced `annotate` declarations with trait-less derivation blocks.
+  Replaced by `names.local.no-metadata`.
+- `annot.fact.member`: retired 2026-09-28. Typed derivation M26 removed the
+  `annotate` block; a trait-less derivation block edits decorator values.
+  Replaced by `annot.fact.member-metadata`.
+- `annot.line.placement`: retired 2026-09-28. Typed derivation M26 allows
+  member lines in a trait-less derivation block. Replaced by
+  `annot.line.placement-blocks`.

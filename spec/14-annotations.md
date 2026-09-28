@@ -25,9 +25,11 @@ The design principles are:
 4. the semantic foundation is ordinary traits, implementations, values, and
    compiler-provided shape values.
 
-Ordinary decorators expand to `annotate` member blocks or attach type-level
-facts. The compiler lowers member blocks to shape metadata construction.
-This is not runtime wrapper execution. `@derive(Trait, ...)` generates
+An ordinary decorator attaches a value: a type-level fact before a
+declaration, or member metadata before a field, variant, or parameter. A
+trait-less derivation block attaches the same values away from the
+declaration. The compiler lowers attached values to shape metadata
+construction. This is not runtime wrapper execution. `@derive(Trait, ...)` generates
 ordinary trait implementations, either through a compiler intrinsic or
 through a trait's template, as [Typed Derivation](#typed-derivation)
 defines. An ordinary decorator must not silently change a declaration's
@@ -76,7 +78,7 @@ source declaration. Every shape provides a stable declaration identity, source
 name, qualified name, source position, documentation string, and declaration
 kind. `FieldShape`, `VariantShape`, and `ParamShape` additionally provide their
 zero-based declaration position and declared `TypeShape`. Fields, variants,
-and parameters expose metadata attached by `annotate Target`. `DataShape`,
+and parameters expose their [member metadata](#member-metadata). `DataShape`,
 `EnumShape`, and `FnShape` contain their ordered direct members. `FnShape`
 additionally exposes its result type, whether it is suspending, and its
 normalized unordered requirement row; each `ParamShape` records whether a
@@ -257,6 +259,15 @@ error, as is a name that resolves to a type or a non-function binding.
 
 ## Two `annotate` Forms
 
+Values are attached in two forms: a prefix decorator on the declaration or
+member, and a member line of a trait-less derivation block for shared
+metadata written away from the declaration.
+
+> **Note.** This heading keeps its earlier name so that links to it stay
+> valid. The `annotate Target:` block and the reserved word `annotate` were
+> removed by
+> [Typed Derivation M26](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass).
+
 ### Prefix Decorators
 
 An `@value` line immediately before a module-level data or enum declaration
@@ -287,23 +298,21 @@ fn same(value: i32) -> i32:
 ```
 
 An `@value` line immediately before a named or embedded data field or an enum
-variant attaches member metadata. For a field `name: string`, `@max_len(80)`
-expands to the `max_len(80)` entry in
-`annotate User: name = [max_len(80)]`. Member metadata is also the member's
-or variant's declaration facts for [typed derivation](#facts).
+variant attaches its value to that member's metadata. For a field
+`name: string`, `@max_len(80)` attaches `max_len(80)` to `name`. Member
+metadata is also the member's or variant's declaration facts for
+[typed derivation](#facts).
 
-For an embedded `Timestamps` field in `Post`, `@flatten()` expands to the
-`flatten()` entry in `annotate Post: Timestamps = [flatten()]`. A generic
-embedded `Box[T]` keeps the member name `Box`. Metadata is attached only to
-the embedded field's own `FieldShape`; it is not propagated to promoted
-fields or methods.
+For an embedded `Timestamps` field in `Post`, `@flatten()` attaches
+`flatten()` to the member `Timestamps`. A generic embedded `Box[T]` keeps
+the member name `Box`. Metadata is attached only to the embedded field's own
+`FieldShape`; it is not propagated to promoted fields or methods.
 
-Multiple lines retain source order and obey the same duplicate-concrete-type
-rule as an explicit member metadata list. A decorator and an explicit
-`annotate` block for the same target combine only when they do not assign
-the same member. Decorators attach to declarations or members, never to type
-expressions. Declaration decorators are module-level syntax; local
-declarations cannot be decorated or targeted by an `annotate` declaration.
+Multiple lines retain source order and obey the duplicate rule of
+[Member Metadata](#member-metadata). A trait-less derivation block may then
+extend or replace a member's decorator values. Decorators attach to
+declarations or members, never to type expressions. Declaration decorators
+are module-level syntax; local declarations cannot be decorated.
 
 An `@value` prefix on a parameter of a module-level named function attaches
 parameter metadata. The prefix may be inline or occupy its own line in a
@@ -317,10 +326,10 @@ fn get_user(
     ...
 ```
 
-This expands to the `id` entry in `annotate get_user` and is visible through
-that parameter's `ParamShape`. Parameter decorators are not accepted on
-closures, methods, trait requirements, receiver parameters, or local
-functions.
+This attaches `description("User identifier")` to the parameter `id`, and
+it is visible through that parameter's `ParamShape`. Parameter decorators
+are not accepted on closures, methods, trait requirements, receiver
+parameters, or local functions.
 
 `@derive` uses the same prefix position but is not an ordinary decorator.
 Its arguments are trait names rather than metadata values. The compiler
@@ -329,27 +338,30 @@ checks and generates each requested implementation.
 
 ### Member Metadata
 
-`annotate Target` attaches metadata values to existing fields, enum variants,
-or function parameters:
+Member metadata is written on the member with `@value` lines, or away
+from the declaration in a
+[trait-less derivation block](#trait-less-derivation-blocks):
 
 ```text
+use std.structure.Structure
+
 data User:
     display_name: string
 
-annotate User:
+impl User by Structure:
     display_name = [min_len(1), max_len(80)]
 ```
 
-The target is a declared data type, enum, or module-level named function, not
-an arbitrary type expression. Every left-hand name must identify an existing
-direct member or parameter. An embedded field is a direct member under its
-final type name; members promoted through it are not direct members. The block
-cannot add, rename, remove, or change the type of a member or parameter.
+A trait-less block writes metadata for a data type's fields or an enum's
+variants. A function has no derivation block, so parameter metadata is
+written only with `@value` on the parameter.
 
-1. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
-2. r[annot.metadata.any-value] Any value may be attached; no marker trait is required.
-3. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
-4. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
+1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a trait-less derivation block for its type.
+2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
+3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
+4. r[annot.metadata.any-value] Any value may be attached; no marker trait is required.
+5. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
+6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
 concrete type.
@@ -382,27 +394,21 @@ Different concrete metadata types coexist in one `List[Any]`.
 
 ## Grammar
 
-Module-level annotation declarations use this grammar:
+Metadata has no declaration form of its own. Decorator lines are
+`decorator_line` in the [Annotations grammar](02-grammar.md#annotations). A
+trait-less derivation block is an `impl_decl` with `by` and no `for`, and
+its members are `derivation_line`s, as
+[Traits And Implementations](02-grammar.md#traits-and-implementations)
+defines:
 
 ```ebnf
-annotation_decl = member_metadata_decl ;
-
-member_metadata_decl = "annotate", qualified_name, ":",
-                       annotation_member_suite ;
-
-annotation_member_suite = "pass", SUITE_END
-                        | NEWLINE, INDENT,
-                          ( "pass", NEWLINE
-                          | metadata_assignment, { metadata_assignment } ),
-                          DEDENT
-                        ;
-
-metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
+impl_decl = "impl", [ generic_params ], type,
+            [ "for", type ], [ "by", identifier ],
+            ( NEWLINE
+            | ":", NEWLINE, INDENT,
+              impl_member, { impl_member }, DEDENT )
+            ;
 ```
-
-`annotate Target` metadata assignments apply to data fields, enum variants,
-or module-level function parameters. The suite accepts `pass` after the
-header's `:` or alone on an indented line; both attach no metadata.
 
 ## Typed Derivation
 
@@ -645,7 +651,7 @@ impl Encode for Order by Structure:
 5. r[annot.block.not-delegation] `by Structure` is never a delegation, as [`trait.by.structure`](09-traits.md#r-trait.by.structure) also states.
 6. r[annot.block.methods] A block may write a method of the trait. The written method replaces the template's method, as a written method replaces a default.
 7. r[annot.block.lines] A block may carry [member lines](#member-lines), which edit the `Structure` that this derivation sees.
-8. r[annot.block.local] Member lines are local to their block. Another derivation for the same type sees only the declaration facts.
+8. r[annot.block.local] A derivation block's member lines are local to it. Another derivation for the same type sees only the declaration facts.
 9. r[annot.block.header] A block may state generic parameters and bounds in its header, as in `impl[T < Hash] Encode for Bag[T] by Structure:`. The derived implementation then has exactly those bounds.
 10. r[annot.block.gadt] The target of a derivation, by `@derive` or by a block, must not be a GADT enum. Such a derivation is an error, reported at the opt-in. Error: `gadt-derivation`.
 11. r[annot.block.newtype] The target of a derivation block must not be a newtype. A newtype derives only through its base type, with `@derive`, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
@@ -676,7 +682,9 @@ impl Show for Point by Structure  # error: unknown-trait
 #### Member Lines
 
 A **member line** in a derivation block adjusts facts, or leaves a member
-out, for that block only:
+out, for that block only. A trait-less derivation block uses the same lines
+to write shared metadata, as
+[Trait-Less Derivation Blocks](#trait-less-derivation-blocks) defines:
 
 | Rule | Form | Meaning for this block |
 | --- | --- | --- |
@@ -692,7 +700,7 @@ out, for that block only:
 5. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). A `Self` line's list is contextually typed as `List[Any]`.
 6. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Error: `duplicate-fact`.
 7. r[annot.line.unchanged] A member without a line keeps its declaration facts.
-8. r[annot.line.placement] A member line anywhere other than a derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
+8. r[annot.line.placement-blocks] A member line anywhere other than a derivation block or a trait-less derivation block, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
 
 ```text
 use std.structure.Structure
@@ -747,6 +755,71 @@ impl Show for Account by Structure:
 > worth a second look. Some differences are deliberate, as serde's
 > `skip_serializing` shows.
 
+#### Trait-Less Derivation Blocks
+
+A **trait-less derivation block** writes shared metadata for one type, away
+from its declaration. It names no trait and derives nothing:
+
+```text
+use std.structure.Structure
+
+data User:
+    @max_len(80)
+    name: string
+    email: string
+
+impl User by Structure:
+    name += [min_len(1)]
+    email = [max_len(320)]
+```
+
+Every derivation of `User`, and its shape, then sees `max_len(80)` and
+`min_len(1)` on `name`, and `max_len(320)` on `email`.
+
+Each line names an existing direct member, as any member line does. An
+embedded field is named by its final type name, and members promoted
+through it are not direct members. The block cannot add, rename, remove, or
+change the type of a member.
+
+1. r[annot.traitless.form] `impl X by Structure:`, written without a trait, is a trait-less derivation block. It writes metadata of `X` and implements nothing.
+2. r[annot.traitless.not-inherent] A trait-less block is not an inherent implementation: it declares no members of `X`.
+3. r[annot.traitless.lines-only] Its body holds only member lines. A method or an associated type in it is an error, reported on that member. Error: `misplaced-derivation`.
+4. r[annot.traitless.no-omit] It writes only metadata, so an omit line `f = pass` in it is an error. Error: `invalid-member-line`.
+5. r[annot.traitless.after-decorators] Its lines apply to the values that a member's decorators attach: a `+=` line appends after them, and a `=` line replaces them.
+6. r[annot.traitless.self] Its `Self` lines apply the same way to the type-level facts that decorators before `X` attach.
+7. r[annot.traitless.declaration-facts] The result is the declaration facts of `X` and its members: every derivation of `X` sees it, and so do the field and variant shapes of `X`.
+8. r[annot.traitless.then-blocks] A derivation block's member lines then edit those declaration facts, for that block only.
+9. r[annot.traitless.module] A trait-less block must be declared in the module that declares `X`, as an inherent implementation must. One declared elsewhere is an error, reported on the block. Error: `misplaced-derivation`.
+10. r[annot.traitless.local] A trait-less block in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.
+11. r[annot.traitless.target] `X` must be a data type or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
+12. r[annot.traitless.by] The name after `by` in a header without a trait must be `Structure`, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) states.
+
+```text
+use std.structure.Structure
+
+data Token:
+    text: string = ""
+
+data Account:
+    id: i64
+    token: Token = Token {}
+
+type Meters(i64)
+
+impl Account by Structure:
+    token = pass  # error: invalid-member-line
+    fn label(self) -> string:  # error: misplaced-derivation
+        "account"
+
+impl Meters by Structure  # error: misplaced-derivation
+```
+
+> **Why.** The block reuses the derivation block's header and member lines,
+> so shared metadata needs no keyword of its own. An omit line is not
+> metadata, because it changes generated code.
+
+See also: [Member Metadata](#member-metadata), [Facts](#facts).
+
 ### Facts
 
 A **fact** is an ordinary value attached to a type, member, or variant for
@@ -761,9 +834,9 @@ fn key_for(style: Style, m: Member) -> string:
 
 1. r[annot.fact.descriptive] Facts are descriptive: a fact changes no generated call. Only a template's own code reads it.
 2. r[annot.fact.type-level-decorator] A decorator before a data or enum declaration attaches a type-level fact, as `@style(prefix="user_")` does.
-3. r[annot.fact.member] A member's or variant's declaration facts are its member metadata: the values that its decorators and `annotate` member blocks attach, in source order.
+3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata: the values that its decorators attach, in source order, as the type's trait-less derivation block edits them.
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
-5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A block's member lines edit them for that block only.
+5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
 6. r[annot.fact.eval] A fact expression is evaluated once, at compile time. It must be requirement-free, as defined for [default values](07-functions.md#default-values).
 7. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
 8. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
@@ -988,4 +1061,7 @@ An implementation must not guess them:
 | Composing templates | How a walker forwards to another walker's `member`, which only generated code may call generically. |
 | `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
 | Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
+| Generic trait-less blocks | How a trait-less derivation block for a generic type is written, as in `impl[T] Box[T] by Structure:`, and whether its header may name other type arguments. |
+| Several trait-less blocks | Whether one type may have more than one trait-less derivation block, and in which order their lines apply. |
+| Unused facts from a block | Whether a type-level fact written in a trait-less block's `Self` line gets `unused-derivation-fact`, and where it is reported. |
 | Function targets | Deriving for functions, and what a decorator before a function declaration means, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). |

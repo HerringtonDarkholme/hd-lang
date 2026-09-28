@@ -1,0 +1,9 @@
+# test: a header without a trait never delegates, so only Structure may follow by
+data Logger:
+    name: string
+
+data Service:
+    Logger
+    port: i32
+
+impl Service by Logger  # diagnostic: invalid-delegation

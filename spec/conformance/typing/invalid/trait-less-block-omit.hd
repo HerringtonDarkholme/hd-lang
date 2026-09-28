@@ -1,0 +1,12 @@
+# test: a trait-less block writes only metadata, so it cannot omit a member
+use std.structure.Structure
+
+data Token:
+    text: string = ""
+
+data Account:
+    id: i64
+    token: Token = Token {}
+
+impl Account by Structure:
+    token = pass  # diagnostic: invalid-member-line

@@ -1,0 +1,12 @@
+# test: impl T by Structure without a trait parses as a trait-less derivation block
+# expect: parse
+use std.structure.Structure
+
+data Point:
+    x: i32
+    y: i32
+
+impl Point by Structure:
+    x += [1]
+    y = ["y"]
+    Self += [2]

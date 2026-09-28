@@ -1,0 +1,10 @@
+# test: a trait-less block holds only member lines, not methods
+use std.structure.Structure
+
+data Account:
+    id: i64
+
+impl Account by Structure:
+    id = []
+    fn label(self) -> string:  # diagnostic: misplaced-derivation
+        "account"

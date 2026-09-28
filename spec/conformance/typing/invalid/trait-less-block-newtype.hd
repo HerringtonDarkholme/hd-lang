@@ -1,0 +1,6 @@
+# test: a trait-less block cannot target a newtype
+use std.structure.Structure
+
+type Meters(i64)
+
+impl Meters by Structure  # diagnostic: misplaced-derivation

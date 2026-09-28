@@ -899,7 +899,6 @@ runtime/valid/bang-call-explicit-type-arguments.hd	runtime	accept	07-functions.m
 parse/invalid/qualified-bang-call-type-arguments-before-bang.hd	parse	reject:syntax-error	02-grammar.md#primary-expressions
 runtime/valid/list-suffix-spread.hd	runtime	accept	05-expressions.md#list-and-map-expressions
 typing/invalid/list-spread-non-list.hd	type	reject:type-mismatch	05-expressions.md#list-and-map-expressions
-parse/valid/annotate-indented-pass.hd	parse	accept	14-annotations.md#grammar
 runtime/valid/self-interpolation.hd	runtime	accept	05-expressions.md#literals
 parse/invalid/reserved-word-interpolation.hd	parse	reject:syntax-error	01-lexical-structure.md#string-and-character-literals
 runtime/valid/contextual-words-as-names.hd	runtime	accept	01-lexical-structure.md#keywords-and-reserved-words
@@ -1137,7 +1136,7 @@ typing/invalid/marker-template.hd	type	reject:marker-template	14-annotations.md#
 typing/invalid/duplicate-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.line.duplicate
 typing/invalid/member-line-payload-member.hd	type	reject:unknown-annotation-member	14-annotations.md#r-annot.line.enum
 typing/invalid/invalid-member-line.hd	type	reject:invalid-member-line	14-annotations.md#r-annot.line.right.error
-typing/invalid/member-line-outside-block.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.line.placement
+typing/invalid/member-line-outside-block.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.line.placement-blocks
 typing/invalid/omitted-member-without-default.hd	type	reject:omitted-member-without-default	14-annotations.md#r-annot.omit.no-default
 typing/invalid/derive-member-not-derivable.hd	type	reject:member-not-derivable	14-annotations.md#r-annot.walker.obligation.error
 typing/invalid/generic-member-call.hd	type	reject:generic-member-call	14-annotations.md#r-annot.walker.generic-member-call
@@ -1228,3 +1227,13 @@ typing/valid/derive-without-structure-use.hd	type	accept	14-annotations.md#r-ann
 typing/invalid/derive-before-function.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.function-derive
 typing/invalid/duplicate-declaration-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.metadata.duplicate
 runtime/valid/data-variant-facts-empty.hd	runtime	accept	14-annotations.md#r-annot.variant.data-facts
+parse/valid/trait-less-derivation-block.hd	parse	accept	02-grammar.md#r-grammar.impl.traitless-by
+typing/valid/annotate-identifier.hd	type	accept	01-lexical-structure.md#r-lex.keyword.reserved-words
+typing/valid/trait-less-derivation-block.hd	type	accept	14-annotations.md#r-annot.traitless.form
+runtime/valid/trait-less-block-facts.hd	runtime	accept	14-annotations.md#r-annot.traitless.after-decorators
+typing/invalid/trait-less-block-omit.hd	type	reject:invalid-member-line	14-annotations.md#r-annot.traitless.no-omit
+typing/invalid/trait-less-block-method.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.lines-only
+typing/invalid/trait-less-block-newtype.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.target
+typing/invalid/trait-less-block-local.hd	type	reject:misplaced-derivation	14-annotations.md#r-annot.traitless.local
+typing/invalid/trait-less-block-duplicate-fact.hd	type	reject:duplicate-fact	14-annotations.md#r-annot.traitless.after-decorators
+typing/invalid/trait-less-delegation.hd	type	reject:invalid-delegation	09-traits.md#r-trait.by.trait-less.error

@@ -397,14 +397,14 @@ fn kind(token: Token) -> string:
 
 ## Keywords And Reserved Words
 
-r[lex.keyword.reserved-list] The grammar uses these reserved words:
+r[lex.keyword.reserved-words] The grammar uses these reserved words:
 
 ```text
-Self      annotate  break     continue  data      defer
-else      enum      false     fn        for       if
-impl      in        is        let       match     mut
-pass      pub       return    self      tests     trait
-true      type      while
+Self      break     continue  data      defer     else
+enum      false     fn        for       if        impl
+in        is        let       match     mut       pass
+pub       return    self      tests     trait     true
+type      while
 ```
 
 1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).
@@ -423,7 +423,7 @@ only in fixed positions:
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
 | r[lex.contextual.pack] Pack | `pack`, `map`, `map_list` | in the `pack.map(...)` and `pack.map_list(...)` forms |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |
-| r[lex.contextual.by] Delegation | `by` | after the target type of a trait implementation header, as in `impl Describe for Service by Logger` |
+| r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or the trait-less `impl User by Structure` |
 
 1. r[lex.contextual.reified.modifier] In the position the table gives for it, an unbackticked `reified` is always the modifier.
 2. r[lex.contextual.reified.lone] A lone `reified`, as in `fn f[reified]()` or `[T, reified < Show]`, is therefore an error. Error: `syntax-error`.
@@ -755,7 +755,7 @@ punctuation tokens:
 2. r[lex.op.longest.examples] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. Likewise `...=` is one token rather than `...` and `=`, and `&&` and `||` are single tokens.
 3. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
 4. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
-5. r[lex.op.plus-equals] `+=` is one token. Only a member line of a derivation block uses it, as [Member Lines](14-annotations.md#member-lines) defines; hd has no compound assignment.
+5. r[lex.op.plus-equals] `+=` is one token. Only a member line uses it, as [Member Lines](14-annotations.md#member-lines) defines; hd has no compound assignment.
 
 See also: [Expressions](05-expressions.md), which defines operator
 precedence and semantics, including prefix `!` as logical not;

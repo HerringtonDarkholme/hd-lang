@@ -2,7 +2,7 @@ import { closeToOpen, maskLiterals, openToClose } from "./lexer.ts";
 import type { Diagnostic } from "./types.ts";
 
 const reserved = new Set(
-  "Self annotate break continue data defer else enum false fn for if impl in is let match mut pass pub return self trait true type while".split(
+  "Self break continue data defer else enum false fn for if impl in is let match mut pass pub return self trait true type while".split(
     " ",
   ),
 );

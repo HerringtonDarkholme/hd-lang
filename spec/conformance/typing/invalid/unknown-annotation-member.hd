@@ -1,6 +1,8 @@
+# test: a trait-less block's member line must name a direct member
+use std.structure.Structure
 
 data User:
     name: string
 
-annotate User:
+impl User by Structure:
     missing = []  # diagnostic: unknown-annotation-member

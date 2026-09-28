@@ -179,13 +179,14 @@ links to the rule that defines the term.
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a type implementing `std.ops.LiteralSuffix`. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
-| **member line** | A line of a derivation block that edits one member's facts or omits it. See [Member Lines](14-annotations.md#member-lines). |
+| **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix's `from_literal`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](14-annotations.md#templates). |
+| **trait-less derivation block** | An `impl X by Structure:` without a trait, whose member lines write shared metadata of `X` for every derivation and its shape. See [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks). |
 | **test case** | One test, registered by a call of the prelude function `it`, or one row of `it_each`, in test position. See [Test Cases](10-modules.md#test-cases). |
 | **test code** | A package's `tests:` blocks, test modules, and integration test modules, compiled only by a test build. See [`module.test.code`](10-modules.md#r-module.test.code). |
 | **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
@@ -1090,3 +1091,17 @@ existing source. Each entry names the decision that made the change.
   member, variant, or parameter, previously an error with no code, are
   `duplicate-fact`. A type-level fact of a primitive or `std` type, such as
   `@"internal"`, previously `unused-derivation-fact`, no longer warns.
+- Typed derivation M26 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-the-prototype-pass),
+  2026-09-28): the `annotate Target:` block is removed, and `annotate` is no
+  longer a reserved word. `annotate User: name = [max_len(80)]`, previously
+  valid, is now a `syntax-error`; write `impl User by Structure:` with the
+  same member line, after `use std.structure.Structure`. `annotate` is now
+  an ordinary identifier. A trait-less derivation block's facts apply to
+  every derivation and to shapes: `+=` appends after the decorator values
+  and `=` replaces them. Parameter metadata, previously also written in
+  `annotate get_user`, is written only with `@` on the parameter. The block
+  must be in the target's module and not in a local scope; a method, an
+  associated type, or an omit line `f = pass` in it, and a newtype target,
+  are errors. `impl C by E` without a trait, where `E` is not `Structure`,
+  is `invalid-delegation`.

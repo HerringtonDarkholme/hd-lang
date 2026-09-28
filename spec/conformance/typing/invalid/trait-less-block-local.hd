@@ -1,0 +1,11 @@
+# test: a trait-less block is not permitted in a local scope
+use std.structure.Structure
+
+fn run() -> void:
+    data Request:
+        query: string
+
+    impl Request by Structure:  # diagnostic: misplaced-derivation
+        query = [1]
+
+    pass

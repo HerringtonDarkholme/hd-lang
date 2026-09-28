@@ -19,7 +19,6 @@ source_file = { NEWLINE | top_level_item }, EOF ;
 
 top_level_item = use_decl
                | tests_block
-               | annotation_decl
                | decorated_decl
                | declaration
                | top_level_statement
@@ -34,7 +33,7 @@ top_level_statement = suite_statement
 2. r[grammar.suite.indented] An indented `suite_body` begins on the following logical line.
 3. r[grammar.suite.nonempty] The production requires at least one statement in an indented body; use `pass` when an explicit no-op body is required.
 4. r[grammar.suite.local-declarations] Named declarations and implementations may also occur in executable block suites.
-5. r[grammar.suite.top-level-only] Use and annotation declarations remain top-level items.
+5. r[grammar.suite.use-top-level] Use declarations remain top-level items.
 6. r[grammar.suite.methods] Methods occur inside trait and implementation declarations through their dedicated grammar productions.
 
 ## Test Blocks
@@ -46,7 +45,6 @@ tests_block = "tests", ":", NEWLINE, INDENT, tests_item, { tests_item },
               DEDENT ;
 
 tests_item = use_decl
-           | annotation_decl
            | decorated_decl
            | declaration
            | top_level_statement
@@ -67,7 +65,7 @@ tests:
 ```
 
 1. r[grammar.tests.block] A `tests:` block is a top-level item that holds its module's test-only items.
-2. r[grammar.tests.items] Its items take the forms of top-level items: use declarations, annotation declarations, decorated declarations, declarations, and statements.
+2. r[grammar.tests.item-forms] Its items take the forms of top-level items: use declarations, decorated declarations, declarations, and statements.
 3. r[grammar.tests.top-level] A `tests:` block may appear only at module top level. A `tests:` block inside a suite or inside another `tests:` block is an error. Error: `syntax-error`.
 4. r[grammar.tests.once] A file may have at most one `tests:` block. A second block is an error. Error: `duplicate-tests-block`.
 5. r[grammar.tests.statements] Each statement of the block must be a call of the prelude function `it`, as [Test Cases](10-modules.md#test-cases) specifies.
@@ -402,7 +400,7 @@ trait_member = associated_type_decl
              ;
 
 impl_decl = "impl", [ generic_params ], type,
-            [ "for", type, [ "by", identifier ] ],
+            [ "for", type ], [ "by", identifier ],
             ( NEWLINE
             | ":", NEWLINE, INDENT,
               impl_member, { impl_member }, DEDENT )
@@ -434,8 +432,10 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
 14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
-15. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
-16. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
+15. r[grammar.impl.traitless-by] `impl T by Structure`, without a trait, declares a trait-less derivation block, as [Trait-Less Derivation Blocks](14-annotations.md#trait-less-derivation-blocks) defines.
+16. r[grammar.impl.traitless-by.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.trait-less`](09-traits.md#r-trait.by.trait-less) defines.
+17. r[grammar.impl.derivation-line] A `derivation_line` is a member line. Its placement and meaning are defined in [Member Lines](14-annotations.md#member-lines).
+18. r[grammar.impl.derivation-line.forms] Which right sides a member line accepts is a semantic rule of [Member Lines](14-annotations.md#member-lines), not a grammar rule.
 
 ```text
 pub trait Display:
@@ -1316,26 +1316,15 @@ newtype_decl = "type", identifier, [ type_params ], "(", type, ")", NEWLINE ;
 
 derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
-
-annotation_decl = member_metadata_decl ;
-
-member_metadata_decl = "annotate", qualified_name, ":",
-                       annotation_member_suite ;
-
-annotation_member_suite = "pass", SUITE_END
-                        | NEWLINE, INDENT,
-                          ( "pass", NEWLINE
-                          | metadata_assignment, { metadata_assignment } ),
-                          DEDENT
-                        ;
-
-metadata_assignment = identifier, "=", closed_expression, NEWLINE ;
 ```
 
-1. r[grammar.annot.pass] Every annotation body, like a data body, accepts `pass` either after the header's `:` or alone on an indented line.
-2. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
-3. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
-4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
+1. r[grammar.annot.newtype-derive] A newtype declaration may be decorated only with `@derive` lines.
+2. r[grammar.annot.newtype-derive.error] Any other decorator before a newtype, and any decorator before a transparent alias, is an error. Error: `syntax-error`.
+3. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
+
+Member metadata written away from a declaration uses a trait-less
+derivation block, an `impl_decl`, as [`grammar.impl.traitless-by`](#r-grammar.impl.traitless-by)
+states.
 
 See also: [Typed Derivation](14-annotations.md#typed-derivation).
 

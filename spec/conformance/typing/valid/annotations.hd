@@ -1,4 +1,6 @@
-# test: an annotate block attaches member metadata of any type, read through the shape
+# test: a trait-less derivation block attaches member metadata of any type, read through the shape
+use std.structure.Structure
+
 data MinLen:
     value: i32
 
@@ -20,7 +22,7 @@ fn email_metadata() -> List[Any]:
 data User:
     name: string
 
-annotate User:
+impl User by Structure:
     name = [min_len(1), max_len(80)]
 
 user_shape := shape[User]()

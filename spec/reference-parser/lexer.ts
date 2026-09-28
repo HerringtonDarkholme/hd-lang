@@ -2,7 +2,6 @@ import type { Diagnostic, GrammarToken, LexResult } from "./types.ts";
 
 const reserved = new Set([
   "Self",
-  "annotate",
   "break",
   "continue",
   "data",
@@ -424,7 +423,6 @@ const suiteWords = new Set([
   "else",
   "data",
   "tests",
-  "annotate",
   "with",
 ]);
 

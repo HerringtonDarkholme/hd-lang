@@ -1,0 +1,5 @@
+# test: annotate is an ordinary identifier, not a reserved word
+fn annotate(value: i32) -> i32:
+    value
+
+let annotated: i32 = annotate(1)

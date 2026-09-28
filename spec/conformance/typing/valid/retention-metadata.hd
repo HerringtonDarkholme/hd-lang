@@ -1,3 +1,5 @@
+use std.structure.Structure
+
 type UserId(string)
 type PostId(string)
 
@@ -17,5 +19,5 @@ data Post:
     id: PostId
     userId: UserId
 
-annotate Post:
+impl Post by Structure:
     userId = [retention_owner(shape[User]()), delete_when(shape[User]().fields.deleted)]
