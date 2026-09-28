@@ -1,0 +1,32 @@
+# test: a member line whose right side is not list-typed is invalid-member-line, not a type mismatch
+# Spec 14 Member Lines: annot.line.right.not-list (M29).
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + ";"
+        .Ok()
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Pair:
+    left: i64
+    right: i64
+
+impl Show for Pair by Structure:
+    right = 5  # diagnostic: invalid-member-line

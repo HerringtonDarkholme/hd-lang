@@ -499,7 +499,7 @@ else`, `break`, `break value`, and `continue`;
   with code 1. Printing the error's `Display` text and cause chain is not
   implemented;
 - typed derivation (spec/14-annotations.md#typed-derivation, Typed
-  Derivation M1-M26), lowered before checking by `checker/typed-derivation.ts`:
+  Derivation M1-M29), lowered before checking by `checker/typed-derivation.ts`:
   decorators on data, enum, newtype, field, variant, payload, and function
   parameter declarations; the `+=` token; `@derive` of a trait with a
   `by Structure` template; derivation blocks with member lines (`=`, `+=`,
@@ -534,13 +534,20 @@ else`, `break`, `break value`, and `continue`;
   is `unsupported-debug-render` at run time); the drift and unused-fact warnings treat
   the module as one package, and a literal fact such as `@"note"` is the
   only `std`-typed fact the unused-fact warning skips (M25); function
-  targets, `@derive` included, stay `decorator-not-annotator`. For
-  trait-less blocks, where the spec is still open, the prototype takes a
-  generic or instantiated header by its type constructor, applies several
-  blocks for one type in source order, never warns about a `Self` line's
-  fact as unused, and accepts only a list literal on a member line's right
-  side; it cannot check `annot.traitless.module` across the modules of a
-  linked package, which share one namespace;
+  targets, `@derive` included, stay `decorator-not-annotator`. Trait-less
+  blocks follow M27-M29: the header must bind the declaration's parameters
+  in order, under any names and without bounds; a second block for one type
+  is `overlapping-impl`; a `Self` line's fact warns as unused when the type
+  derives nothing; and a member line's right side may be any list-typed
+  expression. A name bound by a module `let` to a list literal is inlined,
+  so its elements keep their concrete types; any other list expression is
+  spread into `Facts` as `value...`, which needs `Inspectable` elements. A
+  right side whose type is known from syntax and is not a list, such as
+  `name = 5`, is `invalid-member-line`. Two type-level decorators of one
+  fact type are `duplicate-fact` on the later one. The per-trait `Self`
+  line warning needs a second package, which the prototype CLI cannot
+  load. The prototype cannot check `annot.traitless.module` across the
+  modules of a linked package, which share one namespace;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner

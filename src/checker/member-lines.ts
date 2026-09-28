@@ -1,6 +1,6 @@
 import type { DataDecl, EnumDecl, Expression, ImplDecl, MemberLine, Program } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
-import { readonlyType } from "../types.ts";
+import { nominalGenericParts, readonlyType } from "../types.ts";
 
 // Member lines (spec/14-annotations.md#member-lines) and trait-less
 // derivation blocks (#trait-less-derivation-blocks). A trait-less block
@@ -14,6 +14,69 @@ export type Target =
   | { readonly kind: "enum"; readonly declaration: EnumDecl };
 
 type Report = (code: string, message: string, span: SourceSpan) => void;
+
+// A member line's right side may be any list-typed expression
+// (annot.line.right-typed). A right side that is not a list literal becomes
+// one spread fact element, emitted as `value...` in the facts list.
+const spreadFacts = new WeakSet<Expression>();
+const spreadIds = new WeakMap<Expression, number>();
+let nextSpreadId = 0;
+
+function spreadId(fact: Expression): number {
+  let id = spreadIds.get(fact);
+  if (id === undefined) {
+    id = nextSpreadId++;
+    spreadIds.set(fact, id);
+  }
+  return id;
+}
+
+/** Whether a fact element stands for a whole list, spread into the facts. */
+export function isSpreadFact(fact: Expression): boolean {
+  return spreadFacts.has(fact);
+}
+
+/** The fact elements that a member line's list-typed right side adds. */
+export function lineFacts(value: Expression): readonly Expression[] {
+  if (value.kind !== "list") {
+    spreadFacts.add(value);
+    return [value];
+  }
+  value.elements.forEach((element, index) => {
+    if (value.spreads?.[index]) spreadFacts.add(element);
+  });
+  return value.elements;
+}
+
+const NOT_A_LIST = new Set([
+  "boolean",
+  "character",
+  "closure",
+  "data",
+  "float",
+  "integer",
+  "interpolated-string",
+  "map",
+  "map-comprehension",
+  "string",
+  "text",
+  "tuple",
+]);
+
+/**
+ * Whether a right side can be list-typed: a list, or an expression whose known
+ * type is a list. Anything else, such as `name = 5`, is `invalid-member-line`
+ * (annot.line.right.error, annot.line.right.not-list).
+ */
+export function listValued(
+  value: Expression,
+  knownType: (value: Expression) => string | undefined,
+): boolean {
+  if (value.kind === "list" || value.kind === "list-comprehension") return true;
+  if (NOT_A_LIST.has(value.kind)) return false;
+  const type = knownType(value);
+  return type === undefined || readonlyType(type).startsWith("List[");
+}
 
 export function directMembers(target: Target): string[] {
   return target.kind === "data"
@@ -32,9 +95,13 @@ export function checkMemberLines(
   target: Target,
   lines: readonly MemberLine[],
   factType: (fact: Expression) => string,
+  knownType: (value: Expression) => string | undefined,
   error: Report,
 ): boolean {
   let valid = true;
+  // A spread list's element types are not known here, so it never duplicates.
+  const typeOf = (fact: Expression): string =>
+    isSpreadFact(fact) ? `spread:${spreadId(fact)}` : factType(fact);
   const fail = (code: string, message: string, span: SourceSpan): void => {
     error(code, message, span);
     valid = false;
@@ -78,12 +145,16 @@ export function checkMemberLines(
       }
       continue;
     }
-    if (!line.value || line.value.kind !== "list") {
-      fail("invalid-member-line", "a member line's right side must be a list or pass", line.span);
+    if (!line.value || !listValued(line.value, knownType)) {
+      fail(
+        "invalid-member-line",
+        "a member line's right side must be a list-typed expression or pass",
+        line.span,
+      );
       continue;
     }
-    const before = current.get(line.name) ?? declarationFacts(target, line.name).map(factType);
-    const added = line.value.elements.map(factType);
+    const before = current.get(line.name) ?? declarationFacts(target, line.name).map(typeOf);
+    const added = lineFacts(line.value).map(typeOf);
     const next = line.operator === "+=" ? [...before, ...added] : added;
     if (new Set(next).size !== next.length) {
       fail(
@@ -114,9 +185,9 @@ function applied(
 ): readonly Expression[] {
   let result = facts;
   for (const line of lines)
-    if (line.name === name && line.value?.kind === "list")
+    if (line.name === name && line.value)
       result =
-        line.operator === "+=" ? [...result, ...line.value.elements] : [...line.value.elements];
+        line.operator === "+=" ? [...result, ...lineFacts(line.value)] : [...lineFacts(line.value)];
   return result;
 }
 
@@ -157,13 +228,14 @@ function withLines(target: Target, lines: readonly MemberLine[], span: SourceSpa
 
 /**
  * Checks each module-level trait-less block, applies its lines to the
- * declaration facts of its target in source order, and drops the block: it
+ * declaration facts of its target (at most one block per type), and drops the block: it
  * implements nothing (annot.traitless.*).
  */
 export function withTraitLessBlocks(
   program: Program,
   structureVisible: boolean,
   factType: (fact: Expression) => string,
+  knownType: (value: Expression) => string | undefined,
   error: Report,
 ): Program {
   const blocks = program.implementations.filter(isTraitLess);
@@ -175,6 +247,7 @@ export function withTraitLessBlocks(
     ...program.data.map((item) => [item.name, { kind: "data", declaration: item }] as const),
     ...program.enums.map((item) => [item.name, { kind: "enum", declaration: item }] as const),
   ]);
+  const seen = new Set<string>();
   for (const block of blocks) {
     // A header without a trait never delegates (trait.by.trait-less.error).
     if (block.delegate) {
@@ -205,6 +278,36 @@ export function withTraitLessBlocks(
       );
       continue;
     }
+    // The header binds the declaration's parameters in order, under any names
+    // and without bounds (annot.traitless.generic, annot.traitless.generic-rename).
+    const declared = target.declaration.genericParameters;
+    const arguments_ = nominalGenericParts(readonlyType(block.targetName))?.arguments ?? [];
+    const parameters = block.genericParameters;
+    if (
+      block.genericBounds.length > 0 ||
+      parameters.length !== declared.length ||
+      arguments_.length !== declared.length ||
+      arguments_.some((argument, index) => argument !== parameters[index])
+    ) {
+      error(
+        "misplaced-derivation",
+        declared.length === 0
+          ? `a trait-less derivation block for '${name}' takes no type parameters`
+          : `a trait-less derivation block must apply '${name}' to its own ${declared.length} type parameter(s), in order and without bounds`,
+        block.span,
+      );
+      continue;
+    }
+    // One trait-less block per type (annot.traitless.unique).
+    if (seen.has(name)) {
+      error(
+        "overlapping-impl",
+        `type '${name}' already has a trait-less derivation block`,
+        block.span,
+      );
+      continue;
+    }
+    seen.add(name);
     let valid = true;
     for (const member of [...block.methods, ...block.associatedTypes]) {
       error(
@@ -224,7 +327,7 @@ export function withTraitLessBlocks(
         );
         valid = false;
       }
-    if (!valid || !checkMemberLines(target, lines, factType, error)) continue;
+    if (!valid || !checkMemberLines(target, lines, factType, knownType, error)) continue;
     targets.set(name, withLines(target, lines, block.span));
   }
   const declaration = <T extends DataDecl | EnumDecl>(item: T): T =>

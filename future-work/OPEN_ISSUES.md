@@ -160,17 +160,18 @@ fn report!() -> void $ Console:
 
 ### Typed Derivation, Tool Adapters, And Secrets
 
-**Decided.** Owner decisions M1-M28 in
+**Decided.** Owner decisions M1-M29 in
 [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md) are
 applied in [Typed Derivation](../spec/14-annotations.md#typed-derivation);
 M26 replaced the `annotate` block with the
 [trait-less derivation block](../spec/14-annotations.md#trait-less-derivation-blocks),
 and M28 settled its generic header, one block per type, the `Self` line
-warning, and list-typed member lines.
-The prototype implements M1-M26 by lowering; its gaps are rows of
+warning and list-typed member lines; M29 settled renamed parameters, non-list
+right sides, and per-trait `Self` lines.
+The prototype implements M1-M29 by lowering; its gaps are rows of
 `test/portable/KNOWN_FAILURES.tsv`, mostly `K1` (the shape intrinsics),
-`F-250`, and the `M27` and `M28` fixtures, which wait for the prototype
-refactor. The questions the prototype pass
+`F-250`, and one `M29` fixture that needs package roles. The questions
+the prototype pass
 raised are in
 [Still Open](TYPED_DERIVATION.md#still-open-after-the-prototype-pass), and
 those the M27 and M28 apply pass raised are in

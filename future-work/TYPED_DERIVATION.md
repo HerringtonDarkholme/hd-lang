@@ -3,8 +3,8 @@
 Status: design record for roadmap area 2. Typed derivation is fully
 decided by owner decisions M1-M24 (2026-09-27), M25 (2026-09-28, applied
 the same day), M26 (2026-09-28, applied the same day, its readings awaiting
-confirmation), and M27 and M28 (2026-09-28, applied to the spec the same
-day, not yet in the prototype), tested by three stress tests
+confirmation), M27 and M28 (2026-09-28, applied to the spec the same
+day), and M29 (2026-09-28, applied the same day), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
 [round 3](DERIVATION_STRESS_TEST_3.md)). M1-M24 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
@@ -14,8 +14,8 @@ and [09](../spec/09-traits.md#derived-implementations). The prototype
 compiler implements them by lowering each derivation to an ordinary
 implementation ([src/README.md](../src/README.md)); its remaining gaps are
 rows of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv), mostly
-`K1` (the shape intrinsics), `F-250`, and the `M27` and `M28` fixtures,
-and [Still Open](#still-open-after-the-prototype-pass) lists what the pass found
+`K1` (the shape intrinsics) and `F-250`, plus one `M29` fixture that needs
+package roles, and [Still Open](#still-open-after-the-prototype-pass) lists what the pass found
 unspecified. The spec is the
 accepted behavior; this record is history and rationale.
 
@@ -1328,10 +1328,8 @@ accepted all four recommendations:
 [`annot.traitless.unique`](../spec/14-annotations.md#r-annot.traitless.unique),
 [`annot.fact.unused-self-line`](../spec/14-annotations.md#r-annot.fact.unused-self-line)
 and [`annot.line.right-typed`](../spec/14-annotations.md#r-annot.line.right-typed),
-which replaces the retired `annot.line.right`. The prototype waits for its
-refactor: of the eight new fixtures, the omitted embedded part and the
-generic block pass, and the other six are `M27` and `M28` rows of
-[KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv).
+which replaces the retired `annot.line.right`. The prototype followed on
+2026-09-28: all eight new fixtures pass.
 
 **Owner decision M26 (2026-09-28): the `annotate Target:` block is removed.**
 `annotate` is no longer a reserved word. Metadata is written three ways:
@@ -1390,8 +1388,8 @@ pass read that as the rules below, also for the owner to confirm:
 
 **Still open after M26.** M28 decided the first four rows as recommended,
 and they are applied to the spec (2026-09-28). The fifth came up in the
-prototype pass and is fixed. The Prototype column says what `src/` does
-today; it does not follow M28 yet:
+prototype pass and is fixed. The Prototype column says what `src/` did
+before it followed M28 (it does since 2026-09-28):
 
 | Question | Effect | Prototype | **Recommendation** |
 | --- | --- | --- | --- |
@@ -1416,9 +1414,19 @@ accepted:
 4. `duplicate-fact` is reported on the later value. This confirms M25's
    reading.
 
-Applying M27 and M28 raised these readings. The spec text uses the
-decisions' own words, and no fixture depends on an answer. Nothing here is
-decided:
+**Applied 2026-09-28 (M29)** in
+[`annot.traitless.generic.rename`](../spec/14-annotations.md#r-annot.traitless.generic.rename),
+[`annot.line.right.not-list`](../spec/14-annotations.md#r-annot.line.right.not-list)
+and [`annot.fact.unused-self-line.per-trait`](../spec/14-annotations.md#r-annot.fact.unused-self-line.per-trait).
+Point 4 needed no new text:
+[`annot.metadata.duplicate`](../spec/14-annotations.md#r-annot.metadata.duplicate)
+already reports on the later value. The prototype now follows M27, M28 and
+M29, and their fixtures pass, except the per-trait `Self` line fixture: it
+needs a second package, and the prototype CLI has no package roles (`M29`
+row of [KNOWN_FAILURES.tsv](../test/portable/KNOWN_FAILURES.tsv)).
+
+Applying M27 and M28 raised these readings. M29 above decided all four as
+recommended, and they are applied:
 
 | Question | Effect | **Recommendation** |
 | --- | --- | --- |

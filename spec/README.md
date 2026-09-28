@@ -1123,6 +1123,16 @@ existing source. Each entry names the decision that made the change.
   `Self` line now gets `unused-derivation-fact` on that line. A member
   line's right side may be any expression of a list type, so
   `name = shared_list`, previously `invalid-member-line`, is valid.
+- Typed derivation M29 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#still-open-after-m27-and-m28),
+  2026-09-28): a trait-less block's header may rename the type's
+  parameters, so `impl[U] Box[U] by Structure:` for `data Box[T]`,
+  previously unclear, is valid. A member line whose right side is not a
+  list, such as `name = 5`, is `invalid-member-line` rather than a type
+  mismatch. A `Self` line in a per-trait derivation block, previously
+  unchecked, now warns `unused-derivation-fact` when the fact's package
+  does not supply that block's trait. `duplicate-fact` on declaration facts
+  stays on the later value.
 - `println` drives `write_line!` (mutable host providers MHP-1, owner
   decision 2026-09-28): a `println(value)` call calls
   `write_line!(value.to_string())` on the covering `Console` provider and

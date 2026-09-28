@@ -14,15 +14,18 @@ export function checkDuplicateDeclarationFacts(
   factType: (fact: Expression) => string,
   error: (code: string, message: string, span: SourceSpan) => void,
 ): void {
-  const check = (metadata: readonly Expression[] | undefined): void => {
+  const check = (metadata: readonly Expression[] | undefined, holder = "member"): void => {
     const seen = new Set<string>();
     for (const fact of metadata ?? []) {
       const type = factType(fact);
       if (seen.has(type))
-        error("duplicate-fact", "this member already holds a fact of the same type", fact.span);
+        error("duplicate-fact", `this ${holder} already holds a fact of the same type`, fact.span);
       seen.add(type);
     }
   };
+  // Two type-level decorators of one fact type (annot.fact.duplicate-decorator).
+  for (const declaration of [...program.data, ...program.enums])
+    check(declaration.decorators?.facts, "declaration");
   for (const declaration of program.data)
     for (const field of declaration.fields) check(field.metadata);
   for (const declaration of program.enums)

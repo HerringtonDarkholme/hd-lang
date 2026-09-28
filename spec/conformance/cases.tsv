@@ -1247,3 +1247,6 @@ typing/invalid/trait-less-block-generic-bound.hd	type	reject:misplaced-derivatio
 typing/invalid/trait-less-block-second.hd	type	reject:overlapping-impl	14-annotations.md#r-annot.traitless.unique
 typing/warnings/trait-less-self-line-unused-fact.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-self-line
 runtime/valid/member-line-list-expression.hd	runtime	accept	14-annotations.md#r-annot.line.right-typed
+typing/valid/trait-less-block-generic-rename.hd	type	accept	14-annotations.md#r-annot.traitless.generic.rename
+typing/invalid/member-line-not-list.hd	type	reject:invalid-member-line	14-annotations.md#r-annot.line.right.not-list
+typing/warnings/per-trait-self-line-unused-fact.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-self-line.per-trait

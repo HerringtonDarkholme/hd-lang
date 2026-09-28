@@ -23,6 +23,9 @@ import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-fac
 import {
   checkMemberLines,
   declarationFacts,
+  isSpreadFact,
+  isTraitLess,
+  lineFacts,
   type Target,
   withTraitLessBlocks,
 } from "./member-lines.ts";
@@ -447,7 +450,29 @@ export function withTypedDerivation(source: Program): DerivationResult {
   checkDuplicateDeclarationFacts(source, (fact) => factType(fact, functions), error);
   // Trait-less blocks edit the declaration facts (annot.traitless.declaration-facts).
   const fact = (expression: Expression): string => factType(expression, functions);
-  const program = withTraitLessBlocks(source, structureVisible, fact, error);
+  // The known type of a member line's right side (annot.line.right-typed).
+  const moduleBindings = new Map(
+    source.statements.flatMap((statement) =>
+      statement.kind === "binding" && statement.annotation
+        ? [[statement.name, statement.annotation.name] as const]
+        : [],
+    ),
+  );
+  const knownType = (value: Expression): string | undefined => {
+    if (value.kind === "name") return moduleBindings.get(value.name);
+    if (value.kind === "call" && value.callee.kind === "name") {
+      const declaration = functions.get(value.callee.name);
+      return declaration && !declaration.resultOmitted ? declaration.result.name : undefined;
+    }
+    return undefined;
+  };
+  const program = withTraitLessBlocks(
+    withInlinedListLines(source),
+    structureVisible,
+    fact,
+    knownType,
+    error,
+  );
   const localTraits = new Map(program.traits.map((item) => [item.name, item] as const));
   const newtypes = new Map(
     (program.types ?? [])
@@ -630,7 +655,7 @@ export function withTypedDerivation(source: Program): DerivationResult {
       continue;
     }
     const lines = block.memberLines ?? [];
-    if (!checkMemberLines(target, lines, fact, error)) continue;
+    if (!checkMemberLines(target, lines, fact, knownType, error)) continue;
     derivations.push({ trait, target, lines, block, span: block.span });
   }
 
@@ -856,6 +881,53 @@ function lintDerivations(
           fact.span,
         );
   }
+  // A trait-less block's `Self` line warns the same way, on the line
+  // (annot.fact.unused-self-line).
+  for (const block of program.implementations.filter(isTraitLess)) {
+    const name = headName(block.targetName);
+    if (byTarget.has(name)) continue;
+    for (const line of block.memberLines ?? [])
+      if (line.name === "Self" && line.value && lineFacts(line.value).some(nonLiteral))
+        warn(
+          "unused-derivation-fact",
+          `type '${name}' derives no template that could read this fact`,
+          line.span,
+        );
+  }
+  // A per-trait block's `Self` line warns only when the fact's package does
+  // not supply the block's trait (annot.fact.unused-self-line.per-trait).
+  // The prototype compiles one package, whose templates are local, so such a
+  // fact never occurs here.
+}
+
+/**
+ * A member line whose right side names a module `let` bound to a list literal
+ * uses that literal's elements. Facts are evaluated once at compile time
+ * (annot.fact.eval), so this is the same list; it keeps each element's
+ * concrete type, which the prototype's `Any` erasure would lose.
+ */
+function withInlinedListLines(program: Program): Program {
+  const lists = new Map<string, Expression>();
+  for (const statement of program.statements)
+    if (statement.kind === "binding" && statement.value.kind === "list")
+      lists.set(statement.name, statement.value);
+  if (lists.size === 0) return program;
+  const inline = (line: MemberLine): MemberLine =>
+    line.value?.kind === "name" && lists.has(line.value.name)
+      ? { ...line, value: lists.get(line.value.name)! }
+      : line;
+  return {
+    ...program,
+    implementations: program.implementations.map((implementation) =>
+      implementation.memberLines
+        ? { ...implementation, memberLines: implementation.memberLines.map(inline) }
+        : implementation,
+    ),
+  };
+}
+
+function nonLiteral(fact: Expression): boolean {
+  return !isLiteralFact(fact);
 }
 
 /**
@@ -907,9 +979,9 @@ function effectiveFacts(
   for (const line of lines) {
     if (line.name !== name) continue;
     if (line.pass) omitted = true;
-    else if (line.value?.kind === "list")
+    else if (line.value)
       facts =
-        line.operator === "+=" ? [...facts, ...line.value.elements] : [...line.value.elements];
+        line.operator === "+=" ? [...facts, ...lineFacts(line.value)] : [...lineFacts(line.value)];
   }
   return { facts, omitted };
 }
@@ -1003,7 +1075,7 @@ function generateDerivation(
   const factsCall = (name: string, facts: readonly Expression[]): string => {
     out.define(name, () => [
       `fn ${name}() -> Facts:`,
-      `    Facts { items: [${facts.map((fact) => out.expression(fact)).join(", ")}] }`,
+      `    Facts { items: [${facts.map((fact) => `${out.expression(fact)}${isSpreadFact(fact) ? "..." : ""}`).join(", ")}] }`,
     ]);
     return `${name}()`;
   };

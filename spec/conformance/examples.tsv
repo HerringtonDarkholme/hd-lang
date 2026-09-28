@@ -402,7 +402,7 @@ specification	block	classification	fixture
 14-annotations.md	14	accept	typing/valid/typed-derivation.hd
 14-annotations.md	15	mixed	typing/invalid/newtype-derivation-block.hd
 14-annotations.md	16	mixed	typing/invalid/structure-without-use.hd
-14-annotations.md	17	mixed	typing/invalid/duplicate-fact.hd|typing/invalid/member-line-payload-member.hd|typing/invalid/invalid-member-line.hd
+14-annotations.md	17	mixed	typing/invalid/duplicate-fact.hd|typing/invalid/member-line-payload-member.hd|typing/invalid/invalid-member-line.hd|typing/invalid/member-line-not-list.hd
 14-annotations.md	18	mixed	typing/invalid/omitted-member-without-default.hd|typing/invalid/omitted-embedded-part.hd
 14-annotations.md	19	accept	typing/valid/trait-less-derivation-block.hd
 14-annotations.md	20	mixed	typing/invalid/trait-less-block-omit.hd|typing/invalid/trait-less-block-method.hd|typing/invalid/trait-less-block-newtype.hd|typing/invalid/trait-less-block-generic-argument.hd|typing/invalid/trait-less-block-second.hd

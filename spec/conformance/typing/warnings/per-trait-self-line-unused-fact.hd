@@ -1,0 +1,33 @@
+# fixture-package-role: root-application
+# test: a Self line in a per-trait derivation block warns, on the line, when the fact's package does not supply the block's trait
+# Spec 14 Facts: annot.fact.unused-self-line.per-trait (M29).
+use dep.models.{User}
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+data Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok()
+
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + ";"
+        .Ok()
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let w: mut Shower = Shower { out: "" }
+        _ := Structure::walk(self, w)
+        w.out
+
+data Quiet:
+    id: i64
+
+impl Show for Quiet by Structure:
+    Self += [User { name: "owner" }]  # warning: unused-derivation-fact

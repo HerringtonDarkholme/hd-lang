@@ -1177,3 +1177,11 @@ typing/invalid/trait-less-block-duplicate-fact.hd	type
 typing/invalid/trait-less-delegation.hd	type
 typing/invalid/omitted-embedded-part.hd	type
 typing/valid/trait-less-block-generic.hd	type
+typing/invalid/duplicate-type-level-fact.hd	type
+typing/invalid/trait-less-block-generic-argument.hd	type
+typing/invalid/trait-less-block-generic-bound.hd	type
+typing/invalid/trait-less-block-second.hd	type
+typing/warnings/trait-less-self-line-unused-fact.hd	type
+runtime/valid/member-line-list-expression.hd	runtime
+typing/valid/trait-less-block-generic-rename.hd	type
+typing/invalid/member-line-not-list.hd	type

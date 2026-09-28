@@ -1,0 +1,17 @@
+# test: a trait-less block's header may rename the type's parameters; only their count, order, and absence of bounds are checked
+# Spec 14 Trait-Less Derivation Blocks: annot.traitless.generic.rename (M29).
+use std.structure.Structure
+
+data Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+data Pair[K, V]:
+    key: K
+    value: V
+
+impl[A, B] Pair[A, B] by Structure:
+    key += [tag("k")]
+    value = [tag("v")]
