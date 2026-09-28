@@ -231,13 +231,9 @@ try {
         "hd> fn shout(name: string) -> void $ Console: println(name.upper())",
         'hd> greet("Ada")',
       ]);
-      // The prototype has no string.upper(), so that input is rejected, in red
-      // with its position, and the rest of the snippet still runs.
-      assert.equal(
-        await page.locator(".repl-log .repl-error").first().textContent(),
-        "1:51: unknown-method: type 'string' has no supported method 'upper'",
-      );
-      // The session keeps the snippet's accepted declarations.
+      // `string.upper()` comes from std.text, so the whole snippet is accepted.
+      assert.equal(await page.locator(".repl-log .repl-error").count(), 0);
+      // The session keeps the snippet's declarations.
       await enter(page, 'greet("hd")');
       await page.locator(".repl-log .repl-output").nth(1).waitFor();
       assert.equal(await last(page, ".repl-output").textContent(), "hello, hd");
