@@ -246,7 +246,8 @@ class Executor {
         this.options.compilers[compiler]!,
         action,
         path,
-        [],
+        // `check` covers test code only with `--tests` (conformance README, Command Contract).
+        action === "check" ? ["--tests"] : [],
         this.options.timeoutMs,
       ).then((result) => {
         this.calls += 1;

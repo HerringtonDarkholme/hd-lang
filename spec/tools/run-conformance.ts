@@ -433,7 +433,12 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
 
   if (row.phase !== "runtime") {
     const action = row.phase === "parse" ? "parse" : "check";
-    const result = await invoke(options.command, action, action === "check" ? profile : [], file);
+    const result = await invoke(
+      options.command,
+      action,
+      action === "check" ? ["--tests", ...profile] : [],
+      file,
+    );
     const violation = await contractViolation(result, file, panics);
     if (violation) return fail(`${action}: ${violation}`, [result]);
     if (row.expectation === "accept")
@@ -448,7 +453,7 @@ async function runCase(options: Options, row: IndexRow, panics: Set<string>): Pr
 
   if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:"))
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
-  const checked = await invoke(options.command, "check", profile, file);
+  const checked = await invoke(options.command, "check", ["--tests", ...profile], file);
   const checkViolation = await contractViolation(checked, file, panics);
   if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
   if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);

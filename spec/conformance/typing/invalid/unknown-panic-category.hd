@@ -1,0 +1,7 @@
+# test: expect_panic must name a panic category
+# Spec 10 Test Cases: an expect_panic value that names no panic category is unknown-panic-category.
+fn first(items: List[i32]) -> i32: items[0]
+
+tests:
+    it("rejects a category", expect_panic="index-out-of-range"):  # diagnostic: unknown-panic-category
+        _ := first([])

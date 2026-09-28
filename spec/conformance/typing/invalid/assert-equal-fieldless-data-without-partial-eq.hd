@@ -1,5 +1,6 @@
 # test: assert equal fieldless data without partial eq
 
 use std.testing.assert_equal
+@derive(Debug)
 data Value: pass
 fn main() -> void: assert_equal(Value {}, Value {}, reason="not derived")  # diagnostic: missing-partial-eq

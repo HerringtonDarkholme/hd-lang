@@ -1,0 +1,11 @@
+# test: a final function-typed parameter may follow defaulted parameters
+# Spec 07 Default Values: a trailing block or a named argument supplies the final parameter.
+fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:
+    body()
+
+fn run() -> void:
+    retry(3):
+        pass
+    retry(3, backoff=10):
+        pass
+    retry(3, body=fn(): pass)

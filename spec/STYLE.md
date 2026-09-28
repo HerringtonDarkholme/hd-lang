@@ -797,3 +797,21 @@ style lint rejects a chapter that reuses one.
 - `module.entry.termination.err`: retired 2026-09-27. Testing T18 has the
   host print the error. Replaced by `module.entry.termination.err-code` and
   `module.entry.termination.no-print`.
+- `fn.default.order`: retired 2026-09-28. Testing T40 lets a final
+  function-typed parameter follow defaulted parameters. Replaced by
+  `fn.default.order-final-function`.
+- `module.prelude.it`: retired 2026-09-28. Testing T40 made `it` an
+  ordinary function, not an intrinsic. Replaced by
+  `module.prelude.it-function`.
+- `module.testing.it`: retired 2026-09-28. Testing T40 made `it` an
+  ordinary function, not an intrinsic. Replaced by
+  `module.testing.it-function`.
+- `module.testing.it.statement-calls`: retired 2026-09-28. Testing T45 and
+  T47 name integration test modules as test position too. Replaced by
+  `module.testing.test-position` and `module.testing.position-statements`.
+- `module.testing.it.elsewhere`: retired 2026-09-28. Testing T47 covers all
+  four test-case functions and uses as values. Replaced by
+  `module.testing.direct-call`.
+- `module.testing.it-each.body`: retired 2026-09-28. Testing T41 puts the
+  options before the body, so the body is passed by name. Replaced by
+  `module.testing.it-each.body-closure`.

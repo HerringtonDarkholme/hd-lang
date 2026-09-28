@@ -1,0 +1,4 @@
+# test: a test-case function may not be used as a value
+# Spec 10 Test Cases: naming it outside a direct call in test position is misplaced-test-case.
+fn register() -> void:
+    make := it  # diagnostic: misplaced-test-case

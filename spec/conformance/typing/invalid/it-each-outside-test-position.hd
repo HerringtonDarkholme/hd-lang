@@ -1,0 +1,6 @@
+# test: it_each may be called only in test position
+# Spec 10 Test Cases: a call of it_each inside a function is misplaced-test-case.
+use std.testing.it_each
+
+fn helper() -> void:
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass)  # diagnostic: misplaced-test-case

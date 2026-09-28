@@ -162,11 +162,28 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
 ```
 
 1. r[fn.default.allowed] A parameter may declare a default.
-2. r[fn.default.order] After the first parameter with a default, every following non-vararg parameter must also have a default. A later parameter without one is an error. Error: `default-order`.
+2. r[fn.default.order-final-function] After the first parameter with a default, every following non-vararg parameter must also have a default, except a final parameter whose type is a function type. A later parameter without one is an error. Error: `default-order`.
 3. r[fn.default.omit] Calls may omit only parameters that have defaults.
 4. r[fn.default.eval] Defaults are evaluated for each call, in parameter declaration order, after all explicit argument expressions have been evaluated.
 5. r[fn.default.scope] A default may refer to earlier parameters but not later parameters.
 6. r[fn.default.later-parameter] A default that names a later parameter is an error. Error: `binding-not-yet-visible`.
+7. r[fn.default.final-function] A call may supply such a final function-typed parameter by a [trailing block](#trailing-callback-blocks) or a named argument, and omit the defaulted parameters before it.
+
+```text
+fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:
+    body()
+
+fn run() -> void:
+    retry(3):
+        pass
+    retry(3, backoff=10):
+        pass
+    retry(3, body=fn(): pass)
+```
+
+> **Why.** As in Kotlin and Swift, defaulted options may come before a
+> trailing body, because a trailing block or a named argument always reaches
+> the final parameter.
 
 #### Requirement-Free Defaults
 

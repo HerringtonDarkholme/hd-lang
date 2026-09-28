@@ -143,8 +143,8 @@ judged only by the rules below.
 
 ## Judging a Case
 
-`check` and `test` receive the options the fixture's directives select (see
-[Command Contract](#command-contract)).
+`check` and `test` receive the options the fixture's directives select, and
+`check` always receives `--tests` (see [Command Contract](#command-contract)).
 
 | Phase     | Expectation   | Steps                          | Passes when |
 | --------- | ------------- | ------------------------------ | ----------- |
@@ -360,15 +360,17 @@ IMPL ACTION [OPTION VALUE]... FILE
 ```
 
 - `FILE` is the path to the fixture, and is always the last argument.
-- `parse` and `check` also cover the fixture's `tests:` block, as a test
-  build does.
+- `parse` also covers the fixture's `tests:` block.
+- The runner always passes `check` the `--tests` option, so `check` also
+  covers the fixture's test code, as a test build does. Without `--tests`,
+  `hd check` does not check test code, while `hd test` always compiles it.
 - The working directory is not part of the contract.
 - stdin is closed. stdout and stderr are both read.
 
 | Action  | Options the runner may pass                                     | Used for |
 | ------- | --------------------------------------------------------------- | -------- |
 | `parse` | none                                                            | `parse` phase |
-| `check` | `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `type` phase, and the first step of `runtime` |
+| `check` | `--tests` (always), `--profile NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `type` phase, and the first step of `runtime` |
 | `test`  | `--profile NAME`, `--scenario NAME`, `--pending-function NAME`, `--package-role ROLE`, `--dependency NAME=DIR` | `runtime` phase |
 | `run`   | none                                                            | `runtime` cases with `# expect-stdout:` |
 

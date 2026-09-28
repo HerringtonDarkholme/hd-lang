@@ -506,6 +506,7 @@ tests:
 5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body, so a block that uses `?` usually ends in `.Ok()`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
+8. r[expr.try.test.row-body] The body closure of an [`it_each`](10-modules.md#table-tests), `it_prop`, or `it_prop_with` call that writes no result type gets its result type by rules 2 and 3, as a trailing block given to `it` does.
 
 ```text
 use std.testing.assert

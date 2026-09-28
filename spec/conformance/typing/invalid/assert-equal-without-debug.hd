@@ -1,0 +1,13 @@
+# test: assert_equal requires Debug as well as Eq
+# Spec 10 Standard Testing: comparing a type without Debug is unsatisfied-trait-bound.
+use std.testing.assert_equal
+
+data Token:
+    text: string
+
+impl Eq for Token:
+    fn eq(self, other: Self) -> bool: self.text == other.text
+
+tests:
+    it("needs Debug to show failures"):
+        assert_equal(Token { text: "a" }, Token { text: "a" }, reason="equal text")  # diagnostic: unsatisfied-trait-bound

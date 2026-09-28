@@ -5,4 +5,4 @@ fn check_port(port: i32) -> Result[void, string]:
     if port > 0: .Ok() else: .Err("bad port")
 
 tests:
-    it("a string error result", fn!() -> Result[void, string]: check_port(8080))
+    it("a string error result", body=fn!() -> Result[void, string]: check_port(8080))

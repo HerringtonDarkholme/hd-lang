@@ -6,6 +6,6 @@ use std.testing.{assert_equal, it_each}
 fn double(value: i32) -> i32: value * 2
 
 tests:
-    it_each("doubles", [1, 2, 3], fn!(value: i32):
+    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
         assert_equal(double(value), value + value, reason="doubling adds the value to itself")
     )

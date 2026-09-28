@@ -1,0 +1,9 @@
+# test: another test case must not be named like an it_each row
+# Spec 10 Table Tests: it("doubles[0]") beside it_each("doubles", ...) is duplicate-test-name.
+use std.testing.it_each
+
+tests:
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
+
+    it("doubles[0]"):  # diagnostic: duplicate-test-name
+        pass

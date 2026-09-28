@@ -175,8 +175,8 @@ See also: [Associated Type Bindings](#associated-type-bindings).
 
 ## Trait Implementations
 
-This section defines the standard comparison, conversion, and error traits,
-and the rules that every trait implementation follows.
+This section defines the standard comparison, conversion, error, and debug
+traits, and the rules that every trait implementation follows.
 
 ### Comparison Traits
 
@@ -432,6 +432,47 @@ See also: [Propagation](05-expressions.md#propagation),
 [Dynamic Trait Values](#dynamic-trait-values),
 [Wasm Boundary](10-modules.md#wasm-boundary),
 [Runtime Type Identity](#runtime-type-identity).
+
+### Debug Trait
+
+The standard library declares `Debug` in `std.format`, beside `Display`, to
+show a value's structure:
+
+```text
+trait Debug:
+    fn debug(self, out: mut DebugWriter) -> void
+```
+
+A type usually derives it:
+
+```text
+@derive(Eq, Debug)
+data Point:
+    x: i32
+    y: i32
+
+fn describe(point: Point) -> string:
+    debug(point)
+```
+
+1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
+2. r[trait.debug.method] `Debug` declares `fn debug(self, out: mut DebugWriter) -> void`, which writes the value's structure through `out`.
+3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
+4. r[trait.debug.render] The prelude function `debug(value)` returns the text that `Debug` writes for `value`: stable, field by field, multi-line, and consistently indented.
+5. r[trait.debug.std] `std` implements `Debug` for the primitives, collections, `T?`, `Result`, and tuples, each when its type arguments implement `Debug`.
+6. r[trait.debug.derive] `@derive(Debug)` derives `Debug` through its [template](14-annotations.md#templates). The derived implementation walks the declaration's members and writes each one.
+7. r[trait.debug.not-display] `Debug` is separate from `Display`, which stays user-facing text.
+
+> **Why.** `assert_equal` and property tests show failing values through
+> `Debug`, so any type a test compares can show itself without a
+> user-facing `Display`.
+
+> **Note.** The builder calls of `DebugWriter` and the exact layout of
+> `debug` text are standard-library API. Portable code and conformance
+> fixtures do not depend on that text.
+
+See also: [Standard Testing](10-modules.md#standard-testing),
+[Typed Derivation](14-annotations.md#typed-derivation).
 
 ### Implementation Declarations
 

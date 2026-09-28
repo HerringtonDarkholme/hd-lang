@@ -137,6 +137,7 @@ fn late_fee(days: i32) -> i32:
 
 tests:
     fn overdue() -> i32: 31
+    pub fn shared_overdue() -> i32: 45  # error: public-test-item
 
     it("uses a private function"):
         assert_equal(late_fee(overdue()), 5, reason="the block sees late_fee")
@@ -149,9 +150,12 @@ fn report() -> i32:
 2. r[names.tests.sees-module] Code inside the block sees every module name, including private declarations and uses outside the block.
 3. r[names.tests.inside-only] A name that an item of the block declares or uses is visible only inside the block. Naming it outside the block is an error. Error: `unknown-name`.
 4. r[names.tests.unique] Because they are module items, a name declared in the block must not repeat a module name declared outside it. Error: `duplicate-module-name`.
+5. r[names.tests.no-pub] An item inside a `tests:` block must not be marked `pub`. Error: `public-test-item`.
 
 > **Why.** Module items, rather than local declarations, let the block hold
-> implementations and derivation blocks, as Rust's `mod tests` can.
+> implementations and derivation blocks, as Rust's `mod tests` can. Nothing
+> outside the block sees its items, so `pub` would promise what it cannot
+> give; shared test helpers belong in a [test module](10-modules.md#test-modules).
 
 See also: [Test Cases](10-modules.md#test-cases).
 

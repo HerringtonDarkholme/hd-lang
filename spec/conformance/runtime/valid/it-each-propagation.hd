@@ -1,0 +1,22 @@
+# test: an it_each body that uses ? returns Result[void, Error]
+# Spec 05 Propagation In Test Blocks: a row body without a written result follows the test body rule.
+use std.error.Error
+use std.testing.{assert_equal, it_each}
+
+data DigitError:
+    text: string
+
+impl Display for DigitError:
+    fn to_string(self) -> string: "not a digit: " + self.text
+
+impl Error for DigitError
+
+fn parse_digit(text: string) -> Result[i32, DigitError]:
+    if text == "7": .Ok(7) else: .Err(DigitError { text: text })
+
+tests:
+    it_each("parses", ["7"], body=fn!(text: string):
+        digit := parse_digit(text)?
+        assert_equal(digit, 7, reason="the digit parses")
+        .Ok()
+    )

@@ -5,4 +5,4 @@ fn maybe() -> i32?:
     .None
 
 tests:
-    it("an optional result", fn!() -> i32?: maybe())  # diagnostic: unsatisfied-trait-bound
+    it("an optional result", body=fn!() -> i32?: maybe())  # diagnostic: unsatisfied-trait-bound

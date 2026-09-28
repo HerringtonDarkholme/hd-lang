@@ -7,4 +7,4 @@ fn hidden() -> Result[void, Hidden]:
     .Err(Hidden {})
 
 tests:
-    it("an error without Display", fn!() -> Result[void, Hidden]: hidden())  # diagnostic: unsatisfied-trait-bound
+    it("an error without Display", body=fn!() -> Result[void, Hidden]: hidden())  # diagnostic: unsatisfied-trait-bound

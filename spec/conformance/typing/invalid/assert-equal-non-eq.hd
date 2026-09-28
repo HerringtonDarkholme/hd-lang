@@ -1,5 +1,6 @@
 use std.testing.assert_equal
 
+@derive(Debug)
 data Error:
     message: string
 

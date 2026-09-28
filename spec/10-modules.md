@@ -78,7 +78,8 @@ holds integration tests:
 ```text
 src/billing.hd         # billing
 src/billing_test.hd    # billing_test, a test module
-tests/checkout.hd      # an integration test module
+tests/checkout.hd      # tests.checkout, an integration test module
+tests/common.hd        # tests.common, shared by integration test modules
 ```
 
 1. r[module.test.module] A source file whose name ends in `_test.hd` is a **test module**, such as `src/billing_test.hd`, whose module is `billing_test`.
@@ -87,13 +88,18 @@ tests/checkout.hd      # an integration test module
 4. r[module.test.module.view] A test module is otherwise an ordinary module of its package: it sees public declarations package-wide and may use other test modules.
 5. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
 6. r[module.test.integration.uses] Integration test modules may use one another.
-7. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
-8. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
-9. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
+7. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
+8. r[module.test.integration.tests-root] The `tests` root names the integration test modules, so an integration test module uses `tests/common.hd` as `use tests.common`.
+9. r[module.test.no-tests-block] A test module or an integration test module must not contain a `tests:` block. Error: `misplaced-tests-block`.
+10. r[module.test.dependency] A **test dependency** is a dependency that the manifest declares for test builds only. Only test code may use it.
+11. r[module.test.non-test-use] Non-test code that uses a test module or a test dependency is an error. Error: `test-only-use`.
+12. r[module.test.cyclic-dependency] A test dependency that itself depends on the package may be used only from integration test modules. Using it from a `tests:` block or a test module is an error. Error: `cyclic-test-dependency`.
 
 > **Why.** A test dependency that depends back would give a unit test a
 > second copy of the package, whose types differ from the ones under test.
-> An integration test sees only the one normal build.
+> An integration test sees only the one normal build. A test module is
+> already test code throughout, so it holds its test cases at top level
+> rather than in a `tests:` block.
 
 See also: [Test Blocks](02-grammar.md#test-blocks),
 [Standard Testing](#standard-testing).
@@ -107,6 +113,7 @@ Every absolute use path begins with one of these roots:
 | `pkg` | the current package |
 | `std` | the standard library |
 | `dep.<name>` | a manifest dependency |
+| `tests` | the integration test modules, from an integration test module |
 
 1. r[module.root.absolute] Every absolute use path begins with one of the roots in the table.
 2. r[module.root.manifest] The package manifest distinguishes standard library, current package, and external dependency namespaces.
@@ -178,7 +185,7 @@ every module has:
 | Origin module | Implicit names |
 | --- | --- |
 | `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
-| `std.format` | `Display` |
+| `std.format` | `Display`, `Debug`, `debug` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash`, `Hasher` |
 | `std.iter` | `Iterator`, `Iterable` |
@@ -239,7 +246,8 @@ fn count() -> i32:
 1. r[module.prelude.panic] The prelude function `panic` has the signature `panic(message: string) -> never`.
 2. r[module.prelude.println] The prelude function `println` has the signature `println[T < Display](value: T) -> void $ Console`.
 3. r[module.prelude.shape] `shape` and `shape_of` are compiler intrinsics whose result types depend on their arguments.
-4. r[module.prelude.it] `it` is the test-case intrinsic that [Test Cases](#test-cases) specifies.
+4. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
+5. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
 
 See also: [Shape Intrinsics](14-annotations.md#shape-intrinsics), which
 specifies `shape` and `shape_of`.
@@ -321,7 +329,7 @@ See also: [Indexing](05-expressions.md#indexing).
 
 ```text
 fn assert(condition: bool, reason: string) -> void
-fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
+fn assert_equal[T < Eq + Debug](actual: T, expected: T, reason: string) -> void
 ```
 
 1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
@@ -329,10 +337,12 @@ fn assert_equal[T < Eq](actual: T, expected: T, reason: string) -> void
 3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
 4. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
 5. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type.
+6. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.testing.assert_equal
 
+@derive(Debug)
 data Error:
     message: string
 
@@ -344,7 +354,7 @@ tests:
 
 ### Test Cases
 
-A call of the prelude intrinsic `it` registers one test case:
+A call of the prelude function `it` registers one test case:
 
 ```text
 use std.testing.assert_equal
@@ -359,21 +369,31 @@ tests:
         assert_equal(add(1000, 2000), 3000, reason="large sums")
 ```
 
-1. r[module.testing.it] `it` is a compiler intrinsic that `std.testing` declares and the prelude supplies. Each call registers one **test case**.
+`std.testing` declares `it` as an ordinary function:
+
+```text
+pub fn it[T < Termination, R](name: string, ignore: string? = .None, expect_panic: string? = .None,
+                             timeout: string? = .None, body: fn!() -> T $ R) -> void $ R
+```
+
+1. r[module.testing.it-function] `it` is an ordinary function with the signature above, which `std.testing` declares and the prelude supplies. Each call in test position registers one **test case**.
 2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument, usually as a trailing block.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 5. r[module.testing.it.options] The named options are those in the table below, and each value must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
 6. r[module.testing.it.unknown-option] Any other named argument is an error. Error: `unknown-named-argument`.
-7. r[module.testing.it.statement-calls] Every top-level statement of a `tests:` block or a [test module](#test-modules) must be a call of `it`, or of `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
-8. r[module.testing.it.elsewhere] A call of `it` anywhere else is an error. Error: `misplaced-test-case`.
-9. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
+7. r[module.testing.test-position] **Test position** is the top level of a `tests:` block, of a [test module](#test-modules), or of an integration test module.
+8. r[module.testing.position-statements] Every statement in test position must be a call of `it`, `std.testing.it_each`, `std.testing.it_prop`, or `std.testing.it_prop_with`. Any other statement is an error. Error: `invalid-test-statement`.
+9. r[module.testing.direct-call] Those four functions may be used only as such a direct call in test position. Any other use, including a call elsewhere or a use as a value, is an error. Error: `misplaced-test-case`.
+10. r[module.testing.it.unique] Two test cases of one module must not have the same name. Error: `duplicate-test-name`.
 
 | Rule | Option | Value | Effect |
 | --- | --- | --- | --- |
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
 | r[module.testing.option.timeout] Timeout | `timeout` | a duration, such as `"5s"` | The runner fails the test case when its body runs longer than the duration. |
+
+1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.category-set) is an error. Error: `unknown-panic-category`.
 
 ```text
 fn name_of() -> string: "computed"
@@ -390,9 +410,15 @@ tests:
     it(name_of()):  # error: non-literal-test-argument
         pass
 
+    it("rejects a category", expect_panic="index-out-of-range"):  # error: unknown-panic-category
+        pass
+
 fn helper() -> void:
     it("nested"):  # error: misplaced-test-case
         pass
+
+fn register() -> void:
+    make := it  # error: misplaced-test-case
 ```
 
 > **Note.** `it` is a prelude name, so a module cannot declare, use, or bind
@@ -400,21 +426,33 @@ fn helper() -> void:
 > registers a test case, and a tool can list test cases without running
 > them.
 
+> **Why.** `it` is an ordinary function because its options may precede
+> its final body parameter ([Default Values](07-functions.md#default-values)).
+> Allowing only direct calls in test position keeps every test case
+> statically listable.
+
 #### Table Tests
 
 `std.testing` also declares `it_each`, which registers one test case per
 row:
 
 ```text
-pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) -> T $ R) -> void $ R
+pub fn it_each[A, T < Termination, R](name: string, rows: List[A], ignore: string? = .None,
+                                      expect_panic: string? = .None, timeout: string? = .None,
+                                      body: fn!(A) -> T $ R) -> void $ R
 ```
 
 1. r[module.testing.it-each] A top-level call of `std.testing.it_each` registers one test case for each element of `rows`, which runs `body` with that element.
 2. r[module.testing.it-each.name] The test case for the element at index `i` is named `name[i]`.
 3. r[module.testing.it-each.import] `it_each` is not a prelude name; code imports it with `use std.testing.it_each`.
-4. r[module.testing.it-each.body] Its body has a parameter, so it is written as an explicit `fn!` closure rather than a trailing block.
-5. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
-6. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
+4. r[module.testing.it-each.body-closure] Its body has a parameter, so it is an explicit `fn!` closure, not a trailing block. After omitted options, a call passes it by name, as in `body=fn!(value: i32): ...`.
+5. r[module.testing.it-each.rows-at-run] `rows` is evaluated when the test runs, in its program instance, not when test cases are listed.
+6. r[module.testing.it-each.name-clash] Another test case of the module must not be named `name[i]` for any index `i`. Error: `duplicate-test-name`.
+7. r[module.testing.it-prop] A top-level call of `std.testing.it_prop` or `std.testing.it_prop_with` registers one property test case. The runner generates its inputs and shrinks a failing one.
+8. r[module.testing.it-prop.import] Neither is a prelude name; code imports them from `std.testing`.
+9. r[module.testing.variants.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
+10. r[module.testing.variants.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
+11. r[module.testing.variants.body] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, Error]` when it uses `?`.
 
 ```text
 use std.testing.{assert_equal, it_each}
@@ -422,9 +460,23 @@ use std.testing.{assert_equal, it_each}
 fn double(value: i32) -> i32: value * 2
 
 tests:
-    it_each("doubles", [1, 2, 3], fn!(value: i32):
+    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
         assert_equal(double(value), value + value, reason="doubling adds the value to itself")
     )
+```
+
+```text
+use std.testing.it_each
+
+fn label() -> string: "halves"
+
+tests:
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass)
+
+    it("doubles[0]"):  # error: duplicate-test-name
+        pass
+
+    it_each(label(), [1, 2], body=fn!(value: i32): pass)  # error: non-literal-test-argument
 ```
 
 ### Test Outcomes
@@ -480,6 +532,39 @@ tests:
 
 See also: [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks),
 [Exit Status](#exit-status).
+
+### Snapshots
+
+`std.testing` declares two snapshot functions, which compare text:
+
+```text
+pub fn snapshot(text: string, expect: string = "") -> void
+pub fn snapshot_file(text: string) -> void
+```
+
+1. r[module.testing.snapshot] `snapshot` compares `text` with `expect`, the expected text written in the source.
+2. r[module.testing.snapshot-file] `snapshot_file` compares `text` with a snapshot file, which the test runner names from the running test case.
+3. r[module.testing.snapshot.import] Neither is a prelude name; code imports them from `std.testing`.
+4. r[module.testing.snapshot.literal] An `expect` argument must be a string literal without interpolation. Any other value is an error. Error: `non-literal-test-argument`.
+
+```text
+use std.testing.snapshot
+
+fn greeting(name: string) -> string: "hello, " + name
+
+tests:
+    it("greets by name"):
+        snapshot(greeting("Ada"), expect="hello, Ada")
+
+    it("computes the expectation"):
+        snapshot(greeting("Ada"), expect=greeting("Ada"))  # error: non-literal-test-argument
+```
+
+> **Why.** A literal `expect` lets a tool rewrite it in place, so an update
+> run records a new or changed expectation, and an empty `expect` is filled
+> on the first update. The test picks the rendering, such as `debug(value)`.
+
+See also: [Debug Trait](09-traits.md#debug-trait).
 
 ## Module Initialization
 

@@ -1,5 +1,6 @@
 use std.testing.{assert, assert_equal}
 
+@derive(Debug)
 enum Shape:
     Circle(radius: i32)
     Square(side: i32)

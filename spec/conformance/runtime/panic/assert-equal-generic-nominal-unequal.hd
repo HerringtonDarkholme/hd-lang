@@ -1,5 +1,6 @@
 use std.testing.assert_equal
 
+@derive(Debug)
 data Point:
     x: i32
     y: i32
@@ -8,8 +9,8 @@ impl Eq for Point:
     fn eq(self, other: Self) -> bool:
         self.x == other.x && self.y == other.y
 
-fn expect_same[T < Eq](actual: T, expected: T) -> void:
-    assert_equal(actual, expected, reason="the bound supplies Eq")  # panic: assertion-failed
+fn expect_same[T < Eq + Debug](actual: T, expected: T) -> void:
+    assert_equal(actual, expected, reason="the bounds supply Eq and Debug")  # panic: assertion-failed
 
 tests:
     it("a generic Eq value instantiated with a nominal type fails when unequal"):

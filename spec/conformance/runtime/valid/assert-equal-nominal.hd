@@ -1,5 +1,6 @@
 use std.testing.assert_equal
 
+@derive(Debug)
 data User:
     id: string
     display_name: string

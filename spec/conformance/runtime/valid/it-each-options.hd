@@ -1,0 +1,12 @@
+# test: it_each takes the options of it
+# Spec 10 Table Tests: an ignored it_each call runs none of its rows.
+use std.testing.{assert, it_each}
+
+tests:
+    it_each("never runs", [1, 2], ignore="demonstrates ignore", body=fn!(value: i32):
+        panic("an ignored row must not run")
+    )
+
+    it_each("positive", [1, 2], timeout="5s", body=fn!(value: i32):
+        assert(value > 0, reason="every row is positive")
+    )

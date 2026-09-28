@@ -1,0 +1,7 @@
+# test: an item inside a tests block must not be pub
+# Spec 03 Tests Blocks: pub on a tests-block item is public-test-item.
+tests:
+    pub fn shared_overdue() -> i32: 45  # diagnostic: public-test-item
+
+    it("uses the helper"):
+        _ := shared_overdue()

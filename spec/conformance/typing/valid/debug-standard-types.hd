@@ -1,0 +1,15 @@
+# test: std implements Debug for primitives, collections, optionals, Result, and tuples
+# Spec 09 Debug Trait: debug accepts each standard type whose type arguments implement Debug.
+fn render_all() -> List[string]:
+    let maybe: i32? = 3
+    let outcome: Result[i32, string] = .Ok(1)
+    [
+        debug(1),
+        debug(true),
+        debug("text"),
+        debug([1, 2]),
+        debug({"a": 1}),
+        debug(maybe),
+        debug(outcome),
+        debug((1, "one")),
+    ]
