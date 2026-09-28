@@ -99,6 +99,12 @@ export abstract class CallChecker extends StatementChecker {
     return { kind: "each-row-count", count, type: "void", span };
   }
 
+  /** The runner hook of a test `timeout` (program-declarations.ts). */
+  protected checkTestTimeoutCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
+    const millis = this.checkExpression(expression.arguments[0]!, "i64");
+    return { kind: "test-timeout", millis, type: "void", span: expression.span };
+  }
+
   /** The prelude `debug[T < Debug](value: T) -> string` (10-modules.md#prelude). */
   protected checkDebugCall(expression: Extract<Expression, { kind: "call" }>): HirExpression {
     if (expression.arguments.length !== 1 || expression.argumentSpreads?.some(Boolean))

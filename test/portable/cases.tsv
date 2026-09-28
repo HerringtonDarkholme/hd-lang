@@ -1157,3 +1157,9 @@ typing/valid/debug-standard-types.hd	type
 typing/valid/derive-debug.hd	type
 typing/valid/derive-without-structure-use.hd	type
 typing/valid/snapshot-inline.hd	type
+parse/invalid/radix-literal-quote-suffix.hd	parse
+parse/invalid/reserved-word-suffix.hd	parse
+typing/valid/test-timeout-call.hd	type
+typing/invalid/derive-before-function.hd	type
+typing/invalid/duplicate-declaration-fact.hd	type
+runtime/valid/data-variant-facts-empty.hd	runtime

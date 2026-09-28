@@ -19,6 +19,7 @@ import { parse } from "../parser/index.ts";
 import { nominalGenericParts, readonlyType } from "../types.ts";
 import { NEWTYPE_FIELD } from "./type-declarations.ts";
 import { debugWriterName } from "./standard-traits.ts";
+import { checkDuplicateDeclarationFacts, isLiteralFact } from "./declaration-facts.ts";
 
 // Typed derivation (spec/14-annotations.md#typed-derivation), lowered before
 // checking. The prototype compiles one module, so this pass rewrites every
@@ -451,6 +452,8 @@ export function withTypedDerivation(program: Program): DerivationResult {
         declaration.decorators.span,
       );
 
+  checkDuplicateDeclarationFacts(program, (fact) => factType(fact, functions), error);
+
   // Templates and derivation blocks.
   const templates = new Map<string, ImplDecl>();
   const blocks: ImplDecl[] = [];
@@ -834,15 +837,18 @@ function lintDerivations(
         );
     });
   }
+  // Only a fact whose type comes from a package other than `std` warns
+  // (annot.fact.unused-non-std).
   for (const declaration of [...program.data, ...program.enums]) {
     const facts = declaration.decorators?.facts ?? [];
     if (facts.length === 0 || byTarget.has(declaration.name)) continue;
     for (const fact of facts)
-      warn(
-        "unused-derivation-fact",
-        `type '${declaration.name}' derives no template that could read this fact`,
-        fact.span,
-      );
+      if (!isLiteralFact(fact))
+        warn(
+          "unused-derivation-fact",
+          `type '${declaration.name}' derives no template that could read this fact`,
+          fact.span,
+        );
   }
 }
 

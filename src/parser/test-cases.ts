@@ -93,6 +93,7 @@ interface TestArguments {
   readonly name: string;
   readonly body: Closure;
   readonly options: Readonly<Record<string, string>>;
+  readonly timeout?: Expression;
   /** The positional arguments after the name, such as `it_each`'s rows. */
   readonly positional: readonly Expression[];
 }
@@ -114,6 +115,7 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
     );
   const leading: Expression[] = [];
   const options: Record<string, string> = {};
+  let timeout: Expression | undefined;
   let body: Closure | undefined;
   for (let index = 1; index < call.arguments.length; index += 1) {
     const argument = call.arguments[index]!;
@@ -145,20 +147,11 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
         `${callee}(...) has no option '${option}'; use ignore, expect_panic, or timeout`,
         argument.span,
       );
-    // `timeout` takes a Duration written as a suffixed literal, such as `5s`
-    // (10-modules.md#r-module.testing.it.options-literal). The prototype keeps
-    // only the suffix name and does not check the literal; its runner does not
-    // enforce timeouts.
+    // `timeout` takes any `Duration` value, evaluated when the test case runs
+    // (10-modules.md#r-module.testing.option.timeout-any-duration); the
+    // checker types it.
     if (option === "timeout") {
-      const literal =
-        argument.kind === "call" && argument.literalSuffix !== undefined ? argument : undefined;
-      if (!literal)
-        fail(
-          "non-literal-test-argument",
-          "the timeout option takes a suffixed literal such as 5s",
-          argument.span,
-        );
-      options[option] = literal.literalSuffix!;
+      timeout = argument;
       continue;
     }
     if (argument.kind !== "string")
@@ -176,19 +169,28 @@ function testArguments(call: Call, callee: string, positional: number, fail: Fai
   if (!body) fail("argument-count", `${callee}(...) needs a body as its final argument`, call.span);
   if (body.trailing !== true && body.suspending !== true)
     fail("type-mismatch", `the body of ${callee}(...) is a fn! closure`, body.span);
-  return { name: nameArgument.value, body, options, positional: leading };
+  return {
+    name: nameArgument.value,
+    body,
+    options,
+    ...(timeout ? { timeout } : {}),
+    positional: leading,
+  };
 }
 
-function optionFields(options: Readonly<Record<string, string>>): Partial<TestDecl> {
+function optionFields(
+  options: Readonly<Record<string, string>>,
+  timeout: Expression | undefined,
+): Partial<TestDecl> {
   return {
     ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
     ...(options.expect_panic !== undefined ? { expectPanic: options.expect_panic } : {}),
-    ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+    ...(timeout ? { timeout } : {}),
   };
 }
 
 // A top-level statement of a `tests:` block must be a call of the prelude
-// function `it` with a literal name, literal options, and a body
+// function `it` with a literal name, its options, and a body
 // (spec/10-modules.md#test-cases).
 export function testCase(statement: Statement, fail: Fail): TestDecl {
   const call = statement.kind === "expression" ? statement.expression : undefined;
@@ -198,7 +200,7 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
       "every top-level statement of a tests block must be an it(...) call",
       statement.span,
     );
-  const { name, body, options } = testArguments(call, "it", 1, fail);
+  const { name, body, options, timeout } = testArguments(call, "it", 1, fail);
   const explicit = body.trailing !== true;
   if (explicit && body.parameters.length > 0)
     fail("argument-count", "a test body takes no parameters", body.span);
@@ -211,7 +213,7 @@ export function testCase(statement: Statement, fail: Fail): TestDecl {
       : usesPropagation(body.body)
         ? { propagates: true }
         : {}),
-    ...optionFields(options),
+    ...optionFields(options, timeout),
     span: statement.span,
   };
 }
@@ -241,7 +243,7 @@ function tableTest(
       "every top-level statement of a tests block must be a call of it or std.testing.it_each",
       statement.span,
     );
-  const { name, body, options, positional } = testArguments(call, "it_each", 2, fail);
+  const { name, body, options, timeout, positional } = testArguments(call, "it_each", 2, fail);
   const rows = positional[0]!;
   if (body.trailing === true || body.parameters.length !== 1)
     fail("argument-count", "an it_each body is a fn! closure with one parameter", body.span);
@@ -294,7 +296,7 @@ function tableTest(
     ...(body.result ? { explicit: true, result: body.result } : {}),
     table: true,
     ...(propagates ? { propagates: true } : {}),
-    ...optionFields(options),
+    ...optionFields(options, timeout),
     span: statement.span,
   };
 }

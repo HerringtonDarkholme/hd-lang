@@ -18,8 +18,8 @@ test("lexer emits layout tokens and source positions", () => {
   assert.deepEqual(choose?.span.start, { offset: 3, line: 1, column: 4 });
 });
 
-test("lexer keeps literal suffixes on numbers, after a quote for radix literals", () => {
-  const result = lex("a := 250ms\nb := 1e3ms\nc := 5em\nd := 0xff'B\ne := 1e3\n");
+test("lexer keeps literal suffixes on decimal and float numbers only", () => {
+  const result = lex("a := 250ms\nb := 1e3ms\nc := 5em\nd := 0xffB\ne := 1e3\n");
   assert.deepEqual(result.diagnostics, []);
   const numbers = result.tokens.filter(
     (token) => token.kind === "integer" || token.kind === "float",
@@ -30,13 +30,21 @@ test("lexer keeps literal suffixes on numbers, after a quote for radix literals"
       ["250ms", "ms"],
       ["1e3ms", "ms"],
       ["5em", "em"],
-      ["0xff'B", "B"],
+      ["0xffB", undefined],
       ["1e3", undefined],
     ],
   );
   assert.deepEqual(
     lex("f := 5_ms\n").diagnostics.map((diagnostic) => diagnostic.code),
     ["invalid-token"],
+  );
+  assert.deepEqual(
+    lex("g := 5else\n").diagnostics.map((diagnostic) => diagnostic.code),
+    ["invalid-token"],
+  );
+  assert.deepEqual(
+    lex("h := 0xff'B\n").diagnostics.map((diagnostic) => diagnostic.code),
+    ["unterminated-string"],
   );
 });
 

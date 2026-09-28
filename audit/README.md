@@ -22,7 +22,7 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,158 of the 1,223 conformance cases, all of
+On 2026-09-28 the prototype passes 1,164 of the 1,229 conformance cases, all of
 them selected in `test/portable/cases.tsv`. The other 65 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below; all 65 still fail.
@@ -63,8 +63,9 @@ dependencies are not implemented (a `tests` use root is always
 panic outside `expect_panic` stops the run (F-403; each test case and
 each `it_each` row otherwise runs in a fresh instance), a test body's
 `Result` reports only its outer tag, not its `.Ok` value's `ExitCode`
-(Testing T8), `timeout` is parsed but not enforced, and `it_prop` and `it_prop_with` (T36) are not
-implemented. `hd check` without `--tests` (T42) skips test cases and
+(Testing T8), a `timeout` (Literal Suffixes L16) is checked only after the
+body returns, so a body that never returns is not stopped, and `it_prop`
+and `it_prop_with` (T36) are not implemented. `hd check` without `--tests` (T42) skips test cases and
 test-only functions, but still reports the test-case errors its parser
 finds. A trailing block binds the final parameter (T40) only for calls
 that the checker plans, not for the built-in functions it special-cases.

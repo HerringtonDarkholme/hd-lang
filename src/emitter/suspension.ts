@@ -422,6 +422,8 @@ class SuspensionPlanBuilder {
         return continuation(expression);
       case "each-row-count":
         return lowerValues([expression.count], ([count]) => ({ ...expression, count: count! }));
+      case "test-timeout":
+        return lowerValues([expression.millis], ([millis]) => ({ ...expression, millis: millis! }));
       case "console-print":
         return lowerValues([expression.provider, expression.value], ([provider, value]) => ({
           ...expression,

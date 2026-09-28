@@ -53,6 +53,23 @@ function judge(declaration: HirFunction, result: unknown, subject: string): RunO
   return undefined;
 }
 
+/** The timeout a test function reported, in milliseconds, or undefined. */
+function timeoutMillis(exports: Exports): number | undefined {
+  const global = exports.__hd_timeout_ms as WebAssembly.Global | undefined;
+  const value = global === undefined ? -1 : Number(global.value);
+  return value >= 0 ? value : undefined;
+}
+
+// A test case fails when it runs longer than its `timeout`
+// (spec/10-modules.md#r-module.testing.option.timeout-any-duration). The
+// prototype runs a body synchronously, so it checks the elapsed time after
+// the body returns; it cannot stop a body that never returns.
+function overran(exports: Exports, started: number, subject: string): RunOutcome | undefined {
+  const limit = timeoutMillis(exports);
+  if (limit === undefined || performance.now() - started <= limit) return undefined;
+  return { kind: "failed", subject: `${subject} exceeding its ${limit}ms timeout` };
+}
+
 /** Runs one test case (or table row) in `exports`; undefined when it passes. */
 function runCase(
   exports: Exports,
@@ -61,6 +78,7 @@ function runCase(
 ): { readonly outcome?: RunOutcome; readonly noRows?: boolean } {
   const expected = declaration.testOptions?.expectPanic;
   const subject = `test "${caseName(declaration, row)}"`;
+  const started = performance.now();
   let result: unknown;
   try {
     result = call(exports, declaration, row);
@@ -68,9 +86,12 @@ function runCase(
     if (!(error instanceof RuntimePanicError)) throw error;
     // A table with no rows reports count 0, then indexes row 0.
     if (row === 0 && rowCount(exports) === 0) return { noRows: true };
-    if (error.code === expected) return {};
-    throw error;
+    if (error.code !== expected) throw error;
+    const late = overran(exports, started, subject);
+    return late ? { outcome: late } : {};
   }
+  const late = overran(exports, started, subject);
+  if (late) return { outcome: late };
   if (expected !== undefined)
     return { outcome: { kind: "failed", subject: `${subject} expecting panic ${expected}` } };
   const outcome = judge(declaration, result, subject);

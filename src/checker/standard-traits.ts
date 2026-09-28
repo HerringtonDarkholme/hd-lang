@@ -15,36 +15,46 @@ const STANDARD_TRAITS: Readonly<Record<string, (name: string) => string>> = {
 
 export const STANDARD_FROM = "std.convert.From";
 
-// `std.time` (spec/10-modules.md#r-module.prelude.time and
+// `std.time` (spec/10-modules.md#r-module.prelude.time-suffixes and
 // 05-expressions.md#literal-suffixes): `Duration` and the suffix newtypes,
-// each implementing `LiteralSuffix[i64, Duration]`. The spec names no
-// `Duration` member, so the prototype's `nanos` field is its own. A name
-// the module does not import is declared under a hidden name, and each
-// suffix scales its literal by checked `i64` multiplication.
+// each implementing `LiteralSuffix[i64, Duration]`. A `Duration` is a whole
+// number of milliseconds in an `i64` (r-expr.suffix.std.duration); the spec
+// names no member, so the prototype's `millis` field is its own. A name the
+// module does not import is declared under a hidden name, and each suffix
+// scales its literal by checked `i64` multiplication.
 const TIME_UNITS: Readonly<Record<string, string>> = {
-  ns: "1",
-  us: "1000",
-  ms: "1000000",
-  s: "1000000000",
-  min: "60000000000",
-  h: "3600000000000",
+  ms: "1",
+  s: "1000",
+  min: "60000",
+  h: "3600000",
 };
+
+export const HIDDEN_DURATION = "__std_time_Duration";
+
+/** The local name of `std.time.Duration`, or its hidden name. */
+export function durationName(uses: Program["uses"]): string {
+  for (const declaration of uses)
+    for (const imported of declaration.names)
+      if (declaration.module === "std.time" && imported.name === "Duration")
+        return imported.alias ?? imported.name;
+  return HIDDEN_DURATION;
+}
 
 function timeSource(
   imported: ReadonlyMap<string, string>,
   suffixTrait: string,
   declareTrait: boolean,
 ): string {
-  const duration = imported.get("Duration") ?? "__std_time_Duration";
+  const duration = imported.get("Duration") ?? HIDDEN_DURATION;
   const lines = declareTrait ? [STANDARD_TRAITS["std.ops.LiteralSuffix"]!(suffixTrait)] : [];
-  lines.push(`data ${duration}:\n    nanos: i64\n`);
+  lines.push(`data ${duration}:\n    millis: i64\n`);
   for (const [unit, scale] of Object.entries(TIME_UNITS)) {
     const local = imported.get(unit);
     if (!local) continue;
-    const nanos = scale === "1" ? "n" : `n * ${scale}`;
+    const millis = scale === "1" ? "n" : `n * ${scale}`;
     lines.push(
       `type ${local}(i64)\n`,
-      `impl ${suffixTrait}[i64, ${duration}] for ${local}:\n    fn from_literal(n: i64) -> ${duration}: ${duration} { nanos: ${nanos} }\n`,
+      `impl ${suffixTrait}[i64, ${duration}] for ${local}:\n    fn from_literal(n: i64) -> ${duration}: ${duration} { millis: ${millis} }\n`,
     );
   }
   return lines.join("\n");
@@ -169,6 +179,9 @@ export function withStandardTraits(program: Program): Program {
       if (trait) traits.push(respan(trait, declaration.span));
     }
   }
+  // A test `timeout` is checked against `Duration`, so it declares `std.time`.
+  const timed = program.tests.find((test) => test.timeout);
+  if (timed) time ??= timed.span;
   if (inspect) {
     const parsed = parse(INSPECT_SOURCE).program;
     if (parsed) {

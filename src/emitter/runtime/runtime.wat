@@ -123,6 +123,9 @@
   ;; row count the test function reports.
   (global $hd.each-index (export "__hd_each_index") (mut i32) (i32.const 0))
   (global $hd.each-count (export "__hd_each_count") (mut i32) (i32.const -1))
+  ;; A test case's timeout in milliseconds, which its test function reports
+  ;; first; -1 when it has none.
+  (global $hd.timeout-ms (export "__hd_timeout_ms") (mut i64) (i64.const -1))
 
   ;; A u8 result computed as an i32: panics unless it is in 0..255.
   (func $hd.check_u8 (param $value i32) (result i32)

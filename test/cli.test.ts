@@ -156,3 +156,42 @@ test("hd test runs each it_each row in a fresh instance", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// A `timeout` is any Duration, evaluated when the test case runs; a body
+// that runs longer fails (spec/10-modules.md#r-module.testing.option.timeout-at-run).
+test("hd test fails a test case that runs longer than its timeout", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "timeouts.hd");
+    const lines = [
+      "use std.time.{Duration, h, ms}",
+      "",
+      "fn budget() -> Duration: 1h",
+      "",
+      "fn spin(rounds: i32) -> i32:",
+      "    let total: i32 = 0",
+      "    let index: i32 = 0",
+      "    while index < rounds:",
+      "        total = (total + index) % 7",
+      "        index = index + 1",
+      "    total",
+      "",
+      "tests:",
+      '    it("finishes in time", timeout=budget()):',
+      "        spin(10)",
+      "",
+      '    it("overruns", timeout=0ms):',
+      "        spin(100_000)",
+      "",
+    ];
+    await writeFile(source, lines.slice(0, 16).join("\n"));
+    assert.match((await hd(["test", source])).stdout, /: 1 passed/);
+    await writeFile(source, lines.join("\n"));
+    await assert.rejects(hd(["test", source]), (error: CommandResult & { code?: number }) => {
+      assert.match(error.stdout + error.stderr, /test "overruns" exceeding its 0ms timeout/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

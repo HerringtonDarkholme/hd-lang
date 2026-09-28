@@ -42,7 +42,11 @@ unless `--tests` is given (Testing T42); `hd test` always compiles them.
 `hd test` (`test-runner.ts`) runs each test case in a fresh instance of one
 compilation. An `it_each` table is one test function that the runner calls
 once per row, as `name[i]`, through the exported `__hd_each_index` and
-`__hd_each_count` globals; a failure names the test case.
+`__hd_each_count` globals; a failure names the test case. A test function
+with a `timeout` evaluates it first and reports its milliseconds through
+`__hd_timeout_ms`; the runner fails a test case whose call took longer.
+It checks after the call returns, so it cannot stop a body that never
+returns.
 
 `hd repl` starts an interactive session. Each input is a declaration, a
 statement, or an expression; expressions print their value and type. A line
@@ -455,15 +459,18 @@ else`, `break`, `break value`, and `continue`;
 - imported `std.resource.ResourceError[E]` as the canonical generic
   `Operation(E) | Disposed` enum, using the same erased Wasm GC representation
   as source-declared generic enums;
-- literal suffixes (Literal Suffixes L1-L9): `250ms`, `1.5kb`, and `0xff'B`
-  lex as one number with a suffix, and the parser desugars them to
-  `ms::from_literal(250)`, folding a directly applied `-` into the literal.
-  An imported `std.ops.LiteralSuffix` is declared in the compiled module, so
-  a library suffix type works. Importing a `std.time` name declares
-  `Duration` (an `i64` count of nanoseconds, the prototype's own field) and
-  each imported suffix newtype with its `LiteralSuffix[i64, Duration]`
-  implementation, under hidden names for what is not imported. A
-  `timeout=5s` test option is kept unchecked;
+- literal suffixes (Literal Suffixes L1-L9, L12, L13, and L15-L17): `250ms`
+  and `1.5kb` lex as one number with a suffix, and the parser desugars them
+  to `ms::from_literal(250)`, folding a directly applied `-` into the
+  literal. Radix literals take no suffix, and a reserved-word suffix such as
+  `5else` is `invalid-token`. An imported `std.ops.LiteralSuffix` is
+  declared in the compiled module, so a library suffix type works.
+  Importing a `std.time` name declares `Duration` (an `i64` count of
+  milliseconds, in the prototype's own `millis` field) and each imported
+  suffix newtype of `ms`, `s`, `min`, and `h` with its
+  `LiteralSuffix[i64, Duration]` implementation, under hidden names for
+  what is not imported. A test `timeout` is checked as a `Duration` and
+  enforced after the body returns (see `hd test` above);
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
@@ -504,7 +511,8 @@ else`, `break`, `break value`, and `continue`;
   `suspension-forbidden-context` in facts) are implemented. Gaps: `Facts`
   holds `Inspectable` values rather than `Any`, so a fact must be
   inspectable; a fact's concrete type for `duplicate-fact` is read from
-  syntax (a data literal or a call's declared result); `VariantInfo.shared`
+  syntax (a data literal or a call's declared result), for member lines and
+  for declaration facts alike (M25); `VariantInfo.shared`
   is always empty; a build handle's `get` returns the declared type whatever
   its argument's permission; a newtype forwards only through the receiver
   and plain `Self`; `@derive(Eq)` is generated, `PartialOrd`, `Ord`, and
@@ -513,7 +521,9 @@ else`, `break`, `break value`, and `continue`;
   `std` supplies it for primitives and built-in composites, `assert_equal`
   and `debug` require it, `DebugWriter` has no members, and a `debug` call
   is `unsupported-debug-render` at run time); the drift and unused-fact warnings treat
-  the module as one package; function targets stay `decorator-not-annotator`;
+  the module as one package, and a literal fact such as `@"note"` is the
+  only `std`-typed fact the unused-fact warning skips (M25); function
+  targets, `@derive` included, stay `decorator-not-annotator`;
 - runtime type identity: importing a `std.inspect` name or `std.error.Error`
   declares the sealed `Inspectable` (`std.error.Error` extends it) and
   `TypeId`, a data type holding the canonical printable name (an inner

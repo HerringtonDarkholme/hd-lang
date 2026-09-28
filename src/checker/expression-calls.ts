@@ -1115,6 +1115,7 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     }
     if (expression.callee.name === "debug") return this.checkDebugCall(expression);
     if (expression.callee.name.startsWith("$each-row-")) return this.checkEachRowCall(expression);
+    if (expression.callee.name === "$test-timeout") return this.checkTestTimeoutCall(expression);
     if (expression.callee.name === "println") {
       if (expression.typeArguments)
         this.fail("unexpected-type-arguments", "println infers its Display type", expression.span);

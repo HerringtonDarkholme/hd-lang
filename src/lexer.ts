@@ -387,10 +387,9 @@ class Scanner {
         this.report("syntax-error", `invalid integer literal '${text}'`, start);
         return;
       }
-      // A radix literal takes a suffix only after `'`, as in `0xff'B`.
-      const suffix =
-        this.peek() === "'" && isSuffixStart(this.peek(1)) ? this.scanSuffix(true) : undefined;
-      this.emitNumber("integer", text + (suffix?.text ?? ""), start, value, suffix);
+      // A radix literal takes no suffix (01-lexical-structure.md#r-lex.suffix.no-radix),
+      // so a following `'` begins a character literal.
+      this.emitNumber("integer", text, start, value, undefined);
       return;
     }
     while (isDigit(this.peek()) || this.peek() === "_") text += this.advance();
@@ -422,12 +421,22 @@ class Scanner {
       text.includes("__") ||
       /_\.|\._|_[eE]|[eE]_|[+-]_/.test(text)
     ) {
-      if (isSuffixStart(this.peek())) this.scanSuffix(false);
+      if (isSuffixStart(this.peek())) this.scanSuffix();
       this.report("invalid-token", `invalid numeric literal '${text}'`, start);
       return;
     }
     const clean = text.replaceAll("_", "");
-    const suffix = isSuffixStart(this.peek()) ? this.scanSuffix(false) : undefined;
+    const suffix = isSuffixStart(this.peek()) ? this.scanSuffix() : undefined;
+    // A reserved word as a suffix, as in `5else`, forms no token
+    // (01-lexical-structure.md#r-lex.suffix.reserved).
+    if (suffix && KEYWORDS.has(suffix.name)) {
+      this.report(
+        "invalid-token",
+        `'${suffix.name}' is a reserved word, so '${text}${suffix.name}' is not a suffixed literal`,
+        start,
+      );
+      return;
+    }
     this.emitNumber(
       floating ? "float" : "integer",
       text + (suffix?.text ?? ""),
@@ -437,15 +446,13 @@ class Scanner {
     );
   }
 
-  // A literal suffix: identifier characters directly after the digits, or
-  // after `'` for a radix literal (01-lexical-structure.md#literal-suffixes).
-  private scanSuffix(quoted: boolean): { text: string; name: string; span: SourceSpan } {
-    let text = quoted ? this.advance() : "";
+  // A literal suffix: identifier characters directly after decimal or float
+  // digits (01-lexical-structure.md#literal-suffixes).
+  private scanSuffix(): { text: string; name: string; span: SourceSpan } {
     const start = this.position();
     let name = "";
     while (!this.done() && isIdentifierContinue(this.peek())) name += this.advance();
-    text += name;
-    return { text, name, span: { start, end: this.position() } };
+    return { text: name, name, span: { start, end: this.position() } };
   }
 
   private emitNumber(
@@ -606,7 +613,8 @@ class Scanner {
       }
     }
     if (!terminated) this.report("unterminated-string", "unterminated literal", start);
-    if (quote === "'" && [...value].length !== 1) {
+    // An unterminated character literal, as in `0xff'B`, reports only that.
+    if (terminated && quote === "'" && [...value].length !== 1) {
       this.report(
         "invalid-character-literal",
         "a character literal must contain one Unicode scalar value",

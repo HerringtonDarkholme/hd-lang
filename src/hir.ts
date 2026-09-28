@@ -539,6 +539,11 @@ export type HirExpression =
       readonly count: HirExpression;
     })
   | (HirExpressionBase & {
+      // Reports a test case's `timeout` in milliseconds to the runner.
+      readonly kind: "test-timeout";
+      readonly millis: HirExpression;
+    })
+  | (HirExpressionBase & {
       // `std.testing.snapshot_file(text)` (spec/10-modules.md#snapshots).
       readonly kind: "snapshot-file";
       readonly text: HirExpression;
