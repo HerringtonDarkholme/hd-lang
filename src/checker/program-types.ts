@@ -15,7 +15,7 @@ import type { ProgramCheckContext } from "./program-context.ts";
 export function declareProgramTypes(context: ProgramCheckContext): void {
   const { program, diagnostics, imports, dataTypes, enumTypes, traitTypes } = context;
   program.data.forEach((declaration, index) => {
-    if (PRELUDE_NAMES.has(declaration.name)) {
+    if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
         code: "prelude-name-shadow",
         message: `type '${declaration.name}' is provided by the prelude and cannot be redeclared`,
@@ -50,7 +50,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     });
   });
   program.enums.forEach((declaration, index) => {
-    if (PRELUDE_NAMES.has(declaration.name)) {
+    if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
         code: "prelude-name-shadow",
         message: `type '${declaration.name}' is provided by the prelude and cannot be redeclared`,
@@ -79,7 +79,7 @@ export function declareProgramTypes(context: ProgramCheckContext): void {
     });
   });
   program.traits.forEach((declaration, index) => {
-    if (PRELUDE_NAMES.has(declaration.name)) {
+    if (PRELUDE_NAMES.has(declaration.name) && !declaration.standard) {
       diagnostics.push({
         code: "prelude-name-shadow",
         message: `type '${declaration.name}' is provided by the prelude and cannot be redeclared`,

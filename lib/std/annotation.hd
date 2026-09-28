@@ -1,0 +1,117 @@
+# std.annotation: the shape surface (spec/14-annotations.md#common-shape-representation).
+# Every name here is a prelude name. `shape` and `shape_of` are compiler
+# intrinsics: the checker lowers `shape[T]()` and `shape_of(f)` to generated
+# builders over these declarations (src/checker/shapes.ts), so they are not
+# declared here. `ShapeMetadata` is sealed; the generated code gives each
+# concrete shape type its `metadata[M]()` lookup.
+
+# An opaque identity the compiler allocates. The prototype numbers the
+# declarations of the one module it compiles.
+pub data DeclarationId:
+    pub value: i32
+
+pub data SourcePosition:
+    pub file: string
+    pub line: i32
+    pub column: i32
+
+pub enum DeclarationKind:
+    Data
+    Enum
+    Function
+    Field
+    Variant
+    Parameter
+
+pub enum PrimitiveKind:
+    Bool
+    Signed(bits: i32)
+    Unsigned(bits: i32)
+    Float(bits: i32)
+    Char
+    String
+    Void
+    Never
+
+pub enum TypeShape:
+    Primitive(kind: PrimitiveKind)
+    Optional(inner: TypeShape)
+    List(element: TypeShape)
+    Map(key: TypeShape, value: TypeShape)
+    Tuple(elements: List[TypeShape])
+    Named(decl: DeclarationId, args: List[TypeShape])
+    Newtype(decl: DeclarationId, base: TypeShape)
+    Mut(inner: TypeShape)
+    Trait(decl: DeclarationId, args: List[TypeShape])
+    Any
+    Suspend(result: TypeShape)
+    Fn(
+        params: List[TypeShape],
+        result: TypeShape,
+        suspending: bool,
+        requirements: List[TypeShape],
+    )
+
+pub data FieldShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub position: i32
+    pub doc: string?
+    pub field_type: TypeShape
+
+pub data DataShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub doc: string?
+    pub field_list: List[FieldShape]
+
+pub data VariantShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub position: i32
+    pub doc: string?
+    pub payload: List[FieldShape]
+
+pub data EnumShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub doc: string?
+    pub variant_list: List[VariantShape]
+
+pub data ParamShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub position: i32
+    pub doc: string?
+    pub param_type: TypeShape
+    pub has_default: bool
+
+pub data FnShape:
+    pub id: DeclarationId
+    pub name: string
+    pub qualified_name: string
+    pub source: SourcePosition
+    pub doc: string?
+    pub params: List[ParamShape]
+    pub result: TypeShape
+    pub suspending: bool
+    pub requirements: List[TypeShape]
+
+pub trait ShapeMetadata:
+    fn metadata[reified M](self) -> M?
+
+impl TypeShape:
+    pub fn is_optional(self) -> bool:
+        match self:
+            .Optional(_) => true
+            _ => false

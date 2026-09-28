@@ -270,7 +270,7 @@ function headName(type: string): string {
 // ---------------------------------------------------------------------------
 // Generated source with placeholders for user expressions and types.
 
-class Source_ {
+export class Source_ {
   readonly lines: string[] = [];
   /** Helper functions, emitted after `lines` so a helper never splits a body. */
   readonly definitions: string[] = [];
@@ -353,7 +353,10 @@ function isGadt(declaration: EnumDecl): boolean {
 }
 
 /** The concrete type a fact expression evaluates to, when it is evident from syntax. */
-function factType(expression: Expression, functions: ReadonlyMap<string, FunctionDecl>): string {
+export function factType(
+  expression: Expression,
+  functions: ReadonlyMap<string, FunctionDecl>,
+): string {
   if (expression.kind === "data") return expression.name;
   if (expression.kind === "call" && expression.callee.kind === "name") {
     const declaration = functions.get(expression.callee.name);

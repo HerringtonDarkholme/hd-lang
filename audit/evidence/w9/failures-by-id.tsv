@@ -1,7 +1,6 @@
 id	count	title
-F-250	29	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-250	26	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 F-253	10	Sized numeric types other than i64 and u8 (i8, i16, u16-u64, f32) are unimplemented and not listed as deferred
-K1	9	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 TQ-2	2	Trait-argument ownership fixtures need the `Iterable` trait or package roles, which the prototype lacks

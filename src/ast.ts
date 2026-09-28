@@ -132,6 +132,8 @@ export interface TraitDecl {
    * of the standard `Walker`, `Describer`, and `Source` (14 Typed Derivation).
    */
   readonly strengthenableMembers?: readonly string[];
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  readonly standard?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -189,6 +191,8 @@ export interface DataDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  readonly standard?: boolean;
   readonly span: SourceSpan;
 }
 
@@ -227,6 +231,8 @@ export interface EnumDecl {
   /** Declared in a block suite, so not inspectable (09-traits.md#inspectable-types). */
   readonly local?: boolean;
   readonly decorators?: Decorators;
+  /** Declared by the standard library (`lib/std/`), which declares prelude names such as `DataShape`. */
+  readonly standard?: boolean;
   readonly span: SourceSpan;
 }
 

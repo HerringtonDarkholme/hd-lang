@@ -49,6 +49,7 @@ import {
   builtinTotallyOrdered,
   MAX_BOUND_DEPTH,
 } from "./shared.ts";
+import { generalizedShape } from "./shapes.ts";
 import {
   contextKeys,
   functionParts,
@@ -533,6 +534,8 @@ export abstract class CheckerContext {
     if (isPermissionWeakening(value.type, expected)) {
       return { kind: "permission-weaken", operand: value, type: expected, span };
     }
+    const shape = generalizedShape(value, expected, this.dataTypes, span);
+    if (shape) return shape;
     const variance = varianceConversion(value.type, expected, {
       data: this.dataTypes,
       enums: this.enumTypes,

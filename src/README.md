@@ -645,8 +645,8 @@ failures. Portable panic fixtures verify the declared code rather than
 accepting an arbitrary Wasm trap.
 
 The active boundary is intentionally narrower than the language specification.
-Task combinator intrinsics, strings and structural values in the host-provider
-ABI, and shape intrinsics remain in later MVP slices. The compiler rejects syntax it
+Task combinator intrinsics, and strings and structural values in the
+host-provider ABI, remain in later MVP slices. The compiler rejects syntax it
 recognizes from those slices rather than assigning placeholder semantics;
 unresolved `all!` and `race!` calls report `unsupported-task-combinator`.
 Interpolation and `println` report `unsatisfied-trait-bound` when the displayed type
@@ -656,7 +656,7 @@ does not implement the canonical prelude trait.
 
 The toy standard library is hd source in the top-level
 [`lib/std/`](../lib/std/) directory, next to `src/` as in Zig, one file per
-module: `std.cmp`, `std.collections`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
+module: `std.annotation`, `std.cmp`, `std.collections`, `std.console`, `std.format`, `std.iter`, `std.num`, `std.ops`,
 `std.option`, `std.process`, `std.result`, `std.testing`, `std.text`, and `std.time`. It
 follows the draft in
 [future-work/STDLIB.md](../future-work/STDLIB.md#core-layer) where the
@@ -688,6 +688,7 @@ What it provides:
 
 | Module | Contents |
 | --- | --- |
+| `std.annotation` | the shape types (`DataShape`, `FieldShape`, `TypeShape`, ...), `ShapeMetadata`, and `TypeShape.is_optional`; `checker/shapes.ts` generates the builders that `shape[T]()` and `shape_of(f)` call |
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
@@ -789,7 +790,7 @@ marks what this refactor removed.
 | HIR | `debug-render` | `std.format` | Done: `debug`, `DebugWriter`, and its builders are hd code in `lib/std/format.hd` |
 | HIR | `list-*`, `map-*`, `iterator-next` | built-in `List` and `Map` | Remains: the collection types are built into the runtime layout |
 | HIR | `inspect-type-id`, `inspect-downcast` | `std.inspect` | Remains: runtime type identity is a compiler service |
-| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics |
+| Checker | `block_on`, `all!`, `race!`, `shape`, `shape_of`, `downcast_val` | spec-named intrinsics | Remains: the specification names them compiler intrinsics. `shape` and `shape_of` lower to calls of generated hd builders over `lib/std/annotation.hd`, with no HIR node |
 | Checker | `Duration` for test `timeout`, `ExitCode` and `Termination` for entry results (`standard-traits.ts`, `termination.ts`) | `std.time`, `std.process` | Remains: language hooks that name a std type; the declarations are already hd |
 | Checker | `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable`, `Any`, `Debug`, `Ordering` declared in TypeScript | prelude declarations | Remains: operators, `for`, and interpolation are wired to them |
 | Emitter | `float.wat` and the `format_f64` and `pow_f64` imports | `f64` display and `**` | Remains: operator and interpolation support |

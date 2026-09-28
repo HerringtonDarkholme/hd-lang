@@ -1197,3 +1197,15 @@ typing/valid/debug-writer-builders.hd	type
 typing/valid/choices-arbitrary.hd	type
 runtime/panic/duration-suffix-overflow.hd	runtime
 runtime/valid/duration-api.hd	runtime
+typing/valid/shape-api.hd	type
+typing/invalid/retention-missing-field.hd	type
+typing/invalid/shape-of-local-binding.hd	type
+typing/invalid/shape-of-closure.hd	type
+typing/invalid/unknown-shape-variant.hd	type
+typing/valid/type-shape-mutable-field.hd	type
+typing/valid/annotations.hd	type
+typing/valid/retention-metadata.hd	type
+typing/valid/trait-less-derivation-block.hd	type
+typing/valid/data-decorator.hd	type
+typing/valid/embedded-field-decorator.hd	type
+typing/valid/parameter-decorator.hd	type

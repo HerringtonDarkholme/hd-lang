@@ -10,8 +10,16 @@ import {
 } from "../types.ts";
 import { extendsInspectable, usesStandardInspect } from "./inspectable.ts";
 import { MemberLookupChecker } from "./member-lookup.ts";
-import { genericTypeName, traitTypeName } from "./shared.ts";
+import { containsGenericType, genericTypeName, traitTypeName } from "./shared.ts";
 import { INSPECTABLE, TYPE_ID } from "./standard-traits.ts";
+import {
+  metadataMethodName,
+  SHAPE_METADATA_TYPES,
+  shapeBuilderName,
+  shapeOfBuilderName,
+  shapeOfCall,
+  specializedShapeBase,
+} from "./shapes.ts";
 
 type CallExpression = Extract<Expression, { kind: "call" }>;
 interface MemberCallExpression extends CallExpression {
@@ -231,5 +239,104 @@ export abstract class InspectChecker extends MemberLookupChecker {
       type: optionalType(target),
       span: expression.span,
     };
+  }
+
+  /**
+   * `shape[T]()` and `shape_of(f)` (spec/14-annotations.md#shape-intrinsics):
+   * the call of the builder that `shapes.ts` generated for the target.
+   */
+  protected shapeIntrinsicCall(expression: CallExpression): Expression {
+    const name = expression.callee.kind === "name" ? expression.callee.name : "shape";
+    const call = (callee: string): Expression => ({
+      kind: "call",
+      callee: { kind: "name", name: callee, span: expression.callee.span },
+      arguments: [],
+      span: expression.span,
+    });
+    if (expression.argumentSpreads?.some(Boolean))
+      this.fail(
+        "positional-spread-needs-vararg",
+        `${name} has no variadic parameter`,
+        expression.span,
+      );
+    if (name === "shape") {
+      const typeArguments = expression.typeArguments ?? [];
+      if (typeArguments.length !== 1 || expression.arguments.length !== 0)
+        this.fail(
+          "argument-count",
+          "shape expects one type argument and no values",
+          expression.span,
+        );
+      const target = typeArguments[0]!;
+      const builder = shapeBuilderName(target.name);
+      if (!this.signatures.has(builder)) this.failReifiedShape(target, "unknown-shape-target");
+      return call(builder);
+    }
+    if (expression.typeArguments?.length)
+      this.fail("unexpected-type-arguments", "shape_of takes no type arguments", expression.span);
+    if (expression.arguments.length !== 1)
+      this.fail("argument-count", "shape_of expects one function name", expression.span);
+    const argument = expression.arguments[0]!;
+    const local =
+      argument.kind !== "name" ||
+      this.resolveLocal(argument.name) !== undefined ||
+      this.availableCaptures.has(argument.name) ||
+      this.resolveGlobal(argument.name) !== undefined;
+    const signature = local
+      ? undefined
+      : this.visibleSignature((argument as { name: string }).name);
+    if (!signature || !this.signatures.has(shapeOfBuilderName(signature.name)))
+      this.fail(
+        "unknown-shape-target",
+        "shape_of expects the name of a module-level function declaration",
+        argument.span,
+      );
+    const types = {
+      newtypeBase: (type: string): string | undefined => {
+        const declaration = this.dataTypes.get(type);
+        return declaration?.newtype ? declaration.fields[0]?.type : undefined;
+      },
+      isTrait: (type: string): boolean => this.traitTypes.has(type),
+    };
+    const { result, requirements } = signature;
+    return shapeOfCall(types, signature.name, result, requirements, expression.span);
+  }
+
+  /**
+   * The generated `hd__metadata_M` method that `shape.metadata[M]()` calls on
+   * a concrete shape type (spec/14-annotations.md#common-shape-representation).
+   */
+  protected shapeMetadataMethod(
+    expression: MemberCallExpression,
+    receiver: HirExpression,
+  ): string | undefined {
+    const type = readonlyType(receiver.type);
+    if (expression.callee.name !== "metadata") return undefined;
+    if (!SHAPE_METADATA_TYPES.has(type) && !specializedShapeBase(type)) return undefined;
+    for (const argument of expression.arguments) this.checkExpression(argument);
+    const typeArguments = expression.typeArguments ?? [];
+    if (typeArguments.length !== 1 || expression.arguments.length !== 0)
+      this.fail(
+        "argument-count",
+        "metadata expects one type argument and no values",
+        expression.span,
+      );
+    const target = typeArguments[0]!;
+    this.failReifiedShape(target);
+    return metadataMethodName(target.name);
+  }
+
+  /**
+   * A type parameter's shape needs its runtime descriptor, which the
+   * prototype does not pass; otherwise `fallback`, if any, is reported.
+   */
+  private failReifiedShape(target: TypeRef, fallback?: string): void {
+    if (containsGenericType(this.resolveType(target)))
+      this.fail(
+        "unsupported-reified-shape",
+        `the prototype does not pass the runtime descriptor of '${target.name}'`,
+        target.span,
+      );
+    if (fallback) this.fail(fallback, `shape has no target '${target.name}'`, target.span);
   }
 }

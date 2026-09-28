@@ -21,6 +21,7 @@ import { hoistLocalDeclarations } from "./local-declarations.ts";
 import { varianceDiagnostics } from "./variance.ts";
 import { withTypeDeclarations } from "./type-declarations.ts";
 import { withTypedDerivation } from "./typed-derivation.ts";
+import { withShapes } from "./shapes.ts";
 import type { Diagnostic } from "../diagnostics.ts";
 
 export interface CheckOptions {
@@ -36,7 +37,8 @@ export function check(source: Program, options: CheckOptions = {}): CheckResult 
   const derived = withTypedDerivation(spelled.program);
   if (derived.diagnostics.some((diagnostic) => diagnostic.severity !== "warning"))
     return { diagnostics: [...derived.diagnostics] };
-  const result = checkProgram(derived.program, options);
+  // Shape intrinsics call generated builders (spec/14-annotations.md#shape-intrinsics).
+  const result = checkProgram(withShapes(derived.program), options);
   // A member that fails the walker's bound is reported at the opt-in
   // (spec/14-annotations.md#r-annot.walker.obligation.error).
   const remapped = result.diagnostics.map((diagnostic): Diagnostic =>

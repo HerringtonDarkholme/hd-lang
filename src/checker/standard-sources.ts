@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 
 /** The `std` modules written in hd, by module path (`std.<name>`). */
 export const STANDARD_MODULES = [
+  "annotation",
   "cmp",
   "format",
   "collections",

@@ -1,0 +1,58 @@
+# std.annotation: shape values built by the shape intrinsics.
+use std.testing.{assert, assert_equal}
+
+data MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
+
+## A reflected user.
+data User:
+    ## The display name.
+    @max_len(80)
+    name: string
+    nickname: string?
+
+enum JobStatus:
+    Queued
+    Failed(code: i32)
+
+fn lookup(id: i32, label: string = "") -> List[string]:
+    []
+
+fn field_count(target: DataShape) -> i32:
+    target.field_list.len()
+
+fn limit(field: FieldShape) -> i32:
+    match field.metadata[MaxLen]():
+        .Some(found) => found.value
+        .None => 0
+
+tests:
+    it("a data shape lists its fields"):
+        user := shape[User]()
+        assert_equal(user.name, "User", reason="the name")
+        assert_equal(field_count(user), 2, reason="the specialized shape converts")
+        assert_equal(user.fields.nickname.position, 1, reason="the field position")
+        assert(user.fields.nickname.field_type.is_optional(), reason="an optional field")
+        assert_equal(user.fields.name.doc, "The display name.", reason="the field doc")
+
+    it("metadata finds the attached value by type"):
+        user := shape[User]()
+        assert_equal(limit(user.fields.name), 80, reason="the attached value")
+        assert_equal(limit(user.fields.nickname), 0, reason="no attached value")
+
+    it("an enum shape lists its variants"):
+        status := shape[JobStatus]()
+        assert_equal(status.variant_list.len(), 2, reason="the variant count")
+        assert_equal(status.variants.Failed.payload.len(), 1, reason="the payload")
+
+    it("a function shape lists its parameters"):
+        target := shape_of(lookup)
+        assert_equal(target.params.len(), 2, reason="the parameter count")
+        assert(target.params[1].has_default, reason="a default")
+        assert(!target.suspending, reason="not suspending")
+
+    it("another type has a TypeShape"):
+        assert(shape[i32?]().is_optional(), reason="an optional type")
+        assert(!shape[List[i32]]().is_optional(), reason="a list type")

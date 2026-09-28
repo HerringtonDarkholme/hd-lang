@@ -53,6 +53,21 @@ const renamedModules = new Map<string, Program>();
 const PRELUDE_DECLARATIONS: readonly (readonly [StandardModule, string])[] = [
   ["console", "println"],
   ["format", "debug"],
+  // The shape surface (spec/14-annotations.md#common-shape-representation).
+  ...[
+    "DeclarationId",
+    "SourcePosition",
+    "DeclarationKind",
+    "PrimitiveKind",
+    "TypeShape",
+    "FieldShape",
+    "DataShape",
+    "VariantShape",
+    "EnumShape",
+    "ParamShape",
+    "FnShape",
+    "ShapeMetadata",
+  ].map((name) => ["annotation", name] as const),
 ];
 
 /** std declarations that a prelude trait names, declared when a program mentions the trait. */
@@ -105,7 +120,16 @@ function parseModule(name: StandardModule, source: string): Program {
     const { decorators: _decorators, ...rest } = declaration;
     return { ...rest, intrinsic, standard: true };
   });
-  return { ...parsed.program, functions };
+  // A std declaration may be a prelude name (spec/10-modules.md#prelude).
+  const standard = <T>(items: readonly T[]): T[] =>
+    items.map((item) => ({ ...item, standard: true }));
+  return {
+    ...parsed.program,
+    data: standard(parsed.program.data),
+    enums: standard(parsed.program.enums),
+    traits: standard(parsed.program.traits),
+    functions,
+  };
 }
 
 function standardModule(name: StandardModule): ParsedModule {
@@ -283,7 +307,12 @@ export function withStandardLibrary(program: Program): Program {
   }
   for (const [module, name] of PRELUDE_DECLARATIONS) {
     if (!mentionedByProgram.has(name) || included.has(module)) continue;
-    if (program.functions.some((declaration) => declaration.name === name)) continue;
+    if (
+      [...program.functions, ...program.data, ...program.enums, ...program.traits].some(
+        (declaration) => declaration.name === name,
+      )
+    )
+      continue;
     reached.add(name);
     if (!spans.has(module)) spans.set(module, program.span);
   }

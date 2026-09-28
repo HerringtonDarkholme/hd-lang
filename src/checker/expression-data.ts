@@ -20,6 +20,7 @@ import {
 } from "./shared.ts";
 
 import { ExpressionSuspensionChecker } from "./expression-suspensions.ts";
+import { isShapeMemberRecord } from "./shapes.ts";
 
 /** The decimal position a tuple-style member such as `_0` or `_12` names. */
 function underscorePosition(name: string): string | undefined {
@@ -675,6 +676,14 @@ export abstract class ExpressionDataChecker extends ExpressionSuspensionChecker 
         const dataDeclaration = this.dataTypes.get(typeName);
         if (dataDeclaration) {
           const selection = this.selectField(receiver.type, expression.name, expression.span);
+          // A specialized shape's `fields` or `variants` record
+          // (spec/14-annotations.md#shape-intrinsics).
+          if (selection.kind !== "field" && isShapeMemberRecord(dataDeclaration.name))
+            this.fail(
+              "unknown-shape-target",
+              `the reflected declaration has no member '${expression.name}'`,
+              expression.span,
+            );
           if (selection.kind !== "field")
             this.fail(
               "unknown-data-field",

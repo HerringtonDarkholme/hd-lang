@@ -134,6 +134,13 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
       }
     }
     const receiver = this.checkExpression(expression.callee.receiver);
+    const shapeMetadata = this.shapeMetadataMethod(expression, receiver);
+    if (shapeMetadata)
+      return this.checkImplementedMemberCall(
+        { ...expression, callee: { ...expression.callee, name: shapeMetadata }, typeArguments: [] },
+        receiver,
+        expected,
+      );
     const inspection = this.checkInspectMemberCall(expression, receiver, expected);
     if (inspection) return inspection;
     const builtin = this.checkBuiltInMemberCall(expression, receiver);
@@ -840,6 +847,8 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     expression: NamedCallExpression,
     expected?: ValueType,
   ): HirExpression | undefined {
+    if (expression.callee.name === "shape" || expression.callee.name === "shape_of")
+      return this.checkExpression(this.shapeIntrinsicCall(expression), expected);
     if (isDowncastValImport(this.imports, expression.callee.name)) {
       const inspection = this.checkInspectFunctionCall(expression, "downcast_val", expected);
       if (inspection) return inspection;

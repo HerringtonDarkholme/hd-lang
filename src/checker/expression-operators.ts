@@ -161,6 +161,13 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             span: expression.span,
           };
         }
+        // The shape intrinsics are only callees (spec/14-annotations.md#shape-intrinsics).
+        if (expression.name === "shape" || expression.name === "shape_of")
+          this.fail(
+            "unknown-shape-target",
+            `'${expression.name}' is a compiler intrinsic and must be called directly`,
+            expression.span,
+          );
         this.failUnknownName(expression.name, `unknown name '${expression.name}'`, expression.span);
       }
       case "unary":
