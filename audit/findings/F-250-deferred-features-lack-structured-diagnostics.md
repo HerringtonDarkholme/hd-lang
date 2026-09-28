@@ -14,7 +14,7 @@ with a false meaning. The other 27 get generic parser or checker codes
 malformed rather than unimplemented. MVP goal 5 ("reject unimplemented
 language features with structured diagnostics") is not met for these slices.
 Declared variance is implemented.
-Recommendation: implementation change: recognise decorator, `annotate`,
+Recommendation: implementation change: recognise decorator,
 GADT variant results, and `pack.*` forms and report one
 stable `unsupported-*` code per feature. OPEN_ISSUES question: should the spec
 define a single portable "unsupported-feature" category so conformance runners

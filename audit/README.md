@@ -22,10 +22,10 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-28 the prototype passes 1,164 of the 1,229 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 65 are listed in
+On 2026-09-28 the prototype passes 1,164 of the 1,238 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 74 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 65 still fail.
+decision below; all 74 still fail.
 
 ## Specification Follow-Ups
 
@@ -53,7 +53,7 @@ sized numeric types: L2's `unsigned-exponent.hd` and TQ-4's
 | EMB-S | Rust-style trait lookup: a trait method is a candidate only where its trait is available, wherever the impl is declared; an unavailable trait is invisible, so a promoted method of that name is selected and a call that finds nothing is `unknown-method` suggesting the import. `member-lookup.ts` and `program-embedding.ts` implement the rest, but the prototype checks one module without trait imports (a multi-file package is linked into one namespace), so every trait is available, and the fixtures need package roles. |
 | P2 | Member lookup skips own fields and inherent methods not visible from the calling module; a private member of an embedded type is never promoted, and `private-member` is reported only for an invisible own member when nothing visible matches. `member-lookup.ts` follows the algorithm, but the prototype checks one module (a linked package shares one namespace), so every own member is visible, and the fixtures need package roles. |
 | GQ4 | `pack.map(` and `pack.map_list(` always form the pack operation, even beside a local named `pack`. The prototype checks the operation's argument shape but has no pack operations, so a valid use still resolves as a method call. |
-| GQ14 | Annotation bodies accept `pass` alone on an indented line. The prototype has no `annotate` declarations. |
+| M26 | Typed Derivation M26 removes the `annotate Target:` block and the reserved word `annotate`; shared metadata goes in a trait-less derivation block, `impl T by Structure:`. The prototype does not parse a header with `by` and no trait, and still reserves `annotate`. |
 
 The testing redesign (Testing T2-T31 and T40-T47) passes its fixtures, with
 gaps that no fixture reaches: only functions of a `tests:` block are hidden

@@ -14,7 +14,6 @@ typing/valid/mutable-suspension.hd	check fails: unsupported-generic-parameter at
 typing/invalid/mixed-signedness.hd	MVP reports unknown-type at line 2 instead of mixed-signedness: unknown or unsupported type 'u32'	F-253
 typing/valid/variadic-generics.hd	check fails: unsupported-generic-parameter at line 1: packs and defaults are outside the current erased-generic slice	F-250
 typing/valid/gadts.hd	check fails: syntax-error at line 7: expected a line ending after an enum variant	F-250
-typing/valid/annotations.hd	check fails: expected-expression at line 23: expected an expression, found 'annotate'	F-250
 typing/valid/data-decorator.hd	check fails: unknown-name at line 16: decorators parse and attach facts, but the shape intrinsic is unimplemented	F-250
 typing/valid/embedded-field-decorator.hd	check fails: unknown-name 'shape' at line 13 (K1); member decorators parse	F-250
 typing/valid/derived-hash.hd	check fails: invalid-map-key at line 16: @derive(Hash) is accepted but not generated, and the prototype has no Hash trait (F-255)	F-250
@@ -23,9 +22,7 @@ typing/valid/derived-ordering.hd	check fails: missing-partial-ord at line 22: @d
 typing/invalid/derived-total-order-float.hd	check passes instead of field-not-eq at line 2: @derive(Ord) is accepted but not generated	F-250
 typing/invalid/pack-length-mismatch.hd	MVP reports unsupported-generic-parameter at line 2 instead of pack-length-mismatch: packs and defaults are outside the current erased-generic slice	F-250
 typing/invalid/impossible-gadt-pattern.hd	MVP reports unsupported-gadt-result at line 3 instead of impossible-gadt-pattern	F-250
-typing/invalid/unknown-annotation-member.hd	MVP reports expected-expression at line 5 instead of unknown-annotation-member: expected an expression, found 'annotate'	F-250
 typing/valid/parameter-decorator.hd	check fails: unknown-name 'shape_of' at line 17 (K1); parameter decorators parse	F-250
-typing/valid/retention-metadata.hd	check fails: expected-expression at line 20: expected an expression, found 'annotate'	F-250
 typing/invalid/retention-missing-field.hd	MVP reports unknown-name at line 4 instead of unknown-shape-target: the shape intrinsic is unimplemented	K1
 typing/invalid/covariant-gadt-result.hd	MVP reports syntax-error at line 4 instead of invalid-variance: expected a generic enum parameter	F-250
 typing/valid/invariant-gadt-result.hd	check fails: expected-expression at line 5: expected an expression, found 'mut'	F-250
@@ -48,7 +45,6 @@ typing/invalid/unavailable-trait-method-not-found.hd	check exits 2 with usage te
 typing/invalid/available-trait-method-beside-promoted.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 runtime/valid/available-trait-method-across-packages.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and trait imports are not tracked, so every trait is available	EMB-S
 typing/valid/pack-map-with-local-named-pack.hd	check fails: argument-count at line 16: the prototype has no pack operations, so pack.map( on a local named pack resolves as a method call	GQ4
-parse/valid/annotate-indented-pass.hd	parse fails: expected-expression at line 7: the prototype has no annotate declarations	GQ14
 runtime/valid/generic-trait-literal-default-instantiation.hd	check fails: unknown-type f32 at line 18; the TQ-4 literal-default preference is implemented, and i64 is	F-253
 typing/invalid/private-field-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
 typing/invalid/private-promoted-method-nothing-visible.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option, and it compiles one module, so every member is visible	P2
@@ -64,3 +60,16 @@ typing/valid/type-shape-mutable-field.hd	check fails: unknown-name at line 9: th
 typing/valid/function-type-pack-impl.hd	check fails: unsupported-generic-parameter at line 7: packs are outside the erased-generic slice, so an impl over Fn[(Is...), O, R] is rejected	F-250
 typing/invalid/function-type-overlapping-impl.hd	MVP reports unsupported-generic-parameter at line 6 instead of overlapping-impl: packs are outside the erased-generic slice	F-250
 typing/invalid/root-orphan-impl.hd	check exits 2 with usage text: the prototype CLI has no --package-role or --dependency option	F-250
+typing/valid/annotations.hd	check fails: syntax-error at line 25: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
+typing/invalid/unknown-annotation-member.hd	MVP reports syntax-error at line 7 instead of unknown-annotation-member at line 8: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/valid/retention-metadata.hd	check fails: syntax-error at line 22: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
+parse/valid/trait-less-derivation-block.hd	parse fails: syntax-error at line 9: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/valid/annotate-identifier.hd	check fails: syntax-error at line 2: the prototype still reserves annotate, so it cannot name a function	M26
+typing/valid/trait-less-derivation-block.hd	check fails: syntax-error at line 19: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait); the shape intrinsic is also unimplemented (K1)	M26
+runtime/valid/trait-less-block-facts.hd	check fails: syntax-error at line 53: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-block-omit.hd	MVP reports syntax-error at line 11 instead of invalid-member-line at line 12: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-block-method.hd	MVP reports syntax-error at line 7 instead of misplaced-derivation at line 9: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-block-newtype.hd	MVP reports syntax-error at line 6 instead of misplaced-derivation: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-block-local.hd	MVP reports syntax-error instead of misplaced-derivation at line 8: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-block-duplicate-fact.hd	MVP reports syntax-error at line 13 instead of duplicate-fact at line 14: the prototype does not parse a trait-less derivation block (impl T by Structure without a trait)	M26
+typing/invalid/trait-less-delegation.hd	MVP reports syntax-error instead of invalid-delegation at line 9: the prototype does not parse by after an implementation header without a trait	M26

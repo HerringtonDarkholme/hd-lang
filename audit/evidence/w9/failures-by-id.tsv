@@ -1,5 +1,6 @@
 id	count	title
-F-250	32	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+F-250	29	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
+M26	13	Trait-less derivation blocks (`impl T by Structure` without a trait) do not parse, and `annotate` is still reserved
 F-253	10	Sized numeric types other than i64 and u8 (i8, i16, u16-u64, f32) are unimplemented and not listed as deferred
 K1	6	`shape[T]()` and `shape_of(f)` intrinsics are not implemented
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
@@ -9,4 +10,3 @@ F-255	2	Prelude names `Hash` and `Hasher` are unknown
 F-150	2	Entry-point cases use a private declaration in `pub fn main`, so they also report `private-type-leak`
 F-259	1	The `disposed-file` runtime profile named in spec/conformance/README.md does not exist
 GQ4	1	The prototype has no pack operations, so `pack.map(` on a local named `pack` resolves as a method call
-GQ14	1	`annotate` declarations do not parse, so an annotation body holding only an indented `pass` fails
