@@ -1,5 +1,10 @@
 import type { HirProgram, HirTrait, HirTraitMethod, ValueType } from "../hir.ts";
 import { runtimePanicCode } from "../runtime-panic.ts";
+import {
+  traitSuspensionName,
+  traitSuspensionPollName,
+  traitSuspensionResultName,
+} from "./shared.ts";
 
 export interface HostProviderEmission {
   readonly functions: string;
@@ -271,9 +276,6 @@ function emitFrameType({ trait, method }: HostMethod): string {
 // through its console import, not a boundary adapter: `write_line!` writes
 // its line when first polled and is then ready with `.Ok()`. The host reports
 // no write failure, so no `ConsoleError` is produced.
-// `$hd.host_console_extern` gives `println` the host console under a
-// `Console` value; any other provider stops the run, because the spec does
-// not say how `println` drives a program's `write_line!` (MHP-1).
 const CONSOLE_FRAME = "$hd.host_console_frame";
 
 function emitConsoleType(): string {
@@ -328,15 +330,6 @@ function emitConsole(trait: HirTrait): { functions: string; references: string[]
     `)`,
     ``,
     emitTraitFactory(trait),
-    ``,
-    `(func $hd.host_console_extern (param $console (ref null $trait${trait.index})) (result externref)`,
-    `  (local $receiver anyref)`,
-    `  (local.set $receiver (struct.get $trait${trait.index} $trait${trait.index}value (ref.as_non_null (local.get $console))))`,
-    `  (if (ref.test (ref $hd.box-extern) (local.get $receiver))`,
-    `    (then (return (struct.get $hd.box-extern $hd.box-extern-value (ref.cast (ref $hd.box-extern) (local.get $receiver))))))`,
-    `  (call $hd.console_unsupported)`,
-    `  unreachable`,
-    `)`,
   ].join("\n");
   return {
     functions,
@@ -361,12 +354,7 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
   const methods = traits.flatMap((trait) => trait.methods.map((method) => ({ trait, method })));
   if (methods.length === 0 && !consoleEmission)
     return { functions: "", imports: "", references: [], types: "", console: false };
-  const imports = [
-    ...methods.flatMap(emitImports),
-    ...(consoleEmission
-      ? [`  (import "hd" "console_unsupported" (func $hd.console_unsupported))`]
-      : []),
-  ].join("\n");
+  const imports = methods.flatMap(emitImports).join("\n");
   const functions = [
     ...(consoleEmission ? [consoleEmission.functions] : []),
     ...methods.flatMap((hostMethod) => [
@@ -391,4 +379,43 @@ export function emitHostProviders(program: HirProgram): HostProviderEmission {
     .filter(Boolean)
     .join("\n");
   return { functions, imports, references, types, console: consoleEmission !== undefined };
+}
+
+/**
+ * `println` (spec/10-modules.md#console): calls `write_line!` on the covering
+ * `Console` provider, the host console or a program-defined one, and drives
+ * the call inside itself (r[module.console.println-drive]). A poll that stays
+ * pending (r[module.console.println-pending]) and an `.Err` result
+ * (r[module.console.println-error]) are panics whose category the spec leaves
+ * open (MHP-1), so they stop the run through the `println_pending` and
+ * `println_error` imports.
+ */
+export function emitPrintln(
+  program: HirProgram,
+): { functions: string; imports: string } | undefined {
+  const console = program.traits.find((trait) => trait.name === "Console");
+  if (!console) return undefined;
+  const method = console.methods[0]!;
+  const ids = `${console.index}_${method.index}`;
+  const trait = `$trait${console.index}`;
+  const wrapper = traitSuspensionName(console.index, method.index);
+  const functions = [
+    `(func $hd.println (param $console (ref null ${trait})) (param $text (ref null $hd.bytes))`,
+    `  (local $call (ref null ${wrapper}))`,
+    `  (local.set $call (call_ref $tsig${ids}`,
+    `    (struct.get ${trait} ${trait}value (ref.as_non_null (local.get $console)))`,
+    `    (local.get $console)`,
+    `    (local.get $text)`,
+    `    (struct.get ${trait} ${trait}m${method.index} (local.get $console))))`,
+    `  (if (i32.ne (call ${traitSuspensionPollName(console.index, method.index)} (local.get $call)) (i32.const 1))`,
+    `    (then (call $hd.println_pending) unreachable))`,
+    `  (if (struct.get $hd.variant $hd.variant-tag (call ${traitSuspensionResultName(console.index, method.index)} (local.get $call)))`,
+    `    (then (call $hd.println_error) unreachable))`,
+    `)`,
+  ].join("\n");
+  const imports = [
+    `  (import "hd" "println_pending" (func $hd.println_pending))`,
+    `  (import "hd" "println_error" (func $hd.println_error))`,
+  ].join("\n");
+  return { functions, imports };
 }

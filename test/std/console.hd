@@ -15,5 +15,12 @@ tests:
             assert_equal(result.is_ok(), true, reason="the buffer never fails")
         assert_equal(console.output(), ["hello, ada", "bye"], reason="both lines")
 
+    it("BufferConsole records println lines"):
+        let console: mut BufferConsole = BufferConsole::new()
+        $.with(Console=console):
+            println("hi")
+            println(42)
+        assert_equal(console.output(), ["hi", "42"], reason="println drives write_line!")
+
     it("a new BufferConsole is empty"):
         assert_equal(BufferConsole::new().output().len(), 0, reason="no lines yet")

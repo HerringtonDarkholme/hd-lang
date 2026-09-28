@@ -293,10 +293,11 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   host console is a `Console` trait value that boxes the host's `externref`
   (`emitter/host-providers.ts`); its `write_line!` writes the line and is
   ready with `.Ok()` on its first poll, so direct calls run on it and on a
-  program-defined provider. `println` writes only through the host console:
-  when it reaches a program-defined provider, the run stops with
-  `unsupported-console-provider`, since the spec does not say how `println`
-  drives `write_line!` (MHP-1). A public non-suspending function with a
+  program-defined provider. `println` calls `write_line!` on the covering
+  provider, the host console or a program-defined one, and polls the call
+  inside itself (MHP-1). A call that stays pending, or returns `.Err`,
+  stops the run with `unsupported-println-panic`, since the spec leaves
+  that panic's category open. A public non-suspending function with a
   host provider in its row is exported through a wrapper that makes the
   trait value from the host's `externref`;
 - suspending host capability methods with scalar and UTF-8 string arguments
@@ -683,8 +684,8 @@ limits: the `std.iter` adapters work on the built-in list and map cursors
 there is no `chars`, `to_utf8`, or `from_utf8` (no scalar or byte access
 from hd), no `parse_f64`, `wrapping_mul`, or `Float` rounding methods, no
 `Integer` or `Float` trait (no `Hash`, F-255), no `Set` (map keys need
-`Hash`), and no host `ConsoleInput`; a `BufferConsole` records direct
-`write_line!` calls, not `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
+`Hash`), and no host `ConsoleInput`; a `BufferConsole` records both direct
+`write_line!` calls and `println` (MHP-1). `test/std/*.hd` tests each module through `hd test`, and
 the playground's `std` example uses several.
 
 ## Layout

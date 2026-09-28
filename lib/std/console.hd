@@ -1,8 +1,8 @@
 # std.console: console input and the recording `BufferConsole`
 # (future-work/STDLIB.md#stdconsole). `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/10-modules.md#console). No prototype runtime profile
-# binds a host `ConsoleInput`. `println` writes only through the host console
-# (MHP-1), so a `BufferConsole` records direct `write_line!` calls.
+# binds a host `ConsoleInput`. `println` drives the covering provider's
+# `write_line!` (MHP-1), so a `BufferConsole` records `println` lines too.
 
 pub trait ConsoleInput:
     fn read_line!(self) -> Result[string?, ConsoleError]

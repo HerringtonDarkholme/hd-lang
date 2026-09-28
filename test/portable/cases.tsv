@@ -1152,6 +1152,8 @@ runtime/valid/termination-report.hd	runtime
 typing/valid/console-recording-provider.hd	type
 typing/valid/console-host-provider-mutable.hd	type
 typing/invalid/console-readonly-binding-write-line.hd	type
+runtime/valid/println-recording-provider.hd	runtime
+runtime/valid/println-provider-suspending-body.hd	runtime
 typing/invalid/assert-equal-without-debug.hd	type
 typing/valid/debug-standard-types.hd	type
 typing/valid/derive-debug.hd	type

@@ -42,7 +42,7 @@ import {
 } from "./shared.ts";
 
 import { FunctionBodyEmitter } from "./function-body.ts";
-import { emitHostProviders } from "./host-providers.ts";
+import { emitHostProviders, emitPrintln } from "./host-providers.ts";
 import { lowerRunTimeGaps } from "./run-time-gaps.ts";
 import {
   emitStoredSuspensionAdapters,
@@ -1428,8 +1428,9 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     referenceableFunctions.length > 0
       ? `\n  (elem declare func ${referenceableFunctions.join(" ")})\n`
       : "";
+  const println = emitter.requiresConsoleOutput ? emitPrintln(program) : undefined;
   const imports = [
-    hostProviders.imports,
+    [hostProviders.imports, println?.imports ?? ""].filter(Boolean).join("\n"),
     [...program.functions, ...program.closures].some((declaration) => declaration.suspending)
       ? `  (import "hd" "trace" (func $hd.trace (param i32 i32)))`
       : "",
@@ -1466,5 +1467,5 @@ ${program.closures.map((closure) => `    (type $env${closure.index} (struct${clo
     .filter(Boolean)
     .map((runtime) => `\n\n${runtime}`)
     .join("");
-  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${start}\n)`;
+  return `(module${imports ? "\n" + imports : ""}${dataTypes}${enumSingletons ? "\n" + enumSingletons : ""}${enumSharedCaches ? "\n" + enumSharedCaches : ""}${globals ? "\n" + globals : ""}\n${RUNTIME_WAT}\n\n${STORED_SUSPENSION_RUNTIME}\n\n${MAP_RUNTIME_WAT}${optionalRuntime}${declarations}\n${functions}${emitter.emitEmbeddedCopies()}${traitSuspensionHelpers ? "\n\n" + indent(traitSuspensionHelpers) : ""}${storedSuspensionAdapters ? "\n\n" + indent(storedSuspensionAdapters) : ""}${adapters ? "\n\n" + indent(adapters) : ""}${traitAdapters ? "\n\n" + indent(traitAdapters) : ""}${hostProviders.functions ? "\n\n" + indent(hostProviders.functions) : ""}${println ? "\n\n" + indent(println.functions) : ""}${start}\n)`;
 }

@@ -219,8 +219,8 @@ export abstract class FunctionBodyEmitter extends DataEmitter {
         );
       case "console-print":
         this.consoleOutput = true;
-        // `println` writes through the host console (emitter/host-providers.ts).
-        return `(call $hd.console_print (call $hd.host_console_extern ${this.emitExpression(expression.provider)}) ${this.emitExpression(expression.value)})`;
+        // `println` drives the provider's `write_line!` (emitter/host-providers.ts).
+        return `(call $hd.println ${this.emitExpression(expression.provider)} ${this.emitExpression(expression.value)})`;
       case "value-equality":
         return this.emitValueEquality(
           this.emitExpression(expression.left),

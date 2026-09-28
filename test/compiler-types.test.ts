@@ -498,25 +498,64 @@ test("i64 literals, widening, checked arithmetic, and narrowing (F-253)", async 
   );
 });
 
-test("Console is a prelude trait; println runs only through the host console (MHP-1)", async () => {
+test("println drives write_line! on a program-defined Console (MHP-1)", async () => {
   const source = [
-    "data Quiet: pass",
+    "data Buffer:",
+    "    lines: mut List[string]",
     "",
-    "impl Console for Quiet:",
-    "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]: .Ok()",
+    "impl Console for Buffer:",
+    "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
+    "        self.lines.append(text)",
+    "        .Ok()",
+    "",
+    'let recorded: string = ""',
     "",
     "pub fn main() -> void $ Console:",
-    "    let quiet: mut Quiet = Quiet {}",
-    "    $.with(Console=quiet):",
-    '        println("lost")',
+    "    let buffer: mut Buffer = Buffer { lines: [] }",
+    "    $.with(Console=buffer):",
+    '        println("one")',
+    "        println(2)",
+    '    recorded = "${buffer.lines[0]} ${buffer.lines[1]}"',
+    "",
+    "pub fn recorded_lines() -> i32: recorded.len()",
     "",
   ].join("\n");
   assert.deepEqual(analyze(source).diagnostics, []);
-  const { instance } = await instantiate(source);
+  const printed: string[] = [];
+  const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
+  (instance.exports.main as CallableFunction)({});
+  assert.equal((instance.exports.recorded_lines as CallableFunction)(), "one 2".length);
+  assert.deepEqual(printed, []);
+});
+
+test("println stops when its write_line! is pending on a host operation (MHP-1)", async () => {
+  const source = [
+    "pub trait Gate:",
+    "    fn wait!(self) -> void",
+    "",
+    "data GatedConsole:",
+    "    gate: Gate",
+    "",
+    "impl Console for GatedConsole:",
+    "    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:",
+    "        self.gate.wait!()",
+    "        .Ok()",
+    "",
+    "pub fn main() -> void $ Console, Gate:",
+    "    let gated: mut GatedConsole = GatedConsole { gate: $.use(Gate) }",
+    "    $.with(Console=gated):",
+    '        println("held")',
+    "",
+  ].join("\n");
+  assert.deepEqual(analyze(source, { hostCapabilities: ["Gate"] }).diagnostics, []);
+  const { instance } = await instantiate(source, {
+    hostCapabilities: ["Gate"],
+    hostSuspensionPending: () => true,
+  });
   assert.throws(
-    () => (instance.exports.main as CallableFunction)({}),
+    () => (instance.exports.main as CallableFunction)({}, { name: "gate" }),
     (error: unknown) =>
-      error instanceof UnsupportedAtRunTimeError && error.code === "unsupported-console-provider",
+      error instanceof UnsupportedAtRunTimeError && error.code === "unsupported-println-panic",
   );
 });
 

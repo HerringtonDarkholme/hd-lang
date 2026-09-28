@@ -173,9 +173,9 @@ test("hd run and hd test judge suspending results by Termination", async () => {
   }
 });
 
-// `write_line!` runs on the host console and on a program-defined provider
-// (spec/10-modules.md#console); `println` through a program-defined provider
-// is not run (MHP-1).
+// `write_line!` runs on the host console and on a program-defined provider,
+// and `println` drives the covering provider's `write_line!`
+// (spec/10-modules.md#console, MHP-1).
 test("hd run runs Console.write_line! on host and program providers", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
   try {
@@ -206,15 +206,17 @@ test("hd run runs Console.write_line! on host and program providers", async () =
 
     await writeFile(
       source,
-      [...lines, "    $.with(Console=buffer):", '        println("lost")', "    .Ok()", ""].join(
-        "\n",
-      ),
+      [
+        ...lines,
+        "    $.with(Console=buffer):",
+        '        println("kept")',
+        '    println("recorded ${buffer.lines.len()}")',
+        "    .Ok()",
+        "",
+      ].join("\n"),
     );
-    await assert.rejects(hd(["run", source]), (error: CommandResult & { code?: number }) => {
-      assert.equal(error.code, 1);
-      assert.match(error.stdout + error.stderr, /unsupported-console-provider: println reached/);
-      return true;
-    });
+    const printed = await hd(["run", source]);
+    assert.equal(printed.stdout, "hi\nrecorded 1\nrecorded 2\n");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
