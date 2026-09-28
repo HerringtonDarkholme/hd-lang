@@ -1,6 +1,6 @@
 # Testing Redesign
 
-Status: design record, started 2026-09-27. Owner decisions T1-T50 are
+Status: design record, started 2026-09-27. Owner decisions T1-T51 are
 decided. T2-T31 and T36's statement rule are applied to the specification
 on 2026-09-27 (T4, T5, and T8 earlier that day). T33 is not applied; it waits on the questions under
 [Still Open](#still-open). T29, T30, T32, T34, and the runner parts of T20
@@ -298,6 +298,11 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     `it_prop_with` take `prop: fn!(T) -> R` with `R < Termination`: `void`,
     or `Result[void, Error]` when the body uses `?`. An `.Err` counts as a
     failing case and is shrunk like an assertion failure.
+51. **T51 (2026-09-28): shrinking is capped by runs.** Each shrink attempt
+    is a fresh instance, so shrinking stops after 500 attempts by default
+    (Hypothesis's figure) and reports the smallest failing input so far,
+    marked "shrinking stopped early". `shrink=` on `it_prop` and
+    `hd test --shrink N` override it.
 
 The `timeout=` value waits on the literal-suffix design (owner: design
 now, so `timeout=5s` may replace the `"5s"` string).
