@@ -202,11 +202,14 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
       JavaScript tagged templates (both processed and raw parts), Python
       3.14 `t"..."` (a `Template`), and fixed prefixes in Rust, C# and
       Swift.
-    - Left for the apply pass, each with a recommendation in Still Open:
-      the exact interpolation forms inside a prefixed string (recommend
-      the same as today's raw strings), the helper names, `b"..."` bytes
-      (recommend waiting until a bytes type exists), and a prefix in a
-      pattern (recommend `syntax-error`, as L14 does for suffixes).
+    - The owner accepted the follow-up recommendations the same day:
+      - interpolation inside a prefixed string works as in today's raw
+        strings;
+      - `b"..."` bytes wait until a bytes type exists;
+      - a prefixed string in a pattern is `syntax-error`, as L14 does for
+        suffixes.
+
+      The helper names are left to the apply pass.
 
 ## Contents
 
