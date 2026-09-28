@@ -175,6 +175,39 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
     names no `Timestamp`. The `timeout` and L13 points needed no change.
     The prototype already follows all of it.
 
+19. **L19 (2026-09-28): string prefixes through `@str_prefix`.** Strings
+    take user-defined prefixes; they never take suffixes (L12).
+    - A prefix is a function marked `@str_prefix` (fact type
+      `std.ops.StrPrefix`, with `@annotate(.Fn)`, as Decorators D9 does
+      for `NumSuffix`). `name"..."` and `name"""..."""`, with no space
+      before the quote, call `name(template)`. The prefix is found at
+      module scope, as a number suffix is.
+    - **Tagged parts:** the argument is a
+      `std.ops.Template[T]` with `raw_parts: List[string]` (`n + 1`
+      pieces) and `values: List[T]` (the `n` interpolated values). Each
+      value converts to the `T` of the prefix function's parameter, like
+      any argument. So `sql(t: Template[SqlParam])` type-checks what gets
+      interpolated, and `Template[Display]` accepts any displayable value.
+      The compiler never joins the parts.
+    - **Raw text only,** as Scala's interpolators do: no escapes are
+      processed in a prefixed string. std offers helpers such as
+      joining with the values' `Display` text, and processing escapes, for
+      prefixes that want them.
+    - **`r` becomes an ordinary std prefix**
+      (`@str_prefix pub fn r(t: Template[Display]) -> string`). The
+      built-in raw string literal is removed, and every prefixed string is
+      lexed the way raw strings are today, including `$name`
+      interpolation.
+    - Survey: Scala `StringContext` (raw parts, the interpolator decides),
+      JavaScript tagged templates (both processed and raw parts), Python
+      3.14 `t"..."` (a `Template`), and fixed prefixes in Rust, C# and
+      Swift.
+    - Left for the apply pass, each with a recommendation in Still Open:
+      the exact interpolation forms inside a prefixed string (recommend
+      the same as today's raw strings), the helper names, `b"..."` bytes
+      (recommend waiting until a bytes type exists), and a prefix in a
+      pattern (recommend `syntax-error`, as L14 does for suffixes).
+
 ## Contents
 
 - [Problem](#problem)
