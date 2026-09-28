@@ -108,6 +108,11 @@ option. L5 is a direction only; no operator trait is specified.
     module scope, locals never take part, and it is imported explicitly.
 12. **L12: only decimal and float literals take a suffix.** Radix literals
     take none, so the `'` form (`0xff'B`, `5'ms`) is gone.
+    String, character and boolean literals never take a suffix. The owner
+    confirmed this on 2026-09-28: the other languages' non-number uses are
+    C++ `"abc"s` and `"abc"sv`, and prefix or tag forms such as Rust
+    `b"..."`, Python `f"..."` and Scala `sql"..."`. None of them needs a
+    suffix on an hd literal.
 13. **L13: a reserved word straight after digits is not a suffix.**
     `5else` lexes as `5` followed by `else`, as before.
 14. **L14: kept as applied.** A suffixed literal in a `match` pattern is a
