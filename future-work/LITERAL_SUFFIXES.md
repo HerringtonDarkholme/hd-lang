@@ -152,8 +152,9 @@ L10 and L14 confirm what was applied. L11 is not applied yet (see
       plain call to `it` or `it_each`. It is evaluated when the call runs,
       under the ordinary provider and suspension rules. No timeout-specific
       evaluation rule exists. The runner only enforces the limit on the
-      body. The applied rules such as `module.testing.option.timeout-at-run`
-      should shrink to that.
+      body. The applied rules `module.testing.option.timeout-at-run` and
+      `timeout-import` already agree with this; they only restate the
+      general argument and import rules.
     - A suffix call that overflows `i64` milliseconds panics at run time,
       like any checked arithmetic. A general compile-time lint for certain
       panics, similar to Rust's `unconditional_panic`, is nice to have but
