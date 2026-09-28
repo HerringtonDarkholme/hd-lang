@@ -350,8 +350,15 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     - The full STDLIB draft of `Choices` and `Arbitrary` is accepted:
       `int`, `float`, `bool`, `pick`, `list`, `string`, `assume` and `draw`
       on `Choices`, and `fn arbitrary(c: mut Choices) -> Self`.
-    - Still Open 2 (the `DebugWriter` API) stays open. The owner asked how
-      plain write methods would work.
+    - Still Open 2 (the `DebugWriter` API) was decided the same day, after
+      the owner compared plain write methods with builders. Builders were
+      chosen, like Rust's `Formatter`: `debug_struct(name).field(n, v)
+      .finish()`, `debug_tuple`, `debug_list`, `debug_map`, and
+      `write(text)` for custom text. `@derive(Debug)` generates builder
+      calls. The writer decides compact or pretty layout. Plain writes
+      were declined because they fix the layout in each impl, which leaves
+      no pretty mode or depth limit and lets derived and hand-written
+      output drift apart.
 
 The `timeout=` value follows the literal-suffix decisions
 ([Literal Suffixes](LITERAL_SUFFIXES.md#owner-decisions) L1-L9, 2026-09-28):
