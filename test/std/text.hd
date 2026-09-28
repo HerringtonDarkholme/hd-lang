@@ -1,0 +1,40 @@
+# std.text: inherent string methods, join, and StringBuilder.
+use std.testing.{assert, assert_equal}
+use std.text.{join, StringBuilder}
+
+tests:
+    it("is_empty, ends_with, and contains"):
+        assert("".is_empty() && !"a".is_empty(), reason="is_empty")
+        assert("main.hd".ends_with(".hd") && !"hd".ends_with("main.hd"), reason="ends_with")
+        assert("hello".contains("ll") && "hello".contains(""), reason="contains")
+        assert(!"hello".contains("lo!"), reason="no match")
+
+    it("find counts scalars"):
+        assert_equal("héllo".find("l"), .Some(2), reason="the first match, in scalars")
+        assert_equal("abc".find("x"), .None, reason="no match")
+        assert_equal("abc".find(""), .Some(0), reason="an empty needle is at 0")
+
+    it("trim_start, trim_end, and upper"):
+        assert_equal("  hi  ".trim_start(), "hi  ", reason="trim_start")
+        assert_equal("  hi  ".trim_end(), "  hi", reason="trim_end")
+        assert_equal("   ".trim_start(), "", reason="all white space")
+        assert_equal("straße".upper(), "STRASSE", reason="full case mapping")
+
+    it("strip_prefix and strip_suffix"):
+        assert_equal("v1.2".strip_prefix("v"), .Some("1.2"), reason="strip_prefix")
+        assert_equal("1.2".strip_prefix("v"), .None, reason="no prefix")
+        assert_equal("main.hd".strip_suffix(".hd"), .Some("main"), reason="strip_suffix")
+
+    it("lines and repeat"):
+        assert_equal("a\nb\n".lines(), ["a", "b"], reason="a final newline ends the last line")
+        assert_equal("a\n\nb".lines(), ["a", "", "b"], reason="an inner empty line stays")
+        assert_equal("ab".repeat(3), "ababab", reason="repeat")
+        assert_equal("ab".repeat(0), "", reason="zero times")
+
+    it("join and StringBuilder"):
+        assert_equal(join(["a", "b", "c"], ", "), "a, b, c", reason="join")
+        assert_equal(join([], ", "), "", reason="join of nothing")
+        let builder: mut StringBuilder = StringBuilder::new()
+        builder.push("x")
+        builder.push("y")
+        assert_equal(builder.build(), "xy", reason="build concatenates")

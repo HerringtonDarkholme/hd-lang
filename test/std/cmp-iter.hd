@@ -1,0 +1,43 @@
+# std.cmp and std.iter.
+use std.cmp.{clamp, max, min, Reverse}
+use std.iter.{collect, enumerate, filter, fold, map_each, range, take}
+use std.testing.{assert, assert_equal}
+
+fn is_greater(order: Ordering) -> bool:
+    match order:
+        .Greater => true
+        _ => false
+
+tests:
+    it("min, max, and clamp"):
+        assert_equal(min(3, 2), 2, reason="min")
+        assert_equal(max("a", "b"), "b", reason="max")
+        assert_equal(clamp(15, 0, 10), 10, reason="above the range")
+        assert_equal(clamp(-5, 0, 10), 0, reason="below the range")
+        assert_equal(clamp(5, 0, 10), 5, reason="inside the range")
+
+    it("clamp rejects an empty range", expect_panic="explicit-panic"):
+        _ := clamp(1, 10, 0)
+
+    it("Reverse inverts the order"):
+        assert(is_greater(Reverse { value: 1 }.cmp(Reverse { value: 2 })), reason="1 sorts after 2")
+
+    it("range and collect"):
+        assert_equal(collect(range(2, 5)), [2, 3, 4], reason="the end is exclusive")
+        assert_equal(collect(range(5, 2)), [], reason="an empty range")
+        let total = 0
+        for value in range(0, 4):
+            total = total + value
+        assert_equal(total, 6, reason="a range drives a for loop")
+
+    it("adapters"):
+        evens := collect(take(filter(range(0, 100), fn(value: i32) -> bool: value % 2 == 0), 3))
+        assert_equal(evens, [0, 2, 4], reason="filter then take")
+        assert_equal(collect(map_each([1, 2].iter(), fn(value: i32) -> string: "$value")), ["1", "2"], reason="map_each")
+        assert_equal(collect(enumerate(["a", "b"].iter())), [(0, "a"), (1, "b")], reason="enumerate")
+        assert_equal(fold(range(1, 5), 0, fn(sum: i32, value: i32) -> i32: sum + value), 10, reason="fold")
+
+    it("take reads only what it yields"):
+        let source: mut Iterator[i32] = [1, 2, 3].iter()
+        assert_equal(collect(take(source, 1)), [1], reason="the first item")
+        assert_equal(collect(source), [2, 3], reason="the rest stays in the source")

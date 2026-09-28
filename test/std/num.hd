@@ -1,0 +1,63 @@
+# std.num: checked, wrapping, and saturating arithmetic, bit counts, and parsing.
+use std.num.{parse_i32, parse_i64, ParseNumberError}
+use std.testing.{assert, assert_equal}
+
+fn describe(result: Result[i32, ParseNumberError]) -> string:
+    match result:
+        .Ok(value) => "ok $value"
+        .Err(.Empty) => "empty"
+        .Err(.InvalidDigit(position)) => "invalid digit at $position"
+        .Err(.OutOfRange) => "out of range"
+
+fn i32_max() -> i32:
+    2147483647
+
+fn i32_min() -> i32:
+    -2147483647 - 1
+
+tests:
+    it("checked arithmetic reports overflow as None"):
+        assert_equal(i32_max().checked_add(1), .None, reason="add overflows")
+        assert_equal(i32_min().checked_sub(1), .None, reason="sub overflows")
+        assert_equal(i32_max().checked_mul(2), .None, reason="mul overflows")
+        assert_equal((-3).checked_mul(4), .Some(-12), reason="mul fits")
+        assert_equal(7.checked_div(0), .None, reason="division by zero")
+        assert_equal(i32_min().checked_div(-1), .None, reason="the one overflowing division")
+        assert_equal(7.checked_div(2), .Some(3), reason="division truncates")
+
+    it("wrapping and saturating arithmetic"):
+        assert_equal(i32_max().wrapping_add(1), i32_min(), reason="wraps up")
+        assert_equal(i32_min().wrapping_sub(1), i32_max(), reason="wraps down")
+        assert_equal(0.wrapping_sub(i32_min()), i32_min(), reason="negating the minimum wraps")
+        assert_equal(i32_max().saturating_add(5), i32_max(), reason="saturates up")
+        assert_equal(i32_min().saturating_sub(5), i32_min(), reason="saturates down")
+        assert_equal(3.abs_diff(10), 7, reason="abs_diff")
+
+    it("bit counts"):
+        assert_equal(7.count_ones(), 3, reason="count_ones")
+        assert_equal((-1).count_ones(), 32, reason="every bit of -1")
+        assert_equal(1.leading_zeros(), 31, reason="leading_zeros")
+        assert_equal((-1).leading_zeros(), 0, reason="the sign bit is set")
+        let one: i64 = 1
+        assert_equal(one.leading_zeros(), 63, reason="i64 width")
+
+    it("i64 methods"):
+        let largest: i64 = 9223372036854775807
+        assert(largest.checked_add(1).is_none(), reason="i64 add overflows")
+        assert_equal(largest.wrapping_add(1).checked_sub(1), .None, reason="wraps to the minimum")
+
+    it("f64 classification"):
+        nan := 0.0 / 0.0
+        assert(nan.is_nan() && !nan.is_finite(), reason="NaN")
+        assert(!(1.0 / 0.0).is_finite(), reason="infinity")
+        assert(2.5.is_finite() && !2.5.is_nan(), reason="an ordinary value")
+
+    it("parse_i32 and parse_i64"):
+        assert_equal(describe(parse_i32("42")), "ok 42", reason="digits")
+        assert_equal(describe(parse_i32("+7")), "ok 7", reason="a plus sign")
+        assert_equal(describe(parse_i32("-2147483648")), "ok -2147483648", reason="the minimum")
+        assert_equal(describe(parse_i32("2147483648")), "out of range", reason="one past the maximum")
+        assert_equal(describe(parse_i32("")), "empty", reason="empty")
+        assert_equal(describe(parse_i32("12a")), "invalid digit at 2", reason="the bad scalar's position")
+        assert_equal(describe(parse_i32("-")), "invalid digit at 0", reason="a sign alone")
+        assert(parse_i64("9223372036854775807").is_ok(), reason="the i64 maximum")

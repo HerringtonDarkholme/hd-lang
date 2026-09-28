@@ -1,0 +1,34 @@
+# std.time Duration and std.process.
+use std.process.{Command, ExitCode, Output, Process, ProcessError, ScriptedProcess, Termination}
+use std.testing.assert_equal
+use std.time.{Duration, h, min, ms, s}
+
+fn status!(program: string) -> i32 $ Process:
+    command := Command { program: program, arguments: [], environment: {}, stdin: [] }
+    match $.use(Process).run!(command):
+        .Ok(output) => output.status
+        .Err(ProcessError.NotFound(_)) => -1
+        .Err(_) => -2
+
+fn code(value: ExitCode) -> u8:
+    u8(value)
+
+tests:
+    it("Duration counts whole milliseconds"):
+        assert_equal(Duration::milliseconds(250).as_milliseconds(), 250, reason="milliseconds")
+        assert_equal(Duration::seconds(2).as_milliseconds(), 2000, reason="seconds")
+        assert_equal(250ms.as_milliseconds(), 250, reason="ms suffix")
+        assert_equal(5s.as_milliseconds(), 5000, reason="s suffix")
+        assert_equal(2min.as_milliseconds(), 120000, reason="min suffix")
+        assert_equal(1h.as_milliseconds(), 3600000, reason="h suffix")
+
+    it("Termination reports exit codes"):
+        let failed: Result[void, string] = .Err("no")
+        assert_equal(code(failed.report()), 1, reason="an Err reports 1")
+        assert_equal(code(ExitCode(3).report()), 3, reason="an ExitCode reports itself")
+
+    it("ScriptedProcess answers by program"):
+        scripted := ScriptedProcess { outputs: {"git": Output { status: 0, stdout: [], stderr: [] }} }
+        $.with(Process=scripted):
+            assert_equal(status!("git"), 0, reason="git is scripted")
+            assert_equal(status!("make"), -1, reason="make is not")

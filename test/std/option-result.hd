@@ -1,0 +1,38 @@
+# std.option and std.result: inherent methods, callable without a use.
+use std.testing.{assert, assert_equal}
+
+fn half(value: i32) -> Result[i32, string]:
+    if value % 2 == 0: .Ok(value / 2) else: .Err("odd")
+
+tests:
+    it("option map and unwrap_or"):
+        let present: i32? = .Some(3)
+        let absent: i32? = .None
+        assert_equal(present.map(fn(value: i32) -> i32: value * 2), .Some(6), reason="map applies")
+        assert_equal(absent.map(fn(value: i32) -> i32: value * 2), .None, reason="map keeps None")
+        assert_equal(present.unwrap_or(0), 3, reason="present value")
+        assert_equal(absent.unwrap_or(0), 0, reason="fallback")
+
+    it("option ok_or, is_some, is_none, expect"):
+        let present: string? = .Some("x")
+        let absent: string? = .None
+        assert_equal(present.ok_or(1), .Ok("x"), reason="Some becomes Ok")
+        assert_equal(absent.ok_or(1), .Err(1), reason="None becomes Err")
+        assert(present.is_some() && absent.is_none(), reason="tests the variant")
+        assert_equal(present.expect("set"), "x", reason="expect unwraps")
+
+    it("option expect panics on None", expect_panic="explicit-panic"):
+        let absent: i32? = .None
+        _ := absent.expect("missing value")
+
+    it("result map_ok and map_err"):
+        assert_equal(half(4).map_ok(fn(value: i32) -> string: "$value"), .Ok("2"), reason="map_ok")
+        assert_equal(half(3).map_err(fn(error: string) -> i32: error.len()), .Err(3), reason="map_err")
+
+    it("result ok, err, is_ok, unwrap_or, expect"):
+        assert_equal(half(4).ok(), .Some(2), reason="ok keeps the value")
+        assert_equal(half(3).ok(), .None, reason="ok drops the error")
+        assert_equal(half(3).err(), .Some("odd"), reason="err keeps the error")
+        assert(half(4).is_ok() && !half(3).is_ok(), reason="is_ok tests the variant")
+        assert_equal(half(3).unwrap_or(-1), -1, reason="fallback")
+        assert_equal(half(8).expect("even"), 4, reason="expect unwraps")

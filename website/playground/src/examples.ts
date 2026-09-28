@@ -8,6 +8,7 @@ import exitCode from "../examples/exit-code.hd";
 import mutableRequirement from "../examples/mutable-requirement.hd";
 import numbers from "../examples/numbers.hd";
 import panic from "../examples/panic.hd";
+import standard from "../examples/std.hd";
 import suffixes from "../examples/suffixes.hd";
 import tests from "../examples/tests.hd";
 import topLevel from "../examples/top-level.hd";
@@ -45,6 +46,7 @@ export const EXAMPLES: readonly Example[] = [
   single("errors", "Error conversion with ? (tests)", conversion),
   single("exit-code", "Exit codes from main", exitCode),
   single("suffixes", "Literal suffixes: 12px and 250ms", suffixes),
+  single("std", "The toy standard library", standard),
   single("derive", "Typed derivation with @derive", derive),
   single("mutable-requirement", "Mutable requirements", mutableRequirement),
   single("providers", "Requirements and providers (tests)", providers),

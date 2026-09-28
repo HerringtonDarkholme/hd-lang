@@ -313,6 +313,13 @@ test("the bundled examples run", async () => {
     "2 files changed",
   ]);
   assert.deepEqual(await outcome("tests", "test"), ["5 tests passed"]);
+  assert.deepEqual(await outcome("std", "run"), [
+    "exited normally",
+    "skipped 'bob x'",
+    "CY, ADA",
+    "best: 41",
+    "cutoff: 40",
+  ]);
   assert.deepEqual(await outcome("derive", "run"), [
     "exited normally",
     "field x",
