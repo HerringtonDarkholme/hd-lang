@@ -1,0 +1,19 @@
+# test: a source may strengthen the bound on member but not on missing
+use std.structure.{Field, Variant, Members, Key, Source}
+
+data Strict: pass
+
+impl[S] Source[S] for Strict:
+    type Error = never
+
+    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(mut self, members: Members[S]) -> Result[Key[S], never]:
+        .Ok(members.end())
+
+    fn member[F < Display](mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        panic("no input for ${h.info.name}")
+
+    fn missing[F < Display](mut self, h: Field[S, F]) -> Result[F, never]:  # diagnostic: trait-method-signature
+        panic("missing ${h.info.name}")

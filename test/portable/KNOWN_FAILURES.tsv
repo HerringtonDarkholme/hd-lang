@@ -108,3 +108,8 @@ typing/valid/literal-suffix-duration.hd	check fails: unknown-type Duration at li
 typing/valid/literal-suffix-local-shadow.hd	check fails: unknown-type s at line 6: the prototype declares no std.time suffix types, which need i64	LS
 typing/valid/literal-suffix-compile-time.hd	check fails: unknown-type Duration at line 5: the prototype declares no std.time, whose Duration and suffix newtypes need i64	LS
 typing/invalid/literal-suffix-float-into-integer.hd	MVP reports unknown-type s at line 6 instead of type-mismatch: the prototype declares no std.time suffix types, which need i64	LS
+typing/invalid/decorator-before-function.hd	MVP reports decorator-not-top-level at line 8 instead of decorator-not-annotator: the prototype has no typed derivation	TD
+typing/invalid/block-on-in-fact.hd	MVP reports decorator-not-top-level at line 14 instead of suspension-forbidden-context: the prototype has no typed derivation	TD
+typing/invalid/block-on-in-metadata.hd	MVP reports syntax-error at line 15 instead of suspension-forbidden-context: the prototype has no typed derivation	TD
+typing/invalid/strengthened-missing-bound.hd	MVP reports unknown-trait at line 6 instead of trait-method-signature: the prototype has no typed derivation	TD
+typing/valid/derive-without-structure-use.hd	check fails: unknown-name at line 14: the prototype declares no std.format.debug function	T33

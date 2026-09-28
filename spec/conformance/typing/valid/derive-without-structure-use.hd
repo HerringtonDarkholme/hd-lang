@@ -1,0 +1,14 @@
+# test: @derive of a trait with a template needs no use of Structure
+# Spec 14 Opting In: the import is needed only where code writes by Structure.
+@derive(Debug)
+data Point:
+    x: i32
+    y: i32
+
+@derive(Debug)
+enum Mark:
+    Origin
+    At(point: Point)
+
+fn show(mark: Mark) -> string:
+    debug(mark)

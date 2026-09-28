@@ -537,11 +537,12 @@ fn main() -> i32: work!()  # error
 3. r[req.drive.not-method] This is the same postfix bang suffix used for a direct `fn!` call; it is not a method lookup.
 4. r[req.drive.block-on] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> T`, which owns the driver loop until the suspension completes or panics.
 5. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
-6. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
-7. r[req.drive.block-on.unprovable] If a call through a function value or dynamic trait method prevents the compiler from proving that `block_on` is unreachable, the call is rejected in one of these contexts.
-8. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
-9. r[req.drive.block-on.nested] If any suspension driver is already active in the program instance, calling `block_on` causes a panic before polling its argument, and the panic is `suspension-nested-driver`.
-10. r[req.drive.block-on.indirect] This includes a call reached indirectly from a suspending body or during cancellation.
+6. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.no-block-on).
+7. r[req.drive.block-on.transitive] This ban is transitive through the statically known call graph.
+8. r[req.drive.block-on.unprovable] If a call through a function value or dynamic trait method prevents the compiler from proving that `block_on` is unreachable, the call is rejected in one of these contexts.
+9. r[req.drive.block-on.error] Every direct or transitive violation is an error. Error: `suspension-forbidden-context`.
+10. r[req.drive.block-on.nested] If any suspension driver is already active in the program instance, calling `block_on` causes a panic before polling its argument, and the panic is `suspension-nested-driver`.
+11. r[req.drive.block-on.indirect] This includes a call reached indirectly from a suspending body or during cancellation.
 
 ```text
 use std.task.block_on

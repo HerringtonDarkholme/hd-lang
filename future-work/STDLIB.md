@@ -711,7 +711,8 @@ member types, so a derived `clone_mut` clones `mut` members as `mut`. It is
 derived through its `by Structure` template with a source that reads the old
 value, as the specification's
 [`CopySource`](../spec/14-annotations.md#handles) example shows. Its module
-is not yet chosen.
+is not yet chosen; Typed Derivation M24 chooses it together with the rest of
+the standard library.
 
 ### Derived Function Cache
 
@@ -722,7 +723,8 @@ standard-library cache memoizes derived associated functions: each value is
 built lazily, once per (trait, type) per program instance. A `Ref[T]`
 deferred reference, with cycle detection, lets a recursive type's value refer
 to itself; it replaces the removed `AnnotationRef[T]`. The cache's API and
-module are not yet designed.
+module are not yet designed; Typed Derivation M24 chooses them together
+with the rest of the standard library.
 
 ### `std.path`
 

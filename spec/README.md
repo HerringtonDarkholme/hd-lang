@@ -896,6 +896,19 @@ existing source. Each entry names the decision that made the change.
   `misplaced-derivation`: a newtype derives only through its base with
   `@derive`. `Clone` is a standard-library trait, listed in
   [STDLIB](../future-work/STDLIB.md#clone).
+- Typed derivation M24 (owner decision in
+  [Typed Derivation](../future-work/TYPED_DERIVATION.md#owner-decisions),
+  2026-09-27): a `Source` implementation may strengthen only the bound on
+  `member[F]`. A strengthened bound on `missing[F]`, previously valid, is
+  now `trait-method-signature`, so the undecided generic-`missing` question
+  is closed. Member and parameter metadata are `List[Any]` values evaluated
+  once at compile time, as facts are. A fact or metadata expression that
+  reaches `std.task.block_on`, previously unspecified, is
+  `suspension-forbidden-context`. `@derive(X)` needs no
+  `use std.structure.Structure`; only `by Structure` does. An ordinary
+  decorator before a function stays `decorator-not-annotator`, now with a
+  rule ID. `Clone`'s module and the derived-function cache API are listed
+  as undecided, to be chosen with the standard library.
 - Exit status code type (error entry-point follow-ups question 1,
   2026-09-27): `ExitStatus.status()` returns `std.process.StatusCode`, a
   wrapper of a `u8` that is never 0, built with

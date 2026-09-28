@@ -1,0 +1,16 @@
+# test: a type-level fact expression may not reach block_on
+use std.task.block_on
+
+data Style:
+    prefix: string
+
+fn ready!() -> string:
+    "p_"
+
+fn loaded_style() -> Style:
+    let pending: mut Suspend[string] = ready()
+    Style { prefix: block_on(pending) }
+
+@loaded_style()  # diagnostic: suspension-forbidden-context
+data User:
+    id: i32

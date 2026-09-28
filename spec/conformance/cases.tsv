@@ -1217,3 +1217,8 @@ typing/invalid/literal-suffix-requirement.hd	type	reject:trait-method-signature	
 typing/invalid/test-timeout-string.hd	type	reject:non-literal-test-argument	10-modules.md#r-module.testing.it.options-literal
 typing/invalid/tests-root-outside-tests.hd	type	reject:test-only-use	10-modules.md#r-module.test.tests-root-elsewhere
 runtime/valid/literal-suffix-call.hd	runtime	accept	05-expressions.md#r-expr.suffix.call
+typing/invalid/decorator-before-function.hd	type	reject:decorator-not-annotator	14-annotations.md#r-annot.decorator.function
+typing/invalid/block-on-in-fact.hd	type	reject:suspension-forbidden-context	14-annotations.md#r-annot.fact.no-block-on
+typing/invalid/block-on-in-metadata.hd	type	reject:suspension-forbidden-context	14-annotations.md#r-annot.metadata.eval
+typing/invalid/strengthened-missing-bound.hd	type	reject:trait-method-signature	14-annotations.md#r-annot.walker.missing-fixed
+typing/valid/derive-without-structure-use.hd	type	accept	14-annotations.md#r-annot.derive.no-use

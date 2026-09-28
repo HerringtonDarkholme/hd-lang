@@ -543,7 +543,7 @@ impl Named for User  # error: missing-trait-method
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
 3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` and pack markers and the same bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
-5. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen`](14-annotations.md#r-annot.walker.strengthen) allows.
+5. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
 6. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
 
 ```text

@@ -89,7 +89,8 @@ for the owner:
 | Derived bound (round 2 R14) | Whether a derived bound names the trait or the walker's strengthened bound, where they differ. |
 | `default()` allocation (round 2 R15) | Whether `h.default()` may allocate for every member type. |
 | Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
-| Generic `missing` calls (M23) | M23 lets source code call `missing[F]` through a generic source, and M9 lets a source strengthen `missing[F]`'s bound. Which bound such a call checks, and where, is undecided. |
+| `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library ([STDLIB](STDLIB.md#clone)). |
+| Derived-function cache (M24) | The cache's API and module; chosen with the standard library ([STDLIB](STDLIB.md#derived-function-cache)). |
 | Function targets | Deriving for functions, and what a decorator before a function means ([FN_TYPE](FN_TYPE.md) questions 9 and 10). Chapter 14's facets and annotators are removed (decision 10). |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed

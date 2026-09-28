@@ -1,0 +1,16 @@
+# test: a member metadata expression may not reach block_on
+use std.task.block_on
+
+data Rename:
+    name: string
+
+fn ready!() -> string:
+    "mail"
+
+fn loaded_rename() -> Rename:
+    let pending: mut Suspend[string] = ready()
+    Rename { name: block_on(pending) }
+
+data User:
+    @loaded_rename()  # diagnostic: suspension-forbidden-context
+    email: string

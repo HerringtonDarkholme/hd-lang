@@ -3,7 +3,7 @@
 Status: design record for roadmap area 2. Typed derivation is fully
 decided by owner decisions M1-M24 (2026-09-27), tested by three stress tests
 ([round 1](DERIVATION_STRESS_TEST.md), [round 2](DERIVATION_STRESS_TEST_2.md),
-[round 3](DERIVATION_STRESS_TEST_3.md)). M1-M23 are applied to the
+[round 3](DERIVATION_STRESS_TEST_3.md)). M1-M24 are applied to the
 specification in [Typed Derivation](../spec/14-annotations.md#typed-derivation),
 with grammar in [02](../spec/02-grammar.md#traits-and-implementations) and
 rules in [08](../spec/08-data-and-enums.md#typed-derivation-of-data-and-enums)
@@ -607,7 +607,9 @@ outside generated code may call `missing[F]` through a generic source; only
 the existing `member` restriction stays. `Clone` is a standard-library
 trait. A derivation block may not target a newtype: a newtype derives only
 through its base. The diagnostic codes and the panic category
-`structure-variant-mismatch` chosen in the spec pass are accepted.
+`structure-variant-mismatch` chosen in the spec pass are accepted. (Applied
+2026-09-27: see
+[Typed Derivation](../spec/14-annotations.md#typed-derivation).)
 
 (M24, decided 2026-09-27, after the M23 pass) A source may strengthen only
 `member[F]`'s bound, not `missing[F]`'s, so a generic `missing` call is
@@ -618,9 +620,13 @@ metadata expressions. `@derive(X)` needs no `use` of `Structure`; the
 import is needed only where code writes `by Structure`. Decorators before
 functions stay rejected until the function-target question is decided.
 `Clone`'s module and the derived-function cache API are chosen with the
-standard library. (Applied 2026-09-27: see
-[Typed Derivation](../spec/14-annotations.md#typed-derivation). Also
-decided 2026-09-27: the root-application orphan exception is dropped
+standard library. (Applied 2026-09-28: see
+[`annot.walker.missing-fixed`](../spec/14-annotations.md#r-annot.walker.missing-fixed),
+[`annot.metadata.eval`](../spec/14-annotations.md#r-annot.metadata.eval),
+[`annot.fact.no-block-on`](../spec/14-annotations.md#r-annot.fact.no-block-on),
+[`annot.derive.no-use`](../spec/14-annotations.md#r-annot.derive.no-use), and
+[`annot.decorator.function`](../spec/14-annotations.md#r-annot.decorator.function).
+Also decided 2026-09-27: the root-application orphan exception is dropped
 everywhere, so decisions 9 and 11's "plus the root-application orphan
 exception" no longer holds; a foreign type is derived through a local mirror
 type or a newtype.)
@@ -1179,8 +1185,8 @@ R3-11).
 16. **Embedded parts** (M16, M21 R3-8). An embedded part is one member with
     `embedded` true. Its value is the part itself, not a copy
     (`data.part.alias`). Flattening is library code, as in serde.
-17. **Bounds** (M9, M12). An impl of `Walker`, `Describer`, or `Source` may
-    strengthen `member[F]`'s and `missing[F]`'s bound. These traits are not
+17. **Bounds** (M9, M12, M24). An impl of `Walker`, `Describer`, or
+    `Source` may strengthen `member[F]`'s bound, but not `missing[F]`'s. These traits are not
     09-sealed. Only generated code may call `member` through a generic
     walker or source. The obligation is checked at the opt-in, naming the
     member, and `= pass` members are exempt.
@@ -1237,6 +1243,10 @@ Nothing below is decided. Each item waits for the owner.
 - **Composing templates** (round 1 P16). A wrapper walker cannot forward to
   an inner walker's `member`, because M9 lets only generated code call it
   through a generic parameter.
+- **`Clone`'s module** (M24). Chosen with the standard library
+  ([STDLIB](STDLIB.md#clone)).
+- **Derived-function cache** (M24). Its API and module are chosen with the
+  standard library ([STDLIB](STDLIB.md#derived-function-cache)).
 - **Function targets.** Function targets wait for
   [FN_TYPE.md](FN_TYPE.md) questions 9 and 10. Chapter 14's facet protocol
   is removed (decision 10, applied 2026-09-27), so an ordinary decorator

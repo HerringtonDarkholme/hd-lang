@@ -821,3 +821,7 @@ style lint rejects a chapter that reuses one.
 - `module.testing.option.timeout`: retired 2026-09-28. The timeout value is
   a `Duration` written as a suffixed literal, such as `5s`, instead of the
   string `"5s"`. Replaced by `module.testing.option.timeout-duration`.
+- `annot.walker.strengthen`: retired 2026-09-28. Typed derivation (M24)
+  forbids strengthening the bound on `missing[F]`. Replaced by
+  `annot.walker.strengthen-member`, `annot.walker.missing-fixed`, and
+  `annot.walker.missing-fixed.error`.

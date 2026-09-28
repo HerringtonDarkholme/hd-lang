@@ -263,9 +263,23 @@ An `@value` line immediately before a module-level data or enum declaration
 attaches a type-level fact, as [Facts](#facts) defines. It does not register
 or derive anything.
 
-An ordinary decorator before a module-level function declaration is a
-`decorator-not-annotator` error. Function targets, such as tool adapters,
+An ordinary decorator before a module-level function declaration is
+rejected until function targets, such as tool adapters, are decided. They
 are listed in [Undecided Parts](#undecided-parts).
+
+1. r[annot.decorator.function] An ordinary decorator before a module-level function declaration is an error, reported on the decorator. Error: `decorator-not-annotator`.
+
+```text
+data Tool:
+    name: string
+
+fn tool(name: string) -> Tool:
+    Tool { name: name }
+
+@tool("search")  # error: decorator-not-annotator
+fn search(query: string) -> string:
+    query
+```
 
 An `@value` line immediately before a named or embedded data field or an enum
 variant attaches member metadata. For a field `name: string`, `@max_len(80)`
@@ -327,11 +341,12 @@ direct member or parameter. An embedded field is a direct member under its
 final type name; members promoted through it are not direct members. The block
 cannot add, rename, remove, or change the type of a member or parameter.
 
-Member metadata and parameter metadata are contextually typed as `List[Any]`.
-Any value may be attached; no marker trait is required. One member or
-parameter must not contain two metadata values with the same concrete type.
-Each metadata expression is evaluated as a
-[fact expression](#r-annot.fact.eval) is.
+1. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[Any]`.
+2. r[annot.metadata.any-value] Any value may be attached; no marker trait is required.
+3. r[annot.metadata.eval] Each metadata expression is evaluated once, at compile time, as a [fact expression](#r-annot.fact.eval) is, and under the same [`block_on` ban](#r-annot.fact.no-block-on).
+
+One member or parameter must not contain two metadata values with the same
+concrete type.
 
 Metadata objects are ordinary values. Constructors and helper functions are
 equivalent ways to make them:
@@ -418,10 +433,11 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 1. r[annot.derive.opt-in] `@derive(...)` is the only form that creates a derived implementation from a declaration.
 2. r[annot.derive.accepted] It accepts the intrinsic comparison traits of [Derived Implementations](09-traits.md#derived-implementations) and any trait that has a [template](#templates).
 3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before a data type or enum `T` means exactly the derivation block `impl X for T by Structure` with an empty body. A newtype derives through its base type instead, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
-4. r[annot.derive.other] Any other trait in a `@derive` list is an error, reported on the `@derive` line. Error: `underivable-trait`.
-5. r[annot.derive.error-trait] `Error` has neither a template nor an intrinsic derivation, so `@derive(Error)` is an error. Error: `underivable-trait`.
-6. r[annot.derive.facts-only] Every other decorator only attaches information: a configuration decorator such as `@style(prefix="user_")` attaches a fact and creates no implementation.
-7. r[annot.derive.overlap] Listing a trait in `@derive` and also writing a derivation block for it on the same type is an error, reported on the block. Error: `overlapping-impl`.
+4. r[annot.derive.no-use] `@derive(X)` needs no `use` of `Structure`. The import is needed only where code writes `by Structure`, as [`annot.block.structure-use`](#r-annot.block.structure-use) states.
+5. r[annot.derive.other] Any other trait in a `@derive` list is an error, reported on the `@derive` line. Error: `underivable-trait`.
+6. r[annot.derive.error-trait] `Error` has neither a template nor an intrinsic derivation, so `@derive(Error)` is an error. Error: `underivable-trait`.
+7. r[annot.derive.facts-only] Every other decorator only attaches information: a configuration decorator such as `@style(prefix="user_")` attaches a fact and creates no implementation.
+8. r[annot.derive.overlap] Listing a trait in `@derive` and also writing a derivation block for it on the same type is an error, reported on the block. Error: `overlapping-impl`.
 
 ```text
 use std.error.Error
@@ -753,6 +769,28 @@ data Plain:
     id: i64
 ```
 
+10. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
+11. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
+12. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+
+```text
+use std.task.block_on
+
+data Style:
+    prefix: string
+
+fn ready!() -> string:
+    "p_"
+
+fn loaded_style() -> Style:
+    let pending: mut Suspend[string] = ready()
+    Style { prefix: block_on(pending) }
+
+@loaded_style()  # error: suspension-forbidden-context
+data User:
+    id: i64
+```
+
 > **Why.** Configuration is data on the type, not a hook on the trait, so
 > a derived trait stays dynamically safe and two libraries' facts never
 > collide.
@@ -866,13 +904,15 @@ impl[S] Walker[S] for Encoder:
         .Ok()
 ```
 
-1. r[annot.walker.strengthen] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on `member[F]`, as `F < Encode` above. A `Source` implementation may also strengthen the bound on `missing[F]`.
-2. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
-3. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
-4. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-5. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
-6. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
-7. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
+1. r[annot.walker.strengthen-member] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on `member[F]`, as `F < Encode` above.
+2. r[annot.walker.missing-fixed] A `Source` implementation must not strengthen the bound on `missing[F]`: it keeps the trait's unbounded `F`.
+3. r[annot.walker.missing-fixed.error] A strengthened bound on `missing[F]` is an error, reported at the implementation method. Error: `trait-method-signature`.
+4. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
+5. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
+6. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+7. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
+8. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
+9. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
 
 ```text
 @derive(Show)  # error: member-not-derivable
@@ -884,11 +924,18 @@ fn forward[S, W < Walker[S]](w: mut W, h: Field[S, i64], value: i64) -> void:
 
 fn fill[S, F, R < Source[S]](r: mut R, h: Field[S, F]) -> Result[F, R::Error]:
     r.missing(h)  # valid: `missing` may be called through a generic source
+
+impl[S] Source[S] for Strict:  # variant, next, and member elided
+    type Error = never
+
+    fn missing[F < Display](mut self, h: Field[S, F]) -> Result[F, never]:  # error: trait-method-signature
+        panic("missing ${h.info.name}")
 ```
 
 > **Why.** A strengthened bound becomes one obligation per member, checked
 > where both the member types and the walker are known. A generic call
-> could bypass that check.
+> could bypass that check. The bound on `missing` stays fixed, so a generic
+> `missing` call is always checked against the trait's own signature.
 
 ### Derived Bounds
 
@@ -920,7 +967,6 @@ An implementation must not guess them:
 | --- | --- |
 | Fact check hook | The form of a fact type's compile-time check against its member, and whether it covers cross-member and type-level checks. |
 | Non-escaping handles | Whether a future non-escaping trait design makes handles non-escaping. |
-| Generic `missing` calls | Which bound a call to `missing` through a generic source checks, when the source's implementation strengthens the bound on `missing[F]`. |
 | Plan constants | A template may declare a constant computed once per derivation at compile time. Its syntax and the evaluator's limits are open, so no syntax for it exists. |
 | Typed shared constants | Typed handles for shared constructor data. |
 | `T -> U` mapping | Whether derivation between two types is in scope. |
@@ -928,4 +974,6 @@ An implementation must not guess them:
 | Derived bound | Whether a derived bound names the trait or the walker's strengthened bound, where the two differ. |
 | `default()` allocation | Whether `h.default()` may allocate for every member type. |
 | Composing templates | How a walker forwards to another walker's `member`, which only generated code may call generically. |
+| `Clone`'s module | Which standard module declares `Clone`. It is chosen with the standard library. |
+| Derived-function cache | The API of the standard cache for derived associated functions. It is chosen with the standard library. |
 | Function targets | Deriving for functions, and what a decorator before a function declaration means, as tool adapters need ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)). |
