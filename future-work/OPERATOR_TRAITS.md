@@ -18,8 +18,31 @@ record asks how. It reviews [Unary And Binary Operators](../spec/05-expressions.
 It also reviews the newtype forwarding rule of
 [Typed Derivation M21 R3-5](TYPED_DERIVATION.md).
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **OP1: Rust's shape.** `trait Add[Rhs]` has an associated `type Out`
+   and `fn add(self, rhs: Rhs) -> Out`. One output per (type, right
+   operand) pair follows from existing impl uniqueness.
+2. **OP2: primitives implement the traits through std impls whose bodies
+   are compiler intrinsics.** `impl Add[i32] for i32` lives in std, and
+   its body is a toolchain-internal intrinsic (see Runtime And Library,
+   "Prototype Host Function Declarations"). So a primitive `+` compiles
+   straight to `i32.add` plus the overflow check. Generic code bounded by
+   `T < Add[T]` accepts `i32`. Primitive-with-primitive operators may
+   skip trait search entirely, which also avoids Swift-style type-check
+   blowups.
+3. **OP3: the 12 operators** `+ - * / %`, unary `-`, `& | ^ ~` and
+   `<< >>`. No `**` trait.
+4. **OP4: no literal-typing rule for a left-hand literal.** `3 * d` with
+   `d: Duration` is not typed from the one matching impl. Write `d * 3`.
+   A left literal works only when both operands are the same primitive
+   type.
+
 ## Contents
 
+- [Owner Decisions](#owner-decisions)
 - [Problem](#problem)
 - [What hd Has Today](#what-hd-has-today)
 - [Use Cases](#use-cases)
