@@ -421,12 +421,18 @@ The core numeric cast rules are:
 | r[types.cast.int-float] Integer to floating point | rounds to the nearest representable IEEE 754 value using ties-to-even |
 | r[types.cast.f32-f64] `f32` to `f64` | is exact |
 | r[types.cast.f64-f32] `f64` to `f32` | uses IEEE 754 ties-to-even rounding |
-| r[types.cast.float-int] Floating point to integer | first truncates toward zero, then checks that the original value was finite and the truncated value is in the target range |
+| r[types.cast.float-int-saturate] Floating point to integer | truncates toward zero, then saturates, by `types.cast.saturate` |
 
-1. r[types.cast.float-int-panic] A floating-to-integer conversion panics when the value is not finite or the truncated value is outside the target range. An integer-to-integer cast never panics.
-2. r[types.cast.precision] An explicit numeric cast may lose precision according to these rules.
-3. r[types.cast.exact] Libraries may expose exact or fallible conversions when loss must be rejected.
-4. r[types.cast.nonnumeric] Constructor-style calls involving nonnumeric types are not numeric casts: they must resolve to a nominal newtype constructor, enum constructor, or ordinary function.
+1. r[types.cast.saturate] A floating-to-integer cast saturates, as Rust `as` does. A value below the target's minimum, negative infinity included, gives the minimum. A value above its maximum, positive infinity included, gives the maximum. NaN gives 0.
+2. r[types.cast.saturate.example] So `i8(x)` with `x = 300.0` gives 127, `u8(x)` with `x = -1.5` gives 0, and `i32(x)` gives 0 when `x` is NaN.
+3. r[types.cast.no-panic] No numeric cast panics.
+4. r[types.cast.precision] An explicit numeric cast may lose precision according to these rules.
+5. r[types.cast.exact] Libraries may expose exact or fallible conversions when loss must be rejected.
+6. r[types.cast.nonnumeric] Constructor-style calls involving nonnumeric types are not numeric casts: they must resolve to a nominal newtype constructor, enum constructor, or ordinary function.
+
+> **Why.** Every numeric cast is total, as in Rust since 1.45, so a cast
+> never needs a panic path. Code that must reject an out-of-range value uses
+> a fallible library conversion.
 
 ### Integer Arithmetic
 

@@ -1087,3 +1087,8 @@ style lint rejects a chapter that reuses one.
   error. Replaced by `expr.suffix.fn-shape-one`.
 - `expr.prefix.fn-shape-required`: retired 2026-09-29. Literal Suffixes L22.
   Replaced by `expr.prefix.fn-shape-one`.
+- `types.cast.float-int`: retired 2026-09-29. Open Issues casts follow-ups:
+  a float-to-integer cast saturates instead of checking its range. Replaced
+  by `types.cast.float-int-saturate`.
+- `types.cast.float-int-panic`: retired 2026-09-29. Open Issues casts
+  follow-ups. Replaced by `types.cast.saturate` and `types.cast.no-panic`.

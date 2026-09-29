@@ -278,7 +278,7 @@ specification	block	classification	fixture
 09-traits.md	13	mixed	typing/invalid/derived-hash-field-not-hash.hd|typing/invalid/derived-generic-bound.hd
 09-traits.md	14	mixed	typing/invalid/mixed-derived-law.hd
 09-traits.md	15	accept	runtime/valid/derived-newtype.hd
-09-traits.md	16	mixed	typing/invalid/newtype-derivation-self.hd
+09-traits.md	16	mixed	typing/invalid/newtype-derivation-self.hd|typing/invalid/derive-newtype-base-missing-trait.hd
 09-traits.md	17	accept	runtime/valid/from-direct-call.hd
 09-traits.md	18	mixed	typing/invalid/from-implementation-with-requirement.hd
 09-traits.md	19	mixed	typing/invalid/error-implementation-local-type.hd

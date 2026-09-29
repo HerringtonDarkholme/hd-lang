@@ -1357,3 +1357,5 @@ runtime/valid/row-forced-overlap-nearest.hd	runtime	accept	11-requirements-and-s
 typing/invalid/public-method-missing-result-type.hd	type	reject:missing-result-type	07-functions.md#r-fn.decl.result-required-pub
 typing/valid/private-method-infers-result-and-row.hd	type	accept	07-functions.md#r-fn.decl.result-omitted-private
 typing/invalid/public-method-without-requirement-clause.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#r-req.row.omitted.empty-pub
+runtime/valid/float-cast-saturates.hd	runtime	accept	04-type-system.md#r-types.cast.saturate
+typing/invalid/derive-newtype-base-missing-trait.hd	type	reject:derive-field-missing-trait	09-traits.md#r-trait.derive.newtype.requires.error

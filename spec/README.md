@@ -1388,3 +1388,14 @@ existing source. Each entry names the decision that made the change.
   the definition the error names is left to the implementation. The helpers
   `interpolate`, `process_escapes`, and `EscapeError` move from `std.ops`
   to `std.text`; no rule names them, so no rule changes.
+- Float-to-integer casts saturate (owner decision in
+  [Open Issues](../future-work/OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope),
+  follow-ups, 2026-09-29): a cast out of range clamps to the target's
+  minimum or maximum, and NaN gives 0, as Rust `as` does. `i8(x)` with
+  `x = 300.0` gives 127 where it previously panicked. No numeric cast
+  panics.
+- Derived newtypes (same record, follow-ups, 2026-09-29): `@derive` on a
+  newtype whose base type lacks the trait is `derive-field-missing-trait` at
+  the base type, as for a derived field. `@derive(Eq) type Wrapped(Opaque)`
+  with no `Eq` for `Opaque` was previously `missing-partial-eq` in the
+  prototype, which the specification did not name.

@@ -1,0 +1,33 @@
+# test: a floating-to-integer cast truncates toward zero, then saturates; NaN gives 0
+# Spec 04 Numeric Casts: types.cast.saturate and types.cast.no-panic (Open Issues, casts follow-ups, 2026-09-29).
+
+use std.testing.assert_equal
+
+fn zero() -> f64:
+    0.0
+
+tests:
+    it("a value in range truncates toward zero"):
+        let small: f64 = -1.9
+        assert_equal(i8(small), -1, reason="-1.9 truncates to -1")
+        let fraction: f32 = 2.7
+        assert_equal(u16(fraction), 2, reason="2.7 truncates to 2")
+
+    it("a value out of range clamps to the target's bounds"):
+        let big: f64 = 300.0
+        assert_equal(i8(big), 127, reason="300.0 clamps to the i8 maximum")
+        assert_equal(u8(big), 255, reason="300.0 clamps to the u8 maximum")
+        let negative: f64 = -1.5
+        assert_equal(u8(negative), 0, reason="-1.5 clamps to the u8 minimum")
+        let huge: f64 = 1.0e20
+        assert_equal(i32(huge), 2147483647, reason="1e20 clamps to the i32 maximum")
+        assert_equal(i64(-huge), -9223372036854775808, reason="-1e20 clamps to the i64 minimum")
+        assert_equal(u64(huge), 18446744073709551615, reason="1e20 clamps to the u64 maximum")
+
+    it("infinities clamp and NaN gives 0"):
+        infinite := 1.0 / zero()
+        assert_equal(i16(infinite), 32767, reason="positive infinity clamps to the maximum")
+        assert_equal(i16(-infinite), -32768, reason="negative infinity clamps to the minimum")
+        nan := zero() / zero()
+        assert_equal(i32(nan), 0, reason="NaN gives 0")
+        assert_equal(u32(nan), 0, reason="NaN gives 0 for an unsigned target")

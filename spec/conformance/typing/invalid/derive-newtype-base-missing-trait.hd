@@ -1,0 +1,6 @@
+# test: a derived newtype whose base type lacks the trait reports the derived-field code at the base type
+# Spec 09 Derived Newtypes: trait.derive.newtype.requires.error (Open Issues, casts follow-ups, 2026-09-29).
+data Opaque: pass
+
+@derive(Eq)
+type Wrapped(Opaque)  # diagnostic: derive-field-missing-trait

@@ -284,10 +284,11 @@ impl Eq for Session:
 1. r[trait.derive.newtype] `@derive` on a newtype declaration generates each named trait's implementation from the base type's implementation.
 2. r[trait.derive.newtype.base] The generated method applies the base type's method to the wrapped values, as in `Mile(1) == Mile(1)` comparing the two `i32` values.
 3. r[trait.derive.newtype.requires] The base type must implement each derived trait, as a derived field must.
-4. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
-5. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
-6. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
-7. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
+4. r[trait.derive.newtype.requires.error] A base type that does not implement a derived trait is an error at the base type, whose message names the trait and the base type. Error: `derive-field-missing-trait`.
+5. r[trait.derive.newtype.not-inherited] A newtype still inherits no implementation it does not derive or implement.
+6. r[trait.derive.newtype.templated] A trait with a template also derives through the base type: the newtype gets no `Structure`, and the base type's implementation is rewrapped.
+7. r[trait.derive.newtype.self-positions] Forwarding is allowed only where the trait's methods use `Self` as the receiver, as plain `Self`, or inside `Self?`, `Result[Self, E]`, or `List[Self]`.
+8. r[trait.derive.newtype.self-error] Any other position, such as `Map[Self, V]`, `Map[string, Self]`, or a tuple holding `Self`, is an error at the `@derive` line that names the trait method. Error: `newtype-derivation-self`.
 
 ```text
 @derive(Eq, Hash)
@@ -303,6 +304,11 @@ trait Pairing:
 
 @derive(Pairing)  # error: newtype-derivation-self
 type Tag(string)
+
+data Opaque: pass
+
+@derive(Eq)
+type Wrapped(Opaque)  # error: derive-field-missing-trait
 ```
 
 > **Why.** A `Map[Self, V]` result depends on the key's own `Hash` and `Eq`,
