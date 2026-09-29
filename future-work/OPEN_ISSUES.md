@@ -28,6 +28,18 @@ and tooling work is listed separately at the end.
    `annot.bound.more`) to use `Map`. Reword the "standard `Hasher`" rules
    (`req.determinism.hash-seeded`, `trait.derive.hash.seeded`) to describe
    hash seeds the runtime provides, without naming a std type.
+5. **Derivation codes:** one generic code, `derive-field-missing-trait`,
+   names the trait and the field, together with `missing-derived-bound`.
+   There is no per-trait code: the fixtures expecting `field-not-eq` and
+   `field-not-hash` move to the generic code.
+6. **`it_prop` and `it_prop_with` require `T < Debug`,** so a failure
+   prints the shrunk input.
+7. **Regression files** under `__regressions__/<module>/<test-slug>` store
+   the shrunk choice stream, one number per line. It is replayed first on
+   the next run.
+8. **`@derive(Debug)` on a mixed variant** such as `Mixed(i32, label:
+   string)` uses the struct builder, with positional fields named `_0`,
+   `_1` and so on: `Mixed { _0: 1, label: "x" }`.
 
 ### Bound And Row Operators
 
