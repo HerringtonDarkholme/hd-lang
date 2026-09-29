@@ -28,17 +28,16 @@ specification:
 | 9 | The readable-targets Note covers enums | the Note under [Target Kinds](../spec/14-annotations.md#target-kinds) |
 | 10 | Optionals need no conversion for an `AnyRef` parameter | [`types.trait.safe.convert-value`](../spec/04-type-system.md#r-types.trait.safe.convert-value) |
 
-**Still open (raised by the apply pass).** The spec states the Applied
-reading of each; nothing here is decided.
+**Apply-pass answers (owner decisions, 2026-09-29), not yet applied.**
+The owner answered the six points the apply pass raised. These are final.
 
-| Point | Applied | **Recommendation** |
-| --- | --- | --- |
-| `let (a, b) = pair` without any `mut` | `syntax-error`, since decision 1 adds parentheses only for lists with `mut` ([`grammar.stmt.let-mut-list.needs-mut`](../spec/02-grammar.md#r-grammar.stmt.let-mut-list.needs-mut)) | Keep: one spelling per list. Allow it only if agents often write it. |
-| The code for `let mut log, db = pair` | `syntax-error`, as for any form the grammar lacks | Keep, with a fix-it that adds the parentheses. |
-| `let mut n: i32 = 0`, a primitive annotation under `let mut` | `mut-on-primitive`, not `let-mut-readonly-type`, whose fix-it would suggest `mut i32` | Keep. |
-| `mut` on a primitive outside `let`, as `fn f(x: mut f64)` | `mut-on-primitive` wherever the type is written, since the code is `types.prim.no-mut`'s | Keep. |
-| The warning's code | `redundant-let-mut` | Keep, or name it with the owner's preferred word. |
-| The panic category of a missing key in `m[k] op= v` | `index-out-of-bounds`, the category of a failed list index | Keep. A separate `missing-map-key` category would add a code for one case. |
+| # | Decision |
+| --- | --- |
+| Let 1 | A multi-name `let` always uses parentheses, with or without `mut`. `let (a, b) = pair` is valid, with reassignable, readonly names. `let a, b = pair` is a `syntax-error` whose fix-it adds the parentheses. A parenthesized list needs no `mut` but still needs at least two names. `a, b := pair` is unchanged. The owner picked this over the recommendation: `let (a, b) = pair` reads well, and one shape beats two spellings. |
+| Let 2 | `let mut log, db = pair` stays a `syntax-error`, with a fix-it that adds the parentheses. |
+| Let 3+4 | `mut` on a primitive is `mut-on-primitive` wherever the type is written: `let mut n: i32 = 0`, `let n: mut i32`, a parameter such as `x: mut f64`, and so on. |
+| Let 5 | The warning keeps the name `redundant-let-mut`. |
+| Map 6 | A missing key in `m[k] op= v` panics with `index-out-of-bounds`; no new category. |
 
 ### Local Mutability: `let mut` As An Inference Helper
 
