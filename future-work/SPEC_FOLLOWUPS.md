@@ -86,7 +86,7 @@ example, as the 08 pilot did.
 | 11 | `missing-requirement` (general rule), `bang-call-outside-suspension`, `nonhost-entry-requirement` |
 | 01 | `unexpected-bom`, `tab-whitespace`, `invalid-dedent`, `invalid-escape`, `reserved-semicolon`, `unknown-name` |
 | 06 | `break-value-context`, `break-outside-loop`, `nonexhaustive-match`, `duplicate-data-pattern-field`, `return-outside-function`, `readonly-root`, `unknown-data-field`, `iterator-invalidated` |
-| 07 | `missing-return-value`, `non-reassignable-parameter-binding`, `nonfinal-positional-spread`, `trailing-block-position`, `partial-generic-arguments`, `unresolved-generic-placeholder`, `recursive-closure-needs-result-type`, `readonly-root`, `argument-count`, `type-mismatch`, `no-common-type` |
+| 07 | `missing-return-value`, `non-reassignable-parameter-binding`, `nonfinal-positional-spread`, `trailing-block-position`, `recursive-closure-needs-result-type`, `readonly-root`, `argument-count`, `type-mismatch`, `no-common-type` |
 
 ## Open, for the owner
 

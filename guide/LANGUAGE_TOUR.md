@@ -1469,7 +1469,7 @@ fn first[T](items: List[T]) -> T?:
 
 Generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`. This is a style rule only; a parameter's kind comes from how it is declared and used.
 
-Generic arguments are inferred at call sites when the type is unambiguous. Callers can also provide the full generic argument list explicitly:
+Generic arguments are inferred at call sites when the type is unambiguous. Callers can also write the generic arguments explicitly:
 
 ```text
 names := ["Ada", "Grace"]
@@ -1478,9 +1478,9 @@ a := first(names)          # T inferred as string
 b := first[string](names)  # explicit generic argument
 ```
 
-An explicit generic argument list must be complete. A call cannot provide only
-a left-to-right prefix and infer the remaining generic arguments. Use `_` to
-infer an individual slot while preserving the complete list:
+An explicit list may stop early: `pair[string]("left", 1)` writes `Left`
+and leaves `Right` to inference. Use `_` to infer a slot before one you
+write:
 
 ```text
 fn convert[From, To](value: From) -> To:
@@ -1489,8 +1489,32 @@ fn convert[From, To](value: From) -> To:
 user := convert[_, User](payload)
 ```
 
-Every `_` must be determined by the call arguments, expected result type, or
-generic constraints. It is not a type and cannot be used in `List[_]`.
+Every `_` or omitted slot is determined by the call arguments, expected
+result type, or generic constraints. It is not a type and cannot be used
+in `List[_]`.
+
+A generic parameter may declare a default after its bound. The default
+fills the parameter only when the use site leaves it unsolved, and a
+written type that leaves out a trailing slot gets it:
+
+```text
+data AppError:
+    message: string
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+fn load(path: string) -> Outcome[string]:
+    .Ok(path)
+
+fn widen[T = i64](value: T) -> T:
+    value
+```
+
+`widen(3)` is still an `i32`, because the argument decides first. That is
+how `collect()` returns a `List` when nothing names a target: its
+declaration is `collect[C < FromIterator[T] = List[T]]`. Defaults go on
+functions, methods, data types, enums, traits, and `type` declarations,
+not on `impl[...]`, and an `impl` repeats a trait method's default.
 
 A generic function, or a generic enum's one-payload variant constructor,
 passed as an argument takes its type arguments from the call.
@@ -1534,8 +1558,8 @@ fn invalid_resolved[T]() -> T $ TypeProvider:
 
 Unlike Kotlin's JVM implementation, hd-lang does not require a reified function to be `inline`. Backends may specialize calls and remove descriptors when doing so cannot change observable reflection behavior.
 
-hd-lang does not support partial explicit generic argument lists. An explicit
-list remains complete even when one or more slots use `_` for inference.
+An explicit list may leave out trailing arguments, which are inferred, or
+defaulted when nothing solves them.
 
 Functions cannot be overloaded. Each function name resolves to one declaration in a scope.
 
@@ -1591,7 +1615,7 @@ label := user.tagged[string]("admin")
 ```
 
 Generic methods infer all arguments when brackets are omitted. Their explicit
-lists must be complete and may use `_` in individual inferred slots, just like
+lists may stop early and may use `_` in individual inferred slots, just like
 module functions.
 
 Traits can require multiple methods:

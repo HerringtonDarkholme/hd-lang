@@ -819,7 +819,7 @@ impl[T] Iterator[T]:
     pub fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         pass
 
-    pub fn collect[C < FromIterator[T]](mut self) -> C:
+    pub fn collect[C < FromIterator[T] = List[T]](mut self) -> C:
         pass
 
 pub trait FromIterator[T]:
@@ -829,8 +829,8 @@ pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
     pass
 ```
 
-`collect` builds the target that the expected type names, or a `List[T]`
-when nothing does ([Collect CO1](COLLECT.md#owner-decisions),
+`collect` builds the target that the expected type names, or its declared
+default `List[T]` when nothing does ([Collect CO1 and CO5](COLLECT.md#owner-decisions),
 [Collect Targets](../spec/06-control-flow.md#collect-targets)). `std`
 implements `FromIterator` for `List`, `Map` (the last value of an equal key
 wins), all-or-nothing `Result[C, E]` and `C?`, and `Set`. Convenience

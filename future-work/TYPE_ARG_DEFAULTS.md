@@ -1,12 +1,17 @@
 # Type-Argument Defaults: Survey And Design
 
-Status: design exploration, 2026-09-29. Nothing here is accepted
-behavior. The owner decided to add general type-argument defaults; this
-record designs how they work. The owner answered its questions as
-[TD1-TD7](#owner-decisions), which are not yet applied, so the
-specification stays authoritative until an apply pass. Under review:
+Status: design exploration, 2026-09-29. The owner answered its questions
+as [TD1-TD7](#owner-decisions), applied on 2026-09-29, and the
+specification is authoritative for them:
+[Type-Argument Defaults](../spec/04-type-system.md#type-argument-defaults),
+[Type-Argument Default Syntax](../spec/02-grammar.md#type-argument-default-syntax),
+[Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments),
+and [Method Generic Parameters](../spec/09-traits.md#method-generic-parameters).
+The rest of the record is the survey behind them; nothing else in it is
+accepted behavior. Three points of the apply pass wait for the owner in
+[Still Open](#still-open). Under review before the apply pass:
 
-- [`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default),
+- `flow.collect.default` (retired),
   which these defaults replace, and the rest of
   [Collect Targets](../spec/06-control-flow.md#collect-targets);
 - [Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments),
@@ -30,7 +35,8 @@ of the specification.
 ## Owner Decisions
 
 Decided 2026-09-29, answering [Questions For The Owner](#questions-for-the-owner)
-1 to 7. TD4 is not the record's recommendation. None is applied yet.
+1 to 7. TD4 is not the record's recommendation. All seven are applied
+(2026-09-29), with [Collect CO5](COLLECT.md#owner-decisions).
 
 1. **TD1: the spelling is `=` after the bound:**
    `[C < FromIterator[T] = List[T]]`.
@@ -48,6 +54,16 @@ Decided 2026-09-29, answering [Questions For The Owner](#questions-for-the-owner
    `items::collect` is `fn() -> List[string]`.
 7. **TD7: defaults are allowed on functions, methods, data, enums, traits,
    and `type` declarations,** but not on impl headers.
+
+## Still Open
+
+Points the apply pass met (2026-09-29). Each waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Sections 3 (what a default may name, and when its bound is checked) and 4A (defaults come last) were never asked as questions. | Taken from TD3's table in [section 7](#7-diagnostics), which lists their errors: [`types.generic.default.order`](../spec/04-type-system.md#r-types.generic.default.order), [`.later`](../spec/04-type-system.md#r-types.generic.default.later), and a bound checked once at the declaration, [`.checked-once`](../spec/04-type-system.md#r-types.generic.default.checked-once) | Confirm 3A and 4A as applied. |
+| 2 | A list with more slots than parameters has no named code; the old complete-list rule named none either. | [`fn.generic.explicit.too-long`](../spec/07-functions.md#r-fn.generic.explicit.too-long) says "invalid" | Name `argument-count`, the code for too many call arguments. |
+| 3 | `std.ops` traits could now default `Rhs = Self`, as Rust's `Add` does ([section 6](#6-traits-dynamic-safety-and-api-compatibility), U2). | Not applied; `Add[Rhs]` keeps a required argument | Ask separately: it changes a std signature, beyond TD1-TD7. |
 
 ## Contents
 
@@ -82,12 +98,12 @@ values, traits, API evolution, and diagnostics.
 
 | Area | Today | Source |
 | --- | --- | --- |
-| Collect fallback | `C` is `List[T]` when nothing determines it; a special case of one method | [`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default) |
-| Explicit lists | complete or absent; a partial prefix list is an error even when inference could finish it | [`fn.generic.explicit.complete`](../spec/07-functions.md#r-fn.generic.explicit.complete), [`fn.generic.explicit.no-partial`](../spec/07-functions.md#r-fn.generic.explicit.no-partial) |
+| Collect fallback | `C` is `List[T]` when nothing determines it; a special case of one method | `flow.collect.default` (retired) |
+| Explicit lists | complete or absent; a partial prefix list is an error even when inference could finish it | `fn.generic.explicit.complete` (retired), `fn.generic.explicit.no-partial` (retired) |
 | `_` | a whole call-site slot meaning "infer"; never inside a type such as `List[_]` | [`fn.generic.placeholder`](../spec/07-functions.md#r-fn.generic.placeholder), [`fn.generic.placeholder.not-type`](../spec/07-functions.md#r-fn.generic.placeholder.not-type) |
 | Solving a call | from the call's arguments, its expected result type, and the function's constraints | [`fn.generic.placeholder.solve`](../spec/07-functions.md#r-fn.generic.placeholder.solve) |
-| Unsolved parameter | an error | [`fn.generic.placeholder.ambiguous`](../spec/07-functions.md#r-fn.generic.placeholder.ambiguous), [`fn.type.generic.unsolved`](../spec/07-functions.md#r-fn.type.generic.unsolved) |
-| Generic function values | fully instantiated from an expected type, a complete list, or the enclosing call | [`fn.type.generic.instantiate-sources`](../spec/07-functions.md#r-fn.type.generic.instantiate-sources) |
+| Unsolved parameter | an error | `fn.generic.placeholder.ambiguous` (retired), [`fn.type.generic.unsolved`](../spec/07-functions.md#r-fn.type.generic.unsolved) |
+| Generic function values | fully instantiated from an expected type, a complete list, or the enclosing call | `fn.type.generic.instantiate-sources` (retired) |
 | Value defaults | trailing, may name earlier parameters only, checked at the declaration | [`fn.default.order-final-function`](../spec/07-functions.md#r-fn.default.order-final-function), [`fn.default.scope`](../spec/07-functions.md#r-fn.default.scope) |
 | Trait method generics | an implementation repeats count, markers and bounds exactly | [`trait.impl.generics.bounds`](../spec/09-traits.md#r-trait.impl.generics.bounds) |
 | Associated type bindings | `Name = Type` inside a bound trait's brackets: `I < Supplier[Item = T]` | [`grammar.generic.binding`](../spec/02-grammar.md#r-grammar.generic.binding), [`trait.binding.form`](../spec/09-traits.md#r-trait.binding.form) |
@@ -429,7 +445,7 @@ Omitted trailing slots in a written list:
 | # | Option | Precedent | Effect |
 | --- | --- | --- | --- |
 | 4C | An omitted slot takes its default, in types and calls alike | Rust types, TypeScript | `decode[User]` means `decode[User, Json]` |
-| 4D | An omitted slot is inferred, then defaulted | C++ | reintroduces partial inference, which [`fn.generic.explicit.no-partial`](../spec/07-functions.md#r-fn.generic.explicit.no-partial) bans |
+| 4D | An omitted slot is inferred, then defaulted | C++ | reintroduces partial inference, which `fn.generic.explicit.no-partial` (retired) bans |
 
 With 4A and 4C, three spellings give one consistent picture:
 

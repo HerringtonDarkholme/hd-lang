@@ -393,8 +393,13 @@ and [Comprehension Restrictions](../spec/05-expressions.md#comprehension-restric
 a generic `collect` over `FromIterator`, last-wins keys, std-only helpers,
 and `?` inside comprehensions.
 
-**Open.** Two readings, each with a recommendation, are in
-[Collect Still Open](COLLECT.md#still-open).
+**Decided and applied (owner, 2026-09-29).** CO5 and CO6: `collect`
+declares its target's default, `collect[C < FromIterator[T] = List[T]]`,
+through the general
+[Type-Argument Defaults](../spec/04-type-system.md#type-argument-defaults)
+of [TD1-TD7](TYPE_ARG_DEFAULTS.md#owner-decisions), and `FromIterator` is
+imported. Three points of the defaults apply pass are in
+[Type-Argument Defaults Still Open](TYPE_ARG_DEFAULTS.md#still-open).
 
 ### Iterator Performance
 

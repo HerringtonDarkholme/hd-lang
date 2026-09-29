@@ -1,12 +1,12 @@
 # Collecting Iterators Into Collections: Survey And Design Options
 
-Status: design exploration, 2026-09-29. Owner decisions CO1-CO4 and CO6
-are applied (2026-09-29), and the specification is authoritative for them:
+Status: design exploration, 2026-09-29. Owner decisions CO1-CO6 are
+applied (2026-09-29), and the specification is authoritative for them:
 [Collect Targets](../spec/06-control-flow.md#collect-targets),
 [Comprehension Restrictions](../spec/05-expressions.md#comprehension-restrictions),
 and [Standard Names Outside The Prelude](../spec/10-modules.md#standard-names-outside-the-prelude).
-CO5 waits for the
-[Type-Argument Defaults](TYPE_ARG_DEFAULTS.md#owner-decisions) apply pass.
+CO5 was applied with
+[Type-Argument Defaults](TYPE_ARG_DEFAULTS.md#owner-decisions) TD1-TD7.
 CO3's helpers are std-only, in [STDLIB](STDLIB.md#stditer). The rest of
 the record is the survey behind the decisions.
 
@@ -57,11 +57,13 @@ Decided 2026-09-29.
 5. **CO5 (2026-09-29): general type-argument defaults replace the
    one-off `List` default.** This answers Still Open 1; the owner did not
    take the recommendation to keep
-   [`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default).
+   `flow.collect.default` (retired).
    `collect` declares its default instead, as
    `collect[C < FromIterator[T] = List[T]]`. The feature is designed in
-   [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) (TD1-TD7) and is applied
-   with those decisions; until then `flow.collect.default` stays.
+   [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) (TD1-TD7) and was applied
+   with those decisions (2026-09-29):
+   [`flow.adapter.collect-defaulted`](../spec/06-control-flow.md#r-flow.adapter.collect-defaulted)
+   declares the default, and `flow.collect.default` is retired.
 6. **CO6 (2026-09-29): `FromIterator` is not a prelude name.** This
    answers Still Open 2. Code that implements it imports it, as
    `std.convert.From` is imported, and callers of `collect` never write

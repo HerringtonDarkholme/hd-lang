@@ -55,12 +55,12 @@ Open questions for the owner:
   decisions MR1-MR4 are applied; one reading waits for the owner.
 - [Collecting Iterators Into Collections](COLLECT.md) compares five ways
   for a data `Iterator[T]` to end in a `Map`, a `Set`, or an all-or-nothing
-  `Result`. Its decisions CO1-CO4 are applied; two readings wait for the
+  `Result`. Its decisions CO1-CO6 are applied.
+- [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) designs general
+  defaults, such as `C < FromIterator[T] = List[T]`, that replace the
+  retired `flow.collect.default`. It surveys C++, Rust, TypeScript, Swift,
+  and C#. Its decisions TD1-TD7 are applied; three points wait for the
   owner.
-- [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) designs the decided
-  general defaults, such as `C < FromIterator[T] = List[T]`, that replace
-  `flow.collect.default`. It surveys C++, Rust, TypeScript, Swift, and C#,
-  and asks seven questions.
 - [Iterator Performance Study](ITERATOR_PERF.md) is stage 1 of a
   performance study: it compares closure, nested, and flat-stage iterator
   designs by calls, allocation, and fusion potential, and specifies the
