@@ -55,15 +55,26 @@ Decided 2026-09-29, answering [Questions For The Owner](#questions-for-the-owner
 7. **TD7: defaults are allowed on functions, methods, data, enums, traits,
    and `type` declarations,** but not on impl headers.
 
+Decided 2026-09-29, answering the three Still Open points of the TD1-TD7
+apply pass.
+
+8. **TD8: 3A and 4A are confirmed as applied** (point 1). A default may
+   name earlier parameters and `Self`, and its bound is checked once, at
+   the declaration. A default that names a later parameter is
+   `binding-not-yet-visible`. Defaulted parameters come last:
+   `default-order`.
+9. **TD9: a type-argument list longer than the parameter list is
+   `argument-count`,** the existing code (point 2).
+10. **TD10: the `std.ops` operator traits default `Rhs = Self`,** as in
+    Rust (point 3). `impl Add for Money` means `Add[Money]`, and
+    `T < Add[Out = T]` means `Add[T, Out = T]`. The specification's
+    Operator Traits text, examples, and fixtures use the shorter form
+    where it is the natural spelling. The explicit form stays valid.
+
 ## Still Open
 
-Points the apply pass met (2026-09-29). Each waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Sections 3 (what a default may name, and when its bound is checked) and 4A (defaults come last) were never asked as questions. | Taken from TD3's table in [section 7](#7-diagnostics), which lists their errors: [`types.generic.default.order`](../spec/04-type-system.md#r-types.generic.default.order), [`.later`](../spec/04-type-system.md#r-types.generic.default.later), and a bound checked once at the declaration, [`.checked-once`](../spec/04-type-system.md#r-types.generic.default.checked-once) | Confirm 3A and 4A as applied. |
-| 2 | A list with more slots than parameters has no named code; the old complete-list rule named none either. | [`fn.generic.explicit.too-long`](../spec/07-functions.md#r-fn.generic.explicit.too-long) says "invalid" | Name `argument-count`, the code for too many call arguments. |
-| 3 | `std.ops` traits could now default `Rhs = Self`, as Rust's `Add` does ([section 6](#6-traits-dynamic-safety-and-api-compatibility), U2). | Not applied; `Add[Rhs]` keeps a required argument | Ask separately: it changes a std signature, beyond TD1-TD7. |
+The three points of the TD1-TD7 apply pass are answered by TD8-TD10.
+Nothing is open.
 
 ## Contents
 

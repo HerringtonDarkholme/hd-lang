@@ -82,6 +82,23 @@ apply pass. DEP10, DEP11 and DEP13 are not the record's recommendation.
     fetching a version whose manifest has a `path =` requirement is an
     error. This keeps [Packages decision 9](PACKAGES.md#owner-decisions).
 
+Decided 2026-09-29, answering Still Open points 10 to 12 of the DEP8-DEP15
+apply pass, with one rule for a missing tag.
+
+16. **DEP16: points 10 and 12 are confirmed as applied.** A path
+    requirement is valid only between workspace members; any other local
+    override waits for the root-only `[patch]` of DEP7. DEP9 covers
+    `[dependencies]` and `[test-dependencies]` together.
+17. **DEP17: a fetched package that requires a workspace member's host
+    path gets a separate package from the local member** (point 11). They
+    are two packages, as Cargo treats a path source and a git source of
+    one crate. This needs a rule.
+18. **DEP18: a requirement whose tag does not exist is an error,** such as
+    `lint = "github.com/acme/tools/lint@1.1.1"` with no `lint/v1.1.1` tag.
+    There is no fallback to an untagged commit or a nearby version, as in
+    Go's `unknown revision`. "No fallback" is a rule now. Its code joins
+    the manifest diagnostics that DEP14 defers, and is named with them.
+
 ## Still Open
 
 The owner answered the nine points of the DEP1-DEP7 apply pass with
@@ -97,14 +114,8 @@ DEP8-DEP15. They are applied in
 | DEP13 | [`module.repo.github`](../spec/10-modules.md#r-module.repo.github) |
 | DEP15 | [`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release) |
 
-The DEP8-DEP15 apply pass met these points. Each waits for the owner;
-where a point is applied, it can change without breaking a decision.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 10 | May a package that is not a workspace member use a path requirement? | No: the specification defines a path requirement only between members ([`module.dep.requirement-value`](../spec/10-modules.md#r-module.dep.requirement-value)) | Keep. A local override of any other package stays the later root-only `[patch]` of DEP7, whose tree is hashed into the code identity. |
-| 11 | A member has no host path (DEP11). What is it when a fetched package requires the member's host path? | No rule | Two packages, the local member and the fetched version, as Cargo treats a path source and a git source of one crate. |
-| 12 | Does DEP9 span `[dependencies]` and `[test-dependencies]`? | Yes: "two keys of one manifest" ([`module.dep.one-key-per-line`](../spec/10-modules.md#r-module.dep.one-key-per-line)) | Keep. Test code sees both tables, so the package would have two names there. |
+The DEP8-DEP15 apply pass met three points, which DEP16 and DEP17
+answer. Nothing is open.
 
 ## Contents
 

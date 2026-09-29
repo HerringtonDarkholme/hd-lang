@@ -108,6 +108,9 @@ Decided 2026-09-29.
     not take the recommendation of a fusing constructor.
     `flow.for.iterator-progress` is weakened to match, and `from_fn` does
     not fuse: every `next` calls `step`.
+12. **CS12 (2026-09-29): point 4 is confirmed as applied.** The built-in
+    `List` and `Map` iterators and the adapters make no promise after
+    `.None`. One rule covers every iterator.
 
 ## Still Open
 
@@ -117,11 +120,8 @@ CS9-CS11, applied in
 `flow.for.iterator-private`, `flow.for.iterator-from-fn`,
 `flow.for.iterator-exhausted`, `flow.for.iterator-after-none`, and
 `flow.for.iterator-from-fn.no-fuse`; CS10 is a Note there and in the
-guide. The CS9-CS11 apply pass met one point, which waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 4 | Do the built-in `List` and `Map` iterators, and the adapters, promise `.None` again after exhaustion? | No: CS11's general rule ([`flow.for.iterator-after-none`](../spec/06-control-flow.md#r-flow.for.iterator-after-none)) covers them. Four fixtures lost a check that read a second `.None` or collected an exhausted iterator | Keep one rule for every iterator, as Rust's general `Iterator` contract has; code stops at the first `.None`. Rust's slice iterators promise more through `FusedIterator`, a marker trait hd lacks. |
+guide. The one point the CS9-CS11 apply pass met is answered by CS12.
+Nothing is open.
 
 ## Contents
 

@@ -278,14 +278,27 @@ and applied (2026-09-29):** [Binding Names](../spec/09-traits.md#binding-names),
      it had simply not been added, since the binding makes every signature
      concrete. The specification's Why note says so.
 
-**Still open from the AT apply pass.** Each point waits for the owner.
+**Decided 2026-09-29, answering the four points of the AT apply pass.**
+AT3 and AT5 are not the recommendation.
 
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Which existing code reports an ambiguous binding | `ambiguous-method`, which [`trait.assoc-call.parameter.one`](../spec/09-traits.md#r-trait.assoc-call.parameter.one) already uses when two supertraits declare one `::` name ([`trait.binding.name-reach.ambiguous`](../spec/09-traits.md#r-trait.binding.name-reach.ambiguous)) | Keep; a new `ambiguous-associated-type` code would read better but adds a code. |
-| 2 | A named type now parses a binding, so `List[i32, Item = i32]` is no longer a grammar error | `unknown-associated-type`, as `List` declares no `Item` ([`trait.binding.non-trait`](../spec/09-traits.md#r-trait.binding.non-trait)) | Keep. |
-| 3 | A requirement key, as in `$ Supplier[Item = i32]`, still takes no binding | Unchanged: a key is a `trait_type` ([`grammar.generic.binding.trait-type`](../spec/02-grammar.md#r-grammar.generic.binding.trait-type)) | Keep until a provider needs one. |
-| 4 | Widening a trait value to a supertrait with an associated type | The widened type keeps the bindings the supertrait reaches ([`trait.dyn.binding.widen`](../spec/09-traits.md#r-trait.dyn.binding.widen)); otherwise it would be unbound | Confirm. |
+3. **AT3 (point 1; the owner chose it over the recommendation): a new
+   code, `ambiguous-associated-type`,** reports a binding name that two
+   supertraits declare, instead of `ambiguous-method`. The ambiguous
+   projection rule (`trait.binding.ambiguous`: `I::Item` with two bounds
+   that both declare `Item`) uses the new code too if the specification
+   text shows it is clearly the same case. Otherwise it stays, and the
+   question goes to Still Open.
+4. **AT4 (points 2 and 4): kept and confirmed as applied.**
+   `List[i32, Item = i32]` is `unknown-associated-type`. Widening a bound
+   trait value to a supertrait keeps the bindings that the supertrait
+   reaches.
+5. **AT5 (point 3; the owner chose it over the recommendation):
+   requirement keys accept associated type bindings now,** as bounds do:
+   `fn load() -> User $ Store[Item = User]`.
+   - This covers rows, row aliases, row subsumption, and provider
+     satisfaction: a provider must bind the associated type to the stated
+     type.
+   - Grammar: a requirement key becomes the binding-capable trait form.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
