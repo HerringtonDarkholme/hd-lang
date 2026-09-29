@@ -505,6 +505,13 @@ for left in values:
 
 The iterable may still contain data and may itself refer to mutable data; "stateless" here means only that traversal progress is not stored in an ordinary iterable source. `for` also accepts a mutable `Iterator` directly. The loop does not clone or reset it: iteration continues from the cursor's current position and leaves it exhausted when completed. A readonly iterator cannot advance. Built-in list and map iterators are invalidated by insertion, removal, clearing, or another shape change, and their next advance panics. Replacing an existing element or value without changing collection shape does not invalidate the iterator.
 
+Every iterator also has adapter methods, as Rust's iterators do. `filter`, `take`, and `enumerate` wrap it in a new iterator that advances only when read, and `collect` drains it into a list:
+
+```text
+fn first_evens(values: List[i32]) -> List[(i32, i32)]:
+    values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
+```
+
 Use `while` when the loop condition is not just iterating a collection:
 
 ```text

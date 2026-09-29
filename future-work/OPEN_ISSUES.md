@@ -748,6 +748,18 @@ parameters on functions only, one unknown row variable per pattern, and row
 subsumption for function values. Thirteen points from the apply pass, each
 with a recommendation, are in [Still Open](REQUIREMENT_REUSE.md#still-open).
 
+### Iterator Adapters
+
+**Decided (owner, 2026-09-29) and partly applied.** STDLIB question 14
+makes iterator adapters default methods of the prelude `Iterator`, as in
+Rust. `filter`, `take`, `enumerate`, and `collect` are in
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters).
+
+**Open.** `map[U]` and `fold[A]` would make `Iterator` not dynamically
+safe, so `mut Iterator[T]` could not be a value type. That point and six
+`std`-only ones, each with a recommendation, are in
+[STDLIB Still Open](STDLIB.md#still-open).
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:

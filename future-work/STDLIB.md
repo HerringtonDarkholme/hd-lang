@@ -2,8 +2,8 @@
 
 Status: design draft for
 [Roadmap area 4](ROADMAP.md#4-standard-library), revised to the
-[owner decisions](#owner-decisions) of 2026-09-26. Nothing here is in the
-specification yet. Accepted parts move into the
+[owner decisions](#owner-decisions) of 2026-09-26 and 2026-09-29. Nothing
+here is in the specification unless it links there. Accepted parts move into the
 [specification](../spec/README.md); unresolved language questions stay in
 [Open Issues](OPEN_ISSUES.md).
 
@@ -32,7 +32,8 @@ written `pass`; they are syntax placeholders, not type-correct bodies.
 10. [Testing Layer](#testing-layer)
 11. [Open Language Dependencies](#open-language-dependencies)
 12. [Owner Decisions](#owner-decisions)
-13. [Questions For The Owner](#questions-for-the-owner)
+13. [Still Open](#still-open)
+14. [Questions For The Owner](#questions-for-the-owner)
 
 ## What The Specification Already Names
 
@@ -46,7 +47,7 @@ every user module that already declares it.
 | `std.format` | `Display`, `Debug`, `DebugWriter`, `debug` | [Prelude](../spec/10-modules.md#prelude), [string interpolation](../spec/05-expressions.md), [Debug Trait](../spec/09-traits.md#debug-trait) |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
 | `std.hash` | `Hash`, `Hasher` | [Comparison Traits](../spec/09-traits.md#comparison-traits) |
-| `std.iter` | `Iterator`, `Iterable` | [For Loops](../spec/06-control-flow.md) |
+| `std.iter` | `Iterator`, `Iterable`; the adapters `filter`, `take`, `enumerate`, and `collect` as `Iterator` default methods | [For Loops](../spec/06-control-flow.md), [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) |
 | `std.console` | `Console`, `ConsoleError`, `println` | [Prelude](../spec/10-modules.md#prelude) |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker`, `block_on`, `host_wait!`, `HostWait`, `all!`, `race!`, a retry combinator | [Requirements and Suspension](../spec/11-requirements-and-suspension.md) |
 | `std.annotation` | shape names and `shape`, `shape_of`; `Target`, `Annotate`, `annotate` | [Annotations](../spec/14-annotations.md) |
@@ -163,12 +164,20 @@ Other facts the library must respect:
    host call at the boundary regardless of suspension
    ([Replay Rules](RUNTIME_AND_LIBRARY.md#replay-rules)). See decision 2.
 7. **Errors are values.** Each domain has its own error enum implementing
-   `Display`, like the existing `ConsoleError`. Panics stay reserved for bugs.
+   `Display`, like the existing `ConsoleError`. Panics stay reserved for bugs,
+   so an out-of-range count, such as `repeat(-1)` or `chunks(0)`, panics
+   (question 18).
 8. **Keep the prelude fixed.** New names go in modules and are imported. The
    shadowing ban makes every prelude addition a breaking change.
 9. **Formats and domains stay out of `std` until proven.** Calendar and time
    zones, HTTP servers, regex, compression, and crypto beyond hashing start as
    packages (area 5).
+10. **Value types compare.** Every `std` value type implements `Eq`,
+    `Duration` also implements `Ord`, and every error enum implements
+    `Display` (question 21). So `assert_equal` compares two durations, and
+    `main` may return a `ParseNumberError`. Providers, builders, and handles,
+    such as `ManualClock`, `StringBuilder`, and `Task`, are not value types
+    ([Still Open](#still-open) 6).
 
 ## The hd Difference In Code
 
@@ -356,7 +365,6 @@ pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Sel
     fn wrapping_mul(self, other: Self) -> Self
     fn saturating_add(self, other: Self) -> Self
     fn saturating_sub(self, other: Self) -> Self
-    fn abs_diff(self, other: Self) -> Self
     fn count_ones(self) -> i32
     fn leading_zeros(self) -> i32
 
@@ -378,6 +386,39 @@ pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
 pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
     pass
 ```
+
+`abs_diff` returns the unsigned type of the same width, as Rust's does
+(question 19), so the distance between the minimum and the maximum fits.
+It is an inherent method of each integer type, not an `Integer` member,
+because the result type differs per type
+([Still Open](#still-open) 5):
+
+| Receiver | `abs_diff` result |
+| --- | --- |
+| `i8`, `u8` | `u8` |
+| `i16`, `u16` | `u16` |
+| `i32`, `u32` | `u32` |
+| `i64`, `u64` | `u64` |
+
+```text
+impl i32:
+    pub fn abs_diff(self, other: i32) -> u32:
+        pass
+```
+
+`parse_i32` and `parse_i64` accept the text of Rust's `str::parse` for
+integers (question 20):
+
+| Input | Result |
+| --- | --- |
+| an optional `+` or `-`, then one or more ASCII digits `0`-`9`, and nothing else | `.Ok(value)` |
+| the empty string | `.Err(.Empty)` |
+| a lone `+` or `-` | `.Err(.InvalidDigit(0))` |
+| any other character, including `_`, a space, or a radix prefix | `.Err(.InvalidDigit(position))`, the first such character's position counted in scalars |
+| digits whose value does not fit the type | `.Err(.OutOfRange)` |
+
+Parsing user input accepts no literal syntax: `"1_000"` and `"0x10"` are
+`InvalidDigit`.
 
 One `parse_*` function per type stands in for a generic
 `parse[T < FromText](text)`. This draft was written while calling `T::parse`
@@ -471,6 +512,20 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
     pass
 ```
 
+`lines` follows Rust's `str::lines` (question 17). It splits at each `\n`,
+and removes one `\r` directly before a `\n`. A final `\n` ends the last line
+and starts no empty one, and a `\r` not followed by `\n` stays:
+
+| Text | `lines()` |
+| --- | --- |
+| `"a\nb"` | `["a", "b"]` |
+| `"a\nb\n"` | `["a", "b"]` |
+| `"a\r\nb\r\n"` | `["a", "b"]` |
+| `"a\n\nb"` | `["a", "", "b"]` |
+| `""` | `[]` |
+
+`repeat` with a negative count panics (question 18); `repeat(0)` is `""`.
+
 `interpolate` joins the pieces with the values' `Display` text.
 `process_escapes` fails at the first invalid escape, and
 `EscapeError.offset` counts the Unicode scalars before its backslash (L22).
@@ -502,8 +557,14 @@ impl[T] T?:
     pub fn expect(self, message: string) -> T:
         pass
 
+    pub fn and_then[U](self, transform: fn(T) -> U?) -> U?:
+        pass
+
 impl[T, E] Result[T, E]:
     pub fn map_ok[U](self, transform: fn(T) -> U) -> Result[U, E]:
+        pass
+
+    pub fn and_then[U](self, transform: fn(T) -> Result[U, E]) -> Result[U, E]:
         pass
 
     pub fn map_err[F](self, transform: fn(E) -> F) -> Result[T, F]:
@@ -524,6 +585,11 @@ impl[T, E] Result[T, E]:
     pub fn expect(self, message: string) -> T:
         pass
 ```
+
+`and_then` chains a second fallible step, as Rust's
+[`Option::and_then`](https://doc.rust-lang.org/std/option/enum.Option.html#method.and_then)
+does (question 15). It calls `transform` only on `.Some` or `.Ok`, and
+passes `.None` or `.Err` through unchanged.
 
 Callbacks take no row parameter here, so `map_err(fn(e): ...)` cannot use a
 requirement. A row-polymorphic version, `fn map_err[F, R](self, transform:
@@ -692,39 +758,82 @@ impl[T] List[T]:
 
     pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
         pass
+
+impl[K, V] Map[K, V]:
+    pub fn contains_key(self, key: K) -> bool:
+        pass
+
+    pub fn keys(self) -> List[K]:
+        pass
+
+    pub fn values(self) -> List[V]:
+        pass
 ```
 
 The `List` and `Map` methods beyond the normative table are inherent methods
-declared by `std` (decision 8), like the `string` methods.
+declared by `std` (decision 8), like the `string` methods. `keys` and
+`values` list the entries in insertion order, as `for` visits them
+(question 16). `chunks` with a size below 1 panics (question 18).
 
 `Set` iterates in insertion order to match `Map`. `SortedMap` gives ordered
 iteration for deterministic output. Field layouts above are placeholders.
 
 ### `std.iter`
 
-Adapters are methods of an extension trait over `mut Iterator[T]`, since the
-prelude `Iterator` trait has only `next`:
+Adapters are default methods of the prelude `Iterator`, as in Rust, with no
+separate extension trait (question 14). The specification fixes four of
+them in [Iterator Adapters](../spec/06-control-flow.md#iterator-adapters):
 
 ```text
-pub trait IteratorExt[T]:
-    fn map_each[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]
-    fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]
-    fn take(mut self, count: i32) -> mut Iterator[T]
-    fn enumerate(mut self) -> mut Iterator[(i32, T)]
-    fn collect(mut self) -> List[T]
-    fn fold[A](mut self, initial: A, step: fn(A, T) -> A) -> A
+pub trait Iterator[T]:
+    fn next(mut self) -> T?
+
+    fn filter(mut self, keep: fn(T) -> bool) -> mut Iterator[T]:
+        pass
+
+    fn take(mut self, count: i32) -> mut Iterator[T]:
+        pass
+
+    fn enumerate(mut self) -> mut Iterator[(i32, T)]:
+        pass
+
+    fn collect(mut self) -> List[T]:
+        pass
 
 pub fn range(start: i32, end: i32) -> mut Iterator[i32]:
     pass
 ```
 
-Iterator adapters that call suspending code are not provided: comprehensions
-already forbid suspension points, and the same rule keeps adapters simple.
+`filter`, `take`, and `enumerate` are lazy: the returned iterator advances
+`self` only from its own `next`. `collect` drains `self`, and a negative
+`take` count panics. A caller writes `items.iter().filter(keep).collect()`.
+
+`map` and `fold` are decided too, but wait on
+[Still Open](#still-open) 1: a method-level type parameter without an
+`AnyRef` bound makes `Iterator` not
+[dynamically safe](../spec/09-traits.md#dynamic-safety), and
+`mut Iterator[T]` is used as a value type. Their intended signatures:
+
+```text
+pub trait Iterator[T]:
+    fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]:
+        pass
+
+    fn fold[A](mut self, initial: A, step: fn(A, T) -> A) -> A:
+        pass
+```
+
+A lazy adapter calls its callback from `next`, whose row is empty, so the
+callback takes no requirement; one that needs a provider captures the value
+from `$.use` ([Still Open](#still-open) 2). Iterator adapters that call
+suspending code are not provided: comprehensions already forbid suspension
+points, and the same rule keeps adapters simple.
 
 ### `std.cmp`, `std.hash`, `std.format`
 
 These keep their fixed traits and add small helpers: `min`, `max`, `clamp`,
-and `Reverse[T]` in `std.cmp`; a default `SipHasher`-style hasher in
+and `Reverse[T]` in `std.cmp`, where `clamp(value, low, high)` with `low`
+greater than `high` panics (question 18); a default `SipHasher`-style hasher in
 `std.hash`, seeded per code identity and runtime profile, plus an
 explicitly chosen keyed hasher for hash-flooding defense
 ([Durable Replay decision 8](DURABLE_REPLAY.md#owner-decisions)); padding, radix, and precision formatting in `std.format`. None is
@@ -1229,6 +1338,26 @@ pub trait Process:
 
 pub data ScriptedProcess:
     outputs: Map[string, Output]
+
+impl ScriptedProcess:
+    pub fn new(outputs: Map[string, Output]) -> ScriptedProcess:
+        pass
+
+impl Process for ScriptedProcess:
+    fn run!(self, command: Command) -> Result[Output, ProcessError]:
+        pass
+```
+
+`ScriptedProcess::new(outputs)` is the only way to build one, since its
+field is private (question 22). `run!` answers from `outputs` by
+`command.program`, and a program with no entry is
+`.Err(ProcessError.NotFound(program))`:
+
+```text
+use std.process.{Output, ScriptedProcess}
+
+fn fake_run() -> ScriptedProcess:
+    ScriptedProcess::new({"make": Output { status: 0, stdout: [], stderr: [] }})
 ```
 
 `std.process` also declares `ExitCode` and `Termination`, which turn the
@@ -1771,6 +1900,16 @@ file holds one decimal draw per line. This replaces the earlier `Strategy` sketc
   `Display` for each error enum.
 - `ScriptedProcess::new(outputs)` is the constructor.
 
+Applied 2026-09-29. The prelude `Iterator` part is in the specification:
+[Iterator Adapters](../spec/06-control-flow.md#iterator-adapters) gives
+`filter`, `take`, `enumerate`, and `collect`. `map` and `fold` wait on
+[Still Open](#still-open) 1, because they would make `Iterator` not
+dynamically safe. The rest is `std`-only and is in the draft sections above:
+[`std.iter`](#stditer), [`std.option` and `std.result`](#stdoption-and-stdresult),
+[`std.collections`](#stdcollections), [`std.text`](#stdtext),
+[`std.num`](#stdnum), [`std.process`](#stdprocess), and design principles 7
+and 10. Points the apply pass met are under [Still Open](#still-open).
+
 Decided 2026-09-26:
 
 1. **Question 1: `$.use` can return `mut`.** A provider installed with
@@ -1838,17 +1977,33 @@ Decided 2026-09-26:
     Superseded 2026-09-27: profiles no longer mark traits; a trait with a
     `mut self` method is always bound mutable.
 
+## Still Open
+
+Points the apply pass for questions 14 to 22 met (2026-09-29). Each waits
+for the owner. The Applied column states the reading now in the
+specification or the draft, so each can change without breaking a decision.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 1 | Question 14 makes `map[U]` and `fold[A]` `Iterator` default methods. A method type parameter without an `AnyRef` bound makes a trait not dynamically safe ([`trait.dyn.safe.anyref-type-param`](../spec/09-traits.md#r-trait.dyn.safe.anyref-type-param)). `iter()` returns `mut Iterator[T]`, which would then be `trait-not-dynamically-safe`. | Not applied. The specification lists only `filter`, `take`, `enumerate`, and `collect` ([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)) | Leave a default method whose own signature is not dynamically safe out of the dispatch table. A call through a trait value runs the default body with `Self` as the trait value type, which already satisfies the bound ([`trait.dyn.bound`](../spec/09-traits.md#r-trait.dyn.bound)). This is Rust's `where Self: Sized` on `Iterator::map`, and a semantic rule exception. The alternative keeps `map` and `fold` as `std.iter` free functions. |
+| 2 | How does a callback's requirement row flow through an adapter? | It does not. `keep` has the empty row ([`flow.adapter.callback-row`](../spec/06-control-flow.md#r-flow.adapter.callback-row)), since the returned iterator calls it from `next`, whose row is empty. A callback that needs a provider captures the value from `$.use` ([`req.use.value.flow`](../spec/11-requirements-and-suspension.md#r-req.use.value.flow)) | Keep for the lazy adapters, `map` included. Give `fold` a row parameter when it lands: `fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R`. It calls `step` before it returns, and a row parameter keeps one body ([`trait.dyn.safe.row-parameter`](../spec/09-traits.md#r-trait.dyn.safe.row-parameter)). |
+| 3 | Question 18 names `repeat`, `chunks`, and `clamp`. What does `take(-1)` do? | It panics when called, with `explicit-panic` ([`flow.adapter.take.negative`](../spec/06-control-flow.md#r-flow.adapter.take.negative)); `take(0)` yields nothing | Keep: Kotlin's `take` rejects a negative count, and Rust's `usize` cannot express one. |
+| 4 | Question 16 does not give the result type of `keys` and `values`. | `List[K]` and `List[V]`, snapshots in insertion order, like `chars` and `lines` ([`std.collections`](#stdcollections)) | Keep. A `mut Iterator[K]`, as Rust returns, panics after a later shape change ([`flow.for.invalidate`](../spec/06-control-flow.md#r-flow.for.invalidate)); a list does not. |
+| 5 | The draft's `Integer` listed `abs_diff(self, other: Self) -> Self`. Question 19 makes the result unsigned, which a `Self` result cannot say. | An inherent method of each integer type, removed from the draft's `Integer` list ([`std.num`](#stdnum)) | Keep. Generic code that needs it waits for an associated `Unsigned` type on the sealed `Integer`, which is a specification change. |
+| 6 | Question 21 gives `Eq` to every value type, without defining one. | Data and enums that hold only values: `Duration`, `Timestamp`, `Instant`, `Path`, `Command`, `Output`, `Number`, `Json`, and every error type. Providers (`ManualClock`, `MemoryFs`), builders (`StringBuilder`), and handles (`Task`, `Scope`) are not value types | Keep: a provider or handle compares by identity with `is`. |
+| 7 | Question 21 gives `Ord` only to `Duration`. `Timestamp` and `Instant` are ordered too. | Neither implements `Ord` | Add `Ord` to both, as Rust's `SystemTime` and `Instant` implement it, so timestamps sort. |
+
 ## Questions For The Owner
 
 Questions 1 to 13 are decided; see [Owner Decisions](#owner-decisions).
 Each entry keeps the options that were weighed and states the decision. The
 examples follow the decided design.
 
-Questions 14 to 22 are open. They came up while writing the prototype's toy
-standard library in [lib/std](../lib/std/)
-([src/README.md](../src/README.md#standard-library)), which
-takes the smallest reading of this draft where it is silent. Nothing in them
-is accepted behavior.
+Questions 14 to 22 are decided (2026-09-29), all as recommended. They came
+up while writing the prototype's toy standard library in
+[lib/std](../lib/std/)
+([src/README.md](../src/README.md#standard-library)), which took the
+smallest reading of this draft where it was silent.
 
 ### 1. How does a deterministic provider change its own state?
 
@@ -2101,11 +2256,14 @@ blanket one over a bare parameter is `bare-parameter-impl-target`
 **Recommendation:** B. It is the proven model, needs no new rule, and keeps
 `items.iter().filter(keep)` readable.
 
-```text
-use std.iter.{collect, filter, range}
+**Decided: B.** Applied for `filter`, `take`, `enumerate`, and `collect`
+([Iterator Adapters](../spec/06-control-flow.md#iterator-adapters)). B does
+need a new rule for `map` and `fold`, whose type parameters break dynamic
+safety ([Still Open](#still-open) 1).
 
-fn evens() -> List[i32]:
-    collect(filter(range(0, 10), fn(value: i32) -> bool: value % 2 == 0))
+```text
+fn evens(values: List[i32]) -> List[i32]:
+    values.iter().filter(fn(value): value % 2 == 0).collect()
 ```
 
 ### 15. Do `T?` and `Result` get `and_then`?
@@ -2119,6 +2277,8 @@ lists `map` and `map_ok` but no flat map.
 
 **Recommendation:** A. It is small, and `?` does not work inside a closure
 whose result is not an optional or `Result`.
+
+**Decided: A.** See [`std.option` and `std.result`](#stdoption-and-stdresult).
 
 ```text
 fn port(text: string?) -> i32?:
@@ -2135,6 +2295,8 @@ Effect: a program cannot list a map's keys or test membership without a
 - **B.** None yet. The prototype does this.
 
 **Recommendation:** A, the three methods every surveyed language ships.
+
+**Decided: A.** See [`std.collections`](#stdcollections).
 
 ```text
 fn has_port(settings: Map[string, string]) -> bool:
@@ -2154,6 +2316,8 @@ could keep a trailing `\r` on each line.
 
 **Recommendation:** A, since text from another platform should read the same.
 
+**Decided: A.** See [`std.text`](#stdtext).
+
 ```text
 fn count_lines(text: string) -> i32:
     text.lines().len()
@@ -2169,6 +2333,9 @@ result. The prototype panics with `explicit-panic` for each.
 
 **Recommendation:** A. Each case is a bug in the caller, and panics are
 reserved for bugs.
+
+**Decided: A.** The iterator adapter `take` follows it
+([`flow.adapter.take.negative`](../spec/06-control-flow.md#r-flow.adapter.take.negative)).
 
 ```text
 fn pages(items: List[i32]) -> List[List[i32]]:
@@ -2187,8 +2354,10 @@ maximum. The prototype panics with `integer-overflow` there.
 
 **Recommendation:** A, once the sized unsigned types exist (F-253).
 
+**Decided: A.** See [`std.num`](#stdnum).
+
 ```text
-fn distance(a: i32, b: i32) -> i32:
+fn distance(a: i32, b: i32) -> u32:
     a.abs_diff(b)
 ```
 
@@ -2203,6 +2372,8 @@ accepts one optional `+` or `-` and decimal digits, reports a lone sign as
   do.
 
 **Recommendation:** A. Parsing user input should not accept literal syntax.
+
+**Decided: A.** See [`std.num`](#stdnum).
 
 ```text
 use std.num.parse_i32
@@ -2227,6 +2398,9 @@ durations, and `main` cannot return a `ParseNumberError`.
 **Recommendation:** A. The draft's own `ManualClock` test compares
 timestamps with `assert_equal`.
 
+**Decided: A.** See design principle 10 in
+[Design Principles](#design-principles).
+
 ```text
 use std.time.{Duration, s}
 
@@ -2246,6 +2420,8 @@ code outside `std.process` cannot build one.
 
 **Recommendation:** A, matching `BufferConsole::new()` and
 `ManualClock::starting_at`.
+
+**Decided: A.** See [`std.process`](#stdprocess).
 
 ```text
 use std.process.{Output, ScriptedProcess}
