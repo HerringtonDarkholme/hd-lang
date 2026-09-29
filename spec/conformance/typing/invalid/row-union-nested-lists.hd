@@ -1,0 +1,14 @@
+# test: only function elements take the union row; lists of them keep their own types
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn wire() -> void:
+    groups := [[health], [orders]]  # diagnostic: no-common-type

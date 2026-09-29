@@ -1,0 +1,31 @@
+# test: a bare row alias in a one-key row slot stands for its row
+use std.function.{Fn, SuspendFn}
+
+trait Db
+
+trait Cache
+
+trait Log
+
+type AppRow = Db + Cache
+
+type WithLog[R] = R + Log
+
+fn install(ctx: $.Context[AppRow], job: Fn[(), void, AppRow]) -> void:
+    $.with(ctx...):
+        job()
+
+fn logged() -> void $ WithLog[AppRow]:
+    pass
+
+fn provide_log[R](callback: fn() -> void $ R + Log) -> void $ R:
+    pass
+
+fn run() -> void $ AppRow:
+    provide_log[AppRow](logged)
+
+fn load!() -> string $ Db + Cache:
+    "loaded"
+
+fn suspending() -> SuspendFn[(), string, AppRow]:
+    load

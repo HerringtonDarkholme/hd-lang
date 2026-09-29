@@ -1,9 +1,0 @@
-# test: $.Context takes a row alias only after '$'
-
-trait Db
-
-trait Cache
-
-type AppRow = Db + Cache
-
-fn empty(ctx: $.Context[AppRow]) -> void: pass  # diagnostic: generic-kind-mismatch

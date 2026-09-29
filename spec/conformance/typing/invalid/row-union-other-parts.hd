@@ -1,0 +1,14 @@
+# test: function values whose results differ have no common type even after their rows are unified
+
+trait Db
+
+trait Clock
+
+fn name() -> string $ Db:
+    "db"
+
+fn count() -> i32 $ Clock:
+    1
+
+fn wire() -> void:
+    handlers := [name, count]  # diagnostic: no-common-type

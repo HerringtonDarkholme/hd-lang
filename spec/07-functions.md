@@ -303,13 +303,14 @@ fn suspending() -> SuspendFn[(i32,), string, Database]:
 2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, `(A, B)`, or `(Is...)`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, R]` takes one pair, and `Fn[(A, B), O, R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
-5. r[fn.type.ctor.input-kind] A type parameter used as the inputs argument is tuple-kinded: it may be instantiated only with a tuple type.
-6. r[fn.type.ctor.kind-mismatch] An inputs argument that is neither a tuple type nor a tuple-kinded parameter, as in `Fn[i32, i32, $()]`, is an error. Error: `generic-kind-mismatch`.
-7. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
-8. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
-9. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
-10. r[fn.type.ctor.import] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Rest` are imported where they are written, as in `use std.function.Fn`.
-11. r[fn.type.ctor.opaque] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, and instantiated generic functions.
+5. r[fn.type.ctor.row.alias] A bare row alias as the row argument stands for its row, so `Fn[(), O, AppRow]` is `Fn[(), O, $ AppRow]` ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
+6. r[fn.type.ctor.input-kind] A type parameter used as the inputs argument is tuple-kinded: it may be instantiated only with a tuple type.
+7. r[fn.type.ctor.kind-mismatch] An inputs argument that is neither a tuple type nor a tuple-kinded parameter, as in `Fn[i32, i32, $()]`, is an error. Error: `generic-kind-mismatch`.
+8. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, R]`.
+9. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
+10. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
+11. r[fn.type.ctor.import] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Rest` are imported where they are written, as in `use std.function.Fn`.
+12. r[fn.type.ctor.opaque] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, and instantiated generic functions.
 
 ```text
 use std.function.Fn
@@ -665,6 +666,7 @@ first[string](names)
 
 1. r[fn.generic.explicit.complete] An explicit type-argument list must supply every generic parameter.
 2. r[fn.generic.explicit.no-partial] Partial prefix lists are not permitted, even when inference could determine the remaining arguments.
+3. r[fn.generic.explicit.row] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments): a row after `$`, one bare key, or a bare row alias ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
 
 ```text
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):

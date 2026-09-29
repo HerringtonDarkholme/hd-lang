@@ -400,6 +400,7 @@ fn numbers(count: i32) -> List[i32]:
 2. r[expr.collection.empty.error] Without an expected collection type, an empty literal is an error. Error: `unresolved-generic-placeholder`.
 3. r[expr.collection.expected] When an expected `List[T]` or `Map[K, V]` type is available, each literal element is checked directly against the corresponding expected type.
 4. r[expr.collection.inferred] Without an expected type, a list's element type is the [least common type](04-type-system.md#least-common-type) of its elements. A map's key type and value type are the least common types of its keys and of its values.
+5. r[expr.collection.inferred.rows] Function values with different rows take the union of their rows first, as [Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals) states.
 
 ```text
 fn main() -> void:

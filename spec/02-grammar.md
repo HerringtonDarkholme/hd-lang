@@ -657,7 +657,8 @@ fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  
 
 1. r[grammar.type.row-argument] For a row-kinded generic parameter, a type argument may be a row after `$`, as in `Fn[(), void, $ Logger + Clock]`, or `$()` for the empty row.
 2. r[grammar.type.row-argument.key] A single requirement key is syntactically also a type; the parameter kind selects its interpretation.
-3. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
+3. r[grammar.type.row-argument.alias] A bare name there that names a row alias is that alias's row, as [`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare) states.
+4. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter (or conversely) is an error.
 
 ```text
 data Box[T]:

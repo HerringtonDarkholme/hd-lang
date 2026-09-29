@@ -1,0 +1,18 @@
+# test: a list literal with no expected type gives its function values the union of their rows
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve() -> string $ Db + Clock:
+    handlers := [health, orders]
+    let text = ""
+    for handler in handlers:
+        text = text + handler()
+    text

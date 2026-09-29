@@ -1278,6 +1278,25 @@ existing source. Each entry names the decision that made the change.
   Passing `fn health() -> string $ Clock` where
   `fn() -> string $ Db + Clock` is expected, previously a `type-mismatch`,
   is valid. A key outside the wider row is still `type-mismatch`.
+- Requirement reuse RU10 (same record, follow-up decision, 2026-09-28): a
+  bare row alias in a one-key row slot stands for its row. `$.Context[AppRow]`,
+  previously `generic-kind-mismatch`, is valid and means
+  `$.Context[$ AppRow]`. The same holds for the row argument of `Fn` and
+  `SuspendFn` and for a row alias's row parameter. It also holds for an
+  explicit type argument, as in `provide_log[AppRow](job)`. A row alias used
+  as a value type, a bound, a type-kinded argument, or a key in `$.use` or a
+  `$.with` binding is still `generic-kind-mismatch`.
+- Requirement reuse RU12 (same record, follow-up decision, 2026-09-28): a
+  list or map literal with no expected type gives its function values the
+  union of their rows. `handlers := [health, orders]`, previously
+  `no-common-type` when the rows differ, is valid, and calling through
+  `handlers` requires every key of the union. The inferred list does not
+  convert to a list with a wider row.
+- Requirement reuse RU13 (same record, follow-up decision, 2026-09-28): a
+  caller may fix a row parameter to a row that lists a key the callee
+  installs. The callback's lookups then use the callee's nearer provider, as
+  nested `$.with` scopes do. No source changes validity; the rule states
+  behavior that was previously unspecified.
 - Narrowing integer casts wrap (owner decision in
   [Open Issues](../future-work/OPEN_ISSUES.md#casts-property-discards-type-names-as-values-std-scope),
   item 1, 2026-09-28): an integer-to-integer cast keeps the low bits of the

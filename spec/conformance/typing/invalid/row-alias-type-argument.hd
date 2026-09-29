@@ -1,0 +1,9 @@
+# test: a bare row alias for a type-kinded parameter is a kind mismatch
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn keep(rows: List[AppRow]) -> void: pass  # diagnostic: generic-kind-mismatch

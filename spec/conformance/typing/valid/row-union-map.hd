@@ -1,0 +1,18 @@
+# test: a map literal with no expected type gives its function values the union of their rows
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve() -> string $ Db + Clock:
+    routes := {"health": health, "orders": orders}
+    let text = ""
+    for name, route in routes:
+        text = text + name + route()
+    text

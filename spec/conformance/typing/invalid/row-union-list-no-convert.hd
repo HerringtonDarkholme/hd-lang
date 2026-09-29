@@ -1,0 +1,20 @@
+# test: a list inferred with the union row does not convert to a list with a wider row
+
+trait Db
+
+trait Clock
+
+trait Log
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve_all(handlers: List[fn() -> string $ Db + Clock + Log]) -> void:
+    pass
+
+fn wire() -> void:
+    handlers := [health, orders]
+    serve_all(handlers)  # diagnostic: type-mismatch

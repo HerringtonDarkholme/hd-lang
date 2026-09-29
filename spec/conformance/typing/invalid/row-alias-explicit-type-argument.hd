@@ -1,0 +1,13 @@
+# test: a bare row alias as an explicit type argument for a type parameter is a kind mismatch
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn first[T](items: List[T]) -> void:
+    pass
+
+fn run() -> void:
+    first[AppRow]([1])  # diagnostic: generic-kind-mismatch

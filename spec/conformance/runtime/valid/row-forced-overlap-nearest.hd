@@ -1,0 +1,35 @@
+# test: when a forced row parameter lists a key the callee installs, the callback sees the callee's nearer provider
+# expect: test
+use std.testing.assert_equal
+
+trait Tag:
+    fn name(self) -> string
+
+data Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+fn read_tag() -> string $ Tag:
+    $.use(Tag).name()
+
+fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=Named { label: "inner" }):
+        callback()
+
+fn fixed_by_first[R](first: fn() -> string $ R, callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=Named { label: "inner" }):
+        callback()
+
+fn run() -> string:
+    $.with(Tag=Named { label: "outer" }):
+        with_tag[Tag](read_tag)
+
+tests:
+    it("an explicit type argument forces R to list Tag"):
+        assert_equal(run(), "inner", reason="the callee's Tag is nearer")
+    it("another argument fixes R to list Tag"):
+        $.with(Tag=Named { label: "outer" }):
+            assert_equal(fixed_by_first(read_tag, read_tag), "inner", reason="the callee's Tag is nearer")
+            assert_equal(read_tag(), "outer", reason="the caller's own scope is unchanged")

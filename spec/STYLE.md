@@ -1004,6 +1004,12 @@ style lint rejects a chapter that reuses one.
 - `req.row.param.inferred`: retired 2026-09-28. Requirement Reuse RU3: a
   data type, enum, or trait takes no row parameter. Replaced by
   `req.row.param.callables` and `req.row.param.no-data`.
+- `req.row.alias.where`: retired 2026-09-28. Requirement Reuse RU10 allows a
+  bare row alias in a one-key row slot, not only after `$`. Replaced by
+  `req.row.alias.slots`, `req.row.alias.one-key-slot`, and
+  `req.row.alias.bare`.
+- `req.row.alias.kind`: retired 2026-09-28. Requirement Reuse RU10 makes
+  `$.Context[AppRow]` valid. Replaced by `req.row.alias.type-or-key`.
 - `types.cast.range-check`: retired 2026-09-28. Open Issues item 1 makes
   integer casts wrap. Replaced by `types.cast.wrap`.
 - `types.cast.out-of-range`: retired 2026-09-28. Open Issues item 1.

@@ -1,0 +1,16 @@
+# test: a list of functions is widened by an explicit copy, a spread into a list with the wider row
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn serve_all(handlers: List[fn() -> string $ Db + Clock]) -> void:
+    pass
+
+fn wire() -> void:
+    narrow := [health]
+    let wide: List[fn() -> string $ Db + Clock] = [narrow...]
+    serve_all(wide)

@@ -246,10 +246,73 @@ fn run() -> void $ Db + Metrics:
 > function values. Variance still keeps a function type's row invariant
 > ([Readonly Outer Views](04-type-system.md#readonly-outer-views)), so a
 > `List[fn() -> void $ Db]` value does not convert to
-> `List[fn() -> void $ Db + Clock]`.
+> `List[fn() -> void $ Db + Clock]`. A wider list is built by an explicit
+> copy, such as a spread into a list with the wider element type:
+> `let wide: List[fn() -> void $ Db + Clock] = [narrow...]`.
 
 See also: [Assignability And Coercion](04-type-system.md#assignability-and-coercion),
 [Least Row Solutions](#least-row-solutions).
+
+#### Row Union In Literals
+
+A list or map literal with no expected type gives its function values the
+union of their rows:
+
+```text
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve() -> string $ Db + Clock:
+    handlers := [health, orders]
+    let text = ""
+    for handler in handlers:
+        text = text + handler()
+    text
+```
+
+1. r[req.row.union.literal] When a list literal has no expected type and its elements are function values, its element row is the union of the elements' rows.
+2. r[req.row.union.literal.map] The same holds for the values of a map literal with no expected type.
+3. r[req.row.union.literal.type] The element type is the [least common type](04-type-system.md#least-common-type) of the elements' types after each function type's row is widened to that union.
+4. r[req.row.union.literal.fit] Each element then fits the element type by [row subsumption](#row-subsumption), so a call through the collection passes each function only its own row's providers.
+5. r[req.row.union.literal.spread] A spread contributes the row of its list's element type, as it contributes that type ([`expr.list.spread.inferred`](05-expressions.md#r-expr.list.spread.inferred)).
+6. r[req.row.union.literal.other-parts] When the widened types still have no common type, as for `fn() -> string $ Db` and `fn() -> i32 $ Clock`, the literal is an error. Error: `no-common-type`.
+7. r[req.row.union.literal.direct] Only function elements take the union. An element that holds function values, such as a list, keeps its own type, so `[[health], [orders]]` has no common type. Error: `no-common-type`.
+8. r[req.row.union.literal.expected] With an expected type, each element is checked against the expected element type ([`expr.collection.expected`](05-expressions.md#r-expr.collection.expected)), and a key outside the expected row is `type-mismatch` ([`req.row.subsume.missing`](#r-req.row.subsume.missing)).
+9. r[req.row.union.literal.invariant] The inferred collection keeps the union row, and it converts to no list or map with a wider row, as the Note above states.
+10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row as the elements' rows are written, in element order, with each key or alias once.
+11. r[req.row.union.literal.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on that row also lists its expanded keys and names the missing key, as [`req.row.alias.diagnostics.expanded`](#r-req.row.alias.diagnostics.expanded) states.
+
+```text
+trait Db
+
+trait Clock
+
+trait Log
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve_all(handlers: List[fn() -> string $ Db + Clock + Log]) -> void:
+    pass
+
+fn wire() -> void:
+    handlers := [health, orders]
+    serve_all(handlers)  # error: type-mismatch
+```
+
+> **Why.** Without the union, `[health, orders]` has no common type. A
+> handler table would then need a written element type even when every row
+> is known. The union is the least row that every element fits.
 
 ### Row Parameters
 
@@ -299,15 +362,47 @@ fn get_order() -> string $ AppRow + Clock:
 5. r[req.row.alias.nested] A row alias may name another row alias, and expansion flattens every level into one set.
 6. r[req.row.alias.named-alias] An alias whose right side names one row alias, as in `type Web = AppRow`, is also a row alias.
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
-8. r[req.row.alias.where] A row alias is written only in a row that follows `$`: a header, a function type, a row type argument such as `Fn[(), void, $ AppRow]`, and `$.Context[$ AppRow]`.
-9. r[req.row.alias.kind] A row alias is row-kinded. Using one as a value type, a bound, or a single key, as in `$.use(AppRow)`, `AppRow=value`, or `$.Context[AppRow]`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
-11. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
-12. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
-13. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
-14. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
-15. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
-16. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+8. r[req.row.alias.slots] A row alias is written where a row is: in a row that follows `$`, or bare in a one-key row slot.
+9. r[req.row.alias.one-key-slot] A **one-key row slot** is a place where one bare key may stand for a row: `$.Context[...]` or a row-kinded type argument, written without `$`.
+10. r[req.row.alias.one-key-slot.list] Those type arguments are the row argument of `Fn` and `SuspendFn`, and an argument for a row alias's row parameter.
+11. r[req.row.alias.one-key-slot.explicit] An explicit type argument for a row parameter of a function or method is one too.
+12. r[req.row.alias.bare] A bare row alias in a one-key row slot stands for its row: `$.Context[AppRow]` is `$.Context[$ AppRow]`, and `Fn[(), void, AppRow]` is `Fn[(), void, $ AppRow]`.
+13. r[req.row.alias.bare.by-name] The slot's syntax is that of one key; the checker reads the name as a row because it names a row alias.
+14. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
+15. r[req.row.alias.one-key] An ordinary alias of one trait, such as `type Store = Db`, names that trait wherever it is used: `x: Store` is a `Db` trait value, and `$ Store` is the key `Db`.
+16. r[req.row.alias.access] A key reached through an alias is its trait, so its provider's access follows [`req.mut.trait-access`](#r-req.mut.trait-access).
+17. r[req.row.alias.no-mut] An alias whose target is written with `mut`, as in `type Store = mut Db`, is an error where it is used as a key. Error: `syntax-error`.
+18. r[req.row.alias.generic] A row alias may declare generic parameters. One written as a key on its right side is a row parameter, as in `type WithLog[R] = R + Log`.
+19. r[req.row.alias.generic.use] `$ WithLog[Clock]` is the row `$ Clock + Log`, and in a function with row parameter `R`, `$ WithLog[R]` extends `R` with `Log`.
+20. r[req.row.alias.generic.kind] A row argument for a type-kinded alias parameter, as in `$ Only[AppRow]` after `type Only[T] = T`, is an error. Error: `generic-kind-mismatch`.
+21. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
+
+```text
+use std.function.Fn
+
+trait Db
+
+trait Cache
+
+trait Log
+
+type AppRow = Db + Cache
+
+type WithLog[R] = R + Log
+
+fn install(ctx: $.Context[AppRow], job: Fn[(), void, AppRow]) -> void:
+    $.with(ctx...):
+        job()
+
+fn logged() -> void $ WithLog[AppRow]:
+    pass
+
+fn provide_log[R](callback: fn() -> void $ R + Log) -> void $ R:
+    pass
+
+fn run() -> void $ AppRow:
+    provide_log[AppRow](logged)
+```
 
 ```text
 trait Db
@@ -430,6 +525,37 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 2. r[req.with.evaluated] Each provider expression is evaluated before entering the block.
 3. r[req.with.type] Each provider expression must have a type implementing its named requirement trait.
 4. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
+5. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
+6. r[req.with.nearest.which] The nearest provider is that of the innermost enclosing `$.with` that binds the key, or else the one the caller received.
+7. r[req.with.nearest.suspending] A suspending call receives its providers when its suspension is constructed ([`req.bind.construction`](#r-req.bind.construction)).
+8. r[req.with.nearest.row-parameter] This holds when a key reaches a callback both through a row parameter and through a nearer scope.
+9. r[req.with.nearest.forced] So when a caller fixes `R` to a row listing a key the callee installs, the callback's lookups of that key use the callee's provider.
+10. r[req.with.nearest.not-error] Such an overlap is not an error.
+
+```text
+trait Tag:
+    fn name(self) -> string
+
+data Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+fn read_tag() -> string $ Tag:
+    $.use(Tag).name()
+
+fn with_tag[R](callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=Named { label: "inner" }):
+        callback()
+
+fn run() -> string:
+    $.with(Tag=Named { label: "outer" }):
+        with_tag[Tag](read_tag)  # "inner": the callee installs the nearer Tag
+```
+
+> **Why.** One rule finds every provider: the nearest scope that binds the
+> key, as for nested `$.with` scopes.
 
 ### Generic Key Collisions
 
@@ -474,12 +600,13 @@ $.with(Database=db, Logger=logger, prod_context()...):
 
 1. r[req.context.row] `$.Context[$ A + B]` is indexed by one unordered, duplicate-free requirement row; it is not a variadic generic.
 2. r[req.context.single-bare] A context with a single key may write it bare, as in `$.Context[Clock]`.
-3. r[req.context.empty] `$.Context[$()]` is the empty context.
-4. r[req.context.create] `$.context` creates a context value.
-5. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
-6. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error.
-7. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
-8. r[req.context.one-per-key] The resulting context still has one provider per key.
+3. r[req.context.bare-alias] A bare [row alias](#row-aliases) there stands for its row, so `$.Context[AppRow]` is `$.Context[$ AppRow]` ([`req.row.alias.bare`](#r-req.row.alias.bare)).
+4. r[req.context.empty] `$.Context[$()]` is the empty context.
+5. r[req.context.create] `$.context` creates a context value.
+6. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
+7. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error.
+8. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
+9. r[req.context.one-per-key] The resulting context still has one provider per key.
 
 ```text
 trait Tag:

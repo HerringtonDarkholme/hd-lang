@@ -1,0 +1,16 @@
+# test: a call through a list with the union row requires every key of that row
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve() -> void $ Clock:
+    handlers := [health, orders]
+    for handler in handlers:
+        _ := handler()  # diagnostic: missing-requirement

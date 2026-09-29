@@ -1,0 +1,13 @@
+# test: $.Context takes a bare row alias as its row
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+fn spelled(ctx: $.Context[$ Db + Cache]) -> $.Context[AppRow]:
+    ctx
+
+fn bare(ctx: $.Context[AppRow]) -> $.Context[$ AppRow]:
+    ctx

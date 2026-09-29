@@ -1,0 +1,45 @@
+# test: each function in a list or map with the union row runs with the providers of its own row
+# expect: test
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn from_list() -> string $ Db + Clock:
+    handlers := [health, orders]
+    let text = ""
+    for handler in handlers:
+        text = text + handler() + ";"
+    text
+
+fn from_map() -> string $ Db + Clock:
+    routes := {"health": health, "orders": orders}
+    let text = ""
+    for name, route in routes:
+        text = text + name + "=" + route() + ";"
+    text
+
+tests:
+    it("each handler sees its own providers"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            assert_equal(from_list(), "noon;db;", reason="a list with the union row")
+            assert_equal(from_map(), "health=noon;orders=db;", reason="a map with the union row")

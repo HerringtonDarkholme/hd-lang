@@ -1,0 +1,20 @@
+# test: a bare row alias as the row argument of Fn in an implementation head is a concrete row
+use std.function.Fn
+
+trait Db
+
+trait Cache
+
+type AppRow = Db + Cache
+
+trait Marker:
+    fn mark(self) -> i32
+
+impl Marker for Fn[(), i32, AppRow]:
+    fn mark(self) -> i32: 1
+
+fn count() -> i32 $ Db + Cache:
+    2
+
+fn check() -> i32:
+    count.mark()
