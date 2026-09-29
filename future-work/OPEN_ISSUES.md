@@ -437,11 +437,11 @@ debugging, and safer dependency upgrades.
 [Runtime Type Identity](../spec/09-traits.md#runtime-type-identity): the
 sealed `std.inspect.Inspectable` with `runtime_type() -> TypeId` and the
 default methods `downcast` and `downcast_mut` (bounded by
-`T < AnyRef + Inspectable`, no `reified`), `TypeId::of[T]()`,
+`T < AnyRef & Inspectable`, no `reified`), `TypeId::of[T]()`,
 `downcast_val` for value types, exact matching in which an inner `mut`
 counts and the outer `mut` is ignored, generic erasure through
 `T < Inspectable`, `inspectable-requirement`, and
-`std.error.Error < Display + Inspectable`.
+`std.error.Error < Display & Inspectable`.
 [INSPECTABLE.md](INSPECTABLE.md) keeps the design record and owner decisions
 1 to 16.
 

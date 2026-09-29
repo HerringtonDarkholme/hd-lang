@@ -215,7 +215,7 @@ impl[T] Visitor for EqVisitor[T]:
 
 The only encoding available today visits `other` first into a
 `List[Inspectable]` and then visits `self`, recovering each element with
-`downcast_val[F]`. That needs `F < PartialEq + Inspectable` on every member
+`downcast_val[F]`. That needs `F < PartialEq & Inspectable` on every member
 (a type declared in a block suite is not inspectable), boxes every scalar
 member (04 Value Categories), and turns a type mismatch into a run-time
 `.None`. It is not a derivation anyone would ship.
@@ -361,7 +361,7 @@ data Session:
 2. **Display cannot carry the hook.** If `std.format` makes `Display`
    derivable in the same way, `Display` gains `fn display_style() -> ...`.
    An associated function makes a trait not dynamically safe (09 Dynamic
-   Trait Values). `std.error.Error < Display + Inspectable` must be
+   Trait Values). `std.error.Error < Display & Inspectable` must be
    dynamically safe, so a derivable `Display` breaks the erased application
    error (P5).
 3. Cycles are not detected, as for today's derived equality (09).
@@ -1292,7 +1292,7 @@ use dep.json
 pub fn diff_json[T < json.Encode](old: T, new: T) -> Result[json.Json, json.Error]:
     .Ok(json_diff(json.to_value(old)?, json.to_value(new)?))
 
-pub fn apply_json[T < json.Encode + json.Decode](value: T, patch: json.Json) -> Result[T, json.Error]:
+pub fn apply_json[T < json.Encode & json.Decode](value: T, patch: json.Json) -> Result[T, json.Error]:
     json.from_value(json_merge(json.to_value(value)?, patch))
 ```
 
@@ -1323,7 +1323,7 @@ pub data Id[T]:                   # phantom: T appears in no member
 
 @json.json()
 pub data Tagged[T]:
-    pub tags: Set[T]              # Set[T] < json.Decode needs T < json.Decode + Eq + Hash
+    pub tags: Set[T]              # Set[T] < json.Decode needs T < json.Decode & Eq & Hash
 ```
 
 M9 rule 3 checks "every visited member satisfies the bound" at the opt-in
@@ -1339,14 +1339,14 @@ under tier 1. The candidate rules, all from earlier text:
   `Set[T] < json.Decode`.
 - **Decision 6 inference** (trace each member obligation through the unique
   impl per type constructor). It gets `Tagged[T]` right
-  (`T < json.Decode + Eq + Hash`), but the inferred header then depends on
+  (`T < json.Decode & Eq & Hash`), but the inferred header then depends on
   member types. When a member is private, a public impl head changes when a
   private field's type changes, which is a hidden semver break (case 18).
 - **Tier 2 with a written header**, which `impl Trait for X by Structure`
   seems to allow:
 
 ```text
-impl[T < json.Decode + Eq + Hash] json.Decode for Tagged[T] by Structure
+impl[T < json.Decode & Eq & Hash] json.Decode for Tagged[T] by Structure
 ```
 
 `Tree[T]` needs the coinductive assumption `Tree[T] < json.Encode` while
@@ -1832,7 +1832,7 @@ hand) on the same type?
 **Effect.** Three separate failures.
 
 1. **Dynamic safety.** An associated function makes a trait not dynamically
-   safe (09). A derivable `Display` breaks `std.error.Error < Display +
+   safe (09). A derivable `Display` breaks `std.error.Error < Display &
    Inspectable`, and `json.Encode` can no longer be a value type
    (`List[json.Encode]`).
 2. **Name collisions.** Two traits with a hook of the same name on one type

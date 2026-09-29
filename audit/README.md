@@ -59,7 +59,7 @@ decision below; all 35 still fail.
   name `Set[T]`, and
   [`trait.derive.hash.seeded`](../spec/09-traits.md#r-trait.derive.hash.seeded)
   names "the standard `Hasher`", yet no chapter declares either. The
-  prototype has neither. **Recommendation:** move `Set[T < Eq + Hash]` and a
+  prototype has neither. **Recommendation:** move `Set[T < Eq & Hash]` and a
   default hasher from the
   [STDLIB draft](../future-work/STDLIB.md#stdcollections) into spec/10's
   standard-library section, or reword the three rules without them.

@@ -376,7 +376,7 @@ and worth a sentence in the error-handling guide.
 
 #### 1.7 Errors as trait values and downcast
 
-`Error < Display + Inspectable` stays dynamically safe: `@derive(Error)`
+`Error < Display & Inspectable` stays dynamically safe: `@derive(Error)`
 adds no associated function, and M13 removed the configuration hook. `?`
 reaches `Result[T, Error]` by assignability, and `find[T]` works for every
 `@from` and `@source` payload. An enum declared in a block suite is not
@@ -1361,7 +1361,7 @@ and excludes block-local types.
 
 **Effect.** A derived impl for `Box[T]` gets `T < Trait`, while the checked
 obligation is the walker's `member` bound. The two differ whenever a walker
-needs more (`F < Schema + Encode`), and a template that needs more from `T`
+needs more (`F < Schema & Encode`), and a template that needs more from `T`
 itself (`Patch` needs `T < json.Decode`) cannot say so.
 
 **Candidate fixes.**

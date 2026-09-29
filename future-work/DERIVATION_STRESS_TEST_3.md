@@ -1222,7 +1222,7 @@ its generated code names every field of the remote type.
 **Across packages** everything needed is in interfaces (M18 P19):
 template bodies, the walkers and sources they name, annotation functions.
 One consequence: a walker's strengthened bound is part of the library's
-public API. If json 1.1 changes `Encoder.member` to `F < Encode + Sized`,
+public API. If json 1.1 changes `Encoder.member` to `F < Encode & Sized`,
 every downstream `@derive(json.Encode)` is rechecked, and the error appears
 in whichever dependency declared the type, not in the app. That matches
 Rust's behavior when serde tightens a bound, and needs only a note in the

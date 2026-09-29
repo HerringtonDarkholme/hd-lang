@@ -297,7 +297,7 @@ wraps a block. `defer` runs on normal exit and on `?`:
 
 ```text
 tests:
-    fn with_store[R](body: fn() -> void $(R, Store)) -> void $ R:
+    fn with_store[R](body: fn() -> void $ R + Store) -> void $ R:
         let store: mut MemoryStore = MemoryStore::new()
         defer:
             store.close()

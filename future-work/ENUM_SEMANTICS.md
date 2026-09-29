@@ -187,7 +187,7 @@ to identity.
 
 **Runtime type identity.** [INSPECTABLE.md](INSPECTABLE.md#owner-decisions)
 decision 15 makes `downcast` and `downcast_mut` default methods of
-`Inspectable`, bounded by `T < AnyRef + Inspectable`. Values without
+`Inspectable`, bounded by `T < AnyRef & Inspectable`. Values without
 identity use the static free function
 `std.inspect.downcast_val[T < Inspectable](value: Inspectable) -> T?`.
 
@@ -417,7 +417,7 @@ general static downcast and needs no change to accept enums. What changes is
 ergonomics:
 
 - `error.downcast[FsError]()` is unavailable for enums.
-- An `Error` default method `find[T < AnyRef + Inspectable]` cannot find an
+- An `Error` default method `find[T < AnyRef & Inspectable]` cannot find an
   enum error. `std.error.find[T](error)` would have to be a static function,
   which is the form of the superseded decision 13.
 

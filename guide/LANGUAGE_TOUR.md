@@ -296,7 +296,7 @@ Derived ordering compares data fields in declaration order. Enum variants
 compare by declaration order before their shared data and payload fields.
 Derived `Hash` hashes every declared data field, or the enum variant identity
 followed by its shared data and payload fields. Each such field needs `Hash`;
-`Eq + Hash` lets a user-defined type serve as a map key. This holds for a
+`Eq & Hash` lets a user-defined type serve as a map key. This holds for a
 payload-free enum too: it gets no automatic `Eq` or `Hash`, although `is`
 already compares its canonical variants.
 Deriving `Hash`, `PartialOrd`, or `Ord` needs `Eq` (and `Ord` also
@@ -1507,7 +1507,7 @@ fn show[T < Describe](value: T) -> string:
 Trait bounds compose like Rust:
 
 ```text
-fn audit_label[T < Describe + Named](value: T) -> string:
+fn audit_label[T < Describe & Named](value: T) -> string:
     value.describe() + " / " + value.name()
 ```
 
@@ -2018,7 +2018,7 @@ Declarations are module-private by default, and `pub` makes them public. Enum va
 # This example's runtime profile supplies Args and Console.
 use std.host.Args
 
-pub fn main!() -> Result[void, ConsoleError] $ Args, Console:
+pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args := $.use(Args)
     let console: mut Console = $.use(Console)
     console.write_line!("starting " + args.program_name())?
@@ -2211,7 +2211,7 @@ trait Database:
 trait Cache:
     fn get_user(self, id: UserId) -> User?
 
-fn load_user!(id: UserId) -> Result[User?, DbError] $ Database, Cache:
+fn load_user!(id: UserId) -> Result[User?, DbError] $ Database + Cache:
     db, cache := $.use(Database, Cache)
     match cache.get_user(id):
         .Some(user) => return .Ok(user)
@@ -2224,7 +2224,7 @@ A suspending declaration also creates a cold computation constructor:
 ```text
 let pending: mut Suspend[Result[User?, DbError]] = load_user(id)
 
-fn demo!() -> Result[User?, DbError] $ Database, Cache:
+fn demo!() -> Result[User?, DbError] $ Database + Cache:
     load_user!(id)   # drive and suspend inside a suspending body
 ```
 
@@ -2266,17 +2266,17 @@ fn demo_mock!() -> Result[User?, DbError] $ Cache:
 Reusable contexts are provider-map values typed by a requirement row:
 
 ```text
-fn prod_context() -> $.Context[$(Metrics, Cache)]:
+fn prod_context() -> $.Context[$ Metrics + Cache]:
     $.context(Metrics=metrics, Cache=cache)
 
-fn demo_context!() -> Result[User?, DbError] $ Logger, Metrics, Cache:
+fn demo_context!() -> Result[User?, DbError] $ Logger + Metrics + Cache:
     $.with(Database=mock_db, Logger=console_logger, prod_context()...):
         load_user!(UserId("user_123"))
 ```
 
-`$.Context[$(Metrics, Cache)]` is not a variadic generic. The `$(Metrics, Cache)`
-part is an unordered requirement row: a comma list of separate keys, bare at
-the end of a header and parenthesized inside a type. `$.context` creates a reusable context,
+`$.Context[$ Metrics + Cache]` is not a variadic generic. The `$ Metrics + Cache`
+part is an unordered requirement row: separate keys joined with `+`, written
+the same way in a header and inside a type. `$.context` creates a reusable context,
 `prod_context()...` spreads providers into a lexical scope (a suffix `...`
 spreads, as it does in calls and lists), and `$.use`
 retrieves them in the requested order. Entries in these forms are trait-type
@@ -2301,7 +2301,7 @@ callback row lists `Logger` beside the row parameter, and the helper's own row
 is the plain row parameter:
 
 ```text
-fn provide_logger[R](callback: fn(string) -> void $(R, Logger)) -> void $ R:
+fn provide_logger[R](callback: fn(string) -> void $ R + Logger) -> void $ R:
     $.with(Logger=logger):
         callback("str")
 ```
@@ -2312,7 +2312,7 @@ not named `provide_logger!` because its body has no suspension point.
 
 Providers come from an enclosing `$.with` scope or an entry point's permitted
 runtime-profile configuration; there are no implicit provider defaults. Row
-parameters combine with other keys by listing them, as in `$(R, Logger)`;
+parameters combine with other keys by listing them, as in `$ R + Logger`;
 there is no row subtraction. Additional
 `Result[T, E]` convenience APIs belong to the standard library.
 

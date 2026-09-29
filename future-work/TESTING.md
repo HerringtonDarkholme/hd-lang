@@ -204,7 +204,7 @@ pub fn it_each[A, T < Termination, R](name: string, rows: List[A], body: fn!(A) 
     declares `Debug` (derivable through typed derivation, implemented by
     `std` for primitives and collections) with stable, field-by-field,
     multi-line output via `debug(x)`. `assert_equal` requires
-    `T < Eq + Debug`, so a failure shows both values. `Display` stays
+    `T < Eq & Debug`, so a failure shows both values. `Display` stays
     user-facing text. (The name avoids `Inspect`, since `Inspectable` is
     the runtime type-information trait.) Applied 2026-09-28, with T39 and
     T48, in [Debug Trait](../spec/09-traits.md#debug-trait) and

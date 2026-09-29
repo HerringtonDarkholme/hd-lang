@@ -279,7 +279,7 @@ fn sum[T < Add[T, T]](items: List[T], zero: T) -> T:
         total = total + item
     total
 
-pub trait Additive < Add[Self, Self] + Sub[Self, Self]
+pub trait Additive < Add[Self, Self] & Sub[Self, Self]
 ```
 
 Rules added: the shared rules and twelve traits, as in option 1. One more
@@ -348,7 +348,7 @@ intrinsic list or a std template must still admit `Add`.
 | Aspect | Effect |
 | --- | --- |
 | U2, U3 | Not operators: `d.times(3)` and `t2.since(t1)` stay methods |
-| Generic bound | `T < Add`; `trait Integer < Add + Sub + Mul` works today |
+| Generic bound | `T < Add`; `trait Integer < Add & Sub & Mul` works today |
 | Dynamic safety | Not dynamically safe (`Self` as a parameter) |
 | Evolution | Moving to option 1 later changes every trait's arity: a breaking change |
 
@@ -663,7 +663,7 @@ is a `syntax-error`, so every numeric bound repeats `Out = T`. Options:
 **Recommended: a.**
 
 ```text
-pub trait Integer < Add[Self, Out = Self] + Sub[Self, Out = Self]  # hypothetical syntax
+pub trait Integer < Add[Self, Out = Self] & Sub[Self, Out = Self]  # hypothetical syntax
 ```
 
 ## Owner Idea: Numeric Trait Families
@@ -713,7 +713,7 @@ Pitfalls to settle before specifying it:
 7. **Widths.** `IntLike` covers i8 through u64. Operations stay same-type
    (`Self`); width changes need explicit conversions such as `T::from_i64`
    or `try_from`, or generic code silently narrows.
-8. **Depends on operator traits.** `trait Num < Add[Self, Out = Self] + ...`
+8. **Depends on operator traits.** `trait Num < Add[Self, Out = Self] & ...`
    needs question 1 (the trait shape) and question 8 (a supertrait binding
    `Out`).
 9. **Performance.** Generic numeric code dispatches through trait

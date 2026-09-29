@@ -260,7 +260,7 @@ Applied 2026-09-26:
   trait sections name the modules.
 - **Recovery from an erased `Error`** (applied with runtime type identity,
   2026-09-26): [Error Trait](../spec/09-traits.md#error-trait) declares
-  `Error < Display + Inspectable`, so the inherited default method
+  `Error < Display & Inspectable`, so the inherited default method
   `error.downcast[FsError]()` recovers a concrete error
   ([Runtime Type Identity](../spec/09-traits.md#runtime-type-identity)).
   `error.find[T]()`, `chain`, and `root_cause` are library API in
@@ -377,7 +377,7 @@ fn run(path: string) -> Result[void, Error]:
 4. **`From[T]`** (`std.convert`) is pure (empty row, not suspending) and may
    panic ([09 Conversion Trait](../spec/09-traits.md#conversion-trait)).
 5. **The erased error** is the dynamic trait value `Error`
-   (`Error < Display + Inspectable`); `Result[T, Error]` holds any error.
+   (`Error < Display & Inspectable`); `Result[T, Error]` holds any error.
    Recovery: `error.downcast[T]()`, `error.find[T]()` over the chain;
    `chain`, `root_cause`, `Context` and `.context(...)` are `std.error` API
    ([09 Error Trait](../spec/09-traits.md#error-trait),
@@ -660,7 +660,7 @@ impl FromError[FsError] for SyncError:
 impl FromError[HttpError] for SyncError:
     fn from_error(error: HttpError) -> SyncError: SyncError.Http(error)
 
-pub fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead, Http:
+pub fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(path)?
     response := http.send!(Request::get(url.trim()))?
@@ -806,7 +806,7 @@ No new syntax. `std.error` declares the trait the STDLIB draft already
 sketches, plus a context wrapper and a chain walker:
 
 ```text
-pub trait Error < Display + Inspectable:
+pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?:
         .None
 
@@ -849,13 +849,13 @@ the future `List` method.
 Application code then returns the erased error:
 
 ```text
-pub fn report!() -> Result[string, Error] $ FsRead, Http:
+pub fn report!() -> Result[string, Error] $ FsRead + Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
     .Ok("status ${response.status}")
 
-pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
+pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
     let console: mut Console = $.use(Console)
     match report!():
         .Ok(line) => console.write_line!(line)?
@@ -947,7 +947,7 @@ Zig error sets, Roc tag unions, Scala 3 unions.
 A new type former in the error position, and new type patterns:
 
 ```text
-fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead, Http:
+fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead + Http:
     url := $.use(FsRead).read_text!(path)?
     response := $.use(Http).send!(Request::get(url))?
     .Ok(response)
@@ -1054,7 +1054,7 @@ fn use_adder() -> Result[i32, string]:
 neither is free. A free spelling is `? else`:
 
 ```text
-fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead, Http:
+fn sync!(path: Path) -> Result[Response, SyncError] $ FsRead + Http:
     url := $.use(FsRead).read_text!(path)? else SyncError.Fs
     response := $.use(Http).send!(Request::get(url))? else SyncError.Http
     .Ok(response)
@@ -1142,7 +1142,7 @@ Staging:
    conversion accepted; no impl (`invalid-result-propagation`); assignability
    preferred over an impl; closure with inferred result gets no conversion;
    `return .Err(e)` not converted.
-3. **With Runtime Type Identity:** `Error < Display + Inspectable`,
+3. **With Runtime Type Identity:** `Error < Display & Inspectable`,
    `downcast`, and a chain search (`std.error.find[reified T]`, like Go's
    `errors.As`).
 4. **With typed derivation:** revisit generating the two-line `FromError`
@@ -1200,7 +1200,7 @@ impl FromError[FsError] for SyncError:
 impl for `AnyError`, and `downcast` already works on `Inspectable` values.
 
 ```text
-pub fn main!() -> Result[void, Error] $ FsRead, Console:
+pub fn main!() -> Result[void, Error] $ FsRead + Console:
     text := $.use(FsRead).read_text!(Path::parse("a.txt"))?
     let console: mut Console = $.use(Console)
     console.write_line!(text)?
@@ -1321,7 +1321,7 @@ gain over A plus B is the saved `FromError` impls. Revisit only if hd adopts
 union types in general.
 
 ```text
-fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead, Http:
+fn sync!(path: Path) -> Result[Response, FsError | HttpError] $ FsRead + Http:
     pass
 ```
 

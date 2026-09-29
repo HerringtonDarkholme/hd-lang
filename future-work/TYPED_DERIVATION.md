@@ -364,7 +364,7 @@ marker `Eq` wrong: `Eq` should carry a method, so it is derivable and
 never needs an empty hand-written impl. Decided (Swift model): one `Eq` with
 `fn eq(self, other: Self) -> bool`; `PartialEq` is dropped; floats implement
 `Eq` with IEEE semantics (`NaN != NaN`, a documented law exception);
-`PartialOrd` and `Ord` stay, so floats are `Eq + PartialOrd` but not `Ord`.
+`PartialOrd` and `Ord` stay, so floats are `Eq & PartialOrd` but not `Ord`.
 Applied as EQ-1 in [Comparison Traits](../spec/09-traits.md#comparison-traits). Still under discussion: P1-P3 (the core walk), P5 (where
 configuration lives), and the rest of the stress test's problems. (Closed
 since: P1-P3 by M14 and M19, P5 by M13, the rest by M15-M21.)
@@ -2115,7 +2115,7 @@ impl[T < json.Decode] json.Decode for Page[T]:
         View[Page[T]]::decode(value).map(fn(page: View[Page[T]]) -> Page[T]: page.value())
 
 # A hand-written header with a stronger bound, reusing the structural body.
-impl[T < json.Encode + Hash] json.Encode for Bag[T]:
+impl[T < json.Encode & Hash] json.Encode for Bag[T]:
     fn encode(self) -> Json:
         view(self).encode()
 ```
@@ -2161,7 +2161,7 @@ fn decode_param[T < Decode](param: Param[T], entries: Map[string, Json]) -> Resu
                 return .Ok(.None)
             .Err(ToolError.MissingArgument(name=param.info.name))
 
-pub fn tool[Ps... < Decode + Schema, R < Encode + Schema, Rq](
+pub fn tool[Ps... < Decode & Schema, R < Encode & Schema, Rq](
     view: FnView[fn!(Ps...) -> R $ Rq],
 ) -> Tool[Rq]:
     let defs: mut SchemaDefs = SchemaDefs::new()
@@ -2227,7 +2227,7 @@ enum SyncError:
     Http(error: HttpError)
     Invalid(reason: string)        # string payload: no From generated, or opt out
 
-fn sync!(p: Path) -> Result[void, SyncError] $ FsRead, Http:
+fn sync!(p: Path) -> Result[void, SyncError] $ FsRead + Http:
     text := $.use(FsRead).read_text!(p)?      # From[FsError] for SyncError
     $.use(Http).post!(url, text)?             # From[HttpError] for SyncError
 ```

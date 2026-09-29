@@ -182,7 +182,7 @@ pub data Stamped:
     pub text: string
     pub loaded_at: Timestamp
 
-pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead, Clock:
+pub fn load_stamped!(path: Path) -> Result[Stamped, FsError] $ FsRead + Clock:
     files, clock := $.use(FsRead, Clock)
     text := files.read_text!(path)?
     .Ok(Stamped { text: text, loaded_at: clock.now() })
@@ -221,7 +221,7 @@ use std.fs.{FsRead, FsError}
 use std.path.Path
 use std.time.Clock
 
-pub fn main!() -> Result[void, FsError] $ FsRead, Clock, Console:
+pub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:
     stamped := load_stamped!(Path::parse("app.toml"))?
     let console: mut Console = $.use(Console)
     _ := console.write_line!(stamped.text)  # println would panic under main!'s driver
@@ -321,7 +321,7 @@ pub enum ParseNumberError:
     InvalidDigit(position: i32)
     OutOfRange
 
-pub trait Integer < Ord + Hash + Display:
+pub trait Integer < Ord & Hash & Display:
     fn checked_add(self, other: Self) -> Self?
     fn checked_sub(self, other: Self) -> Self?
     fn checked_mul(self, other: Self) -> Self?
@@ -335,7 +335,7 @@ pub trait Integer < Ord + Hash + Display:
     fn count_ones(self) -> i32
     fn leading_zeros(self) -> i32
 
-pub trait Float < PartialOrd + Display:
+pub trait Float < PartialOrd & Display:
     fn is_nan(self) -> bool
     fn is_finite(self) -> bool
     fn floor(self) -> Self
@@ -492,11 +492,11 @@ it is the recommended final form.
 ```text
 use std.inspect.Inspectable
 
-pub trait Error < Display + Inspectable:
+pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?:
         .None
 
-    fn find[T < AnyRef + Inspectable](self) -> T?:
+    fn find[T < AnyRef & Inspectable](self) -> T?:
         for part in chain(self):
             match part.downcast[T]():
                 .Some(found) => return .Some(found)
@@ -601,10 +601,10 @@ is [Error Conversion](ERROR_CONVERSION.md).
 survey favors library types for the rest:
 
 ```text
-pub data Set[T < Eq + Hash]:
+pub data Set[T < Eq & Hash]:
     entries: Map[T, bool]
 
-impl[T < Eq + Hash] Set[T]:
+impl[T < Eq & Hash] Set[T]:
     pub fn new() -> mut Set[T]:
         pass
 
@@ -1475,7 +1475,7 @@ use std.host.{Env, MapEnv}
 use std.random.{Random, SeededRandom}
 use std.time.{Clock, ManualClock, Timestamp}
 
-pub fn hermetic(seed: u64 = 0) -> $.Context[$(Clock, Random, Env, FsRead, FsWrite, Console)]:
+pub fn hermetic(seed: u64 = 0) -> $.Context[$ Clock + Random + Env + FsRead + FsWrite + Console]:
     let clock: mut ManualClock = ManualClock::starting_at(Timestamp::from_unix_seconds(0))
     let random: mut SeededRandom = SeededRandom::new(seed)
     let files: mut MemoryFs = MemoryFs::new()
@@ -1531,7 +1531,7 @@ pub trait Debug:
 derived implementation is a walker over the members, and `debug(x) -> string`
 prints stable, multi-line, consistently indented output. `std` implements
 `Debug` for primitives, collections, `T?`, `Result`, and tuples.
-`assert_equal` requires `T < Eq + Debug`, so a failure shows both values.
+`assert_equal` requires `T < Eq & Debug`, so a failure shows both values.
 
 Property testing stays a library facility (T12), as
 [Runtime and Library Design](RUNTIME_AND_LIBRARY.md#property-testing)
@@ -1803,7 +1803,7 @@ fn elapsed!() -> Timestamp:
 records every host call at the boundary regardless of suspension.
 
 ```text
-fn deadline(budget: Duration) -> Timestamp $ Clock, Env:
+fn deadline(budget: Duration) -> Timestamp $ Clock + Env:
     clock, env := $.use(Clock, Env)
     extra := env.get("EXTRA_SECONDS")
     clock.now().plus(budget)
@@ -1821,7 +1821,7 @@ disk. The same split applies to `Console` and `ConsoleInput`. Writes take
 `FsWrite`.
 
 ```text
-fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead, FsWrite:
+fn build_report!(input: Path, output: Path) -> Result[void, FsError] $ FsRead + FsWrite:
     text := $.use(FsRead).read_text!(input)?
     $.use(FsWrite).write_text!(output, text.upper())
 ```

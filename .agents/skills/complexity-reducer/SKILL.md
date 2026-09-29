@@ -21,7 +21,7 @@ The owner's past cuts show the kind of result wanted:
 | Cut | What absorbed it |
 | --- | --- |
 | `mut fn` and the readonly-capture rule | closures mutate their captures freely, as in Swift, Kotlin, and Go |
-| `+` and `-` in requirement rows | comma lists, plus extension of an existing row |
+| `-` in requirement rows | extension of an existing row |
 | error derivation through the general machinery | one intrinsic, `@derive(Error)` |
 | bodiless marker templates | none: a template must have a body |
 | inferred `From` and cause | explicit `@from` and `@source`, as in thiserror |

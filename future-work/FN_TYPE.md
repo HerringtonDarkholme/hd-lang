@@ -64,6 +64,10 @@ Decided 2026-09-27:
 Requirement rows (raised the same day) are comma lists with no `+` or `-`,
 so a row type argument is written `$(Db, Cache)`; applied to spec 02 and
 11 on 2026-09-27 (commits e176f5d to 9541c58). Question 6 disappeared with decision 2.
+The owner reversed the comma lists on 2026-09-28
+([Bound And Row Operators](OPEN_ISSUES.md#bound-and-row-operators)): rows
+join keys with `+` in every position, as in `$ Db + Cache`, and bounds use
+`&`. This record's examples use the current spelling.
 
 9. **Q11: function values are `AnyRef` with unspecified identity, and
    cannot be compared** (revised 2026-09-27, following Scala, where
@@ -144,10 +148,10 @@ third needs something more than a function type, and is treated separately in
   and allows `callee!(...)`; the second may run code before it returns a
   suspension ([Suspending Functions](../spec/11-requirements-and-suspension.md#suspending-functions)).
 - **Rows are sets.** A requirement row is an unordered, normalized set,
-  written as a comma list; a row parameter listed beside keys, as in
-  `$(R, Logger)`, contributes its keys. A row parameter is inferred from
-  its use after `$`, and a row-kinded argument is written as a parenthesized
-  row such as `$(Log, Clock)` or `$()` ([Types](../spec/02-grammar.md#types)).
+  written with `+`; a row parameter joined with keys, as in
+  `$ R + Logger`, contributes its keys. A row parameter is inferred from
+  its use after `$`, and a row-kinded argument is written as a row after
+  `$`, such as `$ Log + Clock`, or `$()` ([Types](../spec/02-grammar.md#types)).
 - **GQ1.** The clause before a header's `:` belongs to the declaration, so a
   function-typed result with its own row is parenthesized:
   `fn make() -> (fn() -> i32 $ Log) $ Console:`.
@@ -220,7 +224,7 @@ third needs something more than a function type, and is treated separately in
 2. **Rows are not packs.** A pack is ordered and may repeat an element. A row
    is an unordered set with normalization.
    `Fn[..., Log, Clock]` and `Fn[..., Clock, Log]` must be the same type, and
-   an extension such as `$(R, Logger)` has no pack meaning. The row belongs in one row-kinded
+   an extension such as `$ R + Logger` has no pack meaning. The row belongs in one row-kinded
    parameter, which the language already has.
 3. **Packs are not allowed on type declarations,** and pack arguments are
    never written explicitly. `Fn[i32, string, bool]` with a pack parameter
@@ -253,7 +257,7 @@ instantiated generic functions.
 
 ```text
 let plain: Fn[(i32, string), bool, $()] = check
-let rowed: Fn[(UserId,), User, $(Database, Cache)] = load
+let rowed: Fn[(UserId,), User, $ Database + Cache] = load
 let counter: mut MutFn[(), i32, $()] = next
 let loader: SuspendFn[(UserId,), Result[User, DbError], Database] = load_user
 ```
@@ -379,7 +383,7 @@ invariant in the row.
   The input argument is tuple-kinded, so its variance is stated per element
   by the declaration; tuples in general need no new variance rule.
 - **Row.** Row subsumption, using a function that needs `Log` where one that
-  may need `$(Log, Clock)` is expected, is sound but not
+  may need `$ Log + Clock` is expected, is sound but not
   representation-preserving: the implementation model passes providers
   positionally in canonical key order, so the callee's provider list would
   differ. The row stays invariant, as today.
@@ -456,7 +460,7 @@ do not overlap. Two points need rules:
   tuple of at least one element; implementation heads with packs already
   exist, so this only needs to be written down;
 - a row position in an implementation head is either a row parameter or a
-  concrete row. Patterns such as `$(R, Log)` in a head are
+  concrete row. Patterns such as `$ R + Log` in a head are
   rejected, so row unification stays "a parameter unifies with anything, two
   concrete rows unify when they are equal sets".
 
@@ -464,7 +468,7 @@ do not overlap. Two points need rules:
 function whose parameters decode:
 
 ```text
-impl[Ps... < Decode + Schema, O < Encode + Schema, R] IntoTool[R] for SuspendFn[(Ps...), O, R]:
+impl[Ps... < Decode & Schema, O < Encode & Schema, R] IntoTool[R] for SuspendFn[(Ps...), O, R]:
     fn into_tool(self, shape: FnShape) -> Tool[R]:
         tool(self, shape)
 ```
@@ -561,7 +565,7 @@ fn register() -> void:
 ```
 
 ```text
-pub fn tool[Ps... < Decode + Schema, O < Encode + Schema, Rq](f: fn!(Ps...) -> O $ Rq, shape: FnShape) -> Tool[Rq]:
+pub fn tool[Ps... < Decode & Schema, O < Encode & Schema, Rq](f: fn!(Ps...) -> O $ Rq, shape: FnShape) -> Tool[Rq]:
     pass
 ```
 
@@ -608,14 +612,14 @@ pub fn get_user!(id: UserId) -> Result[User, NotFound] $ Users:
 ```
 
 ```text
-fn tool_structure[T < FnStructure[SuspendFn[I, O, Rq]], I, O < Encode + Schema, Rq]() -> ToolSpec[Rq]:
+fn tool_structure[T < FnStructure[SuspendFn[I, O, Rq]], I, O < Encode & Schema, Rq]() -> ToolSpec[Rq]:
     pass
 ```
 
 As in Design G, the structural function uses no packs. `I` is a
 tuple-kinded parameter the function never spreads. The per-parameter bounds
-(`Decode + Schema`) sit on the library's describer and argument-source
-methods, as `param[P < Decode + Schema]`. Decision 6 then reports a
+(`Decode & Schema`) sit on the library's describer and argument-source
+methods, as `param[P < Decode & Schema]`. Decision 6 then reports a
 parameter that fails them at the derive site, naming the parameter.
 
 ```text
@@ -888,7 +892,7 @@ fn main() -> void $ Console:
 would forbid a useful `Fn[(Request,), Response, R]` handler impl.
 
 ```text
-impl[Ps... < Decode + Schema, O < Encode + Schema, R] IntoTool[R] for SuspendFn[(Ps...), O, R]:
+impl[Ps... < Decode & Schema, O < Encode & Schema, R] IntoTool[R] for SuspendFn[(Ps...), O, R]:
     fn into_tool(self, shape: FnShape) -> Tool[R]:
         tool(self, shape)
 ```

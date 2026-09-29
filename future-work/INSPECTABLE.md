@@ -9,7 +9,7 @@ chapter 04, and `inspectable-requirement` in
 the error-chain helpers are in [Standard Library Design](STDLIB.md#stderror).
 The proposal below predates decisions 2, 3, 13, 14, and 15: where it says
 `RuntimeType`, read `TypeId`; `value.downcast[T]()` is now a default method
-of `Inspectable` bounded by `T < AnyRef + Inspectable`, with no `reified`
+of `Inspectable` bounded by `T < AnyRef & Inspectable`, with no `reified`
 (value types use `std.inspect.downcast_val[T](value)`). Its rule that an
 inner `mut` is part of identity was removed by decision 2 and restored by
 decision 16. What is still open is
@@ -92,8 +92,8 @@ Decided 2026-09-26:
     specific to `downcast`.
 15. **`downcast` and `downcast_mut` are default methods of `Inspectable`**
     (supersedes decision 13's free functions and the matching parts of 14):
-    `fn downcast[T < AnyRef + Inspectable](self) -> T?` and
-    `fn downcast_mut[T < AnyRef + Inspectable](mut self) -> mut T?`. They
+    `fn downcast[T < AnyRef & Inspectable](self) -> T?` and
+    `fn downcast_mut[T < AnyRef & Inspectable](mut self) -> mut T?`. They
     are dynamically safe under the existing rule that a method-level generic
     bounded by `AnyRef` is allowed (one body serves every instantiation).
     `T`'s `Inspectable` dictionary carries its `TypeId`, so no `reified` is
@@ -595,7 +595,7 @@ signature, as with Haskell's `Typeable` constraint.
 `std.error` ships the decided surface (C12). With `Inspectable` in place:
 
 ```text
-pub trait Error < Display + Inspectable:
+pub trait Error < Display & Inspectable:
     fn cause(self) -> Error?:
         .None
 
@@ -649,13 +649,13 @@ use std.error.{Error, chain, find}
 use std.fs.{FsError, FsRead}
 use std.http.{Http, HttpError}
 
-pub fn report!() -> Result[string, Error] $ FsRead, Http:
+pub fn report!() -> Result[string, Error] $ FsRead + Http:
     files, http := $.use(FsRead, Http)
     url := files.read_text!(Path::parse("endpoint.txt")).context("reading endpoint")?
     response := http.send!(Request::get(url))?
     .Ok("status ${response.status}")
 
-pub fn main!() -> Result[void, Error] $ FsRead, Http, Console:
+pub fn main!() -> Result[void, Error] $ FsRead + Http + Console:
     let console: mut Console = $.use(Console)
     match report!():
         .Ok(line) => console.write_line!(line)?

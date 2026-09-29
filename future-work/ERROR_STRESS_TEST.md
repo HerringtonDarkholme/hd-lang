@@ -282,7 +282,7 @@ fn is_broken_pipe(error: Error) -> bool:
                 _ => false
         .None => false
 
-pub fn main!() -> Result[void, Error] $ Console, FsRead:
+pub fn main!() -> Result[void, Error] $ Console + FsRead:
     match run!():
         .Ok(_) => .Ok()
         .Err(error) =>
@@ -1389,7 +1389,7 @@ fn exit_code(error: Error) -> i32:
 - **Cost (all).** `.context("reading rules from $path")` builds its string
   on the success path too; anyhow users write `.with_context(|| ...)` to
   avoid that ([problem 10](#10-context-builds-its-message-on-success)).
-- **Bound (all).** `find[T < AnyRef + Inspectable]` works for enums today.
+- **Bound (all).** `find[T < AnyRef & Inspectable]` works for enums today.
   [Enum Semantics](ENUM_SEMANTICS.md) recommended making enums values, but
   the owner kept every enum `AnyRef` (its decision 1), so `find[FsError]`
   keeps satisfying the bound ([problem 14](#14-find-requires-anyref)).
@@ -1893,7 +1893,7 @@ enums therefore cannot copy these crates' shapes. All variants.
 
 ### 14. `find` Requires `AnyRef`
 
-**Effect.** `find[T < AnyRef + Inspectable]` works for enums only while
+**Effect.** `find[T < AnyRef & Inspectable]` works for enums only while
 enums are references. [Enum Semantics](ENUM_SEMANTICS.md) recommended
 values; then `find[FsError]` would fail its bound, in every case that tests
 an enum error (cases 1, 10, 11, 12). All variants. Resolved since: the owner

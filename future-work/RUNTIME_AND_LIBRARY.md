@@ -213,7 +213,7 @@ The runtime starts sandboxed and supplies no ungranted external-resource provide
 An entry point's transitive `$` requirements are the host provider-binding list:
 
 ```text
-pub fn main!() -> Result[void, AppError] $ FileRead, Network:
+pub fn main!() -> Result[void, AppError] $ FileRead + Network:
     config := load_config!("config/app.json")?
     sync_config!(config)?
     .Ok()
@@ -299,7 +299,7 @@ primitive is an ordinary declaration with a placeholder body.
 A suspending function can be run as a durable workflow without adding checkpoint syntax:
 
 ```text
-fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database, RemoteApi:
+fn sync_user!(id: UserId) -> Result[void, SyncError] $ Database + RemoteApi:
     db, remote := $.use(Database, RemoteApi)
     user := db.load_user!(id)?
     remote.push_user!(user)?
