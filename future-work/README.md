@@ -84,6 +84,10 @@ language specification:
   designs for general, read-only, target-checked decorators. The owner
   chose plain values with a kind-only `@annotate` (D1-D9), now applied,
   with nine follow-up points still open.
+- [Requirement Reuse](REQUIREMENT_REUSE.md) stress-tests long requirement
+  rows and provider bundles on a web service, surveys eleven languages, and
+  compares six options, including rows as type expressions, with ten
+  questions for the owner.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

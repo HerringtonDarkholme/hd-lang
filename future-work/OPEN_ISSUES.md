@@ -597,6 +597,11 @@ marker name such as `@num_suffix` is called
 in [Decorators](DECORATORS.md#still-open): among them the kind of a variant
 payload member and a newtype's missing `Target` kind.
 
+### Requirement Reuse
+
+**Open.** How long requirement rows and provider bundles are reused, with
+ten owner questions, is in [Requirement Reuse](REQUIREMENT_REUSE.md#questions-for-the-owner).
+
 ## Runtime, Library, ABI, And Tooling Work
 
 These items remain required but do not currently require new core syntax:
