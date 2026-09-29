@@ -201,6 +201,21 @@ Points the OP10 apply pass met, each waiting for the owner:
   view and read-only when `d` is read-only. Constructing the newtype
   creates no new object. A newtype over an `AnyVal` base stays a value.
 
+**OP13 (2026-09-29): no assign traits. `a op= b` always means
+`a = a op b`.** This supersedes OP5, the compound part of OP10, and OP12's
+generic `+=` rule.
+- `AddAssign` and the other assign traits are removed. There is no
+  in-place mutation through an operator.
+- `a op= b` is sugar for `a = a op b` for every type. It needs the operator
+  trait (or a built-in operator) and an assignable place: a `let` local, a
+  field slot on a mutable root, or an index place (`m[k] += v` reads then
+  writes, per stress decision 11).
+- For reference types this replaces the slot with a fresh value, so aliases
+  of the old object are unaffected. No alias surprise is possible.
+  Accumulators and builders use methods (`sb.push(x)`), not `+=`.
+- OP12's other parts stand: the fix-it note and a newtype over `data`
+  carrying its base permission.
+
 ## Contents
 
 - [Owner Decisions](#owner-decisions)
