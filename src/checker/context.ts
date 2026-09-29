@@ -94,6 +94,8 @@ export interface Signature {
   readonly testOnly?: boolean;
   /** A suffix function, marked `@num_suffix` (spec/05-expressions.md#r-expr.suffix.marker). */
   readonly numSuffix?: boolean;
+  /** A prefix function, marked `@str_prefix` (spec/05-expressions.md#r-expr.prefix.marker). */
+  readonly strPrefix?: { readonly templateParameter: boolean };
   readonly span: SourceSpan;
 }
 

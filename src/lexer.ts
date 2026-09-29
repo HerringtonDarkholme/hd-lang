@@ -36,6 +36,9 @@ export interface Token {
   // A numeric literal's suffix (01-lexical-structure.md#literal-suffixes),
   // as in `250ms`; `text` still holds the whole token.
   readonly suffix?: { readonly name: string; readonly span: SourceSpan };
+  // A prefixed string's prefix (01-lexical-structure.md#prefixed-strings), as
+  // in `sql"..."`; the value is always an `InterpolatedStringValue` of raw text.
+  readonly prefix?: { readonly name: string; readonly span: SourceSpan };
 }
 
 export interface LexResult {
@@ -164,7 +167,7 @@ class Scanner {
           "a byte-order mark is only allowed at the start of a file",
           start,
         );
-      } else if (value === '"' || value === "'" || (value === "r" && this.peek(1) === '"')) {
+      } else if (value === '"' || value === "'") {
         this.scanQuoted();
       } else if (isDigit(value)) {
         this.scanNumber();
@@ -309,6 +312,12 @@ class Scanner {
       this.report("identifier-not-nfc", `identifier '${text}' is not NFC-normalized`, start);
     }
     const kind: TokenKind = text === "_" ? "symbol" : KEYWORDS.has(text) ? "keyword" : "identifier";
+    // An identifier directly before `"` is a string prefix
+    // (01-lexical-structure.md#prefixed-strings); a reserved word is not.
+    if (kind === "identifier" && this.peek() === '"') {
+      this.scanQuoted({ name: text, span: { start, end: this.position() } });
+      return;
+    }
     this.emit(kind, text, start, this.position(), text);
   }
 
@@ -468,10 +477,12 @@ class Scanner {
     }
   }
 
-  private scanQuoted(): void {
-    const start = this.position();
-    const raw = this.peek() === "r";
-    if (raw) this.advance();
+  // A quoted literal. A prefixed string (`prefix` set) keeps its text raw and
+  // still interpolates; a `$` that begins no interpolation is text
+  // (01-lexical-structure.md#prefixed-strings).
+  private scanQuoted(prefix?: { name: string; span: SourceSpan }): void {
+    const start = prefix ? prefix.span.start : this.position();
+    const raw = prefix !== undefined;
     const quote = this.advance();
     const triple = quote === '"' && this.peek() === '"' && this.peek(1) === '"';
     if (triple) {
@@ -479,7 +490,7 @@ class Scanner {
       this.advance();
     }
     const terminator = triple ? quote.repeat(3) : quote;
-    let text = raw ? "r" + terminator : terminator;
+    let text = (prefix?.name ?? "") + terminator;
     let value = "";
     const segments: InterpolatedStringSegment[] = [];
     let segmentStart = this.position();
@@ -545,7 +556,11 @@ class Scanner {
         } else {
           value += escapes[escaped];
         }
-      } else if (current === "$" && !raw && quote === '"') {
+      } else if (
+        current === "$" &&
+        quote === '"' &&
+        (!raw || isIdentifierStart(this.peek()) || this.peek() === "{")
+      ) {
         if (value.length > 0)
           segments.push({
             kind: "text",
@@ -620,10 +635,14 @@ class Scanner {
         start,
       );
     }
-    if (segments.length > 0) {
+    if (segments.length > 0 || prefix) {
       if (value.length > 0)
         segments.push({ kind: "text", value, span: { start: segmentStart, end: this.position() } });
       this.emit("string", text, start, this.position(), { kind: "interpolated-string", segments });
+      if (prefix) {
+        const token = this.tokens.pop()!;
+        this.tokens.push({ ...token, prefix });
+      }
     } else {
       this.emit(quote === "'" ? "character" : "string", text, start, this.position(), value);
     }
@@ -635,7 +654,7 @@ class Scanner {
     let text = "";
     while (!this.done()) {
       const current = this.peek();
-      if (current === '"' || current === "'" || (current === "r" && this.peek(1) === '"')) {
+      if (current === '"' || current === "'") {
         const quoted = this.scanEmbeddedQuotedSource();
         source += quoted;
         text += quoted;
@@ -668,9 +687,8 @@ class Scanner {
   }
 
   private scanEmbeddedQuotedSource(): string {
+    // A prefix before the quote was already copied as ordinary source.
     let text = "";
-    const raw = this.peek() === "r";
-    if (raw) text += this.advance();
     const quote = this.advance();
     text += quote;
     const triple = quote === '"' && this.peek() === '"' && this.peek(1) === '"';

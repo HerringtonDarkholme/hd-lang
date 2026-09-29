@@ -78,8 +78,8 @@ export function classify(line: string): Span[] {
       push(line.slice(index), "comment");
       break;
     }
-    if (character === '"' || (character === "r" && line[index + 1] === '"')) {
-      index = scanString(line, index, push);
+    if (character === '"') {
+      index = scanString(line, index, 0, push);
       continue;
     }
     if (character === "'") {
@@ -116,6 +116,12 @@ export function classify(line: string): Span[] {
       )
         end += 1;
       const word = line.slice(index, end);
+      // A prefixed string such as `sql"..."` is one string, prefix included
+      // (01-lexical-structure.md#prefixed-strings).
+      if (line[end] === '"' && !KEYWORDS.has(word) && !LITERAL_WORDS.has(word) && word !== "_") {
+        index = scanString(line, index, end - index, push);
+        continue;
+      }
       push(word, wordClass(word, line, index, end));
       index = end;
       continue;
@@ -171,17 +177,21 @@ function scanChar(line: string, start: number): number {
   return line.length;
 }
 
+// A string from its prefix (`prefixLength` characters, none for an
+// interpreted string) or opening quote. A prefixed string's backslash is
+// text, but it still keeps the next quote or `$` from acting, so both forms
+// scan a backslash pair as string text.
 function scanString(
   line: string,
   start: number,
+  prefixLength: number,
   push: (text: string, kind: TokenClass) => void,
 ): number {
-  const raw = line[start] === "r";
-  let index = start + (raw ? 2 : 1);
+  let index = start + prefixLength + 1;
   push(line.slice(start, index), "string");
   while (index < line.length) {
     const character = line[index]!;
-    if (!raw && character === "\\") {
+    if (character === "\\") {
       push(line.slice(index, index + 2), "string");
       index += 2;
       continue;
@@ -190,7 +200,7 @@ function scanString(
       push('"', "string");
       return index + 1;
     }
-    if (!raw && character === "$" && line[index + 1] === "{") {
+    if (character === "$" && line[index + 1] === "{") {
       const end = interpolationEnd(line, index + 2);
       push("${", "interpolation");
       for (const span of classify(line.slice(index + 2, end))) push(span.text, span.kind);
@@ -198,7 +208,7 @@ function scanString(
       index = Math.min(line.length, end + 1);
       continue;
     }
-    if (!raw && character === "$" && isIdentifierStart(line[index + 1] ?? "")) {
+    if (character === "$" && isIdentifierStart(line[index + 1] ?? "")) {
       let end = index + 2;
       while (end < line.length && /[\p{ID_Continue}_]/u.test(line[end]!)) end += 1;
       push(line.slice(index, end), "interpolation");

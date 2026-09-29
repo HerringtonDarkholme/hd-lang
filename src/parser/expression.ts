@@ -1,19 +1,33 @@
-import type {
-  ClosureParameter,
-  ComprehensionClause,
-  DataExpressionField,
-  DataPatternField,
-  Expression,
-  MapEntry,
-  MatchArm,
-  Pattern,
-  ProviderContextEntry,
-  Statement,
-  TypeRef,
+import {
+  TEMPLATE_PLACEHOLDER,
+  type ClosureParameter,
+  type ComprehensionClause,
+  type DataExpressionField,
+  type DataPatternField,
+  type Expression,
+  type MapEntry,
+  type MatchArm,
+  type Pattern,
+  type ProviderContextEntry,
+  type Statement,
+  type TypeRef,
 } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { InterpolatedStringValue, Token } from "../lexer.ts";
 import { ParserBase } from "./base.ts";
+
+/**
+ * The node with every span inside it set to `span`. An interpolated
+ * expression is parsed from its own source, so its spans start at line 1.
+ */
+function withSpan<T>(node: T, span: SourceSpan): T {
+  if (Array.isArray(node)) return node.map((item) => withSpan(item, span)) as T;
+  if (!node || typeof node !== "object") return node;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(node))
+    result[key] = key === "span" ? span : withSpan(child, span);
+  return result as T;
+}
 
 const BINARY_PRECEDENCE: Readonly<Record<string, number>> = {
   "||": 1,
@@ -303,6 +317,59 @@ export abstract class ExpressionParser extends ParserBase {
     };
   }
 
+  private interpolatedExpression(source: string, span: SourceSpan): Expression {
+    const parsed = this.parseExpressionSource(source);
+    const diagnostic = parsed.diagnostics[0];
+    if (diagnostic || !parsed.expression) {
+      this.fail(
+        diagnostic?.code ?? "syntax-error",
+        diagnostic?.message ?? "invalid interpolation expression",
+        span,
+      );
+    }
+    return parsed.expression;
+  }
+
+  // A prefixed string `x"a $b c"` is the call `x(t)` of the prefix function
+  // `x`, where `t` is a `std.ops.Template` of the raw pieces `["a ", " c"]`
+  // and the values `[b]` (05-expressions.md#r-expr.prefix.fn-call). Each value
+  // keeps its segment's span, so a conversion error names its line.
+  private prefixedString(token: Token, prefix: NonNullable<Token["prefix"]>): Expression {
+    const value = token.value as InterpolatedStringValue;
+    const pieces: Expression[] = [];
+    const values: Expression[] = [];
+    let text = "";
+    for (const segment of value.segments) {
+      if (segment.kind === "text") {
+        text += segment.value;
+        continue;
+      }
+      pieces.push({ kind: "string", value: text, span: token.span });
+      text = "";
+      values.push(
+        withSpan(this.interpolatedExpression(segment.source, segment.span), segment.span),
+      );
+    }
+    pieces.push({ kind: "string", value: text, span: token.span });
+    const span = token.span;
+    const template: Expression = {
+      kind: "data",
+      name: TEMPLATE_PLACEHOLDER,
+      fields: [
+        { name: "raw_parts", value: { kind: "list", elements: pieces, span }, span },
+        { name: "values", value: { kind: "list", elements: values, span }, span },
+      ],
+      span,
+    };
+    return {
+      kind: "call",
+      callee: { kind: "name", name: prefix.name, span: prefix.span },
+      arguments: [template],
+      stringPrefix: prefix.name,
+      span,
+    };
+  }
+
   protected parsePrefix(): Expression {
     const token = this.current();
     if (["+", "-", "~", "!"].includes(token.text)) {
@@ -366,6 +433,10 @@ export abstract class ExpressionParser extends ParserBase {
       this.advance();
       return { kind: "float", value: token.value as number, span: token.span };
     }
+    if (token.kind === "string" && token.prefix) {
+      this.advance();
+      return this.prefixedString(token, token.prefix);
+    }
     if (token.kind === "string") {
       this.advance();
       if (typeof token.value === "string")
@@ -373,16 +444,8 @@ export abstract class ExpressionParser extends ParserBase {
       const value = token.value as InterpolatedStringValue;
       const segments = value.segments.map((segment) => {
         if (segment.kind === "text") return segment;
-        const parsed = this.parseExpressionSource(segment.source);
-        const diagnostic = parsed.diagnostics[0];
-        if (diagnostic || !parsed.expression) {
-          this.fail(
-            diagnostic?.code ?? "syntax-error",
-            diagnostic?.message ?? "invalid interpolation expression",
-            segment.span,
-          );
-        }
-        return { kind: "expression" as const, expression: parsed.expression, span: segment.span };
+        const expression = this.interpolatedExpression(segment.source, segment.span);
+        return { kind: "expression" as const, expression, span: segment.span };
       });
       return { kind: "interpolated-string", segments, span: token.span };
     }
@@ -1144,6 +1207,10 @@ export abstract class ExpressionParser extends ParserBase {
         "'-' in a pattern must precede a numeric literal",
         literal.span,
       );
+    // A prefixed string is a call, never a pattern
+    // (02-grammar.md#r-grammar.pattern.no-prefixed-string).
+    if (literal.kind === "string" && literal.prefix)
+      this.fail("syntax-error", "a prefixed string cannot be a pattern", literal.span);
     if (literal.kind === "string") {
       this.advance();
       if (typeof literal.value !== "string")

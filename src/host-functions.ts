@@ -19,6 +19,9 @@ export const HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = {
   // (spec/10-modules.md#string-methods).
   string_lower: (text) => String(text).toLowerCase(),
   string_upper: (text) => String(text).toUpperCase(),
+  // The one-scalar string of a Unicode scalar value, for `\u{...}` in
+  // `std.ops.process_escapes` (spec/05-expressions.md#prefixed-strings).
+  string_from_scalar: (point) => String.fromCodePoint(Number(point)),
   // `Choices` outside `hd test` draws at random; the test runner replaces
   // these with its recording draws (src/property-tests.ts).
   ...propertyRun().hostFunctions,

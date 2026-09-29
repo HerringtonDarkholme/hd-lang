@@ -23,9 +23,14 @@ import { factType } from "./typed-derivation.ts";
 //   it lists (annot.target.limit.error). The check reads the `@annotate`
 //   arguments syntactically, as the prototype's other fact passes do.
 
-/** The qualified names the compiler recognizes (annot.target.recognized, expr.suffix.marker). */
+/**
+ * The qualified names the compiler recognizes (annot.target.recognized,
+ * expr.suffix.marker, expr.prefix.marker).
+ */
 export const STANDARD_ANNOTATE = "std.annotation.Annotate";
 export const STANDARD_NUM_SUFFIX = "std.ops.NumSuffix";
+export const STANDARD_STR_PREFIX = "std.ops.StrPrefix";
+export const STANDARD_TEMPLATE = "std.ops.Template";
 
 /** A target kind: a variant of `std.annotation.Target`, or none for a newtype. */
 type TargetKind =
@@ -180,27 +185,38 @@ export function markerFunctions(functions: readonly FunctionDecl[]): Set<string>
 }
 
 /**
- * Marks each function that carries a `std.ops.NumSuffix` value as a suffix
- * function (spec/05-expressions.md#r-expr.suffix.marker). It runs after the
- * standard library is joined, so the marker's declaration is known.
+ * Marks each function that carries a `std.ops.NumSuffix` or `std.ops.StrPrefix`
+ * value as a suffix or prefix function (spec/05-expressions.md#r-expr.suffix.marker,
+ * #r-expr.prefix.marker). It runs after the standard library is joined, so
+ * the markers' and `std.ops.Template`'s declarations are known.
  */
 export function withSuffixMarkers(program: Program): Program {
   const functions = new Map(program.functions.map((item) => [item.name, item] as const));
-  const markers = new Set(
-    program.data
-      .filter((item) => item.standardName === STANDARD_NUM_SUFFIX)
-      .map((item) => item.name),
-  );
-  if (markers.size === 0) return program;
-  const marked = (declaration: FunctionDecl): boolean =>
+  const localNames = (standardName: string): Set<string> =>
+    new Set(
+      program.data.filter((item) => item.standardName === standardName).map((item) => item.name),
+    );
+  const suffixMarkers = localNames(STANDARD_NUM_SUFFIX);
+  const prefixMarkers = localNames(STANDARD_STR_PREFIX);
+  const templates = localNames(STANDARD_TEMPLATE);
+  if (suffixMarkers.size === 0 && prefixMarkers.size === 0) return program;
+  const marked = (declaration: FunctionDecl, markers: ReadonlySet<string>): boolean =>
     (declaration.decorators?.facts ?? []).some((fact) =>
       markers.has(baseTypeName(factType(fact, functions))),
     );
   return {
     ...program,
-    functions: program.functions.map((declaration) =>
-      marked(declaration) ? { ...declaration, numSuffix: true } : declaration,
-    ),
+    functions: program.functions.map((declaration) => {
+      let result = declaration;
+      if (marked(declaration, suffixMarkers)) result = { ...result, numSuffix: true };
+      // Prefix functions (spec/05-expressions.md#r-expr.prefix.marker).
+      if (marked(declaration, prefixMarkers)) {
+        const first = declaration.parameters[0]?.type.name;
+        const templateParameter = first !== undefined && templates.has(baseTypeName(first));
+        result = { ...result, strPrefix: { templateParameter } };
+      }
+      return result;
+    }),
   };
 }
 

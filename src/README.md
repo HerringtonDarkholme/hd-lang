@@ -493,6 +493,20 @@ else`, `break`, `break value`, and `continue`;
   `min`, and `h`) come from the [standard library](#standard-library), so
   a library suffix function works. A test `timeout` is checked as a `Duration` and enforced after the
   body returns (see `hd test` above);
+- string prefixes (Literal Suffixes L19): an identifier directly before
+  `"` lexes with the string as one token (`Token.prefix`) whose text is raw
+  but still interpolates. The parser desugars `x"a $b c"` to the call
+  `x(Template { raw_parts: ["a ", " c"], values: [b] })`, naming the
+  template type by its hidden name `__std_ops_Template`, which
+  `checker/standard-library.ts` renames when the program imports
+  `Template`. The checker resolves the prefix among module-scope functions
+  only, requires `@str_prefix` (`FunctionDecl.strPrefix`, set with the
+  suffix marker in `checker/decorators.ts` from a value of
+  `std.ops.StrPrefix`), checks the ordinary call, so each value converts to
+  the template's `T` like an argument, and then the prefix shape
+  (`checker/literal-suffixes.ts`), reporting `invalid-string-prefix`.
+  `std.ops` declares `r`, `interpolate`, and `process_escapes` in hd; a
+  `\u{...}` escape uses the host function `string_from_scalar`;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
   declarations in the compiled module; `?` on a `Result` converts the error
   by one assignability rule or one `From` call, `Type::from(x)` selects the
@@ -743,7 +757,7 @@ What it provides:
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, the prefix `r`, `interpolate`, and `process_escapes` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
@@ -787,7 +801,7 @@ declare a host function (a question in
      `host:<name>` through one generic path. Scalars cross as Wasm numbers,
      and a `string` crosses as a host handle that `emitter/runtime/boundary.wat`
      copies byte by byte. The host looks the name up in
-     `src/host-functions.ts` (today `string_lower` and `string_upper`), or
+     `src/host-functions.ts` (today `string_lower`, `string_upper`, and `string_from_scalar`), or
      in the runner's `hostFunctions` (`snapshot_file_check`, `src/snapshots.ts`).
 2. **Host capability traits.** A capability is a trait with suspending
    methods (spec/11 and

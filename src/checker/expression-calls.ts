@@ -29,7 +29,7 @@ import {
 
 import { type QualifiedCallExpression, TraitCallChecker } from "./trait-calls.ts";
 import { isDowncastValImport } from "./inspectable.ts";
-import { checkLiteralSuffixCall } from "./literal-suffixes.ts";
+import { checkLiteralSuffixCall, checkStringPrefixCall } from "./literal-suffixes.ts";
 import { TYPE_ID } from "./standard-traits.ts";
 import { STRUCTURE_AS_DECLARED, STRUCTURE_MISMATCH } from "./typed-derivation.ts";
 type CallExpression = Extract<Expression, { kind: "call" }>;
@@ -89,11 +89,14 @@ export abstract class ExpressionCallChecker extends TraitCallChecker {
     if (expression.callee.kind === "qualified-name") {
       return this.checkQualifiedCall(expression as QualifiedCallExpression, expected);
     }
-    // A suffixed literal calls its suffix function, found in module scope
-    // only (03-names-and-scopes.md#r-names.suffix.no-local).
-    if (expression.literalSuffix && expression.callee.kind === "name") {
+    // A suffixed literal or prefixed string calls a function found in module
+    // scope only (03-names-and-scopes.md#r-names.suffix.no-local, #r-names.prefix.no-local).
+    if (
+      (expression.literalSuffix || expression.stringPrefix) &&
+      expression.callee.kind === "name"
+    ) {
       const name = expression.callee.name;
-      return checkLiteralSuffixCall(
+      return (expression.literalSuffix ? checkLiteralSuffixCall : checkStringPrefixCall)(
         name,
         this.visibleSignature(name),
         this.globals.has(name) || this.dataTypes.has(name) || this.enumTypes.has(name),

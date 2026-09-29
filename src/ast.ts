@@ -1,6 +1,13 @@
 import type { SourceSpan } from "./diagnostics.ts";
 import type { HirFunction } from "./hir.ts";
 
+/**
+ * The type name a desugared prefixed string's template literal uses: the
+ * hidden name of `std.ops.Template`, replaced by the program's local name
+ * when it imports `Template` (spec/05-expressions.md#prefixed-strings).
+ */
+export const TEMPLATE_PLACEHOLDER = "__std_ops_Template";
+
 export interface TypeRef {
   readonly name: string;
   readonly span: SourceSpan;
@@ -92,6 +99,12 @@ export interface FunctionDecl {
   readonly standard?: boolean;
   /** Carries a `std.ops.NumSuffix` value: a suffix function (05-expressions.md#r-expr.suffix.marker). */
   readonly numSuffix?: boolean;
+  /**
+   * Carries a `std.ops.StrPrefix` value: a prefix function
+   * (05-expressions.md#r-expr.prefix.marker). `templateParameter` says
+   * whether its first parameter is a `std.ops.Template[T]`.
+   */
+  readonly strPrefix?: { readonly templateParameter: boolean };
 }
 
 export interface MethodDecl {
@@ -542,6 +555,10 @@ export type Expression =
       // Set when a suffixed literal such as `250ms` desugared to this call
       // `ms(250)` of its suffix function (05-expressions.md#literal-suffixes).
       readonly literalSuffix?: string;
+      // Set when a prefixed string such as `sql"a $x"` desugared to this call
+      // `sql(Template { ... })` of its prefix function
+      // (05-expressions.md#prefixed-strings).
+      readonly stringPrefix?: string;
       readonly span: SourceSpan;
     }
   | {

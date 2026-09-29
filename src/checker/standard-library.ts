@@ -1,4 +1,10 @@
-import type { FunctionDecl, ImplDecl, MethodDecl, Program } from "../ast.ts";
+import {
+  TEMPLATE_PLACEHOLDER,
+  type FunctionDecl,
+  type ImplDecl,
+  type MethodDecl,
+  type Program,
+} from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import { parse } from "../parser/index.ts";
 import { STANDARD_MODULES, standardSource, type StandardModule } from "./standard-sources.ts";
@@ -275,8 +281,33 @@ export function importedMarkerFunctions(program: Program): Set<string> {
   return markers;
 }
 
+/** The node with each `name` equal to `from` replaced by `to`. */
+function renamed<T>(node: T, from: string, to: string): T {
+  if (Array.isArray(node)) return node.map((item) => renamed(item, from, to)) as T;
+  if (!node || typeof node !== "object") return node;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(node))
+    result[key] = key === "name" && child === from ? to : renamed(child, from, to);
+  return result as T;
+}
+
+/**
+ * A desugared prefixed string names `std.ops.Template` by its hidden name
+ * (`TEMPLATE_PLACEHOLDER`), which is declared only when the program does not
+ * import `Template`; an import renames it to the local name
+ * (spec/05-expressions.md#r-expr.prefix.no-marker-import).
+ */
+function withTemplateName(program: Program): Program {
+  for (const declaration of program.uses)
+    for (const imported of declaration.names)
+      if (declaration.module === "std.ops" && imported.name === "Template")
+        return renamed(program, TEMPLATE_PLACEHOLDER, imported.alias ?? imported.name);
+  return program;
+}
+
 /** Declares the `std` modules and built-in methods that the program uses. */
-export function withStandardLibrary(program: Program): Program {
+export function withStandardLibrary(source: Program): Program {
+  const program = withTemplateName(source);
   // Local names of the program's own std imports, and where each module came in.
   const localNames = new Map<string, string>();
   const spans = new Map<StandardModule, SourceSpan>();

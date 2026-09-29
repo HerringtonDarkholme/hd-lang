@@ -63,3 +63,58 @@ export function checkLiteralSuffixCall(
   if (problem) fail("invalid-literal-suffix", `suffix function '${name}' ${problem}`);
   return checked;
 }
+
+// The prefix reader: a prefixed string `x"..."` is the call `x(t)` of a
+// function marked `@str_prefix`, with a `std.ops.Template` value `t`
+// (spec/05-expressions.md#prefixed-strings). As for a suffix, the ordinary
+// call is checked first, so each interpolated value converts to the
+// template's `T` like an argument; then the reader checks the function's
+// shape at the string (#r-expr.prefix.fn-shape.reader).
+
+/** What makes a function unusable as a prefix (05-expressions.md#r-expr.prefix.fn-shape). */
+function prefixShapeProblem(signature: Signature): string | undefined {
+  if (signature.genericParameters.length > 0 || signature.rowParameters.length > 0)
+    return "must declare no type parameters";
+  if (signature.parameters.length !== 1 || signature.variadic)
+    return "must take exactly one parameter";
+  if (signature.requirements.length > 0) return "must need no providers";
+  if (signature.suspending) return "must not suspend";
+  return undefined;
+}
+
+/**
+ * Checks the string prefix `name`: `signature` is the module-scope function
+ * of that name, if any, and `otherDeclaration` says whether the name is
+ * something else in module scope (05-expressions.md#r-expr.prefix.not-marked).
+ */
+export function checkStringPrefixCall(
+  name: string,
+  signature: Signature | undefined,
+  otherDeclaration: boolean,
+  fail: (code: string, message: string) => never,
+  call: () => HirExpression,
+): HirExpression {
+  if (!signature) {
+    if (otherDeclaration)
+      fail(
+        "invalid-string-prefix",
+        `string prefix '${name}' names something other than a function marked @str_prefix`,
+      );
+    fail("unknown-name", `unknown string prefix '${name}'`);
+  }
+  if (!signature.strPrefix)
+    fail(
+      "invalid-string-prefix",
+      `string prefix '${name}' names a function that is not marked @str_prefix`,
+    );
+  // A first parameter that is no template cannot take the argument: the
+  // ordinary call's type-mismatch (#r-expr.prefix.call-errors), reported
+  // before the template's element types are inferred from it.
+  const first = signature.parameters[0];
+  if (first !== undefined && !signature.strPrefix.templateParameter)
+    fail("type-mismatch", `expected ${first}, found a std.ops.Template for prefix '${name}'`);
+  const checked = call();
+  const problem = prefixShapeProblem(signature);
+  if (problem) fail("invalid-string-prefix", `prefix function '${name}' ${problem}`);
+  return checked;
+}

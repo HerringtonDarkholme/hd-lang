@@ -17,6 +17,17 @@ import {
 
 import type { ProgramCheckContext } from "./program-context.ts";
 
+/** A declaration's `tests:`-block, suffix, and prefix markers, as signature fields. */
+function signatureMarkers(
+  declaration: FunctionDecl,
+): Pick<Signature, "testOnly" | "numSuffix" | "strPrefix"> {
+  return {
+    ...(declaration.testOnly ? { testOnly: true } : {}),
+    ...(declaration.numSuffix ? { numSuffix: true } : {}),
+    ...(declaration.strPrefix ? { strPrefix: declaration.strPrefix } : {}),
+  };
+}
+
 export function createProgramSignatures(
   context: ProgramCheckContext,
   declarations: readonly FunctionDecl[],
@@ -315,8 +326,7 @@ export function createProgramSignatures(
       variadic: declaration.parameters.at(-1)?.variadic === true,
       result: normalizedResult,
       requirements,
-      ...(declaration.testOnly ? { testOnly: true } : {}),
-      ...(declaration.numSuffix ? { numSuffix: true } : {}),
+      ...signatureMarkers(declaration),
       span: declaration.span,
     });
   });

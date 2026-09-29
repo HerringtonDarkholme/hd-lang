@@ -48,7 +48,7 @@ function mergeRuns(runs: readonly Run[]): Run[] {
 
 const TRICKY = [
   'println("total ${count + 1} for $name and ${items.len()}")',
-  'path := r"C:\\raw\\${not} $interpolated"',
+  'path := r"C:\\raw\\${dir} $name"',
   'say := "escaped \\" quote" # trailing comment',
   "# a whole-line comment with fn and 42",
   "fn read_all!(path: string) -> string $ Files:",

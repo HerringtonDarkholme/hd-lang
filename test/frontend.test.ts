@@ -58,6 +58,40 @@ test("parser desugars a suffixed literal to a call of its suffix function, foldi
   assert.equal(call.arguments[0]?.kind, "unary");
 });
 
+test("lexer keeps a prefixed string raw and a reserved word before a quote separate", () => {
+  const [prefixed] = lex('sql"a\\n $x $5"\n').tokens;
+  assert.equal(prefixed?.prefix?.name, "sql");
+  const value = prefixed?.value;
+  assert.ok(typeof value === "object" && value.kind === "interpolated-string");
+  assert.deepEqual(
+    value.segments.map((segment) => (segment.kind === "text" ? segment.value : segment.source)),
+    ["a\\n ", "x", " $5"],
+  );
+  assert.deepEqual(
+    lex('return"x"\n')
+      .tokens.slice(0, 2)
+      .map((token) => token.kind),
+    ["keyword", "string"],
+  );
+});
+
+test("parser desugars a prefixed string to a call with a template of pieces and values", () => {
+  const program = parse('fn f() -> i32:\n    q"$a$b c"\n').program!;
+  const expression = program.functions[0]!.body.at(-1);
+  assert.ok(expression?.kind === "expression");
+  const call = expression.expression;
+  assert.ok(call.kind === "call" && call.stringPrefix === "q");
+  const template = call.arguments[0];
+  assert.ok(template?.kind === "data");
+  const [pieces, values] = template.fields.map((field) => field.value);
+  assert.ok(pieces?.kind === "list" && values?.kind === "list");
+  assert.deepEqual(
+    pieces.elements.map((piece) => piece.kind === "string" && piece.value),
+    ["", "", " c"],
+  );
+  assert.equal(values.elements.length, 2);
+});
+
 test("parser builds functions, bindings, calls, and value-producing if", () => {
   const result = parse(CORE_PROGRAM);
   assert.deepEqual(result.diagnostics, []);
@@ -234,7 +268,7 @@ test("lexer enforces reserved punctuation, escapes, and numeric separators", () 
   );
 });
 
-test("parser retains string interpolation expressions and raw dollars", () => {
+test("parser retains string interpolation expressions; a prefixed string is a call", () => {
   const result = parse(conformanceBody("parse/valid/expression-interpolation"));
   assert.deepEqual(result.diagnostics, []);
   const statement = result.program?.functions[0]?.body[0];
@@ -258,7 +292,7 @@ test("parser retains string interpolation expressions and raw dollars", () => {
   }
   const raw = parse(conformanceBody("parse/valid/raw-string-dollars"));
   const rawStatement = raw.program?.statements[0];
-  assert.equal(rawStatement?.kind === "binding" && rawStatement.value.kind, "string");
+  assert.equal(rawStatement?.kind === "binding" && rawStatement.value.kind, "call");
 });
 
 test("parser rejects comparison chaining", () => {
