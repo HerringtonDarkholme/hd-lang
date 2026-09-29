@@ -1,0 +1,23 @@
+# test: a function-typed left operand selects an operator implementation by its own type, without row subsumption
+# Spec 05 Operator Traits: expr.op.left-dispatch.exact-function (stress test decision 9).
+use std.ops.Shr
+
+trait Db
+
+data Layer:
+    depth: i32
+
+impl Shr[Layer] for fn(i32) -> i32 $ Db:
+    type Out = i32
+    fn shr(self, rhs: Layer) -> i32:
+        rhs.depth
+
+fn get(n: i32) -> i32:
+    n
+
+fn wire(layer: Layer) -> i32:
+    get >> layer  # diagnostic: type-mismatch
+
+fn wire_typed(layer: Layer) -> i32:
+    let handler: fn(i32) -> i32 $ Db = get
+    handler >> layer

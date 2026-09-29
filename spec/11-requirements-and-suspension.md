@@ -332,11 +332,14 @@ fn group(admin: bool) -> void:
 2. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
 3. r[req.row.param.no-data] A data type, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
 4. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
-5. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+5. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a data type does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
+6. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
 
 ```text
 data Job[R]:
     run: fn() -> void $ R  # error: generic-kind-mismatch
+
+type Task[R](fn() -> void $ R)  # error: generic-kind-mismatch
 
 fn run_job[R](providers: $.Context[R], job: fn() -> void $ R) -> void:  # error: row-parameter-in-context
     $.with(providers...):

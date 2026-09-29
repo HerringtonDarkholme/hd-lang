@@ -530,6 +530,12 @@ Each target has one kind:
 6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
 7. r[annot.target.kind-only] The compiler checks only the kind. Whether a value suits its target's type or signature is checked by the code that reads the value.
 
+> **Note.** Only some targets have a reader in the language. User code
+> reads a function's values through `shape_of`, and the values on a type,
+> its fields, and its variants through typed derivation. The values on the
+> other targets, such as traits, implementations, methods, newtypes, and
+> parameters, are for tools.
+
 > **Why.** Java, C#, Kotlin, and Dart check declared target kinds the
 > same way. A signature check belongs to the reader, which knows what it
 > needs, so the compiler knows one standard type rather than a pattern
@@ -1013,7 +1019,9 @@ fn key_for(style: Style, m: Member) -> string:
 10. r[annot.fact.unused-std] A fact of a primitive or standard type, such as `@"internal"`, never gets this warning.
 11. r[annot.fact.unused-self-line] A type-level fact that a trait-less block's `Self` line writes gets the same warning under the same conditions, reported on that line. Warning: `unused-derivation-fact`.
 12. r[annot.fact.unused-self-line.per-trait] A type-level fact that a `Self` line of a derivation block for a trait writes gets the same warning, reported on that line, when the fact's package does not supply that trait. Warning: `unused-derivation-fact`.
-13. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
+13. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+14. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
+15. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
 use std.structure.Structure
@@ -1032,15 +1040,22 @@ data Quiet:
 impl Quiet by Structure:
     Self += [style(prefix="q_")]  # warning: unused-derivation-fact
 
+data Loud:
+    id: i64
+
+@style(prefix="l_")  # warning: unused-derivation-fact
+impl Loud by Structure:
+    id += ["key"]
+
 @style(prefix="a_")
 @style(prefix="b_")  # error: duplicate-fact
 data Twice:
     id: i64
 ```
 
-14. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
-15. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
-16. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
+16. r[annot.fact.no-block-on] A fact or metadata expression must not call `std.task.block_on`, directly or transitively through the statically known call graph, as for a default expression in [Driving A Stored Suspension](11-requirements-and-suspension.md#driving-a-stored-suspension).
+17. r[annot.fact.no-block-on.unprovable] A call through a function value or a dynamic trait method that prevents the compiler from proving `block_on` unreachable is rejected in a fact or metadata expression.
+18. r[annot.fact.no-block-on.error] Every violation is an error, reported on the fact or metadata expression. Error: `suspension-forbidden-context`.
 
 ```text
 use std.task.block_on

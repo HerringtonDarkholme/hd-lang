@@ -1430,3 +1430,6 @@ typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	05-exp
 typing/invalid/compound-assign-map-optional.hd	type	reject:type-mismatch	05-expressions.md#r-expr.assign.compound.map-read
 typing/invalid/newtype-over-data-permission.hd	type	reject:mutable-upgrade	04-type-system.md#r-types.newtype.construct-permission
 typing/invalid/use-through-pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop-use
+typing/warnings/derivation-block-decorator.hd	type	warn:unused-derivation-fact	14-annotations.md#r-annot.fact.unused-block-decorator
+typing/invalid/operator-function-left-exact.hd	type	reject:type-mismatch	05-expressions.md#r-expr.op.left-dispatch.exact-function
+typing/invalid/row-parameter-on-newtype.hd	type	reject:generic-kind-mismatch	11-requirements-and-suspension.md#r-req.row.param.no-newtype

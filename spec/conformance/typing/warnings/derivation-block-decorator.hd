@@ -1,0 +1,16 @@
+# test: a decorator before a derivation block warns, since no derivation reads it
+# Spec 14 Facts: annot.fact.unused-block-decorator (stress test decision 5).
+use std.structure.Structure
+
+data Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+data Loud:
+    id: i64
+
+@style(prefix="l_")  # warning: unused-derivation-fact
+impl Loud by Structure:
+    id += ["key"]

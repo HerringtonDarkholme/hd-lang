@@ -390,7 +390,7 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	7	mixed	typing/invalid/row-subsumption-missing-key.hd
 11-requirements-and-suspension.md	8	accept	typing/valid/row-union-list.hd|typing/valid/row-union-if.hd
 11-requirements-and-suspension.md	9	mixed	typing/invalid/row-union-list-no-convert.hd|typing/invalid/row-union-if-nested-lists.hd
-11-requirements-and-suspension.md	10	mixed	typing/invalid/row-parameter-on-data.hd|typing/invalid/row-parameter-in-context.hd
+11-requirements-and-suspension.md	10	mixed	typing/invalid/row-parameter-on-data.hd|typing/invalid/row-parameter-on-newtype.hd|typing/invalid/row-parameter-in-context.hd
 11-requirements-and-suspension.md	11	accept	typing/valid/row-alias.hd
 11-requirements-and-suspension.md	12	accept	typing/valid/row-alias-bare-slots.hd
 11-requirements-and-suspension.md	13	mixed	typing/invalid/row-alias-as-type.hd|typing/invalid/row-alias-in-use.hd
@@ -463,7 +463,7 @@ specification	block	classification	fixture
 14-annotations.md	23	accept	typing/valid/trait-less-derivation-block.hd
 14-annotations.md	24	mixed	typing/invalid/trait-less-block-omit.hd|typing/invalid/trait-less-block-method.hd|typing/invalid/trait-less-block-newtype.hd|typing/invalid/trait-less-block-generic-argument.hd|typing/invalid/trait-less-block-second.hd
 14-annotations.md	25	accept	typing/valid/typed-derivation.hd
-14-annotations.md	26	mixed	typing/warnings/unused-derivation-fact.hd|typing/warnings/trait-less-self-line-unused-fact.hd|typing/invalid/duplicate-type-level-fact.hd
+14-annotations.md	26	mixed	typing/warnings/unused-derivation-fact.hd|typing/warnings/trait-less-self-line-unused-fact.hd|typing/warnings/derivation-block-decorator.hd|typing/invalid/duplicate-type-level-fact.hd
 14-annotations.md	27	mixed	typing/invalid/block-on-in-fact.hd
 14-annotations.md	28	accept	typing/valid/typed-derivation-build.hd
 14-annotations.md	29	accept	typing/valid/typed-derivation.hd

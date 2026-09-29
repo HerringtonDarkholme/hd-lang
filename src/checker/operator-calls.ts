@@ -1,7 +1,7 @@
 import type { Expression, Statement } from "../ast.ts";
 import type { SourceSpan } from "../diagnostics.ts";
 import type { HirExpression, HirLocal, HirStatement, ValueType } from "../hir.ts";
-import { readonlyType } from "../types.ts";
+import { functionParts, readonlyType } from "../types.ts";
 import { ExpressionCallChecker, type MemberCallExpression } from "./expression-calls.ts";
 import { genericTypeName, matchGenericTypePattern } from "./shared.ts";
 
@@ -30,7 +30,12 @@ export abstract class OperatorCallChecker extends ExpressionCallChecker {
       () =>
         this.fail(
           "type-mismatch",
-          `operator '${operator}' needs an implementation of std.ops.${traitName} for '${readonlyType(receiver.type)}'`,
+          `operator '${operator}' needs an implementation of std.ops.${traitName} for '${readonlyType(receiver.type)}'` +
+            // A function-typed left operand gets no row subsumption
+            // (05-expressions.md#r-expr.op.left-dispatch.exact-function.message).
+            (functionParts(readonlyType(receiver.type))
+              ? "; bind the function to a variable typed with the implementation's function type first"
+              : ""),
           span,
         ),
     );

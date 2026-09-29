@@ -1620,6 +1620,27 @@ fn sum[T < Num](items: List[T]) -> T:
     total
 ```
 
+A newtype or library number is never `Num`. To share an algorithm between
+primitives and your own types, declare your own trait over the operator
+traits and implement it for each type:
+
+```text
+use std.ops.{Add, Mul}
+
+trait Ring < Add[Self, Out = Self] & Mul[Self, Out = Self]:
+    fn zero() -> Self
+
+impl Ring for i64:
+    fn zero() -> i64:
+        0
+
+fn square_sum[T < Ring](items: List[T]) -> T:
+    let total = T::zero()
+    for item in items:
+        total += item * item
+    total
+```
+
 Data embedding does not interact with traits. Embedding never grants trait conformance, an embedded type's trait methods are not promoted, and a promoted method never fills a trait method. An implementation that wants the embedded behavior delegates the trait to the embedded field, which forwards every method, or forwards by hand:
 
 ```text

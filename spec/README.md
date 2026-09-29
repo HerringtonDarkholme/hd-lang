@@ -1511,6 +1511,14 @@ existing source. Each entry names the decision that made the change.
   [Dependency Cycles](../future-work/DEPENDENCY_CYCLES.md#owner-decisions),
   2026-09-29): a plain `use` whose name leads into a `pub use` loop is
   `re-export-loop`, where no code was specified.
+- Stress test decisions 5-11 (owner decisions in
+  [Stress Test 2026-09-29](../future-work/STRESS_2026_09_29.md#owner-decisions),
+  2026-09-29): a decorator before an `impl ... by Structure:` block, which
+  was silently ignored, now warns `unused-derivation-fact`. A newtype
+  with a row parameter, as in `type Job[R](fn() -> void $ R)`, which had
+  no specified meaning, is `generic-kind-mismatch`. A function-typed left
+  operand still selects an operator implementation by its own type, now
+  stated. Decision 11 is applied with Operator traits OP13.
 - Iterator adapters (STDLIB questions 14 and 18, owner decision,
   2026-09-29): the prelude `Iterator[T]` gains the default methods
   `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has

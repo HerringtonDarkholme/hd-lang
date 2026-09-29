@@ -1,0 +1,4 @@
+# test: a newtype declares no row parameter, as a data type does not
+# Spec 11 Row Parameters: req.row.param.no-newtype (stress test decision 10).
+
+type Task[R](fn() -> void $ R)  # diagnostic: generic-kind-mismatch

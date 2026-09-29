@@ -673,6 +673,11 @@ fn invalid(row: mut Row, plain: Plain) -> i32:
     plain[0]    # error: type-mismatch
 ```
 
+> **Note.** `Index` has one `Out` for every reader, whatever the receiver's
+> permission. An element's permission comes from `Out`, as a `List[mut U]`
+> element's comes from `U`: an `Out = mut Cell` gives `mut Cell` even
+> through a readonly receiver.
+
 See also: [Operator Traits](#operator-traits),
 [Compound Assignment](#compound-assignment).
 
@@ -1164,17 +1169,19 @@ pub trait Neg:
 8. r[expr.op.no-use] The call needs no `use` of the trait.
 9. r[expr.op.left-dispatch] The left operand's type selects the implementation. Its instantiations of the trait are the candidates, and [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait) chooses among them by the right operand.
 10. r[expr.op.left-dispatch.example] So `price * 3` checks `3` against `i64` in `Mul[i64]`.
-11. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
-12. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
-13. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
-14. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
-15. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
-16. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
-17. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
-18. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
-19. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
-20. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
-21. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
+11. r[expr.op.left-dispatch.exact-function] A left operand of function type selects implementations by its own type. [Row subsumption](11-requirements-and-suspension.md#row-subsumption) does not apply, so an implementation for a function type with a wider row does not fit. Error: `type-mismatch`.
+12. r[expr.op.left-dispatch.exact-function.message] That error's message should suggest a binding typed with the implementation's function type, as in `let handler: fn(i32) -> i32 $ Db = get`.
+13. r[expr.op.generic] When an operand's type is a type parameter, the candidates come from its bounds and their supertraits.
+14. r[expr.op.out] The operator's result type is the chosen implementation's `Out`. Implementations are unique per trait instantiation and target, so `a + b` has one type.
+15. r[expr.op.order] The left operand is evaluated, then the right one, and then the method is called.
+16. r[expr.op.left-literal] An untyped literal on the left of a non-primitive operand takes its default type, `i32` or `f64`. The implementations never type it.
+17. r[expr.op.left-literal.example] So `3 * price` needs an `impl Mul[Money] for i32`, and with only `Mul[i64] for Money` it is an error; write `price * 3`. Error: `type-mismatch`.
+18. r[expr.op.no-impl] An operator for which no implementation fits is an error, and its message should name the missing trait. Error: `type-mismatch`.
+19. r[expr.op.newtype] A newtype has only the operators its author implements. It inherits none from its base type, and no derivation supplies an operator trait.
+20. r[expr.op.fixed] Operator traits never change precedence or associativity, and they add no operator symbols.
+21. r[expr.op.not-overloaded] `&&`, `||`, prefix `!`, unary `+`, `**`, `is`, `=`, `:=`, and postfix `?` have no trait and keep their built-in meaning.
+22. r[expr.op.comparison] `==`, `!=`, and the relational operators call `Eq` and `PartialOrd`, as [Equality](#equality) and [Ordering](#ordering) define. `std.ops` declares no comparison trait.
+23. r[expr.op.suffix-negation] `-5s` stays the call `s(-5)`: the minus belongs to the suffixed literal, so `Neg` is not called.
 
 ```text
 use std.ops.Mul

@@ -834,6 +834,18 @@ function lintDerivations(
           line.span,
         );
   }
+  // A decorator before a derivation block attaches nothing a derivation
+  // reads (annot.fact.unused-block-decorator); the fix-it moves it into the
+  // block (annot.fact.unused-block-decorator.fix).
+  for (const block of program.implementations) {
+    if (block.byStructure === undefined || block.standard) continue;
+    for (const fact of block.decorators?.facts ?? [])
+      warn(
+        "unused-derivation-fact",
+        "no derivation reads a decorator before a derivation block; move it into the block as a `Self += [...]` line",
+        fact.span,
+      );
+  }
   // A per-trait block's `Self` line warns only when the fact's package does
   // not supply the block's trait (annot.fact.unused-self-line.per-trait).
   // The prototype compiles one package, whose templates are local, so such a
