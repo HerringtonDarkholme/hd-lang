@@ -58,23 +58,34 @@ Decided 2026-09-29.
    - Hosts: known hosts, plus a `.git` suffix for others, with no meta-tag
      discovery.
 
+Decided 2026-09-29, answering the Still Open points of the DEP1-DEP7
+apply pass. DEP10, DEP11 and DEP13 are not the record's recommendation.
+
+8. **DEP8: points 1 and 2 are confirmed as applied.** Pseudo-versions take
+   Go's three forms, and a dependency's test dependencies are never read.
+9. **DEP9: two keys that name the same host path and compatibility line
+   are rejected** (point 3), since one package would then have two names.
+10. **DEP10: a workspace member depends on another member through a local
+    path requirement** (point 4), as in `billing = { path = "../billing" }`.
+    It is not required by host path with the workspace supplying the local
+    tree, as `go.work` does.
+11. **DEP11: a manifest does not state its own host path** (point 5).
+    There is no `[package] id`: a package's identity comes from where it
+    is fetched.
+12. **DEP12: a tagged release may require a pseudo-version** (point 6), as
+    DP6 (a) recommends: it is still one pinned commit with a hash.
+13. **DEP13: `github.com` is the only known host** (point 7). Every other
+    host needs the `.git` suffix.
+14. **DEP14: manifest diagnostics and a fixture manifest input come after
+    the manifest schema is written** (point 8). Nothing to apply now.
+15. **DEP15: a release rejects path dependencies** (point 9). Tagging or
+    fetching a version whose manifest has a `path =` requirement is an
+    error. This keeps [Packages decision 9](PACKAGES.md#owner-decisions).
+
 ## Still Open
 
-Points the apply pass met (2026-09-29). Each waits for the owner. Where a
-point is applied, the spec states the applied reading, and it can change
-without breaking a decision.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Pseudo-version spelling | Go's three forms, without the leading `v` ([`module.version.pseudo`](../spec/10-modules.md#r-module.version.pseudo)) | Keep. |
-| 2 | A dependency's test dependencies during selection | Never read ([`module.select.test-dependencies`](../spec/10-modules.md#r-module.select.test-dependencies)), since only a package's own test build compiles its test code | Keep. Go also prunes them from the module graph. |
-| 3 | Two keys that name the same host path and line | No rule | Reject it, since one package would then have two names. |
-| 4 | How a workspace member depends on another member | No rule | Require it by host path and let the workspace supply the local tree, as `go.work` does. A release then needs no manifest edit. |
-| 5 | Whether a manifest states its own host path, and a fetched manifest must match it (option A's `[package] id`) | No rule | Yes, as option A drafts, so a fork fetched under the wrong path is rejected. |
-| 6 | Whether a tagged release may require a pseudo-version (DP6) | No restriction | Allow it, as DP6 (a) recommends: it is still one pinned commit with a hash. |
-| 7 | Which hosts are known | Toolchain-defined ([`module.repo.known-host`](../spec/10-modules.md#r-module.repo.known-host)) | Start with `github.com`, `codeberg.org`, and `bitbucket.org`, each with an owner and a repository segment, and list them in the tooling docs. |
-| 8 | Diagnostics and fixtures | No code for a hash mismatch, a malformed requirement, or a `dep.NAME` with no manifest key. The fixture format has no manifest input, so no fixture was added | Add a manifest input to the fixture format once the schema is written, with codes such as DP8's `checksum-mismatch`. |
-| 9 | [Packages decision 9](PACKAGES.md#owner-decisions) (no git or path dependencies in published packages) | Nothing to apply: there is no publish step and no path dependency form | Revisit with local-path patches, so that a release rejects a path dependency. |
+None. The owner answered the nine points of the DEP1-DEP7 apply pass with
+DEP8-DEP15.
 
 ## Contents
 

@@ -138,15 +138,22 @@ Decided 2026-09-29.
     meaning. Callbacks are closures (`fn(u): format_user(u, style)`) or
     method references (MR1). Inside a pipe step, `_` is only the pipe slot.
 
+14. **PL14 (2026-09-29): a `_` belongs to the innermost step that contains
+    it.** This answers Still Open 1. In `x |> f(_, y |> g(_))`, the inner
+    `_` is the slot of `g(_)`, so the outer step has one `_` and is valid.
+15. **PL15 (2026-09-29): a leading-dot line before the first `|>` stays
+    part of the chain.** This answers Still Open 2. `xs`, then `.iter()`,
+    then `|> f` is valid. Only a dot line after a `|>` on its logical line
+    is an error, since only there could `.name` attach to a step.
+16. **PL16 (2026-09-29): a dotted bare step whose prefix is a value is a
+    method call.** This answers Still Open 3. `x |> user.greet` reads as
+    `user.greet(x)`, as applied; dotted steps are not limited to module
+    paths and variant constructors.
+
 ## Still Open
 
-Points the apply pass met (2026-09-29). Each waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | Which pipe owns a `_` in a nested pipe, as in `x \|> f(_, y \|> g(_))`? | No rule: [`expr.pipe.slot.one`](../spec/05-expressions.md#r-expr.pipe.slot.one) counts the `_` of "the step", and no fixture nests pipes | The innermost step that contains the `_` owns it, so the outer step above has one `_`. |
-| 2 | Is a leading-dot line before the first `\|>` of a chain part of the chain, as in `xs` then `.iter()` then `\|> f`? | Valid: [`lex.pipe.no-dot-line`](../spec/01-lexical-structure.md#r-lex.pipe.no-dot-line) rejects only a dot line after a `\|>` on its logical line | Keep. The CS2 hazard, `.name` attaching to a step, needs a step before the dot line. |
-| 3 | A dotted bare step whose prefix is a value, `x \|> user.greet`, reads as `user.greet(x)`, a method call with receiver `user` | Read as that call by [`expr.pipe.bare.call`](../spec/05-expressions.md#r-expr.pipe.bare.call) | Keep; the alternative is to allow only module paths and variant constructors as dotted steps. |
+None. The owner answered the three points of the first apply pass with
+PL14-PL16.
 
 ## Contents
 

@@ -51,15 +51,22 @@ Decided 2026-09-29.
 4. **CO4: `?` is allowed inside a comprehension.** It propagates out of
    the enclosing function, and the comprehension stops at that point. This
    closes the spec gap; `return` stays banned there.
+5. **CO5 (2026-09-29): general type-argument defaults replace the
+   one-off `List` default.** This answers Still Open 1; the owner did not
+   take the recommendation to keep
+   [`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default).
+   `collect` declares its default instead, as
+   `collect[C < FromIterator[T] = List[T]]`. The feature is designed in
+   [Type-Argument Defaults](TYPE_ARG_DEFAULTS.md) (TD1-TD7) and is applied
+   with those decisions; until then `flow.collect.default` stays.
+6. **CO6 (2026-09-29): `FromIterator` is not a prelude name.** This
+   answers Still Open 2. Code that implements it imports it, as
+   `std.convert.From` is imported, and callers of `collect` never write
+   it.
 
 ## Still Open
 
-Points the apply pass met (2026-09-29). Each waits for the owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | CO1's open point: what `xs := it.collect()` means with no expected type | `C` is `List[T]` when nothing determines it ([`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default)), as the record recommends | Keep. |
-| 2 | Is `FromIterator` a prelude name? | The specification says only that `std.iter` declares it ([`flow.collect.trait`](../spec/06-control-flow.md#r-flow.collect.trait)); no fixture names it | Not a prelude name: code that implements it imports it, as `std.convert.From` is imported, and callers of `collect` never write it. |
+None. The owner answered both points of the apply pass with CO5 and CO6.
 
 ## Contents
 

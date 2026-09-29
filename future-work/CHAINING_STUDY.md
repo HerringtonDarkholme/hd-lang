@@ -93,16 +93,27 @@ Decided 2026-09-29.
    that hurt every design (boxed `T?`, per-call dictionaries: F-502, F-504)
    should be fixed first.
 
+9. **CS9 (2026-09-29): `step` is private.** This answers Still Open 1.
+   User code builds an iterator from its own closure with the associated
+   function `Iterator::from_fn(step)`, as Rust's `iter::from_fn`. There is
+   no literal `Iterator { step: f }` outside `std`, so only `next(mut self)`
+   advances an iterator.
+10. **CS10 (2026-09-29): `iter()` on an iterator shares its progress;
+    kept.** This answers Still Open 2. Readonly access to an iterator is
+    shallow, because `step` is a closure, so code with readonly access can
+    advance it through `iter()` or an `Iterable[T]` bound. The guide says
+    so.
+11. **CS11 (2026-09-29): after `.None`, what `next` returns is
+    unspecified,** as in Rust. This answers Still Open 3; the owner did
+    not take the recommendation of a fusing constructor.
+    [`flow.for.iterator-progress`](../spec/06-control-flow.md#r-flow.for.iterator-progress)
+    is weakened to match, and `from_fn` does not fuse: every `next` calls
+    `step`.
+
 ## Still Open
 
-Points the apply pass for CS7 and CS8 met (2026-09-29). Each waits for the
-owner.
-
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | How does user code build an `Iterator` from its own closure: a public `step` and the literal `Iterator { step: f }`, or a private `step` and an associated function? | The specification gives the field's type only ([`flow.for.iterator-type`](../spec/06-control-flow.md#r-flow.for.iterator-type)); no fixture builds a user iterator | A private `step` and `Iterator::from_fn(step)`, as Rust's `iter::from_fn`, so only `next(mut self)` advances an iterator. |
-| 2 | `Iterator`'s `iter(self)` has a readonly receiver but returns the same traversal, so code with readonly access can advance an iterator through `iter()` or an `Iterable[T]` bound | Stated as [`flow.for.iterator-self`](../spec/06-control-flow.md#r-flow.for.iterator-self) and [`flow.for.iterator-bound`](../spec/06-control-flow.md#r-flow.for.iterator-bound); a loop directly over a readonly iterator stays `mutable-receiver-required` ([`flow.for.iterator-mut`](../spec/06-control-flow.md#r-flow.for.iterator-mut)) | Keep, and say in the guide that `iter()` on an iterator shares its progress. Rejecting it needs a rule exception for one implementation. |
-| 3 | [`flow.for.iterator-progress`](../spec/06-control-flow.md#r-flow.for.iterator-progress) says `next` returns `.None` after exhaustion, but a user `step` closure may yield again | Kept as written | Keep; the constructor of point 1 wraps the closure so that `.None` is final. |
+None. The owner answered the three points of the CS7 and CS8 apply pass
+with CS9-CS11.
 
 ## Contents
 

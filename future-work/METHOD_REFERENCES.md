@@ -59,19 +59,25 @@ Decided 2026-09-29.
 
    The record's recommendations apply unless the owner says otherwise.
 
+6. **MR6 (2026-09-29): `value::name` where `name` is an associated
+   function is `unknown-method`.** This answers Still Open 4. An
+   associated function has no receiver to bind, so no method of that name
+   takes one.
+7. **MR7 (2026-09-29): `Identity::echo[i32]!(42)` stays a
+   `syntax-error`.** This answers Still Open 5. A qualified bang call has
+   one spelling, `Identity::echo![i32](42)`.
+
 ## Still Open
 
-Points the apply pass met (2026-09-29). The first three are the open
-points of decision 5, applied as the record recommends; each can change
-without breaking a decision.
+Points the apply pass met (2026-09-29). They are the open points of
+decision 5, applied as the record recommends; each can change without
+breaking a decision. MR6 and MR7 answered points 4 and 5.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
 | 1 | Generics on references, `Json::decode[User]` | Type arguments follow the name and owner arguments precede `::` ([`fn.ref.generic`](../spec/07-functions.md#r-fn.ref.generic)); every parameter is instantiated as for a generic function value. A bare pipe step still takes no `[...]` | Keep. |
 | 2 | Inherent members before trait members | A reference resolves as the qualified call does: inherent first, then available traits, and two trait candidates are `ambiguous-method` ([`fn.ref.lookup`](../spec/07-functions.md#r-fn.ref.lookup)) | Keep. |
 | 3 | `Self` for a trait reference | Inferred from the expected function type; unsolved is `unresolved-generic-placeholder` ([`fn.ref.trait-self`](../spec/07-functions.md#r-fn.ref.trait-self)) | Keep. |
-| 5 | `Identity::echo[i32]!(42)` could now read as a bang call of the reference `Identity::echo[i32]` | Stays a `syntax-error`, as before ([`grammar.primary.method-reference.no-bang`](../spec/02-grammar.md#r-grammar.primary.method-reference.no-bang)); the call is `Identity::echo![i32](42)` | Keep, so a qualified bang call has one spelling. `(Identity::echo[i32])!(42)` stays valid as a call of a value. |
-| 4 | `value::name` where `name` is an associated function, which has no receiver to bind | No rule; no fixture uses it | An error, `unknown-method`, since no method of that name takes a receiver. |
 
 ## Contents
 

@@ -2,8 +2,9 @@
 
 Status: design exploration, 2026-09-29. Nothing here is accepted
 behavior. The owner decided to add general type-argument defaults; this
-record designs how they work and asks the open points. The specification
-stays authoritative until an apply pass. Under review:
+record designs how they work. The owner answered its questions as
+[TD1-TD7](#owner-decisions), which are not yet applied, so the
+specification stays authoritative until an apply pass. Under review:
 
 - [`flow.collect.default`](../spec/06-control-flow.md#r-flow.collect.default),
   which these defaults replace, and the rest of
@@ -25,6 +26,28 @@ stays authoritative until an apply pass. Under review:
 Owner constraints, not reopened here: declarations are never inferred, and
 the simplest proven model wins, Rust and Go first. Trivial details stay out
 of the specification.
+
+## Owner Decisions
+
+Decided 2026-09-29, answering [Questions For The Owner](#questions-for-the-owner)
+1 to 7. TD4 is not the record's recommendation. None is applied yet.
+
+1. **TD1: the spelling is `=` after the bound:**
+   `[C < FromIterator[T] = List[T]]`.
+2. **TD2: an implementation repeats a trait method's default.** The
+   default is part of the exact signature.
+3. **TD3: existing diagnostic codes are reused;** there is no new code.
+4. **TD4: an omitted trailing slot in a written list is inferred like `_`,
+   then defaulted.** The owner saw the plain-code comparison and accepted
+   the consequence. Short explicit lists are allowed in general: missing
+   trailing slots act as `_`. That relaxes `partial-generic-arguments` for
+   trailing omissions.
+5. **TD5: the argument wins.** Defaults fill only what use-site inference
+   leaves unsolved, so `widen(3)` has `T = i32`.
+6. **TD6: a generic function value uses defaults as a call does.**
+   `items::collect` is `fn() -> List[string]`.
+7. **TD7: defaults are allowed on functions, methods, data, enums, traits,
+   and `type` declarations,** but not on impl headers.
 
 ## Contents
 
