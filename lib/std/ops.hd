@@ -1,7 +1,8 @@
 # std.ops: the literal-suffix and string-prefix markers
-# (spec/05-expressions.md#literal-suffixes, #prefixed-strings), and the
-# prefix helpers `interpolate` and `process_escapes`. The raw-text prefix
-# `r` is in `std.text` (Literal Suffixes L20).
+# (spec/05-expressions.md#literal-suffixes, #prefixed-strings) and
+# `Template`. The raw-text prefix `r` and the prefix helpers `interpolate`,
+# `process_escapes`, and `EscapeError` are in `std.text` (Literal Suffixes
+# L20, L22).
 # A suffix function is one marked `@num_suffix`, and a prefix function one
 # marked `@str_prefix`; the compiler recognizes `std.ops.NumSuffix`,
 # `std.ops.StrPrefix`, and `std.ops.Template` by their qualified names
@@ -27,95 +28,3 @@ pub fn str_prefix() -> StrPrefix:
 pub data Template[T]:
     pub raw_parts: List[string]
     pub values: List[T]
-
-# The raw pieces joined with the values' `Display` text, in order
-# (future-work/STDLIB.md#stdops; the specification names only `r`).
-pub fn interpolate[T < Display](t: Template[T]) -> string:
-    let joined = t.raw_parts[0]
-    let index = 0
-    while index < t.values.len():
-        joined = joined + t.values[index].to_string() + t.raw_parts[index + 1]
-        index = index + 1
-    joined
-
-# An invalid escape sequence: `offset` counts the Unicode scalars before
-# its backslash (Literal Suffixes L21).
-pub data EscapeError:
-    pub offset: i32
-
-# The text with each escape sequence replaced by its meaning, or an
-# `EscapeError` at the first invalid one (future-work/STDLIB.md#stdops,
-# spec/01-lexical-structure.md#escape-sequences).
-pub fn process_escapes(text: string) -> Result[string, EscapeError]:
-    scalars := text.split("")
-    let processed = ""
-    let index = 0
-    while index < scalars.len():
-        current := scalars[index]
-        if current != "\\":
-            processed = processed + current
-            index = index + 1
-            continue
-        start := index
-        if index + 1 >= scalars.len():
-            return .Err(EscapeError { offset: start })
-        escaped := scalars[index + 1]
-        index = index + 2
-        if escaped == "u":
-            match unicode_escape(scalars, index):
-                .Some(found) =>
-                    processed = processed + found.text
-                    index = found.end
-                .None =>
-                    return .Err(EscapeError { offset: start })
-            continue
-        match simple_escape(escaped):
-            .Some(meaning) =>
-                processed = processed + meaning
-            .None =>
-                return .Err(EscapeError { offset: start })
-    .Ok(processed)
-
-# The meaning of a simple escape. The carriage return is written `\u{d}`
-# because the std loader renames every bare word equal to a top-level name.
-fn simple_escape(escaped: string) -> string?:
-    match escaped:
-        "\\" => .Some("\\")
-        "\"" => .Some("\"")
-        "'" => .Some("'")
-        "n" => .Some("\n")
-        "r" => .Some("\u{d}")
-        "t" => .Some("\t")
-        "0" => .Some("\0")
-        "\$" => .Some("\$")
-        _ => .None
-
-data EscapedScalar:
-    text: string
-    end: i32
-
-# `{` hex digits `}` after `\u`, starting at `start`: one to six digits
-# naming a Unicode scalar value (spec/01-lexical-structure.md#r-lex.escape.unicode).
-fn unicode_escape(scalars: List[string], start: i32) -> EscapedScalar?:
-    if start >= scalars.len() || scalars[start] != "{":
-        return .None
-    let point = 0
-    let digits = 0
-    let index = start + 1
-    while index < scalars.len() && scalars[index] != "}":
-        match "0123456789abcdef".find(scalars[index].lower()):
-            .Some(value) =>
-                if digits == 6 || scalars[index].len() != 1:
-                    return .None
-                point = point * 16 + value
-                digits = digits + 1
-            .None =>
-                return .None
-        index = index + 1
-    if index >= scalars.len() || digits == 0 || point > 1114111 || (point >= 55296 && point <= 57343):
-        return .None
-    .Some(EscapedScalar { text: scalar_text(point), end: index + 1 })
-
-@intrinsic("string_from_scalar")
-fn scalar_text(point: i32) -> string:
-    panic("intrinsic")

@@ -10,7 +10,7 @@ import type { Signature } from "./context.ts";
 // (Literal Suffixes L20): the call is an ordinary call, so generic functions
 // and requirement rows follow the ordinary rules. The compiler, as the
 // markers' reader, checks the marked function's shape once, at its
-// definition (L21, #r-expr.suffix.fn-shape.definition,
+// definition (L21 and L22, #r-expr.suffix.fn-shape.definition,
 // #r-expr.prefix.fn-shape.definition).
 
 const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
@@ -28,19 +28,20 @@ const SUFFIX_PARAMETER_TYPES: ReadonlySet<string> = new Set([
 
 /**
  * What makes a marked function unusable as a suffix or prefix: exactly one
- * required parameter of the right type, and no suspension. `fits` says
- * whether the required parameter's written type is right.
+ * parameter of the right type, even when others have defaults (L22), and no
+ * suspension. `fits` says whether the parameter's written type is right; a
+ * vararg's type is a list, so it never fits.
  */
 function markerShapeProblem(
   declaration: FunctionDecl,
   what: string,
   fits: (type: string) => boolean,
 ): string | undefined {
-  const required = declaration.parameters.filter(
-    (parameter) => parameter.default === undefined && !parameter.variadic,
-  );
-  if (required.length !== 1) return `must take exactly one required parameter, of ${what}`;
-  if (!fits(required[0]!.type.name)) return `must take its required parameter as ${what}`;
+  const parameters = declaration.parameters;
+  if (parameters.length !== 1) return `must take exactly one parameter, of ${what}`;
+  const [parameter] = parameters;
+  if (parameter!.variadic || !fits(parameter!.type.name))
+    return `must take its parameter as ${what}`;
   if (declaration.suspending) return "must not suspend";
   return undefined;
 }

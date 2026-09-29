@@ -517,9 +517,9 @@ else`, `break`, `break value`, and `continue`;
   `@num_suffix` (`FunctionDecl.numSuffix`, set after the std join by
   `checker/decorators.ts` from a value of `std.ops.NumSuffix`), and checks
   the ordinary call, so a generic or provider-needing suffix function
-  follows the ordinary rules (L20). The marked function's shape, one
-  required numeric parameter and no suspension, is checked at its
-  definition as `type-mismatch` (L21, `checker/literal-suffixes.ts`); an
+  follows the ordinary rules (L20). The marked function's shape, exactly
+  one numeric parameter and no suspension, is checked at its definition as
+  `type-mismatch` on the `fn` line (L21, L22, `checker/literal-suffixes.ts`); an
   unmarked function at the literal is `invalid-literal-suffix`. `std.ops` and
   `std.time` (`Duration`, an `i64` count of milliseconds in the
   prototype's own `millis` field, and the suffix functions `ms`, `s`,
@@ -536,12 +536,12 @@ else`, `break`, `break value`, and `continue`;
   only, requires `@str_prefix` (`FunctionDecl.strPrefix`, set with the
   suffix marker in `checker/decorators.ts` from a value of
   `std.ops.StrPrefix`), and checks the ordinary call, so each value
-  converts to the template's `T` like an argument. The prefix shape, one
-  required `Template[T]` parameter and no suspension, is checked at the
-  definition as `type-mismatch` (`checker/literal-suffixes.ts`); an
-  unmarked function at the string is `invalid-string-prefix`. `std.text`
-  declares `r`, and `std.ops` declares `interpolate` and `process_escapes`
-  (which returns `Result[string, EscapeError]` with the scalar offset of
+  converts to the template's `T` like an argument. The prefix shape,
+  exactly one parameter, of type `Template[T]`, and no suspension, is
+  checked at the definition as `type-mismatch` on the `fn` line
+  (`checker/literal-suffixes.ts`); an unmarked function at the string is
+  `invalid-string-prefix`. `std.text` declares `r`, `interpolate`, and
+  `process_escapes` (which returns `Result[string, EscapeError]` with the scalar offset of
   the bad escape) in hd; a `\u{...}` escape uses the host function
   `string_from_scalar`;
 - imported `std.convert.From[T]` and `std.error.Error` as trait
@@ -793,14 +793,14 @@ What it provides:
 | `std.option` | on `T?`: `map`, `unwrap_or`, `ok_or`, `is_some`, `is_none`, `expect` |
 | `std.result` | on `Result[T, E]`: `map_ok`, `map_err`, `ok`, `err`, `is_ok`, `unwrap_or`, `expect` |
 | `std.collections` | on `List[T]`: `map`, `filter`, `first`, `last`, `reversed`, `sorted_by` (stable), `chunks`, `zip` |
-| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` |
+| `std.text` | on `string`: `is_empty`, `ends_with`, `contains`, `find`, `upper`, `trim_start`, `trim_end`, `strip_prefix`, `strip_suffix`, `lines`, `repeat`; `join`, `StringBuilder`; the prefix `r` and its helpers `interpolate`, `process_escapes`, and `EscapeError` |
 | `std.iter` | `range`, and the adapters `map_each`, `filter`, `take`, `enumerate`, `collect`, `fold` as free functions |
 | `std.cmp` | `min`, `max`, `clamp`, `Reverse[T]` |
 | `std.num` | on `i32` and `i64`: `checked_*`, `wrapping_add`, `wrapping_sub`, `saturating_*`, `abs_diff`, `count_ones`, `leading_zeros`; on `f64`: `is_nan`, `is_finite`; `parse_i32`, `parse_i64`, `ParseNumberError` |
 | `std.time` | `Duration` with `milliseconds`, `seconds`, `as_milliseconds`; the suffix functions `ms`, `s`, `min`, `h` |
 | `std.console` | `ConsoleInput`, and the recording `BufferConsole` with `new` and `output` |
 | `std.process` | `ExitCode`, `Termination`; `Process`, `Command`, `Output`, `ProcessError`, and the deterministic `ScriptedProcess` |
-| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, `Template`, `interpolate`, `process_escapes`, and `EscapeError` |
+| `std.ops` | `NumSuffix` and `num_suffix`, the literal-suffix marker; `StrPrefix`, `str_prefix`, and `Template` |
 | `std.format` | `DebugWriter` and the builders `DebugStruct`, `DebugTuple`, `DebugList`, `DebugMap`; the prelude `debug`; `Debug` for the primitives, `List`, `T?`, `Result`, and pairs |
 | `std.testing` | `Choices`, `Arbitrary` (for the primitives and `string`), `snapshot_file`; the rest of `std.testing` is checked by the compiler |
 
