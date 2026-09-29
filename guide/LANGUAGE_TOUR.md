@@ -2323,7 +2323,8 @@ provider satisfies `Logger`, so callers see only `R`, the remaining row. The hel
 not named `provide_logger!` because its body has no suspension point.
 
 A long row gets a name with an ordinary `type` alias, called a row alias. It
-stands for its keys wherever a row follows `$`:
+stands for its keys wherever a row follows `$`. It may also be written bare
+where one key may stand for a row, as in `$.Context[Stack]`:
 
 ```text
 type Stack = Database + Cache + Logger
@@ -2346,6 +2347,11 @@ fn routes() -> List[fn() -> string $ Stack + Clock]:
     [health, orders]
 ```
 
+Without an expected type, `handlers := [health, orders]` gets the union of
+the rows, `$ Stack + Clock`. A list keeps its element row, so a list with a
+wider row is built by an explicit copy, as in
+`let wide: List[fn() -> string $ Stack + Clock + Metrics] = [handlers...]`.
+
 A bundle of providers is reused by an installer: an ordinary function that
 installs the providers and extends its callback's row with the same keys.
 The trailing block is the callback, so an installer reads like a scope:
@@ -2363,8 +2369,10 @@ fn main!() -> void $ Clock:
 
 `R` is inferred at each call as the block's own row less the installed keys,
 so the caller needs only `Clock` here, not `Stack`. A block that uses only
-some of the installed keys still fits. Each call builds the providers again;
-to build them once, return a `$.Context[$ Stack]` value and spread it into
+some of the installed keys still fits. A caller may fix `R` to a row that
+lists an installed key; the block then sees the installer's nearer
+provider, as with nested `$.with` scopes. Each call builds the providers again;
+to build them once, return a `$.Context[Stack]` value and spread it into
 each scope with `ctx...`.
 
 Providers come from an enclosing `$.with` scope or an entry point's permitted

@@ -121,27 +121,49 @@ Open:**
 | RU8 | [Aliases In Diagnostics](../spec/11-requirements-and-suspension.md#aliases-in-diagnostics). |
 | RU9 | No change: [`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty), with a Why callout. |
 
+**Follow-ups applied 2026-09-29:**
+
+| Decision | Specification |
+| --- | --- |
+| RU10 | [`req.row.alias.one-key-slot`](../spec/11-requirements-and-suspension.md#r-req.row.alias.one-key-slot), [`req.row.alias.bare`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bare), [`req.context.bare-alias`](../spec/11-requirements-and-suspension.md#r-req.context.bare-alias), [`fn.type.ctor.row.alias`](../spec/07-functions.md#r-fn.type.ctor.row.alias), [`fn.generic.explicit.row`](../spec/07-functions.md#r-fn.generic.explicit.row), and [`grammar.type.row-argument.alias`](../spec/02-grammar.md#r-grammar.type.row-argument.alias). `req.row.alias.where` and `req.row.alias.kind` are retired for [`req.row.alias.slots`](../spec/11-requirements-and-suspension.md#r-req.row.alias.slots) and [`req.row.alias.type-or-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.type-or-key). |
+| RU11 | No change: [`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees). |
+| RU12 | [Row Union In Literals](../spec/11-requirements-and-suspension.md#row-union-in-literals), [`types.lct.row-union`](../spec/04-type-system.md#r-types.lct.row-union), and [`expr.collection.inferred.rows`](../spec/05-expressions.md#r-expr.collection.inferred.rows). |
+| RU13 | [`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest) and [`req.with.nearest.row-parameter`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter), next to [`req.with.nested`](../spec/11-requirements-and-suspension.md#r-req.with.nested); `runtime/valid/row-forced-overlap-nearest.hd` runs it. |
+| RU14 | No change; the Row Subsumption Note now names the explicit copy, a spread into a list with the wider row. |
+
 ## Still Open
 
-Points the apply pass met (2026-09-28). Each waits for the owner; the
-specification states the reading in the Applied column, so each can change
-without breaking a decision.
+Points the apply pass met (2026-09-28). The owner decided all thirteen on
+2026-09-28 (RU10 to RU14), and each is now applied:
+
+| # | Point | Decided |
+| --- | --- | --- |
+| 1 | Does a row alias work in `$.Context[$ AppRow]` and `Fn[(), O, $ AppRow]`? | Yes (RU14): any row that follows `$` ([`req.row.alias.slots`](../spec/11-requirements-and-suspension.md#r-req.row.alias.slots)). |
+| 2 | Is `$.Context[AppRow]`, without `$`, a row alias use? | Yes (RU10), in every one-key row slot ([`req.row.alias.bare`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bare)). This reverses the applied reading. |
+| 3 | Does the alias cycle rule cover ordinary aliases? | Yes (RU14): every alias cycle is `alias-cycle` ([`types.alias.cycle`](../spec/04-type-system.md#r-types.alias.cycle)). |
+| 4 | Which code rejects a data, enum or trait parameter used in a row? | `generic-kind-mismatch` (RU14) ([`req.row.param.no-data.error`](../spec/11-requirements-and-suspension.md#r-req.row.param.no-data.error)). |
+| 5 | Which code rejects a row parameter in `$.Context[...]`? | `row-parameter-in-context` (RU14) ([`req.row.param.context`](../spec/11-requirements-and-suspension.md#r-req.row.param.context)). |
+| 6 | Which code rejects `$.use(AppRow)` and `AppRow=value`? | `generic-kind-mismatch` (RU14) ([`req.row.alias.type-or-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.type-or-key)). |
+| 7 | Do implementation heads keep row parameters? | Yes (RU14) ([`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument)). |
+| 8 | May a function-type alias take a row parameter? | Yes (RU14). |
+| 9 | Do explicit type arguments rescue `split[R1, R2]`? | No (RU14): `split`-style declarations are rejected ([`req.row.least.ambiguous`](../spec/11-requirements-and-suspension.md#r-req.row.least.ambiguous)). |
+| 10 | When two fixed row parameters share a key, which provider does the callback see? | The nearest (RU13) ([`req.with.nearest.row-parameter`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter)). |
+| 11 | Does RU5 convert a container of functions? | No (RU14): a list is invariant, and a wider list is an explicit copy ([Row Subsumption](../spec/11-requirements-and-suspension.md#row-subsumption), Note). |
+| 12 | May an implementation's method declare a narrower row than its trait's? | No, for now (RU11) ([`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees)). |
+| 13 | Does `[health, orders]` without an expected type get the union row? | Yes (RU12) ([Row Union In Literals](../spec/11-requirements-and-suspension.md#row-union-in-literals)). |
+
+Points the follow-up apply pass met (2026-09-29). Each waits for the
+owner; the specification states the reading in the Applied column, so each
+can change without breaking a decision.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 1 | RU2 names "function headers and function types". Does a row alias also work in `$.Context[$ AppRow]` and `Fn[(), O, $ AppRow]`? | Yes: any row that follows `$` ([`req.row.alias.where`](../spec/11-requirements-and-suspension.md#r-req.row.alias.where)) | Keep: case 6 shares the prod and test contexts this way. |
-| 2 | Is `$.Context[AppRow]`, without `$`, a row alias use? | No: the bare form takes one key, so a row alias there is `generic-kind-mismatch` ([`req.row.alias.kind`](../spec/11-requirements-and-suspension.md#r-req.row.alias.kind)) | Keep: RU2 places aliases after `$`, and Option F's `$`-less type argument was not adopted. |
-| 3 | Edge case 8 calls the alias cycle rule "shared". Does it cover ordinary aliases? | Yes: every alias cycle is `alias-cycle`, reported once on the first declaration ([`types.alias.cycle`](../spec/04-type-system.md#r-types.alias.cycle)) | Keep: an ordinary cycle was silently undiagnosed. |
-| 4 | Which code rejects a data, enum or trait parameter used in a row (RU3)? | `generic-kind-mismatch`: those parameters are type-kinded ([`req.row.param.no-data.error`](../spec/11-requirements-and-suspension.md#r-req.row.param.no-data.error)) | Keep: no new code. |
-| 5 | Which code rejects a row parameter in `$.Context[...]` (RU3)? | The new `row-parameter-in-context` ([`req.row.param.context`](../spec/11-requirements-and-suspension.md#r-req.row.param.context)) | Keep: the parameter is row-kinded, so a kind error would mislead. |
-| 6 | Edge case 12 asks for "one error" for `$.use(AppRow)` and `AppRow=value`. Which code? | `generic-kind-mismatch`, as for a row alias used as a type (edge case 10) | Keep: one code for every row used where a type or one key is needed. |
-| 7 | RU3 says "only functions". Do implementation heads keep row parameters? | Yes: [`trait.target.row-argument`](../spec/09-traits.md#r-trait.target.row-argument) is unchanged, and [`req.row.param.callables`](../spec/11-requirements-and-suspension.md#r-req.row.param.callables) lists implementations | Keep: `impl[R] Marker for Fn[(), i32, $ R]` needs one. |
-| 8 | May a function-type alias take a row parameter, as in `type Handler[R] = fn(Request) -> Response $ R`? | Yes: RU3 names data types, enums and traits only, and a transparent alias expands at its use | Keep. |
-| 9 | Under RU4, do explicit type arguments rescue a declaration such as `split[R1, R2]`? | No: the check is at the declaration and counts only other parameters ([`req.row.least.ambiguous`](../spec/11-requirements-and-suspension.md#r-req.row.least.ambiguous)) | Keep: RU4 rejects `f: fn() $ R1 + R2` outright. |
-| 10 | When two fixed row parameters share a key (the record's soundness point), which provider does the callback see? | Not stated | State that the nearer scope provides it, as a nested `$.with` does ([`req.with.nested`](../spec/11-requirements-and-suspension.md#r-req.with.nested)). |
-| 11 | Does RU5 convert a container, such as a `List[fn() $ Db]` value to `List[fn() $ Db + Cache]`? | No: it converts a function value; variance keeps the row invariant ([Row Subsumption](../spec/11-requirements-and-suspension.md#row-subsumption), Note) | Keep: converting a container would copy it. |
-| 12 | Does RU5 let an implementation's method declare a narrower row than its trait's? | No: [`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees) still requires agreement | Keep for now; a method is part of a trait contract, not a function value. |
-| 13 | Does `[health, orders]` without an expected type get the union row? | No: RU5 applies only against an expected function type, so the list needs one | Keep: inferring a new row is not decided. |
+| 14 | RU12 names list and collection literals. Do the other least-common-type sites, the branches of `if` and `match` and a closure's inferred result, also take the union row? | No: only list and map literals ([`types.lct.row-union`](../spec/04-type-system.md#r-types.lct.row-union)) | Extend it to every least-common-type site, so `if admin: audit else: health` is valid; one rule is simpler than a literal-only case. |
+| 15 | How does a diagnostic print an inferred union row, which no one wrote? | As the elements' rows are written, in element order, each key or alias once; a mismatch also lists the expanded keys ([`req.row.union.literal.diagnostics`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.diagnostics)) | Keep: it follows RU8. The prototype prints the expanded keys. |
+| 16 | Does a spread take part in the union, as in `[first..., second...]`? | Yes: a spread contributes its list's element row, as it contributes that type ([`req.row.union.literal.spread`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.spread)) | Keep. The prototype does not yet (`KNOWN_FAILURES.tsv`, RU12). |
+| 17 | Does the union reach function values inside elements, as in `[[health], [orders]]`? | No: only function elements take it, so that literal is `no-common-type` ([`req.row.union.literal.direct`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.direct)) | Keep: lists are invariant (RU14). |
+| 18 | RU10 names one-key slots. Are `$.use(AppRow)` and `AppRow=value` among them? | No: they name keys whose providers are values, so they stay `generic-kind-mismatch` ([`req.row.alias.type-or-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.type-or-key)) | Keep: `$.use` returns one value per key, and a row has no key order. |
+| 19 | RU13 names a "forced" `R`. Does the rule depend on how `R` was fixed? | No: an explicit type argument, another argument, and an expected type all give the nearest provider ([`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest)) | Keep: lookup follows one rule. |
 
 ## Contents
 
@@ -857,6 +879,8 @@ rejected one is `split`.
 under explicit type arguments, a key would reach `f` from two bundles. The
 rule needs one sentence: the nearer scope provides it, as a nested
 `$.with` does today.
+The owner chose that sentence as RU13, now
+[`req.with.nearest.row-parameter`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter).
 
 **Verdict: works** for (a) and (b) under the proposed rule; (c) is
 rejected by it.
