@@ -24,3 +24,14 @@ Brainstorms and stress tests rank their options by this order. For each
 option, list which kinds of change it needs, and prefer the one whose
 costliest change is highest on this list (closest to 4). Break ties by
 counting changes. Owner direction, 2026-09-28.
+
+## Spec Scope For The Standard Library
+
+The spec names a std item only when the language needs it:
+- the compiler or runtime gives it support;
+- it is in the prelude;
+- or syntax refers to it, such as a literal form.
+
+Any other std type or function, such as `Set` or a default hasher, lives only
+in [future-work/STDLIB.md](future-work/STDLIB.md) and the std sources. Spec
+examples must not depend on those. Owner direction, 2026-09-28.

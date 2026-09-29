@@ -8,6 +8,27 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
+### Casts, Property Discards, Type Names As Values, Std Scope
+
+**Decided (owner, 2026-09-28); not yet applied.**
+1. **Narrowing integer casts wrap** at run time, as Go conversions and
+   Rust `as` do: `u8(x)` with `x = 300` gives 44. This replaces
+   `types.cast.range-check` and `types.cast.out-of-range`. A literal
+   argument that is out of range stays a compile error, as Go reports a
+   constant overflow. Checked conversion remains a library function
+   returning `Result` (`types.cast.fallible`).
+2. **`assume` discards are counted separately.** They don't count toward
+   `cases`, and a property test fails when discards exceed 10 times
+   `cases`, like Hypothesis's `filter_too_much`.
+3. **Using a type name as a value** (`let x = User`) is a new spec/03 rule
+   with the code `type-used-as-value`.
+4. **Std scope:** see AGENTS.md "Spec Scope For The Standard Library".
+   `Set[T]` and a default hasher are not declared in the spec. Reword the
+   two `Set[T]` examples (`trait.derive.newtype.self-error`,
+   `annot.bound.more`) to use `Map`. Reword the "standard `Hasher`" rules
+   (`req.determinism.hash-seeded`, `trait.derive.hash.seeded`) to describe
+   hash seeds the runtime provides, without naming a std type.
+
 ### Bound And Row Operators
 
 **Decided (owner, 2026-09-28); items 1 to 4 applied 2026-09-28.** This
