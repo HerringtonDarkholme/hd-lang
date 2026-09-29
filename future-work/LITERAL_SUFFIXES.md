@@ -242,6 +242,23 @@ the decorator redesign; see its entry below.
     `invalid-literal-suffix`. Readings the apply pass had to choose are
     points 15-23 under [Still Open](#still-open).
 
+20. **L20 (2026-09-28): answers to Still Open 15-17, 19 and 20.**
+    - Keep the applied `$` readings (15-17):
+      - a `$` not followed by a name or `{` is plain text;
+      - `r"$true"` is `syntax-error`;
+      - `\$` stops interpolation and keeps its backslash.
+    - `r` lives in `std.text`, not the prelude, so code writes
+      `use std.text.r`.
+    - **Prefixes and suffixes are plain call sugar.** The only rule kept is
+      that a `@num_suffix` or `@str_prefix` function must not suspend: hd
+      marks every suspending call with `!`, and `5s` or `sql"..."` could
+      not show it. This applies to both markers. The no-provider and
+      no-type-parameter rules are lifted: the call follows the ordinary
+      row and generic rules, and compile-time positions keep their
+      existing requirement-free rule. A wrong parameter shape fails as an
+      ordinary call error at the literal. This relaxes L11's
+      "no providers, no type parameters" and L19's copied shape rules.
+
 ## Contents
 
 - [Problem](#problem)
