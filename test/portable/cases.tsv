@@ -1322,3 +1322,6 @@ typing/valid/row-alias-bare-impl-head.hd	type
 typing/invalid/row-alias-type-argument.hd	type
 typing/invalid/row-alias-explicit-type-argument.hd	type
 runtime/valid/row-forced-overlap-nearest.hd	runtime
+typing/invalid/public-method-missing-result-type.hd	type
+typing/valid/private-method-infers-result-and-row.hd	type
+typing/invalid/public-method-without-requirement-clause.hd	type

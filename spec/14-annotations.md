@@ -1064,6 +1064,12 @@ data User:
 > a derived trait stays dynamically safe and two libraries' facts never
 > collide.
 
+> **Note.** A fact expression may call a function in another file. An
+> implementation evaluates facts after it checks function bodies, and the
+> [package interface](10-modules.md#r-module.interface.fact-values) records
+> each fact's value, so a changed body that yields the same value leaves the
+> interface unchanged.
+
 ### Walk, Describe, And Build
 
 The compiler generates three traversals for each derivation. A data type is

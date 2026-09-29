@@ -129,7 +129,7 @@ Open:**
 | RU5 | [Row Subsumption](../spec/11-requirements-and-suspension.md#row-subsumption) and [`types.assign.row-subsumption`](../spec/04-type-system.md#r-types.assign.row-subsumption). |
 | RU7 | No change: [`req.row.syntax.empty`](../spec/11-requirements-and-suspension.md#r-req.row.syntax.empty). |
 | RU8 | [Aliases In Diagnostics](../spec/11-requirements-and-suspension.md#aliases-in-diagnostics). |
-| RU9 | No change: [`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty), with a Why callout. |
+| RU9 | No change: [`req.row.omitted.empty-pub`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub), with a Why callout. |
 
 **Follow-ups applied 2026-09-29:**
 
@@ -217,7 +217,7 @@ but together they cover more than the question suggests.
 
 | Tool | Side | Rule | What it reuses |
 | --- | --- | --- | --- |
-| Inferred rows | declaration | [`req.row.omitted.inferred`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.inferred) | A non-public function, inherent method, local `fn`, or closure writes no row at all. |
+| Inferred rows | declaration | [`req.row.omitted.inferred-private`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private) | A non-public function, non-public inherent method, local `fn`, or closure writes no row at all. |
 | Row parameters | declaration | [`req.poly.row-parameter`](../spec/11-requirements-and-suspension.md#r-req.poly.row-parameter) | Higher-order code passes a caller's row through as one bundle, and extension removes one key. |
 | Open rows | declaration | [`req.row.least.solution`](../spec/11-requirements-and-suspension.md#r-req.row.least.solution), [`fn.type.generic.instantiate-sources`](../spec/07-functions.md#r-fn.type.generic.instantiate-sources) | A function declared `[R]` with row `$ R + Clock` fits any wider function type; `R` is solved as the other keys. This is Koka's `<clock\|e>` idiom. |
 | Function-type aliases | declaration | [`types.alias.same`](../spec/04-type-system.md#r-types.alias.same) | `type Handler = fn!(Request) -> Response $ Db + Cache` names a callable type with its row. |
@@ -228,7 +228,7 @@ Four rules limit these tools, and the cases below keep hitting them:
 
 | Limit | Rule | Effect |
 | --- | --- | --- |
-| Public rows are written | [`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty) | A `pub` function without a clause has the empty row. |
+| Public rows are written | [`req.row.omitted.empty-pub`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) | A `pub` function without a clause has the empty row. |
 | No package-private visibility | [`module.vis.no-package-private`](../spec/10-modules.md#r-module.vis.no-package-private) | Every function called from another module of the same app is `pub`, so it writes its row. |
 | Rows are invariant | [`types.variance.function`](../spec/04-type-system.md#r-types.variance.function) | `fn() $ Db` is not a `fn() $ Db + Cache`, so values stored under one function type share one exact row. |
 | A key is a trait | [`req.key.traits`](../spec/11-requirements-and-suspension.md#r-req.key.traits) | No name can stand for several keys in a `$` clause. `type AppRow = $ Db + Cache` is not a declaration form. |
@@ -1183,7 +1183,7 @@ pub fn create_order!(req: Request) -> Response:  # proposed: row inferred in an 
 ```
 
 **Rules.** An exception to
-[`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty),
+[`req.row.omitted.empty-pub`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty-pub),
 keyed on a package property.
 
 **Evidence against.** A body edit deep in a helper silently changes a

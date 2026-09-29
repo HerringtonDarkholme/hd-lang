@@ -100,9 +100,9 @@ callable_name = identifier, [ "!" ] ;
 
 ### Omitted Requirement Clauses
 
-1. r[req.row.omitted.empty] A public function, a trait method, or a method of a trait implementation without a requirement clause has the empty row.
+1. r[req.row.omitted.empty-pub] A public function, a public inherent method, a trait method, or a method of a trait implementation without a requirement clause has the empty row.
 2. r[req.row.omitted.empty.body] The body of such a callable may use only requirements satisfied by an enclosing lexical provider scope.
-3. r[req.row.omitted.inferred] A non-public function, inherent method, or local `fn` declaration without a requirement clause has an inferred row, computed by the same rule as a closure's below.
+3. r[req.row.omitted.inferred-private] A non-public function, a non-public inherent method, or a local `fn` declaration without a requirement clause has an inferred row, computed by the same rule as a closure's below.
 4. r[req.row.omitted.cycle] Inferred rows of functions that call each other in a cycle are the least rows that satisfy every member of the cycle.
 5. r[req.row.omitted.closure] When a closure omits its requirement clause, the compiler infers the least row containing every requirement used by its body that is not satisfied by an enclosing lexical provider scope.
 6. r[req.row.omitted.parameter-calls] Calls through function parameters contribute their normalized rows.

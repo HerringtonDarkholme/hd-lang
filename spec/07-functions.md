@@ -24,8 +24,8 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
 ### Parameter And Result Types
 
 1. r[fn.decl.parameter-types] Named functions must declare every parameter type.
-2. r[fn.decl.result-required] A public function, a trait method, and a method of a trait implementation must also declare its result type. Omitting it is an error. Error: `missing-result-type`.
-3. r[fn.decl.result-omitted] A non-public function, inherent method, or local `fn` declaration may omit `-> type`.
+2. r[fn.decl.result-required-pub] A public function, a public inherent method, a trait method, and a method of a trait implementation must also declare its result type. Omitting it is an error. Error: `missing-result-type`.
+3. r[fn.decl.result-omitted-private] A non-public function, a non-public inherent method, or a local `fn` declaration may omit `-> type`.
 4. r[fn.decl.result-inferred] Its result type is then inferred from its body, as for a nonrecursive closure.
 5. r[fn.decl.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand.
 6. r[fn.decl.result-inferred.void] The inferred result is `void` when the body produces no value.
@@ -34,7 +34,18 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
 
 ```text
 pub fn identity(x: i32): x  # error: missing-result-type
+
+data Cart:
+    count: i32
+
+impl Cart:
+    pub fn total(self):  # error: missing-result-type
+        self.count
 ```
+
+> **Why.** Every signature that another file can see is written out, so a
+> caller in another file never waits for a callee's body to be checked.
+> Files can then be checked in parallel.
 
 ### Recursion Without A Result Type
 

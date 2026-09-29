@@ -182,6 +182,79 @@ use pkg.status.{Status.Queued}    # error
 pub use std.testing.assert_equal  # error
 ```
 
+## Dependency Cycles
+
+The files of one folder may use each other in a loop, but folders must not
+depend on each other in a loop:
+
+```text
+# src/shop/mod.hd
+pub use pkg.shop.cart.{Cart}
+pub use pkg.shop.item.{Item}
+
+# src/shop/cart.hd: a loop with mod.hd, inside folder src/shop
+use pkg.shop.{Item}
+```
+
+### Folders
+
+A source file's **folder** is the directory that holds it:
+
+| Source file | Module | Folder |
+| --- | --- | --- |
+| `src/shop/mod.hd` | `shop` | `src/shop` |
+| `src/shop/cart.hd` | `shop.cart` | `src/shop` |
+| `src/shop/orders/order.hd` | `shop.orders.order` | `src/shop/orders` |
+| `src/shop.hd`, when there is no `src/shop/mod.hd` | `shop` | `src` |
+
+1. r[module.folder.directory] A source file's folder is the directory that holds it, as the table shows.
+2. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
+3. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
+
+### Folder Graph
+
+1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B` when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches, so `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
+2. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
+3. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
+4. r[module.cycle.nested] A folder and its parent or child folder are separate nodes, and an edge between them counts like any other.
+5. r[module.cycle.acyclic] The folder graph must be acyclic. A folder that depends on itself through other folders is an error. Error: `folder-cycle`.
+6. r[module.cycle.within-folder] Uses between files of one folder make no edge, so those files may use each other in any pattern, loops included.
+7. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is invalid.
+
+A root facade that uses a child folder, beside a shared root file that the
+child uses, makes a loop of folders:
+
+```text
+# src/mod.hd, in folder src
+pub use pkg.shop.{Cart}
+
+# src/error.hd, in folder src
+pub enum Error:
+    Empty
+
+# src/shop/mod.hd, in folder src/shop
+use pkg.error.{Error}  # error: folder-cycle
+```
+
+> **Why.** Every signature that another file sees is written out, so files
+> are checked in parallel whatever their loops. The folder rule bounds the
+> largest set of files that must be compiled together at one folder. A
+> folder then compiles from the signatures of the folders it uses, as a Go
+> package compiles from its imports' export data.
+
+> **Note.** Shared declarations go in a leaf folder. Moving `src/error.hd`
+> to `src/error/mod.hd` keeps the module name `error`, so no `use` line
+> changes, and breaks the loop above.
+
+### Cycle Diagnostic
+
+1. r[module.cycle.diagnostic.loop] The `folder-cycle` diagnostic must show one shortest loop of folders, with the `use` declaration that makes each edge.
+2. r[module.cycle.diagnostic.size] It must show the size of the tangle: the number of folders that lie on some loop with the shown ones.
+3. r[module.cycle.diagnostic.fix] It must offer a fix-it that moves a file `x.hd` on the loop to `x/mod.hd`, which keeps its module name.
+
+See also: [Use Declarations](03-names-and-scopes.md#use-declarations),
+[Initialization Order](#initialization-order).
+
 ## Prelude
 
 The **prelude** is the implicit scope of public standard-library names that
@@ -757,17 +830,46 @@ top-level code may do.
 
 ### Initialization Order
 
-1. r[module.init.graph] Before execution, the compiler resolves the acyclic use graph reachable from the selected script or executable entry module.
-2. r[module.init.once] Every reachable module is initialized exactly once per program instance after all modules it uses have been initialized.
-3. r[module.init.ready-order] When multiple modules are otherwise ready, their fully qualified module identities order them lexicographically.
+1. r[module.init.use-graph] Before execution, the compiler resolves the use graph reachable from the selected script or executable entry module. The graph may have loops inside one folder.
+2. r[module.init.group] An **initialization group** is a strongly connected component of that graph: one module, or the modules that use each other in a loop.
+3. r[module.init.group.once] Every reachable group is initialized exactly once per program instance, after every other group it uses has been initialized.
+4. r[module.init.group.ready-order] When several groups are otherwise ready, the least fully qualified module identity in each group orders them lexicographically.
 
 > **Why.** Ordering by module identity makes initialization independent of
 > filesystem enumeration.
 
+#### Order Inside A Group
+
+Top-level statements of a group run in dependency order, then in file
+order, as Go orders the variables of one package:
+
+```text
+# src/shop/catalog.hd
+use self.prices
+
+let featured = prices.price_of("tea")  # runs after prices.markup
+
+# src/shop/prices.hd
+use self.catalog
+
+let markup = 5
+
+pub fn price_of(sku: string) -> i32:
+    catalog.base_price(sku) + markup
+```
+
+1. r[module.init.group.dependency] A top-level statement depends on each top-level binding of its group in its transitive read set. The read set is computed as for [definite initialization](#definite-initialization), across every module of the group.
+2. r[module.init.group.step] A group initializes one top-level executable statement at a time. Each step runs the earliest remaining statement whose dependencies are all initialized.
+3. r[module.init.group.earliest] Statements are ordered by fully qualified module identity, then by source position.
+4. r[module.init.group.cycle] When statements remain and none of them is ready, they form an initialization cycle, which is an error. Error: `top-level-read-before-initialization`.
+
+> **Note.** In a group of one module, definite initialization makes every
+> statement ready in turn, so its statements run in source order.
+
 ### Top-Level Statements
 
 1. r[module.init.declarations] Within one module, named declarations are available before initialization.
-2. r[module.init.source-order] Top-level executable statements run in source order.
+2. r[module.init.source-order-single] In a group of one module, top-level executable statements run in source order. A larger group follows [Order Inside A Group](#order-inside-a-group).
 3. r[module.init.uses] Use declarations do not execute as statements.
 4. r[module.init.binding] Top-level bindings are initialized at their statement, before later function bodies may access them.
 5. r[module.init.storage] Their storage remains available to functions in that module for the lifetime of the program instance.
@@ -795,7 +897,8 @@ fn first_name() -> string:
 > **Note.** An implementation can compute the check from a per-function
 > summary of the top-level bindings each function reads, combined bottom-up
 > over the module's call graph. It never needs another module's function
-> bodies.
+> bodies. Ordering a larger group combines the same summaries across the
+> group's modules, after their bodies are checked.
 
 ### Entry Behavior
 
@@ -852,7 +955,19 @@ use pkg.user.{User, UserId, load_user}
 2. r[module.pub-use.public-source] A publicly used declaration must already be public in its defining module.
 3. r[module.pub-use.binding] `pub use` introduces the same local binding as `use` and additionally exposes that binding to other modules.
 4. r[module.pub-use.identity] `pub use` does not create a new declaration identity.
-5. r[module.pub-use.cycles] Cycles involving `use` or `pub use` are rejected.
+5. r[module.pub-use.chain] A `pub use` chain must end at a declaration: following each `pub use` of a name to the module it names must reach the module that declares the name.
+6. r[module.pub-use.chain.loop] A chain that returns to a `pub use` it has already passed is invalid.
+
+```text
+# src/shop/a.hd
+pub use pkg.shop.b.{Token}  # error
+
+# src/shop/b.hd
+pub use pkg.shop.a.{Token}
+```
+
+> **Why.** Loops of `use` lines are allowed inside a folder, so a facade and
+> its children may use each other. A name still needs one declaration.
 
 ### Member Visibility
 
@@ -915,10 +1030,11 @@ A package interface must contain:
 1. r[module.interface.contents] A package interface must contain every item in the table.
 2. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
 3. r[module.interface.dictionaries] An implementation compiles each ordinary generic function in its defining package, and a downstream use supplies only its dictionaries.
-4. r[module.interface.determined] A package interface is therefore determined by the package's declarations and does not depend on any other function body.
-5. r[module.interface.early] A downstream package can be compiled as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled.
-6. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
-7. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
+4. r[module.interface.fact-values] A package interface records each [fact](14-annotations.md#r-annot.fact.eval) of its declarations by the fact's value.
+5. r[module.interface.determined-facts] A package interface is therefore determined by the package's declarations and their fact values. It depends on no function body except through those values.
+6. r[module.interface.early-facts] A downstream package can be compiled as soon as the interfaces of its dependencies are known. It need not wait for their function bodies to be checked or compiled, except the bodies their fact expressions call.
+7. r[module.interface.coherence] Coherence is checked at link time over the complete set of resolved interface files.
+8. r[module.interface.link-reject] Linking may therefore reject a graph even when each package compiled independently.
 
 ## Executable Entry Point
 

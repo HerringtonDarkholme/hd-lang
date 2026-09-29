@@ -1045,3 +1045,40 @@ style lint rejects a chapter that reuses one.
 - `module.prelude.ops-str-prefix`: retired 2026-09-28. Literal Suffixes L20
   moves `r` to `std.text`. Replaced by
   `module.prelude.ops-str-prefix-markers` and `module.prelude.text-r`.
+- `fn.decl.result-required`: retired 2026-09-29. Dependency cycles DC1
+  requires a result type on a public inherent method too. Replaced by
+  `fn.decl.result-required-pub`.
+- `fn.decl.result-omitted`: retired 2026-09-29. Dependency cycles DC1
+  lets only a non-public inherent method omit its result type. Replaced by
+  `fn.decl.result-omitted-private`.
+- `req.row.omitted.empty`: retired 2026-09-29. Dependency cycles DC1 gives
+  a public inherent method without a clause the empty row. Replaced by
+  `req.row.omitted.empty-pub`.
+- `req.row.omitted.inferred`: retired 2026-09-29. Dependency cycles DC1
+  infers the row of a non-public inherent method only. Replaced by
+  `req.row.omitted.inferred-private`.
+- `names.use.cycles`: retired 2026-09-29. Dependency cycles DC2 allows use
+  loops inside one folder and forbids loops of folders. Replaced by
+  `names.use.cycles-in-folder` and `names.use.folder-cycle`.
+- `module.pub-use.cycles`: retired 2026-09-29. Dependency cycles DC2 and
+  DC8 allow `pub use` loops inside one folder and require each chain to end
+  at a declaration. Replaced by `module.cycle.acyclic`,
+  `module.pub-use.chain`, and `module.pub-use.chain.loop`.
+- `module.init.graph`: retired 2026-09-29. Dependency cycles DC2 lets the
+  use graph have loops inside one folder. Replaced by
+  `module.init.use-graph`.
+- `module.init.once`: retired 2026-09-29. Dependency cycles DC7 initializes
+  modules that use each other as one group. Replaced by `module.init.group`
+  and `module.init.group.once`.
+- `module.init.ready-order`: retired 2026-09-29. Dependency cycles DC7
+  orders ready groups rather than modules. Replaced by
+  `module.init.group.ready-order`.
+- `module.init.source-order`: retired 2026-09-29. Dependency cycles DC7
+  orders the statements of a larger group by dependency first. Replaced by
+  `module.init.source-order-single` and `module.init.group.step`.
+- `module.interface.determined`: retired 2026-09-29. Dependency cycles DC10
+  records fact values in the package interface. Replaced by
+  `module.interface.fact-values` and `module.interface.determined-facts`.
+- `module.interface.early`: retired 2026-09-29. Dependency cycles DC10
+  makes an interface wait for the bodies its facts call. Replaced by
+  `module.interface.early-facts`.

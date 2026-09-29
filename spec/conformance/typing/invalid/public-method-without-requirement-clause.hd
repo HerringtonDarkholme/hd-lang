@@ -1,0 +1,14 @@
+# test: requirements / omitted clauses / public inherent method without a clause has the empty row
+
+trait Logger:
+    fn write(self, message: string) -> void
+
+fn log(message: string) -> void $ Logger:
+    logger := $.use(Logger)
+    logger.write(message)
+
+data Nightly: pass
+
+impl Nightly:
+    pub fn run(self) -> void:
+        log("nightly")  # diagnostic: missing-requirement

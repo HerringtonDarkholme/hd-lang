@@ -100,14 +100,14 @@ between files.
 | Directory module | [`module.path.directory`](../spec/10-modules.md#r-module.path.directory) | A directory is a module only with a `mod.hd`, which is its facade. |
 | No implicit nesting | [`module.path.no-child-import`](../spec/10-modules.md#r-module.path.no-child-import), [`module.path.no-parent-scope`](../spec/10-modules.md#r-module.path.no-parent-scope) | A parent does not import its children, and a child does not see its parent. |
 | Relative uses | [`module.relative.base`](../spec/10-modules.md#r-module.relative.base) | `self` and `super` start at the file's directory module. |
-| Use cycles | [`names.use.cycles`](../spec/03-names-and-scopes.md#r-names.use.cycles), [`module.pub-use.cycles`](../spec/10-modules.md#r-module.pub-use.cycles) | "Cycles involving `use` or `pub use` are rejected." No diagnostic code is named. |
-| Init graph | [`module.init.graph`](../spec/10-modules.md#r-module.init.graph) | The compiler resolves an *acyclic* use graph from the entry. |
-| Init order | [`module.init.once`](../spec/10-modules.md#r-module.init.once), [`module.init.ready-order`](../spec/10-modules.md#r-module.init.ready-order) | A module initializes after every module it uses. Ties go by module identity. |
+| Use cycles | [`names.use.cycles`](../spec/STYLE.md#retired-rule-ids), [`module.pub-use.cycles`](../spec/STYLE.md#retired-rule-ids) | "Cycles involving `use` or `pub use` are rejected." No diagnostic code is named. |
+| Init graph | [`module.init.graph`](../spec/STYLE.md#retired-rule-ids) | The compiler resolves an *acyclic* use graph from the entry. |
+| Init order | [`module.init.once`](../spec/STYLE.md#retired-rule-ids), [`module.init.ready-order`](../spec/STYLE.md#retired-rule-ids) | A module initializes after every module it uses. Ties go by module identity. |
 | Definite init | [`module.init.definite.local`](../spec/10-modules.md#r-module.init.definite.local) | The check is local to one module; it never needs another module's bodies. |
 | No public bindings | [`module.package.no-pub-binding`](../spec/10-modules.md#r-module.package.no-pub-binding) | Top-level bindings cannot be `pub`. |
 | Visibility | [`module.vis.no-package-private`](../spec/10-modules.md#r-module.vis.no-package-private) | Private means file-private. Another file sees only `pub`. |
-| Public signatures | [`module.package.annotated`](../spec/10-modules.md#r-module.package.annotated), [`fn.decl.result-required`](../spec/07-functions.md#r-fn.decl.result-required), [`req.row.omitted.empty`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.empty) | Every `pub` declaration is fully annotated; a `pub` function without a row clause has the empty row. |
-| Private inference | [`fn.decl.result-omitted`](../spec/07-functions.md#r-fn.decl.result-omitted), [`req.row.omitted.inferred`](../spec/11-requirements-and-suspension.md#r-req.row.omitted.inferred) | Only a non-public function may omit its result type and row. |
+| Public signatures | [`module.package.annotated`](../spec/10-modules.md#r-module.package.annotated), [`fn.decl.result-required`](../spec/STYLE.md#retired-rule-ids), [`req.row.omitted.empty`](../spec/STYLE.md#retired-rule-ids) | Every `pub` declaration is fully annotated; a `pub` function without a row clause has the empty row. |
+| Private inference | [`fn.decl.result-omitted`](../spec/STYLE.md#retired-rule-ids), [`req.row.omitted.inferred`](../spec/STYLE.md#retired-rule-ids) | Only a non-public function may omit its result type and row. |
 | Tests | [`module.test.module`](../spec/10-modules.md#r-module.test.module), [`module.test.integration`](../spec/10-modules.md#r-module.test.integration) | `*_test.hd` files sit beside code; `tests/` holds integration tests that see only the public API. |
 | Entry | [Packages, manifest](PACKAGES.md#26-entry-points) | The default entry is `src/main.hd`; the library root is `src/mod.hd`. Both sit in the root folder. |
 
@@ -219,7 +219,7 @@ with its parallel front end and codegen units
 In hd, private means file-private
 ([`module.vis.no-package-private`](../spec/10-modules.md#r-module.vis.no-package-private)).
 Only a non-public function may omit its result type or row
-([`fn.decl.result-omitted`](../spec/07-functions.md#r-fn.decl.result-omitted)).
+([`fn.decl.result-omitted`](../spec/STYLE.md#retired-rule-ids)).
 Every `pub` declaration is fully annotated
 ([`module.package.annotated`](../spec/10-modules.md#r-module.package.annotated)),
 and a `pub` function without a row clause has the empty row (RU9). Top-level
@@ -258,9 +258,9 @@ Three places still let a body cross a file boundary.
 
 | Id | Gap | Where | Effect |
 | --- | --- | --- | --- |
-| G1 | A `pub` inherent method may omit its result type and row. | [`fn.decl.result-required`](../spec/07-functions.md#r-fn.decl.result-required) lists "a public function, a trait method, and a method of a trait implementation". [`fn.decl.result-omitted`](../spec/07-functions.md#r-fn.decl.result-omitted) allows "a non-public function, inherent method, or local `fn`". Whether "non-public" covers "inherent method" is unclear, and no fixture pins it. | If allowed, `cart.total()` in another file needs `total`'s body. Checking then waits across files, like Kotlin's implicit types. |
-| G2 | A decorator's fact expression is evaluated at compile time and may call a function. | [`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval) | A fact in one file can depend on a body in another. Package interfaces carry facts, which conflicts with [`module.interface.determined`](../spec/10-modules.md#r-module.interface.determined). |
-| G3 | Initialization order inside a file cycle. | [`module.init.graph`](../spec/10-modules.md#r-module.init.graph) assumes no cycle. | Ordering needs read sets from several files' bodies (C13). |
+| G1 | A `pub` inherent method may omit its result type and row. | [`fn.decl.result-required`](../spec/STYLE.md#retired-rule-ids) lists "a public function, a trait method, and a method of a trait implementation". [`fn.decl.result-omitted`](../spec/STYLE.md#retired-rule-ids) allows "a non-public function, inherent method, or local `fn`". Whether "non-public" covers "inherent method" is unclear, and no fixture pins it. | If allowed, `cart.total()` in another file needs `total`'s body. Checking then waits across files, like Kotlin's implicit types. |
+| G2 | A decorator's fact expression is evaluated at compile time and may call a function. | [`annot.fact.eval`](../spec/14-annotations.md#r-annot.fact.eval) | A fact in one file can depend on a body in another. Package interfaces carry facts, which conflicts with [`module.interface.determined`](../spec/STYLE.md#retired-rule-ids). |
+| G3 | Initialization order inside a file cycle. | [`module.init.graph`](../spec/STYLE.md#retired-rule-ids) assumes no cycle. | Ordering needs read sets from several files' bodies (C13). |
 
 G1 is the only one that matters for checking speed. G2 and G3 are ordering
 passes over summaries, run after bodies are checked.
@@ -808,7 +808,7 @@ pub fn base_price(sku: string) -> i32:
     10
 ```
 
-[`module.init.once`](../spec/10-modules.md#r-module.init.once) says a module
+[`module.init.once`](../spec/STYLE.md#retired-rule-ids) says a module
 initializes after the modules it uses. In a cycle, no module is ready
 first. If `catalog` goes first, `featured` reads `markup` before it is
 set. [`module.init.definite.local`](../spec/10-modules.md#r-module.init.definite.local)
@@ -858,7 +858,7 @@ pub use pkg.shop.a.{Token}
 ```
 
 Neither names a declaration. Today this falls under
-[`module.pub-use.cycles`](../spec/10-modules.md#r-module.pub-use.cycles),
+[`module.pub-use.cycles`](../spec/STYLE.md#retired-rule-ids),
 which D2 replaces. A narrower rule is needed: a `pub use` chain must end
 at a declaration.
 
@@ -1068,7 +1068,7 @@ rejected. Teams must keep entities in one folder.
 
 **Effect.** A decorator fact that calls a function in another file makes a
 package interface depend on that body, against
-[`module.interface.determined`](../spec/10-modules.md#r-module.interface.determined).
+[`module.interface.determined`](../spec/STYLE.md#retired-rule-ids).
 
 **Candidates.**
 - Evaluate facts after body checking, and hash fact values into the

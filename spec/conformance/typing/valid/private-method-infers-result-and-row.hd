@@ -1,0 +1,19 @@
+# test: functions / declarations / non-public inherent method infers its result and row
+
+trait Logger:
+    fn write(self, message: string) -> void
+
+data Cart:
+    count: i32
+
+impl Cart:
+    fn doubled(self):
+        self.count * 2
+
+    fn report(self):
+        logger := $.use(Logger)
+        logger.write("cart")
+
+fn checkout(cart: Cart) -> i32 $ Logger:
+    cart.report()
+    cart.doubled()

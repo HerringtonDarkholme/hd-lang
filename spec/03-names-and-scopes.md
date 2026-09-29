@@ -200,7 +200,8 @@ use dep.billing.types.{UserId as BillingUserId}
 7. r[names.use.resolution-order] Use declarations are resolved before declarations are type checked.
 8. r[names.use.position] The textual position of a use declaration does not limit its visibility.
 9. r[names.use.style] Style tools should place use declarations before other top-level items.
-10. r[names.use.cycles] Cycles involving `use` or `pub use` are compile-time errors.
+10. r[names.use.cycles-in-folder] The files of one folder may use each other in a loop.
+11. r[names.use.folder-cycle] The folders of a package must not depend on each other in a loop, as [Dependency Cycles](10-modules.md#dependency-cycles) defines. Error: `folder-cycle`.
 
 ### Public Use Declarations
 
