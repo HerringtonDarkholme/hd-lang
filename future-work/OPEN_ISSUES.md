@@ -8,6 +8,21 @@ and tooling work is listed separately at the end.
 
 ## Language Design Decisions
 
+### Small Follow-Ups (2026-09-29)
+
+**Decided by the owner; not yet applied.**
+1. `lex.prefix.plain-dollar`: a `$` is plain text when the next character
+   is neither `{` nor a character that can **start** an identifier. This
+   matches `lex.interp.stray-dollar`, so `r"costs $5"` keeps `$5` as text.
+2. The one marker parameter may have a default: in
+   `@num_suffix fn unit(count: i64 = 1)`, `5unit` passes 5, and `unit()`
+   uses the default. Literal Suffixes Still Open 28.
+3. A non-public function's inferred result takes the union row, like every
+   other common-type site (Requirement Reuse Still Open 20).
+4. Presentation details are left to the implementation: where the newtype
+   missing-trait error points, and which line a fixture marks for an
+   unspecified error line (keep the `fn` line).
+
 ### Local Mutability: `let mut` As An Inference Helper
 
 **The owner's summary (2026-09-29).** The spec and guide should state the
