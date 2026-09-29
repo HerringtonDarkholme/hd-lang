@@ -9,10 +9,10 @@ decisions, and the repository history keeps the removed evidence.
 
 ## Conformance
 
-On 2026-09-29 the prototype passes 1,411 of the 1,503 conformance cases, all
-of them selected in `test/portable/cases.tsv`. The other 92 are listed in
+On 2026-09-29 the prototype passes 1,409 of the 1,514 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 105 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below, and all 92 still fail.
+decision below, and all 105 still fail.
 [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
 them by tag:
 
@@ -22,11 +22,13 @@ them by tag:
 | F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
 | TDEF | 14 | no type-argument defaults or short explicit lists |
 | MREF | 10 | `Type::name` without a call is still `deferred-method-value` |
+| LMUT | 10 | no parenthesized `let (mut a, b)`, `mut-on-primitive`, or `redundant-let-mut` |
 | ITER | 8 | `Iterator` is still a trait; no `from_fn`, `map`, `fold`, or `Iterable` for iterators |
 | ATB | 8 | a binding names only the bound trait's own associated types, and a trait value type takes no binding |
 | EMB-S | 4 | trait availability needs package roles |
 | P2 | 4 | member visibility needs package roles |
 | COLLECT | 4 | `collect` returns only `List[T]`, and there is no `FromIterator` |
+| OPF | 3 | `m[k] op= v` on a `Map` reads `V?`, and a newtype unwraps to a readonly base |
 | TQ-2 | 2 | package roles, and a comprehension element typed `mut Word` |
 | F-150 | 2 | the fixtures expose a private type from `pub fn main` |
 | M29 | 1 | the unused-fact warning needs a second package |
