@@ -37,6 +37,11 @@ Decided 2026-09-29.
      chain, a line starting with `.` is an error. Write the method call as
      a step (`|> _.map(fn(x): x * 2)`) or bind a name first. That removes
      the "`.map` attaches to the bare function" hazard.
+   - **No indexing `[...]` on a bare step either** (owner, the same day).
+     `x |> f[0]` and `x |> parse[i32]` are errors, because it's unclear
+     whether that indexes the function or gives it type arguments. Write
+     the `_` form: `x |> f(_)[0]` or `x |> parse[i32](_)`. So a bare step
+     is only a name or a dotted path, never followed by `.`, `[` or `(`.
 3. **CS3: no member-path shorthand** (`.name` as a function). It would
    look like enum shorthand such as `.None`. With PL10, closures stay
    `fn(u): u.name`.
