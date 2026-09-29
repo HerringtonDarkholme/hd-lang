@@ -19,6 +19,28 @@ and [stress-test](../.agents/skills/stress-test/SKILL.md) methods. It
 builds a matrix of combinations, prunes it to six, translates one corpus of
 real code into each, parses every block, and measures the results.
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **CS1: iterator adapters stay methods** (`xs.iter().map(f)`). PL1 and
+   PL2 stand: `map` and `fold` are static-only default methods and can't
+   be overridden.
+2. **CS2: pipe steps are `_` steps or bare names.** This amends PL8.
+   - A step with `_` substitutes the value (PL7).
+   - A **bare name**, a plain function name or path with no call
+     parentheses, means a one-argument call: `x |> f` means `f(x)`. It must
+     not suspend; write `x |> f!(_)`.
+   - A call step without `_`, such as `x |> f(y)`, is an **error**. That
+     removes the `f(y)(x)` reading and the "`make()` runs first" hazard.
+   - **No mixing `|>` with leading-dot continuation lines.** Inside a pipe
+     chain, a line starting with `.` is an error. Write the method call as
+     a step (`|> _.map(fn(x): x * 2)`) or bind a name first. That removes
+     the "`.map` attaches to the bare function" hazard.
+3. **CS3: no member-path shorthand** (`.name` as a function). It would
+   look like enum shorthand such as `.None`. With PL10, closures stay
+   `fn(u): u.name`.
+
 ## Contents
 
 1. [Decisions Under Review](#decisions-under-review)
