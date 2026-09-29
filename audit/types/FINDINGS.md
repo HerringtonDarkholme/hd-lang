@@ -21,7 +21,7 @@ anchor, or statement is missing.
 | TY-08 | Med | Supertraits | Implied supertrait bounds used but never stated | R5.3 | - |
 | TY-15 | Med | Dynamic safety | Requirement keys must be dynamically safe; rule missing | R8.5 | - |
 | TY-17 | Med | Derivation | Derive on GADT variants with existential parameters | R10.6 | - |
-| TY-18 | Med | Derivation | Field obligations, recursion, placement, conflicts, codes | R10.3-R10.9 | - |
+| TY-18 | Med | Derivation | Placement and derive-plus-impl conflicts | R10.3, R10.7-R10.9 | - |
 | TY-20 | Med | Assignability | `never` and `mut` trait values missing from the single-step list | R11.1, R11.2 | TQ-14 |
 | TY-21 | Med | LCT | `never` operands (supertrait widening settled by TQ-15) | R11.4 | - |
 | TY-22 | Med | Mutable paths | `mut`-bounded type params and `Self` receivers uncovered | R12.1 | - |
@@ -112,6 +112,10 @@ Fix: reject equality/ordering derives for such enums; allow `Hash` when every
 existential field is `Hash`-bounded (R10.6).
 
 ## TY-18: Derived Impl Obligations, Recursion, Placement, Conflicts
+Status: field obligations, the underivable-trait code, and the failing-field
+codes are settled (`trait.derive.templated`,
+`trait.derive.field-missing-trait`, `trait.derive.bound-unmet`). The
+impl's owning module and a derive beside a written impl remain.
 Medium. Anchor: 09 Comparison Traits.
 
     impl[T < Hash] Eq for Wrapper[T]: ...
@@ -131,7 +135,9 @@ Fix: R10.3-R10.9.
 ## TY-20: Assignability Omits `never` And `mut` Trait Values
 Status: compositions settled by TQ-14 (assignability stays single-step, so
 `let wide: i64? = small_i8` and passing a `User` to a `Display?` parameter
-need explicit conversions). Still open below.
+need explicit conversions). Chapter 04 now states that `never` is assignable
+to every type (`types.never.assignable`), though not in the rule list. The
+`mut` trait value is still open.
 Medium. Anchor: 04 Assignability And Coercion.
 
     let edit: mut Display = mutable_user  # rule 6 silent on mut

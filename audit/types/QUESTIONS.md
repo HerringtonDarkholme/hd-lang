@@ -18,26 +18,16 @@ TQ-21 is answered by K2: a bound may bind associated types, as in
 
 ## Decided, Not Yet Applied
 
-Decided 2026-09-26, except TUP-1 (2026-09-27). None of these parts is in
-the specification yet.
-
-- **TQ-18** (settles Annotation Locality). A foreign-target annotation may
-  appear in the facet's defining module without a marker, and in the root
-  application package under the existing exception with an explicit marker;
-  an explicit `impl Annotate[F] for X` obeys the same rule. Superseded
-  2026-09-27: typed derivation removes `Annotate`, and the root-application
-  orphan exception is dropped, so there is no marker to spell.
-- **TUP-1, `@message` part**, decided 2026-09-27. Inside a variant's
-  `@message`, unnamed payload parameters are in scope as `_0`, `_1`, ...
-  (ERROR_CONVERSION gap 3), so `"$_0"` interpolates one. This part waits
-  for the error intrinsic. The rest of TUP-1 (`pair._0` and
-  `StatusCode.NotFound._0` in place of `.0`) is applied.
+None. TQ-18 was superseded on 2026-09-27: typed derivation removed
+`Annotate` and the root-application orphan exception, so there is no marker
+to spell. The `@message` part of TUP-1 (`_0`, `_1`, ... in a variant's
+message) belongs to the `@error` intrinsic and is tracked with it in
+[Error Conversion](../../future-work/ERROR_CONVERSION.md), decision 10.
 
 ## Decided, No Specification Change
 
-- **TQ-13.** `@derive` stays limited to the comparison and hash traits; a
-  single typed derivation protocol, shared by `std` and libraries, comes
-  later with the Typed Derivation issue. No ad-hoc additions meanwhile.
+TQ-13 is gone: typed derivation replaced its closed `@derive` list.
+
 - **TQ-14** (TY-20): assignability stays single-step. `let wide: i64? =
   small_i8` and passing a `User` to a `Display?` parameter need explicit
   conversions.

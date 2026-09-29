@@ -7,28 +7,46 @@ from this folder. The spec's Revision Notes in
 [`spec/README.md`](../spec/README.md#revision-notes) record the applied
 decisions, and the repository history keeps the removed evidence.
 
+## Conformance
+
+On 2026-09-29 the prototype passes 1,418 of the 1,450 conformance cases, all
+of them selected in `test/portable/cases.tsv`. The other 32 are listed in
+`test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
+decision below, and all 32 still fail.
+[`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) counts
+them by tag:
+
+| Tag | Cases | Why they fail |
+| --- | ----- | ------------- |
+| F-250 | 15 | packs, GADT variant results, and package roles give generic diagnostics |
+| EMB-S | 4 | trait availability needs package roles |
+| P2 | 4 | member visibility needs package roles |
+| TQ-2 | 2 | package roles, and a comprehension element typed `mut Word` |
+| F-150 | 2 | the fixtures expose a private type from `pub fn main` |
+| F-259 | 1 | the `disposed-file` runtime profile does not exist |
+| M29 | 1 | the unused-fact warning needs a second package |
+| DC7 | 1 | group statements are not interleaved across modules |
+| GQ4 | 1 | the prototype has no pack operations |
+| MHP-1 | 1 | no inferred script entry requirement row |
+
 ## What Remains
 
 | Path | What it holds | Why it stays |
 | ---- | ------------- | ------------ |
 | [`REPORT.md`](REPORT.md) | the architecture review and the ranked open findings | the review still describes the prototype |
-| [`findings/`](findings/) | one file per open finding (40), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open on 2026-09-27: the tagged cases still fail, and the others were re-run or spot-checked |
-| [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `test/portable/KNOWN_FAILURES.tsv` grouped by finding or decision ID | the prototype's fix list |
-| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265, F-310, and F-250 | open findings; `spec/tools/fuzz/README.md` points here |
-| [`evidence/04-runtime/`](evidence/04-runtime/) | replay, host-value, and panic result tables | back F-155, F-161, F-401, and F-404 |
+| [`findings/`](findings/) | one file per open finding (39), indexed in [`evidence/findings-table.md`](evidence/findings-table.md) | still open: the tagged cases still fail, and the others were re-run or spot-checked on 2026-09-29 |
+| [`evidence/w9/failures-by-id.tsv`](evidence/w9/failures-by-id.tsv) | `KNOWN_FAILURES.tsv` grouped by tag | the prototype's fix list |
+| [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/) | minimized fuzz fixtures for F-265 and F-310 | open findings; `spec/tools/fuzz/README.md` points here |
+| [`evidence/04-runtime/`](evidence/04-runtime/) | replay, edit, and panic result tables | back F-155, F-161, F-401, and F-404 |
 | [`evidence/05-object-model/`](evidence/05-object-model/SUMMARY.md), [`05-requirements/`](evidence/05-requirements/SUMMARY.md), [`06-compiler/`](evidence/06-compiler/SUMMARY.md) | representation, cost, and compiler-structure measurements | back the architecture review and F-501 to F-612 |
 | [`probes/`](probes/), [`scripts/`](scripts/), [`bench/`](bench/) | the inputs and scripts that reproduce those runs | needed to re-run the open findings |
 | [`grammar/FINDINGS.md`](grammar/FINDINGS.md) | GR-10 item f, GR-21, and the ambiguity tool in [`grammar/tools/`](grammar/tools/) | open reference-parser and teaching findings |
-| [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
-| [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
+| [`types/QUESTIONS.md`](types/QUESTIONS.md) | TQ-14 and the parked TQ-24 to TQ-26 | live owner decisions |
+| [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type findings |
+| [`hd-writing-log.md`](hd-writing-log.md) | mistakes agents make writing hd code | the diagnostics and docs audit (AGENTS.md) |
 
-On 2026-09-29 the prototype passes 1,418 of the 1,450 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 32 are listed in
-`test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 32 still fail. Operator Traits OP1-OP13 are implemented
-and pass all 44 of their cases, Dependency Cycles DC12 and stress test
-decisions 5-11 pass theirs, the iterator adapters (STD14) pass all 5
-of theirs, and local mutability (`let mut`) passes all 16 of its new cases.
+The scripts write fresh WAT and timings when run. Only the WAT that an open
+finding cites is kept.
 
 ## Specification Follow-Ups
 
@@ -44,8 +62,6 @@ of theirs, and local mutability (`let mut`) passes all 16 of its new cases.
 Every other applied decision is implemented in the prototype; the spec's
 Revision Notes in `spec/README.md` are the record.
 
-`test/portable/KNOWN_FAILURES.tsv` tags the rest:
-
 | #  | Decision |
 | -- | -------- |
 | TQ-2 | The owner of a trait argument's outer constructor may write the impl. The check and `Iterable` are implemented; one fixture needs package roles (`--package-role`, `--dependency`), which the prototype CLI lacks, and `trait-argument-owner-impl.hd` builds `mut Word` comprehension elements where its result type asks for `Word`. |
@@ -56,52 +72,21 @@ Revision Notes in `spec/README.md` are the record.
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`, which `init-group-order.hd`, a package-tree fixture, shows. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 
-The shape intrinsics (K1) pass their fixtures and run: `shape[T]()` and
-`shape_of(f)` call generated hd builders over the `lib/std/annotation.hd`
-declarations, and `metadata[M]()` looks the attached value up by
-`DeclarationId`. Gaps that no fixture reaches: `shape[T]()` and
-`metadata[T]()` for a type parameter `T` report `unsupported-reified-shape`
-(the prototype passes no runtime type descriptor), `ShapeMetadata` has no
-implementations, so a `T < ShapeMetadata` bound is never met,
-`SourcePosition.file` is empty, and a `DeclarationId` is a hash of the
-qualified name.
+## Prototype Gaps No Fixture Reaches
 
-The testing redesign (Testing T2-T31 and T40-T47) passes its fixtures, with
-gaps that no fixture reaches: only functions of a `tests:` block are hidden
-from code outside it, test modules, integration tests, and test
-dependencies are not implemented (a `tests` use root is always
-`test-only-use`, since the prototype compiles no integration test module), a
-panic outside `expect_panic` stops the run (F-403; each test case and
-each `it_each` row otherwise runs in a fresh instance), a test body's
-`Result` reports only its outer tag, not its `.Ok` value's `ExitCode`
-(Testing T8), a `timeout` (Literal Suffixes L16) is checked only after the
-body returns, so a body that never returns is not stopped, and a
-property test does not print its shrunk value, save a regression file
-(T37), or limit discarded cases, which are now specified
-([Property Tests](../spec/10-modules.md#property-tests)). `hd check` without `--tests` (T42) skips test cases and
-test-only functions, but still reports the test-case errors its parser
-finds. A trailing block binds the final parameter (T40) only for calls
-that the checker plans, not for the built-in functions it special-cases.
+[`src/README.md`](../src/README.md) describes the implemented surface and
+its limits. These gaps are recorded only here:
 
-`Console` is checked as the prelude trait of Mutable Host Providers
-(MHP-1), and its five fixtures pass. `println` and direct `write_line!`
-calls run on the host console and on a program-defined provider.
-`println` drives its write with `block_on`, so it has `block_on`'s rules
-([the MHP-1 follow-ups](../future-work/OPEN_ISSUES.md#mutable-host-providers)),
-and its four fixtures pass. `block_on` keeps polling a write that is
-pending on a host operation until it finishes (the second round), as the
-entry driver does; the prototype's host answers each poll itself. No
-conformance profile holds a write pending and then completes it, so a
-unit test covers this.
-
-`Debug` (Testing T33, T39, T48, and T53) is checked and rendered: it is a
-prelude trait, and `DebugWriter`, its builders, `debug`, and the standard
-implementations are hd code in `lib/std/format.hd`. `@derive(Debug)`
-generates builder calls. `Map` and tuples longer than two render no text
-(a prototype gap).
-
-`snapshot` and `snapshot_file` (Testing T49) are checked. `snapshot` runs
-as a string `assert_equal`, and no update run rewrites `expect`.
-`snapshot_file` keeps its file under `__snapshots__/` (T53), and
-`hd test --update` records it. `it_prop` and `it_prop_with` run their
-cases and shrink a failing one.
+- Shape intrinsics (K1): `shape[T]()` and `metadata[T]()` for a type
+  parameter `T` report `unsupported-reified-shape`, since the prototype
+  passes no runtime type descriptor. `ShapeMetadata` has no
+  implementations, so a `T < ShapeMetadata` bound is never met.
+  `SourcePosition.file` is empty, and a `DeclarationId` is a hash of the
+  qualified name.
+- Testing: only functions of a `tests:` block are hidden from code outside
+  it. Test dependencies are not implemented. A panic outside
+  `expect_panic` stops the run (F-403).
+- Testing T8: a test body's `Result` reports only its outer tag, not its
+  `.Ok` value's `ExitCode`.
+- Testing T40: a trailing block binds the final parameter only for calls
+  that the checker plans, not for the built-in functions it special-cases.

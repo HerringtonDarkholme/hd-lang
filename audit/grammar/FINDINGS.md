@@ -7,8 +7,8 @@ Scope: [Lexical Structure](../../spec/01-lexical-structure.md),
 
 Every owner question (Q1 to Q17) and follow-up (B1 to B9) is decided and
 applied; the record is the spec's Revision Notes GQ1 to GQ17 in
-`spec/README.md`. The prototype's remaining gaps on those decisions are in
-[`../README.md`](../README.md) (GQ4, GQ11, GQ14).
+`spec/README.md`. The prototype's remaining gap on those decisions, GQ4, is
+in [`../README.md`](../README.md).
 
 Severity:
 

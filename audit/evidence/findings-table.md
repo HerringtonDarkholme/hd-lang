@@ -1,6 +1,6 @@
 # All Findings
 
-Generated from `audit/findings/` on 2026-09-27. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
+Generated from `audit/findings/` on 2026-09-29. "Merged duplicates" lists the IDs folded into each finding (its `Duplicates:` line). "Known failures" counts the rows tagged with the ID in `test/portable/KNOWN_FAILURES.tsv`.
 
 | ID | Severity | Area | Title | Merged duplicates | Known failures |
 | -- | -------- | ---- | ----- | ----------------- | -------------- |
@@ -9,12 +9,11 @@ Generated from `audit/findings/` on 2026-09-27. "Merged duplicates" lists the ID
 | [F-161](../findings/F-161-stack-exhaustion-is-a-host-crash.md) | minor | runtime | Unbounded recursion crashes the host instead of panicking with `stack-exhausted` |  |  |
 | [F-163](../findings/F-163-list-literal-operand-type-mismatch.md) | major | correctness | Comparing a readonly list binding with a list literal is rejected |  |  |
 | [F-201](../findings/F-201-undeclared-requirement-key-accepted.md) | minor | correctness | The compiler accepts an undeclared requirement key on a non-entry function |  |  |
-| [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics | F-312 | 51 |
+| [F-250](../findings/F-250-deferred-features-lack-structured-diagnostics.md) | major | coverage | Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics |  | 15 |
 | [F-259](../findings/F-259-disposed-file-profile-missing.md) | minor | test-integrity | The `disposed-file` runtime profile named in spec/conformance/README.md does not exist |  | 1 |
 | [F-265](../findings/F-265-cli-uncaught-exceptions.md) | minor | architecture | Replay rejection and several CLI errors exit through uncaught JavaScript exceptions | F-162, F-306 |  |
 | [F-310](../findings/F-310-colon-line-attaches-trailing-block.md) | minor | correctness | A line starting with `:` is parsed as a trailing block on the previous statement |  |  |
-| [F-354](../findings/F-354-map-value-covariance-missing.md) | minor | correctness | Readonly `Map[K, V]` is not covariant in `V` |  |  |
-| [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay code identity is a per-function source hash, not the decided whole-module semantic hash | F-611, F-264, F-611 |  |
+| [F-401](../findings/F-401-replay-accepts-changed-callee.md) | minor | runtime | Replay code identity is a per-function source hash, not the decided whole-module semantic hash | F-611, F-264 |  |
 | [F-402](../findings/F-402-cli-provider-configuration-constant.md) | minor | runtime | `hd replay` accepts a history recorded under a different runtime profile |  |  |
 | [F-403](../findings/F-403-test-blocks-share-one-instance.md) | major | runtime | `hd test` runs `main` and every test block in one shared instance |  |  |
 | [F-404](../findings/F-404-failing-runs-leave-no-history.md) | minor | runtime | `hd record` writes no history when the run panics or never finishes |  |  |

@@ -7,7 +7,9 @@ already implies. Codes marked *(new)* are not in the README table yet.
 Rules for decisions the spec has applied or superseded (TQ-1 to TQ-9,
 TQ-11, TQ-12, TQ-15 to TQ-17, TQ-19, TQ-20, TQ-22, TY-13, EQ-1, the row,
 `reified`, and pack parts of TQ-10, the embedding and member-lookup
-decisions, K2's removal of `where`, and the sealed-trait definition) have
+decisions, K2's removal of `where`, the sealed-trait definition, and
+derivation rules R10.2, R10.4, and R10.5, which typed derivation and
+`trait.derive.field-missing-trait` and `trait.derive.bound-unmet` settled) have
 been removed; the spec's Revision Notes in
 `spec/README.md` are their record. Remaining rules keep their numbers, so the
 [findings](FINDINGS.md) can cite them.
@@ -111,19 +113,8 @@ been removed; the spec's Revision Notes in
 
 ## R10. Derivation
 
-- R10.2 **[TQ-13]** Derivable traits are `Eq`, `PartialOrd`, `Ord`, and
-  `Hash`. Any other trait is `underivable-trait` *(new)*.
 - R10.3 The generated impl is `impl[P..] Tr for D[P..]` with bound `Pi < Tr`
   for each parameter `Pi` that occurs in a field the trait uses.
-- R10.4 Each used field type must satisfy `Tr` under those bounds, with the
-  impl being derived also available. This covers recursion. Applied
-  2026-09-28 with one generic code instead of one per trait (owner
-  decision): a failure is `derive-field-missing-trait`, which names the
-  trait and the field, and sits on the field
-  ([`trait.derive.field-missing-trait`](../../spec/09-traits.md#r-trait.derive.field-missing-trait)).
-- R10.5 Using the impl at a type where the added bound fails is
-  `missing-derived-bound`. Applied 2026-09-28 as
-  [`trait.derive.bound-unmet`](../../spec/09-traits.md#r-trait.derive.bound-unmet).
 - R10.6 An enum with a variant that has an existential parameter cannot derive
   `Eq`, `PartialOrd`, or `Ord`. It can derive `Hash` only when
   every existential field is `Hash`-bounded. Otherwise report

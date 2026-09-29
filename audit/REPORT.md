@@ -8,9 +8,8 @@ Everything the audit found that has since been fixed or decided is gone from
 this report: the verdict, the scorecard, the claim ledger, the coverage and
 blind-fixture runs, and the fuzzing rounds. The repository history keeps
 them. What remains is the architecture review, which still describes the
-prototype, and the findings that are still open. On 2026-09-27 the prototype
-passes 1,055 of the 1,169 conformance cases; [`README.md`](README.md) says
-where the other 114 are listed.
+prototype, and the findings that are still open. The current conformance
+count and the known failures are in [`README.md`](README.md).
 
 The architecture is sound for a single-file semantic prototype. The HIR is a
 real typed and resolved boundary, and concrete requirement rows cost nothing
@@ -135,7 +134,7 @@ multi-module or incremental work, it needs:
 
 ## 2. Open Findings
 
-The most important open findings, ranked by impact. All 42 open findings,
+The most important open findings, ranked by impact. All 39 open findings,
 with the conformance cases each one keeps failing, are in
 [`evidence/findings-table.md`](evidence/findings-table.md). Duplicates found
 by several workers are merged under one canonical ID.
@@ -144,7 +143,7 @@ by several workers are merged under one canonical ID.
 
 | Rank | ID                    | Severity | Finding                                                                                     |
 | ---- | --------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| 1    | F-403                 | major    | `hd test` shares one instance across `main` and all test blocks, against chapter 02        |
+| 1    | F-403                 | major    | `hd test` runs `main` in the first test instance, and a panic stops the run               |
 | 2    | F-163                 | major    | `xs == [1, 2]` is rejected with `type-mismatch`                                            |
 | 3    | F-201                 | minor    | the compiler accepts undeclared requirement keys on non-entry functions                     |
 | 4    | F-401 (F-611)         | minor    | replay identity hashes each function's source: a changed helper replays, a reformatted one fails |
@@ -168,13 +167,12 @@ by several workers are merged under one canonical ID.
 Merged duplicates:
 
 - F-401 = F-611 = F-264;
-- F-265 = F-162 = F-306;
-- F-250 = F-312.
+- F-265 = F-162 = F-306.
 
 ## 3. Fuzzing
 
 The fuzzer is now [`spec/tools/fuzz/`](../spec/tools/fuzz/README.md). Its
 audit rounds are finished; the one implementation bug they found that is
 still open on its own is F-310. The minimized fixtures for open findings
-(F-306 in F-265, F-310, and F-312 in F-250) are in
+(F-306 in F-265, and F-310) are in
 [`evidence/03-fuzz/findings/`](evidence/03-fuzz/findings/).

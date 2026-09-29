@@ -1,9 +1,0 @@
-path	phase	expectation	specification	area	note
-p-list-element-covariance.hd	runtime	accept	-	-	probe
-p-map-value-covariance-readonly-outer.hd	runtime	accept	-	-	probe
-p-map-value-covariance.hd	runtime	accept	-	-	probe
-p-closure-mutates-capture.hd	parse	accept	-	-	probe
-p-trim-feff.hd	runtime	accept	-	-	probe
-p-trim-nel.hd	runtime	accept	-	-	probe
-p-trim-zs.hd	runtime	accept	-	-	probe
-p-trim-zwsp.hd	runtime	accept	-	-	probe
