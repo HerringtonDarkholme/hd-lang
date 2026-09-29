@@ -67,7 +67,23 @@ Decided 2026-09-28.
 4. **RU4 (question 10): at most one unknown row variable per row
    pattern.** So `f: fn() $ R1 + R2` is rejected.
 
-Questions 2, 3, 5, 6 and 7 are still open.
+5. **RU5 (question 2): row subsumption.** A function value whose row is a
+   subset of another function type's row fits that type, everywhere:
+   `[health!, get_order!]` fits `List[fn!(Request) -> Response $ AppRow]`.
+   A function needing a key outside the wider row is still an error. This
+   extends Bound And Row Operators item 4 (a callback lacking a key still
+   matches) to all function values. The compiler may adapt the value
+   invisibly. The open-row idiom is not needed.
+6. **RU6 (question 3): moot.** Under RU5, a closure whose inferred row is
+   narrower already fits a wider expected row, so closures don't need to
+   take the expected row.
+7. **RU7 (question 5): the empty row stays `$()`.**
+8. **RU8 (question 6): diagnostics print an aliased row as written,** and
+   a mismatch error lists the expanded keys and names the missing one.
+9. **RU9 (question 7): `pub` functions keep explicit rows** in every
+   package. Aliases (RU2) reduce the typing instead of inference.
+
+All ten questions are decided.
 
 ## Contents
 
