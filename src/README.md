@@ -506,8 +506,8 @@ else`, `break`, `break value`, and `continue`;
   each edge's `use` line, the tangle size, and an `x.hd` to `x/mod.hd`
   fix-it; uses in test code make no folder edge
   (10-modules.md#dependency-cycles). Each `pub use` whose chain returns to
-  a module it passed is `re-export-loop`; a plain use through such a loop
-  is the prototype's `unknown-import`. Modules that use each other form one
+  a module it passed is `re-export-loop`, and so is a plain use through
+  such a loop. Modules that use each other form one
   initialization group, joined by module identity after the groups it
   uses. The prototype does not order a group's statements by dependency
   (10-modules.md#order-inside-a-group), so a read that needs a later-joined

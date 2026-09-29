@@ -959,6 +959,7 @@ use pkg.user.{User, UserId, load_user}
 4. r[module.pub-use.identity] `pub use` does not create a new declaration identity.
 5. r[module.pub-use.chain] A `pub use` chain must end at a declaration: following each `pub use` of a name to the module it names must reach the module that declares the name.
 6. r[module.pub-use.chain.loop] A chain that returns to a `pub use` it has already passed is an error. Error: `re-export-loop`.
+7. r[module.pub-use.chain.loop-use] A plain `use` whose name leads into such a loop is an error with the same code. Error: `re-export-loop`.
 
 ```text
 # src/shop/a.hd
@@ -966,6 +967,9 @@ pub use pkg.shop.b.{Token}  # error: re-export-loop
 
 # src/shop/b.hd
 pub use pkg.shop.a.{Token}
+
+# src/main.hd
+use pkg.shop.a.{Token}  # error: re-export-loop
 ```
 
 > **Why.** Loops of `use` lines are allowed inside a folder, so a facade and

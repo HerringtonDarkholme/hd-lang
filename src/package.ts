@@ -287,14 +287,18 @@ export function linkPackage(
         );
       for (const name of use.names) {
         const found = exporter(use.target, name, new Set());
-        if (found === "loop" && use.declaration.public)
+        // A plain use into a pub use loop has the loop's code
+        // (spec/10-modules.md#r-module.pub-use.chain.loop-use).
+        if (found === "loop")
           report(
             module.path,
             "re-export-loop",
-            `'pub use' of '${name}' leads back to itself through module '${use.target.identity}'; a pub use chain must end at a declaration`,
+            use.declaration.public
+              ? `'pub use' of '${name}' leads back to itself through module '${use.target.identity}'; a pub use chain must end at a declaration`
+              : `'use' of '${name}' leads into a pub use loop through module '${use.target.identity}'; a pub use chain must end at a declaration`,
             use.declaration.span,
           );
-        else if (found === undefined || found === "loop")
+        else if (found === undefined)
           report(
             module.path,
             "unknown-import",

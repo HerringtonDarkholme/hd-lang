@@ -104,6 +104,7 @@ Decided 2026-09-29. This is option O6, with these answers:
 | DC7 | [Initialization Order](../spec/10-modules.md#initialization-order) and [Order Inside A Group](../spec/10-modules.md#order-inside-a-group). |
 | DC8 | [`module.pub-use.chain`](../spec/10-modules.md#r-module.pub-use.chain) and [`module.pub-use.chain.loop`](../spec/10-modules.md#r-module.pub-use.chain.loop) replace `module.pub-use.cycles`. |
 | DC11 | [`module.pub-use.chain.loop`](../spec/10-modules.md#r-module.pub-use.chain.loop) (new code `re-export-loop`) and [`module.cycle.package`](../spec/10-modules.md#r-module.cycle.package) (new code `package-cycle`); the `# fixture-package-tree:` header in [Package Trees](../spec/conformance/README.md#package-trees), with nine fixtures for the folder rule, initialization groups, test edges, and `pub use` chains. |
+| DC12 | [`module.pub-use.chain.loop-use`](../spec/10-modules.md#r-module.pub-use.chain.loop-use), with the fixture `use-through-pub-use-loop.hd`; the tree header and judging by code are confirmed as applied under DC11. The prototype implements it. |
 | DC10 | [`module.interface.fact-values`](../spec/10-modules.md#r-module.interface.fact-values), [`module.interface.determined-facts`](../spec/10-modules.md#r-module.interface.determined-facts), [`module.interface.early-facts`](../spec/10-modules.md#r-module.interface.early-facts), and a Note under [Facts](../spec/14-annotations.md#facts). |
 
 The prototype implements DC1 to DC6, DC8, and DC9 in its checker and
@@ -142,10 +143,10 @@ Points the DC11 apply pass met, each waiting for the owner:
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 16 | A package tree's header value: one `TREE/PATH` string, or two headers? | One header, `# fixture-package-tree: TREE/PATH`, where `PATH` is the package path the fixture takes | Keep: one directive, as the other environments use. |
-| 17 | A rule about several files, such as a folder loop, does not say which file reports it, but a line marker names one line of the fixture. | A tree case judges the code, not the line, and counts a diagnostic in any tree file, as a panic's line is not judged | Keep: it avoids specifying which line of a loop an error names. |
-| 18 | `package-cycle` has no fixture: a tree holds one package, and the package-role packages cannot depend back on the fixture. | No fixture; the code is in the diagnostics table only | Add one when the manifest schema leaves tooling ([`module.manifest.tooling`](../spec/10-modules.md#r-module.manifest.tooling)). |
-| 19 | A plain `use` whose name reaches a `pub use` loop: which code? | None: the loop's `pub use` lines are `re-export-loop`; the plain use is a missing declaration ([`module.use.private-or-missing`](../spec/10-modules.md#r-module.use.private-or-missing) names no code) | Leave it with the missing-declaration question. |
+| 16 | A package tree's header value: one `TREE/PATH` string, or two headers? | One header, `# fixture-package-tree: TREE/PATH`, where `PATH` is the package path the fixture takes | **Decided (DC12):** confirmed. |
+| 17 | A rule about several files, such as a folder loop, does not say which file reports it, but a line marker names one line of the fixture. | A tree case judges the code, not the line, and counts a diagnostic in any tree file, as a panic's line is not judged | **Decided (DC12):** tree cases are judged by code only. |
+| 18 | `package-cycle` has no fixture: a tree holds one package, and the package-role packages cannot depend back on the fixture. | No fixture; the code is in the diagnostics table only | **Decided (DC12):** a fixture waits until the manifest schema exists ([`module.manifest.tooling`](../spec/10-modules.md#r-module.manifest.tooling)). |
+| 19 | A plain `use` whose name reaches a `pub use` loop: which code? | None: the loop's `pub use` lines are `re-export-loop`; the plain use is a missing declaration ([`module.use.private-or-missing`](../spec/10-modules.md#r-module.use.private-or-missing) names no code) | **Decided (DC12):** `re-export-loop` ([`module.pub-use.chain.loop-use`](../spec/10-modules.md#r-module.pub-use.chain.loop-use)). |
 
 ## Contents
 

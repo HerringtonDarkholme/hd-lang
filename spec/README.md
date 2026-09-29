@@ -1507,6 +1507,10 @@ existing source. Each entry names the decision that made the change.
   longer sees the change. An index place reads, then stores (stress test
   decision 11); on a `Map` the read is `V?`, so `counts[w] += 1` on a
   `Map[string, i32]` stays `type-mismatch`.
+- Dependency cycles DC12 (owner decision in
+  [Dependency Cycles](../future-work/DEPENDENCY_CYCLES.md#owner-decisions),
+  2026-09-29): a plain `use` whose name leads into a `pub use` loop is
+  `re-export-loop`, where no code was specified.
 - Iterator adapters (STDLIB questions 14 and 18, owner decision,
   2026-09-29): the prelude `Iterator[T]` gains the default methods
   `filter`, `take`, `enumerate`, and `collect`, as Rust's `Iterator` has

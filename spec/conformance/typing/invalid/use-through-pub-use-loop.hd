@@ -1,0 +1,7 @@
+# test: a plain use whose name leads into a pub use loop reports the loop's code
+# Spec 10 Public Uses: module.pub-use.chain.loop-use (Dependency Cycles DC12).
+# fixture-package-tree: reexport-loop-use/src/main.hd
+use pkg.shop.a.{Token}  # diagnostic: re-export-loop
+
+pub fn main() -> void:
+    pass

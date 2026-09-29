@@ -1429,3 +1429,4 @@ runtime/valid/compound-assign-index.hd	runtime	accept	05-expressions.md#r-expr.a
 typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/compound-assign-map-optional.hd	type	reject:type-mismatch	05-expressions.md#r-expr.assign.compound.map-read
 typing/invalid/newtype-over-data-permission.hd	type	reject:mutable-upgrade	04-type-system.md#r-types.newtype.construct-permission
+typing/invalid/use-through-pub-use-loop.hd	type	reject:re-export-loop	10-modules.md#r-module.pub-use.chain.loop-use

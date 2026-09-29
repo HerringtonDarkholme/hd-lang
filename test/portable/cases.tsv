@@ -1397,3 +1397,4 @@ runtime/valid/compound-assign-index.hd	runtime
 typing/invalid/compound-assign-index-no-read.hd	type
 typing/invalid/compound-assign-map-optional.hd	type
 typing/invalid/newtype-over-data-permission.hd	type
+typing/invalid/use-through-pub-use-loop.hd	type
