@@ -46,6 +46,14 @@ Decided 2026-09-29.
    look like enum shorthand such as `.None`. With PL10, closures stay
    `fn(u): u.name`.
 
+4. **CS5: method and field references (`User::name` as a function) get
+   designed now,** as a separate research task. Their spelling must not look
+   like enum shorthand (see CS3).
+5. **CS6: std adds key-function helpers** such as
+   `sorted_by_key(fn(p): p.age)` and `sum_by(fn(o): o.total)`, as in Rust
+   `sort_by_key` and Kotlin `sumOf`. This is std-only, recorded in
+   STDLIB.md.
+
 ## Contents
 
 1. [Decisions Under Review](#decisions-under-review)
