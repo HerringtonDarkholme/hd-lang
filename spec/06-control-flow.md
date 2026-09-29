@@ -199,7 +199,7 @@ fn first_evens(values: List[i32]) -> List[(i32, i32)]:
 | r[flow.adapter.enumerate] `enumerate` | `fn enumerate(mut self) -> mut Iterator[(i32, T)]` | a new iterator over `(index, item)` pairs, with indices counting from `0` |
 | r[flow.adapter.map] `map` | `fn map[U](mut self, transform: fn(T) -> U) -> mut Iterator[U]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[flow.adapter.fold] `fold` | `fn fold[A, R](mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
-| r[flow.adapter.collect-into] `collect` | `fn collect[C < FromIterator[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [Collect Targets](#collect-targets) specifies |
+| r[flow.adapter.collect-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](mut self) -> C` | a `C` built from the remaining items of `self`, as [Collect Targets](#collect-targets) specifies |
 
 1. r[flow.adapter.methods] The adapters are ordinary methods of the prelude `Iterator[T]`, so every iterator has them without a `use`.
 2. r[flow.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -261,7 +261,7 @@ trait FromIterator[T]:
 1. r[flow.collect.trait] `std.iter` declares `FromIterator[T]`, whose `from_iter` builds a `Self` from the items of an iterator.
 2. r[flow.collect.call] `collect` returns `C::from_iter(self)`.
 3. r[flow.collect.target] `C` is solved like any call-site type argument: from the expected type, or from an explicit list such as `collect[Map[string, i32]]()`.
-4. r[flow.collect.default] When nothing determines `C`, it is `List[T]`.
+4. r[flow.collect.target-default] When nothing determines `C`, its declared [default](04-type-system.md#type-argument-defaults) `List[T]` applies.
 5. r[flow.collect.bound] A target that does not implement `FromIterator[T]` is an error. Error: `unsatisfied-trait-bound`.
 
 The standard library implements `FromIterator` for these prelude types:

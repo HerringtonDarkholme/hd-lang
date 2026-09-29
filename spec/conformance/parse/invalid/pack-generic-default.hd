@@ -1,0 +1,5 @@
+# test: a type pack takes no default
+# Spec 02 Type-Argument Default Syntax: grammar.generic.default.positions (Type-Argument Defaults TD7).
+
+fn count[Ts... = i32](values: Ts...) -> i32:  # diagnostic: syntax-error
+    0

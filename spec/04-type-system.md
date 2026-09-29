@@ -807,9 +807,78 @@ fn clear_value[T < mut Clear](value: T) -> void:
 
 1. r[types.generic.infer] Generic arguments are inferred at call sites when unambiguous.
 2. r[types.generic.explicit] Callers may supply the complete generic argument list explicitly.
-3. r[types.generic.no-partial] Partial explicit lists are invalid.
-4. r[types.generic.placeholder] In a named generic-function reference, `_` may occupy a slot in the complete list and requests inference for that argument.
+3. r[types.generic.short-list] An explicit list in an expression may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then defaulted.
+4. r[types.generic.placeholder-slot] In a generic function's or method's explicit list, `_` may occupy any slot and requests inference for that argument.
 5. r[types.generic.placeholder.not-type] `_` is not itself a type and is invalid in ordinary type applications.
+
+### Type-Argument Defaults
+
+A generic parameter may declare a **type-argument default**, written with
+`=` after its bound. It fills the parameter when a use site leaves it
+unsolved or a written type omits it:
+
+```text
+data AppError:
+    message: string
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+fn load(path: string) -> Outcome[string]:
+    .Ok(path)
+
+fn widen[T = i64](value: T) -> T:
+    value
+
+fn small() -> i32:
+    narrow := widen(3)
+    narrow
+```
+
+1. r[types.generic.default.form] A generic parameter of a function, method, data type, enum, trait, or `type` declaration may declare a default.
+2. r[types.generic.default.order] After the first parameter with a default, every later parameter of the same list must have one. A later parameter without one is an error. Error: `default-order`.
+3. r[types.generic.default.scope] A default may name earlier parameters of the same list, the parameters of an enclosing declaration, and `Self` where `Self` is in scope.
+4. r[types.generic.default.later] A default that names its own parameter or a later one is an error. Error: `binding-not-yet-visible`.
+5. r[types.generic.default.kind] A default has its parameter's kind: a type for a type parameter, a row for a row parameter. A default of the other kind is an error. Error: `generic-kind-mismatch`.
+6. r[types.generic.default.bound] A default must satisfy its parameter's bounds for every instantiation of the earlier parameters. A default that does not is an error. Error: `unsatisfied-trait-bound`.
+7. r[types.generic.default.checked-once] That check is made once, at the declaration.
+
+How a use site treats a defaulted parameter:
+
+| Written | The parameter is |
+| --- | --- |
+| no list, in an expression | inferred; the default when inference leaves it unsolved |
+| `_` in its slot | inferred; the default when inference leaves it unsolved |
+| its slot omitted from an explicit list in an expression | inferred; the default when inference leaves it unsolved |
+| its slot omitted, or no list, in a written type | the default |
+
+8. r[types.generic.default.after-inference] At a use site that infers, such as a call, a function value, or a data literal, the use site first solves its parameters as it would without defaults.
+9. r[types.generic.default.fill] Then each parameter left unsolved that has a default takes it, in declaration order, with the earlier arguments substituted. The bounds are checked last.
+10. r[types.generic.default.argument-wins] A default never replaces a solution, so an argument or expected type that solves the parameter wins: `widen(3)` above has `T = i32`.
+11. r[types.generic.default.unsolved] A parameter left unsolved that has no default stays an error. Error: `unresolved-generic-placeholder`.
+12. r[types.generic.default.written] A written type, such as an annotation, a signature, a field, a bound, or an implementation header, infers nothing. An omitted trailing slot there takes its default.
+13. r[types.generic.default.bare] A name written in a type without a list, or with bindings only, omits every positional slot. So `impl Same for Money` is valid for `trait Same[Other = Self]`.
+14. r[types.generic.default.written-missing] A written type that omits a slot without a default is an error. Error: `partial-generic-arguments`.
+
+```text
+fn swap[A = B, B = i32](value: B) -> A:  # error: binding-not-yet-visible
+    panic("unreachable")
+
+fn pick[F = i32, T](value: T) -> T:  # error: default-order
+    value
+
+fn size(counts: Map[string]) -> i32:  # error: partial-generic-arguments
+    0
+```
+
+> **Why.** Defaults apply only after inference, as in C++ and TypeScript,
+> so adding a default never changes a program that compiled without it: it
+> only fills a parameter that used to be an error. Rust's inference
+> fallback could not keep that property. A default is written at the
+> declaration, so declarations stay fully written; only use sites apply it.
+
+See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syntax),
+[Explicit Type Arguments](07-functions.md#explicit-type-arguments),
+[Method Generic Parameters](09-traits.md#method-generic-parameters).
 
 ### Generic Representation
 

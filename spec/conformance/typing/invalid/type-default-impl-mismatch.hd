@@ -1,0 +1,21 @@
+# test: an implementation method that drops the trait method's default does not match it
+# Spec 09 Method Generic Parameters: trait.impl.generics.default (Type-Argument Defaults TD2).
+
+trait Blank:
+    fn blank() -> Self
+
+data Tally:
+    count: i32
+
+impl Blank for Tally:
+    fn blank() -> Tally:
+        Tally { count: 0 }
+
+trait Source:
+    fn drain[C < Blank = Tally](self) -> C
+
+data Numbers: pass
+
+impl Source for Numbers:
+    fn drain[C < Blank](self) -> C:  # diagnostic: trait-method-signature
+        C::blank()

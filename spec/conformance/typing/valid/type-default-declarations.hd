@@ -1,0 +1,49 @@
+# test: a written type that omits a defaulted slot takes the default, for aliases, data types, and traits whose default names Self
+# Spec 04 Type-Argument Defaults: types.generic.default.form, types.generic.default.written, types.generic.default.bare; Spec 09 Generic Traits: trait.decl.generic.default (Type-Argument Defaults TD7).
+
+data AppError:
+    message: string
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+fn load(path: string) -> Outcome[string]:
+    .Ok(path)
+
+fn port(text: string) -> Outcome[i32, string]:
+    .Err(text)
+
+fn failure(outcome: Outcome[string]) -> string:
+    match outcome:
+        .Ok(path) => path
+        .Err(error) => error.message
+
+trait Evict:
+    fn pick(self, sizes: List[i32]) -> i32
+
+data Lru: pass
+
+impl Evict for Lru:
+    fn pick(self, sizes: List[i32]) -> i32: 0
+
+data Cache[K < Eq & Hash, V, P < Evict = Lru]:
+    entries: Map[K, V]
+    policy: P
+
+fn size(cache: Cache[string, i32]) -> i32:
+    cache.policy.pick([1, 2])
+
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+data Money:
+    cents: i64
+
+impl Same for Money:
+    fn same(self, other: Money) -> bool:
+        self.cents == other.cents
+
+fn check[T < Same](left: T, right: T) -> bool:
+    left.same(right)
+
+fn check_money(left: Money, right: Money) -> bool:
+    check(left, right)

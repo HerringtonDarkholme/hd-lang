@@ -1,0 +1,68 @@
+# test: a default fills a parameter the call leaves unsolved, an argument or expected type wins, and a short explicit list infers the rest
+# Spec 04 Type-Argument Defaults: types.generic.default.fill, types.generic.default.argument-wins, types.generic.short-list; Spec 07 Explicit Type Arguments: fn.generic.explicit.trailing, fn.generic.placeholder.default (Type-Argument Defaults TD4, TD5).
+
+trait Blank:
+    fn blank() -> Self
+
+data Tally:
+    count: i32
+
+impl Blank for Tally:
+    fn blank() -> Tally:
+        Tally { count: 0 }
+
+data Ledger:
+    total: i64
+
+impl Blank for Ledger:
+    fn blank() -> Ledger:
+        Ledger { total: 0 }
+
+data AppError:
+    message: string
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+fn load(path: string) -> Outcome[string]:
+    .Ok(path)
+
+fn empty[C < Blank = Tally]() -> C:
+    C::blank()
+
+fn widen[T = i64](value: T) -> T:
+    value
+
+fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
+    (left, right)
+
+data Identity:
+    name: string
+
+impl Identity:
+    fn pair[Left, Right](self, left: Left, right: Right) -> (Left, Right):
+        (left, right)
+
+fn defaulted() -> i32:
+    tally := empty()
+    tally.count
+
+fn placeholder() -> i32:
+    tally := empty[_]()
+    tally.count
+
+fn expected() -> i64:
+    let ledger: Ledger = empty()
+    ledger.total
+
+fn small() -> i32:
+    narrow := widen(3)
+    narrow
+
+fn short_list() -> i32:
+    value := pair[string]("left", 1)
+    value._1
+
+fn method_short_list() -> i32:
+    identity := Identity { name: "identity" }
+    value := identity.pair[string]("left", 1)
+    value._1

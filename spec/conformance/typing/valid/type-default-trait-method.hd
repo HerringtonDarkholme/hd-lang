@@ -1,0 +1,29 @@
+# test: an implementation repeats a trait method's default, and a call through the type or a bound takes it
+# Spec 09 Method Generic Parameters: trait.impl.generics.default (Type-Argument Defaults TD2).
+
+trait Blank:
+    fn blank() -> Self
+
+data Tally:
+    count: i32
+
+impl Blank for Tally:
+    fn blank() -> Tally:
+        Tally { count: 0 }
+
+trait Source:
+    fn drain[C < Blank = Tally](self) -> C
+
+data Numbers: pass
+
+impl Source for Numbers:
+    fn drain[C < Blank = Tally](self) -> C:
+        C::blank()
+
+fn through_bound[S < Source](source: S) -> i32:
+    tally := source.drain()
+    tally.count
+
+fn direct(numbers: Numbers) -> i32:
+    tally := numbers.drain()
+    tally.count

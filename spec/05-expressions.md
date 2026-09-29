@@ -734,7 +734,7 @@ first[string](names)
 ```
 
 1. r[expr.call.generic.position] Generic arguments, when explicit, occur before the call argument list.
-2. r[expr.call.generic.complete] The complete generic argument list must be supplied; partial explicit lists are not supported.
+2. r[expr.call.generic.trailing] An explicit list may omit trailing arguments, which are inferred or defaulted as [Explicit Type Arguments](07-functions.md#explicit-type-arguments) states.
 3. r[expr.call.generic.targets] In hd-lang, explicit arguments may specialize a named module function or qualified function introduced by a use declaration.
 4. r[expr.call.generic.methods] The same explicit-list rules apply to generic methods.
 

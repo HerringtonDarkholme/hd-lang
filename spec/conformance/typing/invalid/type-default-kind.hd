@@ -1,0 +1,5 @@
+# test: a row default for a type parameter is an error
+# Spec 04 Type-Argument Defaults: types.generic.default.kind (Type-Argument Defaults TD3).
+
+data Box[T = $()]:  # diagnostic: generic-kind-mismatch
+    value: T

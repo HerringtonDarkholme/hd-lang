@@ -1,5 +1,5 @@
 # test: the prelude Iterator has filter, take, enumerate, map, fold, and collect as ordinary methods
-# Spec 06 Iterator Adapters: flow.adapter.methods, flow.adapter.filter, flow.adapter.take, flow.adapter.enumerate, flow.adapter.map, flow.adapter.fold, flow.adapter.fold.row, flow.adapter.collect-into (STDLIB question 14, Chaining Study CS7).
+# Spec 06 Iterator Adapters: flow.adapter.methods, flow.adapter.filter, flow.adapter.take, flow.adapter.enumerate, flow.adapter.map, flow.adapter.fold, flow.adapter.fold.row, flow.adapter.collect-defaulted (STDLIB question 14, Chaining Study CS7).
 
 trait Logger
 

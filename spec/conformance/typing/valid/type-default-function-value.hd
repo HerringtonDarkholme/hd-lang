@@ -1,0 +1,20 @@
+# test: a generic function value takes a default for a parameter nothing else solves
+# Spec 07 Generic Function Values: fn.type.generic.default (Type-Argument Defaults TD6).
+
+trait Blank:
+    fn blank() -> Self
+
+data Tally:
+    count: i32
+
+impl Blank for Tally:
+    fn blank() -> Tally:
+        Tally { count: 0 }
+
+fn empty[C < Blank = Tally]() -> C:
+    C::blank()
+
+fn maker() -> i32:
+    make := empty
+    tally := make()
+    tally.count

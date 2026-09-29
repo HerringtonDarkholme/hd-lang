@@ -1,0 +1,5 @@
+# test: a default that names a later parameter of its list is an error
+# Spec 04 Type-Argument Defaults: types.generic.default.later (Type-Argument Defaults TD3).
+
+fn swap[A = B, B = i32](value: B) -> A:  # diagnostic: binding-not-yet-visible
+    panic("unreachable")

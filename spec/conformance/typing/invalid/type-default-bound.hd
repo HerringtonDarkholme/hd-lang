@@ -1,0 +1,10 @@
+# test: a default that does not satisfy its parameter's bound is an error at the declaration
+# Spec 04 Type-Argument Defaults: types.generic.default.bound, types.generic.default.checked-once (Type-Argument Defaults TD3).
+
+trait Blank:
+    fn blank() -> Self
+
+data Plain: pass
+
+fn empty[C < Blank = Plain]() -> C:  # diagnostic: unsatisfied-trait-bound
+    C::blank()

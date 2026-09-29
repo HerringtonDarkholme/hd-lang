@@ -203,6 +203,7 @@ links to the rule that defines the term.
 | **test dependency** | A dependency that the manifest declares for test builds only. See [`module.test.dependency`](10-modules.md#r-module.test.dependency). |
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](10-modules.md#r-module.testing.test-position). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](10-modules.md#test-modules). |
+| **type-argument default** | A type written with `=` after a generic parameter's bound, used when a use site leaves the parameter unsolved or a written type omits it. See [Type-Argument Defaults](04-type-system.md#type-argument-defaults). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](10-modules.md#workspaces). |
 
@@ -1633,3 +1634,20 @@ existing source. Each entry names the decision that made the change.
   one host path and compatibility line are invalid. A tagged release may
   require a pseudo-version. `module.dep.requirement` and
   `module.repo.known-host` are retired.
+- Type-argument defaults (owner decisions TD1-TD7 in
+  [Type-Argument Defaults](../future-work/TYPE_ARG_DEFAULTS.md#owner-decisions)
+  and CO5 in [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  2026-09-29): a generic parameter of a function, method, data type, enum,
+  trait, or `type` declaration may declare a default after its bound, as in
+  `collect[C < FromIterator[T] = List[T]]`. An implementation header, an
+  enum variant, and a type pack take none. A default fills only what a use
+  site leaves unsolved, so an argument wins, and an omitted slot of a
+  written type takes it. An explicit list may now omit trailing slots,
+  which are inferred like `_` and then defaulted: `pair[string]("left", 1)`,
+  previously `partial-generic-arguments`, is valid. That code now reports
+  a written type that omits a slot without a default, such as
+  `Map[string]`, and a trait value type that omits a `Self` default. An
+  implementation method repeats a trait method's default. No diagnostic
+  code is added. `collect`'s `List[T]` fallback is now its declared
+  default, so existing calls keep their meaning; `flow.collect.default`
+  and eleven other rule IDs are retired.

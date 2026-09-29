@@ -154,7 +154,6 @@ typing/invalid/readonly-mut-field-reassignment.hd	type
 typing/invalid/readonly-mut-field-mutation.hd	type
 typing/invalid/readonly-list-element-replacement.hd	type
 typing/invalid/readonly-map-entry-replacement.hd	type
-typing/invalid/partial-generic-arguments.hd	type
 typing/invalid/unresolved-generic-placeholder.hd	type
 typing/invalid/private-requirement-row.hd	type
 typing/invalid/private-type-leak.hd	type
@@ -192,7 +191,6 @@ runtime/valid/cancellation-unwinds-nested-frames.hd	runtime
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime
 runtime/valid/cancellation-runs-defer.hd	runtime
 typing/valid/explicit-generic-method.hd	type
-typing/invalid/partial-generic-method-arguments.hd	type
 typing/valid/blanket-impl-and-associated-function.hd	type
 typing/invalid/mutable-impl-target.hd	type
 typing/invalid/mutable-inherent-impl-target.hd	type

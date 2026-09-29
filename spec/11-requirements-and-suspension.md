@@ -80,7 +80,7 @@ Function declarations, closure expressions, and function types use the same
 requirement clause:
 
 ```ebnf
-function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
+function_decl = "fn", callable_name, [ function_generic_params ], parameter_clause,
                 [ "->", type ], [ requirement_clause ], ":",
                 suite_body ;
 

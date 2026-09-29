@@ -403,13 +403,14 @@ count := apply(3, identity)
 
 1. r[fn.type.generic.not-polymorphic] Generic functions are not first-class polymorphic values.
 2. r[fn.type.generic.instantiate-every] Referring to one as a value must instantiate every generic parameter.
-3. r[fn.type.generic.instantiate-sources] The type arguments come from an expected monomorphic function type, from a complete explicit type-argument list, or from the call the value is an argument of.
+3. r[fn.type.generic.instantiate-from] The type arguments come from an expected monomorphic function type, from an explicit type-argument list, or from the call the value is an argument of.
 4. r[fn.type.generic.placeholder] A placeholder in that list may be solved from the expected monomorphic type.
 5. r[fn.type.generic.argument] When the value is an argument of a call, its type arguments are solved together with the call's other type variables.
 6. r[fn.type.generic.argument.sources] Those variables are solved from the other arguments, the expected result type, and the called function's constraints, as for the call itself.
-7. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
-8. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
-9. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
+7. r[fn.type.generic.default] A parameter that those sources leave unsolved takes its [default](04-type-system.md#type-argument-defaults), as at a call. For `fn empty[C = List[i32]]() -> C`, `make := empty` has type `fn() -> List[i32]`.
+8. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `unresolved-generic-placeholder`.
+9. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
+10. r[fn.type.generic.reified] A reified instantiation captures the required runtime type descriptors in that value.
 
 In `count := apply(3, identity)`, `A` is `i32` from the first argument, and
 `identity`'s `T` and the call's `B` are solved as `i32` with it.
@@ -742,7 +743,7 @@ fn audit[T < Display & Named](value: T) -> string:
     ...
 ```
 
-Callers may rely on inference or provide the complete type argument list:
+Callers may rely on inference or write an explicit type argument list:
 
 ```text
 first(names)
@@ -751,22 +752,26 @@ first[string](names)
 
 1. r[fn.generic.parameters] Generic parameters follow the function name.
 2. r[fn.generic.bounds-and] Trait bounds compose with `&`.
-3. r[fn.generic.call] Callers may rely on inference or provide the complete type argument list.
+3. r[fn.generic.call-list] Callers may rely on inference or write an explicit type argument list, which may omit trailing slots.
 4. r[fn.generic.erased] Generic parameters are erased by default.
 5. r[fn.generic.reified] `reified T` requests runtime type metadata, as defined in [Type System](04-type-system.md).
 
 ### Explicit Type Arguments
 
-1. r[fn.generic.explicit.complete] An explicit type-argument list must supply every generic parameter.
-2. r[fn.generic.explicit.no-partial] Partial prefix lists are not permitted, even when inference could determine the remaining arguments.
+1. r[fn.generic.explicit.trailing] An explicit type-argument list may omit trailing slots. Each omitted slot is inferred as a `_` slot is, then takes its default if inference leaves it unsolved.
+2. r[fn.generic.explicit.too-long] A list with more slots than the function has generic parameters is invalid.
 3. r[fn.generic.explicit.row] The slot of a row parameter takes a [row type argument](02-grammar.md#row-type-arguments): a row after `$`, one bare key, or a bare row alias ([`req.row.alias.bare`](11-requirements-and-suspension.md#r-req.row.alias.bare)).
 
 ```text
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-value := pair[string]("left", 1)  # error
+value := pair[string]("left", 1)  # Right is inferred as i32
 ```
+
+> **Why.** A list names only the leading arguments the reader should see or
+> inference cannot find, as C++ deduces trailing template arguments. The
+> rest are inferred, or take their defaults.
 
 An explicit list may write `_` in any slot to infer that argument:
 
@@ -778,16 +783,16 @@ user := convert[_, User](payload)
 ```
 
 1. r[fn.generic.placeholder] An explicit list may write `_` in any slot to infer that argument.
-2. r[fn.generic.placeholder.slots] The list still has exactly one slot per generic parameter.
-3. r[fn.generic.placeholder.solve] A placeholder is solved from call arguments, the expected result type, and the function's generic constraints.
-4. r[fn.generic.placeholder.ambiguous] If those constraints do not determine one type, the call is rejected as ambiguous.
+2. r[fn.generic.placeholder.solve] A placeholder is solved from call arguments, the expected result type, and the function's generic constraints.
+3. r[fn.generic.placeholder.default] When those constraints do not determine one type, the parameter's default applies.
+4. r[fn.generic.placeholder.unsolved] A placeholder that neither the constraints nor a default determine is an error. Error: `unresolved-generic-placeholder`.
 5. r[fn.generic.placeholder.not-type] `_` is a call-site inference instruction, not a type, and cannot appear in an ordinary type argument list such as `List[_]`.
 
 ```text
 fn make[T]() -> T:
     panic("not implemented")
 
-value := make[_]()  # error
+value := make[_]()  # error: unresolved-generic-placeholder
 ```
 
 ### Generic Methods And Qualified Calls
@@ -886,7 +891,7 @@ This section defines program entry functions.
 
 ## Unsupported Function Extensions
 
-1. r[fn.unsupported.list] hd-lang has no general recursive local binding facility, partial generic argument lists, shorthand-argument closures, or non-local returns from closures.
+1. r[fn.unsupported.features] hd-lang has no general recursive local binding facility, shorthand-argument closures, or non-local returns from closures.
 
 ### Method Values
 

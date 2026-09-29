@@ -298,7 +298,7 @@ declaration = [ "pub" ], ( function_decl
 ### Functions
 
 ```ebnf
-function_decl = "fn", callable_name, [ generic_params ], parameter_clause,
+function_decl = "fn", callable_name, [ function_generic_params ], parameter_clause,
                 [ "->", result_type ], [ requirement_clause ], ":",
                 suite_body ;
 
@@ -416,7 +416,8 @@ trait_decl = "trait", identifier, [ type_params ],
 supertrait_bounds = bound_trait_type, { "&", bound_trait_type } ;
 
 trait_member = associated_type_decl
-             | { decorator_line }, "fn", callable_name, [ generic_params ], parameter_clause,
+             | { decorator_line }, "fn", callable_name, [ function_generic_params ],
+               parameter_clause,
                "->", result_type, [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
@@ -436,7 +437,7 @@ impl_member = associated_type_decl
 derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
                   NEWLINE ;
 
-method_decl = [ "pub" ], "fn", callable_name, [ generic_params ],
+method_decl = [ "pub" ], "fn", callable_name, [ function_generic_params ],
               parameter_clause, [ "->", result_type ],
               [ requirement_clause ], ":", suite_body ;
 
@@ -508,10 +509,17 @@ See also: [Row Aliases](11-requirements-and-suspension.md#row-aliases).
 type_params = "[", type_parameter, { ",", type_parameter }, [ "," ], "]" ;
 generic_params = "[", generic_parameter,
                  { ",", generic_parameter }, [ "," ], "]" ;
+function_generic_params = "[", function_generic_parameter,
+                          { ",", function_generic_parameter }, [ "," ], "]" ;
 
-type_parameter = [ variance ], identifier, [ "<", trait_bounds ] ;
+type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
+                 [ type_default ] ;
 generic_parameter = [ "reified" ], identifier, [ "..." ],
                     [ "<", trait_bounds ] ;
+function_generic_parameter = generic_parameter
+                           | [ "reified" ], identifier, [ "<", trait_bounds ],
+                             type_default ;
+type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
 trait_bounds = [ "mut" ], bound_trait_type, { "&", bound_trait_type } ;
@@ -568,6 +576,39 @@ impl Supplier[Item = string] for Constant:  # error: syntax-error
 ```
 
 See also: [Associated Type Bindings](09-traits.md#associated-type-bindings).
+
+### Type-Argument Default Syntax
+
+A generic parameter may end in `=` and a default type argument, after its
+bound:
+
+```text
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+data Constant: pass
+
+impl Supplier for Constant:
+    type Item = string
+    fn get(self) -> string: "constant"
+
+fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
+    source.get()
+```
+
+1. r[grammar.generic.default] A `type_default` may end a generic parameter of a data type, enum, trait, `type` declaration, function, or method, after any bound.
+2. r[grammar.generic.default.binding] A binding sits inside a bound trait's brackets, while a default follows them at the level of the parameter list. `I < Supplier[Item = T] = Constant` has both.
+3. r[grammar.generic.default.positions] The generic parameters of an implementation and of an enum variant use `generic_params`, which has no default, and a type pack takes none. A default there is an error. Error: `syntax-error`.
+4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
+
+```text
+data Box[T]:
+    value: T
+
+impl[T = i32] Box[T]:  # error: syntax-error
+    fn get(self) -> T: self.value
+```
 
 ### Generic Parameter Modifiers
 

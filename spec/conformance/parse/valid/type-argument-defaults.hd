@@ -1,0 +1,39 @@
+# test: generic parameters of data, enums, traits, type declarations, functions and methods accept a default after the bound
+# Spec 02 Type-Argument Default Syntax: grammar.generic.default, grammar.generic.default.binding (Type-Argument Defaults TD1, TD7).
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+trait Evict:
+    fn pick(self, sizes: List[i32]) -> i32
+
+data Lru: pass
+
+data Constant: pass
+
+data AppError:
+    message: string
+
+data Cache[K < Eq & Hash, V, P < Evict = Lru]:
+    entries: Map[K, V]
+    policy: P
+
+enum Reply[T, E = AppError]:
+    Done(T)
+    Failed(E)
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
+    source.get()
+
+fn run[R = $()](job: fn() -> void $ R) -> void $ R:
+    job()
+
+impl Constant:
+    fn widen[reified T = i64](self, value: T) -> T:
+        value

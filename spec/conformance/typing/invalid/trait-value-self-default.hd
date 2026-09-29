@@ -1,0 +1,8 @@
+# test: a trait value type that omits a parameter whose default names Self is an error
+# Spec 09 Dynamic Safety: trait.dyn.generic-trait.self-default (Type-Argument Defaults TD3).
+
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+fn check(value: Same) -> void:  # diagnostic: partial-generic-arguments
+    pass

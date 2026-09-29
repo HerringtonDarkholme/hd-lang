@@ -1327,3 +1327,33 @@ style lint rejects a chapter that reuses one.
 - `module.repo.known-host`: retired 2026-09-29. Dependencies DEP13 makes
   `github.com` the one known host instead of a toolchain-defined set.
   Replaced by `module.repo.github`.
+- `types.generic.no-partial`: retired 2026-09-29. Type-Argument Defaults
+  TD4 lets an explicit list omit trailing slots. Replaced by
+  `types.generic.short-list`.
+- `types.generic.placeholder`: retired 2026-09-29. Under TD4 an explicit
+  list need not be complete. Replaced by `types.generic.placeholder-slot`.
+- `expr.call.generic.complete`: retired 2026-09-29. TD4 allows short
+  explicit lists. Replaced by `expr.call.generic.trailing`.
+- `flow.adapter.collect-into`: retired 2026-09-29. Collect CO5 declares
+  `collect`'s default in its signature. Replaced by
+  `flow.adapter.collect-defaulted`.
+- `flow.collect.default`: retired 2026-09-29. CO5 replaces the one-off
+  `List[T]` fallback with a declared type-argument default. Replaced by
+  `flow.collect.target-default` and `types.generic.default.fill`.
+- `fn.type.generic.instantiate-sources`: retired 2026-09-29. Under TD4 an
+  explicit list need not be complete. Replaced by
+  `fn.type.generic.instantiate-from`.
+- `fn.generic.call`: retired 2026-09-29. TD4 allows short explicit lists.
+  Replaced by `fn.generic.call-list`.
+- `fn.generic.explicit.complete`: retired 2026-09-29. TD4 lets a list omit
+  trailing slots. Replaced by `fn.generic.explicit.trailing` and
+  `fn.generic.explicit.too-long`.
+- `fn.generic.explicit.no-partial`: retired 2026-09-29. TD4 infers omitted
+  trailing slots. Replaced by `fn.generic.explicit.trailing`.
+- `fn.generic.placeholder.slots`: retired 2026-09-29. TD4 lets a list omit
+  trailing slots. Replaced by `fn.generic.explicit.trailing`.
+- `fn.generic.placeholder.ambiguous`: retired 2026-09-29. TD5 fills an
+  unsolved placeholder with its default. Replaced by
+  `fn.generic.placeholder.default` and `fn.generic.placeholder.unsolved`.
+- `fn.unsupported.list`: retired 2026-09-29. TD4 makes partial generic
+  argument lists valid. Replaced by `fn.unsupported.features`.

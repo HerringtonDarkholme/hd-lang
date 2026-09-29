@@ -76,6 +76,7 @@ trait Add[T]:
 1. r[trait.decl.generic] Traits may be generic.
 2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[mut User]` and `Source[User]` are unrelated trait instantiations.
 3. r[trait.decl.generic.no-variance] A variance marker on a trait's generic parameter is an error. Error: `invalid-variance`.
+4. r[trait.decl.generic.default] A trait's generic parameter may declare a [default](04-type-system.md#type-argument-defaults), which may name `Self`, as in `trait Same[Other = Self]`. `Self` there is the implementing type or the bounded type.
 
 ```text
 trait Source[+T]:  # error: invalid-variance
@@ -579,8 +580,9 @@ impl Named for User  # error: missing-trait-method
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
 3. r[trait.impl.generics.markers] Each parameter keeps the trait method's `reified` and pack markers and the same bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
-5. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
-6. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
+5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
+6. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
+7. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
 
 ```text
 trait Show:
@@ -1176,6 +1178,7 @@ The one-copy rule has these consequences:
 
 4. r[trait.dyn.static-still] A trait that is not dynamically safe can still be implemented and used as a static generic bound.
 5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
+6. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
 
 ```text
 trait Runner:

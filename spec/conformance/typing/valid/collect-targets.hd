@@ -1,5 +1,5 @@
 # test: collect builds the target that the expected type or an explicit list names, and defaults to List
-# Spec 06 Collect Targets: flow.adapter.collect-into, flow.collect.target, flow.collect.default, flow.collect.list, flow.collect.map, flow.collect.result, flow.collect.option (Collect CO1).
+# Spec 06 Collect Targets: flow.adapter.collect-defaulted, flow.collect.target, flow.collect.target-default, flow.collect.list, flow.collect.map, flow.collect.result, flow.collect.option (Collect CO1, CO5).
 
 fn parse_port(text: string) -> Result[i32, string]:
     .Ok(text.len())

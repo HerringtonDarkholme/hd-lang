@@ -1,0 +1,5 @@
+# test: a parameter without a default after one with a default is an error
+# Spec 04 Type-Argument Defaults: types.generic.default.order (Type-Argument Defaults TD3).
+
+fn pick[F = i32, T](value: T) -> T:  # diagnostic: default-order
+    value
