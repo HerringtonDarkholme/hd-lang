@@ -1667,12 +1667,14 @@ Trait implementation is explicit. A type does not implement a trait just because
 
 Operators on your own types come from the `std.ops` traits, in Rust's
 shape. The right operand's type is the trait argument, and the result is
-the associated type `Out`. Operator syntax needs no `use`; the `impl` does:
+the associated type `Out`. The argument defaults to `Self`, so
+`impl Add for Money` means `impl Add[Money] for Money`. Operator syntax
+needs no `use`; the `impl` does:
 
 ```text
 use std.ops.{Add, Mul}
 
-impl Add[Money] for Money:
+impl Add for Money:
     type Out = Money
     fn add(self, rhs: Money) -> Money:
         Money { amount: self.amount + rhs.amount, currency: self.currency }
@@ -1728,7 +1730,7 @@ traits and implement it for each type:
 ```text
 use std.ops.{Add, Mul}
 
-trait Ring < Add[Self, Out = Self] & Mul[Self, Out = Self]:
+trait Ring < Add[Out = Self] & Mul[Out = Self]:
     fn zero() -> Self
 
 impl Ring for i64:
@@ -2589,6 +2591,26 @@ the rows, `$ Stack + Clock`. So does `if admin: orders else: health`, and
 so do `match` arms and inferred closure results. A list keeps its element row, so a list with a
 wider row is built by an explicit copy, as in
 `let wide: List[fn() -> string $ Stack + Clock + Metrics] = [handlers...]`.
+
+A key may bind the trait's associated types, as a bound does. The provider
+value then has that bound type, so its methods return concrete types, and
+the provider's implementation must bind the same type:
+
+```text
+trait Store:
+    type Item
+    fn load(self, id: string) -> Self::Item
+
+fn find(id: string) -> User $ Store[Item = User]:
+    $.use(Store[Item = User]).load(id)
+
+fn serve(id: string) -> User:
+    $.with(Store[Item = User]=UserStore {}):
+        find(id)
+```
+
+`Store[Item = User]` and `Store[Item = Post]` are two different keys, as
+`Repo[User]` and `Repo[Post]` are.
 
 A bundle of providers is reused by an installer: an ordinary function that
 installs the providers and extends its callback's row with the same keys.

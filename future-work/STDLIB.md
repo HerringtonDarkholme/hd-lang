@@ -337,7 +337,7 @@ and `Display`:
 ```text
 use std.ops.{Add, Div, Mul, Rem, Sub}
 
-pub trait Num < AnyVal & PartialOrd & Display & Add[Self, Out = Self] & Sub[Self, Out = Self] & Mul[Self, Out = Self] & Div[Self, Out = Self] & Rem[Self, Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[Out = Self] & Div[Out = Self] & Rem[Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -358,7 +358,7 @@ pub enum ParseNumberError:
     InvalidDigit(position: i32)
     OutOfRange
 
-pub trait Integer < Num & Ord & BitAnd[Self, Out = Self] & BitOr[Self, Out = Self] & BitXor[Self, Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
     fn checked_add(self, other: Self) -> Self?
     fn checked_sub(self, other: Self) -> Self?
     fn checked_mul(self, other: Self) -> Self?
@@ -915,10 +915,14 @@ and `EscapeError` moved there too (L22; see [`std.text`](#stdtext)).
 `IndexSet`; OP13 removed the assign traits. Std implements the operator
 traits for the primitive numbers with intrinsic bodies and `Add` for
 `string`, and `std.time` can implement them for `Duration`, so `5s + 250ms` works. `std.time` is not yet written against
-them; that is library work, not a language question.
+them; that is library work, not a language question. Each binary
+operator trait defaults `Rhs = Self`
+([Type-Argument Defaults TD10](TYPE_ARG_DEFAULTS.md#owner-decisions)), so
+`impl Add for Money` means `Add[Money]`. `lib/std/ops.hd` and
+`lib/std/num.hd` still spell the argument out; that is library work too.
 
 ```text
-pub trait Add[Rhs]:
+pub trait Add[Rhs = Self]:
     type Out
     fn add(self, rhs: Rhs) -> Self::Out
 

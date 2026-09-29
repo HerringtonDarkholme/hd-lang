@@ -300,6 +300,22 @@ AT3 and AT5 are not the recommendation.
      type.
    - Grammar: a requirement key becomes the binding-capable trait form.
 
+**AT3-AT5 applied (2026-09-29).** AT3 is
+[`trait.binding.name-reach.ambiguous-type`](../spec/09-traits.md#r-trait.binding.name-reach.ambiguous-type),
+with `ambiguous-associated-type` in the diagnostic table. AT4 changed
+nothing. AT5 is [Bound Requirement Keys](../spec/11-requirements-and-suspension.md#bound-requirement-keys),
+[`req.row.alias.bound-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bound-key),
+[`req.with.type.binding`](../spec/11-requirements-and-suspension.md#r-req.with.type.binding),
+[`req.with.collision.bindings`](../spec/11-requirements-and-suspension.md#r-req.with.collision.bindings),
+and [`grammar.type.row.key-binding`](../spec/02-grammar.md#r-grammar.type.row.key-binding).
+
+**Still open from the AT3-AT5 apply pass.** Each point waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 5 | Is an ambiguous projection the same case as AT3's ambiguous binding name? [`trait.assoc.ambiguous`](../spec/09-traits.md#r-trait.assoc.ambiguous) and [`trait.binding.ambiguous`](../spec/09-traits.md#r-trait.binding.ambiguous) cover `I::Item` when two bounds on `I` declare `Item`. The specification keeps them apart: they concern a projection, not a binding name, and name no code. Audit finding TY-32 proposes a separate `ambiguous-projection`. | Not changed: the projection rules still name no code | Use `ambiguous-associated-type` for both, and close TY-32 with it. In both cases one associated type name selects two declarations. |
+| 6 | Must a requirement key bind every associated type of its trait? `$ Store` with `Store` declaring `Item` is not addressed. | [`req.key.binding.identity`](../spec/11-requirements-and-suspension.md#r-req.key.binding.identity) makes `Store` and `Store[Item = User]` different keys; nothing rejects the unbound one | Yes: an unbound key is `trait-not-dynamically-safe`, as its trait value type is, because its provider value has that type ([`req.use.value.ordinary`](../spec/11-requirements-and-suspension.md#r-req.use.value.ordinary)). |
+
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
 ### Resource Non-Escape And Cleanup Policy
@@ -348,7 +364,9 @@ numbers, `a op= b` meaning `a = a op b`, `Index` and `IndexSet`,
 supertrait `Out` bindings, and the sealed `std.num` traits
 ([Operator Traits](../spec/05-expressions.md#operator-traits),
 [Compound Assignment](../spec/05-expressions.md#compound-assignment),
-[Numeric Traits](../spec/09-traits.md#numeric-traits)).
+[Numeric Traits](../spec/09-traits.md#numeric-traits)). Type-Argument
+Defaults TD10 gives each binary operator trait `Rhs = Self`
+([`expr.op.trait.shape-default`](../spec/05-expressions.md#r-expr.op.trait.shape-default)).
 
 **Open.** Three points from the apply passes, each with a recommendation,
 are in [Operator Traits](OPERATOR_TRAITS.md#still-open): compound

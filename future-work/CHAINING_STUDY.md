@@ -1,8 +1,8 @@
 # Chaining Study: Pipe, Function Shorthand, And Iterator Adapters
 
 Status: design exploration and stress test, 2026-09-29. Owner decisions
-CS2 and CS7-CS11 are applied (2026-09-29), and the specification is
-authoritative for them:
+CS2 and CS7-CS11 are applied (2026-09-29), CS12 confirms them, and the
+specification is authoritative for them:
 [Pipe Expressions](../spec/05-expressions.md#pipe-expressions),
 [Leading-Pipe Continuation](../spec/01-lexical-structure.md#leading-pipe-continuation),
 [Iteration Protocols](../spec/06-control-flow.md#iteration-protocols), and

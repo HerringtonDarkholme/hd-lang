@@ -1,7 +1,7 @@
 # Dependencies Through Version Control: Survey And Options
 
 Status: design exploration, 2026-09-29. Owner decisions DEP1-DEP13 and
-DEP15 are applied (2026-09-29), and DEP14 has nothing to apply yet, and the specification is authoritative for them:
+DEP15-DEP18 are applied (2026-09-29), and DEP14 has nothing to apply yet, and the specification is authoritative for them:
 [Package Manifest](../spec/10-modules.md#package-manifest) and its
 subsections, from [Dependency Requirements](../spec/10-modules.md#dependency-requirements)
 to [Toolchain Version](../spec/10-modules.md#toolchain-version). DEP7's
@@ -115,7 +115,19 @@ DEP8-DEP15. They are applied in
 | DEP15 | [`module.version.no-path-release`](../spec/10-modules.md#r-module.version.no-path-release) |
 
 The DEP8-DEP15 apply pass met three points, which DEP16 and DEP17
-answer. Nothing is open.
+answer. DEP16-DEP18 are applied (2026-09-29):
+
+| Decision | Rule |
+| --- | --- |
+| DEP16 | no change: [`module.dep.requirement-value`](../spec/10-modules.md#r-module.dep.requirement-value) and [`module.dep.one-key-per-line`](../spec/10-modules.md#r-module.dep.one-key-per-line) stand |
+| DEP17 | [`module.workspace.fetched-member`](../spec/10-modules.md#r-module.workspace.fetched-member), [`.two`](../spec/10-modules.md#r-module.workspace.fetched-member.two) |
+| DEP18 | [`module.version.tag-missing`](../spec/10-modules.md#r-module.version.tag-missing), [`module.version.no-fallback`](../spec/10-modules.md#r-module.version.no-fallback); the code waits for DEP14 |
+
+The DEP16-DEP18 apply pass met one point. It waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 13 | DEP18 covers a missing tag. What of a pseudo-version whose commit does not exist, or whose time does not match its commit? | No rule: `module.version.tag-missing` excludes pseudo-versions | The same error with no fallback, as Go rejects such a pseudo-version; its code joins the DEP14 list. |
 
 ## Contents
 

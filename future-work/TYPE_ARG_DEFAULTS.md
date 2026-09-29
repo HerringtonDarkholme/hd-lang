@@ -1,15 +1,15 @@
 # Type-Argument Defaults: Survey And Design
 
 Status: design exploration, 2026-09-29. The owner answered its questions
-as [TD1-TD7](#owner-decisions), applied on 2026-09-29, and the
-specification is authoritative for them:
+as [TD1-TD7](#owner-decisions), and the apply pass's points as TD8-TD10,
+all applied on 2026-09-29. The specification is authoritative for them:
 [Type-Argument Defaults](../spec/04-type-system.md#type-argument-defaults),
 [Type-Argument Default Syntax](../spec/02-grammar.md#type-argument-default-syntax),
 [Explicit Type Arguments](../spec/07-functions.md#explicit-type-arguments),
 and [Method Generic Parameters](../spec/09-traits.md#method-generic-parameters).
 The rest of the record is the survey behind them; nothing else in it is
-accepted behavior. Three points of the apply pass wait for the owner in
-[Still Open](#still-open). Under review before the apply pass:
+accepted behavior. One point of the TD8-TD10 apply pass waits for the
+owner in [Still Open](#still-open). Under review before the apply pass:
 
 - `flow.collect.default` (retired),
   which these defaults replace, and the rest of
@@ -73,8 +73,22 @@ apply pass.
 
 ## Still Open
 
-The three points of the TD1-TD7 apply pass are answered by TD8-TD10.
-Nothing is open.
+The three points of the TD1-TD7 apply pass are answered by TD8-TD10,
+applied on 2026-09-29. TD8 changed nothing. TD9 is
+[`fn.generic.explicit.too-long-count`](../spec/07-functions.md#r-fn.generic.explicit.too-long-count)
+and [`types.generic.too-long`](../spec/04-type-system.md#r-types.generic.too-long).
+TD10 is [`expr.op.trait.shape-default`](../spec/05-expressions.md#r-expr.op.trait.shape-default),
+[`.rhs-self`](../spec/05-expressions.md#r-expr.op.trait.rhs-self), and
+[`.rhs-explicit`](../spec/05-expressions.md#r-expr.op.trait.rhs-explicit),
+with the short form in the Operator Traits, Supertrait Bindings, and
+Numeric Traits examples. `lib/std/ops.hd` and `lib/std/num.hd` still spell
+`Rhs` out; they should follow.
+
+The TD8-TD10 apply pass met one point. It waits for the owner.
+
+| # | Point | Applied | **Recommendation** |
+| --- | --- | --- | --- |
+| 4 | Does TD9 cover a written type too, as in `List[string, i32]`? The old rule covered explicit call lists only, and no rule named a code for a written type. | Yes: [`types.generic.too-long`](../spec/04-type-system.md#r-types.generic.too-long) reports both as `argument-count`, reading TD9's "a type-argument list" literally | Keep: one code for every list that is too long. |
 
 ## Contents
 
@@ -121,7 +135,7 @@ values, traits, API evolution, and diagnostics.
 | Row parameters | only on functions, methods, implementations and row aliases; data, enums and traits have none | [`req.row.param.callables`](../spec/11-requirements-and-suspension.md#r-req.row.param.callables), [`req.row.param.no-data`](../spec/11-requirements-and-suspension.md#r-req.row.param.no-data) |
 | Type packs | always inferred; no explicit pack arguments exist | [`pack.infer.no-explicit`](../spec/12-variadic-generics.md#r-pack.infer.no-explicit) |
 | Literals | an integer literal with no expected type is `i32` | [`types.literal.int-default`](../spec/04-type-system.md#r-types.literal.int-default) |
-| Operator traits | `Add[Rhs]` has no default, so every impl and bound writes `Rhs` | [`expr.op.trait.shape`](../spec/05-expressions.md#r-expr.op.trait.shape), [Supertrait Bindings](../spec/09-traits.md#supertrait-bindings) |
+| Operator traits | `Add[Rhs]` has no default, so every impl and bound writes `Rhs` | [`expr.op.trait.shape`](../spec/05-expressions.md#r-expr.op.trait.shape-default), [Supertrait Bindings](../spec/09-traits.md#supertrait-bindings) |
 
 ## Use Cases
 
@@ -618,7 +632,7 @@ The apply pass would touch these areas:
 | [Generic Function Values](../spec/07-functions.md#generic-function-values) | the default as a last source |
 | [Collect Targets](../spec/06-control-flow.md#collect-targets) | retire `flow.collect.default`; declare the default |
 | [Method Generic Parameters](../spec/09-traits.md#method-generic-parameters) | the exact signature includes the default |
-| [Operator traits](../spec/05-expressions.md#r-expr.op.trait.shape) | `Rhs = Self`, only if the owner asks for it separately |
+| [Operator traits](../spec/05-expressions.md#r-expr.op.trait.shape-default) | `Rhs = Self`, only if the owner asks for it separately |
 
 ## Questions For The Owner
 
