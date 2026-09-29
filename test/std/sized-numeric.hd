@@ -67,8 +67,9 @@ tests:
         assert_equal("${u64(negative)}", "18446744073709551615", reason="-1 wraps to the u64 maximum")
         assert_equal("${u32(negative)}", "4294967295", reason="-1 wraps to the u32 maximum")
 
-    it("an out-of-range float cast panics", expect_panic="integer-overflow"):
-        _ := i8(300.0)
+    it("an out-of-range float cast saturates"):
+        assert_equal("${i8(300.0)}", "127", reason="clamps to the i8 maximum")
+        assert_equal("${u8(-3.5)}", "0", reason="clamps to the u8 minimum")
 
     it("f32 arithmetic keeps f32 width"):
         let a: f32 = 0.1

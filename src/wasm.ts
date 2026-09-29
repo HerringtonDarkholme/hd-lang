@@ -1,7 +1,12 @@
 import binaryen from "binaryen";
 
+// Saturating float-to-integer casts (spec/04-type-system.md#r-types.cast.saturate)
+// use the non-trapping `trunc_sat` instructions.
 export const WASM_FEATURES =
-  binaryen.Features.MutableGlobals | binaryen.Features.ReferenceTypes | binaryen.Features.GC;
+  binaryen.Features.MutableGlobals |
+  binaryen.Features.ReferenceTypes |
+  binaryen.Features.GC |
+  binaryen.Features.NontrappingFPToInt;
 
 export interface WasmArtifact {
   readonly wat: string;

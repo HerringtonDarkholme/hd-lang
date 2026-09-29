@@ -352,6 +352,9 @@ function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T
         if (expander.isRow(name)) expander.singleKey(name, own);
         return trait;
       });
+    // A span keeps its identity, so tables keyed by span, such as a derived
+    // field's diagnostic (checker/derive-intrinsics.ts), still find it.
+    else if (key === "span") result[key] = value;
     else result[key] = rewriteTypes(value, expander, own);
   }
   return result as T;

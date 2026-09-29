@@ -69,12 +69,7 @@ export function emitWiden(value: string, from: ValueType, to: ValueType): string
 }
 
 /** A constructor-style numeric cast (spec/04-type-system.md#numeric-casts). */
-export function emitCast(
-  value: string,
-  from: ValueType,
-  to: ValueType,
-  context: SizedNumericContext,
-): string {
+export function emitCast(value: string, from: ValueType, to: ValueType): string {
   if (from === to) return value;
   const source = info(from);
   const target = info(to);
@@ -83,21 +78,15 @@ export function emitCast(
   if (target.family === "float")
     return `(${target.wasm}.convert_${source.wasm}_${source.family === "unsigned" ? "u" : "s"} ${value})`;
   if (source.family === "float") {
-    const overflow = context.emitRuntimePanic("integer-overflow");
-    // Truncate toward zero, then require a finite value in range.
-    const temporary = context.allocateTemporary("f64");
+    // A float-to-integer cast truncates toward zero and saturates: out of
+    // range clamps to the target's bounds and NaN gives 0 (types.cast.saturate),
+    // as the saturating `trunc_sat` instructions do. A narrow target clamps
+    // first, in `f64`, where every narrow bound is exact.
     const widened = source.bits === 32 ? `(f64.promote_f32 ${value})` : value;
-    const low = target.family === "signed" ? -(2 ** (target.bits - 1)) : 0;
-    const high = target.family === "signed" ? 2 ** (target.bits - 1) : 2 ** target.bits;
-    const t = `(local.get ${temporary})`;
-    const converted = `(i64.trunc_f64_${to === "u64" ? "u" : "s"} ${t})`;
-    return [
-      `(block (result ${target.wasm})`,
-      `  (local.set ${temporary} (f64.trunc ${widened}))`,
-      `  (if (i32.eqz (i32.and (f64.ge ${t} (f64.const ${low})) (f64.lt ${t} (f64.const ${high}))))`,
-      `    (then ${overflow}))`,
-      `  ${target.wasm === "i64" ? converted : `(i32.wrap_i64 ${converted})`})`,
-    ].join("\n");
+    const sign = target.family === "unsigned" ? "u" : "s";
+    if (target.bits >= 32) return `(${target.wasm}.trunc_sat_f64_${sign} ${widened})`;
+    const clamped = `(f64.min (f64.max ${widened} (f64.const ${target.minimum!})) (f64.const ${target.maximum!}))`;
+    return `(i32.trunc_sat_f64_s ${clamped})`;
   }
   // An integer-to-integer cast wraps (types.cast.wrap): keep the low bits of
   // the two's-complement value and read them in the target type.

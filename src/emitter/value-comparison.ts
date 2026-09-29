@@ -58,12 +58,7 @@ export abstract class ValueComparisonEmitter extends EmitterContext {
     if (expression.operator === "widen")
       return emitWiden(operand, expression.operand.type, expression.type);
     if (expression.operator === "cast")
-      return emitCast(
-        operand,
-        readonlyType(expression.operand.type),
-        expression.type,
-        this.sizedNumeric(),
-      );
+      return emitCast(operand, readonlyType(expression.operand.type), expression.type);
     return isSizedNumeric(expression.type) && expression.operator !== "+"
       ? emitSizedUnary(expression.operator, operand, expression.type)
       : undefined;

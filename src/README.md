@@ -279,8 +279,9 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   `i64` read as unsigned; arithmetic on the narrow types range-checks its
   result (`emitter/sized-numeric.ts`). Constructor-style casts such as
   `i16(wide)` wrap to the target width, a literal argument is range-checked
-  against the target, and a float-to-integer cast out of range panics with
-  `integer-overflow`, which the specification leaves open;
+  against the target, and a float-to-integer cast saturates through the
+  non-trapping `trunc_sat` instructions, clamping a narrow target in `f64`
+  first (`types.cast.saturate`);
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed `._0` selection, stored in erased Wasm GC arrays;
 - checked integer arithmetic and exponentiation at every width, IEEE `f32` and `f64` power, UTF-8 string
@@ -604,7 +605,7 @@ else`, `break`, `break value`, and `continue`;
   payload-free variant's name. A variant that mixes both uses
   `debug_struct`, naming a positional field `_0`, `_1`, and so on. A field
   a derivation compares or hashes without the trait is
-  `derive-field-missing-trait` at the field, and a use whose added bound
+  `derive-field-missing-trait` at the field (at the base type for a newtype), and a use whose added bound
   fails is `missing-derived-bound`. `Debug` is a prelude trait; `DebugWriter`, its
   builders, the prelude `debug`, and `std`'s `Debug` implementations for
   the primitives, `List`, `T?`, `Result`, and pairs are hd code in

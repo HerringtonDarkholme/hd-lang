@@ -13,6 +13,8 @@ export interface DerivedFieldCheck {
   readonly trait: string;
   readonly owner: string;
   readonly field: string;
+  /** The field is a newtype's base type (spec/09-traits.md#r-trait.derive.newtype.requires.error). */
+  readonly base?: boolean;
 }
 
 /**
@@ -52,7 +54,9 @@ export function derivedFieldDiagnostic(
   if (!field || !DERIVED_FIELD_CODES.has(code)) return { code, message };
   return {
     code: "derive-field-missing-trait",
-    message: `field '${field.field}' of '${field.owner}' does not implement ${field.trait}, which @derive(${field.trait}) requires`,
+    message: field.base
+      ? `base type '${field.field}' of newtype '${field.owner}' does not implement ${field.trait}, which @derive(${field.trait}) requires`
+      : `field '${field.field}' of '${field.owner}' does not implement ${field.trait}, which @derive(${field.trait}) requires`,
   };
 }
 
@@ -300,15 +304,20 @@ export function deriveNewtypeIntrinsic(item: NewtypeDerivation): ImplDecl {
   out.add(`impl${parameters.length > 0 ? `[${bounds}]` : ""} ${item.trait} for ${T}:`);
   const unwrap = (value: string): string => `${readonlyType(base!.name).split("[")[0]}(${value})`;
   const [self, other] = [unwrap("self"), unwrap("other")];
-  if (item.trait === "Eq") out.add(`    fn eq(self, other: ${T}) -> bool: ${self} == ${other}`);
+  // A base type without the trait is `derive-field-missing-trait` at the
+  // base type (spec/09-traits.md#r-trait.derive.newtype.requires.error).
+  const at = { ...base!.span };
+  DERIVED_FIELD_CHECKS.set(at, { trait: item.trait, owner: name, field: base!.name, base: true });
+  if (item.trait === "Eq") out.add(`    fn eq(self, other: ${T}) -> bool: ${self} == ${other}`, at);
   if (item.trait === "PartialOrd")
     out.add(
       `    fn partial_cmp(self, other: ${T}) -> Ordering?: ${PARTIAL_CMP}(${self}, ${other})`,
+      at,
     );
   if (item.trait === "Ord")
-    out.add(`    fn cmp(self, other: ${T}) -> Ordering: ${CMP}(${self}, ${other})`);
+    out.add(`    fn cmp(self, other: ${T}) -> Ordering: ${CMP}(${self}, ${other})`, at);
   if (item.trait === "Hash")
-    out.add(`    fn hash(self, state: mut Hasher) -> void: ${HASH}(${self}, state)`);
+    out.add(`    fn hash(self, state: mut Hasher) -> void: ${HASH}(${self}, state)`, at);
   return out.program(item.span).implementations[0]!;
 }
 

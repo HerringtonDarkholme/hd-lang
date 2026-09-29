@@ -1325,3 +1325,5 @@ runtime/valid/row-forced-overlap-nearest.hd	runtime
 typing/invalid/public-method-missing-result-type.hd	type
 typing/valid/private-method-infers-result-and-row.hd	type
 typing/invalid/public-method-without-requirement-clause.hd	type
+runtime/valid/float-cast-saturates.hd	runtime
+typing/invalid/derive-newtype-base-missing-trait.hd	type
