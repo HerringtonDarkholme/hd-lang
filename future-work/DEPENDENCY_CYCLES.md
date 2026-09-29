@@ -63,6 +63,29 @@ Decided 2026-09-29. This is option O6, with these answers:
     bodies are checked,** and their values are hashed into the package
     interface.
 
+11. **DC11 (2026-09-29): answers to Still Open 1-15.**
+    - A `pub use` loop and a package-level cycle each get their own code,
+      for example `re-export-loop` and `package-cycle`. The apply pass
+      picks the names.
+    - The multi-file rules get conformance fixtures through a
+      **package-tree fixture header**, which declares several files of one
+      package. It works like the package-role and `# fixture-test-layout:`
+      headers.
+    - The rest is kept as applied:
+      - initialization order inside a group goes by dependency, then
+        module identity and source position;
+      - ready groups run in least-identity order;
+      - a statement may run before an earlier one when that one waits on
+        another file;
+      - a file still can't read its own later binding;
+      - a true initialization cycle reuses
+        `top-level-read-before-initialization`;
+      - an entry module in a group is interleaved;
+      - test builds may form groups spanning folders;
+      - `src/testkit/` is ordinary code;
+      - the interface records the package's own facts, and a dependent may
+        wait for the bodies its facts call.
+
 **Applied 2026-09-29.** The specification now states each decision:
 
 | Decision | Specification |
