@@ -1318,3 +1318,12 @@ style lint rejects a chapter that reuses one.
 - `module.tooling.package`: retired 2026-09-29. DEP1 replaces the
   lockfile, version constraints, and resolver it deferred. Replaced by
   `module.tooling.package-schema` and `module.tooling.package-later`.
+- `flow.for.iterator-progress`: retired 2026-09-29. Chaining Study CS11
+  makes what `next` returns after `.None` unspecified. Replaced by
+  `flow.for.iterator-exhausted` and `flow.for.iterator-after-none`.
+- `module.dep.requirement`: retired 2026-09-29. Dependencies DEP10 adds
+  the path requirement between workspace members as a second manifest
+  value. Replaced by `module.dep.requirement-value`.
+- `module.repo.known-host`: retired 2026-09-29. Dependencies DEP13 makes
+  `github.com` the one known host instead of a toolchain-defined set.
+  Replaced by `module.repo.github`.

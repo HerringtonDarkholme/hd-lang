@@ -51,11 +51,13 @@ pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
 ```
 
 1. r[module.dep.key] Each key of `[dependencies]` and `[test-dependencies]` is the `NAME` that source writes as `dep.NAME`.
-2. r[module.dep.requirement] Each value is a dependency requirement `PATH@VERSION`: a host path, `@`, and a version or pseudo-version without a leading `v`.
+2. r[module.dep.requirement-value] Each value is a dependency requirement `PATH@VERSION`, or a [path requirement](#r-module.workspace.path-requirement) between workspace members. A dependency requirement is a host path, `@`, and a version or pseudo-version without a leading `v`.
 3. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
 4. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
-5. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
-6. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
+5. r[module.dep.no-self-path] A manifest does not state its own host path. A fetched package's host path is the one that the dependency requirement which fetched it names.
+6. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
+7. r[module.dep.one-key-per-line] Two keys of one manifest that name the same host path and compatibility line are invalid, since one package would then have two names.
+8. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
 
 > **Why.** Go puts `/v2` in the path because its imports repeat the path.
 > hd source says `dep.json`, so a second key tells two lines apart, and a
@@ -68,10 +70,10 @@ it:
 
 | Host | Repository part | Example |
 | --- | --- | --- |
-| a known host | the leading segments the toolchain defines for that host | `github.com/acme/json` |
+| `github.com` | the host, an owner, and a repository segment | `github.com/acme/json` |
 | any other host | the path up to a segment that ends in `.git` | `git.example.com/shop/billing.git` |
 
-1. r[module.repo.known-host] On a known host, the toolchain defines how many leading path segments name the repository.
+1. r[module.repo.github] `github.com` is the one known host. On it, the first three segments, the host, an owner, and a repository, name the repository.
 2. r[module.repo.git-suffix] On any other host, the repository part must end with a segment that ends in `.git`.
 3. r[module.repo.no-discovery] The toolchain never fetches a web page to discover a repository, as Go's `go-import` meta tag does.
 4. r[module.repo.subdirectory] Segments after the repository part name the directory that holds the package. One repository may hold several packages this way.
@@ -96,6 +98,8 @@ A package's versions are the git tags of its repository:
 5. r[module.version.pseudo.commit] In a pseudo-version, `TIME` is the commit's UTC time as `yyyymmddhhmmss`, and `HASH` is the first 12 hexadecimal digits of the commit hash.
 6. r[module.version.order] Versions, pseudo-versions included, are ordered by SemVer 2.0.0 precedence.
 7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
+8. r[module.version.pseudo.release] A tagged version's manifest may require a pseudo-version.
+9. r[module.version.no-path-release] A tagged version's manifest must not hold a path requirement. Such a version is rejected when it is fetched, and the toolchain does not tag one.
 
 Pseudo-versions take Go's three forms:
 
@@ -151,6 +155,18 @@ A workspace builds several packages of one repository as one graph.
 2. r[module.workspace.committed] The workspace manifest may be kept under version control, so every checkout builds the same graph.
 3. r[module.workspace.selection] Selection runs once for the whole workspace, so all members use the same selected versions.
 4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
+5. r[module.workspace.path-requirement] A member depends on another member of its workspace through a **path requirement**, `{ path = "DIR" }`, where `DIR` is the other member's directory relative to the requiring manifest.
+6. r[module.workspace.no-host-path] A member does not require another member by host path.
+
+```toml
+[dependencies]
+billing = { path = "../billing" }
+json = "github.com/acme/json@2.1.0"
+```
+
+> **Note.** A member released while it requires another member through a
+> path requirement would break [`module.version.no-path-release`](#r-module.version.no-path-release),
+> so its release manifest names that member by dependency requirement.
 
 ### Toolchain Version
 
@@ -439,6 +455,7 @@ fn main() -> i32:
 15. r[module.prelude.no-prefix] The prelude supplies no string prefix.
 16. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
 17. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
+18. r[module.prelude.from-iterator] `std.iter` also declares [`FromIterator`](06-control-flow.md#collect-targets), which is not a prelude name. Code imports it to implement or name it, as in `use std.iter.FromIterator`, and a `collect` call needs no import.
 
 See also: [Conversion Trait](09-traits.md#conversion-trait),
 [Function Type Constructors](07-functions.md#function-type-constructors),

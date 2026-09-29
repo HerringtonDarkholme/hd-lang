@@ -37,4 +37,3 @@ tests:
         let mut source = [1, 2, 3].iter()
         copied := source.collect()
         assert_equal(copied, [1, 2, 3], reason="in order")
-        assert_equal(source.collect().len(), 0, reason="exhausted")

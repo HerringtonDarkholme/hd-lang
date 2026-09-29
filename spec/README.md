@@ -177,6 +177,7 @@ links to the rule that defines the term.
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
+| **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](14-annotations.md#facts). |
 | **initialization group** | A strongly connected component of the use graph: one module, or modules that use each other in a loop, initialized together. See [`module.init.group`](10-modules.md#r-module.init.group). |
 | **integration test module** | A module under the package's test root, which sees the package as a dependent does. See [`module.test.integration`](10-modules.md#r-module.test.integration). |
@@ -190,6 +191,7 @@ links to the rule that defines the term.
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs]`, whose implementation gives a type one operator. See [Operator Traits](05-expressions.md#operator-traits). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
+| **path requirement** | A manifest value `{ path = "DIR" }` through which a workspace member depends on another member. See [`module.workspace.path-requirement`](10-modules.md#r-module.workspace.path-requirement). |
 | **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](10-modules.md#r-module.version.pseudo). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
@@ -1595,3 +1597,39 @@ existing source. Each entry names the decision that made the change.
   `[package] version` is gone. Selection is minimal version selection, and
   `hd.sum` holds the hashes; there is no lockfile. `module.manifest.tooling`
   and `module.tooling.package` are retired.
+- Pipe steps (owner decisions PL14-PL16 in
+  [Pipe Operator](../future-work/PIPE_OPERATOR.md#owner-decisions),
+  2026-09-29): a `_` belongs to the innermost pipe step that contains it,
+  so `x |> f(_, y |> g(_))`, which no rule covered, is valid. A
+  leading-dot line before the first `|>` stays part of the chain, and
+  `x |> user.greet` is `user.greet(x)`, as the first apply pass read them;
+  both are now stated.
+- Iterator construction and exhaustion (owner decisions CS9-CS11 in
+  [Chaining Study](../future-work/CHAINING_STUDY.md#owner-decisions),
+  2026-09-29): `step` is private, so `source.step` outside `std` is
+  `private-member`, and code builds an iterator with the new associated
+  function `Iterator::from_fn(step)`. What `next` returns after it has
+  returned `.None` is now unspecified, where it was `.None` again; code
+  that calls `next` or `collect` on an exhausted iterator no longer has a
+  portable result. `from_fn` does not fuse. `flow.for.iterator-progress`
+  is retired.
+- Method references (owner decisions MR6 and MR7 in
+  [Method References](../future-work/METHOD_REFERENCES.md#owner-decisions),
+  2026-09-29): `value::name` for an associated function, which no rule
+  covered, is `unknown-method`. `Identity::echo[i32]!(42)` stays a
+  `syntax-error`.
+- `FromIterator` (owner decision CO6 in
+  [Collecting Iterators](../future-work/COLLECT.md#owner-decisions),
+  2026-09-29): `FromIterator` is not a prelude name, so an `impl` of it
+  without `use std.iter.FromIterator` is `unknown-trait`. A `collect` call
+  needs no import.
+- Dependencies (owner decisions DEP8-DEP15 in
+  [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  2026-09-29): no source changes. A workspace member depends on another
+  member through a path requirement, `{ path = "../billing" }`, and a
+  tagged version whose manifest holds one is rejected. `github.com` is the
+  one known host, so a requirement on any other host needs a `.git`
+  segment. A manifest does not state its own host path. Two keys that name
+  one host path and compatibility line are invalid. A tagged release may
+  require a pseudo-version. `module.dep.requirement` and
+  `module.repo.known-host` are retired.

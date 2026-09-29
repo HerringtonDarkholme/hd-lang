@@ -1,0 +1,5 @@
+# test: the step field of Iterator is private
+# Spec 06 Iteration Protocols: flow.for.iterator-private (Chaining Study CS9).
+
+fn peek(source: Iterator[i32]) -> fn() -> i32?:
+    source.step  # diagnostic: private-member

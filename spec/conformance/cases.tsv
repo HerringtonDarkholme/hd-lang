@@ -1475,3 +1475,10 @@ typing/valid/collect-targets.hd	type	accept	06-control-flow.md#collect-targets
 runtime/valid/collect-targets-run.hd	runtime	accept	06-control-flow.md#r-flow.collect.map
 typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-bound	06-control-flow.md#r-flow.collect.bound
 runtime/valid/comprehension-propagation.hd	runtime	accept	05-expressions.md#r-expr.comp.propagation
+runtime/valid/pipe-nested-placeholder.hd	runtime	accept	05-expressions.md#r-expr.pipe.slot.nested
+runtime/valid/pipe-bare-method-step.hd	runtime	accept	05-expressions.md#r-expr.pipe.bare.method
+runtime/valid/iterator-from-fn.hd	runtime	accept	06-control-flow.md#r-flow.for.iterator-from-fn
+typing/invalid/iterator-step-private.hd	type	reject:private-member	06-control-flow.md#r-flow.for.iterator-private
+typing/invalid/bound-reference-associated-function.hd	type	reject:unknown-method	07-functions.md#r-fn.ref.bound.associated
+typing/valid/from-iterator-imported.hd	type	accept	10-modules.md#r-module.prelude.from-iterator
+typing/invalid/from-iterator-not-prelude.hd	type	reject:unknown-trait	10-modules.md#r-module.prelude.from-iterator

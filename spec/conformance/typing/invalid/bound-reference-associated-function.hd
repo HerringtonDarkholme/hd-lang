@@ -1,0 +1,12 @@
+# test: a bound reference cannot name an associated function
+# Spec 07 Method References: fn.ref.bound.associated (Method References MR6).
+
+data Counter:
+    value: i32
+
+impl Counter:
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
+fn restart(counter: Counter) -> fn() -> Counter:
+    counter::zero  # diagnostic: unknown-method

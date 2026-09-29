@@ -1295,6 +1295,7 @@ fn measure(raw: string, start: i32) -> i32:
 4. r[expr.pipe.slot.suffix] Suffixes in the step apply inside it: in `x |> parse(_)?`, `?` propagates from `parse(x)`, and `x |> load!(_)` is a suspension call.
 5. r[expr.pipe.slot.duplicate] A step with two or more `_` is an error. Error: `duplicate-pipe-placeholder`.
 6. r[expr.pipe.slot.closure] A `_` inside a closure nested in the step is an error. Error: `pipe-placeholder-in-closure`.
+7. r[expr.pipe.slot.nested] A `_` belongs to the innermost pipe step that contains it, and the rules above count only a step's own `_`. In `x |> f(_, y |> g(_))`, the second `_` belongs to `g(_)`, so the outer step has one `_`.
 
 ```text
 fn add(left: i32, right: i32) -> i32: left + right
@@ -1325,10 +1326,11 @@ fn tidy(raw: string) -> string:
 
 1. r[expr.pipe.bare.form] A bare step is an identifier, or identifiers joined by `.`, with no suffix after it.
 2. r[expr.pipe.bare.call] `value |> path` evaluates as the call `path(value)`, except that `value` is evaluated first.
-3. r[expr.pipe.bare.no-suspend] A bare step whose callee is a suspending function is an error. Write a substitution step, as in `x |> load!(_)`. Error: `suspending-pipe-step`.
-4. r[expr.pipe.bare.needs-placeholder] A step without `_` that is not a bare step is an error. Error: `pipe-step-needs-placeholder`.
-5. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, brackets such as `x |> f[0]` or `x |> parse[i32]`, and a suffix such as `x |> f?`.
-6. r[expr.pipe.bare.method-reference] A [method reference](07-functions.md#method-references) without type arguments, such as `Config::parse`, is also a bare step: `raw |> Config::parse` means `Config::parse(raw)`.
+3. r[expr.pipe.bare.method] When the path's prefix names a value, the call is a method call on that value: `x |> user.greet` means `user.greet(x)`.
+4. r[expr.pipe.bare.no-suspend] A bare step whose callee is a suspending function is an error. Write a substitution step, as in `x |> load!(_)`. Error: `suspending-pipe-step`.
+5. r[expr.pipe.bare.needs-placeholder] A step without `_` that is not a bare step is an error. Error: `pipe-step-needs-placeholder`.
+6. r[expr.pipe.bare.needs-placeholder.forms] That covers a call such as `x |> f(y)`, brackets such as `x |> f[0]` or `x |> parse[i32]`, and a suffix such as `x |> f?`.
+7. r[expr.pipe.bare.method-reference] A [method reference](07-functions.md#method-references) without type arguments, such as `Config::parse`, is also a bare step: `raw |> Config::parse` means `Config::parse(raw)`.
 
 ```text
 fn scale(value: i32, by: i32) -> i32: value * by

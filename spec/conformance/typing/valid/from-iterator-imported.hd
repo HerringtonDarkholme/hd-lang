@@ -1,0 +1,14 @@
+# test: code imports FromIterator to implement it, and collect needs no import
+# Spec 10 Standard Names Outside The Prelude: module.prelude.from-iterator (Collect CO6).
+
+use std.iter.FromIterator
+
+data Bag:
+    items: List[i32]
+
+impl FromIterator[i32] for Bag:
+    fn from_iter(items: mut Iterator[i32]) -> Bag:
+        Bag { items: items.collect() }
+
+fn gather(values: List[i32]) -> Bag:
+    values.iter().collect()

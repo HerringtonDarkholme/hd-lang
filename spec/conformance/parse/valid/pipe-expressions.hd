@@ -1,5 +1,5 @@
 # test: pipe steps, precedence, and leading |> lines parse
-# Spec 05 Pipe Expressions and 01 Leading-Pipe Continuation (Pipe PL3-PL13, Chaining Study CS2).
+# Spec 05 Pipe Expressions and 01 Leading-Pipe Continuation, including lex.pipe.dot-before in chained (Pipe PL3-PL13 and PL15, Chaining Study CS2).
 
 fn label(raw: string) -> string:
     raw |> clean |> tag(_, 2)

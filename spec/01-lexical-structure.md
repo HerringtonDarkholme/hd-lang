@@ -144,6 +144,7 @@ fn label(raw: string) -> string:
 3. r[lex.pipe.layout] Like a leading-dot line, it emits no layout tokens, ignores blank and comment-only lines before it, and is read as if joined to the previous line.
 4. r[lex.pipe.open-suite] A leading-`|>` line is an error when a same-line suite is still open at the end of the logical line it would continue. Error: `syntax-error`.
 5. r[lex.pipe.no-dot-line] A leading-dot line is an error when the logical line it would continue contains `|>` at that line's own delimiter depth. Error: `syntax-error`.
+6. r[lex.pipe.dot-before] A leading-dot line before the first `|>` of its logical line is valid. It continues the value that the chain pipes, as `.len()` does in `values`, `.len()`, `|> twice` on three lines.
 
 ```text
 fn size(raw: string) -> i32:

@@ -30,10 +30,9 @@ tests:
         assert_equal(source.take(3).collect(), [1, 2, 3], reason="first three")
         assert_equal(tally.pulled, 3, reason="no fourth pull")
 
-    it("collect leaves the source exhausted"):
+    it("collect returns the rest of the source"):
         let mut source = [8, 9, 10].iter()
         assert_equal(source.collect(), [8, 9, 10], reason="the rest")
-        assert_equal(source.collect().len(), 0, reason="exhausted")
 
     it("map transforms and fold combines in order"):
         assert_equal([1, 2, 3].iter().map(fn(value): value * 10).collect(), [10, 20, 30], reason="mapped")

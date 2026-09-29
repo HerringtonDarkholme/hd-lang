@@ -487,6 +487,7 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 16. r[fn.ref.suspending] A suspending method is referenced without `!`, as `Store::load`, and the reference has a suspending function type such as `fn!(Store, Key) -> Blob`.
 17. r[fn.ref.value] A reference is an ordinary function value: it has no parameter names or defaults, and it carries the member's row and suspension.
 18. r[fn.ref.no-fields] `::` names only methods and associated functions, never fields. `User::email` for a field `email` is an error. Error: `unknown-method`.
+19. r[fn.ref.bound.associated] A bound reference names a method, since an associated function has no receiver to bind. `counter::zero` for an associated function `zero` is an error. Error: `unknown-method`.
 
 ```text
 data Counter:
@@ -496,6 +497,9 @@ impl Counter:
     fn bump(mut self, by: i32) -> void:
         self.value = self.value + by
 
+    fn zero() -> Counter:
+        Counter { value: 0 }
+
 data User:
     email: string
 
@@ -504,6 +508,9 @@ fn emails() -> fn(User) -> string:
 
 fn frozen(counter: Counter) -> fn(i32) -> void:
     counter::bump  # error: mutable-receiver-required
+
+fn restart(counter: Counter) -> fn() -> Counter:
+    counter::zero  # error: unknown-method
 ```
 
 > **Why.** A reference reads as the call it stands for, as in Rust, Java,

@@ -1,0 +1,9 @@
+# test: FromIterator is not a prelude name
+# Spec 10 Standard Names Outside The Prelude: module.prelude.from-iterator (Collect CO6).
+
+data Bag:
+    items: List[i32]
+
+impl FromIterator[i32] for Bag:  # diagnostic: unknown-trait
+    fn from_iter(items: mut Iterator[i32]) -> Bag:
+        Bag { items: items.collect() }
