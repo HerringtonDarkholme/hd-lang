@@ -1092,3 +1092,8 @@ style lint rejects a chapter that reuses one.
   by `types.cast.float-int-saturate`.
 - `types.cast.float-int-panic`: retired 2026-09-29. Open Issues casts
   follow-ups. Replaced by `types.cast.saturate` and `types.cast.no-panic`.
+- `types.lct.row-union`: retired 2026-09-29. Requirement Reuse RU15 widens
+  rows at every least-common-type site. Replaced by
+  `types.lct.row-union-every-site`.
+- `types.lct.row-union.only`: retired 2026-09-29. Requirement Reuse RU15.
+  Replaced by `types.lct.row-union-every-site` and `req.row.union.sites`.

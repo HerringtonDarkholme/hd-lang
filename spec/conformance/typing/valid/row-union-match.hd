@@ -1,0 +1,22 @@
+# test: the arms of a value-producing match take the union of their function values' rows
+# Spec 11 Row Union In Literals: req.row.union.sites (Requirement Reuse RU15).
+
+trait Db
+
+trait Clock
+
+enum Role:
+    Admin
+    Guest
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve(role: Role) -> string $ Db + Clock:
+    handler := match role:
+        .Admin => orders
+        .Guest => health
+    handler()

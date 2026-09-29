@@ -1,0 +1,41 @@
+# test: a function chosen by an if or a match with the union row runs with the providers of its own row
+# expect: test
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn by_if(admin: bool) -> string $ Db + Clock:
+    handler := if admin: orders else: health
+    handler()
+
+fn by_match(admin: bool) -> string $ Db + Clock:
+    handler := match admin:
+        true => orders
+        false => health
+    handler()
+
+tests:
+    it("each chosen handler sees its own providers"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            assert_equal(by_if(true) + by_if(false), "dbnoon", reason="if branches")
+            assert_equal(by_match(true) + by_match(false), "dbnoon", reason="match arms")

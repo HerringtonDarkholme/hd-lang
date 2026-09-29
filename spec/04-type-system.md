@@ -992,8 +992,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the implicit conversions in [Assignability And Coercion](#assignability-and-coercion).
 3. r[types.lct.contributors] Numeric widening, permission weakening, and declared readonly variance may contribute.
 4. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
-5. r[types.lct.row-union] In a list or map literal, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
-6. r[types.lct.row-union.only] No other construct in the table widens rows.
+5. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
 
 ### No Implicit Erasure
 

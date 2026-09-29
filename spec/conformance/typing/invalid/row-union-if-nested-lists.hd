@@ -1,0 +1,15 @@
+# test: at an if, lists of function values keep their own types, so the branches have no common type
+# Spec 11 Row Union In Literals: req.row.union.sites.direct (Requirement Reuse RU15).
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn wire(admin: bool) -> void:
+    groups := if admin: [orders] else: [health]  # diagnostic: no-common-type

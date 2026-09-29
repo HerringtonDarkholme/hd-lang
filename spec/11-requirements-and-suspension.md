@@ -256,7 +256,8 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 #### Row Union In Literals
 
 A list or map literal with no expected type gives its function values the
-union of their rows:
+union of their rows, and so does every other
+[least-common-type site](04-type-system.md#least-common-type):
 
 ```text
 trait Db
@@ -275,6 +276,10 @@ fn serve() -> string $ Db + Clock:
     for handler in handlers:
         text = text + handler()
     text
+
+fn serve_one(admin: bool) -> string $ Db + Clock:
+    handler := if admin: orders else: health
+    handler()
 ```
 
 1. r[req.row.union.literal] When a list literal has no expected type and its elements are function values, its element row is the union of the elements' rows.
@@ -288,6 +293,9 @@ fn serve() -> string $ Db + Clock:
 9. r[req.row.union.literal.invariant] The inferred collection keeps the union row, and it converts to no list or map with a wider row, as the Note above states.
 10. r[req.row.union.literal.diagnostics] A diagnostic prints an inferred union row as the elements' rows are written, in element order, with each key or alias once.
 11. r[req.row.union.literal.diagnostics.expanded] A `missing-requirement` or `type-mismatch` diagnostic on that row also lists its expanded keys and names the missing key, as [`req.row.alias.diagnostics.expanded`](#r-req.row.alias.diagnostics.expanded) states.
+12. r[req.row.union.sites] The other least-common-type sites take the union the same way: the branches of a value-producing `if`, the arms of a value-producing `match`, and the final value and `return` operands of a closure or non-public function whose result type is inferred.
+13. r[req.row.union.sites.type] At each such site, the inferred type is the least common type of the values' types after each function type's row is widened to the union of their rows. Each value then fits that type by row subsumption.
+14. r[req.row.union.sites.direct] At every site, only function values take the union. A value that holds function values keeps its own type, so `if admin: [orders] else: [health]` has no common type. Error: `no-common-type`.
 
 ```text
 trait Db
@@ -308,11 +316,15 @@ fn serve_all(handlers: List[fn() -> string $ Db + Clock + Log]) -> void:
 fn wire() -> void:
     handlers := [health, orders]
     serve_all(handlers)  # error: type-mismatch
+
+fn group(admin: bool) -> void:
+    groups := if admin: [orders] else: [health]  # error: no-common-type
 ```
 
 > **Why.** Without the union, `[health, orders]` has no common type. A
 > handler table would then need a written element type even when every row
-> is known. The union is the least row that every element fits.
+> is known. The union is the least row that every element fits. One rule
+> for every least-common-type site is simpler than a literal-only case.
 
 ### Row Parameters
 

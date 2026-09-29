@@ -1,0 +1,38 @@
+# test: a function returned from a closure whose result takes the union row runs with the providers of its own row
+# expect: test
+use std.testing.assert_equal
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+data MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+data FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn by_closure(admin: bool) -> string $ Db + Clock:
+    pick := fn(flag: bool):
+        if flag:
+            return orders
+        health
+    handler := pick(admin)
+    handler()
+
+tests:
+    it("each returned handler sees its own providers"):
+        $.with(Db=MemoryDb {}, Clock=FixedClock {}):
+            assert_equal(by_closure(true) + by_closure(false), "dbnoon", reason="closure results")

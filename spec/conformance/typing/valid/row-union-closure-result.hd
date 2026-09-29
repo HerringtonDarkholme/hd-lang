@@ -1,0 +1,20 @@
+# test: a closure's inferred result takes the union of the rows of its final value and return operands
+# Spec 11 Row Union In Literals: req.row.union.sites (Requirement Reuse RU15).
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve(admin: bool) -> string $ Db + Clock:
+    pick := fn(flag: bool):
+        if flag:
+            return orders
+        health
+    handler := pick(admin)
+    handler()

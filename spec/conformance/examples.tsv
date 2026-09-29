@@ -371,8 +371,8 @@ specification	block	classification	fixture
 11-requirements-and-suspension.md	5	mixed	typing/invalid/ambiguous-row-pattern.hd|typing/valid/row-pattern-fixed-by-parameter.hd
 11-requirements-and-suspension.md	6	accept	typing/valid/row-subsumption-list.hd
 11-requirements-and-suspension.md	7	mixed	typing/invalid/row-subsumption-missing-key.hd
-11-requirements-and-suspension.md	8	accept	typing/valid/row-union-list.hd
-11-requirements-and-suspension.md	9	mixed	typing/invalid/row-union-list-no-convert.hd
+11-requirements-and-suspension.md	8	accept	typing/valid/row-union-list.hd|typing/valid/row-union-if.hd
+11-requirements-and-suspension.md	9	mixed	typing/invalid/row-union-list-no-convert.hd|typing/invalid/row-union-if-nested-lists.hd
 11-requirements-and-suspension.md	10	mixed	typing/invalid/row-parameter-on-data.hd|typing/invalid/row-parameter-in-context.hd
 11-requirements-and-suspension.md	11	accept	typing/valid/row-alias.hd
 11-requirements-and-suspension.md	12	accept	typing/valid/row-alias-bare-slots.hd

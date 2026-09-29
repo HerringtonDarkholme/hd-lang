@@ -1399,3 +1399,12 @@ existing source. Each entry names the decision that made the change.
   the base type, as for a derived field. `@derive(Eq) type Wrapped(Opaque)`
   with no `Eq` for `Opaque` was previously `missing-partial-eq` in the
   prototype, which the specification did not name.
+- Requirement reuse RU15 (owner decision in
+  [Requirement Reuse](../future-work/REQUIREMENT_REUSE.md#owner-decisions),
+  2026-09-29): the union row applies at every least-common-type site, not
+  only in list and map literals. `if admin: orders else: health`, where the
+  two functions need `Db` and `Clock`, was `no-common-type` and is now a
+  `fn() -> string $ Clock + Db`. The same holds for `match` arms and for
+  the results of a closure or non-public function whose result type is
+  inferred. A value that holds function values, such as a list, still does
+  not widen.

@@ -1,0 +1,21 @@
+# test: a non-public function whose result type is omitted takes the union row over its results
+# Spec 11 Row Union In Literals: req.row.union.sites (Requirement Reuse RU15).
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn pick(admin: bool):
+    if admin:
+        return orders
+    health
+
+fn serve(admin: bool) -> string $ Db + Clock:
+    handler := pick(admin)
+    handler()

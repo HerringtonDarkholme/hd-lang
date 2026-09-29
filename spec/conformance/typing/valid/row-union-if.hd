@@ -1,0 +1,16 @@
+# test: the branches of a value-producing if take the union of their function values' rows
+# Spec 11 Row Union In Literals: req.row.union.sites (Requirement Reuse RU15).
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn serve(admin: bool) -> string $ Db + Clock:
+    handler := if admin: orders else: health
+    handler()

@@ -1359,3 +1359,10 @@ typing/valid/private-method-infers-result-and-row.hd	type	accept	07-functions.md
 typing/invalid/public-method-without-requirement-clause.hd	type	reject:missing-requirement	11-requirements-and-suspension.md#r-req.row.omitted.empty-pub
 runtime/valid/float-cast-saturates.hd	runtime	accept	04-type-system.md#r-types.cast.saturate
 typing/invalid/derive-newtype-base-missing-trait.hd	type	reject:derive-field-missing-trait	09-traits.md#r-trait.derive.newtype.requires.error
+typing/valid/row-union-if.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites
+typing/valid/row-union-match.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites
+typing/valid/row-union-closure-result.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites.type
+typing/valid/row-union-omitted-result.hd	type	accept	11-requirements-and-suspension.md#r-req.row.union.sites.type
+typing/invalid/row-union-if-nested-lists.hd	type	reject:no-common-type	11-requirements-and-suspension.md#r-req.row.union.sites.direct
+runtime/valid/row-union-branches-run.hd	runtime	accept	11-requirements-and-suspension.md#r-req.row.union.sites
+runtime/valid/row-union-closure-result-runs.hd	runtime	accept	11-requirements-and-suspension.md#r-req.row.union.sites.type
