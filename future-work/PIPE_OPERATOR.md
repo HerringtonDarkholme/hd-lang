@@ -98,6 +98,13 @@ Decided 2026-09-29.
     Revisit using evidence from `audit/hd-writing-log.md`: if cheap-model
     agents show demand, add `fn: _` then, which breaks no code.
 
+11. **PL11 (2026-09-29): no partial application `f(_, a)` outside pipes.**
+    The owner declined Gleam-style function capture. Outside a pipe step,
+    `_` has no expression meaning, and closures (`fn(u): format_user(u,
+    style)`) or method references (MR1) cover the need. Inside a pipe step,
+    `_` stays the pipe slot (PL7). This settles the capture form that PL10
+    left for the writing log.
+
 ## Contents
 
 1. [Problem](#problem)
