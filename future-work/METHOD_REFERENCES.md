@@ -24,6 +24,37 @@ reviews:
 - [Pipe Operator PL1-PL10](PIPE_OPERATOR.md#owner-decisions) and
   [Chaining Study CS1-CS7](CHAINING_STUDY.md#owner-decisions).
 
+## Owner Decisions
+
+Decided 2026-09-29.
+
+1. **MR1: `::` method references, as in Kotlin.**
+   - **Unbound** `Type::method` (and `Trait::method`, `T::method`) is a
+     function value with the receiver first, like the qualified call
+     without its arguments: `Counter::reset: fn(mut Counter) -> void`.
+   - **Bound** `value::method` captures the receiver object **when the
+     reference is created**, like Kotlin, Go method values and C# method
+     groups. After `r := counter::reset; counter = other`, calling `r()`
+     resets the old object, while a closure `fn(): counter.reset()` reads
+     the variable at call time. A bound reference to a `mut self` method
+     needs a mutable view of the receiver at creation.
+2. **MR2: fields never get a reference form.** There is no `User::email`
+   and no key paths. Fields stay closures (`fn(u): u.email`). This also
+   removes any field/method name clash.
+3. **MR3: a suspending method is referenced as `Store::load`, without
+   `!`,** like free function values. The `fn!` type keeps the suspension
+   visible.
+4. **MR4: a callee path is a valid bare pipe step:** `raw |> Config::parse`.
+   The pipe rule that a bare step must not suspend still applies, so a
+   suspending method needs `raw |> Store::load!(_)`.
+5. **Open for the apply pass:**
+   - generics on references (`Json::decode[User]`, while the pipe's `[...]`
+     ban for bare steps stays);
+   - inherent members before trait members;
+   - inferring `Self` for trait references from the expected type.
+
+   The record's recommendations apply unless the owner says otherwise.
+
 ## Contents
 
 1. [Problem](#problem)
