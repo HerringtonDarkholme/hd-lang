@@ -137,9 +137,15 @@ Open:**
 | --- | --- |
 | RU10 | [`req.row.alias.one-key-slot`](../spec/11-requirements-and-suspension.md#r-req.row.alias.one-key-slot), [`req.row.alias.bare`](../spec/11-requirements-and-suspension.md#r-req.row.alias.bare), [`req.context.bare-alias`](../spec/11-requirements-and-suspension.md#r-req.context.bare-alias), [`fn.type.ctor.row.alias`](../spec/07-functions.md#r-fn.type.ctor.row.alias), [`fn.generic.explicit.row`](../spec/07-functions.md#r-fn.generic.explicit.row), and [`grammar.type.row-argument.alias`](../spec/02-grammar.md#r-grammar.type.row-argument.alias). `req.row.alias.where` and `req.row.alias.kind` are retired for [`req.row.alias.slots`](../spec/11-requirements-and-suspension.md#r-req.row.alias.slots) and [`req.row.alias.type-or-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.type-or-key). |
 | RU11 | No change: [`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees). |
-| RU12 | [Row Union In Literals](../spec/11-requirements-and-suspension.md#row-union-in-literals), [`types.lct.row-union`](../spec/04-type-system.md#r-types.lct.row-union), and [`expr.collection.inferred.rows`](../spec/05-expressions.md#r-expr.collection.inferred.rows). |
+| RU12 | [Row Union In Literals](../spec/11-requirements-and-suspension.md#row-union-in-literals), `types.lct.row-union` (retired by RU15), and [`expr.collection.inferred.rows`](../spec/05-expressions.md#r-expr.collection.inferred.rows). |
 | RU13 | [`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest) and [`req.with.nearest.row-parameter`](../spec/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter), next to [`req.with.nested`](../spec/11-requirements-and-suspension.md#r-req.with.nested); `runtime/valid/row-forced-overlap-nearest.hd` runs it. |
 | RU14 | No change; the Row Subsumption Note now names the explicit copy, a spread into a list with the wider row. |
+
+**Follow-ups applied 2026-09-29 (RU15):**
+
+| Decision | Specification |
+| --- | --- |
+| RU15 | [`types.lct.row-union-every-site`](../spec/04-type-system.md#r-types.lct.row-union-every-site), which retires `types.lct.row-union` and `types.lct.row-union.only`, and [`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites), [`req.row.union.sites.type`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites.type) and [`req.row.union.sites.direct`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites.direct). The spread and nested-literal rules and points 15, 18 and 19 needed no change. The prototype still misses the spread (`KNOWN_FAILURES.tsv`, RU12), and a closure result with the union row cannot run (`KNOWN_FAILURES.tsv`, RU15). |
 
 ## Still Open
 
@@ -162,18 +168,24 @@ Points the apply pass met (2026-09-28). The owner decided all thirteen on
 | 12 | May an implementation's method declare a narrower row than its trait's? | No, for now (RU11) ([`req.row.callable.impl-agrees`](../spec/11-requirements-and-suspension.md#r-req.row.callable.impl-agrees)). |
 | 13 | Does `[health, orders]` without an expected type get the union row? | Yes (RU12) ([Row Union In Literals](../spec/11-requirements-and-suspension.md#row-union-in-literals)). |
 
-Points the follow-up apply pass met (2026-09-29). Each waits for the
-owner; the specification states the reading in the Applied column, so each
-can change without breaking a decision.
+Points the follow-up apply pass met (2026-09-29). The owner answered them
+the same day (RU15), and each is now applied:
+
+| # | Point | Decided |
+| --- | --- | --- |
+| 14 | Do the other least-common-type sites take the union row? | Yes (RU15): `if`, `match`, closure results and omitted results ([`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites)). |
+| 15 | How does a diagnostic print an inferred union row? | As the elements' rows are written (RU15) ([`req.row.union.literal.diagnostics`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.diagnostics)). |
+| 16 | Does a spread take part in the union? | Yes (RU15) ([`req.row.union.literal.spread`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.spread)). |
+| 17 | Does the union reach function values inside elements? | No (RU15), at every site ([`req.row.union.sites.direct`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites.direct)). |
+| 18 | Are `$.use(AppRow)` and `AppRow=value` one-key slots? | No (RU15): they stay `generic-kind-mismatch`. |
+| 19 | Does the nearest-provider rule depend on how `R` was fixed? | No (RU15). |
+
+Points the RU15 apply pass met (2026-09-29). Each waits for the owner; the
+specification states the reading in the Applied column.
 
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
-| 14 | RU12 names list and collection literals. Do the other least-common-type sites, the branches of `if` and `match` and a closure's inferred result, also take the union row? | No: only list and map literals ([`types.lct.row-union`](../spec/04-type-system.md#r-types.lct.row-union)) | Extend it to every least-common-type site, so `if admin: audit else: health` is valid; one rule is simpler than a literal-only case. |
-| 15 | How does a diagnostic print an inferred union row, which no one wrote? | As the elements' rows are written, in element order, each key or alias once; a mismatch also lists the expanded keys ([`req.row.union.literal.diagnostics`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.diagnostics)) | Keep: it follows RU8. The prototype prints the expanded keys. |
-| 16 | Does a spread take part in the union, as in `[first..., second...]`? | Yes: a spread contributes its list's element row, as it contributes that type ([`req.row.union.literal.spread`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.spread)) | Keep. The prototype does not yet (`KNOWN_FAILURES.tsv`, RU12). |
-| 17 | Does the union reach function values inside elements, as in `[[health], [orders]]`? | No: only function elements take it, so that literal is `no-common-type` ([`req.row.union.literal.direct`](../spec/11-requirements-and-suspension.md#r-req.row.union.literal.direct)) | Keep: lists are invariant (RU14). |
-| 18 | RU10 names one-key slots. Are `$.use(AppRow)` and `AppRow=value` among them? | No: they name keys whose providers are values, so they stay `generic-kind-mismatch` ([`req.row.alias.type-or-key`](../spec/11-requirements-and-suspension.md#r-req.row.alias.type-or-key)) | Keep: `$.use` returns one value per key, and a row has no key order. |
-| 19 | RU13 names a "forced" `R`. Does the rule depend on how `R` was fixed? | No: an explicit type argument, another argument, and an expected type all give the nearest provider ([`req.with.nearest`](../spec/11-requirements-and-suspension.md#r-req.with.nearest)) | Keep: lookup follows one rule. |
+| 20 | RU15 names `if`, `match`, closure results and literals. Does a non-public function with an omitted result type, the table's last site, also take the union? | Yes: RU15 says every common-type site ([`req.row.union.sites`](../spec/11-requirements-and-suspension.md#r-req.row.union.sites)) | Keep: the table lists it as a site. |
 
 ## Contents
 

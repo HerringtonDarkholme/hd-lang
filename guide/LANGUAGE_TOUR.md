@@ -2354,7 +2354,8 @@ fn routes() -> List[fn() -> string $ Stack + Clock]:
 ```
 
 Without an expected type, `handlers := [health, orders]` gets the union of
-the rows, `$ Stack + Clock`. A list keeps its element row, so a list with a
+the rows, `$ Stack + Clock`. So does `if admin: orders else: health`, and
+so do `match` arms and inferred closure results. A list keeps its element row, so a list with a
 wider row is built by an explicit copy, as in
 `let wide: List[fn() -> string $ Stack + Clock + Metrics] = [handlers...]`.
 
