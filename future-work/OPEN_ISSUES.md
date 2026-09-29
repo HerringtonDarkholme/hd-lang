@@ -30,6 +30,14 @@ and tooling work is listed separately at the end.
    `old-bound-operator` (write `A & B`). These replace the existing
    `old-row-operator` code.
 
+4. **Provider-installing functions (decided 2026-09-28).** Rows still have
+   no subtraction. A function that discharges a key extends its callback's
+   row, as in `fn gen[R](f: fn() -> () $ R + Clock) -> fn() -> () $ R`.
+   Relaxed rule: a callback whose row lacks the extra key also matches,
+   with `R` set to its own row. Needing fewer requirements is always safe,
+   so it is no longer a `type-mismatch`. Callers never write `R`: it is
+   inferred at each call.
+
 ```text
 trait Ord < Eq & PartialOrd: ...
 fn f[T < Eq & Hash](x: T) -> void $ Db + Clock: ...
