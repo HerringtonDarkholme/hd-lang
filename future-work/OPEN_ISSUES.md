@@ -19,6 +19,10 @@ rule this way:
   require mutability, or state the type (`let a: mut T = ...`).
 - **Rule of thumb:** prefer `:=`. Use `let` when you need to reassign.
   Write `mut` at most once for a mutable type.
+- There is no form for a fixed name holding a mutable object (like
+  Kotlin's `val xs = mutableListOf()`). The owner confirmed this is
+  acceptable on 2026-09-29: a mutated local uses `let mut`, even when it is
+  never reassigned.
 
 **Decided (owner, 2026-09-29, final); not yet applied.** This replaces
 the Kotlin-style inference recorded earlier the same day (89c6a11).

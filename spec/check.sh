@@ -216,7 +216,9 @@ done
 
 node --experimental-strip-types "$spec_dir/check-example-overlap.ts" "$spec_dir" "$examples"
 
-if grep -R -n -E 'let[[:space:]]+mut([[:space:]]|$)|fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
+# `let mut` is valid again as a mutability inference helper (OPEN_ISSUES,
+# 2026-09-29); only the old `mut name:` parameter spelling is obsolete.
+if grep -R -n -E 'fn [A-Za-z_][A-Za-z0-9_!]*\([^)]*mut [a-z_][A-Za-z0-9_]*:' \
     "$spec_dir" \
     "$repo_dir/guide/OVERVIEW.md" \
     "$repo_dir/guide/LANGUAGE_TOUR.md" \

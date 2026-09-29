@@ -96,22 +96,31 @@ counter = counter + 1
 attempts = attempts + 1
 ```
 
-For composite values, mutation permission is part of the type. `T` provides readonly access and `mut T` provides mutable access. Local declarations place `mut` in the type rather than before the binding name. A readonly composite reference cannot be upgraded to a mutable one:
+For composite values (data, lists, maps), mutation permission is part of the type: `T` gives readonly access and `mut T` gives mutable access. Primitives such as `i32` and `bool` have no `mut` form; for them only reassignment matters. The binding forms fit together like this:
+
+- `a := ...` makes a binding that cannot be reassigned, with a readonly type.
+- `let a = ...` makes a reassignable binding, with a readonly type by default.
+- To get a mutable type, request it after `let` (`let mut a = ...`) or write the type (`let a: mut T = ...`).
+
+Rule of thumb: prefer `:=`, use `let` when you need to reassign, and write `mut` at most once.
 
 ```text
-user := User {
-    id: "user_123",
-    email: "ada@example.com",
-    display_name: "Ada"
-}
+user := User { id: "user_123", email: "ada@example.com", display_name: "Ada" }   # readonly
+let mut draft = User { id: "user_124", email: "bob@example.com", display_name: "Bob" }   # mut User
+let names: mut List[string] = []            # the type says mut; `let mut names: List[string]` would contradict it
+```
 
-let alias: mut User = user  # error: User cannot become mut User
+`let mut` can only request mutability the value already allows. A readonly composite reference cannot be upgraded to a mutable one, so copy it into a fresh value instead:
+
+```text
+let mut alias = user                   # error: User cannot become mut User
+let mut copy = User { ...user }        # ok: a fresh value (fields declared `mut T` must be supplied fresh)
 ```
 
 A mutable reference may be viewed as readonly, and that readonly alias can observe later changes made through an existing mutable alias:
 
 ```text
-let user: mut User = User {
+let mut user = User {
     id: "user_123",
     email: "ada@example.com",
     display_name: "Ada"
