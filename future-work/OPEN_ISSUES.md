@@ -797,6 +797,9 @@ These items remain required but do not currently require new core syntax:
   [Packages decisions 1-14](PACKAGES.md#owner-decisions) and drafted there;
   the root-application orphan exception for a package with both a library
   and executables (decision 4) is still open;
+- dependencies through version control hosts, with no registry (owner,
+  2026-09-28): identity, versions, resolution, and integrity are open in
+  [Dependencies questions DP1-DP14](DEPENDENCIES.md#questions-for-the-owner);
 - the Wasm component ABI, exact export registration API, adapter wire format,
   and runtime-profile panic status codes (histories record a panic by its
   diagnostic name, [Durable Replay decision 15](DURABLE_REPLAY.md#owner-decisions));

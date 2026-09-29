@@ -16,6 +16,10 @@ language specification:
 - [Packages: Survey And Manifest Draft](PACKAGES.md) surveys package managers
   and drafts the `hd.toml` schema, versioning, resolution, and lockfile for
   roadmap area 5, revised to the owner's decisions 1-14.
+- [Dependencies Through Version Control](DEPENDENCIES.md) surveys
+  registry-free dependency management (Go, Deno, SwiftPM, Nix, Zig, Gleam,
+  Cargo git) for the owner's no-registry direction, compares four options,
+  and recommends Go's model in hd spelling, with questions DP1-DP14.
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Testing Redesign](TESTING.md) records the owner's test redesign
