@@ -67,7 +67,7 @@ const TRICKY = [
   '    it("works"):',
   '        assert(self.ok, reason="with Self and true")',
   "c := 'x' + '\\n'",
-  "let console: mut Console = $.use(Console)",
+  "let mut console = $.use(Console)",
   "    $.with(Clock=FixedClock {}, context...):",
   "@derive(Eq, Debug)",
   "impl[T] Encode for T by Structure:",

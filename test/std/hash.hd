@@ -10,7 +10,7 @@ impl Hasher for Recorder:
             self.bytes.append(byte)
 
 fn recorded[T < Hash](value: T) -> List[u8]:
-    let recorder: mut Recorder = Recorder { bytes: [] }
+    let mut recorder = Recorder { bytes: [] }
     value.hash(recorder)
     recorder.bytes
 

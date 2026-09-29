@@ -22,13 +22,13 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-29 the prototype passes 1,402 of the 1,434 conformance cases, all of
+On 2026-09-29 the prototype passes 1,418 of the 1,450 conformance cases, all of
 them selected in `test/portable/cases.tsv`. The other 32 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
 decision below; all 32 still fail. Operator Traits OP1-OP13 are implemented
 and pass all 44 of their cases, Dependency Cycles DC12 and stress test
-decisions 5-11 pass theirs, and the iterator adapters (STD14) pass all 5
-of theirs.
+decisions 5-11 pass theirs, the iterator adapters (STD14) pass all 5
+of theirs, and local mutability (`let mut`) passes all 16 of its new cases.
 
 ## Specification Follow-Ups
 

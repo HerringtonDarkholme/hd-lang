@@ -1,6 +1,6 @@
 # A requirement trait with a `mut self` method is mutable: `$.use(Tally)`
 # gives `mut Tally`, and `$.with` needs a `mut` provider value. `Console` is
-# one too, as in `let console: mut Console = $.use(Console)`.
+# one too, as in `let mut console = $.use(Console)`.
 trait Tally:
     fn add(mut self, amount: i32) -> void
     fn total(self) -> i32
@@ -15,12 +15,12 @@ impl Tally for Counter:
     fn total(self) -> i32: self.count
 
 fn record(amounts: List[i32]) -> void $ Tally:
-    let tally: mut Tally = $.use(Tally)
+    let mut tally = $.use(Tally)
     for amount in amounts:
         tally.add(amount)
 
 pub fn main() -> void $ Console:
-    let counter: mut Counter = Counter { count: 0 }
+    let mut counter = Counter { count: 0 }
     $.with(Tally=counter):
         record([1, 2, 3])
     println("total ${counter.total()}")

@@ -242,7 +242,7 @@ pass met, each waiting for the owner:
 | # | Point | Applied | **Recommendation** |
 | --- | --- | --- | --- |
 | 19 | On a built-in `Map`, `counts[w] += 1` reads `counts[w]` as `i32?`, so it is `type-mismatch`, while stress decision 11 says `m[k] += v` works | The read behaves as any read of `m[k]` ([`expr.assign.compound.map-read`](../spec/05-expressions.md#r-expr.assign.compound.map-read)); a `List` element and a user index place work | Confirm, since both decisions say the read is `m[k]`. The word count then writes `counts[w] = counts[w].unwrap_or(0) + 1`, or a STDLIB update method. |
-| 20 | `let a = Score { points: 1 }` infers `mut Score`, and `a + b` returns a readonly `Score`, so `a += b` is `mutable-upgrade` | As for `a = a + b` ([`types.bind.let-infer`](../spec/04-type-system.md#r-types.bind.let-infer)); the fixtures write `let a: Score` | Keep: `+=` adds no rule. The guide can show the annotation. |
+| 20 | **Moot (2026-09-29).** `let a = Score { points: 1 }` inferred `mut Score`, so `a += b` was `mutable-upgrade` | The local mutability decision makes a plain `let` readonly ([`types.bind.let-readonly`](../spec/04-type-system.md#r-types.bind.let-readonly)), so `a += b` rebinds `a` | Nothing left to decide. |
 | 21 | OP12 names construction. Does unwrapping, `Draft(order)` with `order: mut Order`, give `mut Draft`? | No rule; the prototype gives a readonly `Draft`, as for a field declared `Draft` | Unwrap with the newtype's permission, so the two directions match. |
 
 ## Contents

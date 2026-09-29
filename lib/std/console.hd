@@ -30,7 +30,7 @@ impl Console for BufferConsole:
 # active driver, such as `main!` or a test body, and it is rejected in a
 # `defer` suite or a default expression. An `.Err` is an ordinary panic.
 pub fn println[T < Display](value: T) -> void $ Console:
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     let call: mut Suspend[Result[void, ConsoleError]] = console.write_line("$value")
     match block_on(call):
         .Ok() => pass

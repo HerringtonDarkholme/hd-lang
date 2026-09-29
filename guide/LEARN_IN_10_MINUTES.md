@@ -176,7 +176,8 @@ renamed := User { ...user, nickname: "ada" }
 ```
 
 Mutation permission is part of the type: `T` is readonly and `mut T` is
-mutable. A readonly reference can never be upgraded to `mut`.
+mutable. A readonly reference can never be upgraded to `mut`. `:=` and a
+plain `let` bind the readonly view; `let mut` asks for `mut T`.
 
 ```hd
 fn normalize(user: mut User) -> void:
@@ -185,7 +186,7 @@ fn normalize(user: mut User) -> void:
 fn inspect(user: User) -> string:
     user.email
 
-let draft: mut User = User { id: "u2", email: " Grace@Example.com " }
+let mut draft = User { id: "u2", email: " Grace@Example.com " }
 normalize(draft)
 ```
 
@@ -419,7 +420,7 @@ use std.host.Args
 
 pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args := $.use(Args)
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     console.write_line!("starting " + args.program_name())?
     .Ok()
 ```

@@ -134,7 +134,7 @@ println(readonly.display_name)  # "Ada Lovelace"
 
 This is shared reference permission, not ownership or deep immutability. Multiple mutable aliases may exist, but mutation authority cannot be created from a readonly reference.
 
-An unannotated `let` infers the initializer's access type. Fresh composite construction may infer `mut T`, but assigning an existing `T` never upgrades it.
+A plain `let` infers the readonly view, even of a fresh value, so `let draft = User { ... }` can be reassigned but not mutated. In a multi-name `let`, each name takes its own `mut`, as in `let mut log, db = pair`.
 
 Types appear where they make interfaces between code clear: function parameters, return types, data fields, and public APIs.
 
@@ -640,14 +640,14 @@ data Profile:
 data Account:
     profile: mut Profile
 
-let profile: mut Profile = Profile {
+let mut profile = Profile {
     display_name: "Ada"
 }
 
 account := Account { profile: profile }
 account.profile.display_name = "Ada Lovelace"  # error: readonly root
 
-let editable: mut Account = Account { profile: profile }
+let mut editable = Account { profile: profile }
 editable.profile.display_name = "Ada Lovelace"  # mutable root + mutable edge
 ```
 
@@ -790,9 +790,9 @@ impl Timestamps:
     pub fn touch(mut self, at: i64) -> void:
         self.updated_at = at
 
-let draft: mut Post = Post { Timestamps: ...post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
+let mut draft = Post { Timestamps: ...post.Timestamps, id: "p2", title: "Draft", author_id: "user_123" }
 draft.touch(1700000100)          # changes draft's own copy, never post
-let stamps = draft.Timestamps    # mut Timestamps: the same part as draft's
+let mut stamps = draft.Timestamps  # mut Timestamps: the same part as draft's
 ```
 
 A readonly value may fill an embedded field. Its copy is mutable unless the
@@ -2138,7 +2138,7 @@ use std.host.Args
 
 pub fn main!() -> Result[void, ConsoleError] $ Args + Console:
     args := $.use(Args)
-    let console: mut Console = $.use(Console)
+    let mut console = $.use(Console)
     console.write_line!("starting " + args.program_name())?
     .Ok()
 ```

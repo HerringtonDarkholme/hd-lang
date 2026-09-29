@@ -173,7 +173,7 @@ impl[T < Debug, E < Debug] Debug for Result[T, E]:
 # `debug(value)` (spec/10-modules.md#r-module.prelude.debug): the text that
 # `Debug` writes for `value`.
 pub fn debug[T < Debug](value: T) -> string:
-    let out: mut DebugWriter = DebugWriter { text: "" }
+    let mut out = DebugWriter { text: "" }
     value.debug(out)
     out.text
 

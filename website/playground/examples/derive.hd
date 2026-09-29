@@ -20,7 +20,7 @@ impl[S] Describer[S] for NameLister:
 
 impl[T] FieldNames for T by Structure:
     fn field_names() -> List[string]:
-        let lister: mut NameLister = NameLister { names: [] }
+        let mut lister = NameLister { names: [] }
         _ := T::describe(lister)
         lister.names
 

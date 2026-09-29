@@ -43,8 +43,11 @@ rule this way:
   acceptable on 2026-09-29: a mutated local uses `let mut`, even when it is
   never reassigned.
 
-**Decided (owner, 2026-09-29, final); not yet applied.** This replaces
-the Kotlin-style inference recorded earlier the same day (89c6a11).
+**Decided (owner, 2026-09-29, final); applied 2026-09-29** as
+[Let Statements](../spec/02-grammar.md#let-statements) and
+[Binding Forms](../spec/04-type-system.md#binding-forms), with the new code
+`let-mut-readonly-type`. This replaces the Kotlin-style inference recorded
+earlier the same day (89c6a11).
 
 1. `mut` stays a permission in the type (`x: mut T`, `List[mut User]`), as
    decided in August (SYNTAX_NOTES).
@@ -80,6 +83,16 @@ the Kotlin-style inference recorded earlier the same day (89c6a11).
 Why: it removes the repeated type (`let a: mut User = User {...}`) while
 the declaration still says which locals change, and `mut` keeps a single
 meaning, a permission in the type.
+
+**Questions from applying items 1 to 5.** Each waits for the owner; the
+spec states the applied behavior.
+
+| Question | Applied now | **Recommendation** |
+| --- | --- | --- |
+| The owner's pattern example is `let (mut log, db) = ...`, but a multi-name `let` has no parentheses (`let log, db = ...`) | `mut` goes before each name in the existing form: `let mut log, db = $.use(Log, Db)` ([`types.bind.let-mut-pattern`](../spec/04-type-system.md#r-types.bind.let-mut-pattern)); `let (mut log, db)` is a `syntax-error` | Keep the existing form, as Rust writes `mut` per name. A reader may take `let mut log, db` as two `mut` names; if that worries you, require parentheses when a later name lacks `mut`. |
+| `let mut n = 0` on a primitive, which has no `mut` form ([`types.prim.no-mut`](../spec/04-type-system.md#r-types.prim.no-mut)) | No new rule; the prototype reports `mutable-upgrade`, as it does for `let n: mut i32` | Keep it an error, since a plain `let` already reassigns. Give `types.prim.no-mut` a code, and use it for both spellings. |
+| `let mut u = find()` where `find` returns `mut User?` | Valid: the `mut` of the optional's contained type counts as the root, as `mut User?` is written | Keep. |
+| A style warning for the redundant `let mut a: mut T` | None | Leave it to a formatter or linter, as the decision says "at most". |
 
 ### Dependency Cycles
 
