@@ -102,7 +102,6 @@ class Parser extends DecoratorParser {
         tests,
         statements,
         ...(items.testOnlyNames.size > 0 ? { testOnlyNames: [...items.testOnlyNames] } : {}),
-        ...(this.bareContextKeys.length > 0 ? { bareContextKeys: [...this.bareContextKeys] } : {}),
         span: { start, end: this.current().span.end },
       },
       diagnostics: this.diagnostics,
@@ -1103,16 +1102,10 @@ class Parser extends DecoratorParser {
         this.fail("syntax-error", "expected Context after '$.'", context.span);
       this.expectText("[");
       // `$.Context[Key]` or `$.Context[$ A + B]`; `$()` is the empty context.
-      // A bare key is one key, so a row alias there is a kind mismatch
-      // (11-requirements-and-suspension.md#r-req.row.alias.kind).
-      const keyStart = this.current().span.start;
+      // A bare row alias there stands for its row
+      // (11-requirements-and-suspension.md#r-req.row.alias.bare).
       const row = this.matchText("$");
       const requirements = row ? this.parseRequirements(false) : [this.parseRowKey()];
-      if (!row)
-        this.bareContextKeys.push({
-          key: requirements[0]!,
-          span: { start: keyStart, end: this.peek(-1).span.end },
-        });
       const close = this.expectText("]");
       return { name: `context:${requirements.join("+")}`, span: { start, end: close.span.end } };
     }

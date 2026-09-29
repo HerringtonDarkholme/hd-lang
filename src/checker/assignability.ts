@@ -181,6 +181,25 @@ export function leastCommonType(types: readonly ValueType[]): LeastCommonType {
 }
 
 /**
+ * The least common type of function values in a list or map literal with no
+ * expected type, after each value's row is widened to the union of their
+ * rows (11-requirements-and-suspension.md#r-req.row.union.literal), or
+ * undefined when a value is not a function type or the widened types still
+ * have no least common type.
+ */
+export function rowUnionType(types: readonly ValueType[]): ValueType | undefined {
+  const values = types.filter((type) => type !== "never");
+  const parts = values.map((type) => functionParts(type));
+  if (values.length === 0 || parts.some((part) => part === undefined)) return undefined;
+  const union = [...new Set(parts.flatMap((part) => part!.requirements))].sort();
+  const widened = parts.map((part) =>
+    functionType(part!.parameters, part!.result, union, part!.variadic, part!.suspending),
+  );
+  const least = leastCommonType(widened);
+  return "type" in least ? least.type : undefined;
+}
+
+/**
  * `List[T]` is `Iterable[T]` and `Map[K, V]` is `Iterable[(K, V)]`
  * (06-control-flow.md#for-loops); their compiler-supplied dictionary returns a
  * cursor.

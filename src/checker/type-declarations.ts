@@ -248,6 +248,18 @@ class AliasExpander {
     return this.key(key, span)[0] ?? key;
   }
 
+  /**
+   * An explicit type argument with every alias expanded. A bare row alias
+   * there is a one-key row slot's row (11-requirements-and-suspension.md#r-req.row.alias.bare);
+   * the checker reports it against a type-kinded parameter.
+   */
+  typeArgument(type: string, span: SourceSpan, list: string): string {
+    const name = nominalGenericParts(type)?.name ?? type;
+    if (list === "typeArguments" && this.isRow(name))
+      return rowArgumentType(this.row([type], span));
+    return this.type(type, span);
+  }
+
   /** A written type with every alias expanded. */
   type(type: string, span: SourceSpan, depth = 0): string {
     if (depth > 64 || !this.mentions(type)) return type;
@@ -276,7 +288,7 @@ class AliasExpander {
     const rowAlias = this.rows.get(name);
     if (rowAlias) {
       this.kindMismatch(
-        `'${name}' is a requirement row alias; write it after '$' in a row, not as a type`,
+        `'${name}' is a requirement row alias; write it where a row goes, not as a type`,
         span,
       );
       // Its first key stands in, so the one kind error is not followed by
@@ -309,7 +321,7 @@ function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T
       result[key] = value.map((item) =>
         isTypeRef(item)
           ? expander.mentions(item.name)
-            ? { ...item, name: expander.type(item.name, item.span) }
+            ? { ...item, name: expander.typeArgument(item.name, item.span, key) }
             : item
           : rewriteTypes(item, expander, own),
       );
@@ -327,7 +339,7 @@ function rewriteTypes<T>(node: T, expander: AliasExpander, span?: SourceSpan): T
       (record.kind === "provider-use" || record.kind === "binding")
     )
       result[key] = expander.singleKey(value, own);
-    // A bound names traits, never a row (11-requirements-and-suspension.md#r-req.row.alias.kind).
+    // A bound names traits, never a row (11-requirements-and-suspension.md#r-req.row.alias.type-or-key).
     else if (
       key === "traits" &&
       Array.isArray(value) &&
@@ -461,10 +473,7 @@ export function withTypeDeclarations(program: Program): {
     rows.delete(name);
   }
   const expander = new AliasExpander(aliases, rows, diagnostics);
-  const { types: _types, bareContextKeys, ...rest } = program;
-  // `$.Context[Key]` without `$` names one key
-  // (11-requirements-and-suspension.md#r-req.row.alias.kind).
-  for (const { key, span } of bareContextKeys ?? []) expander.singleKey(key, span);
+  const { types: _types, ...rest } = program;
   const lowered: Program = {
     ...rest,
     data: [

@@ -416,11 +416,6 @@ export interface Program {
   readonly statements: readonly Statement[];
   /** Names that the `tests:` block declares or uses (spec/03-names-and-scopes.md#tests-blocks). */
   readonly testOnlyNames?: readonly string[];
-  /**
-   * The single keys written in `$.Context[Key]` without `$`, where a row
-   * alias is a kind mismatch (11-requirements-and-suspension.md#r-req.row.alias.kind).
-   */
-  readonly bareContextKeys?: readonly { readonly key: string; readonly span: SourceSpan }[];
   readonly span: SourceSpan;
 }
 

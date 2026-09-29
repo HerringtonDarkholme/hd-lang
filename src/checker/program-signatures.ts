@@ -318,6 +318,7 @@ export function createProgramSignatures(
       referenceParameters: [...categoryParameters.AnyRef],
       valueParameters: [...categoryParameters.AnyVal],
       rowParameters,
+      ...(rowParameters.length > 0 ? { typeArgumentOrder: declaration.genericParameters } : {}),
       parameters: normalizedParameters,
       parameterNames: declaration.parameters.map((parameter) => parameter.name),
       defaultFunctionNames: declaration.parameters.map((parameter) =>

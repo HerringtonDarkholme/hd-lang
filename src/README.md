@@ -369,8 +369,10 @@ else`, `break`, `break value`, and `continue`;
   `unknown-name`, because aliases are expanded before checking;
 - `type` aliases, generic ones included, expanded before checking, with
   `alias-cycle` for a cycle; row aliases (`type AppRow = Db + Cache`,
-  generic and nested) expanded in every row, and `generic-kind-mismatch`
-  for one used as a type or single key; newtypes lowered to one-field
+  generic and nested) expanded in every row and bare in a one-key row slot
+  (`$.Context[AppRow]`, `Fn[(), void, AppRow]`, an explicit row type
+  argument), and `generic-kind-mismatch` for one used as a type or single
+  key; newtypes lowered to one-field
   data types; `data`, `enum`, `trait`, `type`, and `impl` in a block suite,
   hoisted under a scoped name; the prelude traits `Any` and `Iterable` (user
   implementations and bounds drive `for` loops and comprehensions, and
@@ -393,11 +395,15 @@ else`, `break`, `break value`, and `continue`;
   extension (`$ R + K` in the callback row, `$ R` on the callee), keyed Wasm
   GC provider packs, and lexical restoration of removed providers;
   `ambiguous-row-pattern` for a pattern with two unfixed row parameters and
-  `row-parameter-in-context` for `$.Context[R]`;
+  `row-parameter-in-context` for `$.Context[R]`; explicit row type arguments
+  for a function's row parameters, as in `provide[$ Db + Log](job)`;
 - row subsumption: a function value with a narrower concrete row fits a
   wider function type through the callable adapter. A value is not widened
   into a row that holds a row parameter it lacks, which least-row inference
-  solves instead;
+  solves instead. A list or map literal with no expected type gives its
+  function values the union of their rows; a literal with a spread does
+  not yet (`KNOWN_FAILURES.tsv`, RU12), and diagnostics print the union's
+  expanded keys rather than the rows as written;
 - erased generic marker traits as provider keys, with call-site substitution
   and pre-erasure collision checking;
 - erased generic functions with call-site type inference, Wasm GC boxing for

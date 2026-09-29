@@ -17,6 +17,7 @@ import {
   nominalGenericParts,
   nominalGenericType,
   readonlyType,
+  rowArgumentKeys,
   storedSuspensionParts,
   suspensionType,
 } from "../types.ts";
@@ -559,20 +560,40 @@ export abstract class CallChecker extends StatementChecker {
     const substitutions = new Map(initialSubstitutions);
     const rowSubstitutions = new Map<string, readonly string[]>();
     if (expression.typeArguments) {
-      if (expression.typeArguments.length !== signature.genericParameters.length) {
+      const slots = signature.typeArgumentOrder ?? signature.genericParameters;
+      if (expression.typeArguments.length !== slots.length) {
         const code =
-          expression.typeArguments.length < signature.genericParameters.length
+          expression.typeArguments.length < slots.length
             ? "partial-generic-arguments"
             : "generic-argument-count";
         this.fail(
           code,
-          `${callable} expects ${signature.genericParameters.length} type arguments, received ${expression.typeArguments.length}`,
+          `${callable} expects ${slots.length} type arguments, received ${expression.typeArguments.length}`,
           expression.span,
         );
       }
       expression.typeArguments.forEach((argument, index) => {
         if (argument.name === "_") return;
-        substitutions.set(signature.genericParameters[index]!, this.resolveType(argument));
+        const parameter = slots[index]!;
+        const row = rowArgumentKeys(argument.name);
+        // A row parameter takes a row, or one bare key or row alias
+        // (11-requirements-and-suspension.md#r-req.row.alias.one-key-slot).
+        if (signature.rowParameters.includes(parameter)) {
+          rowSubstitutions.set(
+            parameter,
+            (row ?? [argument.name]).map((key) =>
+              key.startsWith("row:") ? key : this.canonicalProviderKey(key, argument.span),
+            ),
+          );
+          return;
+        }
+        if (row)
+          this.fail(
+            "generic-kind-mismatch",
+            `${callable} takes a type, not the requirement row '${argument.name}', for '${parameter}'`,
+            argument.span,
+          );
+        substitutions.set(parameter, this.resolveType(argument));
       });
     }
     const inferredBeforeExpected = new Set(substitutions.keys());

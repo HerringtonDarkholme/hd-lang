@@ -31,8 +31,6 @@ export abstract class ParserBase {
   protected index = 0;
   protected readonly diagnostics: Diagnostic[] = [];
   protected activeGenericParameters: ReadonlySet<string> = new Set();
-  /** Keys written as `$.Context[Key]` without `$` (11-requirements-and-suspension.md#r-req.row.alias.kind). */
-  protected readonly bareContextKeys: { key: string; span: SourceSpan }[] = [];
 
   protected options: ParseOptions = {};
 

@@ -12,7 +12,7 @@ import {
   tupleParts,
   tupleType,
 } from "../types.ts";
-import { leastCommonType } from "./assignability.ts";
+import { leastCommonType, rowUnionType } from "./assignability.ts";
 import { mapKeyKind } from "./context.ts";
 
 import { PatternChecker } from "./patterns.ts";
@@ -66,6 +66,11 @@ export abstract class ExpressionLiteralChecker extends PatternChecker {
   ): ValueType {
     const least = leastCommonType(types);
     if ("type" in least) return least.type;
+    // Function values in a list or map literal take the union of their rows
+    // (11-requirements-and-suspension.md#r-req.row.union.literal). A spread
+    // part is a list, so a spread of function values is not unified here.
+    const union = rowUnionType(types);
+    if (union !== undefined) return union;
     const listed = [...new Set(types)].join(", ");
     this.fail(
       least.code,

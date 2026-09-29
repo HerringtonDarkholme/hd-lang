@@ -86,6 +86,12 @@ export interface Signature {
   readonly referenceParameters?: readonly string[];
   readonly valueParameters?: readonly string[];
   readonly rowParameters: readonly string[];
+  /**
+   * Every generic parameter in declared order, type and row alike, when a
+   * row parameter is among them: the slots of an explicit type-argument list
+   * (07-functions.md#r-fn.generic.explicit.complete).
+   */
+  readonly typeArgumentOrder?: readonly string[];
   readonly parameters: readonly ValueType[];
   readonly parameterNames: readonly string[];
   readonly defaultFunctionNames: readonly (string | undefined)[];

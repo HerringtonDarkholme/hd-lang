@@ -1292,7 +1292,7 @@ typing/valid/row-alias-empty.hd	type
 typing/invalid/row-alias-as-type.hd	type
 typing/invalid/row-alias-in-use.hd	type
 typing/invalid/row-alias-binding.hd	type
-typing/invalid/row-alias-bare-context.hd	type
+typing/valid/row-alias-bare-context.hd	type
 typing/invalid/row-alias-mut-key.hd	type
 typing/invalid/row-alias-generic-kind.hd	type
 runtime/valid/installer-function-runs.hd	runtime
@@ -1308,3 +1308,17 @@ typing/invalid/derived-generic-bound.hd	type
 typing/valid/literal-suffix-requirement.hd	type
 typing/invalid/literal-suffix-no-parameter.hd	type
 typing/valid/string-prefix-requirement.hd	type
+typing/valid/row-union-list.hd	type
+typing/valid/row-union-map.hd	type
+typing/invalid/row-union-list-no-convert.hd	type
+typing/invalid/row-union-other-parts.hd	type
+typing/invalid/row-union-nested-lists.hd	type
+typing/invalid/row-union-missing-requirement.hd	type
+runtime/valid/row-union-list-runs.hd	runtime
+typing/valid/row-list-copy-wider.hd	type
+typing/valid/row-alias-bare-slots.hd	type
+runtime/valid/row-alias-bare-runs.hd	runtime
+typing/valid/row-alias-bare-impl-head.hd	type
+typing/invalid/row-alias-type-argument.hd	type
+typing/invalid/row-alias-explicit-type-argument.hd	type
+runtime/valid/row-forced-overlap-nearest.hd	runtime
