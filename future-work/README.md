@@ -24,6 +24,9 @@ Decided, not yet applied:
 - [Pipe Operator And Iterator `map`/`fold`](PIPE_OPERATOR.md) surveys pipes,
   UFCS, and extension methods in 17 languages and records owner decisions
   PL1-PL10.
+- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md)
+  measures six combinations on one real-code corpus and records owner
+  decisions CS1-CS3, which amend PL8; CS5 and CS6 are still open.
 - [Dependencies Through Version Control](DEPENDENCIES.md) surveys
   registry-free dependency management and records owner decisions
   DEP1-DEP7 (Go modules in hd spelling).
@@ -33,8 +36,6 @@ Decided, not yet applied:
 
 Open questions for the owner:
 
-- [Chaining Study: Pipe, Function Shorthand, And Iterator Adapters](CHAINING_STUDY.md)
-  measures six combinations on one real-code corpus and asks CS1-CS6.
 - [Typed Derivation: Open Points](TYPED_DERIVATION.md) lists what M1-M29
   leave undecided and the M26 readings awaiting confirmation.
 - [Nominal Function Types: Per-Declaration Data For Tools](FN_TYPE.md)

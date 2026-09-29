@@ -315,8 +315,12 @@ records owner decisions PL1-PL10: static-only `map` and `fold`, a `|>`
 with substitution steps (`_`) and application steps, single-line steps,
 and no `_` lambda shorthand for now.
 
-**Open.** [Chaining Study](CHAINING_STUDY.md#questions-for-the-owner) asks
-CS1-CS6 on the pipe, function shorthand, and adapter style together.
+[Chaining Study](CHAINING_STUDY.md#owner-decisions) CS1-CS3, also not
+yet applied, keep adapters as methods, amend PL8 so a pipe step is a `_`
+step or a bare name, and add no member-path shorthand.
+
+**Open.** The study's remaining questions, CS5 (method values) and CS6
+(key-function variants in `std`), wait for the owner. CS4 asked how long a member path is, and CS3 declined member paths.
 
 ### Cross-Feature Stress Test (2026-09-29)
 
