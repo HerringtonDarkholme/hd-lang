@@ -1,7 +1,7 @@
 # Decorators: Survey And Design Options
 
-Status: design exploration, 2026-09-28. Owner decisions D1-D9 are below;
-they were applied to the specification on 2026-09-28 (see
+Status: design exploration, 2026-09-28. Owner decisions D1-D10 are below;
+D1-D9 were applied to the specification on 2026-09-28 and D10 on 2026-09-29 (see
 [Owner Decisions](#owner-decisions)). The survey and options after them are
 the exploration they came from, and points the apply pass left open are
 under [Still Open](#still-open).
@@ -147,23 +147,34 @@ newtype-only-`@derive` rules are retired. The kind check reuses
 `decorator-not-annotator`; no diagnostic code was added. L11 was applied
 the same day with D9's names.
 
+**D10 applied 2026-09-29** in
+[`annot.target.kind.newtype-kind`](../spec/14-annotations.md#r-annot.target.kind.newtype-kind)
+and [`annot.target.limit.kind-error`](../spec/14-annotations.md#r-annot.target.limit.kind-error),
+which retire `annot.target.kind.newtype`, `annot.target.newtype` and
+`annot.target.limit.error`, and in
+[`expr.suffix.marker.fn-only`](../spec/05-expressions.md#r-expr.suffix.marker.fn-only)
+and [`expr.prefix.marker.fn-only`](../spec/05-expressions.md#r-expr.prefix.marker.fn-only),
+which retire the two `marker.module` rules. The new code is
+`decorator-target-kind`. A misplaced `@derive` stays
+`decorator-not-annotator`, since `@derive` is an intrinsic, not a fact
+limited by `@annotate`. `invalid-literal-suffix` needed no change.
+
 ## Still Open
 
-Points the apply pass met (2026-09-28). Each waits for the owner; the
-specification states the reading in the Applied column, so each can change
-without breaking a decision.
+Points the apply pass met (2026-09-28). D10 (2026-09-29) answered 1 to 8;
+point 9 still waits for the Error Conversion apply pass.
 
-| # | Point | Applied | **Recommendation** |
-| --- | --- | --- | --- |
-| 1 | The kind of a variant payload member, such as `reason` in `Moved(to: string, @rename("why") reason: string)` | `.Field`, since shapes and derivations see it as a field ([`annot.target.kind.field`](../spec/14-annotations.md#r-annot.target.kind.field)) | Keep `.Field`, so a field fact such as `@rename` works on payloads without also allowing function parameters. |
-| 2 | A newtype is an item (D1), but `Target` has no newtype kind | A newtype has no kind, so a value of a limited type before a newtype is always `decorator-not-annotator` ([`annot.target.newtype`](../spec/14-annotations.md#r-annot.target.newtype)) | Add a `Newtype` variant to `Target`, so a fact type can opt newtypes in. |
-| 3 | The kind of a receiverless associated function in a trait or implementation | `.Method` ([`annot.target.kind.method`](../spec/14-annotations.md#r-annot.target.kind.method)) | Keep: it is a member, and `Target` has no other member kind for functions. |
-| 4 | Which parameters take decorators now that methods do | Value parameters of module-level functions and of methods, including trait requirements; never a receiver, a closure's, or a local function's ([`grammar.fn.decorator-param-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-param-targets)) | Keep. |
-| 5 | Whether a member line of a derivation block is checked against target kinds | Yes: a limited value that a member line attaches is `decorator-not-annotator` on that line ([`annot.target.limit.error`](../spec/14-annotations.md#r-annot.target.limit.error)) | Keep: D2 limits where values "may appear", wherever they are written. |
-| 6 | Whether D5's bare call covers inline parameter decorators, as in `@flag id: i64` | Yes: every decorator, not only prefix lines ([`annot.decorator.bare-call`](../spec/14-annotations.md#r-annot.decorator.bare-call)) | Keep: the rule contrasts decorators with ordinary expressions. |
-| 7 | Whether `Target`, `Annotate` and `annotate` are prelude names | Not prelude names: code writes `use std.annotation.annotate` ([`annot.target.declarations`](../spec/14-annotations.md#r-annot.target.declarations)) | Keep: only fact-type authors need them, and prelude names cannot be shadowed. |
-| 8 | Which code the kind check reports | The existing `decorator-not-annotator` | Keep: the name says the value does not annotate that target. |
-| 9 | `@error` stays an intrinsic (D6), but Error Conversion decision 10 is not yet in the specification | A prose mention in [Prefix Decorators](../spec/14-annotations.md#prefix-decorators) only | Specify `@error` with the Error Conversion apply pass. |
+| # | Point | Resolution |
+| --- | --- | --- |
+| 1 | The kind of a variant payload member | D10: `.Field` ([`annot.target.kind.field`](../spec/14-annotations.md#r-annot.target.kind.field)) |
+| 2 | `Target` had no newtype kind | D10: `Target` gains `Newtype` ([`annot.target.kind.newtype-kind`](../spec/14-annotations.md#r-annot.target.kind.newtype-kind)) |
+| 3 | The kind of a receiverless associated function | D10: `.Method` ([`annot.target.kind.method`](../spec/14-annotations.md#r-annot.target.kind.method)) |
+| 4 | Which parameters take decorators | D10: as applied; receivers do not ([`grammar.fn.decorator-param-targets`](../spec/02-grammar.md#r-grammar.fn.decorator-param-targets)) |
+| 5 | Whether a member line is kind-checked | D10: yes ([`annot.target.limit.kind-error`](../spec/14-annotations.md#r-annot.target.limit.kind-error)) |
+| 6 | Whether the bare-marker call covers parameter decorators | D10: yes ([`annot.decorator.bare-call`](../spec/14-annotations.md#r-annot.decorator.bare-call)) |
+| 7 | Whether `Target`, `Annotate` and `annotate` are prelude names | D10: no ([`annot.target.declarations`](../spec/14-annotations.md#r-annot.target.declarations)) |
+| 8 | Which code the kind check reports | D10: the new `decorator-target-kind` |
+| 9 | `@error` is an intrinsic (D6), but Error Conversion decision 10 is not yet in the specification | Open: a prose mention in [Prefix Decorators](../spec/14-annotations.md#prefix-decorators) only; specify `@error` with the Error Conversion apply pass. |
 
 ## Contents
 

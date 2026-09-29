@@ -2448,8 +2448,8 @@ fn users_path() -> string:
         .None => ""
 ```
 
-A `Route` value before anything but a function is an error. The compiler
-checks only that kind; whatever reads a value checks that it suits its
+A `Route` value before anything but a function is `decorator-target-kind`.
+A newtype is a kind too, `.Newtype`. The compiler checks only that kind; whatever reads a value checks that it suits its
 target. See [Target Kinds](../spec/14-annotations.md#target-kinds).
 
 To write shared metadata away from a long declaration, use a trait-less
