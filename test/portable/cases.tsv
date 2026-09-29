@@ -1296,3 +1296,12 @@ typing/invalid/row-alias-bare-context.hd	type
 typing/invalid/row-alias-mut-key.hd	type
 typing/invalid/row-alias-generic-kind.hd	type
 runtime/valid/installer-function-runs.hd	runtime
+typing/invalid/cast-literal-out-of-range.hd	type
+runtime/valid/narrowing-cast-wraps.hd	runtime
+typing/invalid/property-input-not-debug.hd	type
+runtime/valid/property-assume-discards.hd	runtime
+typing/invalid/type-name-as-value.hd	type
+typing/invalid/metadata-type-as-value.hd	type
+typing/invalid/derived-hash-field-not-hash.hd	type
+typing/invalid/derived-total-order-float.hd	type
+typing/invalid/derived-generic-bound.hd	type

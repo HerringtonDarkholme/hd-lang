@@ -14,14 +14,18 @@ import type { HostFunction } from "./host-functions.ts";
 //   draw past the end of a replayed stream is 0. Each attempt is a fresh
 //   instance and counts toward the `shrink` cap (T51);
 // - `Choices.assume(false)` calls `prop_discard`, which ends the case as
-//   neither passing nor failing.
+//   neither passing nor failing. A discarded case does not count toward
+//   `cases`, and the property fails after more than 10 × `cases` discards
+//   (spec/10-modules.md#r-module.testing.prop.discard-limit);
+// - the lowered test reports its input's `Debug` text through `prop_show`,
+//   and the failure report prints the shrunk case's text
+//   (spec/10-modules.md#r-module.testing.prop.report);
+// - a failing property's shrunk stream is saved, one decimal draw per line,
+//   under `__regressions__/<module>/<test-slug>` and replayed before new
+//   cases on the next run (spec/10-modules.md#r-module.testing.prop.regression-file).
 //
 // The failure report names the seed, which `hd test --seed N` reuses (T36),
-// and the shrunk choice stream. Not decided, so not implemented: printing
-// the shrunk value (T36 prints it with `Debug`, but `it_prop` does not bound
-// its input by `Debug`), the regression file of T37, and a limit on
-// discarded cases; a discarded case counts toward `cases`
-// (future-work/TESTING.md, Still Open After T53).
+// the shrunk input, and the shrunk choice stream.
 
 /** Thrown by `prop_discard`: the running case is discarded. */
 export class PropertyDiscard extends Error {
@@ -35,6 +39,15 @@ export interface PropertyOptions {
   readonly seed?: number;
   readonly cases?: number;
   readonly shrink?: number;
+  /** Where failing streams are saved and replayed from; none keeps nothing. */
+  readonly regressions?: RegressionStore;
+}
+
+/** The saved choice streams of failing properties, by test name (src/snapshots.ts). */
+export interface RegressionStore {
+  load(name: string): readonly bigint[] | undefined;
+  /** Saves `stream` and returns the file's path from the package root. */
+  save(name: string, stream: readonly bigint[]): string;
 }
 
 /** One case's result, as the test runner reports it. */
@@ -50,6 +63,8 @@ export interface PropertyRun {
   recorded(): readonly bigint[];
   /** The caps the last case reported. */
   caps(): { readonly cases: number; readonly shrink: number };
+  /** The `Debug` text of the last case's input, when it reported one. */
+  shown(): string | undefined;
 }
 
 /** A small seeded generator (mulberry32). */
@@ -83,6 +98,7 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
   let size = 0;
   let shrinking = false;
   let caps = { cases: 100, shrink: 500 };
+  let shown: string | undefined;
   return {
     seed,
     options,
@@ -92,9 +108,11 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
       random = generator(caseSeed);
       size = caseSize;
       shrinking = shrinkingCase;
+      shown = undefined;
     },
     recorded: () => recorded,
     caps: () => caps,
+    shown: () => shown,
     hostFunctions: {
       prop_config(cases, shrink) {
         caps = { cases: Number(cases), shrink: Number(shrink) };
@@ -120,6 +138,9 @@ export function propertyRun(options: PropertyOptions = {}): PropertyRun {
       },
       prop_discard() {
         throw new PropertyDiscard();
+      },
+      prop_show(text) {
+        shown = String(text);
       },
     },
   };
@@ -148,19 +169,40 @@ function* candidates(stream: readonly bigint[]): Generator<readonly bigint[]> {
 
 /**
  * Runs one property test case by case, then shrinks a failure. `once` runs
- * the test function in a fresh instance with the prepared draws.
+ * the test function in a fresh instance with the prepared draws. A saved
+ * regression stream runs first; discarded cases do not count toward `cases`.
  */
 export async function runProperty(
   run: PropertyRun,
   name: string,
   once: () => Promise<CaseResult>,
 ): Promise<{ readonly subject: string; readonly outcome: string } | undefined> {
+  const saved = run.options.regressions?.load(name);
+  if (saved !== undefined) {
+    run.start(saved, run.seed, 0, true);
+    const result = await once();
+    if (typeof result === "object")
+      return shrinkFailure(run, name, 0, "the saved regression case", result, once);
+  }
+  let checked = 0;
+  let discarded = 0;
   for (let index = 0; ; index += 1) {
-    run.start([], run.seed + index, index, false);
+    run.start([], run.seed + index, checked, false);
     const result = await once();
     const cases = run.options.cases ?? run.caps().cases;
-    if (typeof result === "object") return shrinkFailure(run, name, index, result, once);
-    if (index + 1 >= cases) return undefined;
+    if (typeof result === "object")
+      return shrinkFailure(run, name, index, `case ${index + 1}`, result, once);
+    if (result === "discard") {
+      discarded += 1;
+      if (discarded > 10 * cases)
+        return {
+          subject: `property test "${name}" (seed ${run.seed})`,
+          outcome: `discarded ${discarded} cases, more than 10 × cases (${cases}), after ${checked} checked cases`,
+        };
+      continue;
+    }
+    checked += 1;
+    if (checked >= cases) return undefined;
   }
 }
 
@@ -168,11 +210,13 @@ async function shrinkFailure(
   run: PropertyRun,
   name: string,
   index: number,
+  label: string,
   first: { readonly failure: string },
   once: () => Promise<CaseResult>,
 ): Promise<{ readonly subject: string; readonly outcome: string }> {
   const cap = run.options.shrink ?? run.caps().shrink;
   let best = run.recorded();
+  let input = run.shown();
   let failure = first.failure;
   let attempts = 0;
   let stoppedEarly = false;
@@ -189,13 +233,20 @@ async function shrinkFailure(
       const result = await once();
       if (typeof result !== "object" || !simpler(run.recorded(), best)) continue;
       best = run.recorded();
+      input = run.shown();
       failure = result.failure;
       improved = true;
       break;
     }
   }
+  const saved = run.options.regressions?.save(name, best);
   return {
-    subject: `property test "${name}" (seed ${run.seed}, case ${index + 1})`,
-    outcome: `${failure}; shrunk choices [${best.join(", ")}] after ${attempts} runs${stoppedEarly ? ", shrinking stopped early" : ""}`,
+    subject: `property test "${name}" (seed ${run.seed}, ${label})`,
+    outcome: [
+      ...(input === undefined ? [] : [`shrunk input ${input}`]),
+      failure,
+      ...(saved === undefined ? [] : [`saved to ${saved}`]),
+      `shrunk choices [${best.join(", ")}] after ${attempts} runs${stoppedEarly ? ", shrinking stopped early" : ""}`,
+    ].join("; "),
   };
 }

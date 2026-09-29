@@ -82,8 +82,8 @@ export function emitCast(
     return target.bits === 64 ? `(f64.promote_f32 ${value})` : `(f32.demote_f64 ${value})`;
   if (target.family === "float")
     return `(${target.wasm}.convert_${source.wasm}_${source.family === "unsigned" ? "u" : "s"} ${value})`;
-  const overflow = context.emitRuntimePanic("integer-overflow");
   if (source.family === "float") {
+    const overflow = context.emitRuntimePanic("integer-overflow");
     // Truncate toward zero, then require a finite value in range.
     const temporary = context.allocateTemporary("f64");
     const widened = source.bits === 32 ? `(f64.promote_f32 ${value})` : value;
@@ -99,21 +99,15 @@ export function emitCast(
       `  ${target.wasm === "i64" ? converted : `(i32.wrap_i64 ${converted})`})`,
     ].join("\n");
   }
-  const temporary = context.allocateTemporary("i64");
-  const v = `(local.get ${temporary})`;
-  let outOfRange: string;
-  if (to === "u64") outOfRange = source.family === "signed" ? `(i64.lt_s ${v} (i64.const 0))` : "";
-  else if (from === "u64") outOfRange = `(i64.gt_u ${v} ${i64Constant(target.maximum!)})`;
-  else
-    outOfRange = `(i32.or (i64.lt_s ${v} ${i64Constant(target.minimum!)}) (i64.gt_s ${v} ${i64Constant(target.maximum!)}))`;
-  return [
-    `(block (result ${target.wasm})`,
-    `  (local.set ${temporary} ${asWide(value, from)})`,
-    outOfRange ? `  (if ${outOfRange} (then ${overflow}))` : "",
-    `  ${target.wasm === "i64" ? v : `(i32.wrap_i64 ${v})`})`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // An integer-to-integer cast wraps (types.cast.wrap): keep the low bits of
+  // the two's-complement value and read them in the target type.
+  const wide = asWide(value, from);
+  if (target.wasm === "i64") return wide;
+  const low = `(i32.wrap_i64 ${wide})`;
+  if (target.bits === 32) return low;
+  if (target.family === "unsigned") return `(i32.and ${low} ${i32Constant(target.maximum!)})`;
+  const shift = `(i32.const ${32 - target.bits})`;
+  return `(i32.shr_s (i32.shl ${low} ${shift}) ${shift})`;
 }
 
 /** Unary `-` (signed and float types) and `~`. */

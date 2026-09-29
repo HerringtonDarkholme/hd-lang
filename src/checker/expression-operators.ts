@@ -1,3 +1,4 @@
+import type { SourceSpan } from "../diagnostics.ts";
 import type { Expression } from "../ast.ts";
 import type { HirExpression, HirLocal, ValueType } from "../hir.ts";
 import {
@@ -9,7 +10,7 @@ import {
   tupleParts,
 } from "../types.ts";
 import { isIntegerType, numericType, widerNumeric } from "../numeric.ts";
-import { PRELUDE_NAMES } from "./context.ts";
+import { isKnownType, PRELUDE_NAMES } from "./context.ts";
 import type { Signature } from "./context.ts";
 import {
   genericTypeName,
@@ -102,6 +103,19 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
     return this.checkExpression(closure, type);
   }
 
+  /**
+   * A type, trait, or type parameter name where a value is required
+   * (spec/03-names-and-scopes.md#r-names.type-as-value).
+   */
+  private rejectTypeAsValue(name: string, span: SourceSpan): void {
+    if (
+      isKnownType(name, this.dataTypes, this.enumTypes, this.traitTypes) ||
+      this.traitTypes.has(name) ||
+      this.signature.genericParameters.includes(name)
+    )
+      this.fail("type-used-as-value", `'${name}' names a type, not a value`, span);
+  }
+
   protected checkOperatorExpression(
     expression: Expression,
     _expected?: ValueType,
@@ -176,6 +190,7 @@ export abstract class ExpressionOperatorChecker extends ExpressionLiteralChecker
             `'${expression.name}' is a compiler intrinsic and must be called directly`,
             expression.span,
           );
+        this.rejectTypeAsValue(expression.name, expression.span);
         this.failUnknownName(expression.name, `unknown name '${expression.name}'`, expression.span);
       }
       case "unary":

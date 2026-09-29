@@ -13,6 +13,8 @@ export class Source_ {
   private readonly defined = new Set<string>();
   private readonly expressions: Expression[] = [];
   private readonly types: string[] = [];
+  /** Spans for single lines, by index in `lines`, over the program's span. */
+  private readonly lineSpans = new Map<number, SourceSpan>();
 
   expression(expression: Expression): string {
     this.expressions.push(expression);
@@ -28,7 +30,9 @@ export class Source_ {
     return this.expression({ kind: "string", value: text, span: ZERO_SPAN });
   }
 
-  add(text: string): void {
+  /** Adds a line; a node that starts on it gets `span`, when given. */
+  add(text: string, span?: SourceSpan): void {
+    if (span) this.lineSpans.set(this.lines.length, span);
     this.lines.push(text);
   }
 
@@ -49,6 +53,9 @@ export class Source_ {
       );
     const types = this.types;
     const expressions = this.expressions;
+    const lineSpans = this.lineSpans;
+    const spanOf = (parsed: unknown): SourceSpan =>
+      lineSpans.get((parsed as SourceSpan).start.line - 1) ?? span;
     const patch = (node: unknown, key?: string): unknown => {
       if (Array.isArray(node)) return node.map((item) => patch(item));
       if (typeof node === "string")
@@ -63,7 +70,7 @@ export class Source_ {
       }
       const result: Record<string, unknown> = {};
       for (const [entry, value] of Object.entries(record))
-        result[entry] = entry === "span" ? span : patch(value, entry);
+        result[entry] = entry === "span" ? spanOf(value) : patch(value, entry);
       return result;
     };
     return patch(parsed.program) as Program;

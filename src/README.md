@@ -278,7 +278,8 @@ form: `{"functions": [{"functionName", "declared", "paths": [{"key", "path"}]}]}
   Every integer of at most 32 bits is an `i32` at run time and `u64` an
   `i64` read as unsigned; arithmetic on the narrow types range-checks its
   result (`emitter/sized-numeric.ts`). Constructor-style casts such as
-  `i16(wide)` check the target range, and a failed cast panics with
+  `i16(wide)` wrap to the target width, a literal argument is range-checked
+  against the target, and a float-to-integer cast out of range panics with
   `integer-overflow`, which the specification leaves open;
 - heterogeneous tuple literals, tuple types, simultaneous tuple destructuring,
   and statically typed `._0` selection, stored in erased Wasm GC arrays;
@@ -363,6 +364,9 @@ else`, `break`, `break value`, and `continue`;
   are implementation targets owned by the standard library, reject a direct
   `is`, and may be spelled `Fn[...]`, `SuspendFn[...]`, and `Rest[T]` when
   imported from `std.function`;
+- a data, enum, trait, primitive, or type parameter name where a value is
+  required is `type-used-as-value`; a type alias name there still reports
+  `unknown-name`, because aliases are expanded before checking;
 - `type` aliases, generic ones included, expanded before checking, with
   `alias-cycle` for a cycle; row aliases (`type AppRow = Db + Cache`,
   generic and nested) expanded in every row, and `generic-kind-mismatch`
@@ -575,7 +579,10 @@ else`, `break`, `break value`, and `continue`;
   data type, even a fieldless one, and a variant with named payload fields,
   `debug_tuple` for a variant with positional ones, and `write` of a
   payload-free variant's name. A variant that mixes both uses
-  `debug_tuple`, a stand-in for an open question. `Debug` is a prelude trait; `DebugWriter`, its
+  `debug_struct`, naming a positional field `_0`, `_1`, and so on. A field
+  a derivation compares or hashes without the trait is
+  `derive-field-missing-trait` at the field, and a use whose added bound
+  fails is `missing-derived-bound`. `Debug` is a prelude trait; `DebugWriter`, its
   builders, the prelude `debug`, and `std`'s `Debug` implementations for
   the primitives, `List`, `T?`, `Result`, and pairs are hd code in
   `lib/std/format.hd`, whose writer is always compact. The checker still
@@ -646,10 +653,13 @@ else`, `break`, `break value`, and `continue`;
   (`src/property-tests.ts`). Every `Choices` draw goes through the
   `prop_draw` host function, which records it; a failing case is shrunk
   by replaying shorter or smaller choice streams, and the report names
-  the seed and the shrunk stream. `cases`, `shrink`, and
-  `hd test --seed N`, `--cases N`, and `--shrink N` cap the run. A case
-  that `assume` discards counts toward `cases`, and the report does not
-  print the shrunk value (future-work/TESTING.md, Still Open After T53);
+  the seed, the shrunk input's `Debug` text, and the shrunk stream.
+  `cases`, `shrink`, and `hd test --seed N`, `--cases N`, and
+  `--shrink N` cap the run. A case that `assume` discards does not count
+  toward `cases`, and more than 10 × `cases` discards fail the property.
+  The shrunk stream is saved, one draw per line, under
+  `__regressions__/<module>/<test-slug>` (`src/snapshots.ts`) and
+  replayed before new cases on the next run;
 - `--test-layout test-module|integration` compiles a file as a test module
   (the conformance Test Layouts); both layouts are test modules, since
   the prototype has no separate integration view;

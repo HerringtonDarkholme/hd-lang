@@ -335,7 +335,9 @@ function tableTest(
 // function that the runner calls once per generated case, each in a fresh
 // instance: it reports `cases` and `shrink` to the runner, takes a
 // runner-created `Choices`, draws the input with `gen` or the parameter
-// type's `Arbitrary`, and runs `prop` with it (src/property-tests.ts).
+// type's `Arbitrary`, reports the input's `Debug` text (so `T < Debug`,
+// spec/10-modules.md#r-module.testing.prop.debug), and runs `prop` with it
+// (src/property-tests.ts).
 function propertyTest(
   statement: Statement,
   withGenerator: boolean,
@@ -425,6 +427,7 @@ function propertyTest(
         span,
       },
       bind("$prop.value", draw),
+      statementOf(invoke(local(PROPERTY_INPUT), [local("$prop.value")])),
       statementOf(propagates ? { kind: "propagate", operand: bangCall, span } : bangCall),
       ...(propagates
         ? [statementOf(invoke({ kind: "contextual-variant", name: "Ok", span }))]
@@ -441,6 +444,8 @@ function propertyTest(
 /** The hidden `std.testing` functions a lowered property test calls. */
 const PROPERTY_CONFIG = "__std_testing_prop_config";
 const PROPERTY_CHOICES = "__std_testing_prop_choices";
+/** Reports the input's `Debug` text, so `T` must implement `Debug`. */
+const PROPERTY_INPUT = "__std_testing_prop_input";
 
 /** Resolves `it_each` calls, checks name uniqueness, and fixes `?` bodies' results. */
 export function finishTestCases(items: ModuleItems, fail: Fail): void {

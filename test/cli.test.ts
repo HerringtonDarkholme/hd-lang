@@ -397,12 +397,59 @@ test("hd test shrinks a failing property case", async () => {
     const output = (error: CommandResult) => error.stdout + error.stderr;
     await assert.rejects(hd(["test", "--seed", "3", source]), (error: CommandResult) => {
       assert.match(output(error), /property test "stays small" \(seed 3, case \d+\)/);
+      assert.match(output(error), /shrunk input 10; /);
+      assert.match(output(error), /saved to __regressions__\/property\/stays-small; /);
       assert.match(output(error), /shrunk choices \[10\] after \d+ runs$/m);
       return true;
     });
+    // The shrunk stream is saved one draw per line and replayed first
+    // (spec/10-modules.md#r-module.testing.prop.regression-file).
+    const saved = join(directory, "__regressions__", "property", "stays-small");
+    assert.equal(await readFile(saved, "utf8"), "10\n");
+    await writeFile(saved, "12\n");
+    await assert.rejects(
+      hd(["test", "--seed", "3", "--shrink", "0", source]),
+      (error: CommandResult) => {
+        assert.match(output(error), /\(seed 3, the saved regression case\) shrunk input 12; /);
+        return true;
+      },
+    );
+    await rm(join(directory, "__regressions__"), { recursive: true, force: true });
     const capped = hd(["test", "--seed", "3", "--shrink", "1", source]);
     await assert.rejects(capped, (error: CommandResult) => {
       assert.match(output(error), /after 1 runs, shrinking stopped early/);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// Discarded cases do not count toward `cases`, and more than 10 × `cases`
+// discards fail the property (spec/10-modules.md#r-module.testing.prop.discard-limit).
+test("hd test fails a property that discards too many cases", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "hd-lang-cli-"));
+  try {
+    const source = join(directory, "discards.hd");
+    await writeFile(
+      source,
+      [
+        "use std.testing.{Choices, it_prop_with}",
+        "",
+        "fn rejected(c: mut Choices) -> i64:",
+        "    c.assume(false)",
+        "    0",
+        "",
+        "tests:",
+        '    it_prop_with("discards every case", gen=rejected, cases=5, prop=fn!(n: i64): pass)',
+        "",
+      ].join("\n"),
+    );
+    await assert.rejects(hd(["test", source]), (error: CommandResult) => {
+      assert.match(
+        error.stdout + error.stderr,
+        /discarded 51 cases, more than 10 × cases \(5\), after 0 checked cases/,
+      );
       return true;
     });
   } finally {

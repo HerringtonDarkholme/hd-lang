@@ -84,7 +84,16 @@ export abstract class MemberLookupChecker extends ExpressionOperatorChecker {
     if (numericType(name) && !newtype?.newtype) {
       if (!single)
         this.fail("argument-count", `a numeric cast to '${name}' takes one value`, expression.span);
-      const value = this.checkExpression(expression.arguments[0]!);
+      // An integer literal argument, alone or under unary `-` or `+`, is
+      // checked against the target range (types.cast.literal-range).
+      const argument = expression.arguments[0]!;
+      const literal =
+        argument.kind === "integer" ||
+        (argument.kind === "unary" &&
+          (argument.operator === "-" || argument.operator === "+") &&
+          argument.operand.kind === "integer");
+      const target = literal && numericType(name)?.family !== "float" ? name : undefined;
+      const value = this.checkExpression(argument, target);
       if (numericType(readonlyType(value.type)))
         return {
           kind: "unary",

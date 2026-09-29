@@ -8,6 +8,7 @@ import type {
   ValueType,
 } from "../hir.ts";
 import { forwardingPlan } from "./assignability.ts";
+import { DERIVED_IMPLEMENTATION_SPANS } from "./derive-intrinsics.ts";
 import { implementsDebug } from "./debug.ts";
 import {
   contextKeys,
@@ -912,6 +913,11 @@ export abstract class CallChecker extends StatementChecker {
         );
       }
     }
+    // An unmet bound of an intrinsically derived implementation's method
+    // (spec/09-traits.md#r-trait.derive.bound-unmet).
+    const boundCode = DERIVED_IMPLEMENTATION_SPANS.has(signature.span)
+      ? "missing-derived-bound"
+      : "unsatisfied-trait-bound";
     return signature.genericBounds.map((bound) => {
       const actual = substitutions.get(bound.parameter);
       if (!actual)
@@ -938,7 +944,7 @@ export abstract class CallChecker extends StatementChecker {
         );
         if (boundIndex < 0) {
           this.fail(
-            "unsatisfied-trait-bound",
+            boundCode,
             `generic parameter '${forwarded}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
             span,
           );
@@ -972,7 +978,7 @@ export abstract class CallChecker extends StatementChecker {
             span,
           };
         this.fail(
-          "unsatisfied-trait-bound",
+          boundCode,
           `type '${actual}' does not implement ${bound.traitName}, required by the bound on '${bound.parameter}' of '${signature.name}'`,
           span,
         );

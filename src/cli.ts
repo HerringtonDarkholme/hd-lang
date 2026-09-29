@@ -19,7 +19,7 @@ import { parse } from "./parser/index.ts";
 import { explainRequirements } from "./requirements.ts";
 import { runRepl } from "./repl-terminal.ts";
 import { loadSpecIndex } from "./spec-index.ts";
-import { snapshotRun } from "./snapshots.ts";
+import { regressionStore, snapshotModule, snapshotRun } from "./snapshots.ts";
 import { runSelected } from "./test-runner.ts";
 import { propertyRun } from "./property-tests.ts";
 
@@ -290,7 +290,12 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
       let pendingFunctionIndex: number | undefined;
       // `snapshot_file` files (spec/10-modules.md#snapshots); `--update` records them.
       const snapshots = snapshotRun(path, update);
-      const properties = propertyRun(propertyOptions);
+      // Property-test regression files (spec/10-modules.md#r-module.testing.prop.regression-file).
+      const { root: packageRoot, module: testModule } = snapshotModule(path);
+      const properties = propertyRun({
+        ...propertyOptions,
+        regressions: regressionStore(packageRoot, testModule),
+      });
       const instantiateOptions: Parameters<typeof instantiate>[1] = {
         hostFunctions: { ...snapshots.hostFunctions, ...properties.hostFunctions },
         console: (text) => console.log(text),

@@ -586,7 +586,7 @@ test("Debug is checked, and derived builders render debug text (T33, T53)", asyn
   );
 });
 
-test("@derive(Debug) picks Rust's builder per data type and variant (T54)", async () => {
+test("@derive(Debug) picks Rust's builder per data type and variant (T54, Open Issues item 8)", async () => {
   const source = [
     "@derive(Debug)",
     "data Unit: pass",
@@ -596,18 +596,26 @@ test("@derive(Debug) picks Rust's builder per data type and variant (T54)", asyn
     "    Empty",
     "    Circle(i32)",
     "    Rect(width: i32, height: i32)",
+    "    Mixed(i32, label: string)",
     "",
     "pub fn main() -> void $ Console:",
     "    println(debug(Unit {}))",
     "    println(debug(Shape.Empty))",
     "    println(debug(Shape.Circle(3)))",
     "    println(debug(Shape.Rect(width=4, height=5)))",
+    '    println(debug(Shape.Mixed(6, label="m")))',
     "",
   ].join("\n");
   const printed: string[] = [];
   const { instance } = await instantiate(source, { console: (text) => printed.push(text) });
   (instance.exports.main as CallableFunction)({});
-  assert.deepEqual(printed, ["Unit", "Empty", "Circle(3)", "Rect { width: 4, height: 5 }"]);
+  assert.deepEqual(printed, [
+    "Unit",
+    "Empty",
+    "Circle(3)",
+    "Rect { width: 4, height: 5 }",
+    'Mixed { _0: 6, label: "m" }',
+  ]);
 });
 
 test("u8 checked arithmetic and ExitCode entry results (T8)", async () => {

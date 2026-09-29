@@ -196,3 +196,26 @@ export function rowRuleDiagnostics(program: Program): readonly Diagnostic[] {
       for (const method of trait.methods) callableDiagnostics(method, [], diagnostics);
   return diagnostics;
 }
+
+/**
+ * A diagnostic as the checker reports it. In a parameter default, which
+ * runs with an empty row and outside any driver, the ordinary row and bang
+ * checks decide requirement-freedom from callee signatures alone; only the
+ * reported code differs. A row mismatch also lists aliased rows' keys.
+ */
+export function rowDiagnostic(
+  code: string,
+  message: string,
+  declaration: FunctionDecl,
+): { readonly code: string; readonly message: string } {
+  if (declaration.defaultContext) {
+    if (code === "missing-requirement") {
+      code = "requirement-in-default";
+      message = `a default must be requirement-free: ${message}`;
+    } else if (code === "bang-call-outside-suspension") {
+      code = "suspension-forbidden-context";
+      message = "a default must not suspend";
+    }
+  }
+  return { code, message: message + aliasedRowNote(code, declaration) };
+}

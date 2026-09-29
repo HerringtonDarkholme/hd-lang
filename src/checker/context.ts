@@ -32,7 +32,7 @@ import {
   isPermissionWeakening,
   weakenBoundedGenericActual,
 } from "./assignability.ts";
-import { aliasedRowNote, isRowSubsumption, mismatchMessage } from "./row-rules.ts";
+import { isRowSubsumption, mismatchMessage, rowDiagnostic } from "./row-rules.ts";
 import { INSPECTABLE } from "./standard-traits.ts";
 import * as termination from "./termination.ts";
 import { builtinDebug, implementsDebug } from "./debug.ts";
@@ -70,6 +70,7 @@ import {
   tupleParts,
 } from "../types.ts";
 import { narrowsTo, NUMERIC_TYPES, numericType } from "../numeric.ts";
+import { derivedFieldDiagnostic } from "./derive-intrinsics.ts";
 
 export interface CheckResult {
   readonly program?: HirProgram;
@@ -1447,19 +1448,8 @@ export abstract class CheckerContext {
   }
 
   protected fail(code: string, message: string, span: SourceSpan): never {
-    if (this.declaration.defaultContext) {
-      // A default runs with an empty row and outside any driver, so the
-      // ordinary row and bang checks decide requirement-freedom from callee
-      // signatures alone; only the reported code differs.
-      if (code === "missing-requirement") {
-        code = "requirement-in-default";
-        message = `a default must be requirement-free: ${message}`;
-      } else if (code === "bang-call-outside-suspension") {
-        code = "suspension-forbidden-context";
-        message = "a default must not suspend";
-      }
-    }
-    message += aliasedRowNote(code, this.declaration);
+    ({ code, message } = rowDiagnostic(code, message, this.declaration));
+    ({ code, message } = derivedFieldDiagnostic(code, message, span));
     this.diagnostics.push({ code, message, span });
     throw new CheckFailure(message);
   }

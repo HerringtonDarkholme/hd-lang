@@ -4,6 +4,7 @@
 # `snapshot_file` are declared here (Testing T53), with the property-test
 # runner protocol.
 use std.testing.assert
+use std.format.debug
 
 # The only source of randomness a generator sees
 # (spec/10-modules.md#property-tests). The runner creates each one and
@@ -86,6 +87,16 @@ fn prop_choices() -> mut Choices:
 
 @intrinsic("prop_config")
 fn prop_config(cases: i32, shrink: i32) -> void:
+    panic("intrinsic")
+
+# Reports the drawn input's `Debug` text, which the runner prints for the
+# shrunk case; `it_prop` and `it_prop_with` require `T < Debug`
+# (spec/10-modules.md#r-module.testing.prop.debug).
+fn prop_input[T < Debug](value: T) -> void:
+    prop_show(debug(value))
+
+@intrinsic("prop_show")
+fn prop_show(text: string) -> void:
     panic("intrinsic")
 
 @intrinsic("prop_draw")
