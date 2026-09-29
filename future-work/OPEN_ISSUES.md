@@ -17,8 +17,8 @@ and tooling work is listed separately at the end.
    compiler finds each group of files that import each other in a loop
    (a strongly connected component), and a group spanning folders is an
    error that prints the loop.
-3. (Revised 2026-09-29, DEPENDENCY_CYCLES DC2.) The folder graph need not
-   be acyclic; only file cycles are confined to one folder.
+3. The folder-level dependency graph must also be acyclic (confirmed
+   again 2026-09-29, DEPENDENCY_CYCLES DC2 final).
 4. Mutually recursive declarations inside one file stay allowed, and cyclic
    run-time values are unaffected.
 5. Shared items that children need go in a leaf such as `common.hd` or
