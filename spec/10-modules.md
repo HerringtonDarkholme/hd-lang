@@ -15,21 +15,151 @@ An hd-lang package has an `hd.toml` manifest:
 ```toml
 [package]
 name = "my_app"
-version = "0.1.0"
 
 [source]
 root = "src"
 
 [dependencies]
-billing = "1.2.0"
+billing = "github.com/acme/billing@1.2.0"
 ```
 
 1. r[module.manifest.file] An hd-lang package has an `hd.toml` manifest.
 2. r[module.manifest.source-root] The default source root is `src`.
-3. r[module.manifest.tooling] The complete manifest schema, dependency resolution algorithm, lockfile, and version semantics remain tooling work.
-4. r[module.manifest.dependency] The language-level use model assumes that the manifest maps each dependency name to one resolved package.
+3. r[module.manifest.dependency] The language-level use model assumes that the manifest maps each dependency name to one resolved package.
+4. r[module.manifest.no-registry] There is no package registry. A dependency is fetched from the version control repository that its host path names.
+5. r[module.manifest.targets] A package may have a library, executables, or both.
+6. r[module.manifest.no-features] A manifest declares no optional features, and source has no conditional compilation.
+
+> **Why.** Source never names where a dependency comes from, so moving to
+> version control hosts changes no `use` line. One build per package
+> version keeps one interface per version.
 
 See also: [Tooling, ABI, And Unsupported Extensions](#tooling-abi-and-unsupported-extensions).
+
+### Dependency Requirements
+
+A **dependency requirement** maps a dependency key to a host path and a
+minimum version:
+
+```toml
+[dependencies]
+json = "github.com/acme/json@2.1.0"
+json_v1 = "github.com/acme/json@1.9.0"
+lint = "github.com/acme/tools/lint@2.3.0"
+billing = "git.example.com/shop/billing.git@0.4.2"
+pdf = "github.com/acme/pdf@0.4.1-0.20260912081500-3f2c9e1a7b6d"
+```
+
+1. r[module.dep.key] Each key of `[dependencies]` and `[test-dependencies]` is the `NAME` that source writes as `dep.NAME`.
+2. r[module.dep.requirement] Each value is a dependency requirement `PATH@VERSION`: a host path, `@`, and a version or pseudo-version without a leading `v`.
+3. r[module.dep.path-manifest-only] A host path appears only in the manifest. Source names a dependency only through its key.
+4. r[module.dep.identity] A resolved package's identity is its host path and its [compatibility line](#r-module.version.line).
+5. r[module.dep.two-lines] Two compatibility lines of one host path are two dependencies with two keys, as `json` and `json_v1` above.
+6. r[module.dep.no-major-suffix] A host path carries no major-version suffix such as `/v2`.
+
+> **Why.** Go puts `/v2` in the path because its imports repeat the path.
+> hd source says `dep.json`, so a second key tells two lines apart, and a
+> major upgrade edits one manifest line.
+
+### Host Paths
+
+A host path names a repository, and optionally a package directory inside
+it:
+
+| Host | Repository part | Example |
+| --- | --- | --- |
+| a known host | the leading segments the toolchain defines for that host | `github.com/acme/json` |
+| any other host | the path up to a segment that ends in `.git` | `git.example.com/shop/billing.git` |
+
+1. r[module.repo.known-host] On a known host, the toolchain defines how many leading path segments name the repository.
+2. r[module.repo.git-suffix] On any other host, the repository part must end with a segment that ends in `.git`.
+3. r[module.repo.no-discovery] The toolchain never fetches a web page to discover a repository, as Go's `go-import` meta tag does.
+4. r[module.repo.subdirectory] Segments after the repository part name the directory that holds the package. One repository may hold several packages this way.
+5. r[module.repo.credentials] A private repository is fetched with git's own credentials, such as its credential helpers and SSH keys.
+6. r[module.repo.no-stored-credentials] The toolchain stores no credentials.
+7. r[module.repo.private-pattern] A private-path pattern marks host paths as private. The toolchain never sends a private path to a checksum log or proxy.
+
+### Versions
+
+A package's versions are the git tags of its repository:
+
+| Package | Tag | Version in a dependency requirement |
+| --- | --- | --- |
+| at the repository root | `v2.3.0` | `2.3.0` |
+| in the subdirectory `lint` | `lint/v2.3.0` | `2.3.0` |
+| an untagged commit after `v0.4.0` | none | `0.4.1-0.20260912081500-3f2c9e1a7b6d` |
+
+1. r[module.version.tag] A version is a git tag `vMAJOR.MINOR.PATCH`, with an optional SemVer 2.0.0 pre-release suffix.
+2. r[module.version.tag-prefix] A package in a subdirectory uses tags prefixed with that subdirectory's path and `/`, such as `lint/v2.3.0`.
+3. r[module.version.tag-only] The tag is the only version. A manifest does not state its own package's version.
+4. r[module.version.pseudo] A **pseudo-version** names one untagged commit. Its form depends on the closest earlier tag of the package, as the table below shows.
+5. r[module.version.pseudo.commit] In a pseudo-version, `TIME` is the commit's UTC time as `yyyymmddhhmmss`, and `HASH` is the first 12 hexadecimal digits of the commit hash.
+6. r[module.version.order] Versions, pseudo-versions included, are ordered by SemVer 2.0.0 precedence.
+7. r[module.version.line] The **compatibility line** of a version is its major number when the major is at least 1, and `0.MINOR` when the major is 0.
+
+Pseudo-versions take Go's three forms:
+
+| Closest earlier tag | Pseudo-version |
+| --- | --- |
+| none | `0.0.0-TIME-HASH` |
+| a release `vX.Y.Z` | `X.Y.(Z+1)-0.TIME-HASH` |
+| a pre-release `vX.Y.Z-PRE` | `X.Y.Z-PRE.0.TIME-HASH` |
+
+> **Note.** A pseudo-version is a pre-release, so it orders below the
+> release it precedes, and pseudo-versions of one base order by time.
+
+### Version Selection
+
+Selection is **minimal version selection**: each dependency requirement is
+a minimum, and the build uses the largest minimum stated for each package:
+
+| Manifest | Requires |
+| --- | --- |
+| the root package | `json@2.1.0`, `billing@1.4.2` |
+| `billing` 1.4.2 | `json@2.3.0` |
+| selected | `json` 2.3.0, `billing` 1.4.2 |
+
+1. r[module.select.minimum] A dependency requirement states a minimum. Its version, or any later version in the same compatibility line, satisfies it.
+2. r[module.select.reach] Selection starts at the root package, or at every member of a workspace, and reads the manifest of each version that a dependency requirement reaches.
+3. r[module.select.test-dependencies] Selection reads the test dependencies of the root package or workspace members only. A dependency's test dependencies are never read.
+4. r[module.select.largest] For each host path and compatibility line, the selected version is the largest minimum that any reached manifest states.
+5. r[module.select.one-per-line] A package graph therefore holds at most one version per compatibility line. Two lines of one host path may coexist as two packages.
+6. r[module.select.no-lock] The manifests alone determine the selection. There is no lockfile of versions.
+
+> **Why.** Selection reads only the manifests of versions someone names,
+> which needs no registry index. A new tag reaches no build until some
+> manifest names it.
+
+### Integrity
+
+A committed `hd.sum` file is what makes a fetched dependency trusted.
+
+1. r[module.sum.file] A root package or workspace has an `hd.sum` file beside its manifest. It records a hash of the source tree of each selected version.
+2. r[module.sum.committed] `hd.sum` is kept under version control with the manifest.
+3. r[module.sum.mismatch] A fetched tree whose hash differs from its `hd.sum` entry is rejected. It is never only a warning.
+4. r[module.sum.only] `hd.sum` is the only integrity source. A build must not require a checksum log, a proxy, or any service besides the repository hosts.
+
+> **Why.** hd runs no paid servers. A checksum log or a caching proxy may
+> be added later only if it needs no infrastructure, or reuses free public
+> infrastructure.
+
+### Workspaces
+
+A workspace builds several packages of one repository as one graph.
+
+1. r[module.workspace.definition] A **workspace** is a set of packages that one workspace manifest, an `hd.toml` at the workspace root, lists as members.
+2. r[module.workspace.committed] The workspace manifest may be kept under version control, so every checkout builds the same graph.
+3. r[module.workspace.selection] Selection runs once for the whole workspace, so all members use the same selected versions.
+4. r[module.workspace.sum] A workspace has one `hd.sum`, beside its workspace manifest.
+
+### Toolchain Version
+
+A manifest states which toolchain versions can build its package.
+
+1. r[module.toolchain.minimum] A manifest may state a minimum toolchain version, which is also its minimum `std` version.
+2. r[module.toolchain.graph-minimum] A build whose toolchain is older than the minimum of any package in the selected graph is rejected.
+3. r[module.toolchain.pin] Only a root manifest may pin one exact toolchain version.
+4. r[module.toolchain.no-editions] There are no language editions.
 
 ## Path-Inferred Modules
 
@@ -1141,6 +1271,7 @@ values that cross a boundary, and the official host boundary.
 3. r[module.profile.build] The compiler receives the selected profile as build configuration.
 4. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
 5. r[module.profile.other] Another profile may add or omit host traits explicitly.
+6. r[module.profile.toolchain-names] Profile names are defined by the toolchain. A manifest cannot define a profile.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
@@ -1225,6 +1356,7 @@ enum ResourceError[E]:
 
 ## Tooling, ABI, And Unsupported Extensions
 
-1. r[module.tooling.package] The complete `hd.toml` schema, lockfile, version constraints, and dependency resolver belong to package tooling.
-2. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
-3. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.
+1. r[module.tooling.package-schema] The complete `hd.toml` schema, the `hd.sum` format, and the commands that fetch, add, and upgrade dependencies belong to package tooling.
+2. r[module.tooling.package-later] Compatibility checks at release and upgrade, vendoring, and local-path patches are package tooling that this chapter does not define.
+3. r[module.tooling.abi] The exact Wasm component boundary and registration mechanism belong to the runtime ABI.
+4. r[module.unsupported.visibility] hd-lang has no package-private visibility or independent visibility for enum variants and trait methods.

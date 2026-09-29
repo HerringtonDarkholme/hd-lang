@@ -169,9 +169,11 @@ links to the rule that defines the term.
 
 | Term | Definition |
 | --- | --- |
+| **compatibility line** | The versions of a package that must stay compatible: one major number, or `0.MINOR` below 1.0. See [`module.version.line`](10-modules.md#r-module.version.line). |
 | **compound assignment** | A statement `place op= value`, such as `total += x`, that combines an operator with a store. See [Compound Assignment](05-expressions.md#compound-assignment). |
 | **copy-update literal** | A data literal with one leading spread, which builds a new value from an existing one. See [Copy-Update Literals](08-data-and-enums.md#copy-update-literals). |
 | **data type** | A nominal product type with reference semantics. See [`data.kind.data`](08-data-and-enums.md#r-data.kind.data). |
+| **dependency requirement** | A manifest entry `PATH@VERSION` that maps a dependency key to a host path and a minimum version. See [Dependency Requirements](10-modules.md#dependency-requirements). |
 | **derivation block** | An `impl Trait for X by Structure:` that applies a trait's template to one type, with optional member lines. See [Derivation Blocks](14-annotations.md#derivation-blocks). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](08-data-and-enums.md#data-embedding). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](08-data-and-enums.md#r-data.kind.enum). |
@@ -183,10 +185,12 @@ links to the rule that defines the term.
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](14-annotations.md#handles). |
 | **literal suffix** | A name written directly after a numeric literal's digits, which names a suffix function. See [Literal Suffixes](01-lexical-structure.md#literal-suffixes). |
 | **member line** | A line of a derivation block that edits one member's facts or omits it, or a line of a trait-less derivation block that edits its metadata. See [Member Lines](14-annotations.md#member-lines). |
+| **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](10-modules.md#version-selection). |
 | **mutable edges** | What a data type has when it declares a direct `field: mut U`, or embeds a type that has mutable edges. See [`data.edge.definition`](08-data-and-enums.md#r-data.edge.definition). |
 | **mutable requirement trait** | A trait that declares or inherits a `mut self` method; its providers always have mutable access. See [`req.mut.trait`](11-requirements-and-suspension.md#r-req.mut.trait). |
 | **operator trait** | A `std.ops` trait, such as `Add[Rhs]`, whose implementation gives a type one operator. See [Operator Traits](05-expressions.md#operator-traits). |
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](08-data-and-enums.md#parts-and-copies). |
+| **pseudo-version** | A version that names one untagged commit by a base version, its time, and its hash. See [`module.version.pseudo`](10-modules.md#r-module.version.pseudo). |
 | **rule ID** | A stable dotted name for one normative rule. See [Rule IDs](STYLE.md#rule-ids). |
 | **suffix function** | A function marked `@num_suffix`, which a suffixed literal calls. See [`expr.suffix.marker`](05-expressions.md#r-expr.suffix.marker). |
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](05-expressions.md#literal-suffixes). |
@@ -198,6 +202,7 @@ links to the rule that defines the term.
 | **test position** | The top level of a `tests:` block, a test module, or an integration test module, where test-case calls go. See [`module.testing.test-position`](10-modules.md#r-module.testing.test-position). |
 | **test module** | A module whose file name ends in `_test.hd`. See [Test Modules](10-modules.md#test-modules). |
 | **typed derivation** | Implementing a trait for a data type or enum from its members through the trait's template. See [Typed Derivation](14-annotations.md#typed-derivation). |
+| **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](10-modules.md#workspaces). |
 
 ## Revision Notes
 
@@ -1579,3 +1584,14 @@ existing source. Each entry names the decision that made the change.
   target stops at the first failure and leaves the rest of the iterator
   unread. `?` inside a comprehension, which no rule covered, is valid: it
   propagates, and the comprehension stops.
+- Dependencies (owner decisions DEP1-DEP7 in
+  [Dependencies](../future-work/DEPENDENCIES.md#owner-decisions),
+  2026-09-29, with the still-valid
+  [Packages](../future-work/PACKAGES.md#owner-decisions) decisions 1, 4, 8,
+  10, 12, and 13): no source changes, and `use dep.NAME` stays. There is
+  no registry. An `hd.toml` dependency is a host path and a minimum
+  version, `billing = "github.com/acme/billing@1.2.0"` where the example
+  had `billing = "1.2.0"`. Versions are version control tags, so
+  `[package] version` is gone. Selection is minimal version selection, and
+  `hd.sum` holds the hashes; there is no lockfile. `module.manifest.tooling`
+  and `module.tooling.package` are retired.

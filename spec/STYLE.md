@@ -1309,3 +1309,12 @@ style lint rejects a chapter that reuses one.
 - `flow.adapter.collect.drain`: retired 2026-09-29. Under CO1 a `Result`
   or optional target stops early. Replaced by `flow.collect.drain` and
   `flow.collect.stop`.
+- `module.manifest.tooling`: retired 2026-09-29. Dependencies DEP1 and
+  DEP7 put version tags, minimal version selection, and `hd.sum` in the
+  specification, and there is no lockfile. Replaced by
+  `module.manifest.no-registry`, `module.version.tag`,
+  `module.select.largest`, `module.sum.file`, and
+  `module.tooling.package-schema`.
+- `module.tooling.package`: retired 2026-09-29. DEP1 replaces the
+  lockfile, version constraints, and resolver it deferred. Replaced by
+  `module.tooling.package-schema` and `module.tooling.package-later`.
