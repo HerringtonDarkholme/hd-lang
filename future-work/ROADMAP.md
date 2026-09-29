@@ -50,7 +50,7 @@ Goal: state trait behavior as normative rules rather than prose.
 - Trait satisfaction:
   - impl selection, coherence, the orphan rule, and overlap;
   - supertrait obligations;
-  - how bounds are discharged, including where-clauses and dictionaries;
+  - how bounds are discharged, including inline bounds and dictionaries;
   - when an embedded field satisfies a trait;
   - default-method conflicts;
   - dynamic safety.
@@ -72,7 +72,7 @@ Goal: state trait behavior as normative rules rather than prose.
     [Typed Derivation](OPEN_ISSUES.md#typed-derivation-tool-adapters-and-secrets),
     with a survey, candidate designs, and owner questions in
     [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
-    (owner decisions M1-M23 applied in
+    (owner decisions M1-M29 applied in
     [Typed Derivation](../spec/14-annotations.md#typed-derivation); error
     derivation is the separate `@error` intrinsic);
   - the propagation rules and dependent-return provenance from
@@ -119,8 +119,8 @@ and compiler contract, with the rest in libraries. All fifteen
 ## 4. Standard Library
 
 Goal: make hd useful, with requirements as the feature that sets its library
-apart. Design notes start in a new `STDLIB.md` here and move into the
-specification once accepted.
+apart. Design notes are in [Standard Library Design](STDLIB.md), and move
+into the specification once accepted.
 
 - Survey: module layout and naming in Python, Rust, Kotlin, and Swift, with
   MoonBit and Go as small-language comparisons.

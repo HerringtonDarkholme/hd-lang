@@ -64,6 +64,8 @@ quote is a prefix function: `r"..."`, from `use std.text.r`, keeps
 backslashes as written and still interpolates.
 
 ```hd
+use std.text.r
+
 summary := "User ${user.name} has ${posts.len()} posts"
 pattern := r"\d+ costs $5"
 ```
@@ -151,7 +153,7 @@ else:
 `defer:` registers cleanup that runs when the enclosing block exits.
 
 ```hd
-fn read_first!(path: string) -> Result[string, FileError] $ Files:
+fn read_first!(path: string) -> Result[string, ResourceError[FileError]] $ Files:
     let handle: mut FileHandle = $.use(Files).open!(path)?
     defer:
         _ := handle.close()

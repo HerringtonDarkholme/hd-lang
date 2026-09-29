@@ -203,6 +203,8 @@ directly; other expressions use `${...}`. Interpolated values must implement
 `std.format.Display`:
 
 ```text
+use std.text.r
+
 greeting := "Hello, $name"
 summary := "User ${user.name} has ${posts.len()} posts"
 price := "Cost: \$5"
@@ -1716,6 +1718,10 @@ smaller_ok := i16(huge)         # ok: an integer cast wraps, like Go and Rust `a
 too_big := i16(40000)           # invalid: a literal argument is range-checked
 ```
 
+A float-to-integer cast truncates toward zero and then saturates, as Rust
+`as` does: `i8(x)` with `x = 300.0` gives 127, and NaN gives 0. No numeric
+cast panics; a checked conversion is a library function returning `Result`.
+
 Integer literals use a default concrete type when there is no expected type. The default integer type is always `i32`. When there is an expected numeric type, the literal is checked against that type's range:
 
 ```text
@@ -1941,14 +1947,14 @@ impl[N < Notifier] Notifier for List[N]:
         for notifier in self:
             notifier.notify(message)
 
-data Duration:
+data Period:
     day_count: i32
 
-impl Duration:
-    fn days(count: i32) -> Duration:
-        Duration { day_count: count }
+impl Period:
+    fn days(count: i32) -> Period:
+        Period { day_count: count }
 
-month := Duration::days(30)
+month := Period::days(30)
 let narrow: i16 = 12
 let wide: i64 = 30
 let total: i64 = narrow + wide

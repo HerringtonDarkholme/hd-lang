@@ -1806,11 +1806,13 @@ in a derivation block tune one member:
 use std.structure.Structure
 
 @derive(Debug)
-data Item(name: string, price: i32)
+data Item:
+    name: string
+    price: i32
 
 impl Arbitrary for Item by Structure:
-    price = arbitrary.range(0, 10_000)
-    name = arbitrary.len(0, 12)
+    price = [arbitrary.range(0, 10_000)]
+    name = [arbitrary.len(0, 12)]
 ```
 
 **A generator** for anything a type cannot express is a plain function
@@ -1822,10 +1824,10 @@ fn sorted_prices(c: mut Choices) -> List[i32]:
     xs.sorted()
 
 tests:
-    it_prop("total is never negative", prop=fn(order: Order):
+    it_prop("total is never negative", prop=fn!(order: Order):
         assert(total(order) >= 0, reason="total")
     )
-    it_prop_with("merge keeps order", sorted_prices, prop=fn(xs: List[i32]):
+    it_prop_with("merge keeps order", sorted_prices, prop=fn!(xs: List[i32]):
         assert_equal(merge(xs, []), xs, reason="identity")
     )
 ```

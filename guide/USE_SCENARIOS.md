@@ -61,6 +61,7 @@ form. A tool interface should describe:
 trait Database:
     fn get_user!(self, id: UserId) -> Result[User, ToolError]
 
+@description("Loads one user by id")
 fn get_user!(id: UserId) -> Result[User, ToolError] $ Database:
     db := $.use(Database)
     .Ok(db.get_user!(id)?)
@@ -69,8 +70,11 @@ tool_registry.register(get_user)
 ```
 
 *Mechanism:* a tool is an ordinary typed function, not a wrapper or a
-separate declaration kind, and registration is an explicit runtime call. How
-a tool adapter reads a function's per-declaration data is undecided
+separate declaration kind, and registration is an explicit runtime call. A
+decorator before the function attaches a plain value, which an adapter reads
+with `shape_of(get_user).metadata[M]()`
+([Prefix Decorators](../spec/14-annotations.md#prefix-decorators)).
+Deriving an adapter for a function is still undecided
 ([FN_TYPE questions 9 and 10](../future-work/FN_TYPE.md#9-how-do-tool-adapters-get-per-declaration-data)),
 so tools are registered by hand for now. The same registration
 model should extend to service endpoints, jobs, workflows, and host-callable

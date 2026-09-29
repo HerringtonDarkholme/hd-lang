@@ -19,7 +19,7 @@ language specification:
 - [Ownership, Escape, And Compile-Time Concurrency Research](OWNERSHIP_AND_ESCAPE_RESEARCH.md)
   surveys possible foundations for future lifetime and resource-safety work.
 - [Testing Redesign](TESTING.md) records the owner's test redesign
-  decisions T1-T51 (a `tests:` block, `it("name"):` cases, `_test.hd`
+  decisions T1-T54 (a `tests:` block, `it("name"):` cases, `_test.hd`
   modules, `tests/` integration tests, a `Termination` trait and `ExitCode`
   shared with `main`, `it_each`, a derivable `Debug`, property tests, and
   snapshot tests). The language parts are in the specification, with a few
@@ -33,9 +33,10 @@ language specification:
 - [Typed Derivation: Survey And Design Options](TYPED_DERIVATION.md)
   surveys derivation in other languages and records how libraries derive
   typed trait implementations, schemas, and tool adapters (roadmap area 2).
-  Owner decisions M1-M23 fully decide the design, and they are applied in
+  Owner decisions M1-M29 fully decide the design, and they are applied in
   [Typed Derivation](../spec/14-annotations.md#typed-derivation); the
-  prototype is pending. The few remaining open points are listed.
+  prototype implements them by lowering, with gaps listed as known
+  failures. The few remaining open points are listed.
 - [Typed Derivation: Stress Test Of The M1-M11 Design](DERIVATION_STRESS_TEST.md)
   tests the current derivation design against 21 use cases and ranks the problems found, with questions for the owner.
 - [Typed Derivation: Stress Test Round 2 (M1-M15)](DERIVATION_STRESS_TEST_2.md)
@@ -50,8 +51,10 @@ language specification:
 - [Nominal Function Types](FN_TYPE.md) makes function types standard
   generic constructors such as `Fn[(Is...), O, R]`, so they can be
   implementation targets; decisions 1 to 9 are applied to the
-  specification, and per-declaration data for tool adapters (decision 10)
-  stays parked with typed derivation.
+  specification. Per-declaration data for tool adapters (decision 10) is
+  partly answered: [Decorators](DECORATORS.md) D7 lets code read a
+  function's decorators, and deriving for functions stays parked with typed
+  derivation.
 - [Runtime and Library Design](RUNTIME_AND_LIBRARY.md) describes the broader
   standard-library, tooling, and runtime direction.
 - [Standard Library Design](STDLIB.md) surveys other standard libraries and
@@ -78,24 +81,27 @@ language specification:
   suffix types that implement `std.ops.LiteralSuffix` (L1-L9), then
   revised them (L10-L18), ending with functions marked `@num_suffix`
   (L11). L19 adds string prefixes marked `@str_prefix`, and `r"..."`
-  becomes the std prefix `std.ops.r`. All are applied, with follow-up
-  points still open.
+  becomes the std prefix `std.text.r` (L20). L21 and L22 check a marked
+  function's one parameter at its definition. All are applied, with six
+  follow-up points still open.
 - [Operator Traits](OPERATOR_TRAITS.md) surveys operator overloading and
   compares four `std.ops` trait shapes. The owner chose Rust's shape with
   compound assignment, index traits, and sealed numeric traits (OP1-OP9),
   now applied, with fifteen follow-up points still open.
 - [Decorators](DECORATORS.md) surveys annotation systems and compares five
   designs for general, read-only, target-checked decorators. The owner
-  chose plain values with a kind-only `@annotate` (D1-D9), now applied,
-  with nine follow-up points still open.
+  chose plain values with a kind-only `@annotate` (D1-D10), now applied,
+  with one follow-up point still open.
 - [Requirement Reuse](REQUIREMENT_REUSE.md) stress-tests long requirement
   rows and provider bundles on a web service, surveys eleven languages, and
   compares six options, including rows as type expressions. The owner
-  decided RU1-RU9 (row aliases, row subsumption), now applied, with
-  thirteen follow-up points still open.
+  decided RU1-RU15 (row aliases, row subsumption, union rows), now applied,
+  with one follow-up point still open.
 - [Dependency Cycles: Stress Test Of The Folder Rule](DEPENDENCY_CYCLES.md)
   tries the folder-acyclic direction on 16 layouts, weighs it for parallel
-  compilation, and ranks 11 problems, with questions for the owner.
+  compilation, and ranks 11 problems. The owner decided DC1-DC10 (an
+  acyclic folder graph, `folder-cycle`), now applied, with fifteen
+  follow-up points still open.
 - [Wasm GC MVP Implementation Plan](../src/MVP_IMPLEMENTATION_PLAN.md) records the
   chosen fast-iteration compiler plan and its deliberately limited slices.
 

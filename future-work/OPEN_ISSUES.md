@@ -406,7 +406,7 @@ for the owner:
 | Composing templates (round 1 P16) | How a wrapper walker forwards to an inner walker's `member`. |
 | `Clone`'s module (M24) | Which standard module declares `Clone`; chosen with the standard library ([STDLIB](STDLIB.md#clone)). |
 | Derived-function cache (M24) | The cache's API and module; chosen with the standard library ([STDLIB](STDLIB.md#derived-function-cache)). |
-| Function targets | Deriving for functions, and what a decorator before a function means ([FN_TYPE](FN_TYPE.md) questions 9 and 10). Chapter 14's facets and annotators are removed (decision 10). |
+| Function targets | Deriving for functions, as tool adapters need ([FN_TYPE](FN_TYPE.md) questions 9 and 10). A decorator before a function attaches a plain value that `shape_of(f).metadata[M]()` reads ([Decorators](DECORATORS.md#owner-decisions) D1 and D7). |
 
 **Secret values (removed for now).** `Secret[T]` and `Redact` were removed
 from the standard-library design as too early
@@ -611,10 +611,10 @@ future work rather than implicit extensions.
 
 **Problem.** An associated type binding such as `I < Supplier[Item = T]`
 names only an associated type the bound trait itself declares, and it is
-accepted only in generic parameter bounds. Binding a supertrait's associated
-type through a subtrait (`I < NamedSupplier[Item = T]`) is rejected, and
-supertrait lists, dynamic trait value types, and `impl` headers take no
-bindings.
+accepted only in generic parameter bounds and supertrait lists. Binding a
+supertrait's associated type through a subtrait
+(`I < NamedSupplier[Item = T]`) is rejected, and dynamic trait value types
+and `impl` headers take no bindings.
 
 **Options.** (1) Keep the current rule; users add a separate bound on the
 supertrait. (2) Let a binding name any associated type reachable through the
@@ -622,8 +622,13 @@ supertrait graph, rejecting ambiguous names. (3) Also accept bindings in
 supertrait lists, so `trait Names < Supplier[Item = string]` fixes the item
 type for every implementation.
 
-**Recommendation.** Option 1 until a library needs option 2; option 3 needs
-its own coherence review.
+**Recommendation.** Option 1 until a library needs option 2.
+
+**Option 3 decided and applied (2026-09-29)** by
+[Operator Traits](OPERATOR_TRAITS.md#owner-decisions) OP8: a supertrait list
+binds associated types, as in `trait Summable < Add[Self, Out = Self]`
+([Supertrait Bindings](../spec/09-traits.md#supertrait-bindings)). Option 2
+stays open.
 
 **Unblocks.** Shorter bounds for trait hierarchies with associated types.
 
@@ -685,22 +690,35 @@ pub fn main() -> ExitCode:
 
 ### Literal Suffixes
 
-**Decided and applied (2026-09-28).** Owner decisions L1-L11: a suffix is a
-function marked `@num_suffix` (L11, with the names of Decorators D9),
-imported by `use`, and `250ms` calls `ms(250)`
-([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). L12, L13
-and L15-L17 are applied too: only decimal and float literals take a suffix,
-`5else` is `invalid-token`, a suffixed literal has no compile-time rule of
-its own, the test `timeout` option takes any `Duration`, and `Duration` is
-whole milliseconds with the suffixes `ms s min h`. L19 is applied too:
-`sql"a $x"` calls a function marked `@str_prefix` with a
-`std.ops.Template`, and `r"..."` is the std prefix `std.ops.r`
-([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)).
+**Decided and applied (2026-09-28 and 2026-09-29).** Owner decisions
+L1-L22: a suffix is a function marked `@num_suffix` (L11, with the names of
+Decorators D9), imported by `use`, and `250ms` calls `ms(250)`
+([Literal Suffixes](../spec/05-expressions.md#literal-suffixes)). Only
+decimal and float literals take a suffix, `5else` is `invalid-token`, a
+suffixed literal is plain call sugar, the test `timeout` option takes any
+`Duration`, and `Duration` is whole milliseconds with the suffixes
+`ms s min h`. `sql"a $x"` calls a function marked `@str_prefix` with a
+`std.ops.Template`, and `r"..."` is the std prefix `std.text.r` (L20)
+([Prefixed Strings](../spec/05-expressions.md#prefixed-strings)). A marked
+function declares exactly one parameter, checked at its definition (L21,
+L22).
 
-**Open.** Five points from the L11 apply pass and nine from the L19 apply
-pass, each with a recommendation, are in
-[Literal Suffixes](LITERAL_SUFFIXES.md#still-open), among them the new
-`invalid-literal-suffix` and `invalid-string-prefix` codes.
+**Open.** Six points, each with a recommendation, are in
+[Literal Suffixes](LITERAL_SUFFIXES.md#still-open): how `$` and `\` behave
+in a prefixed string (15-17), a prefixed test name (23), a defaulted
+suffix parameter (28), and the line a shape error names (29).
+
+**Raised by the docs sweep (2026-09-29).** Nothing here is decided.
+
+| Question | Effect | **Recommendation** |
+| --- | --- | --- |
+| Is `$5` inside a prefixed string text? [`lex.prefix.plain-dollar`](../spec/01-lexical-structure.md#r-lex.prefix.plain-dollar) makes a `$` text when "neither an identifier character nor `{`" follows. A digit continues an identifier but cannot start one, which [`lex.interp.stray-dollar`](../spec/01-lexical-structure.md#r-lex.interp.stray-dollar) spells out for interpreted strings. | [Learn in 10 Minutes](../guide/LEARN_IN_10_MINUTES.md#bindings-and-values) writes `r"\d+ costs $5"`, and the reference parser and the prototype read `$5` as text. Read literally, the rule leaves it neither text nor a name. | Say "a character that can start an identifier", as `lex.interp.stray-dollar` does, so `$5` stays text. |
+
+```text
+use std.text.r
+
+price := r"\d+ costs $5"   # text: a digit cannot start a name
+```
 
 ### Operator Traits
 
@@ -729,24 +747,27 @@ traits, floating `%`, and the `Index` signatures.
 
 ### Decorators
 
-**Decided and applied (2026-09-28).** Owner decisions D1-D9: a decorator
-is a plain compile-time value on any item or member, `@annotate(.Fn)` on a
-fact type limits only the target kind, readers check signatures, and a bare
-marker name such as `@num_suffix` is called
+**Decided and applied (2026-09-28 and 2026-09-29).** Owner decisions
+D1-D10: a decorator is a plain compile-time value on any item or member,
+`@annotate(.Fn)` on a fact type limits only the target kind, readers check
+signatures, and a bare marker name such as `@num_suffix` is called
 ([Prefix Decorators](../spec/14-annotations.md#prefix-decorators),
-[Target Kinds](../spec/14-annotations.md#target-kinds)).
+[Target Kinds](../spec/14-annotations.md#target-kinds)). D10 adds the
+`.Newtype` kind and the code `decorator-target-kind`.
 
-**Open.** Nine points from the apply pass, each with a recommendation, are
-in [Decorators](DECORATORS.md#still-open): among them the kind of a variant
-payload member and a newtype's missing `Target` kind.
+**Open.** One point is in [Decorators](DECORATORS.md#still-open): `@error`
+is an intrinsic (D6), but its rules wait for the Error Conversion apply
+pass.
 
 ### Requirement Reuse
 
-**Decided (owner, 2026-09-28) and applied 2026-09-28.** RU1-RU9 in
+**Decided (owner, 2026-09-28 and 2026-09-29) and applied.** RU1-RU15 in
 [Requirement Reuse](REQUIREMENT_REUSE.md#owner-decisions): row aliases, row
-parameters on functions only, one unknown row variable per pattern, and row
-subsumption for function values. Thirteen points from the apply pass, each
-with a recommendation, are in [Still Open](REQUIREMENT_REUSE.md#still-open).
+parameters on functions only, one unknown row variable per pattern, row
+subsumption for function values, a bare row alias in a one-key slot, and
+the union row at every common-type site. One point from the RU15 apply
+pass, with a recommendation, is in
+[Still Open](REQUIREMENT_REUSE.md#still-open).
 
 ### Iterator Adapters
 
