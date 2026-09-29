@@ -2,6 +2,7 @@ id	count	title
 F-250	15	Deferred features are rejected with generic or wrong diagnostics, not structured unsupported diagnostics
 OP9	9	The prototype has no std.num traits, still rejects floating %, and its @num_suffix shape check requires a primitive parameter type
 OP5	8	The prototype parser has no compound assignment, and its lexer lacks the new compound assignment tokens
+STD14	5	The prototype's prelude Iterator declares only next: filter, take, enumerate, and collect are free functions in its std.iter, not default methods
 EMB-S	4	Embedding simplification cannot be fully exercised: the prototype compiles one module without trait imports, so trait availability is untested, and the fixtures need package roles
 P2	4	Visibility-aware member lookup cannot be exercised: the prototype compiles one module, so every own member is visible, and the fixtures need package roles
 OP7	4	The prototype's std.ops declares no Index or IndexSet, and indexing is built in for List and Map only

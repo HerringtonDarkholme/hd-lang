@@ -66,3 +66,8 @@ runtime/valid/num-traits-run.hd	check fails: unknown-trait for Num: the prototyp
 typing/valid/num-families.hd	check fails: unknown-trait for Integer and Float: the prototype has no std.num traits	OP9
 typing/invalid/num-bound-newtype.hd	MVP reports unknown-trait for Num at line 7 instead of unsatisfied-trait-bound at line 14: the prototype has no std.num traits	OP9
 typing/invalid/num-sealed-impl.hd	MVP reports unknown-trait for Integer instead of sealed-trait-implementation at line 7: the prototype has no std.num traits	OP9
+typing/valid/iterator-adapters.hd	check fails: unknown-method at lines 15, 18, 21: the prototype's prelude Iterator declares only next, and its std.iter adapters are free functions	STD14
+runtime/valid/iterator-adapters-run.hd	check fails: unknown-method at lines 18, 26, 33, 38: the prototype's prelude Iterator has no filter, take, or collect default methods	STD14
+runtime/panic/iterator-take-negative.hd	check fails: unknown-method at line 5 instead of the explicit-panic: the prototype's prelude Iterator has no take method	STD14
+typing/invalid/iterator-filter-callback-row.hd	MVP reports unknown-method at line 10 instead of type-mismatch: the prototype's prelude Iterator has no filter method	STD14
+typing/invalid/iterator-adapter-readonly.hd	MVP reports unknown-method at line 5 instead of mutable-receiver-required: the prototype's prelude Iterator has no collect method	STD14

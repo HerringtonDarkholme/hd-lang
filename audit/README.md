@@ -22,12 +22,13 @@ decisions, and the repository history keeps the removed evidence.
 | [`types/QUESTIONS.md`](types/QUESTIONS.md) | type decisions not yet applied (TQ-18 and the `@message` part of TUP-1), TQ-13 and TQ-14, and parked TQ-24 to TQ-26 | live owner decisions |
 | [`types/FINDINGS.md`](types/FINDINGS.md), [`PROPOSED_RULES.md`](types/PROPOSED_RULES.md), [`RESEARCH.md`](types/RESEARCH.md) | the open type-rule findings, the draft rule text for them, and the language comparison behind them | back the open type questions |
 
-On 2026-09-29 the prototype passes 1,336 of the 1,403 conformance cases, all of
-them selected in `test/portable/cases.tsv`. The other 67 are listed in
+On 2026-09-29 the prototype passes 1,336 of the 1,408 conformance cases, all of
+them selected in `test/portable/cases.tsv`. The other 72 are listed in
 `test/portable/KNOWN_FAILURES.tsv`, each tagged with a finding or with a
-decision below; all 67 still fail. Operator Traits OP1-OP9 account for 34
+decision below; all 72 still fail. Operator Traits OP1-OP9 account for 34
 of them: the prototype has no operator, assign, index, or numeric traits,
-no compound assignment, and no supertrait bindings.
+no compound assignment, and no supertrait bindings. The iterator adapters
+(STD14) account for 5.
 
 ## Specification Follow-Ups
 
@@ -56,6 +57,7 @@ Revision Notes in `spec/README.md` are the record.
 | RU15 | Every least-common-type site takes the union row. The prototype does so for `if`, `match`, closure results, and omitted function results, but a function whose result is a function type with a row fails Wasm validation: its signature string `fn(bool)->fn()->string$Clock+Db` reads the inner row as the outer function's. So `row-union-closure-result-runs.hd` type-checks and cannot run. The fault predates RU15: an explicit `-> (fn() -> string $ Db)` result fails the same way. |
 | DC7 | The top-level statements of an initialization group run in dependency order, then by module identity and source position. The package linker joins a group's modules by identity and cannot interleave their statements, so a read that needs a later-joined module's binding is `top-level-read-before-initialization`. No fixture covers it, because the fixture format has no multi-file environment. |
 | OP1-OP9 | Operator Traits: `std.ops` operator, assign, and `Index`/`IndexSet` traits, compound assignment, supertrait bindings, and the sealed `std.num` traits `Num`, `Integer`, and `Float`. The prototype implements none of them: it declares no such traits, its parser has no compound assignment and rejects a supertrait binding, it still rejects floating `%`, and its `@num_suffix` shape check still requires a primitive parameter. Each fixture is tagged with its decision in `KNOWN_FAILURES.tsv`. |
+| STD14 | STDLIB question 14: `filter`, `take`, `enumerate`, and `collect` are default methods of the prelude `Iterator[T]`, and a negative `take` count panics. The prototype's prelude `Iterator` declares only `next`, and its `std.iter` keeps the adapters as free functions, so every fixture reports `unknown-method`. |
 | M29 | A `Self` line in a per-trait derivation block warns `unused-derivation-fact` when the fact's package does not supply the block's trait. The fixture needs a second package, and the prototype CLI has no package roles. The other M29 rules, and M27 and M28, are implemented. |
 
 The shape intrinsics (K1) pass their fixtures and run: `shape[T]()` and
